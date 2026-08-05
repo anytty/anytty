@@ -81,7 +81,7 @@ tasks.named("preBuild").configure {
 }
 
 configurations.configureEach {
-    resolutionStrategy.force 'org.slf4j:slf4j-api:2.0.6', 'org.slf4j:slf4j-nop:2.0.6'
+    resolutionStrategy.force 'org.slf4j:slf4j-api:2.0.18', 'org.slf4j:slf4j-nop:2.0.18'
 }
 
 dependencies {
@@ -89,7 +89,7 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
     implementation 'org.java-websocket:Java-WebSocket:1.5.6'
-    implementation 'org.slf4j:slf4j-nop:2.0.6'
+    implementation 'org.slf4j:slf4j-nop:2.0.18'
     implementation 'com.google.protobuf:protobuf-java:3.25.5'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
     implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
@@ -111,7 +111,7 @@ def verifyReleaseSlf4j = tasks.register("verifyReleaseSlf4j") {
             .findAll { module -> module != null && module.group == 'org.slf4j' }
             .collect { module -> "${module.name}:${module.version}" }
             .toSet()
-        def expected = ['slf4j-api:2.0.6', 'slf4j-nop:2.0.6'].toSet()
+        def expected = ['slf4j-api:2.0.18', 'slf4j-nop:2.0.18'].toSet()
         if (actual != expected) {
             throw new GradleException("release SLF4J modules must be ${expected}, got ${actual}")
         }
