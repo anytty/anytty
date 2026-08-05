@@ -1,0 +1,474 @@
+# tui 标准配置模板
+#
+# 推荐保存位置：
+#   $XDG_CONFIG_HOME/anytty/tui-v3.yaml
+#   或 ~/.config/anytty/tui-v3.yaml
+#
+# 说明：
+# - 这份文件是当前运行时可直接加载的完整模板。
+# - 空字符串 "" 表示使用 v3 内置默认值、host theme 推导值或派生值。
+# - 颜色第一阶段只使用 "#RRGGBB"。示例："#d65cff"。
+# - terminal 内容自己的 ANSI 颜色不会被这里的 TUI theme 重映射。
+
+# 配置 schema 版本。
+# 默认值：1。
+# 当前实现设计只接受版本 1；后续 schema 变更再新增版本，不做旧格式迁移兼容。
+# 示例：version: 1
+version: 1
+
+# daemon 控制本机 AnyTTY daemon 的运行策略，不属于 TUI 展示偏好。
+# history 旧格式不会迁移；升级后的首次 daemon 启动会直接删除旧 history 文件。
+daemon:
+  output_buffer:
+    # 每个 terminal generation 的内存输出缓冲上限，单位 byte。
+    # 默认值：33554432（32 MiB）；允许 65536 到 268435456。
+    capacity_bytes: 33554432
+
+    # 缓冲满时的行为。
+    # block：减慢 PTY 读取，保留连续输出；drop：丢弃旧 payload 并产生显式 gap。
+    # 可选值：block、drop。默认值：block。
+    overflow: block
+
+    # 当前 daemon 所有 terminal 输出缓冲的共享 resident budget，单位 byte。
+    # 默认值：536870912（512 MiB）；允许 65536 到 2147483648。
+    resident_budget_bytes: 536870912
+
+  history:
+    # 每个 terminal 的历史文件物理上限，单位 MiB。超限时淘汰最旧压缩块。
+    # 默认值：512。设为 0 表示不设上限。
+    max_size_mb: 512
+
+    # 自动删除早于指定天数的历史块。默认值：0，表示不按天数删除。
+    max_age_days: 0
+
+    # 历史块编码。s2 偏向最低 CPU；zstd 偏向更高压缩率；none 只使用紧凑编码。
+    # 可选值：zstd、s2、none。默认值：zstd。
+    compression: zstd
+
+    # 压缩档位。fast CPU 最低；balanced 平衡吞吐与体积；best 优先压缩率。
+    # 可选值：fast、balanced、best。默认值：fast。none 下此项不生效。
+    compression_level: fast
+
+# tui 是当前 TUI 客户端的用户偏好配置根节点。
+# 它只控制当前客户端的视觉、交互和快捷键，不保存 workspace/tab/pane 布局，不保存 terminal lifecycle。
+tui:
+  # profile 是预留的配置 profile 名称。
+  # 默认值：default。
+  # 第一阶段只读取名称，不做多 profile merge；后续可以用它支持不同使用场景。
+  # 示例：profile: work
+  profile: default
+
+  # theme 控制 TUI chrome 的颜色 token。
+  # 它影响 header、footer、pane border、overlay、toast、picker、navigator、selection/focus 等 UI 元素。
+  # 它不影响 terminal 输出内容自己的 ANSI 前景色和背景色。
+  theme:
+    # mode 选择内置亮暗基线。
+    # 默认值：dark。
+    # 可选值：dark、light、system。
+    # 当前第一阶段里 system 等同 host-aware dark；后续可接宿主系统主题。
+    # 示例：mode: light
+    mode: dark
+
+    # palette 决定默认主题是否从宿主终端 palette 推导。
+    # 默认值：host。
+    # 可选值：host、builtin。
+    # host：先读取宿主 foreground/background/palette，再叠加用户显式颜色。
+    # builtin：完全使用 AnyTTY 内置颜色，再叠加用户显式颜色。
+    # 示例：palette: builtin
+    palette: host
+
+    # primary 是主色。
+    # 默认值：""，表示使用 host palette 5 或内置主色，当前内置值为 "#a970ff"。
+    # 用途：active pane border、当前选中项、focus marker、主快捷键 token、重要 CTA。
+    # 示例：primary: "#d65cff"
+    primary: ""
+
+    # secondary 是次色。
+    # 默认值：""，表示使用 host palette 4 或内置信息色，当前内置值为 "#7ab8ff"。
+    # 用途：次级强调、信息型标签、preview 轻量强调、非破坏性辅助动作。
+    # 示例：secondary: "#66e3ff"
+    secondary: ""
+
+    # foreground 是 TUI chrome 的默认前景色。
+    # 默认值：""，表示使用 host foreground 或内置 foreground。
+    # 用途：普通 UI 文本、panel 标题、overlay 正文。
+    # 示例：foreground: "#e7e2ef"
+    foreground: ""
+
+    # background 是 TUI chrome 的默认背景色。
+    # 默认值：""，表示使用 host background 或内置 background。
+    # 用途：shell 背景、派生 chrome/status/overlay/toast 背景。
+    # 示例：background: "#050507"
+    background: ""
+
+    # muted 是弱化色。
+    # 默认值：""，表示使用 host palette 8 或内置 muted。
+    # 用途：inactive、disabled、弱文本、未选中边框、辅助分隔线。
+    # 示例：muted: "#77717f"
+    muted: ""
+
+    # success 是成功/运行正常的语义色。
+    # 默认值：""，表示使用 host palette 2 或内置 success。
+    # 用途：running、attached、成功 toast、可用状态点。
+    # 示例：success: "#8adf7a"
+    success: ""
+
+    # warning 是警告/搜索命中的语义色。
+    # 默认值：""，表示使用 host palette 3 或内置 warning。
+    # 用途：搜索命中字母、高亮警告、需要注意但不阻断的状态。
+    # 示例：warning: "#f0c45c"
+    warning: ""
+
+    # danger 是危险/错误/破坏性动作的语义色。
+    # 默认值：""，表示使用 host palette 1 或内置 danger。
+    # 用途：error、close/delete/kill、失败 toast、退出异常状态。
+    # 示例：danger: "#ff6b6b"
+    danger: ""
+
+    # info 是信息提示语义色。
+    # 默认值：""，表示使用 secondary，或 host palette 4 / 内置 info。
+    # 用途：信息标签、非焦点提示、辅助状态。
+    # 示例：info: "#7ab8ff"
+    info: ""
+
+    # border 控制 pane、overlay、navigator 等边框 token。
+    # 留空时由 primary/muted/background 派生，保持全局主题一致。
+    border:
+      # panel 是普通 panel 边框色。
+      # 默认值：""，表示从 muted 和 primary 混合派生。
+      # 用途：普通 pane、overlay 外框、split-line 外框。
+      # 示例：panel: "#9b93a6"
+      panel: ""
+
+      # active 是当前 active pane 或当前 focus item 的边框色。
+      # 默认值：""，表示使用 primary。
+      # 用途：active pane border、当前选中区域边框、navigator active preview。
+      # 示例：active: "#d65cff"
+      active: ""
+
+      # inactive 是非 active pane 的边框/弱状态色。
+      # 默认值：""，表示使用 muted。
+      # 用途：inactive pane border、未选中 floating、非焦点 preview。
+      # 示例：inactive: "#5b5663"
+      inactive: ""
+
+      # muted 是更弱的边框色。
+      # 默认值：""，表示使用 muted。
+      # 用途：内部分割线、次级框线、disabled outline。
+      # 示例：muted: "#4b4754"
+      muted: ""
+
+    # surface 控制 chrome 类背景 token。
+    # 留空时从 background 和 foreground 混合派生，避免出现一整套割裂的背景颜色。
+    surface:
+      # chrome_bg 是 header、tab strip、panel chrome 的背景色。
+      # 默认值：""，表示从 background 派生。
+      # 示例：chrome_bg: "#111016"
+      chrome_bg: ""
+
+      # status_bg 是 footer/status bar 的背景色。
+      # 默认值：""，表示从 background 派生。
+      # 示例：status_bg: "#08080d"
+      status_bg: ""
+
+      # overlay_bg 是 modal、picker、navigator 等浮层背景色。
+      # 默认值：""，表示从 background 派生。
+      # 示例：overlay_bg: "#14121b"
+      overlay_bg: ""
+
+      # toast_bg 是右上角 toast/message 的背景色。
+      # 默认值：""，表示从 background 派生。
+      # 示例：toast_bg: "#15131d"
+      toast_bg: ""
+
+  # chrome 控制 TUI 外层 chrome 的布局和显示方式。
+  # 它只影响展示，不改变 workspace/tab/pane/floating 的结构 truth。
+  chrome:
+    # header 控制顶部 workspace/tab 栏是否显示。
+    # 默认值：true。
+    # false 时 body 会获得更多空间；关键状态必须进入 toast/help，不能直接丢失。
+    # 示例：header: false
+    header: true
+
+    # footer 控制底部 mode/status/hints 栏是否显示。
+    # 默认值：true。
+    # false 时快捷键提示会减少，但 mode 仍应能通过 toast/help 被识别。
+    # 示例：footer: false
+    footer: true
+
+    # panel_presentation 控制 tiled pane 的视觉布局。
+    # 默认值：split-line。
+    # 可选值：split-line、card。
+    # split-line：相邻 pane 共享细分割线，更接近 tmux，内容利用率高。
+    # card：每个 pane 有独立完整边框，可读性更强。
+    # 这个选项不能改变 pane id、terminal binding、active pane 或 copy mode 绑定。
+    # 示例：panel_presentation: card
+    panel_presentation: split-line
+
+    # tab_create_icon 是 tab strip 上创建新 tab 的图标。
+    # 默认值："+"；也可以显式配置终端可显示的短文本或任意字形。
+    # Nerd Font opt-in（仅在用户确认字体支持时）：tab_create_icon: "󰐕"
+    tab_create_icon: "+"
+
+    # tab_create_template 控制创建 tab 按钮的完整格式。
+    # 默认值为空，表示使用内置按钮格式。
+    # 可用变量/函数：{{create_icon}}、fg、bg、style、action、end_style。
+    # 示例：tab_create_template: "[fg:#050507;bg:#8ffcff] {{create_icon}} [reset]"
+    tab_create_template: ""
+
+    # workspace_template 控制 header 左侧 workspace 槽位。
+    # 默认值使用主题派生色做一个紧凑槽位，点击区域仍是打开 Workbench Navigator。
+    # 可用变量/函数：
+    # - {{workspace}} / {{workspace_id}} / {{title}}：当前 workspace 展示名。
+    # - {{workspace | truncate 18}} 按 terminal cell 宽度裁切。
+    # - 可使用和 tab_template 相同的 [style:...]、[fg:#RRGGBB]、[reset] span。
+    # 这个模板只影响展示，不保存或修改 workspace truth。
+    # 示例：workspace_template: "[style:header-workspace] WS {{workspace | truncate 18}} [/style][style:header-spacer] [/style]"
+    workspace_template: "[style:header-workspace] WS {{workspace | truncate 18}} [/style][style:header-spacer] [/style]"
+
+    # tab_template 控制 header tab 的格式。
+    # 默认值使用主题派生色突出 active tab；active/inactive 分支保持相同 cell 宽度，避免切换时跳动。
+    # 表达式语法使用 Go text/template：
+    # - {{tab_id}} / {{index}} / {{title}} / {{marker}} / {{close_icon}} 插入变量。
+    # - {{if active}}▎{{else}}|{{end}} 做 active 条件分支。
+    # - {{title | truncate 12}} 按 terminal cell 宽度裁切。
+    # - {{fg "#ffffff"}} / {{bg "#332244"}} / {{style "header-active-title"}} 可从模板生成 span。
+    # AnyTTY span 语法在模板执行后解析：
+    # - [fg:#ffffff;bg:#332244;font:bold] 切换后续片段的显式 SGR 颜色/字形。
+    # - [style:header-active-title] 切换到内置 style token；[/style] 恢复当前 tab 默认样式。
+    # - [action:tab.close]...[/action] 把片段绑定到 close action；未标注 action 的片段默认切换 tab。
+    # 示例：tab_template: "{{if active}}[style:header-active-edge] [/style][style:header-active-marker]{{marker}}[/style][style:header-active-index] {{index}}[/style][style:header-active-title] {{title | truncate 14}} [/style][action:tab.close][style:header-active-close]{{close_icon}}[/style][/action][style:header-active-edge] [/style]{{else}}[style:header-spacer] [/style][style:header-spacer]{{marker}}[/style][style:header-inactive-index] {{index}}[/style][style:header-inactive-title] {{title | truncate 14}} [/style][action:tab.close][style:header-inactive-close]{{close_icon}}[/style][/action][style:header-spacer] [/style]{{end}}"
+    tab_template: "{{if active}}[style:header-active-edge] [/style][style:header-active-marker]{{marker}}[/style][style:header-active-index] {{index}}[/style][style:header-active-title] {{title | truncate 14}} [/style][action:tab.close][style:header-active-close]{{close_icon}}[/style][/action][style:header-active-edge] [/style]{{else}}[style:header-spacer] [/style][style:header-spacer]{{marker}}[/style][style:header-inactive-index] {{index}}[/style][style:header-inactive-title] {{title | truncate 14}} [/style][action:tab.close][style:header-inactive-close]{{close_icon}}[/style][/action][style:header-spacer] [/style]{{end}}"
+
+    # pane_title_template 控制 pane/floating 顶部 terminal 标题。
+    # 默认值：""，表示使用内置标题：优先 terminal pool 名称，其次 pane title，最后 terminal id。
+    # 可用变量/函数：
+    # - {{terminal}} / {{terminal_title}}：terminal pool 名称或 fallback 标题。
+    # - {{endpoint}} / {{endpoint_label}}：endpoints.yaml 中的机器展示名，缺失时为 endpoint id。
+    # - {{terminal_id}} / {{endpoint_id}} / {{pane}} / {{pane_title}}。
+    # - {{terminal | truncate 16}} 按 terminal cell 宽度裁切。
+    # 这个模板只影响展示，不改变 EndpointID + TerminalID 路由。
+    # 示例：pane_title_template: "{{terminal}}@{{endpoint}}"
+    pane_title_template: ""
+
+    # pane_glyphs 控制 pane/floating chrome 右上角 action、状态标记和左右装饰。
+    # glyph 字段默认值为 ""，表示使用内置 glyph。
+    # action_left/action_right/action_group_left/action_group_right 是模板字段；
+    # 没写表示使用内置默认，显式写成 "" 表示隐藏对应部分。
+    # 模板支持 {{glyph}}、{{action_id}}、{{label}}、{{index}}、{{count}}、{{first}}、{{last}}、{{active}}、{{not_active}}、{{is_zoom_mode}}、{{not_zoom_mode}}，
+    # 并支持和 tab_template 一样的 [fg:#RRGGBB;bg:#RRGGBB;font:bold] / [style:accent] / [reset] span。
+    # Nerd Font opt-in 示例（仅在用户确认字体支持时）：
+    # action_left: " "
+    # action_right: " "
+    # action_separator: ""
+    # action_group_left: "[fg:{{if active}}#8ffcff{{else}}#ff6bff{{end}}][fg:#071112;bg:{{if active}}#8ffcff{{else}}#ff6bff{{end}};font:bold]"
+    # action_group_right: "[reset][fg:{{if active}}#8ffcff{{else}}#ff6bff{{end}}][reset]"
+    # owner_left: "[fg:#8ffcff][fg:#071112;bg:#8ffcff;font:bold] "
+    # owner_right: " [reset][fg:#8ffcff][reset]"
+    # owner: "owner"
+    # owner_pending: "owner?"
+    # take_owner: "follow"
+    # overflow_left/right/top/bottom 控制内容裁切提示在四边 chrome 上的 glyph。
+    # overflow_style、extent_placeholder_style 可写内置 style token 或 #RRGGBB。
+    # overflow_left: "‹"
+    # overflow_right: "›"
+    # overflow_top: "˄"
+    # overflow_bottom: "˅"
+    # overflow_style: "#c7c7c7"
+    # extent_placeholder: "·"
+    # extent_placeholder_style: "#a8a8a8"
+    pane_glyphs:
+      zoom: ""
+      unzoom: ""
+      split_vertical: ""
+      split_horizontal: ""
+      close: ""
+      size_lock: ""
+      size_unlock: ""
+      center_floating: ""
+      collapse_floating: ""
+      running: ""
+      waiting: ""
+      exited: ""
+      killed: ""
+
+  # footer 控制底部 mode badge、action token 和状态摘要的展示文案。
+  # 它只改变显示顺序、图标、label、style 和可点击 action id，不改变键盘路由 truth。
+  # 是否显示 footer 仍由 tui.chrome.footer 控制。
+  footer:
+    templates:
+      # mode_badge 控制左侧 mode 徽标。
+      # 可用占位符：{{mode}}、{{mode_icon}}、{{mode_label}}。
+      # 默认值："{{mode_icon}} {{mode_label}}"。
+      mode_badge: "{{mode_icon}} {{mode_label}}"
+
+      # key 控制每个 action 的 key block。
+      # 可用占位符：{{key}}。
+      # 默认值："{{key}}"，会渲染成结构化 key token，例如 [Ctrl] • [W]。
+      # 设为 "" 时隐藏 key block，只显示 action 的 icon/label，同时保留 click hit region。
+      key: "{{key}}"
+
+      # action 控制每个 action key 后面的展示内容。
+      # 当前 key 仍由 renderer 画成稳定的 [Ctrl] • [P] 结构，模板里的 {{key}} 只作为兼容占位符。
+      # 可用占位符：{{key}}、{{icon}}、{{label}}、{{action}}。
+      # 默认值："{{key}} {{icon}} {{label}}"。
+      action: "{{key}} {{icon}} {{label}}"
+
+      # separator 控制 action token 之间的分隔符；留空时使用内置分隔符。
+      # 默认值：" │ "。
+      separator: " │ "
+
+      # workspace_summary 控制右侧 workspace 摘要。
+      # 可用占位符：{{workspace}}、{{value}}。
+      # 默认值："ws:{{workspace}}"。
+      workspace_summary: "ws:{{workspace}}"
+
+      # floating_summary / floating_collapsed_summary 控制 floating 计数摘要。
+      # 可用占位符：{{count}}、{{value}}。
+      # 默认值："float:{{count}}" / "collapsed:{{count}}"。
+      floating_summary: "float:{{count}}"
+      floating_collapsed_summary: "collapsed:{{count}}"
+
+      # terminals_summary 控制 terminal 计数摘要。
+      # 可用占位符：{{count}}、{{value}}。
+      # 默认值："terminals:{{count}}"。
+      terminals_summary: "terminals:{{count}}"
+
+      # tabs_summary / panes_summary 是兼容旧手写 FooterVM 和调试摘要的模板。
+      # 可用占位符：{{count}}、{{value}}。
+      # 默认值："tabs:{{count}}" / "panes:{{count}}"。
+      tabs_summary: "tabs:{{count}}"
+      panes_summary: "panes:{{count}}"
+
+      # keylock_on 控制全局快捷键锁开启时右侧摘要里的显示文本。
+      # 默认值："LOCK"。
+      keylock_on: "LOCK"
+
+      # keylock_off 当前预留；关闭时 footer 默认不显示 keylock token。
+      # 默认值：""。
+      keylock_off: ""
+
+    # modes.<name> 只控制某个 footer mode 的 badge。
+    # name 可写 live、pane、resize、tab、workspace、floating、global、copy，
+    # 也可写 overlay mode，例如 terminal-picker、terminal-pool、workbench-tree、clipboard-history。
+    # footer action、快捷键和文案统一由 tui.shortcuts 生成。
+    # Nerd Font opt-in 示例（仅在用户确认字体支持时）：
+    # modes:
+    #   live:
+    #     icon: "󰆍"
+    #     label: "TERM"
+    #     style: footer-accent
+    #   resize:
+    #     icon: "󰙖"
+    #     label: "SIZE"
+    #     style: footer-key-resize
+    modes:
+
+  # interaction 控制当前 TUI 客户端的交互细节。
+  # 这些配置是用户偏好，不进入 workbench storage，也不表达 terminal 状态。
+  interaction:
+    # mouse 控制是否启用宿主终端鼠标模式和 hit region。
+    # 默认值：true。
+    # false 时点击 header/tab/pane/overlay 不触发鼠标 action，只保留键盘交互。
+    # 示例：mouse: false
+    mouse: true
+
+    # sticky_prefix_timeout_ms 控制 sticky shortcut mode 的空闲退出时间。
+    # 默认值：3000。
+    # 单位：毫秒。
+    # 只作用于 pane/resize/tab/workspace/floating/global 这类前缀模式。
+    # 不作用于 terminal picker、prompt、clipboard history、copy/history 等显式 overlay 页面。
+    # 示例：sticky_prefix_timeout_ms: 5000
+    sticky_prefix_timeout_ms: 3000
+
+    # shortcut_passthrough_interval_ms 控制入口键双击透传窗口。
+    # 默认值：1000。
+    # 单位：毫秒，必须大于 0。
+    # 例子：ctrl-w 进入 workspace mode 后，在 1000ms 内再按 ctrl-w 会透传一次 ctrl-w 给 terminal。
+    # 例子：ctrl-v 进入 copy/history 后，在 1000ms 内再按 ctrl-v 会退出 copy/history 并透传一次 ctrl-v。
+    # 超过窗口后再次按入口键只按普通 TUI shortcut 路由，不会透传给 terminal。
+    # 示例：shortcut_passthrough_interval_ms: 700
+    shortcut_passthrough_interval_ms: 1000
+
+    # confirm_destructive 控制破坏性动作是否需要确认。
+    # 默认值：true。
+    # 影响：close/delete/kill/remove workspace 等可能丢状态或终止进程的动作。
+    # 示例：confirm_destructive: false
+    confirm_destructive: true
+
+    # clipboard_history 控制剪贴板历史 overlay 的展示和本地上限。
+    # 注意：剪贴板历史内容本身由 core 托管 storage 保存，这里不保存具体条目。
+    clipboard_history:
+      # max_items 是剪贴板历史最多保留/展示的条目数。
+      # 默认值：200。
+      # 后续实现可以在写入 core storage 前按这个值裁剪最旧条目。
+      # 示例：max_items: 500
+      max_items: 200
+
+      # name_width 是剪贴板历史左侧名称/缩写列宽度。
+      # 默认值：34。
+      # 单位：terminal cell。
+      # 用户仍可以在 overlay 内通过鼠标拖拽临时调整左右分栏。
+      # 示例：name_width: 42
+      name_width: 34
+
+      # preview_width_ratio 是剪贴板历史右侧预览区的目标宽度比例。
+      # 默认值：0.68。
+      # 取值建议：0.50 到 0.80。
+      # 实际布局仍会受终端宽度、最小列宽和拖拽分隔符约束。
+      # 示例：preview_width_ratio: 0.72
+      preview_width_ratio: 0.68
+
+    # picker 控制 picker 类 overlay 的搜索行为。
+    picker:
+      # fuzzy_match 控制模糊搜索算法。
+      # 默认值：subsequence。
+      # 可选值：subsequence。
+      # subsequence 表示按顺序子序列匹配，例如输入 "gft" 可以命中 "git commit fix terminal"。
+      # 示例：fuzzy_match: subsequence
+      fuzzy_match: subsequence
+
+      # highlight_matches 控制搜索命中字母是否高亮。
+      # 默认值：true。
+      # true 时命中字母使用 warning token；false 时只过滤列表，不额外着色。
+      # 示例：highlight_matches: false
+      highlight_matches: true
+
+  # shortcuts 是快捷键配置的唯一入口。
+  # 输入路由、footer/help/overlay 提示都从这里生成。
+  # 省略 tui.shortcuts 或写 shortcuts: {} 时使用内置默认 catalog。
+  # 只写 shortcuts.actions 时继承默认 bindings，只覆盖 action 展示文案。
+  # 一旦显式声明任一 scene（包括 global: {}），用户 scene catalog 就完整替换默认 bindings。
+  # 短写：key: action。
+  # 长写：key.action / key.label，用于覆盖单个场景里的展示文案。
+  # 未修饰 Esc 是全局返回保留键，不需要也不允许写入任何 scene。
+  # 示例：
+  # shortcuts:
+  #   actions:
+  #     panel.close:
+  #       label: close
+  #
+  #   global:
+  #     ctrl-p: menu.panel
+  #     ctrl-g: menu.system
+  #     ctrl-o: menu.floating
+  #     ctrl-t: menu.tab
+  #     ctrl-1: tab.jump.1
+  #
+  #   system:
+  #     h: system.toggle_header
+  #     f: system.toggle_footer
+  #     e: system.open_connections
+  #
+  #   panel:
+  #     x: panel.close
+  #
+  #   floating:
+  #     k:
+  #       action: panel.kill_and_close
+  #       label: kill+close
+  #
+  #   connections:
+  #     enter: connections.edit
+  #     space: connections.toggle
+  #     r: connections.refresh

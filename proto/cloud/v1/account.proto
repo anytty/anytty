@@ -1,0 +1,127 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// AccountState 是账号持久状态；只有 active 账号可以登录或持有 refresh token。
+enum AccountState {
+  ACCOUNT_STATE_UNSPECIFIED = 0;
+  ACCOUNT_STATE_PENDING = 1;
+  ACCOUNT_STATE_ACTIVE = 2;
+  ACCOUNT_STATE_DISABLED = 3;
+}
+
+// AccountRole 是 Controller RBAC 的稳定角色，不由浏览器自行推断权限。
+enum AccountRole {
+  ACCOUNT_ROLE_UNSPECIFIED = 0;
+  ACCOUNT_ROLE_USER = 1;
+  ACCOUNT_ROLE_OPERATOR = 2;
+  ACCOUNT_ROLE_ADMIN = 3;
+}
+
+// AccountProfile 是账号持久投影，不包含密码 verifier 或 token secret。
+message AccountProfile {
+  string account_id = 1;
+  string email = 2;
+  string display_name = 3;
+  AccountState state = 4;
+  uint64 revision = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// AccountTokenCredential 只在登录或轮换 refresh token 时返回原始 token。
+message AccountTokenCredential {
+  string refresh_id = 1;
+  string access_token = 2;
+  bytes refresh_token = 3;
+  google.protobuf.Timestamp access_expires_at = 4;
+  google.protobuf.Timestamp refresh_expires_at = 5;
+  bytes csrf_token = 6;
+}
+
+message LoginAccountRequest {
+  string login = 1;
+  string password = 2;
+}
+
+message LoginAccountResponse {
+  AccountProfile account = 1;
+  repeated AccountRole roles = 2;
+  AccountTokenCredential credential = 3;
+}
+
+message RefreshAccountTokenRequest { bytes refresh_token = 1; }
+
+message RefreshAccountTokenResponse {
+  AccountProfile account = 1;
+  repeated AccountRole roles = 2;
+  AccountTokenCredential credential = 3;
+}
+
+message LogoutAccountRequest { bool all_refresh_tokens = 1; }
+
+message LogoutAccountResponse {}
+
+message GetCurrentAccountRequest {}
+
+message GetCurrentAccountResponse {
+  AccountProfile account = 1;
+  repeated AccountRole roles = 2;
+  google.protobuf.Timestamp recent_auth_expires_at = 3;
+}
+
+message VerifyRecentAuthenticationRequest { string password = 1; }
+
+message VerifyRecentAuthenticationResponse {
+  google.protobuf.Timestamp expires_at = 1;
+  AccountTokenCredential credential = 2;
+}
+
+// AccountRefreshTokenProjection 是用户可见的持久登录凭据元数据，不包含 token 摘要或原始值。
+message AccountRefreshTokenProjection {
+  string refresh_id = 1;
+  bool current = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  google.protobuf.Timestamp recent_auth_expires_at = 5;
+  uint64 revision = 6;
+}
+
+message ListAccountRefreshTokensRequest {}
+message ListAccountRefreshTokensResponse { repeated AccountRefreshTokenProjection refresh_tokens = 1; }
+
+message ChangeAccountPasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+message ChangeAccountPasswordResponse { AccountProfile account = 1; }
+
+message RedeemAccountSetupRequest {
+  string setup_credential = 1;
+  string new_password = 2;
+}
+message RedeemAccountSetupResponse {
+  AccountProfile account = 1;
+  repeated AccountRole roles = 2;
+  AccountTokenCredential credential = 3;
+}
+
+message RevokeAccountRefreshTokenRequest { string refresh_id = 1; }
+message RevokeAccountRefreshTokenResponse {}
+
+// AccountService 是账号、credential、Access JWT 和 Refresh token 的唯一公共应用 API。
+service AccountService {
+  rpc Login(LoginAccountRequest) returns (LoginAccountResponse);
+  rpc Refresh(RefreshAccountTokenRequest) returns (RefreshAccountTokenResponse);
+  rpc Logout(LogoutAccountRequest) returns (LogoutAccountResponse);
+  rpc GetCurrent(GetCurrentAccountRequest) returns (GetCurrentAccountResponse);
+  rpc VerifyRecentAuthentication(VerifyRecentAuthenticationRequest) returns (VerifyRecentAuthenticationResponse);
+  rpc ListRefreshTokens(ListAccountRefreshTokensRequest) returns (ListAccountRefreshTokensResponse);
+  rpc ChangePassword(ChangeAccountPasswordRequest) returns (ChangeAccountPasswordResponse);
+  rpc RedeemAccountSetup(RedeemAccountSetupRequest) returns (RedeemAccountSetupResponse);
+  rpc RevokeRefreshToken(RevokeAccountRefreshTokenRequest) returns (RevokeAccountRefreshTokenResponse);
+}

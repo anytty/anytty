@@ -1,0 +1,12 @@
+---
+import { LandingPage } from '@/components/landing-page'
+import BaseLayout from '@/layouts/BaseLayout.astro'
+
+const description = '面向用户自有 daemon 的开源 CLI、TUI、Android 与 iOS 远程终端和文件客户端。'
+const structuredData = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'AnyTTY', applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Android, iOS', isAccessibleForFree: true, license: 'https://www.apache.org/licenses/LICENSE-2.0', codeRepository: 'https://github.com/lozzo/anytty' }
+---
+
+<BaseLayout locale="zh-CN" description={description} pathname="/zh-CN/">
+  <script is:inline slot="head" type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  <LandingPage locale="zh-CN" />
+</BaseLayout>

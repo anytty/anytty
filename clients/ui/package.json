@@ -1,0 +1,60 @@
+{
+  "name": "@anytty/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./modal": "./src/ui/ModalSurface.tsx",
+    "./primitives": "./src/ui/primitives.tsx",
+    "./design-system.css": "./src/ui/design-system.css",
+    "./styles.css": "./src/entries/appStyles.css"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "proto": "node ../../scripts/generate-ui-proto.mjs",
+    "proto:api": "node ../../scripts/generate-ui-proto.mjs api",
+    "proto:wire": "node ../../scripts/generate-ui-proto.mjs wire",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "2.12.0",
+    "@file-viewer/vite-plugin": "^2.2.5",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "autoprefixer": "10.5.0",
+    "jsdom": "27.4.0",
+    "postcss": "8.5.23",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3",
+    "vite": "8.1.5",
+    "vitest": "4.1.5"
+  },
+  "peerDependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.12.0",
+    "@file-viewer/react": "^2.2.5",
+    "@file-viewer/renderer-3d": "^2.2.5",
+    "@file-viewer/renderer-media": "^2.2.5",
+    "@file-viewer/renderer-pdf": "^2.2.5",
+    "@file-viewer/renderer-spreadsheet": "^2.2.5",
+    "@file-viewer/renderer-text": "^2.2.5",
+    "@file-viewer/renderer-word": "^2.2.5",
+    "@xterm/addon-canvas": "0.7.0",
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/addon-webgl": "0.18.0",
+    "@xterm/xterm": "5.5.0",
+    "i18next": "^26.3.6",
+    "lucide-react": "1.14.0",
+    "react-i18next": "^17.0.9"
+  }
+}

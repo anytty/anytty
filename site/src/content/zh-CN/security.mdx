@@ -1,0 +1,22 @@
+---
+title: 安全模型
+description: AnyTTY 的信任锚、权限边界、配对与 fail-closed 行为。
+---
+
+# 安全模型
+
+daemon 拥有保护终端与文件的身份和授权决定。传输或托管策略可以拒绝可达性，但不能提升客户端从 daemon 获得的 capability。
+
+## 安全不变量
+
+- pairing claim 与 enrollment 材料短期、一次性并拒绝重放。
+- capability grant 绑定客户端身份并由 daemon 执行。
+- Cloud AgentGateway 与 ClientGateway 使用 challenge-first proof 认证。
+- Cloud policy 缺失或不一致时 fail closed。
+- 终端与文件内容不属于 Controller 的权限范围。
+
+## 报告漏洞
+
+不要创建公开 issue。请使用 [GitHub 私密漏洞报告](https://github.com/lozzo/anytty/security/advisories/new)，并用新生成的测试凭据提供最小复现。不要包含真实密钥、pairing claim、grant、终端内容或个人数据。
+
+继续阅读完整[安全策略](https://github.com/lozzo/anytty/blob/main/docs/zh-CN/SECURITY.md)与[架构](https://github.com/lozzo/anytty/blob/main/ARCHITECTURE.md)。

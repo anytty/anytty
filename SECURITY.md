@@ -1,0 +1,17 @@
+# Security Policy
+
+AnyTTY is pre-release and has no supported versions, vulnerability bounty, or guaranteed response time.
+
+Please use [GitHub private vulnerability reporting](https://github.com/lozzo/anytty/security/advisories/new) for security issues. Do not
+open a public issue containing exploit details, credentials, pairing material,
+terminal content, or private user data.
+
+The daemon is the final authority for terminal, file, device identity, and
+client permissions. Cloud services provide discovery, signaling, policy, and
+Relay transport, but cannot grant terminal or file capabilities. Review
+`ARCHITECTURE.md` and `docs/PAIRING_PROTOCOL.md` for the trust boundaries.
+
+Reports should include the affected version, prerequisites, a minimal
+reproduction using generated test credentials, impact, and known mitigations.
+
+Maintainers will acknowledge and triage reports as capacity permits, coordinate remediation privately, and agree on disclosure timing with the reporter. Do not assume a fix or disclosure date until a maintainer confirms it. General support and service account questions belong in the channels listed in `SUPPORT.md`.

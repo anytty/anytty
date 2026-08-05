@@ -1,0 +1,649 @@
+syntax = "proto3";
+
+package anytty.remote.auth.v1;
+
+option go_package = "github.com/anytty/anytty/proto/remoteauthpb";
+
+// AuthErrorCode 是端到端授权失败时允许返回给对端的稳定分类。
+// detail 必须脱敏，不能暴露 grant 是否对应某个已存在 terminal。
+enum AuthErrorCode {
+  AUTH_ERROR_CODE_UNSPECIFIED = 0;
+  AUTH_ERROR_CODE_PROTOCOL = 1;
+  AUTH_ERROR_CODE_DEVICE_IDENTITY_MISMATCH = 2;
+  AUTH_ERROR_CODE_CAPABILITY_INVALID = 3;
+  AUTH_ERROR_CODE_CAPABILITY_EXPIRED = 4;
+  AUTH_ERROR_CODE_CAPABILITY_REVOKED = 5;
+  AUTH_ERROR_CODE_CAPABILITY_PROOF_INVALID = 6;
+  AUTH_ERROR_CODE_SCOPE_INVALID = 7;
+  AUTH_ERROR_CODE_REPLAYED = 8;
+  AUTH_ERROR_CODE_INTERNAL = 9;
+  AUTH_ERROR_CODE_SUBJECT_KEY_MISMATCH = 10;
+  AUTH_ERROR_CODE_PAIRING_TICKET_INVALID = 11;
+  AUTH_ERROR_CODE_PAIRING_TICKET_EXPIRED = 12;
+  AUTH_ERROR_CODE_PAIRING_TICKET_CONSUMED = 13;
+}
+
+// ScopeKind 是 capability 成功映射到 core-v2 前的规范化 scope 分类。
+enum ScopeKind {
+  SCOPE_KIND_UNSPECIFIED = 0;
+  SCOPE_KIND_DAEMON = 1;
+  SCOPE_KIND_TERMINAL = 2;
+  SCOPE_KIND_MACHINE_EVENTS = 3;
+}
+
+// ChannelBindingKind 区分实际 transport 提供的安全 channel 证明来源。
+// direct TLS 与 managed WebRTC 共用同一 canonical 结构，但不能互相替换 kind 后重放 proof。
+enum ChannelBindingKind {
+  CHANNEL_BINDING_KIND_UNSPECIFIED = 0;
+  CHANNEL_BINDING_KIND_DIRECT_TLS = 1;
+  CHANNEL_BINDING_KIND_DTLS = 2;
+  CHANNEL_BINDING_KIND_LOCAL_UNIX = 3;
+}
+
+// AuthOpenKind 为客户端签名输入提供明确 domain separation。
+enum AuthOpenKind {
+  AUTH_OPEN_KIND_UNSPECIFIED = 0;
+  AUTH_OPEN_KIND_CAPABILITY = 1;
+  AUTH_OPEN_KIND_PAIRING = 2;
+}
+
+// ChannelBinding 是 transport adapter 从实际 TLS/DTLS/local Unix channel 取得的 SHA-256 binding。
+// binding_hash 固定为 32 bytes；SDP、route 地址或 Cloud signaling 字段不能替代该值。
+message ChannelBinding {
+  ChannelBindingKind kind = 1;
+  bytes binding_hash = 2;
+}
+
+// AuthEnvelope 是 DataChannel protocol 切换前唯一允许出现的 versioned frame。
+// 每条 DataChannel 使用独立 auth_session_id；CapabilityAccepted 后该 envelope 不得再次出现。
+message AuthEnvelope {
+  string protocol = 1;
+  uint32 version = 2;
+  string auth_session_id = 3;
+  oneof payload {
+    DeviceHello device_hello = 4;
+    CapabilityOpen capability_open = 5;
+    CapabilityAccepted capability_accepted = 6;
+    CapabilityRejected capability_rejected = 7;
+    PairingOpen pairing_open = 8;
+    PairingAccepted pairing_accepted = 9;
+  }
+}
+
+// DeviceHello 是 daemon 对长期 DeviceIdentity 和本次实际 transport channel 的联合证明。
+message DeviceHello {
+  string device_id = 1;
+  bytes device_public_key = 2;
+  string device_fingerprint = 3;
+  bytes server_nonce = 4;
+  ChannelBinding channel_binding = 5;
+  int64 issued_at_unix_nano = 6;
+  bytes signature = 7;
+}
+
+// CapabilityOpen 证明 client 持有 grant 对应 ClientAccessIdentity private key，并把 proof 绑定当前 channel。
+// grant 只允许出现在端到端 direct TLS 或 DTLS DataChannel 内，不能进入 cloud signaling DTO。
+message CapabilityOpen {
+  string grant = 1;
+  bytes client_public_key = 2;
+  bytes client_nonce = 3;
+  bytes proof = 4;
+}
+
+// PairingOpen 只能兑换一次性 pairing claim，不能访问 terminal、history、file 或普通 protocol method。
+// client_public_key/proof 先证明目标 ClientAccessIdentity possession，daemon 才允许原子消费 claim。
+message PairingOpen {
+  bytes pairing_claim_offer = 1;
+  bytes client_public_key = 2;
+  string client_label = 3;
+  bytes client_nonce = 4;
+  bytes proof = 5;
+  uint32 client_product = 6;
+}
+
+// ScopeSummary 是 daemon 已接受 capability 的最小无歧义投影。
+message ScopeSummary {
+  ScopeKind kind = 1;
+  string terminal_id = 2;
+  bool manage_client_access = 3;
+}
+
+// ClientAccessScope 是 remote.access 管理 RPC 使用的完整 typed scope。
+// 它与 signed CapabilityGrant scope 一一对应，不通过 Struct 或字符串字段表复制 schema。
+message ClientAccessScope {
+  bool allow_daemon = 1;
+  string terminal_id = 2;
+  bool machine_events_only = 3;
+  bool file_read_metadata = 4;
+  bool file_read_content = 5;
+  bool file_write_content = 6;
+  bool file_mutate = 7;
+  bool manage_client_access = 8;
+}
+
+message ClientAccessIdentityResult {
+  string device_id = 1;
+  string device_fingerprint = 2;
+  bytes device_public_key = 3;
+}
+
+// DeviceIdentityProofInput 是 local/SSH application session 上 daemon fresh identity proof 的 canonical 签名输入。
+// challenge 由客户端为本次连接随机生成；签名只证明当前响应方持有 DeviceIdentity 私钥，不替代 transport authorization。
+message DeviceIdentityProofInput {
+  string domain = 1;
+  bytes challenge = 2;
+  string device_id = 3;
+  string device_fingerprint = 4;
+  bytes device_public_key = 5;
+}
+
+message ClientAccessTicketCreateRequest {
+  string label = 1;
+  ClientAccessScope scope = 2;
+  int64 ticket_ttl_seconds = 3;
+  int64 grant_lifetime_seconds = 4;
+  repeated EndpointRouteConfigV1 routes = 5;
+}
+
+message ClientAccessTicketCreateResult {
+  string ticket_id = 1;
+  int64 expires_at_unix_nano = 2;
+  bytes claim_offer = 3;
+  string claim_code = 4;
+}
+
+message ClientAccessRevokeRequest {
+  string grant_id = 1;
+}
+
+message ClientAccessRecord {
+  string grant_id = 1;
+  string revocation_id = 2;
+  string subject_key_fingerprint = 3;
+  string client_label = 4;
+  ClientAccessScope scope = 5;
+  int64 issued_at_unix_nano = 6;
+  int64 expires_at_unix_nano = 7;
+  int64 revoked_at_unix_nano = 8;
+}
+
+message ClientAccessListResult {
+  repeated ClientAccessRecord records = 1;
+}
+
+// CapabilityAccepted 是 remote auth 到 AnyTTY protocol 的单向切换点。
+message CapabilityAccepted {
+  string grant_id = 1;
+  ScopeSummary scope = 2;
+  string subject_key_fingerprint = 3;
+}
+
+// PairingAccepted 返回本次原子事务已持久化的 client-bound grant 和稳定 delivery receipt。
+// 响应丢失后，相同 ticket 与相同 client key 可以取回完全相同的 grant/receipt；其他 key 必须 fail closed。
+message PairingAccepted {
+  string grant = 1;
+  string delivery_receipt = 2;
+  string subject_key_fingerprint = 3;
+  ScopeSummary scope = 4;
+  bytes pairing_bundle = 5;
+  bytes cloud_route_grant = 6;
+  bytes cloud_edge_locator = 7;
+}
+
+// CapabilityRejected 返回稳定错误类别和固定脱敏消息，随后 channel 必须关闭。
+message CapabilityRejected {
+  AuthErrorCode code = 1;
+  string message = 2;
+}
+
+// DeviceHelloSignatureInput 是 Ed25519 签名的跨平台 canonical protobuf。
+// 所有实现必须拒绝 unknown field，并使用 deterministic protobuf bytes，不得改用 JSON 或字段拼接。
+message DeviceHelloSignatureInput {
+  string protocol = 1;
+  uint32 version = 2;
+  string auth_session_id = 3;
+  string device_id = 4;
+  bytes device_public_key = 5;
+  string device_fingerprint = 6;
+  bytes server_nonce = 7;
+  ChannelBinding channel_binding = 8;
+  int64 issued_at_unix_nano = 9;
+}
+
+// ClientProofInput 是 ClientAccessIdentity Ed25519 签名的跨平台 canonical protobuf。
+// credential_sha256 对 capability 使用原始 grant UTF-8 bytes、对 pairing 使用完整 canonical bootstrap protobuf bytes；open_kind 防止跨状态机重放。
+message ClientProofInput {
+  string protocol = 1;
+  uint32 version = 2;
+  string auth_session_id = 3;
+  bytes server_nonce = 4;
+  bytes client_nonce = 5;
+  ChannelBinding channel_binding = 6;
+  bytes credential_sha256 = 7;
+  bytes client_public_key = 8;
+  AuthOpenKind open_kind = 9;
+}
+
+// DirectSignalingErrorCode 是 daemon embedded signaling 在创建 WebRTC peer 前返回的稳定失败分类。
+// 该错误只描述信令 admission，不替代 DataChannel 内的 DeviceIdentity 与 CapabilityGrant 校验。
+enum DirectSignalingErrorCode {
+  DIRECT_SIGNALING_ERROR_CODE_UNSPECIFIED = 0;
+  DIRECT_SIGNALING_ERROR_CODE_PROTOCOL = 1;
+  DIRECT_SIGNALING_ERROR_CODE_EXPIRED = 2;
+  DIRECT_SIGNALING_ERROR_CODE_REPLAYED = 3;
+  DIRECT_SIGNALING_ERROR_CODE_IDENTITY_MISMATCH = 4;
+  DIRECT_SIGNALING_ERROR_CODE_INTERNAL = 5;
+  DIRECT_SIGNALING_ERROR_CODE_OVERLOADED = 6;
+  DIRECT_SIGNALING_ERROR_CODE_AUTHORIZATION = 7;
+}
+
+// DirectIceCandidate 是 Direct/SSH embedded signaling 使用的 ICE candidate wire contract。
+// candidate 只用于建立 peer，不携带授权材料，也不能成为 Endpoint identity 或 DTLS binding 真值。
+message DirectIceCandidate {
+  string candidate = 1;
+  string sdp_mid = 2;
+  uint32 sdp_mline_index = 3;
+  string username_fragment = 4;
+}
+
+// DirectSignalingRequestV2 是客户端向 daemon embedded signaling 提交的一次性短期 offer。
+// request_id 由客户端安全随机生成；daemon 必须在有效期内原子消费，并在创建 PeerConnection 前校验 Endpoint pin。
+message DirectSignalingRequestV2 {
+  uint32 schema_version = 1;
+  string request_id = 2;
+  string expected_device_id = 3;
+  string expected_device_fingerprint = 4;
+  string offer_sdp = 5;
+  int64 issued_at_unix_nano = 6;
+  int64 expires_at_unix_nano = 7;
+  string grant_id = 8;
+  int64 grant_expires_at_unix_nano = 9;
+  bytes pairing_claim_digest = 10;
+  bytes pairing_client_public_key = 11;
+  int64 pairing_expires_at_unix_nano = 12;
+}
+
+// DirectSignalingAnswerV2 是 daemon 对本次 offer 返回的短期签名 answer。
+// signature 覆盖 DirectSignalingAnswerSignatureInput；客户端必须使用 Endpoint pin 对 identity 和签名同时校验。
+message DirectSignalingAnswerV2 {
+  uint32 schema_version = 1;
+  string request_id = 2;
+  EndpointDaemonIdentity identity = 3;
+  string answer_sdp = 4;
+  repeated DirectIceCandidate candidates = 5;
+  int64 issued_at_unix_nano = 6;
+  int64 expires_at_unix_nano = 7;
+  bytes signature = 8;
+}
+
+// DirectSignalingAnswerSignatureInput 是 daemon DeviceIdentity 对 Direct answer 签名的 canonical protobuf。
+// answer.signature 必须在构造该输入前清空；deterministic protobuf bytes 是唯一签名输入。
+message DirectSignalingAnswerSignatureInput {
+  string protocol = 1;
+  uint32 version = 2;
+  DirectSignalingAnswerV2 answer = 3;
+}
+
+// DirectSignalingErrorV2 返回不含内部状态的信令失败；错误响应后当前 TCP connection 必须关闭。
+message DirectSignalingErrorV2 {
+  DirectSignalingErrorCode code = 1;
+  string message = 2;
+}
+
+// DirectSignalingResponseV2 是 embedded signaling 每条 TCP connection 唯一允许返回的响应。
+message DirectSignalingResponseV2 {
+  oneof payload {
+    DirectSignalingAnswerV2 answer = 1;
+    DirectSignalingErrorV2 error = 2;
+  }
+}
+
+// EndpointConnectMode 描述客户端何时可以自动建立 Endpoint session。
+enum EndpointConnectMode {
+  ENDPOINT_CONNECT_MODE_UNSPECIFIED = 0;
+  ENDPOINT_CONNECT_MODE_AUTO = 1;
+  ENDPOINT_CONNECT_MODE_ON_DEMAND = 2;
+  ENDPOINT_CONNECT_MODE_MANUAL = 3;
+}
+
+// ManagedWebRTCRelayMode 只描述 AnyTTY Cloud managed route 内部允许的 ICE/Relay 策略。
+enum ManagedWebRTCRelayMode {
+  MANAGED_WEBRTC_RELAY_MODE_UNSPECIFIED = 0;
+  MANAGED_WEBRTC_RELAY_MODE_AUTO = 1;
+  MANAGED_WEBRTC_RELAY_MODE_DIRECT = 2;
+  MANAGED_WEBRTC_RELAY_MODE_RELAY_ONLY = 3;
+  MANAGED_WEBRTC_RELAY_MODE_SMART_ROUTE = 4;
+}
+
+// EndpointRoutePreference 是用户对 Endpoint planner 的顶层 Route 约束。
+// 未指定和 AUTO 都允许 planner 按当前 route/priority 竞速；强制模式不可静默回退到其它 kind。
+enum EndpointRoutePreference {
+  ENDPOINT_ROUTE_PREFERENCE_UNSPECIFIED = 0;
+  ENDPOINT_ROUTE_PREFERENCE_AUTO = 1;
+  ENDPOINT_ROUTE_PREFERENCE_DIRECT = 2;
+  ENDPOINT_ROUTE_PREFERENCE_SSH = 3;
+  ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD = 4;
+}
+
+// ManagedWebRTCRelayTransport 约束 managed Route 可使用的 TURN transport。
+// 它不表达系统 Wi-Fi、移动网络或 VPN，也不推断实际选中的 candidate pair。
+enum ManagedWebRTCRelayTransport {
+  MANAGED_WEBRTC_RELAY_TRANSPORT_UNSPECIFIED = 0;
+  MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO = 1;
+  MANAGED_WEBRTC_RELAY_TRANSPORT_UDP = 2;
+  MANAGED_WEBRTC_RELAY_TRANSPORT_TCP = 3;
+}
+
+// EndpointSource 记录 route 或用户策略的来源，供确定性 assembler 保留更高权重的已确认信息。
+enum EndpointSource {
+  ENDPOINT_SOURCE_UNSPECIFIED = 0;
+  ENDPOINT_SOURCE_LAN = 1;
+  ENDPOINT_SOURCE_CLOUD = 2;
+  ENDPOINT_SOURCE_BOOTSTRAP = 3;
+  ENDPOINT_SOURCE_LOCAL = 4;
+  ENDPOINT_SOURCE_MANUAL = 5;
+  ENDPOINT_SOURCE_SHARE = 6;
+  ENDPOINT_SOURCE_USER = 7;
+}
+
+// EndpointCredentialKind 只描述目标平台 secure store 中凭据的类别；wire contract 永远不携带凭据 body。
+enum EndpointCredentialKind {
+  ENDPOINT_CREDENTIAL_KIND_UNSPECIFIED = 0;
+  ENDPOINT_CREDENTIAL_KIND_SSH_AGENT = 1;
+  ENDPOINT_CREDENTIAL_KIND_SSH_PRIVATE_KEY = 2;
+  ENDPOINT_CREDENTIAL_KIND_SSH_PASSWORD = 3;
+  ENDPOINT_CREDENTIAL_KIND_CAPABILITY_GRANT = 4;
+  ENDPOINT_CREDENTIAL_KIND_CLOUD_PROFILE = 5;
+}
+
+// EndpointDaemonIdentity 是跨来源安全归并 daemon 的唯一锚点。
+// device_public_key 只在 daemon-signed bootstrap 中必填；普通 registry 至少保存 DeviceID 与 fingerprint pin。
+message EndpointDaemonIdentity {
+  string device_id = 1;
+  bytes device_public_key = 2;
+  string device_fingerprint = 3;
+}
+
+// EndpointSelectionPolicy 是客户端本地竞速策略；未配置 route priority 时仍表示 full race。
+message EndpointSelectionPolicy {
+  bool hedge_delay_configured = 1;
+  uint64 hedge_delay_millis = 2;
+  EndpointRoutePreference route_preference = 3;
+}
+
+// EndpointCredentialDescriptor 描述 share 后目标端需要解析或重新创建的凭据，不携带源平台 credential ref 或 secret body。
+message EndpointCredentialDescriptor {
+  string descriptor_id = 1;
+  EndpointCredentialKind kind = 2;
+  bool exportable = 3;
+}
+
+// LocalUnixRouteConfig 只用于同一主机上的 Go/native CLI 与 TUI。
+message LocalUnixRouteConfig {
+  string socket = 1;
+}
+
+// DirectWebRTCTCPRouteConfig 描述不依赖 AnyTTY Cloud 的 daemon embedded signaling 与 ICE-TCP locator。
+// advertised_addresses 允许 pair create 为 LAN、FRP 或其它 TCP 映射显式覆盖对外地址，但不改变 Endpoint identity。
+message DirectWebRTCTCPRouteConfig {
+  repeated string signaling_addresses = 1;
+  repeated string ice_tcp_addresses = 2;
+  repeated string advertised_addresses = 3;
+  string server_name = 4;
+}
+
+// SSHWebRTCTCPRouteConfig 描述 Go SSH direct-tcpip tunnel 需要的 portable 配置。
+// credential_descriptor 只说明目标平台要解析的凭据类别；credential body 和源平台 ref 永远不得进入 wire contract。
+message SSHWebRTCTCPRouteConfig {
+  string host = 1;
+  uint32 port = 2;
+  string user = 3;
+  repeated string host_key_fingerprints = 4;
+  string proxy_jump = 5;
+  EndpointCredentialDescriptor credential_descriptor = 6;
+  string remote_signaling_address = 7;
+  string remote_ice_tcp_address = 8;
+  string ssh_credential_ref = 9;
+}
+
+// ManagedWebRTCRouteConfig 描述同一个 App 内由 AnyTTY Cloud 提供的可选 managed Route。
+message ManagedWebRTCRouteConfig {
+  string target_device_id = 1;
+  string account_profile_ref = 2;
+  ManagedWebRTCRelayMode relay_mode = 3;
+  ManagedWebRTCRelayTransport relay_transport = 4;
+}
+
+// EndpointRouteConfigV1 是跨 Go、JNI、未来 C ABI/WASM 的唯一持久 Route schema。
+// route oneof 让 kind-specific 字段在 schema 层互斥；credential_ref 只引用当前平台 secure store。
+message EndpointRouteConfigV1 {
+  uint32 schema_version = 1;
+  string route_id = 2;
+  bool enabled = 3;
+  bool manual_only = 4;
+  optional int32 priority = 5;
+  string credential_ref = 6;
+  EndpointSource source = 7;
+  EndpointSource policy_source = 8;
+  string display_name = 9;
+
+  oneof route {
+    LocalUnixRouteConfig local_unix = 20;
+    DirectWebRTCTCPRouteConfig direct_webrtc_tcp = 21;
+    SSHWebRTCTCPRouteConfig ssh_webrtc_tcp = 22;
+    ManagedWebRTCRouteConfig managed_webrtc = 23;
+  }
+}
+
+// PairingDirectRouteSeed 只携带建立首个 Direct pairing DataChannel 必需的单个公开 locator。
+// 完整 Route 配置在 claim 兑换后由 owning daemon 的签名 bundle 提供。
+message PairingDirectRouteSeed {
+  string signaling_address = 1;
+  string ice_tcp_address = 2;
+  string server_name = 3;
+}
+
+// PairingManagedRouteSeed 只携带首次直连 owning Edge 所需的公开入口和 CA pin。
+// 完整 CA、EdgeLocator 与长期 RouteGrant 只在端到端 PairingAccepted 中返回。
+message PairingManagedRouteSeed {
+  string daemon_id = 1;
+  string edge_id = 2;
+  string public_endpoint = 3;
+  string server_name = 4;
+  bytes ca_certificate_der_sha256 = 5;
+}
+
+// PairingSSHRouteSeed 只携带建立首个 SSH tunnel pairing peer 所需的公开连接信息。
+// credential_kind 只声明接收平台需要准备的凭据类别；二维码不得携带 credential ref、密码或私钥。
+message PairingSSHRouteSeed {
+  string host = 1;
+  uint32 port = 2;
+  string user = 3;
+  repeated string host_key_fingerprints = 4;
+  string proxy_jump = 5;
+  string remote_signaling_address = 6;
+  string remote_ice_tcp_address = 7;
+  EndpointCredentialKind credential_kind = 8;
+}
+
+// PairingRouteSeed 是短码中建立一次 pairing peer 所需的最小 Route 投影。
+message PairingRouteSeed {
+  oneof route {
+    PairingDirectRouteSeed direct_webrtc_tcp = 1;
+    PairingManagedRouteSeed managed_webrtc = 2;
+    PairingSSHRouteSeed ssh_webrtc_tcp = 3;
+  }
+  string route_id = 4;
+  string display_name = 5;
+  optional int32 priority = 6;
+}
+
+// PairingClaimOffer 是二维码和无摄像头输入使用的紧凑一次性 claim。
+// claim 固定 128-bit，只由 owning daemon 内存持有；消息不包含 PairingTicket、CapabilityGrant、scope 或 terminal 信息。
+message PairingClaimOffer {
+  uint32 schema_version = 1;
+  bytes claim = 2;
+  string device_id = 3;
+  bytes device_public_key = 4;
+  int64 expires_at_unix_nano = 5;
+  repeated PairingRouteSeed routes = 6;
+}
+
+// EndpointConfigV1 是 Go Client Engine 持久化和跨 binding 投影的 Endpoint 配置。
+message EndpointConfigV1 {
+  uint32 schema_version = 1;
+  string endpoint_id = 2;
+  string label = 3;
+  EndpointSource label_source = 4;
+  EndpointDaemonIdentity identity = 5;
+  EndpointConnectMode connect_mode = 6;
+  bool enabled = 7;
+  EndpointSelectionPolicy selection_policy = 8;
+  repeated EndpointRouteConfigV1 routes = 9;
+}
+
+// EndpointRegistryV1 是 Go Client Engine 拥有的完整 Endpoint registry contract。
+message EndpointRegistryV1 {
+  uint32 schema_version = 1;
+  string default_endpoint_id = 2;
+  repeated EndpointConfigV1 endpoints = 3;
+}
+
+// PairingTicketDescriptor 是 daemon-local 一次性授权兑换票据的公开部分。
+message PairingTicketDescriptor {
+  string ticket_id = 1;
+  repeated string scope_ceiling = 2;
+  int64 expires_at_unix_nano = 3;
+  bytes nonce = 4;
+  uint32 max_redemptions = 5;
+  bytes signature = 6;
+  int64 issued_at_unix_nano = 7;
+  int64 grant_lifetime_seconds = 8;
+}
+
+// EndpointAuthorizationBootstrap 只允许携带短期 PairingTicket，或双向离线扫码中已绑定接收方 key 的 grant。
+message EndpointAuthorizationBootstrap {
+  oneof payload {
+    PairingTicketDescriptor pairing_ticket = 1;
+    bytes bound_grant = 2;
+  }
+}
+
+// EndpointBootstrapBundleV2 是 daemon DeviceIdentity 签名的增量 bootstrap wire contract。
+// 它不包含客户端 priority、local-unix、Cloud token、Hub/Relay 地址、SSH credential body 或本地 credential ref。
+message EndpointBootstrapBundleV2 {
+  uint32 schema_version = 1;
+  string bundle_id = 2;
+  EndpointDaemonIdentity identity = 3;
+  string suggested_label = 4;
+  repeated EndpointRouteConfigV1 routes = 5;
+  EndpointAuthorizationBootstrap authorization = 6;
+  int64 issued_at_unix_nano = 7;
+  int64 expires_at_unix_nano = 8;
+  bytes bundle_signature = 9;
+}
+
+// PairingTicketSignatureInput 是 DeviceIdentity 对一次性 ticket 签名的唯一 canonical protobuf。
+// ticket.signature 必须在构造本消息前清空；issuer 字段必须与外层 bootstrap identity 完全一致。
+message PairingTicketSignatureInput {
+  string protocol = 1;
+  uint32 version = 2;
+  string issuer_device_id = 3;
+  string issuer_device_fingerprint = 4;
+  PairingTicketDescriptor ticket = 5;
+}
+
+// EndpointBootstrapSignatureInput 是 DeviceIdentity 对完整 bootstrap 签名的唯一 canonical protobuf。
+// bundle.bundle_signature 必须在构造本消息前清空；内部 PairingTicket signature 保持在签名覆盖范围内。
+message EndpointBootstrapSignatureInput {
+  string protocol = 1;
+  uint32 version = 2;
+  EndpointBootstrapBundleV2 bundle = 3;
+}
+
+// ClientEndpointShareBundleV1 是用户确认后通过实时 TLS share session 发送的客户端配置迁移 contract。
+// source EndpointID、runtime、源 credential ref、Cloud token 和源 CapabilityGrant 永远不得进入该消息。
+message ClientEndpointShareBundleV1 {
+  uint32 schema_version = 1;
+  string transfer_id = 2;
+  EndpointDaemonIdentity identity = 3;
+  string suggested_label = 4;
+  repeated EndpointRouteConfigV1 routes = 5;
+  EndpointConnectMode connect_mode = 6;
+  EndpointSelectionPolicy selection_policy = 7;
+  repeated EndpointCredentialDescriptor credential_descriptors = 8;
+  // bound_grant 预留给 CONN002 生成并验证的目标 ClientAccessIdentity-bound grant；不得放入源客户端 bearer grant。
+  bytes bound_grant = 9;
+  int64 issued_at_unix_nano = 10;
+  int64 expires_at_unix_nano = 11;
+}
+
+// ShareSessionOffer 是静态二维码允许包含的全部内容。
+// endpoint 配置、credential、CapabilityGrant 和 Cloud material 只能在用户确认后的实时 TLS channel 内传输。
+message ShareSessionOffer {
+  uint32 schema_version = 1;
+  string transfer_id = 2;
+  repeated string listener_addresses = 3;
+  string ephemeral_certificate_sha256 = 4;
+  bytes one_time_session_secret = 5;
+  int64 expires_at_unix_nano = 6;
+}
+
+// ShareReceiverHello 证明接收方持有静态 offer 中的一次性 secret，并声明本次会话的临时签名公钥。
+message ShareReceiverHello {
+  uint32 schema_version = 1;
+  string transfer_id = 2;
+  bytes one_time_session_secret = 3;
+  bytes receiver_public_key = 4;
+  bytes receiver_nonce = 5;
+}
+
+// ShareSenderChallenge 把接收方 nonce、发送方 nonce 和 offer 有效期绑定到同一次 TLS 会话。
+message ShareSenderChallenge {
+  uint32 schema_version = 1;
+  string transfer_id = 2;
+  bytes receiver_nonce = 3;
+  bytes sender_nonce = 4;
+  int64 expires_at_unix_nano = 5;
+}
+
+// ShareReceiverProofInput 是 receiver proof 的 deterministic protobuf 签名输入。
+message ShareReceiverProofInput {
+  string protocol = 1;
+  uint32 version = 2;
+  string transfer_id = 3;
+  bytes receiver_nonce = 4;
+  bytes sender_nonce = 5;
+  string ephemeral_certificate_sha256 = 6;
+  bytes one_time_session_secret_sha256 = 7;
+}
+
+// ShareReceiverProof 证明 challenge 的接收者持有 hello 中临时公钥对应的私钥。
+message ShareReceiverProof {
+  uint32 schema_version = 1;
+  string transfer_id = 2;
+  bytes signature = 3;
+}
+
+// ShareSessionClientEnvelope 是一次性 TLS share session 的客户端 framing payload。
+message ShareSessionClientEnvelope {
+  oneof message {
+    ShareReceiverHello hello = 1;
+    ShareReceiverProof proof = 2;
+  }
+}
+
+// ShareSessionError 是 share session fail-closed 后返回的稳定错误投影，不包含 secret 或配置内容。
+message ShareSessionError {
+  string code = 1;
+  string message = 2;
+}
+
+// ShareSessionServerEnvelope 是一次性 TLS share session 的服务端 framing payload。
+message ShareSessionServerEnvelope {
+  oneof message {
+    ShareSenderChallenge challenge = 1;
+    ClientEndpointShareBundleV1 bundle = 2;
+    ShareSessionError error = 3;
+  }
+}

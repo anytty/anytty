@@ -1,0 +1,27 @@
+---
+title: 终端管理
+description: 创建、附加、分离、检查和删除由 daemon 拥有的终端。
+---
+
+# 终端管理
+
+客户端附加、分离、重连或在实时输出与历史之间切换时，终端始终由 daemon 拥有。
+
+## 生命周期
+
+```sh
+anytty terminal create --attach -- zsh
+anytty terminal list
+anytty terminal attach <terminal-id>
+anytty terminal show <terminal-id>
+anytty terminal kill <terminal-id>
+anytty terminal remove <terminal-id>
+```
+
+准确参数以当前 checkout 的 `anytty terminal --help` 为准。`kill` 停止进程；`remove` 删除已经退出的终端记录。
+
+## 实时与历史
+
+实时渲染和历史消费使用独立 cursor。客户端可以冻结历史视口，同时继续接收新输出，随后回到最新实时画面；终端进程不依赖任何单个客户端存活。
+
+> **容量有界。** 每个终端的输出和订阅队列都有字节预算。溢出行为是显式策略，慢速或断开的客户端不会导致 daemon 内存无限增长。

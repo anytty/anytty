@@ -1,0 +1,4 @@
+module AnyTTYClient {
+  header "anytty_client.h"
+  export *
+}

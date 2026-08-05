@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// ClientProduct 表示建立 Cloud 信令连接的官方客户端形态。
+enum ClientProduct {
+  CLIENT_PRODUCT_UNSPECIFIED = 0;
+  CLIENT_PRODUCT_TUI = 1;
+  CLIENT_PRODUCT_CLI = 2;
+  CLIENT_PRODUCT_ANDROID = 3;
+  CLIENT_PRODUCT_IOS = 4;
+  CLIENT_PRODUCT_DESKTOP_GUI = 5;
+}
+
+// CloudClientAccessMode 区分普通 capability signaling 与只允许首次配对的 bootstrap signaling。
+// PAIRING 只负责建立 PairingExchange DataChannel，不能表达 terminal 权限。
+enum CloudClientAccessMode {
+  CLOUD_CLIENT_ACCESS_MODE_UNSPECIFIED = 0;
+  CLOUD_CLIENT_ACCESS_MODE_CAPABILITY = 1;
+  CLOUD_CLIENT_ACCESS_MODE_PAIRING = 2;
+}
+
+// AgentPresence 是 Edge 内存中一个已认证 daemon 连接的实时投影。
+// R2 只由测试事件生成；R4 才由真实 AgentGateway 写入。
+message AgentPresence {
+  string daemon_id = 1;
+  string account_id = 2;
+  string boot_id = 3;
+  string connection_id = 4;
+  uint64 generation = 5;
+  string binding_id = 6;
+  google.protobuf.Timestamp binding_issued_at = 7;
+}
+
+// ClientSessionSummary 是 Edge 内存中一个客户端信令会话的实时投影。
+// 该消息不包含 SDP、ICE、CapabilityGrant 或 terminal 业务内容。
+message ClientSessionSummary {
+  string session_id = 1;
+  string account_id = 2;
+  string daemon_id = 3;
+  string client_id = 4;
+  ClientProduct product = 5;
+  uint64 generation = 6;
+  CloudClientAccessMode access_mode = 7;
+}
+
+// RuntimeSnapshot 是 Edge 在某个单调 revision 上的一致性运行时投影。
+message RuntimeSnapshot {
+  uint64 revision = 1;
+  repeated AgentPresence agents = 2;
+  repeated ClientSessionSummary sessions = 3;
+  reserved 4;
+}
+
+message AgentRemoved {
+  string daemon_id = 1;
+  uint64 generation = 2;
+}
+
+message ClientSessionRemoved {
+  string session_id = 1;
+  uint64 generation = 2;
+}
+
+// RuntimeDelta 是快照 revision 之后严格连续的一次运行时变更。
+message RuntimeDelta {
+  uint64 revision = 1;
+  reserved 14, 15;
+  oneof change {
+    AgentPresence agent_upserted = 10;
+    AgentRemoved agent_removed = 11;
+    ClientSessionSummary session_upserted = 12;
+    ClientSessionRemoved session_removed = 13;
+  }
+}

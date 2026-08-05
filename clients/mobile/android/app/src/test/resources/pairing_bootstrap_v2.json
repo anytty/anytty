@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "now": "2026-07-11T12:34:56.789Z",
+  "payload_base64url": "CAISCGJ1bmRsZS0xGmgKCGRldmljZS0xEiAtbO18s4tnTFp5ao8NHauQHPAyLw48CXDbbavr8uTydRo6ZWQyNTUxOS1zaGEyNTY6Qmdkc19vMFc2ZUdGaUN3LXUwTlo3QklGZFRCVmJadS1zRC1kOGFyaDlBYyIKTGFiIGRhZW1vbjKKAQqHAQoIdGlja2V0LTESC2Jhc2U6ZGFlbW9uGMD-462Inc_gGCISRUVFRUVFRUVFRUVFRUVFRUVFKAEyQK4yWJWDHIfFvSgbpzeWiOlXqUceAmIgYJRr4LYEa61mW-kJGliOOTAlGCTakbrp-8VkMl1oYDogTQp1vgqutgQ4wO6g1e2Jz-AYQICjBTjA7qDV7YnP4BhAwP7jrYidz-AYSkCGVJxReFIXgiY9uc-Ga4i1QqWqbZuL8QY9ZtMNqVGC7sTIClpInfdgfB7sXyM2A_g8gf_nqvVLENWYowuaGIoI",
+  "device_id": "device-1",
+  "device_fingerprint": "ed25519-sha256:Bgds_o0W6eGFiCw-u0NZ7BIFdTBVbZu-sD-d8arh9Ac",
+  "ticket_id": "ticket-1",
+  "label": "Lab daemon"
+}

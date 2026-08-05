@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "remoteauthpb/remote_auth.proto";
+import "cloud/v1/enrollment.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+message ClientAccessIdentityCommand { reserved 1; bytes challenge = 2; }
+message ClientAccessListCommand { reserved 1; }
+message ClientAccessTicketCreateCommand { reserved 1; anytty.remote.auth.v1.ClientAccessTicketCreateRequest request = 2; }
+message ClientAccessRevokeCommand { reserved 1; anytty.remote.auth.v1.ClientAccessRevokeRequest request = 2; }
+message ClientAccessIdentityResult {
+  anytty.remote.auth.v1.ClientAccessIdentityResult identity = 1;
+  bytes challenge = 2;
+  bytes proof = 3;
+}
+message ClientAccessListResult { anytty.remote.auth.v1.ClientAccessListResult access = 1; }
+message ClientAccessTicketCreateResult { anytty.remote.auth.v1.ClientAccessTicketCreateResult ticket = 1; }
+message ClientAccessRevokeResult { anytty.remote.auth.v1.ClientAccessRecord record = 1; }
+
+message RemoteStatusCommand { reserved 1; }
+message RemotePairStartCommand { reserved 1; string local_pair_url = 2; int32 ttl_seconds = 3; int32 auth_ttl_seconds = 4; }
+message RemoteLocalEnableCommand { reserved 1; string local_web_address = 2; string ice_tcp_address = 3; repeated string hub_urls = 4; string control_url = 5; string access_token = 6; string region = 7; }
+message RemoteLocalStatusCommand { reserved 1; }
+message RemoteLocalDisableCommand { reserved 1; }
+message RemoteCloudEdgesCommand { reserved 1; }
+message RemoteCloudPreferEdgeCommand { reserved 1; string edge_id = 2; uint64 expected_preference_revision = 3; }
+message RemoteCloudReselectEdgeCommand { reserved 1; }
+
+message RemoteStatusResult { string state = 1; string detail = 2; string device_id = 3; string device_name = 4; string control_url = 5; string hub_url = 6; repeated string hub_urls = 7; string data_directory = 8; string mode = 9; bool allow_lan = 10; int32 terminal_count = 11; int64 updated_at_unix_nano = 12; }
+message RemotePairStartResult { string type = 1; string machine_id = 2; string machine_name = 3; string local_pair_url = 4; string pair_session_id = 5; string pair_secret = 6; string answer_proof_secret = 7; int64 expires_at_unix_nano = 8; }
+message RemoteLocalStatusResult { bool enabled = 1; string http_url = 2; string local_web_address = 3; string local_pair_url = 4; bool ice_tcp_enabled = 5; string ice_tcp_address = 6; int32 ice_tcp_port = 7; int64 updated_at_unix_nano = 8; }
+message RemoteCloudEdgesResult { anytty.cloud.v1.DaemonEdgeSelection selection = 1; }

@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "empty_registry": {
+    "version": 3,
+    "default": "",
+    "endpoints": {}
+  },
+  "valid_registry": {
+    "version": 3,
+    "default": "studio",
+    "endpoints": {
+      "studio": {
+        "label": "Studio",
+        "label_source": "user",
+        "device_id": "device-studio",
+        "device_fingerprint": "SHA256:studio",
+        "enabled": true,
+        "connect_mode": "on_demand",
+        "selection": {
+          "hedge_delay": "250ms"
+        },
+        "routes": {
+          "cloud": {
+            "kind": "managed-webrtc",
+            "enabled": true,
+            "priority": 30,
+            "credential_ref": "grant:studio",
+            "source": "cloud",
+            "target_device_id": "device-studio",
+            "account_profile_ref": "default",
+            "relay_mode": "auto"
+          },
+          "lan": {
+            "kind": "direct-webrtc-tcp",
+            "enabled": true,
+            "priority": 10,
+            "credential_ref": "grant:studio",
+            "source": "bootstrap",
+            "signaling_addresses": [
+              "192.0.2.10:41120",
+              "studio.local:41120"
+            ], "ice_tcp_addresses": [
+              "192.0.2.10:41120",
+              "studio.local:41120"
+            ],
+            "server_name": "studio.local"
+          },
+          "ssh": {
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "priority": 20,
+            "credential_ref": "ssh:studio",
+            "source": "manual",
+            "host": "studio-host",
+            "port": 22,
+            "user": "build",
+            "proxy_jump": "bastion",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121",
+            "host_key_fingerprints": [
+              "SHA256:ssh-host"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "defaulted_managed_registry": {
+    "version": 3,
+    "default": "cloud",
+    "endpoints": {
+      "cloud": {
+        "device_id": "device-cloud",
+        "device_fingerprint": "SHA256:cloud",
+        "enabled": true,
+        "connect_mode": "on_demand",
+        "routes": {
+          "cloud": {
+            "kind": "managed-webrtc",
+            "enabled": true,
+            "target_device_id": "device-cloud"
+          }
+        }
+      }
+    }
+  },
+  "unknown_field_registry": {
+    "version": 3,
+    "default": "seed",
+    "endpoints": {
+      "seed": {
+        "label": "Seed",
+        "enabled": true,
+        "connect_mode": "on_demand",
+        "routes": {
+          "ssh": {
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "host": "seed-host",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121",
+            "unexpected": true
+          }
+        }
+      }
+    }
+  },
+  "missing_field_registry": {
+    "version": 3,
+    "default": ""
+  },
+  "wrong_type_registry": {
+    "version": 3,
+    "default": "seed",
+    "endpoints": {
+      "seed": {
+        "label": "Seed",
+        "enabled": "true",
+        "connect_mode": "on_demand",
+        "routes": {
+          "ssh": {
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "host": "seed-host",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121"
+          }
+        }
+      }
+    }
+  },
+  "whitespace_key_registry": {
+    "version": 3,
+    "default": "seed",
+    "endpoints": {
+      " seed": {
+        "label": "Seed",
+        "enabled": true,
+        "connect_mode": "on_demand",
+        "routes": {
+          "ssh": {
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "host": "seed-host",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121"
+          }
+        }
+      }
+    }
+  },
+  "invalid_registry_cases": [
+    {
+      "name": "duplicate_identity",
+      "expected_error": "identity_conflict",
+      "registry": {
+        "version": 3,
+        "default": "one",
+        "endpoints": {
+          "one": {
+            "device_id": "device-shared",
+            "device_fingerprint": "SHA256:shared",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "one", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          },
+          "two": {
+            "device_id": "device-shared",
+            "device_fingerprint": "SHA256:shared",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "two", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "device_id_conflict",
+      "expected_error": "identity_conflict",
+      "registry": {
+        "version": 3,
+        "default": "one",
+        "endpoints": {
+          "one": {
+            "device_id": "device-shared",
+            "device_fingerprint": "SHA256:one",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "one", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          },
+          "two": {
+            "device_id": "device-shared",
+            "device_fingerprint": "SHA256:two",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "two", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fingerprint_conflict",
+      "expected_error": "identity_conflict",
+      "registry": {
+        "version": 3,
+        "default": "one",
+        "endpoints": {
+          "one": {
+            "device_id": "device-one",
+            "device_fingerprint": "SHA256:shared",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "one", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          },
+          "two": {
+            "device_id": "device-two",
+            "device_fingerprint": "SHA256:shared",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "two", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "empty_direct_address",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "device_id": "device-peer",
+            "device_fingerprint": "SHA256:peer",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "lan": { "kind": "direct-webrtc-tcp", "enabled": true, "signaling_addresses": [""], "ice_tcp_addresses": [""] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "noncanonical_ssh_host",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": " peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "control_character_proxy_jump",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "peer", "proxy_jump": "bad\njump", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "duplicate_direct_address",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "device_id": "device-peer",
+            "device_fingerprint": "SHA256:peer",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "lan": { "kind": "direct-webrtc-tcp", "enabled": true, "signaling_addresses": ["peer:41120", "peer:41120"], "ice_tcp_addresses": ["peer:41120", "peer:41120"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "duplicate_host_key",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": {
+                "kind": "ssh-webrtc-tcp",
+                "enabled": true,
+                "host": "peer",
+                "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121",
+                "host_key_fingerprints": ["SHA256:key", "SHA256:key"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priority_overflow",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "priority": 2147483648, "host": "peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "noncanonical_empty_default",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": " ",
+        "endpoints": {}
+      }
+    },
+    {
+      "name": "noncanonical_hedge_delay",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "selection": { "hedge_delay": " 1s" },
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blank_identity_fields",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "device_id": " ",
+            "device_fingerprint": " ",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "empty_default_nonempty_registry",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "",
+        "endpoints": {
+          "peer": {
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "control_character_identity",
+      "expected_error": "config_invalid",
+      "registry": {
+        "version": 3,
+        "default": "peer",
+        "endpoints": {
+          "peer": {
+            "device_id": "device\u0000peer",
+            "device_fingerprint": "SHA256:peer",
+            "enabled": true,
+            "connect_mode": "on_demand",
+            "routes": {
+              "ssh": { "kind": "ssh-webrtc-tcp", "enabled": true, "host": "peer", "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "local_discovery_candidate": {
+    "claimed_device_id": "device-nearby",
+    "claimed_device_fingerprint": "SHA256:nearby",
+    "address": "198.51.100.20",
+    "port": 41120,
+    "protocol_version": 2,
+    "ttl_millis": 30000,
+    "signature_bytes": 64
+  },
+  "assembler": {
+    "initial_registry": {
+      "version": 3,
+      "default": "seed",
+      "endpoints": {
+        "seed": {
+          "label": "Seed",
+          "label_source": "manual",
+          "enabled": true,
+          "connect_mode": "on_demand",
+          "routes": {
+            "ssh": {
+              "kind": "ssh-webrtc-tcp",
+              "enabled": true,
+              "source": "manual",
+              "host": "seed-host",
+              "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121"
+            }
+          }
+        }
+      }
+    },
+    "confirmed_identity_bindings": [
+      {
+        "endpoint_id": "seed",
+        "identity": {
+          "device_id": "device-studio",
+          "device_fingerprint": "SHA256:studio"
+        }
+      }
+    ],
+    "commutative_candidates": [
+      {
+        "source": "cloud",
+        "identity": {
+          "device_id": "device-studio",
+          "device_fingerprint": "SHA256:studio"
+        },
+        "suggested_label": "Cloud Studio",
+        "routes": [
+          {
+            "route_id": "cloud",
+            "kind": "managed-webrtc",
+            "enabled": true,
+            "target_device_id": "device-studio",
+            "relay_mode": "auto"
+          }
+        ]
+      },
+      {
+        "source": "bootstrap",
+        "identity": {
+          "device_id": "device-studio",
+          "device_fingerprint": "SHA256:studio"
+        },
+        "suggested_label": "Studio",
+        "routes": [
+          {
+            "route_id": "lan",
+            "kind": "direct-webrtc-tcp",
+            "enabled": true,
+            "signaling_addresses": [
+              "studio.local:41120"
+            ], "ice_tcp_addresses": [
+              "studio.local:41120"
+            ]
+          }
+        ]
+      },
+      {
+        "source": "manual",
+        "identity": {
+          "device_id": "device-studio",
+          "device_fingerprint": "SHA256:studio"
+        },
+        "suggested_label": "Studio SSH",
+        "routes": [
+          {
+            "route_id": "ssh",
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "host": "studio-host",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121"
+          }
+        ]
+      },
+      {
+        "source": "share",
+        "identity": {
+          "device_id": "device-studio",
+          "device_fingerprint": "SHA256:studio"
+        },
+        "suggested_label": "Studio SSH",
+        "connect_mode": "manual",
+        "apply_client_policy": true,
+        "routes": [
+          {
+            "route_id": "cloud",
+            "kind": "managed-webrtc",
+            "enabled": true,
+            "priority": 30,
+            "target_device_id": "device-studio",
+            "relay_mode": "auto"
+          },
+          {
+            "route_id": "lan",
+            "kind": "direct-webrtc-tcp",
+            "enabled": true,
+            "priority": 10,
+            "signaling_addresses": [
+              "studio.local:41120"
+            ], "ice_tcp_addresses": [
+              "studio.local:41120"
+            ]
+          },
+          {
+            "route_id": "ssh",
+            "kind": "ssh-webrtc-tcp",
+            "enabled": true,
+            "priority": 20,
+            "host": "studio-host",
+            "remote_signaling_address": "127.0.0.1:41120", "remote_ice_tcp_address": "127.0.0.1:41121"
+          }
+        ]
+      }
+    ],
+    "identity_conflict_candidate": {
+      "source": "cloud",
+      "identity": {
+        "device_id": "device-studio",
+        "device_fingerprint": "SHA256:other"
+      },
+      "suggested_label": "Conflicting Studio",
+      "routes": [
+        {
+          "route_id": "cloud-conflict",
+          "kind": "managed-webrtc",
+          "enabled": true,
+          "target_device_id": "device-studio",
+          "relay_mode": "auto"
+        }
+      ]
+    },
+    "expected_endpoint_id": "seed",
+    "expected_new_endpoint_id": "daemon-00f81d0d53be",
+    "expected_label": "Studio SSH",
+    "expected_connect_mode": "manual",
+    "expected_route_ids": [
+      "cloud",
+      "lan",
+      "ssh"
+    ],
+    "expected_route_priorities": {
+      "cloud": 30,
+      "lan": 10,
+      "ssh": 20
+    },
+    "expected_conflict_error": "identity_conflict"
+  },
+  "oversize_bytes": 1048577
+}

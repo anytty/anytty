@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "cloud/v1/client_gateway.proto";
+import "cloud/v1/enrollment.proto";
+import "cloud/v1/runtime.proto";
+import "cloud/v1/usage.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+message AgentHello {
+  SignedEnvelope daemon_binding = 1;
+  bytes device_proof = 2;
+  string software_version = 3;
+  uint64 attempt_generation = 4;
+}
+
+message AgentHeartbeat { uint64 generation = 1; }
+
+message AgentOffer {
+  string correlation_id = 1;
+  string session_id = 2;
+  uint64 agent_generation = 3;
+  bytes client_public_key = 4;
+  string offer_sdp = 5;
+  repeated CloudICECandidate candidates = 6;
+  RelayICEConfig relay = 7;
+  CloudClientAccessMode access_mode = 8;
+  bytes pairing_claim_sha256 = 9;
+}
+
+// AgentAuthorize 要求 owning daemon 在产生 TURN credential 前按本地 AccessStore 预检客户端。
+message AgentAuthorize {
+  string correlation_id = 1;
+  string session_id = 2;
+  uint64 agent_generation = 3;
+  bytes client_public_key = 4;
+  ClientProduct product = 5;
+  CloudClientAccessMode access_mode = 6;
+  bytes pairing_claim_sha256 = 7;
+}
+
+message AgentAuthorizationResult {
+  string correlation_id = 1;
+  string session_id = 2;
+  bool authorized = 3;
+  string code = 4;
+  string message = 5;
+}
+
+message AgentAnswer {
+  string correlation_id = 1;
+  string session_id = 2;
+  string answer_sdp = 3;
+  repeated CloudICECandidate candidates = 4;
+}
+
+message AgentSignalRejected {
+  string correlation_id = 1;
+  string session_id = 2;
+  string code = 3;
+  string message = 4;
+}
+
+message AgentReady {
+  uint64 generation = 1;
+  HeartbeatPolicy heartbeat = 2;
+  DaemonStateRecord daemon_state = 3;
+}
+
+// DaemonLifecycleCommand 要求当前 Agent generation 应用最新持久状态。
+message DaemonLifecycleCommand {
+  DaemonStateRecord daemon_state = 1;
+  uint64 agent_generation = 2;
+}
+
+// DaemonLifecycleResult 在 Cloud peers 已按状态收敛后返回。
+message DaemonLifecycleResult {
+  DaemonStateRecord daemon_state = 1;
+  uint64 agent_generation = 2;
+  bool applied = 3;
+  string error_message = 4;
+}
+
+// DaemonEdgeReselectCommand 让 daemon 立即测速并刷新 binding；不会重启 daemon 进程。
+message DaemonEdgeReselectCommand {
+  uint64 agent_generation = 1;
+  uint64 preference_revision = 2;
+}
+
+message AgentEvent {
+  uint32 protocol_version = 1;
+  string message_id = 2;
+  string sender_id = 3;
+  string boot_id = 4;
+  string connection_id = 5;
+  uint64 stream_seq = 6;
+  google.protobuf.Timestamp sent_at = 7;
+  oneof payload {
+    AgentHello hello = 20;
+    AgentHeartbeat heartbeat = 21;
+    AgentAnswer answer = 22;
+    AgentSignalRejected rejected = 23;
+    AgentAuthorizationResult authorization = 24;
+    DaemonLifecycleResult lifecycle_result = 25;
+  }
+}
+
+message EdgeCommand {
+  uint32 protocol_version = 1;
+  string message_id = 2;
+  string sender_id = 3;
+  string boot_id = 4;
+  string connection_id = 5;
+  uint64 stream_seq = 6;
+  google.protobuf.Timestamp sent_at = 7;
+  oneof payload {
+    AgentReady ready = 20;
+    AgentOffer offer = 21;
+    AgentAuthorize authorize = 22;
+    EdgeChallenge challenge = 23;
+    DaemonLifecycleCommand lifecycle = 24;
+    DaemonEdgeReselectCommand edge_reselect = 25;
+  }
+}
+
+// AgentGateway 是 daemon 到单个 Edge 的唯一长连接控制流。
+service AgentGateway {
+  rpc Connect(stream AgentEvent) returns (stream EdgeCommand);
+}

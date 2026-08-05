@@ -1,0 +1,25 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.xterm-wrapper {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.anytty-terminal-key-row {
+  scrollbar-width: none;
+}
+
+.anytty-terminal-key-row::-webkit-scrollbar {
+  display: none;
+}

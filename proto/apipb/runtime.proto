@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/common.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+message EndpointProbeRequest { string endpoint_id = 1; string route_override = 2; }
+message EndpointProbeResult { EndpointSessionStamp session = 1; string observed_path = 2; string route_selection_reason = 3; }
+
+enum EndpointRuntimePhase {
+  ENDPOINT_RUNTIME_PHASE_UNSPECIFIED = 0;
+  ENDPOINT_RUNTIME_PHASE_CONNECTING = 1;
+  ENDPOINT_RUNTIME_PHASE_READY = 2;
+  ENDPOINT_RUNTIME_PHASE_FAILED = 3;
+  ENDPOINT_RUNTIME_PHASE_CLOSED = 4;
+}
+
+message EndpointRuntimeEvent { string endpoint_id = 1; EndpointRuntimePhase phase = 2; EndpointSessionStamp session = 3; ApiError error = 4; }

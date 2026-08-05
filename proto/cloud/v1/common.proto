@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// VerificationKey 是 Controller 下发给 Edge 的公开验签密钥。
+// public_key 只能包含公钥编码，不得携带私钥或 KMS 凭据。
+message VerificationKey {
+  string key_id = 1;
+  string algorithm = 2;
+  bytes public_key = 3;
+}
+
+// KeyBundle 是 Controller 发布并由 Edge 原子持久化的完整 binding 验签 keyset。
+// revision 只随 keyset owner 单调变化；issued_at/expires_at 限制离线 admission 窗口。
+message KeyBundle {
+  uint64 revision = 1;
+  google.protobuf.Timestamp issued_at = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  repeated VerificationKey keys = 4;
+}
+
+// HeartbeatPolicy 约束 EdgeControl 的心跳频率和 Controller 失联判定。
+message HeartbeatPolicy {
+  google.protobuf.Duration interval = 1;
+  google.protobuf.Duration timeout = 2;
+}
+
+// SignedEnvelope 使用 domain-separated Ed25519 签名保护确定性 Proto payload。
+message SignedEnvelope {
+  string key_id = 1;
+  bytes payload = 2;
+  bytes signature = 3;
+}
+
+// CloudEntitlementErrorCode 是跨 Controller、Edge 和客户端稳定传播的商业准入失败。
+// 客户端只能按枚举展示本地化文案，不得解析服务端 message。
+enum CloudEntitlementErrorCode {
+  CLOUD_ENTITLEMENT_ERROR_CODE_UNSPECIFIED = 0;
+  CLOUD_ENTITLEMENT_ERROR_CODE_DAEMON_LIMIT_EXHAUSTED = 1;
+  CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_NOT_IN_PLAN = 2;
+  CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_QUOTA_EXHAUSTED = 3;
+  CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED = 4;
+  CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE = 5;
+  CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_REGION_UNAVAILABLE = 6;
+  CLOUD_ENTITLEMENT_ERROR_CODE_SERVICE_UNAVAILABLE = 7;
+}
+
+// CloudEntitlementFailure 可安全投影给未登录 App，不包含账号或订阅 identity。
+message CloudEntitlementFailure {
+  CloudEntitlementErrorCode code = 1;
+  string message = 2;
+  uint64 limit = 3;
+  uint64 used = 4;
+  uint64 remaining_bytes = 5;
+  google.protobuf.Timestamp period_end = 6;
+}
+
+// EdgeChallengeTarget 把一次 challenge 限定到唯一 Gateway 协议，禁止跨流类型复用。
+enum EdgeChallengeTarget {
+  EDGE_CHALLENGE_TARGET_UNSPECIFIED = 0;
+  EDGE_CHALLENGE_TARGET_AGENT_GATEWAY = 1;
+  EDGE_CHALLENGE_TARGET_CLIENT_GATEWAY = 2;
+}
+
+// EdgeChallenge 是 Edge 在每条 Gateway stream 上先发的单次新鲜度证明材料。
+// nonce 固定为 32 bytes，stream_id 由 Edge 为该 stream 唯一生成，期限固定为 10 秒。
+message EdgeChallenge {
+  bytes nonce = 1;
+  string edge_id = 2;
+  string edge_boot_id = 3;
+  string stream_id = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  EdgeChallengeTarget target = 7;
+}

@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/certificate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// EdgeDesiredConfig 是 Controller 持久化并签名下发的节点部署意图。
+message EdgeDesiredConfig {
+  string edge_id = 1;
+  uint64 version = 2;
+  string name = 3;
+  string region = 4;
+  uint64 capacity = 5;
+  string public_endpoint = 6;
+  bool enabled = 7;
+}
+
+// SignedEdgeDesiredConfig 使用独立签名域保护配置，Edge 只持有公开验签密钥。
+message SignedEdgeDesiredConfig {
+  string key_id = 1;
+  bytes payload = 2;
+  bytes signature = 3;
+}
+
+// EdgeRuntimeProjection 来自纯内存 Directory，不得写回 Edge 配置表。
+message EdgeRuntimeProjection {
+  bool online = 1;
+  string boot_id = 2;
+  string connection_id = 3;
+  string software_version = 4;
+  uint64 runtime_revision = 5;
+  uint64 agent_count = 6;
+  uint64 session_count = 7;
+  google.protobuf.Timestamp connected_at = 8;
+  google.protobuf.Timestamp last_heartbeat = 9;
+  reserved 10;
+}
+
+// ManagedEdge 合并持久 desired state 与只读 runtime projection。
+message ManagedEdge {
+  EdgeDesiredConfig config = 1;
+  uint64 config_revision = 2;
+  EdgeRuntimeProjection runtime = 3;
+  CertificateBinding certificate = 4;
+}
+
+message ListEdgesRequest {}
+message ListEdgesResponse { repeated ManagedEdge edges = 1; }
+
+message CreateEdgeRequest {
+  string name = 1;
+  string region = 2;
+  uint64 capacity = 3;
+  string public_endpoint = 4;
+}
+
+message CreateEdgeResponse {
+  ManagedEdge edge = 1;
+  string install_command = 2;
+  google.protobuf.Timestamp claim_expires_at = 3;
+}
+
+message UpdateEdgeRequest {
+  string edge_id = 1;
+  uint64 expected_revision = 2;
+  string name = 3;
+  string region = 4;
+  uint64 capacity = 5;
+  string public_endpoint = 6;
+  bool enabled = 7;
+}
+
+message UpdateEdgeResponse { ManagedEdge edge = 1; }
+
+message DeleteEdgeRequest {
+  string edge_id = 1;
+  uint64 expected_revision = 2;
+  string reason = 3;
+}
+
+message DeleteEdgeResponse {}
+
+// RegisterEdgeRequest 由安装后的 Edge 发送；两个私钥都不会离开 Edge。
+message RegisterEdgeRequest {
+  string edge_id = 1;
+  string bootstrap_token = 2;
+  bytes identity_csr_pem = 3;
+  bytes public_csr_pem = 4;
+}
+
+// RegisterEdgeResponse 返回本 Edge 专属证书和已签名配置。
+message RegisterEdgeResponse {
+  string edge_id = 1;
+  bytes identity_certificate_pem = 2;
+  bytes public_certificate_pem = 3;
+  bytes edge_ca_certificate_pem = 4;
+  bytes controller_ca_certificate_pem = 5;
+  string controller_address = 6;
+  string controller_server_name = 7;
+  SignedEdgeDesiredConfig desired_config = 8;
+  string config_key_id = 9;
+  bytes config_signing_public_key = 10;
+}
+
+message CreateEdgeIdentityRecoveryRequest {
+  string edge_id = 1;
+  string reason = 2;
+}
+
+message CreateEdgeIdentityRecoveryResponse {
+  string recovery_token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// RecoverEdgeIdentityRequest is the only unauthenticated-by-mTLS identity path.
+// Its high-entropy token is operator-created, short-lived, one-time, and Edge-bound.
+message RecoverEdgeIdentityRequest {
+  string edge_id = 1;
+  string recovery_token = 2;
+  bytes identity_csr_pem = 3;
+}
+
+message RecoverEdgeIdentityResponse {
+  bytes identity_certificate_pem = 1;
+  bytes certificate_sha256 = 2;
+  google.protobuf.Timestamp not_after = 3;
+}

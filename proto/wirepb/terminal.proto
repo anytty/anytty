@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package anytty.protocol.wirepb;
+
+option go_package = "github.com/anytty/anytty/proto/wirepb";
+
+// wirepb 只拥有 DataChannel framing 与 file resource stream payload。
+// application command/result/event 必须使用 apipb，不得在本包重新定义。
+message Hello {
+  uint32 version = 1;
+  string client = 2;
+  string server = 3;
+}
+
+// SessionClose 是已完成 Hello 的客户端主动结束当前 protocol session 的单向 control frame。
+// daemon 收到后必须先释放 request/resource 并关闭 transport；它不改变 Endpoint、terminal 或 grant lifecycle。
+message SessionClose {
+  uint32 version = 1;
+}
+
+// RequestCancel cancels one in-flight control request without closing the
+// protocol session. Unknown or already completed IDs are an idempotent no-op.
+message RequestCancel {
+  uint64 id = 1;
+}
+
+message RequestEnvelope {
+  uint64 id = 1;
+  string method = 2;
+  bytes params = 3;
+}
+
+message ResponseEnvelope {
+  uint64 id = 1;
+  bytes result = 2;
+}
+
+message ProtocolError {
+  int32 code = 1;
+  string message = 2;
+}
+
+message ErrorEnvelope {
+  uint64 id = 1;
+  ProtocolError error = 2;
+}
+
+message FileTransferData {
+  int64 offset = 1;
+  bytes data = 2;
+}
+
+message FileTransferAck {
+  int64 offset = 1;
+  int64 window_bytes = 2;
+}
+
+message FileTransferFinish {
+  int64 size = 1;
+  bytes sha256 = 2;
+}
+
+message FileTransferResult {
+  string path = 1;
+  int64 size = 2;
+  bytes sha256 = 3;
+}

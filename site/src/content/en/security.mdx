@@ -1,0 +1,22 @@
+---
+title: Security model
+description: AnyTTY trust anchors, authority boundaries, pairing, and fail-closed behavior.
+---
+
+# Security model
+
+The daemon owns the identity and authorization decisions that protect terminals and files. A transport or managed policy may deny reachability, but it cannot elevate a client's daemon-issued capabilities.
+
+## Security invariants
+
+- Pairing claims and enrollment material are short-lived, one-time, and replay-resistant.
+- Capability grants are bound to a client identity and enforced by the daemon.
+- Cloud AgentGateway and ClientGateway authenticate with challenge-first proofs.
+- Missing or inconsistent Cloud policy fails closed.
+- Terminal and file content are not part of Controller authority.
+
+## Report a vulnerability
+
+Do not open a public issue. Use [GitHub private vulnerability reporting](https://github.com/lozzo/anytty/security/advisories/new) with a minimal reproduction based on generated test credentials. Never include real keys, pairing claims, grants, terminal content, or personal data.
+
+Read the full [security policy](https://github.com/lozzo/anytty/blob/main/SECURITY.md) and [architecture](https://github.com/lozzo/anytty/blob/main/ARCHITECTURE.md).

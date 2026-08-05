@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible defect in the public AnyTTY source
+title: "bug: "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: Do not report vulnerabilities, credentials, pairing material, terminal contents, or private data here. Use private vulnerability reporting for security issues.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched open and closed issues for this problem.
+          required: true
+        - label: This report contains no secrets, private terminal content, or security exploit details.
+          required: true
+  - type: input
+    id: revision
+    attributes:
+      label: AnyTTY revision
+      description: Commit SHA or local revision. There are no supported releases yet.
+      placeholder: e.g. abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [CLI/TUI, Core daemon, Shared UI, Android, iOS, Local route, SSH route, Direct route, Cloud client/agent, Documentation, Build/CI, Other]
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, Go/Node versions, and device model when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal numbered steps and sanitized commands.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized diagnostics
+      description: Remove identities, file paths, terminal contents, tokens, claims, grants, keys, and service identifiers.
+      render: shell

@@ -1,0 +1,147 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply plugin: 'com.google.protobuf'
+
+def anyttyBuildString = { value -> '"' + value.toString().replace('\\', '\\\\').replace('"', '\\"') + '"' }
+def anyttyCloudControllerAddress = project.findProperty('anyttyCloudControllerAddress') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_ADDRESS') ?: 'cloud.anytty.com:443'
+def anyttyCloudControllerServerName = project.findProperty('anyttyCloudControllerServerName') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_SERVER_NAME') ?: 'cloud.anytty.com'
+def anyttyCloudControllerCAPEMBase64 = project.findProperty('anyttyCloudControllerCAPEMBase64') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64') ?: ''
+
+android {
+    namespace = "com.anytty.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion = "27.2.12479018"
+    compileOptions {
+        coreLibraryDesugaringEnabled = true
+    }
+    defaultConfig {
+        applicationId "com.anytty.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 2
+        versionName "1.1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "ANYTTY_CLOUD_CONTROLLER_ADDRESS", anyttyBuildString(anyttyCloudControllerAddress)
+        buildConfigField "String", "ANYTTY_CLOUD_CONTROLLER_SERVER_NAME", anyttyBuildString(anyttyCloudControllerServerName)
+        buildConfigField "String", "ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64", anyttyBuildString(anyttyCloudControllerCAPEMBase64)
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    androidResources {
+        ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+    sourceSets {
+        test.resources.srcDir '../../../../client/endpoint/testdata'
+        main.proto.srcDir '../../../../proto'
+        main.jniLibs.srcDir "$buildDir/generated/anyttyJniLibs"
+    }
+    if (project.hasProperty("anyttyArmOnly")) {
+        splits {
+            abi {
+                enable true
+                reset()
+                include "arm64-v8a"
+                universalApk false
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources = true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+tasks.register("buildAnyTTYClientNative", Exec) {
+    workingDir rootProject.projectDir
+    if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+        commandLine "powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file('../../../../scripts/build-android-client-windows.ps1').absolutePath, "-OutputRoot", "$buildDir/generated/anyttyJniLibs"
+    } else {
+        commandLine file('../../../../scripts/build-android-client.sh').absolutePath, "$buildDir/generated/anyttyJniLibs"
+    }
+    inputs.files(
+        fileTree('../../../../client'),
+        fileTree('../../../../api_layer'),
+        fileTree('../../../../cloud'),
+        fileTree('../../../../core'),
+        fileTree('../../../../internal/protocol'),
+        fileTree('../../../../remote'),
+        fileTree('../../../../shared'),
+        fileTree('../../../../proto'),
+        file('src/main/cpp/anytty_client_jni.c')
+    )
+    outputs.dir "$buildDir/generated/anyttyJniLibs"
+}
+
+tasks.named("preBuild").configure {
+    dependsOn tasks.named("buildAnyTTYClientNative")
+}
+
+configurations.configureEach {
+    resolutionStrategy.force 'org.slf4j:slf4j-api:2.0.6', 'org.slf4j:slf4j-nop:2.0.6'
+}
+
+dependencies {
+    // anytty NativeConnection dependencies
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.6'
+    implementation 'org.slf4j:slf4j-nop:2.0.6'
+    implementation 'com.google.protobuf:protobuf-java:3.25.5'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
+    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.json:json:20240303'
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+}
+
+def verifyReleaseSlf4j = tasks.register("verifyReleaseSlf4j") {
+    doLast {
+        def actual = configurations.releaseRuntimeClasspath.incoming.resolutionResult.allComponents
+            .collect { component -> component.moduleVersion }
+            .findAll { module -> module != null && module.group == 'org.slf4j' }
+            .collect { module -> "${module.name}:${module.version}" }
+            .toSet()
+        def expected = ['slf4j-api:2.0.6', 'slf4j-nop:2.0.6'].toSet()
+        if (actual != expected) {
+            throw new GradleException("release SLF4J modules must be ${expected}, got ${actual}")
+        }
+    }
+}
+
+tasks.matching { task -> task.name == "preReleaseBuild" }.configureEach {
+    dependsOn verifyReleaseSlf4j
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.25.5'
+    }
+    generateProtoTasks {
+        all().configureEach { task ->
+            task.builtins {
+                java {}
+            }
+        }
+    }
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

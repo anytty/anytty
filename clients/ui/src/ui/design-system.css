@@ -1,0 +1,123 @@
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --ui-accent: #f5f5f5;
+  --ui-accent-foreground: #171717;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #d4d4d4;
+  --ring: #a3a3a3;
+  --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --control-height: 2.5rem;
+  --control-height-sm: 2.25rem;
+  --touch-target: 2.75rem;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 8%);
+
+  /* Compatibility aliases used by the existing app shell. */
+  --anytty-app-bg: #fafafa;
+  --anytty-app-surface: var(--card);
+  --anytty-app-surface-soft: var(--secondary);
+  --anytty-app-soft: var(--secondary);
+  --anytty-app-line: var(--border);
+  --anytty-app-line-strong: var(--input);
+  --anytty-app-text: var(--foreground);
+  --anytty-app-muted: var(--muted-foreground);
+  --anytty-app-accent: var(--primary);
+  --anytty-app-accent-text: var(--primary-foreground);
+  --anytty-app-success: #15803d;
+  --anytty-app-danger: var(--destructive);
+  --anytty-app-inverse: #0a0a0a;
+}
+
+.ui-button {
+  align-items: center;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  color: var(--primary-foreground);
+  display: inline-flex;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.5rem;
+  height: var(--control-height);
+  justify-content: center;
+  padding: 0 1rem;
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+  white-space: nowrap;
+}
+
+.ui-button:hover:not(:disabled) { opacity: 0.9; }
+.ui-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.ui-button-secondary { background: var(--secondary); border-color: var(--secondary); color: var(--secondary-foreground); }
+.ui-button-outline { background: var(--background); border-color: var(--input); color: var(--foreground); }
+.ui-button-outline:hover:not(:disabled), .ui-button-ghost:hover:not(:disabled) { background: var(--ui-accent); color: var(--ui-accent-foreground); opacity: 1; }
+.ui-button-ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--foreground); }
+.ui-button-destructive { background: var(--destructive); border-color: var(--destructive); color: var(--destructive-foreground); }
+.ui-button-sm { height: var(--control-height-sm); padding-inline: 0.75rem; }
+.ui-button-icon { height: var(--touch-target); padding: 0; width: var(--touch-target); }
+
+.ui-input {
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font: inherit;
+  height: var(--control-height);
+  padding: 0 0.75rem;
+  width: 100%;
+}
+
+.ui-input::placeholder { color: var(--muted-foreground); }
+.ui-input:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.ui-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  color: var(--card-foreground);
+}
+
+.ui-badge {
+  align-items: center;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--secondary-foreground);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  min-height: 1.5rem;
+  padding: 0.25rem 0.625rem;
+  white-space: nowrap;
+}
+
+.ui-button:focus-visible,
+.ui-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button { transition-duration: 0.01ms; }
+}

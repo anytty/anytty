@@ -1,0 +1,537 @@
+syntax = "proto3";
+
+package anytty.client.binding.v1;
+
+import "apipb/application.proto";
+import "apipb/common.proto";
+import "remoteauthpb/remote_auth.proto";
+
+option go_package = "github.com/anytty/anytty/proto/bindingpb";
+
+enum ConnectIntent {
+  CONNECT_INTENT_UNSPECIFIED = 0;
+  CONNECT_INTENT_INTERACTIVE = 1;
+  CONNECT_INTENT_BACKGROUND = 2;
+  CONNECT_INTENT_PROBE = 3;
+}
+
+enum ResourceStreamFrameType {
+  RESOURCE_STREAM_FRAME_TYPE_UNSPECIFIED = 0;
+  RESOURCE_STREAM_FRAME_TYPE_FILE_DATA = 1;
+  RESOURCE_STREAM_FRAME_TYPE_FILE_ACK = 2;
+  RESOURCE_STREAM_FRAME_TYPE_FILE_FINISH = 3;
+  RESOURCE_STREAM_FRAME_TYPE_FILE_RESULT = 4;
+  RESOURCE_STREAM_FRAME_TYPE_ERROR = 5;
+  RESOURCE_STREAM_FRAME_TYPE_FILE_FINISH_AUTO = 6;
+  // PTY_OUTPUT payload 是未经文本解码或 ANSI 解析的原始 PTY bytes。
+  RESOURCE_STREAM_FRAME_TYPE_PTY_OUTPUT = 7;
+  // PTY_SYNC_LOST payload 是 serialized PTYStreamSyncLost；收到后必须丢弃本地解析状态。
+  RESOURCE_STREAM_FRAME_TYPE_PTY_SYNC_LOST = 8;
+  // PTY_CLOSED payload 是 serialized PTYStreamClosed。
+  RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED = 9;
+}
+
+// ConnectionRouteKind 是 ReadySession 实际获胜的持久 Route kind 投影。
+enum ConnectionRouteKind {
+  CONNECTION_ROUTE_KIND_UNSPECIFIED = 0;
+  CONNECTION_ROUTE_KIND_LOCAL = 1;
+  CONNECTION_ROUTE_KIND_DIRECT = 2;
+  CONNECTION_ROUTE_KIND_SSH = 3;
+	reserved 4;
+	reserved "CONNECTION_ROUTE_KIND_MANAGED_CLOUD";
+  CONNECTION_ROUTE_KIND_CLOUD = 5;
+}
+
+// ConnectionObservedPath 是已建立 WebRTC candidate pair 的中性路径投影。
+enum ConnectionObservedPath {
+	CONNECTION_OBSERVED_PATH_UNSPECIFIED = 0;
+	CONNECTION_OBSERVED_PATH_DIRECT = 1;
+	CONNECTION_OBSERVED_PATH_SINGLE_RELAY = 2;
+}
+
+// ConnectionCandidateType 是 selected ICE candidate pair 的脱敏候选类型。
+enum ConnectionCandidateType {
+  CONNECTION_CANDIDATE_TYPE_UNSPECIFIED = 0;
+  CONNECTION_CANDIDATE_TYPE_HOST = 1;
+  CONNECTION_CANDIDATE_TYPE_SERVER_REFLEXIVE = 2;
+  CONNECTION_CANDIDATE_TYPE_PEER_REFLEXIVE = 3;
+  CONNECTION_CANDIDATE_TYPE_RELAY = 4;
+}
+
+// ConnectionTransport 是 selected candidate 或 TURN allocation 可证明的传输协议。
+enum ConnectionTransport {
+  CONNECTION_TRANSPORT_UNSPECIFIED = 0;
+  CONNECTION_TRANSPORT_UDP = 1;
+  CONNECTION_TRANSPORT_TCP = 2;
+}
+
+// ConnectionPolicyAvailabilityReason 是 Go planner 对指定 Route kind 不可选原因的稳定投影。
+// UI 只负责展示；不得依据 Route 字段、平台类型或登录状态自行推断可用性。
+enum ConnectionPolicyAvailabilityReason {
+  CONNECTION_POLICY_AVAILABILITY_REASON_UNSPECIFIED = 0;
+  CONNECTION_POLICY_AVAILABILITY_REASON_AVAILABLE = 1;
+  CONNECTION_POLICY_AVAILABILITY_REASON_ROUTE_NOT_CONFIGURED = 2;
+  CONNECTION_POLICY_AVAILABILITY_REASON_ROUTE_DISABLED = 3;
+  CONNECTION_POLICY_AVAILABILITY_REASON_PLATFORM_UNSUPPORTED = 4;
+  CONNECTION_POLICY_AVAILABILITY_REASON_CREDENTIAL_UNAVAILABLE = 5;
+  CONNECTION_POLICY_AVAILABILITY_REASON_CLOUD_UNAVAILABLE = 6;
+}
+
+// ConnectionSnapshot 是同一个 Go-owned ReadySession 的只读诊断投影。
+// 它只携带 selected candidate pair 的 IP/port，禁止携带 SDP、credential、账号或 terminal 数据。
+message ConnectionSnapshot {
+  string route_id = 1;
+  ConnectionRouteKind route_kind = 2;
+  ConnectionObservedPath observed_path = 3;
+  string selection_reason = 4;
+  int64 sampled_at_unix_nano = 5;
+  int64 round_trip_nanos = 6;
+  ConnectionCandidateType local_candidate_type = 7;
+  ConnectionCandidateType remote_candidate_type = 8;
+  ConnectionTransport local_protocol = 9;
+  ConnectionTransport remote_protocol = 10;
+  ConnectionTransport relay_transport = 11;
+  string network_class = 12;
+  uint64 bytes_sent = 13;
+  uint64 bytes_received = 14;
+  uint64 packets_sent = 15;
+  uint64 loss_events = 16;
+  bool connected = 17;
+  string local_ip = 18;
+  string remote_ip = 19;
+  uint32 local_port = 20;
+  uint32 remote_port = 21;
+  string candidate_pair_id = 22;
+  string local_related_ip = 23;
+  uint32 local_related_port = 24;
+  string remote_related_ip = 25;
+  uint32 remote_related_port = 26;
+}
+
+// ConnectionPolicy 是 Endpoint selection policy 中允许用户调整的稳定子集。
+// 持久化和 planner validation 都由 Go Client Engine 持有，平台 UI 只能提交用户意图。
+message ConnectionPolicy {
+  anytty.remote.auth.v1.EndpointRoutePreference route_preference = 1;
+  // cloud_relay_mode 约束 managed Cloud Route 使用 P2P、Relay 或自动选择；持久真值在 Go Endpoint registry。
+  anytty.remote.auth.v1.ManagedWebRTCRelayMode cloud_relay_mode = 2;
+  // relay_transport 只在 Cloud Relay 可用时收缩 TURN UDP/TCP；UI 不得把它保存成第二份连接状态。
+  anytty.remote.auth.v1.ManagedWebRTCRelayTransport relay_transport = 3;
+}
+
+message ConnectionPolicyRouteAvailability {
+  ConnectionRouteKind route_kind = 1;
+  bool available = 2;
+  ConnectionPolicyAvailabilityReason reason = 3;
+}
+
+message ConnectionPolicyState {
+  ConnectionPolicy policy = 1;
+  repeated ConnectionPolicyRouteAvailability routes = 2;
+}
+
+message ConnectionPolicyGetRequest {
+  string request_id = 1;
+  string endpoint_id = 2;
+}
+
+message ConnectionPolicyGetResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  ConnectionPolicyState state = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+message ConnectionPolicyApplyRequest {
+  string request_id = 1;
+  string endpoint_id = 2;
+  ConnectionPolicy policy = 3;
+}
+
+message ConnectionPolicyApplyResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  ConnectionPolicyState state = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+// ConnectionSnapshotGetRequest 重新采样当前 session handle 的实际 transport 状态。
+// session_handle 属于同一 Engine generation；stale 或 closing handle 必须显式失败。
+message ConnectionSnapshotGetRequest {
+  string request_id = 1;
+  uint64 session_handle = 2;
+}
+
+message ConnectionSnapshotGetResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  uint64 session_handle = 3;
+  ConnectionSnapshot connection = 4;
+  anytty.api.v1.ApiError error = 5;
+}
+
+// SessionInvalidateRequest removes the exact Go-owned endpoint generation behind
+// a binding session. It is reserved for confirmed platform network changes; a
+// normal CloseSession still releases only the caller's consumer lease.
+message SessionInvalidateRequest {
+  string request_id = 1;
+  uint64 session_handle = 2;
+}
+
+message SessionInvalidateResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  uint64 session_handle = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+message OpenSessionRequest {
+  string request_id = 1;
+  string endpoint_id = 2;
+  string route_override = 3;
+  ConnectIntent intent = 4;
+  reserved 5;
+}
+
+message ImportPairingRequest {
+  string request_id = 1;
+  string portable_payload = 2;
+  string expected_endpoint_id = 3;
+}
+
+message ImportPairingResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.remote.auth.v1.EndpointConfigV1 endpoint = 3;
+  string ticket_id = 4;
+  string client_key_fingerprint = 5;
+  int64 expires_at_unix_nano = 6;
+  bool authorization_required = 7;
+  anytty.api.v1.ApiError error = 8;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 9;
+}
+
+message DeleteCredentialRequest {
+  string request_id = 1;
+  string credential_ref = 2;
+}
+
+message DeleteCredentialResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.api.v1.ApiError error = 3;
+}
+
+message EndpointRegistryGetRequest { string request_id = 1; }
+
+message EndpointRegistryGetResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+message EndpointUpsertRequest {
+  string request_id = 1;
+  anytty.remote.auth.v1.EndpointConfigV1 endpoint = 2;
+  bool make_default = 3;
+}
+
+message EndpointUpsertResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.remote.auth.v1.EndpointConfigV1 endpoint = 3;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 4;
+  anytty.api.v1.ApiError error = 5;
+}
+
+message EndpointDeleteRequest {
+  string request_id = 1;
+  string endpoint_id = 2;
+}
+
+message EndpointDeleteResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  string endpoint_id = 3;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 4;
+  anytty.api.v1.ApiError error = 5;
+}
+
+// EndpointShareReceiveRequest 通过 Go Client Engine 接收一次性 TLS share bundle，只生成待确认预览。
+message EndpointShareReceiveRequest {
+  string request_id = 1;
+  string portable_offer = 2;
+}
+
+message EndpointShareRouteDiff {
+  string route_id = 1;
+  string route_kind = 2;
+  string action = 3;
+}
+
+// EndpointSharePreview 是 Go 根据当前 registry 与已验证 share bundle 计算的确认信息。
+message EndpointSharePreview {
+  string import_token = 1;
+  string endpoint_id = 2;
+  string label = 3;
+  anytty.remote.auth.v1.EndpointDaemonIdentity identity = 4;
+  repeated EndpointShareRouteDiff route_diffs = 5;
+  bool connect_mode_changed = 6;
+  bool selection_policy_changed = 7;
+  repeated anytty.remote.auth.v1.EndpointCredentialDescriptor credential_descriptors = 8;
+  int64 expires_at_unix_nano = 9;
+}
+
+message EndpointShareReceiveResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  EndpointSharePreview preview = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+// EndpointShareCommitRequest 仅提交当前 generation 内尚未过期的 preview token。
+message EndpointShareCommitRequest {
+  string request_id = 1;
+  string import_token = 2;
+}
+
+message EndpointShareCommitResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.remote.auth.v1.EndpointConfigV1 endpoint = 3;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 4;
+  bool authorization_required = 5;
+  anytty.api.v1.ApiError error = 6;
+}
+
+// SSHCredentialProvisionRequest 让 Go Client Engine 为已存在的 SSH Route 准备目标平台 signer。
+// endpoint_id/route_id 只定位 Go registry 中的 Route；平台不会收到或解析 Endpoint 配置。
+message SSHCredentialProvisionRequest {
+  string request_id = 1;
+  string endpoint_id = 2;
+  string route_id = 3;
+}
+
+// SSHCredentialProvisionResult 返回更新后的 Go registry projection 和可安装到 SSH server 的公钥。
+// private key 始终留在平台 secure signer 中，不进入 Proto payload。
+message SSHCredentialProvisionResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  anytty.remote.auth.v1.EndpointConfigV1 endpoint = 3;
+  anytty.remote.auth.v1.EndpointRegistryV1 registry = 4;
+  string credential_ref = 5;
+  string authorized_key = 6;
+  string key_fingerprint = 7;
+  anytty.api.v1.ApiError error = 8;
+}
+
+message EngineCommand {
+  oneof command {
+    ImportPairingRequest import_pairing = 1;
+    DeleteCredentialRequest delete_credential = 2;
+    EndpointRegistryGetRequest endpoint_registry_get = 3;
+    EndpointUpsertRequest endpoint_upsert = 4;
+    EndpointDeleteRequest endpoint_delete = 5;
+    EndpointShareReceiveRequest endpoint_share_receive = 6;
+    EndpointShareCommitRequest endpoint_share_commit = 7;
+    SSHCredentialProvisionRequest ssh_credential_provision = 8;
+    ConnectionPolicyGetRequest connection_policy_get = 9;
+    ConnectionPolicyApplyRequest connection_policy_apply = 10;
+    ConnectionSnapshotGetRequest connection_snapshot_get = 11;
+    SessionInvalidateRequest session_invalidate = 12;
+  }
+}
+
+message OpenSessionResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  uint64 session_handle = 3;
+  anytty.api.v1.EndpointSessionStamp session = 4;
+  anytty.api.v1.ApiError error = 5;
+  ConnectionSnapshot connection = 6;
+}
+
+message ExecuteResult {
+  uint64 operation_handle = 1;
+  uint64 session_handle = 2;
+  anytty.api.v1.ResultEnvelope result = 3;
+  anytty.api.v1.ApiError error = 4;
+}
+
+message ApplicationEvent {
+  uint64 session_handle = 1;
+  anytty.api.v1.EventEnvelope event = 2;
+}
+
+message OpenResourceStreamRequest {
+  anytty.api.v1.ResourceHandle resource = 1;
+  int64 initial_upload_offset = 2;
+}
+
+message ResourceStreamFrame {
+  uint64 stream_handle = 1;
+  ResourceStreamFrameType type = 2;
+  bytes payload = 3;
+}
+
+message ResourceStreamClosedEvent {
+  uint64 stream_handle = 1;
+  anytty.api.v1.ApiError error = 2;
+}
+
+message SessionClosedEvent {
+  uint64 session_handle = 1;
+  anytty.api.v1.EndpointSessionStamp session = 2;
+  anytty.api.v1.ApiError error = 3;
+}
+
+message EventEnvelope {
+  uint32 abi_version = 1;
+  uint64 sequence = 2;
+  oneof event {
+    OpenSessionResult open_session = 10;
+    ExecuteResult execute = 11;
+    ApplicationEvent application = 12;
+    SessionClosedEvent session_closed = 13;
+    ImportPairingResult import_pairing = 14;
+    DeleteCredentialResult delete_credential = 15;
+    ResourceStreamFrame resource_stream_frame = 16;
+    ResourceStreamClosedEvent resource_stream_closed = 17;
+    EndpointRegistryGetResult endpoint_registry_get = 18;
+    EndpointUpsertResult endpoint_upsert = 19;
+    EndpointDeleteResult endpoint_delete = 20;
+    EndpointShareReceiveResult endpoint_share_receive = 21;
+    EndpointShareCommitResult endpoint_share_commit = 22;
+    SSHCredentialProvisionResult ssh_credential_provision = 23;
+    ConnectionPolicyGetResult connection_policy_get = 24;
+    ConnectionPolicyApplyResult connection_policy_apply = 25;
+    ConnectionSnapshotGetResult connection_snapshot_get = 26;
+    SessionInvalidateResult session_invalidate = 27;
+  }
+}
+
+message CredentialResolveRequest {
+  string endpoint_id = 1;
+  string credential_ref = 2;
+}
+
+message CredentialPrepareRequest {
+  string endpoint_id = 1;
+  string credential_ref = 2;
+}
+
+message CredentialDeleteRequest { string credential_ref = 1; }
+
+message CredentialBindRequest {
+  string endpoint_id = 1;
+  string credential_ref = 2;
+  string capability_grant = 3;
+  bytes cloud_route_grant = 4;
+  // cloud_edge_locator 是 enrollment、配对或 Controller 纠偏返回的 EdgeLocator protobuf；不是授权真值。
+  bytes cloud_edge_locator = 5;
+}
+
+message CredentialRecord {
+  string endpoint_id = 1;
+  string credential_ref = 2;
+  bytes public_key = 3;
+  string key_fingerprint = 4;
+  string capability_grant = 5;
+  bool newly_created = 6;
+  bytes cloud_route_grant = 7;
+  bytes cloud_edge_locator = 8;
+}
+
+message CredentialSignRequest {
+  string credential_ref = 1;
+  bytes payload = 2;
+}
+
+message CredentialSignResponse { bytes signature = 1; }
+
+// CloudProfileResolveRequest 只解析本机账号/构建配置中的 Controller TLS locator。
+// 平台不得在该请求内执行 Directory、ClientGateway、WebRTC 或认证逻辑。
+message CloudProfileResolveRequest { string account_profile_ref = 1; }
+
+message CloudProfileRecord {
+  string account_profile_ref = 1;
+  string controller_address = 2;
+  string controller_server_name = 3;
+  bytes controller_ca_pem = 4;
+}
+
+// SSHCredentialLookupRequest 查询或显式创建一个平台不可导出的 SSH signer。
+// create_if_missing=false 只能查询，planner 不得因为能力探测而创建新 key。
+message SSHCredentialLookupRequest {
+  string credential_ref = 1;
+  bool create_if_missing = 2;
+}
+
+message SSHCredentialDeleteRequest { string credential_ref = 1; }
+
+// SSHCredentialRecord 只返回 PKIX 公钥；private key handle 和 key body 不跨平台边界。
+message SSHCredentialRecord {
+  string credential_ref = 1;
+  bytes public_key_pkix = 2;
+  bool newly_created = 3;
+}
+
+// SSHCredentialSignRequest 让平台 signer 对 Go SSH 实现已计算的 digest 签名。
+// 当前 Android contract 只允许 ECDSA P-256 + SHA-256。
+message SSHCredentialSignRequest {
+  string credential_ref = 1;
+  bytes digest = 2;
+  string hash = 3;
+}
+
+message SSHCredentialSignResponse { bytes signature = 1; }
+
+// EndpointRegistryLoad/Store 是平台 opaque blob primitive；平台不得解析 registry 字段或建立第二份索引。
+message EndpointRegistryLoadRequest {}
+message EndpointRegistryStoreRequest {
+  bytes registry_proto = 1;
+  repeated string delete_credential_refs = 2;
+}
+message EndpointRegistryLoaded { bytes registry_proto = 1; }
+
+// PlatformEvent 保留窄 binding 的异步平台入口。
+// 旧 Cloud/WebRTC 浏览器 primitive 已删除，后续能力必须由新 Proto 重新分配字段。
+message PlatformEvent {
+	reserved 10 to 12;
+}
+
+message PlatformRequest {
+  uint64 request_id = 1;
+  oneof request {
+    CredentialResolveRequest credential_resolve = 10;
+    CredentialPrepareRequest credential_prepare = 11;
+    CredentialDeleteRequest credential_delete = 12;
+    CredentialSignRequest credential_sign = 13;
+    CredentialBindRequest credential_bind = 14;
+    EndpointRegistryLoadRequest endpoint_registry_load = 15;
+    EndpointRegistryStoreRequest endpoint_registry_store = 16;
+    SSHCredentialLookupRequest ssh_credential_lookup = 17;
+    SSHCredentialSignRequest ssh_credential_sign = 18;
+    SSHCredentialDeleteRequest ssh_credential_delete = 19;
+    CloudProfileResolveRequest cloud_profile_resolve = 20;
+  }
+	reserved 21 to 26, 30 to 38;
+}
+
+message PlatformResponse {
+  uint64 request_id = 1;
+  anytty.api.v1.ApiError error = 2;
+  oneof response {
+    CredentialRecord credential = 10;
+    CredentialSignResponse credential_sign = 11;
+    EndpointRegistryLoaded endpoint_registry = 12;
+    SSHCredentialRecord ssh_credential = 13;
+    SSHCredentialSignResponse ssh_credential_sign = 14;
+    CloudProfileRecord cloud_profile = 15;
+  }
+	reserved 20 to 26, 30 to 34;
+}
+
+message PTYStreamSyncLost { uint64 dropped_bytes = 1; }
+
+message PTYStreamClosed { int32 exit_code = 1; }

@@ -1,0 +1,21 @@
+---
+import DocsLayout from '@/layouts/DocsLayout.astro'
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js'
+
+interface DocModule { default: AstroComponentFactory; frontmatter: { title: string; description: string } }
+
+export function getStaticPaths() {
+  const modules = import.meta.glob<DocModule>('../../../content/zh-CN/*.mdx', { eager: true })
+  return Object.entries(modules).map(([file, entry]) => ({
+    params: { slug: file.split('/').pop()!.replace(/\.mdx$/, '') },
+    props: { Content: entry.default, frontmatter: entry.frontmatter },
+  }))
+}
+
+const { slug } = Astro.params
+const { Content, frontmatter } = Astro.props
+---
+
+<DocsLayout locale="zh-CN" slug={slug!} title={frontmatter.title} description={frontmatter.description}>
+  <Content />
+</DocsLayout>

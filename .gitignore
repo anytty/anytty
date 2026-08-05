@@ -1,0 +1,30 @@
+/.artifacts/
+/cmd/*/cloud_bundle/
+.swp
+.toolchain/
+.worktrees/
+*.tsbuildinfo
+/clients/ui/public/*-wasm/
+/node_modules/
+/site/.astro/
+/site/dist/
+/cloud/web/node_modules/
+/private/archive/**/.build/
+/anytty
+/muxvia
+/test-results/
+/clients/mobile/test-results/
+# Android packages and generated build state
+*.apk
+*.aab
+/clients/mobile/android/build/
+/clients/mobile/android/*/build/
+/clients/mobile/android/.gradle/
+/clients/mobile/android/*/.gradle/
+/clients/mobile/android/.cxx/
+/clients/mobile/android/*/.cxx/
+/clients/mobile/android/local.properties
+/剪贴板 *.png
+Screenshot_*.jpg
+*-debug-*.zip
+/docs/PRODUCTION_OPERATIONS.local.md

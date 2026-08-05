@@ -1,0 +1,27 @@
+---
+title: File management
+description: Browse and transfer files through daemon-authorized roots.
+---
+
+# File management
+
+File access travels over the selected endpoint route but remains a separate daemon-granted capability.
+
+## CLI discovery
+
+```sh
+anytty file --help
+anytty file roots
+anytty file list <root-and-path>
+```
+
+The current CLI exposes listing, upload, download, cancellation, and transfer inspection commands. Consult command help because syntax may change before the first release.
+
+## Safety properties
+
+- Requests are resolved within daemon-configured file roots.
+- Terminal permission does not imply file permission.
+- Transfers support cancellation and integrity checks.
+- Mobile credentials remain in native protected storage rather than WebView storage.
+
+> **Do not expose broad roots casually.** Use the narrowest root and capability needed. Treat downloaded terminal artifacts and logs as potentially sensitive user data.

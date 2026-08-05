@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// DaemonState 是 daemon identity 的持久生命周期。DELETED 是不可恢复的终态墓碑。
+enum DaemonState {
+  DAEMON_STATE_UNSPECIFIED = 0;
+  DAEMON_STATE_ACTIVE = 1;
+  DAEMON_STATE_BLOCKED = 2;
+  DAEMON_STATE_DELETED = 3;
+}
+
+// DaemonRecord 是 Controller 持久 daemon identity 的公开投影，不包含私钥或实时拓扑。
+message DaemonRecord {
+  string daemon_id = 1;
+  string account_id = 2;
+  string account_name = 3;
+  string display_name = 4;
+  string device_id = 5;
+  string device_fingerprint = 6;
+  DaemonState state = 7;
+  uint64 state_revision = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  string preferred_edge_id = 11;
+  uint64 edge_preference_revision = 12;
+  google.protobuf.Timestamp edge_preference_updated_at = 13;
+}
+
+// DaemonStateRecord 是 Controller 向 Edge 广播的最小持久状态。
+message DaemonStateRecord {
+  string daemon_id = 1;
+  DaemonState state = 2;
+  uint64 state_revision = 3;
+}
+
+// DaemonRuntimeProjection 来自 Controller Directory 内存，Controller 重启后必须由 Edge 重建。
+message DaemonRuntimeProjection {
+  bool online = 1;
+  string edge_id = 2;
+  string edge_name = 3;
+  string edge_region = 4;
+  string boot_id = 5;
+  string connection_id = 6;
+  uint64 generation = 7;
+  string edge_public_endpoint = 8;
+}
+
+message ManagedDaemon {
+  DaemonRecord daemon = 1;
+  DaemonRuntimeProjection runtime = 2;
+}
+
+// DaemonEdgeMeasurement 是 daemon 从自身网络位置测得的短期连接质量。
+// connection_failure_rate 是 TCP/TLS/gRPC 探测失败率，不表示 UDP 丢包率。
+message DaemonEdgeMeasurement {
+  string edge_id = 1;
+  bool reachable = 2;
+  uint32 connect_latency_ms = 3;
+  double connection_failure_rate = 4;
+  uint32 sample_count = 5;
+  google.protobuf.Timestamp measured_at = 6;
+}
+
+// DaemonEdgeCandidate 是面向 daemon owner 的安全 Edge 投影。
+message DaemonEdgeCandidate {
+  EdgeLocator locator = 1;
+  bool online = 2;
+  bool eligible = 3;
+  uint64 agent_count = 4;
+  uint64 capacity = 5;
+  bool preferred = 6;
+  bool current = 7;
+  DaemonEdgeMeasurement measurement = 8;
+  double score = 9;
+  string status = 10;
+}
+
+message DaemonEdgeSelection {
+  string daemon_id = 1;
+  string preferred_edge_id = 2;
+  uint64 preference_revision = 3;
+  string current_edge_id = 4;
+  string selected_edge_id = 5;
+  repeated DaemonEdgeCandidate candidates = 6;
+  google.protobuf.Timestamp evaluated_at = 7;
+}
+
+message CreateDaemonEnrollmentRequest {
+  string account_id = 1;
+  string account_name = 2;
+  string daemon_name = 3;
+}
+
+message CreateDaemonEnrollmentResponse {
+  string account_id = 1;
+  string enrollment_code = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  string enroll_command = 4;
+  uint32 daemon_count = 5;
+  uint32 daemon_limit = 6;
+}
+
+message ListDaemonsRequest {}
+message ListDaemonsResponse { repeated ManagedDaemon daemons = 1; }
+
+// CreateMyDaemonEnrollmentRequest 只允许用户命名 daemon；账号来自认证 session。
+message CreateMyDaemonEnrollmentRequest { string daemon_name = 1; }
+message ListMyDaemonsRequest {}
+message ListMyDaemonsResponse {
+  repeated ManagedDaemon daemons = 1;
+  uint32 daemon_count = 2;
+  uint32 daemon_limit = 3;
+}
+
+message ChangeMyDaemonStateRequest {
+  string daemon_id = 1;
+  DaemonState target_state = 2;
+  uint64 expected_state_revision = 3;
+  string reason = 4;
+}
+
+message ChangeMyDaemonStateResponse { DaemonRecord daemon = 1; }
+
+message ListMyDaemonEdgesRequest { string daemon_id = 1; }
+message ListMyDaemonEdgesResponse { DaemonEdgeSelection selection = 1; }
+
+message ChangeMyDaemonEdgePreferenceRequest {
+  string daemon_id = 1;
+  string preferred_edge_id = 2;
+  uint64 expected_preference_revision = 3;
+  bool reselect_now = 4;
+}
+
+message ChangeMyDaemonEdgePreferenceResponse {
+  DaemonEdgeSelection selection = 1;
+  bool reselect_accepted = 2;
+  string message = 3;
+}
+
+message ReselectMyDaemonEdgeRequest { string daemon_id = 1; }
+message ReselectMyDaemonEdgeResponse {
+  DaemonEdgeSelection selection = 1;
+  bool reselect_accepted = 2;
+  string message = 3;
+}
+
+message BeginDaemonEnrollmentRequest {
+  string enrollment_code = 1;
+  string device_id = 2;
+  string device_fingerprint = 3;
+  bytes device_public_key = 4;
+}
+
+message IdentityChallenge {
+  string challenge_id = 1;
+  bytes challenge = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message CompleteDaemonEnrollmentRequest {
+  string challenge_id = 1;
+  bytes device_proof = 2;
+}
+
+// EdgeLocator 是 daemon 和已授权客户端可持久化的公开连接位置，不包含授权秘密。
+message EdgeLocator {
+  string edge_id = 1;
+  string name = 2;
+  string region = 3;
+  string public_endpoint = 4;
+  string server_name = 5;
+  bytes ca_certificate_pem = 6;
+  uint64 revision = 7;
+}
+
+message CompleteDaemonEnrollmentResponse {
+  DaemonRecord daemon = 1;
+  SignedEnvelope daemon_binding = 2;
+  EdgeLocator edge_locator = 3;
+  uint32 daemon_count = 4;
+  uint32 daemon_limit = 5;
+}
+
+// BeginDaemonBindingRefreshRequest 只标识现有 daemon；身份和 Edge 选择都由 Controller 的当前真值决定。
+message BeginDaemonBindingRefreshRequest {
+  string daemon_id = 1;
+}
+
+message CompleteDaemonBindingRefreshRequest {
+  string challenge_id = 1;
+  bytes device_proof = 2;
+  repeated DaemonEdgeMeasurement edge_measurements = 3;
+  bool change_preference = 4;
+  string preferred_edge_id = 5;
+  uint64 expected_preference_revision = 6;
+}
+
+// RefreshDaemonBindingResponse 对 ACTIVE/BLOCKED daemon 返回新的 binding 和 locator。
+// DELETED 只返回 daemon 状态，使离线 daemon 能清理本地 enrollment。
+message RefreshDaemonBindingResponse {
+  DaemonRecord daemon = 1;
+  SignedEnvelope daemon_binding = 2;
+  EdgeLocator edge_locator = 3;
+  DaemonEdgeSelection edge_selection = 4;
+}
+
+// EnrollmentService 负责一次性注册，以及现有 DeviceIdentity 在 Edge 位置失效后的 binding 刷新。
+service EnrollmentService {
+  rpc BeginDaemonEnrollment(BeginDaemonEnrollmentRequest) returns (IdentityChallenge);
+  rpc CompleteDaemonEnrollment(CompleteDaemonEnrollmentRequest) returns (CompleteDaemonEnrollmentResponse);
+  rpc BeginDaemonBindingRefresh(BeginDaemonBindingRefreshRequest) returns (IdentityChallenge);
+  rpc CompleteDaemonBindingRefresh(CompleteDaemonBindingRefreshRequest) returns (RefreshDaemonBindingResponse);
+}
+
+// DaemonManagementService 是登录用户管理自己 daemon 的 API；实现必须从 session 推导账号。
+service DaemonManagementService {
+  rpc CreateMyEnrollment(CreateMyDaemonEnrollmentRequest) returns (CreateDaemonEnrollmentResponse);
+  rpc ListMyDaemons(ListMyDaemonsRequest) returns (ListMyDaemonsResponse);
+  rpc ChangeMyDaemonState(ChangeMyDaemonStateRequest) returns (ChangeMyDaemonStateResponse);
+  rpc ListMyDaemonEdges(ListMyDaemonEdgesRequest) returns (ListMyDaemonEdgesResponse);
+  rpc ChangeMyDaemonEdgePreference(ChangeMyDaemonEdgePreferenceRequest) returns (ChangeMyDaemonEdgePreferenceResponse);
+  rpc ReselectMyDaemonEdge(ReselectMyDaemonEdgeRequest) returns (ReselectMyDaemonEdgeResponse);
+}

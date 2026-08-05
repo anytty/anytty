@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// CertificateSyncState 是持久 desired revision 与 Edge applied revision 的对账结果。
+enum CertificateSyncState {
+  CERTIFICATE_SYNC_STATE_UNSPECIFIED = 0;
+  CERTIFICATE_SYNC_STATE_PENDING = 1;
+  CERTIFICATE_SYNC_STATE_APPLIED = 2;
+  CERTIFICATE_SYNC_STATE_FAILED = 3;
+}
+
+// CertificateBinding 是一个 Edge 的持久证书绑定及最近应用结果。
+// online 仍由纯内存 Directory 投影，不写入证书表。
+message CertificateBinding {
+  string edge_id = 1;
+  string edge_name = 2;
+  string public_endpoint = 3;
+  string certificate_profile_id = 4;
+  string certificate_profile_name = 5;
+  uint64 binding_revision = 6;
+  uint64 desired_revision = 7;
+  uint64 applied_revision = 8;
+  CertificateSyncState sync_state = 9;
+  string last_error_code = 10;
+  string last_error_message = 11;
+  google.protobuf.Timestamp applied_at = 12;
+  bool online = 13;
+}
+
+// CertificateProfile 是运营 API 可见的当前证书元数据，不包含 PEM 或 secret 引用。
+message CertificateProfile {
+  string certificate_profile_id = 1;
+  string name = 2;
+  repeated string dns_names = 3;
+  string sha256_fingerprint = 4;
+  google.protobuf.Timestamp not_before = 5;
+  google.protobuf.Timestamp not_after = 6;
+  uint64 revision = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  repeated CertificateBinding bindings = 10;
+}
+
+message ListCertificateProfilesRequest {}
+message ListCertificateProfilesResponse {
+  repeated CertificateProfile profiles = 1;
+}
+
+// UploadCertificateProfileRequest 同时携带证书链和私钥；响应永远不回显这两个字段。
+// certificate_profile_id 为空表示创建，非空表示替换当前档案内容。
+message UploadCertificateProfileRequest {
+  string certificate_profile_id = 1;
+  uint64 expected_revision = 2;
+  string name = 3;
+  bytes certificate_chain_pem = 4;
+  bytes private_key_pem = 5;
+}
+
+message UploadCertificateProfileResponse {
+  CertificateProfile profile = 1;
+}
+
+// BindCertificateProfileRequest 把一个 Edge 绑定到一个档案；空档案 ID 表示解除绑定。
+message BindCertificateProfileRequest {
+  string edge_id = 1;
+  string certificate_profile_id = 2;
+  uint64 expected_binding_revision = 3;
+}
+
+message BindCertificateProfileResponse {
+  CertificateBinding binding = 1;
+}
+
+// EdgeCertificateBundle 只允许通过已认证的 mTLS EdgeControl 下发给 target_edge_id。
+// 它不是运营 HTTP API 的响应类型，也不得写入 PostgreSQL。
+message EdgeCertificateBundle {
+  string target_edge_id = 1;
+  string certificate_profile_id = 2;
+  uint64 revision = 3;
+  string public_endpoint = 4;
+  bytes certificate_chain_pem = 5;
+  bytes private_key_pem = 6;
+}

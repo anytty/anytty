@@ -1,0 +1,40 @@
+---
+title: 构建与贡献
+description: 构建 AnyTTY 客户端、验证公开边界并按 DCO 贡献。
+---
+
+# 构建与贡献
+
+公开仓库包含用户设备源码与发布材料。贡献应同步维护协议、生成代码、测试、文档和安全假设。
+
+## 核心检查
+
+```sh
+npm ci
+make build
+make test
+make test-clients
+npm run public:check
+```
+
+Android release 检查还需要 Java 21 和 Android SDK。iOS 需要 macOS 与 Xcode，执行 `clients/mobile/ios/scripts/build-ios.sh`。
+
+## 文档站
+
+```sh
+npm run site:build
+npm run site:check
+npm run site:preview
+```
+
+Astro 启动时会打印本地预览地址，请使用其中的 `/anytty/` 路径。GitHub Pages 发布生成的 `site/dist` 目录。
+
+## 贡献约定
+
+- 大型协议、信任边界或架构变更应先创建 issue。
+- pull request 保持单一范围并列出准确验证命令。
+- 使用 `git commit -s` 按 DCO 签署提交。
+- 依赖或打包资产变化时更新第三方声明。
+- 不得贡献凭据、私有服务源码、生产配置或用户数据。
+
+继续阅读[贡献指南](https://github.com/lozzo/anytty/blob/main/docs/zh-CN/CONTRIBUTING.md)、[行为准则](https://github.com/lozzo/anytty/blob/main/docs/zh-CN/CODE_OF_CONDUCT.md)和[治理政策](https://github.com/lozzo/anytty/blob/main/docs/zh-CN/GOVERNANCE.md)。
