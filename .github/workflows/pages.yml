@@ -35,7 +35,7 @@ jobs:
           ANYTTY_SITE_CUSTOM_DOMAIN: ${{ vars.ANYTTY_SITE_CUSTOM_DOMAIN || 'false' }}
           ANYTTY_SITE_BASE_PATH: /anytty
           PUBLIC_ANYTTY_SITE_URL: ${{ vars.ANYTTY_SITE_URL || 'https://lozzo.github.io/anytty' }}
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist
