@@ -1,41 +1,49 @@
 ---
 title: Quick start
-description: Build AnyTTY and start a local daemon and terminal.
+description: Install AnyTTY and start a local daemon and terminal.
 ---
 
 # Quick start
 
-Build the current source, start the per-user daemon, and enter the TUI. AnyTTY is pre-release; these instructions track the repository rather than a published package.
+Install the current beta, start the per-user daemon, and enter the TUI.
 
-## Prerequisites
+## Install
 
-Install Go 1.26.5, Node.js 24, and npm. Clone the public repository and install the locked JavaScript dependencies.
+On macOS or Linux, the installer downloads the matching release archive and verifies its SHA-256 checksum:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+## Run locally
+
+```sh
+anytty daemon start
+anytty
+```
+
+The second command opens the TUI against the default local endpoint. To create a shell and attach directly from the CLI:
+
+```sh
+anytty terminal create --name workspace --attach -- zsh
+```
+
+## Build from source
+
+Source builds require Go 1.26.5, Node.js 24, and npm.
 
 ```sh
 git clone https://github.com/anytty/anytty.git
 cd anytty
 npm ci
 make build
-```
-
-The binary is written to `.artifacts/bin/anytty`.
-
-## Run locally
-
-```sh
-./.artifacts/bin/anytty daemon start
-./.artifacts/bin/anytty
-```
-
-The second command opens the TUI against the default local endpoint. To create a shell and attach directly from the CLI:
-
-```sh
-./.artifacts/bin/anytty terminal create --attach -- zsh
-```
-
-## Verify the checkout
-
-```sh
 make test
 make test-clients
 npm run public:check

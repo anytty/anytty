@@ -50,6 +50,13 @@ a { text-underline-offset: 0.2em; }
 .terminal-help { display: flex; flex-wrap: wrap; gap: 18px; border-top: 1px solid #343634; padding: 11px 18px; color: #8f968f; }
 .terminal-help kbd { color: #d7dcd7; font: inherit; }
 
+.route-section, .app-section, .docs-cta {
+  --foreground: #171917;
+  --muted-foreground: #5f665f;
+  --border: #cdd2cc;
+  --primary: #176b3a;
+  color: var(--foreground);
+}
 .route-section { border-top: 1px solid var(--border); padding: 76px 0; background: #fff; }
 .section-heading { display: flex; justify-content: space-between; gap: 48px; }
 .section-heading h2, .app-copy h2, .workflow-copy h2, .docs-cta h2 { margin: 0; font-size: 38px; line-height: 1.15; font-weight: 680; letter-spacing: 0; }

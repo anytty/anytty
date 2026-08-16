@@ -1,6 +1,6 @@
 # 安全策略
 
-AnyTTY 尚未发布，目前没有受支持版本、漏洞奖励或保证响应时间。
+AnyTTY 当前处于 Beta 阶段。当前 Beta 会尽力提供安全修复，但没有漏洞奖励或保证响应时间。
 
 安全问题请使用 [GitHub 私密漏洞报告](https://github.com/anytty/anytty/security/advisories/new)。不要创建包含利用细节、凭据、配对材料、终端内容或用户隐私的公开 issue。
 

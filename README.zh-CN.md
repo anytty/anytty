@@ -2,53 +2,104 @@
 
 [English](README.md) | 简体中文
 
-AnyTTY 是一个开源远程终端系统，用于访问你自己机器上的终端和文件。一个 `anytty` daemon 负责终端进程、历史记录、文件访问、设备身份和客户端授权；CLI/TUI 与移动 App 可通过 Local、SSH、Direct WebRTC 或 AnyTTY Cloud 连接它。
+AnyTTY 让终端会话持续运行在你自己的机器上，并可随时从键盘优先的 TUI、CLI 或手机 App 回到现场。同一条连接还提供实用的远程文件浏览能力，适合查看项目文件、日志与下载内容。
 
-> **项目状态：** 当前仍是积极开发中的预发布版本。Beta 构建产物可用于评估，但目前没有稳定版本、兼容性保证或生产就绪承诺；首次稳定发布前，协议与配置仍可能变化。
+> **Beta：** `v0.0.1-beta.0` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
 
-<p align="center"><img src="docs/assets/android-pairing.png" alt="AnyTTY Android 设备页面中的扫描服务二维码操作" width="300"></p>
+![展示工作区导航与双终端分屏的 AnyTTY TUI](docs/assets/tui-workbench.png)
 
-## 包含的内容
+## 主要功能
 
-- `anytty` CLI、TUI 和当前用户 daemon。
-- 共享 React 终端与文件 UI，以及 Android、iOS App 源码。
-- Local socket、OpenSSH、Direct WebRTC/ICE-TCP 和 AnyTTY Cloud 客户端路由。
-- 二维码配对、客户端绑定的 capability grant、端到端认证与公开 protobuf 协议。
-- Cloud daemon agent，以及连接官方 AnyTTY Cloud 所需的客户端支持。
+- **让工作持续运行。** shell、构建任务、开发服务器或日志追踪只需启动一次；断开后重新连接，无需重启进程。
+- **管理多个终端。** 使用工作区、标签页、分屏、浮动窗、搜索、缩放和键盘优先的终端管理器组织会话。
+- **从手机操作终端。** 连接实时终端，并通过专用扩展键盘快速输入 `Esc`、`Ctrl`、方向键、翻页键等常用终端按键。
+- **浏览远程文件。** 在移动端访问已授权路径，预览常见文档与媒体格式，并执行上传、下载、重命名和多选操作。
+- **自由选择连接方式。** 可只在本机使用、复用 SSH、通过 WebRTC/ICE-TCP 直连，也可在网络不方便时使用可选的 AnyTTY Cloud 路由。
+- **无需共享密码即可配对。** 通过短时二维码或粘贴 claim 添加设备，访问权限与客户端绑定，并可由 daemon 撤销。
 
-终端会话支持实时输出、保留历史、附加/分离、尺寸调整和输入处理。文件操作由 daemon 授权，并使用相同的 endpoint 模型。详见[架构](ARCHITECTURE.md)和[终端交付模型](docs/TERMINAL_DELIVERY.md)。
+<table>
+  <tr>
+    <td align="center"><img src="docs/assets/mobile-terminal.png" alt="带扩展键盘的 AnyTTY Android 远程终端" width="360"></td>
+    <td align="center"><img src="docs/assets/mobile-files.png" alt="AnyTTY Android 远程文件浏览器" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>实时终端</strong></td>
+    <td align="center"><strong>远程文件</strong></td>
+  </tr>
+</table>
+
+## 安装
+
+### macOS 与 Linux
+
+安装脚本会自动选择 x64 或 ARM64，下载对应 GitHub Release，校验 `SHA256SUMS`，并默认安装到 `~/.local/bin`。
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
+```
+
+也可以指定版本和安装目录：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
+  sh -s -- --version v0.0.1-beta.0 --bin-dir "$HOME/bin"
+```
+
+### Windows PowerShell
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\bin`，并把目录加入当前用户的 `PATH`。如不希望修改 `PATH`，可传入 `-NoModifyPath`。
+
+你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0) 下载各平台 CLI 压缩包和未签名 Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
+
+## 快速开始
+
+启动当前用户的 daemon，然后打开 TUI：
+
+```sh
+anytty daemon start
+anytty
+```
+
+从 CLI 创建一个命名终端并立即连接：
+
+```sh
+anytty terminal create --name workspace --attach -- zsh
+```
+
+稍后查看或重新连接会话：
+
+```sh
+anytty terminal list
+anytty attach workspace
+```
+
+执行 `anytty --help` 可查看完整命令列表，也可以继续阅读[中文快速开始](https://anytty.github.io/anytty/zh-CN/docs/quick-start.html)。
+
+## 手机 App
+
+从 Release 页面安装 Android Beta APK，然后在 App 中选择“添加设备”。在运行 daemon 的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
+
+仓库同时包含 iOS 客户端源码。目前还没有经过应用商店签名的 Android 或 iOS 安装包。
 
 ## 连接方式
 
-| 路由 | 传输 | 是否需要 Cloud | 适用场景 |
-| --- | --- | --- | --- |
-| Local | 当前用户 socket | 否 | 同一台机器上的 CLI 与 TUI |
-| SSH | OpenSSH 隧道和 loopback signaling/ICE-TCP | 否 | 已能通过 SSH 访问的机器 |
-| Direct | 固定 daemon 身份和 WebRTC/ICE-TCP | 否 | 自行管理网络可达性 |
-| Cloud | Edge 信令，优先 WebRTC P2P，必要时 Relay | 是 | 通过官方托管服务获得公网可达性 |
+| 路由 | 适用场景 | 是否需要 Cloud |
+| --- | --- | --- |
+| Local | 同一台机器上的 CLI 与 TUI | 否 |
+| SSH | 已经可以通过 OpenSSH 访问的机器 | 否 |
+| Direct | 自己管理的局域网或公网可达环境 | 否 |
+| Cloud | 托管设备发现、P2P 协商与 Relay 兜底 | 是 |
 
-每条路由最终都连接到 daemon。Cloud 只改变发现与传输方式，不改变谁有权授予终端或文件权限。
-
-## 架构与安全边界
-
-```text
-CLI / TUI / Mobile
-        |
-        | Local、SSH、Direct 或 Cloud 传输
-        v
-  用户拥有的 daemon  ----> PTY / shell
-        |                    终端历史
-        +------------------> 已授权文件根目录
-
-仅 Cloud 路由：
-client <-> 托管 Edge（信令 / relay）<-> daemon Cloud agent
-```
-
-daemon 是设备身份、终端访问、文件访问与撤销的最终权威。托管 Cloud 服务处理账号策略、daemon 注册、信令、路由选择与 Relay 传输，但不能签发 daemon 的终端或文件 capability。配对 claim 一次性使用并绑定客户端。部署或修改信任边界前，请阅读 [ARCHITECTURE.md](ARCHITECTURE.md)、[配对协议](docs/PAIRING_PROTOCOL.md)和[开源边界](docs/OPEN_SOURCE_BOUNDARY.md)。
+Local、SSH 与 Direct 可以完全基于本仓库使用。官方 Cloud 路由是可选能力；它改变的是发现和传输方式，不改变 daemon 对终端与文件权限的最终控制。
 
 ## 从源码构建
 
-CLI/TUI 开发需要 Go 1.26.5；共享 UI 和移动端使用 Node.js 24 及仓库中的 npm lockfile。
+CLI/TUI 开发需要 Go 1.26.5；共享 UI 与移动端使用 Node.js 24 及仓库中的 npm lockfile。
 
 ```sh
 git clone https://github.com/anytty/anytty.git
@@ -57,45 +108,19 @@ npm ci
 make build
 ```
 
-二进制位于 `.artifacts/bin/anytty`。主要检查命令：
+二进制输出到 `.artifacts/bin/anytty`。主要检查命令为 `make test`、`make test-clients` 和 `npm run public:check`。Android 构建还需要 Java 21 与 Android SDK；iOS 构建需要 macOS 与 Xcode。
 
-```sh
-make test
-make test-clients
-npm run public:check
-```
+## 开源边界
 
-Android release 验证还需要 Java 21 和 Android SDK，请执行 `make test-android`。iOS 构建需要 macOS、Xcode 以及 [clients/mobile/ios/README.md](clients/mobile/ios/README.md) 中列出的环境。预发布 CLI 压缩包和未签名 Android 验证 APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases) 下载。
+Apache-2.0 仓库包含 CLI、TUI、用户自己的 daemon、共享 UI、Android 与 iOS 源码、Local/SSH/Direct 路由、Cloud 客户端、公开协议以及端到端授权路径。
 
-## 快速开始
-
-启动当前用户的 daemon，然后打开 TUI：
-
-```sh
-./.artifacts/bin/anytty daemon start
-./.artifacts/bin/anytty
-```
-
-从 CLI 创建终端并立即附加：
-
-```sh
-./.artifacts/bin/anytty terminal create --attach -- zsh
-```
-
-请使用当前 checkout 的 `./.artifacts/bin/anytty --help`，并参阅[中文快速开始](https://anytty.github.io/anytty/zh-CN/docs/quick-start.html)。移动客户端通过扫描服务生成的一次性二维码添加 daemon；它不会登录账号或自动发现设备。
-
-## Cloud 与自托管能力
-
-Local、SSH 与 Direct 路由完整包含在本 Apache-2.0 仓库中，不需要 AnyTTY Cloud。使用这些路由时，主机访问、网络可达性、证书和运维由你负责。
-
-官方 AnyTTY Cloud 是托管服务。本仓库包含 Cloud 客户端、daemon agent、公开协议和端到端授权路径，但不包含专有 Controller、Edge 实现、Cloud Web、计费、数据库迁移、生产部署或运营配置。这些服务端组件目前不作为可自托管 Cloud 栈提供。本仓库不承诺价格或服务可用性。
+仓库不包含专有的 AnyTTY Cloud Controller、Edge 服务端实现、Cloud Web、计费、数据库迁移、生产部署与线上运营配置；这些托管服务端组件目前不作为可自托管 Cloud 栈提供。详细内容见[开源边界](docs/OPEN_SOURCE_BOUNDARY.md)、[安全架构](ARCHITECTURE.md)与[配对协议](docs/PAIRING_PROTOCOL.md)。
 
 ## 项目入口
 
-- [中文文档站](https://anytty.github.io/anytty/zh-CN/)和[站点源码](site/README.md)
-- [贡献指南](docs/zh-CN/CONTRIBUTING.md)、[治理](docs/zh-CN/GOVERNANCE.md)和[行为准则](docs/zh-CN/CODE_OF_CONDUCT.md)
-- [安全策略](docs/zh-CN/SECURITY.md)和[私密漏洞报告](https://github.com/anytty/anytty/security/advisories/new)
-- [支持](docs/zh-CN/SUPPORT.md)、[变更记录](CHANGELOG.md)和[发布检查清单](docs/zh-CN/RELEASE_CHECKLIST.md)
-- [Apache-2.0 许可证原文](LICENSE)、[NOTICE](NOTICE)、[第三方声明](THIRD_PARTY_NOTICES.txt)和[商标政策](docs/zh-CN/TRADEMARKS.md)
+- [中文文档](https://anytty.github.io/anytty/zh-CN/)与[变更记录](CHANGELOG.md)
+- [贡献指南](docs/zh-CN/CONTRIBUTING.md)、[治理](docs/zh-CN/GOVERNANCE.md)与[行为准则](docs/zh-CN/CODE_OF_CONDUCT.md)
+- [安全策略](docs/zh-CN/SECURITY.md)、[支持](docs/zh-CN/SUPPORT.md)与[私密漏洞报告](https://github.com/anytty/anytty/security/advisories/new)
+- [Apache-2.0 许可证](LICENSE)、[NOTICE](NOTICE)、[第三方声明](THIRD_PARTY_NOTICES.txt)与[商标政策](docs/zh-CN/TRADEMARKS.md)
 
 贡献须遵守 [DCO](DCO)。Apache-2.0 不授予 AnyTTY 名称和图标的商标权。

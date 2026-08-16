@@ -1,50 +1,101 @@
 # AnyTTY
 
-AnyTTY is an open-source remote terminal system for reaching terminals and files on your own machines. One `anytty` daemon owns the terminal processes, history, file access, device identity, and client authorization; the CLI/TUI and mobile apps reach it over Local, SSH, Direct WebRTC, or AnyTTY Cloud routes.
+English | [简体中文](README.zh-CN.md)
 
-> **Project status:** pre-release and under active development. Beta artifacts are available for evaluation, but there are no stable releases, compatibility guarantees, or production-readiness claims. Expect protocols and configuration to change before the first stable release.
+AnyTTY keeps terminal sessions running on your own machines and lets you return to them from a keyboard-first TUI, the CLI, or a mobile app. The same connection also gives you a practical file browser for project files, logs, and downloads.
 
-<p align="center">
-  <img src="docs/assets/android-pairing.png" alt="AnyTTY Android device screen with the Scan service QR action" width="300">
-</p>
+> **Beta:** `v0.0.1-beta.0` is available for macOS, Linux, Windows, and Android. It is ready for evaluation, but protocols and configuration may still change before the first stable release.
 
-## What is included
+![AnyTTY TUI showing workspace navigation and two terminal panes](docs/assets/tui-workbench.png)
 
-- The `anytty` CLI, TUI, and per-user daemon.
-- Shared React terminal and file UI, plus Android and iOS app source.
-- Local socket, OpenSSH, Direct WebRTC/ICE-TCP, and AnyTTY Cloud client routes.
-- QR pairing, client-bound capability grants, end-to-end authentication, and public protobuf protocols.
-- The Cloud daemon agent and the client support required to connect to the official AnyTTY Cloud.
+## What you can do
 
-Terminal sessions provide live output, retained history, attach/detach lifecycle, resize and input handling. File operations are authorized by the daemon and exposed through the same endpoint model. See the [architecture](ARCHITECTURE.md) and [terminal delivery model](docs/TERMINAL_DELIVERY.md).
+- **Keep work alive.** Start a shell, build, server, or log tail once; detach and reconnect without restarting the process.
+- **Organize multiple terminals.** Use workspaces, tabs, split panes, floating panes, search, resize, zoom, and a keyboard-first terminal manager.
+- **Work from your phone.** Attach to a live terminal with an extra-key bar designed for `Esc`, `Ctrl`, arrows, paging, and common terminal input.
+- **Browse remote files.** Navigate approved paths, preview common document and media formats, upload, download, rename, and select files from the mobile UI.
+- **Choose how to connect.** Stay local, reuse SSH, connect directly with WebRTC/ICE-TCP, or use the optional AnyTTY Cloud route when direct reachability is inconvenient.
+- **Pair without sharing passwords.** Add a device with a short-lived QR or paste claim. Access is bound to that client and can be revoked from the daemon.
 
-## Connection routes
+<table>
+  <tr>
+    <td align="center"><img src="docs/assets/mobile-terminal.png" alt="AnyTTY Android remote terminal with an extra-key bar" width="360"></td>
+    <td align="center"><img src="docs/assets/mobile-files.png" alt="AnyTTY Android remote file browser" width="360"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Live terminal</strong></td>
+    <td align="center"><strong>Remote files</strong></td>
+  </tr>
+</table>
 
-| Route | Transport | Cloud required | Intended use |
-| --- | --- | --- | --- |
-| Local | Current-user socket | No | Same-machine CLI and TUI |
-| SSH | OpenSSH tunnel plus loopback signaling/ICE-TCP | No | Machines already reachable over SSH |
-| Direct | Pinned daemon identity plus WebRTC/ICE-TCP | No | Self-managed network reachability |
-| Cloud | Edge signaling, WebRTC P2P when possible, Relay when needed | Yes | Reachability through the official managed service |
+## Install
 
-Every route terminates at the daemon. Choosing Cloud changes discovery and transport, not who may grant terminal or file access.
+### macOS and Linux
 
-## Architecture and security boundary
+The installer selects x64 or ARM64, downloads the matching GitHub Release archive, verifies `SHA256SUMS`, and installs to `~/.local/bin` by default.
 
-```text
-CLI / TUI / Mobile
-        |
-        | Local, SSH, Direct, or Cloud transport
-        v
-  user-owned daemon  ----> PTY / shell
-        |                    terminal history
-        +------------------> authorized file roots
-
-Cloud route only:
-client <-> managed Edge (signaling / relay) <-> daemon Cloud agent
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
 ```
 
-The daemon is the final authority for device identity, terminal access, file access, and revocation. Managed Cloud services handle account policy, daemon registration, signaling, route selection, and relay transport; they cannot mint daemon terminal or file capabilities. Pairing claims are one-time and client-bound. Read [ARCHITECTURE.md](ARCHITECTURE.md), the [pairing protocol](docs/PAIRING_PROTOCOL.md), and the [open-source boundary](docs/OPEN_SOURCE_BOUNDARY.md) before deploying or modifying a trust boundary.
+Choose another directory or version when needed:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
+  sh -s -- --version v0.0.1-beta.0 --bin-dir "$HOME/bin"
+```
+
+### Windows PowerShell
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile install.ps1
+.\install.ps1
+```
+
+The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. Pass `-NoModifyPath` to leave `PATH` unchanged.
+
+You can also download CLI archives and the unsigned Android beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0). Package manager definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
+
+## Quick start
+
+Start the daemon for your user and open the TUI:
+
+```sh
+anytty daemon start
+anytty
+```
+
+Create a named terminal from the CLI and attach immediately:
+
+```sh
+anytty terminal create --name workspace --attach -- zsh
+```
+
+List sessions or return to one later:
+
+```sh
+anytty terminal list
+anytty attach workspace
+```
+
+Run `anytty --help` for the complete command list, or continue with the [quick-start guide](https://anytty.github.io/anytty/docs/quick-start.html).
+
+## Mobile app
+
+Install the Android beta APK from the release page, then use **Add device** in the app. On the machine running the daemon, generate a short-lived pairing QR or text claim with `anytty pair create`; scan or paste it into the app. Once paired, the device screen lists running terminals and opens the file browser for the terminal's working directory.
+
+The repository also contains the iOS client source. Store-signed Android and iOS builds are not available yet.
+
+## Connection options
+
+| Route | Best for | Cloud required |
+| --- | --- | --- |
+| Local | CLI and TUI on the same machine | No |
+| SSH | Machines you already reach with OpenSSH | No |
+| Direct | Self-managed LAN or internet reachability | No |
+| Cloud | Managed discovery, P2P negotiation, and relay fallback | Yes |
+
+Local, SSH, and Direct are fully usable from this repository. The official Cloud route is optional; choosing it changes discovery and transport, not the daemon's authority over terminals and files.
 
 ## Build from source
 
@@ -57,45 +108,19 @@ npm ci
 make build
 ```
 
-The binary is written to `.artifacts/bin/anytty`. Run the main checks with:
+The binary is written to `.artifacts/bin/anytty`. Run the main checks with `make test`, `make test-clients`, and `npm run public:check`. Android builds additionally require Java 21 and the Android SDK; iOS builds require macOS and Xcode.
 
-```sh
-make test
-make test-clients
-npm run public:check
-```
+## Open-source boundary
 
-Android release validation additionally needs Java 21 and the Android SDK; run `make test-android`. iOS builds require macOS, Xcode, and the prerequisites in [clients/mobile/ios/README.md](clients/mobile/ios/README.md). Pre-release CLI archives and the unsigned Android verification APK are available on [GitHub Releases](https://github.com/anytty/anytty/releases).
+The Apache-2.0 repository contains the CLI, TUI, user-owned daemon, shared UI, Android and iOS source, Local/SSH/Direct routes, Cloud clients, public protocols, and the end-to-end authorization path.
 
-## Quick start
+It does not contain the proprietary AnyTTY Cloud Controller, Edge server implementation, Cloud Web application, billing, database migrations, production deployment, or service operations. These managed server components are not currently offered as a self-hostable Cloud stack. See the [open-source boundary](docs/OPEN_SOURCE_BOUNDARY.md), [security architecture](ARCHITECTURE.md), and [pairing protocol](docs/PAIRING_PROTOCOL.md) for details.
 
-Start the current user's daemon, then open the TUI:
+## Project links
 
-```sh
-./.artifacts/bin/anytty daemon start
-./.artifacts/bin/anytty
-```
-
-Create and attach to a terminal from the CLI:
-
-```sh
-./.artifacts/bin/anytty terminal create --attach -- zsh
-```
-
-Use `./.artifacts/bin/anytty --help` and the [quick-start guide](https://anytty.github.io/anytty/docs/quick-start.html) for the commands implemented by the current checkout. Mobile clients add a daemon by scanning the one-time service QR code; they do not sign in or discover account devices automatically.
-
-## Cloud and self-hosted operation
-
-Local, SSH, and Direct routes are fully represented in this Apache-2.0 repository and do not require AnyTTY Cloud. You provide host access, network reachability, certificates, and operations for those routes.
-
-The official AnyTTY Cloud is a managed service. This repository includes its clients, daemon agent, public protocol, and end-to-end authorization path, but not the proprietary Controller, Edge implementation, Cloud Web application, billing, database migrations, production deployment, or operational configuration. Those server components are not currently offered as a self-hostable Cloud stack. No pricing or service availability is promised here.
-
-## Project resources
-
-- [Documentation site](https://anytty.github.io/anytty/) and [documentation source](site/README.md)
+- [Documentation](https://anytty.github.io/anytty/) and [changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md), [governance](GOVERNANCE.md), and [code of conduct](CODE_OF_CONDUCT.md)
-- [Security policy](SECURITY.md) and [private vulnerability reporting](https://github.com/anytty/anytty/security/advisories/new)
-- [Support](SUPPORT.md), [changelog](CHANGELOG.md), and [release checklist](RELEASE_CHECKLIST.md)
+- [Security policy](SECURITY.md), [support](SUPPORT.md), and [private vulnerability reporting](https://github.com/anytty/anytty/security/advisories/new)
 - [Apache-2.0 license](LICENSE), [NOTICE](NOTICE), [third-party notices](THIRD_PARTY_NOTICES.txt), and [trademark policy](TRADEMARKS.md)
 
 Contributions use the [Developer Certificate of Origin](DCO). AnyTTY names and logos are not granted by the Apache License 2.0.

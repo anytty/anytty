@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.locale.1.12.0.schema.json
+
+PackageIdentifier: AnyTTY.AnyTTY
+PackageVersion: 0.0.1-beta.0
+PackageLocale: zh-CN
+Publisher: AnyTTY
+PackageName: AnyTTY
+License: Apache-2.0
+ShortDescription: 面向自有设备的远程终端、多路复用与文件工作区。
+Description: 保持终端会话运行，并可从 CLI、TUI 或移动 App 重新连接；通过 Local、SSH、Direct 或可选 Cloud 路由浏览已授权文件。
+Tags:
+  - 命令行
+  - 远程终端
+  - 终端
+ManifestType: locale
+ManifestVersion: 1.12.0

@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: AnyTTY.AnyTTY
+PackageVersion: 0.0.1-beta.0
+InstallerType: zip
+NestedInstallerType: portable
+Commands:
+  - anytty
+ReleaseDate: 2026-08-17
+Installers:
+  - Architecture: x64
+    NestedInstallerFiles:
+      - RelativeFilePath: anytty-v0.0.1-beta.0-windows-amd64\anytty.exe
+        PortableCommandAlias: anytty
+    InstallerUrl: https://github.com/anytty/anytty/releases/download/v0.0.1-beta.0/anytty-v0.0.1-beta.0-windows-amd64.zip
+    InstallerSha256: 337B1AC1DEFD8CDAE0FF73495DB60F453CE7AD8A9E4527F2F64F29ABCC149A91
+  - Architecture: arm64
+    NestedInstallerFiles:
+      - RelativeFilePath: anytty-v0.0.1-beta.0-windows-arm64\anytty.exe
+        PortableCommandAlias: anytty
+    InstallerUrl: https://github.com/anytty/anytty/releases/download/v0.0.1-beta.0/anytty-v0.0.1-beta.0-windows-arm64.zip
+    InstallerSha256: 7191B2CF9E74F675975EF6C8F57C97F1DEA53FA1535EBEB608328AFB252F750
+ManifestType: installer
+ManifestVersion: 1.12.0

@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
   loggingBehavior: 'none',
   server: {
     hostname: 'localhost',
-    appStartPath: 'index.html',
+    appStartPath: '/index.html',
     androidScheme: 'http',
     allowNavigation: [],
   },

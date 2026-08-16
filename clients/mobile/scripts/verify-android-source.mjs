@@ -69,6 +69,9 @@ for (const tracked of manifests) {
 
 const capacitor = read(join(mobileRoot, 'capacitor.config.ts'))
 forbid(capacitor, ['allowMixedContent: true', "loggingBehavior: 'debug'", "loggingBehavior: 'production'"], 'capacitor.config.ts')
+if (!capacitor.includes("appStartPath: '/index.html'")) {
+  fail('capacitor.config.ts must use an absolute appStartPath so the local app URL is valid')
+}
 
 const activity = read(join(javaRoot, 'MainActivity.java'))
 forbid(activity, [

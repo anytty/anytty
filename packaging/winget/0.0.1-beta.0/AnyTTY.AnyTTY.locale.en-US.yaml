@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+
+PackageIdentifier: AnyTTY.AnyTTY
+PackageVersion: 0.0.1-beta.0
+PackageLocale: en-US
+Publisher: AnyTTY
+PublisherUrl: https://github.com/anytty
+PublisherSupportUrl: https://github.com/anytty/anytty/issues
+PackageName: AnyTTY
+PackageUrl: https://github.com/anytty/anytty
+License: Apache-2.0
+LicenseUrl: https://github.com/anytty/anytty/blob/main/LICENSE
+ShortDescription: Remote terminal, multiplexer, and file workspace for your own machines.
+Description: Keep terminal sessions running, reconnect from the CLI, TUI, or mobile app, and browse approved files through Local, SSH, Direct, or optional Cloud routes.
+Tags:
+  - cli
+  - remote-terminal
+  - terminal
+  - tui
+ReleaseNotesUrl: https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

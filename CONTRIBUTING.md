@@ -1,6 +1,6 @@
 # Contributing
 
-AnyTTY welcomes focused fixes, tests, documentation, accessibility improvements, and proposals that preserve the documented security boundary. The project is pre-release, so discuss large changes in an issue before investing in an implementation.
+AnyTTY welcomes focused fixes, tests, documentation, accessibility improvements, and proposals that preserve the documented security boundary. The project is in early beta, so discuss large changes in an issue before investing in an implementation.
 
 Read `README.md`, `ARCHITECTURE.md`, and the relevant protocol document before
 changing behavior. Keep schemas, generated code, implementations, tests, and

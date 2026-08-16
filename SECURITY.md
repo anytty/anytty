@@ -1,6 +1,6 @@
 # Security Policy
 
-AnyTTY is pre-release and has no supported versions, vulnerability bounty, or guaranteed response time.
+AnyTTY is in beta. The current beta receives best-effort security fixes, but there is no vulnerability bounty or guaranteed response time.
 
 Please use [GitHub private vulnerability reporting](https://github.com/anytty/anytty/security/advisories/new) for security issues. Do not
 open a public issue containing exploit details, credentials, pairing material,

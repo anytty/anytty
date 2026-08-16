@@ -5,16 +5,16 @@ description: 通过一次性、客户端绑定的 claim 将客户端与 daemon �
 
 # 扫码配对
 
-AnyTTY 移动 App 只在用户扫描目标服务生成的二维码后添加 endpoint。App 不登录账号、不导入任意文本 claim，也不会从 Cloud 账号自动发现设备。
+AnyTTY 移动 App 可通过扫描二维码或粘贴目标 daemon 生成的配对 claim 添加 endpoint。Direct 配对不需要账号。
 
 import { sitePath } from "@/lib/site";
 
-<img src={sitePath("/assets/android-pairing.png")} alt="提示用户扫描服务二维码的 AnyTTY Android 页面" />
+<img src={sitePath("/assets/mobile-terminal.png")} alt="与演示工作站配对后的 AnyTTY Android 终端" />
 
 ## 信任流程
 
 1. **daemon 创建短期 claim。** offer 绑定 daemon identity、请求的 capability 和单次 enrollment 流程。
-2. **客户端扫码并证明身份。** 原生客户端把 endpoint 数据与凭据写入平台保护的存储。
+2. **客户端扫描或粘贴 claim，并证明身份。** 原生客户端把 endpoint 数据与凭据写入平台保护的存储。
 3. **daemon 签发客户端绑定的访问权限。** claim 消费状态会被记录，同一 claim 不能重放。
 
 > **未兑换的二维码应视为秘密。** 不要把 pairing URI 放入日志、截图、issue、聊天或版本控制。客户端丢失或不再可信时，应从 daemon 撤销 grant。

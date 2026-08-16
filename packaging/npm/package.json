@@ -1,0 +1,37 @@
+{
+  "name": "@anytty/cli",
+  "version": "0.0.1-beta.0",
+  "description": "Install and run the AnyTTY remote terminal CLI",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "anytty": "bin/anytty.js"
+  },
+  "files": [
+    "bin",
+    "install.mjs",
+    "platform.mjs",
+    "README.md",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.txt"
+  ],
+  "scripts": {
+    "postinstall": "node install.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anytty/anytty.git"
+  },
+  "homepage": "https://github.com/anytty/anytty#readme",
+  "bugs": {
+    "url": "https://github.com/anytty/anytty/issues"
+  }
+}
