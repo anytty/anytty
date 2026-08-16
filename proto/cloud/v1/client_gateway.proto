@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "cloud/v1/runtime.proto";
+import "cloud/v1/usage.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// CloudICECandidate 是 Cloud 信令的中性 candidate；不携带授权或 terminal 数据。
+message CloudICECandidate {
+  string candidate = 1;
+  string sdp_mid = 2;
+  uint32 sdp_mline_index = 3;
+  string username_fragment = 4;
+}
+
+// PairingAdmission 是二维码材料的网络投影。Edge 必须将其与当前在线 daemon binding 对齐，
+// 再向该 daemon 实时请求授权；它自身不是 grant，也不能兑换 capability。
+message PairingAdmission {
+  string daemon_id = 1;
+  string device_id = 2;
+  bytes device_public_key = 3;
+  bytes pairing_claim_sha256 = 4;
+  int64 expires_at_unix_nano = 5;
+}
+
+message ClientHello {
+  bytes client_public_key = 2;
+  bytes client_proof = 3;
+  ClientProduct product = 4;
+  string software_version = 5;
+  uint64 attempt_generation = 6;
+  RelayPreference relay_preference = 7;
+  // presence_probe only verifies this daemon's live AgentGateway presence.
+  // It never allocates a ClientSession, Relay reservation, or WebRTC peer.
+  bool presence_probe = 8;
+  oneof authorization {
+    // cloud_route_grant 是 owning daemon 签发给已配对 ClientAccessIdentity 的长期发现和信令授权。
+    SignedEnvelope cloud_route_grant = 10;
+    // pairing_admission 只允许 Edge 向在线 daemon 请求一次性 pairing 预检。
+    PairingAdmission pairing_admission = 11;
+  }
+}
+
+message ClientReady {
+  string session_id = 1;
+  uint64 generation = 2;
+  RelayICEConfig relay = 3;
+  // AUTO 可以继续纯 P2P；只有 P2P 最终也失败时客户端才展示该原因。
+  CloudEntitlementFailure relay_failure = 4;
+}
+
+enum SelectedCloudPath {
+  SELECTED_CLOUD_PATH_UNSPECIFIED = 0;
+  SELECTED_CLOUD_PATH_DIRECT = 1;
+  SELECTED_CLOUD_PATH_RELAY = 2;
+}
+
+// ClientPathSelected 在 ICE/DataChannel ready 后确认实际路径，使 Edge 能立即释放未使用的 Relay 预留。
+message ClientPathSelected {
+  string session_id = 1;
+  SelectedCloudPath path = 2;
+}
+
+message ClientOffer {
+  string session_id = 1;
+  string offer_sdp = 2;
+  repeated CloudICECandidate candidates = 3;
+}
+
+message EdgeAnswer {
+  string session_id = 1;
+  string answer_sdp = 2;
+  repeated CloudICECandidate candidates = 3;
+}
+
+message SignalRejected {
+  string session_id = 1;
+  string code = 2;
+  string message = 3;
+  CloudEntitlementFailure entitlement_failure = 4;
+}
+
+enum SignalSessionCloseCode {
+  SIGNAL_SESSION_CLOSE_CODE_UNSPECIFIED = 0;
+  SIGNAL_SESSION_CLOSE_CODE_ADMIN_DISCONNECT = 1;
+}
+
+message SignalSessionClosed {
+  string session_id = 1;
+  SignalSessionCloseCode code = 2;
+  string message = 3;
+}
+
+// DaemonPresence is returned only after an authenticated presence probe.
+// online=false intentionally covers offline, stale, and invalid authorization
+// so the endpoint cannot be enumerated without a valid CloudRouteGrant.
+message DaemonPresence {
+  bool online = 1;
+}
+
+message ClientSignal {
+  uint32 protocol_version = 1;
+  string message_id = 2;
+  string sender_id = 3;
+  string boot_id = 4;
+  string connection_id = 5;
+  uint64 stream_seq = 6;
+  google.protobuf.Timestamp sent_at = 7;
+  oneof payload {
+    ClientHello hello = 20;
+    ClientOffer offer = 21;
+    ClientPathSelected path_selected = 22;
+  }
+}
+
+message EdgeSignal {
+  uint32 protocol_version = 1;
+  string message_id = 2;
+  string sender_id = 3;
+  string boot_id = 4;
+  string connection_id = 5;
+  uint64 stream_seq = 6;
+  google.protobuf.Timestamp sent_at = 7;
+  oneof payload {
+    ClientReady ready = 20;
+    EdgeAnswer answer = 21;
+    SignalRejected rejected = 22;
+    EdgeChallenge challenge = 23;
+    SignalSessionClosed closed = 24;
+    DaemonPresence presence = 25;
+  }
+}
+
+// ClientGateway 只承载 Cloud WebRTC 信令；DataChannel 建立后业务流量完全绕过该 stream。
+service ClientGateway {
+  rpc Connect(stream ClientSignal) returns (stream EdgeSignal);
+}

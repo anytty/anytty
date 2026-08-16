@@ -1,0 +1,34 @@
+---
+title: 连接方式
+description: 在不改变 daemon 权限边界的前提下选择 Local、SSH、Direct 或 AnyTTY Cloud。
+---
+
+# 连接方式
+
+endpoint 标识一个 daemon，route 是到达它的不同方式，选择和 fallback 由本地策略控制。
+
+## Local
+
+使用当前用户的本地 socket。文件系统权限与 daemon identity 构成信任锚，不需要 Cloud。
+
+## SSH
+
+先使用 OpenSSH，再访问远端机器的 loopback signaling 和 ICE-TCP。必须固定并验证 SSH host key，不需要 Cloud。
+
+## Direct
+
+连接公开的 signaling 和 ICE-TCP 地址，并绑定配对得到的 daemon identity 与 route credential，不需要 Cloud。
+
+## Cloud
+
+通过分配的 Edge 进行信令，优先 WebRTC P2P，在必要且策略允许时使用 Relay。这是托管服务路由。
+
+## 检查 endpoint
+
+```sh
+./.artifacts/bin/anytty endpoint list
+./.artifacts/bin/anytty endpoint show <endpoint-id>
+./.artifacts/bin/anytty endpoint test <endpoint-id>
+```
+
+新增或修改 route 前，请查看当前 checkout 的 `anytty endpoint --help`。授权和协议错误不会被当作普通网络故障，因此 fallback 不能静默绕过安全决定。

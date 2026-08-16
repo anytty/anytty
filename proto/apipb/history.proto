@@ -1,0 +1,287 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/terminal.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum HistoryWindowMode {
+  HISTORY_WINDOW_MODE_UNSPECIFIED = 0;
+  HISTORY_WINDOW_MODE_LATEST = 1;
+  HISTORY_WINDOW_MODE_OLDER = 2;
+  HISTORY_WINDOW_MODE_NEWER = 3;
+  HISTORY_WINDOW_MODE_OLDEST = 4;
+}
+
+enum HistoryWindowOperation {
+  HISTORY_WINDOW_OPERATION_UNSPECIFIED = 0;
+  HISTORY_WINDOW_OPERATION_REPLACE = 1;
+  HISTORY_WINDOW_OPERATION_PREPEND = 2;
+  HISTORY_WINDOW_OPERATION_APPEND = 3;
+}
+
+enum HistorySearchDirection {
+  HISTORY_SEARCH_DIRECTION_UNSPECIFIED = 0;
+  HISTORY_SEARCH_DIRECTION_FORWARD = 1;
+  HISTORY_SEARCH_DIRECTION_BACKWARD = 2;
+}
+
+enum HistoryCursorSegment {
+  HISTORY_CURSOR_SEGMENT_UNSPECIFIED = 0;
+  HISTORY_CURSOR_SEGMENT_COMMITTED = 1;
+  HISTORY_CURSOR_SEGMENT_CURRENT_PRIMARY_FRAME = 2;
+  HISTORY_CURSOR_SEGMENT_ARCHIVED_PRIMARY_FRAME = 3;
+  HISTORY_CURSOR_SEGMENT_CURRENT_ALT_FRAME = 4;
+}
+
+enum RowOwnership {
+  ROW_OWNERSHIP_UNSPECIFIED = 0;
+  ROW_OWNERSHIP_PERSISTED = 1;
+  ROW_OWNERSHIP_LIVE_TAIL_RECLAIMED = 2;
+  ROW_OWNERSHIP_LIVE_TAIL_LIVE = 3;
+  ROW_OWNERSHIP_SCREEN = 4;
+}
+
+enum CursorShape {
+  CURSOR_SHAPE_UNSPECIFIED = 0;
+  CURSOR_SHAPE_BLOCK = 1;
+  CURSOR_SHAPE_UNDERLINE = 2;
+  CURSOR_SHAPE_BAR = 3;
+}
+
+message CellStyle {
+  string foreground = 1;
+  string background = 2;
+  bool bold = 3;
+  bool italic = 4;
+  bool underline = 5;
+  bool blink = 6;
+  bool reverse = 7;
+  bool strikethrough = 8;
+}
+
+message ScreenCell {
+  string content = 1;
+  int32 width = 2;
+  CellStyle style = 3;
+  string link_url = 4;
+  string link_params = 5;
+}
+
+message ScreenRow {
+  repeated ScreenCell cells = 1;
+  CellStyle tail_fill = 2;
+}
+
+message TerminalCursor {
+  int32 row = 1;
+  int32 col = 2;
+  bool visible = 3;
+  CursorShape shape = 4;
+  bool blink = 5;
+}
+
+message TerminalModes {
+  bool alternate_screen = 1;
+  bool alternate_scroll = 2;
+  bool mouse_tracking = 3;
+  bool mouse_x10 = 4;
+  bool mouse_normal = 5;
+  bool mouse_button_event = 6;
+  bool mouse_any_event = 7;
+  bool mouse_sgr = 8;
+  bool bracketed_paste = 9;
+  bool application_cursor = 10;
+  bool auto_wrap = 11;
+}
+
+message HistoryCursor {
+  reserved 3;
+  uint64 line_id = 1;
+  int32 row_in_line = 2;
+  HistoryCursorSegment segment = 4;
+}
+
+message HistoryRange {
+  uint64 start_line_id = 1;
+  int32 start_col = 2;
+  uint64 end_line_id = 3;
+  int32 end_col = 4;
+}
+
+message HistoryWindowCommand {
+  reserved 1, 4;
+  TerminalRef terminal = 2;
+  HistoryWindowMode mode = 3;
+  int32 limit = 5;
+  int32 cols = 6;
+  string token = 7;
+  uint64 history_generation = 8;
+  HistoryCursor before_cursor = 9;
+  HistoryCursor after_cursor = 10;
+  uint64 boundary_first_line_id = 11;
+  uint64 boundary_last_line_id = 12;
+  HistoryRange range = 13;
+}
+
+message HistoryCopyCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  HistoryWindowCommand window = 3;
+  int32 max_lines = 4;
+  int32 max_bytes = 5;
+}
+
+message HistoryTextPosition {
+  uint64 line_id = 1;
+  int32 col = 2;
+}
+
+message HistorySearchCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  string token = 3;
+  uint64 history_generation = 4;
+  string query = 5;
+  HistorySearchDirection direction = 6;
+  int32 cols = 7;
+  int32 limit = 8;
+  HistoryTextPosition start = 9;
+}
+
+message HistoryReleaseCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  string token = 3;
+  uint64 history_generation = 4;
+}
+
+message HistoryBacklogStatusCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+}
+
+message HistoryLineSpan {
+  int32 start_row = 1;
+  int32 end_row = 2;
+  string row_kind = 3;
+  uint64 logical_line_id = 4;
+  uint64 session_id = 5;
+  uint64 frame_id = 6;
+  bool fixed_grid = 7;
+  int32 screen_cols = 8;
+  int64 timestamp_start_unix_nano = 9;
+  int64 timestamp_end_unix_nano = 10;
+  bool clipped_before = 11;
+  bool clipped_after = 12;
+}
+
+message HistoryRow {
+  reserved 13;
+  ScreenRow row = 1;
+  int64 timestamp_unix_nano = 2;
+  string row_kind = 3;
+  bool wrapped = 4;
+  RowOwnership ownership = 5;
+  HistoryCursorSegment segment = 6;
+  uint64 session_id = 7;
+  uint64 frame_id = 8;
+  bool fixed_grid = 9;
+  int32 screen_cols = 10;
+  int32 screen_rows = 11;
+  bool screen_row_set = 12;
+  uint64 logical_line_id = 14;
+  int32 row_in_line = 15;
+}
+
+message HistoryViewportAnchor {
+  uint64 top_line_id = 1;
+  int32 top_cell_offset = 2;
+  bool at_end = 3;
+  uint32 screen_cols = 4;
+  uint32 screen_rows = 5;
+}
+
+message HistoryWindowResult {
+  reserved 7;
+  TerminalRef terminal = 1;
+  string token = 2;
+  HistoryWindowOperation operation = 3;
+  TerminalSize size = 4;
+  repeated HistoryRow rows = 5;
+  repeated HistoryLineSpan lines = 6;
+  int32 loaded_rows = 8;
+  int32 total_rows = 9;
+  int32 loaded_lines = 10;
+  int32 logical_total = 11;
+  bool has_more = 12;
+  uint64 history_generation = 13;
+  uint64 first_row_id = 14;
+  uint64 last_row_id = 15;
+  uint64 first_line_id = 16;
+  uint64 last_line_id = 17;
+  HistoryCursor cursor = 18;
+  int64 timestamp_unix_nano = 19;
+  HistoryViewportAnchor viewport_anchor = 20;
+}
+
+message HistoryCopyResult {
+  string text = 1;
+  HistoryTextPosition next = 2;
+  bool done = 3;
+}
+
+message HistorySearchResult {
+  bool found = 1;
+  HistoryRange match = 2;
+  HistoryWindowResult window = 3;
+  bool wrapped = 4;
+}
+
+message HistoryBacklogStatusResult {
+  TerminalRef terminal = 1;
+  bool history_enabled = 2;
+  string output_buffer_policy = 3;
+  int64 buffer_capacity_bytes = 4;
+  int64 resident_bytes = 5;
+  int64 aggregate_resident_bytes = 6;
+  int64 aggregate_budget_bytes = 7;
+  uint64 dropped_bytes = 8;
+  uint64 gap_count = 9;
+  int64 output_buffer_wait_nanos = 10;
+  bool unavailable = 11;
+  string unavailable_reason = 12;
+  bool closed = 13;
+}
+
+message LiveScreenNextCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  uint64 observed_revision = 3;
+}
+
+message ScreenRowCopy {
+  int32 source_row = 1;
+  int32 destination_row = 2;
+  int32 count = 3;
+}
+
+message ScreenRowReplace {
+  int32 row_index = 1;
+  ScreenRow row = 2;
+}
+
+message NativeScreenResult {
+  TerminalRef terminal = 1;
+  uint64 live_revision = 2;
+  TerminalSize size = 3;
+  repeated ScreenRowReplace row_replacements = 4;
+  bool alternate_screen = 5;
+  TerminalCursor cursor = 6;
+  TerminalModes modes = 7;
+  int64 timestamp_unix_nano = 8;
+  uint64 base_revision = 9;
+  repeated ScreenRowCopy row_copies = 10;
+  bool full_replace = 11;
+}

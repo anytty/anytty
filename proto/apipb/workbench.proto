@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum WorkbenchSplitDirection {
+  WORKBENCH_SPLIT_DIRECTION_UNSPECIFIED = 0;
+  WORKBENCH_SPLIT_DIRECTION_HORIZONTAL = 1;
+  WORKBENCH_SPLIT_DIRECTION_VERTICAL = 2;
+}
+
+message WorkbenchValue { uint32 schema_version = 1; string active_workspace_id = 2; repeated WorkbenchWorkspace workspaces = 3; }
+message WorkbenchWorkspace { string id = 1; string name = 2; string active_tab_id = 3; repeated WorkbenchTab tabs = 4; }
+message WorkbenchTab { string id = 1; string title = 2; string active_pane_id = 3; repeated WorkbenchPane panes = 4; WorkbenchSplitNode root_split = 5; }
+message WorkbenchPane { string id = 1; string title = 2; string terminal_id = 3; }
+message WorkbenchSplitNode { string pane_id = 1; WorkbenchSplitDirection direction = 2; repeated WorkbenchSplitNode children = 3; double ratio = 4; int32 bias_cells = 5; string fixed_pane_id = 6; int32 fixed_cols = 7; int32 fixed_rows = 8; }

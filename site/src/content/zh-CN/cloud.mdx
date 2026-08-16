@@ -1,0 +1,28 @@
+---
+title: AnyTTY Cloud
+description: 了解公开 Cloud 客户端包含什么，以及哪些能力仍由官方托管。
+---
+
+# AnyTTY Cloud
+
+公开构建包含连接官方服务所需的 Cloud 客户端与 daemon agent。Cloud 改变发现、信令和 Relay 可达性，但不会成为终端权限权威。
+
+## 本仓库包含
+
+- Cloud client 与 daemon agent
+- WebRTC P2P 和 Relay 客户端路径
+- challenge-first 认证
+- ticket、安全传输与公开协议
+
+## 托管且不在本仓库发布
+
+- Controller 与 Edge 实现
+- Cloud Web 与账号运营
+- 计费与数据库迁移
+- 生产部署与配置
+
+## Cloud 与自管理路由
+
+Local、SSH 与 Direct 不依赖 AnyTTY Cloud。Direct 要求你自行提供网络可达性并负责运维。专有服务端组件目前不作为可自托管的 AnyTTY Cloud 栈提供。
+
+> **目前没有商业承诺。** 本预发布仓库不承诺服务可用性、价格、安装包或支持等级。只有未来单独发布的正式条款可以作为依据。

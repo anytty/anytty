@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="connection_notification_channel">Terminal connection</string>
+    <string name="connection_notification_channel_description">Keeps active terminal sessions connected in the background</string>
+    <string name="connection_notification_text">Terminal session connected</string>
+    <string name="connection_notification_stop">Disconnect all</string>
+    <string name="app_name">AnyTTY</string>
+    <string name="title_activity_main">AnyTTY</string>
+    <string name="package_name">com.anytty.app</string>
+    <string name="custom_url_scheme">com.anytty.app</string>
+</resources>

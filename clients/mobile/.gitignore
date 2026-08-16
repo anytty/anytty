@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+android/.gradle/
+android/local.properties
+android/build/
+android/*/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/src/main/res/xml/config.xml
+android/capacitor-cordova-android-plugins/*
+!android/capacitor-cordova-android-plugins/build.gradle
+!android/capacitor-cordova-android-plugins/cordova.variables.gradle

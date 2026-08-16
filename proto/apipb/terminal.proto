@@ -1,0 +1,266 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/common.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum TerminalState {
+  TERMINAL_STATE_UNSPECIFIED = 0;
+  TERMINAL_STATE_CREATED = 1;
+  TERMINAL_STATE_RUNNING = 2;
+  TERMINAL_STATE_EXITED = 3;
+  TERMINAL_STATE_REMOVED = 4;
+}
+
+enum AttachmentMode {
+  ATTACHMENT_MODE_UNSPECIFIED = 0;
+  ATTACHMENT_MODE_COLLABORATOR = 1;
+  ATTACHMENT_MODE_OBSERVER = 2;
+}
+
+enum ResizePolicy {
+  RESIZE_POLICY_UNSPECIFIED = 0;
+  RESIZE_POLICY_OWNER = 1;
+  RESIZE_POLICY_FOLLOWER = 2;
+  RESIZE_POLICY_OBSERVER = 3;
+}
+
+enum ResizeControlReason {
+  RESIZE_CONTROL_REASON_UNSPECIFIED = 0;
+  RESIZE_CONTROL_REASON_OWNER = 1;
+  RESIZE_CONTROL_REASON_FOLLOWER = 2;
+  RESIZE_CONTROL_REASON_OBSERVER = 3;
+  RESIZE_CONTROL_REASON_SIZE_LOCKED = 4;
+}
+
+message TerminalRef {
+  string endpoint_id = 1;
+  string terminal_id = 2;
+}
+
+message TerminalSize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message TerminalResourceUsage {
+  int32 pid = 1;
+  int32 cpu_percent_x100 = 2;
+  uint64 memory_bytes = 3;
+  int64 sampled_at_unix_nano = 4;
+}
+
+message TerminalInfo {
+  TerminalRef ref = 1;
+  string name = 2;
+  repeated string command = 3;
+  map<string, string> tags = 4;
+  TerminalSize size = 5;
+  TerminalState state = 6;
+  string cwd = 7;
+  string live_cwd = 8;
+  int64 created_at_unix_nano = 9;
+  optional int32 exit_code = 10;
+  int64 exited_at_unix_nano = 11;
+  int32 attachment_count = 12;
+  TerminalResourceUsage resources = 13;
+  repeated TerminalResourceUsage resource_history = 14;
+  // foreground_process 是 daemon 归一化后的前台进程名，不包含命令行参数。
+  string foreground_process = 15;
+  // last_output_at_unix_nano 是该 terminal 最近一次产生非空 PTY 输出的时间。
+  int64 last_output_at_unix_nano = 16;
+}
+
+message TerminalCreateSpec {
+  string terminal_id = 1;
+  string name = 2;
+  repeated string command = 3;
+  map<string, string> tags = 4;
+  TerminalSize size = 5;
+  string cwd = 6;
+  repeated string env = 7;
+  int32 scrollback_rows = 8;
+  int64 scrollback_max_bytes = 9;
+  int64 scrollback_max_age_seconds = 10;
+}
+
+message TerminalDefaults {
+  repeated string default_command = 1;
+  string default_cwd = 2;
+  // platform 是 owning daemon 的规范化 OS family（例如 darwin/linux/windows）。
+  string platform = 3;
+}
+
+message ResizeOwnership {
+  string owner_attachment_id = 1;
+  string owner_surface_id = 2;
+  string owner_view_id = 3;
+  TerminalSize size = 4;
+  bool size_locked = 5;
+  uint64 epoch = 6;
+}
+
+message ResizeControl {
+  bool can_resize = 1;
+  ResizeControlReason reason = 2;
+  bool size_locked = 3;
+  string surface_id = 4;
+  string owner_surface_id = 5;
+  string owner_view_id = 6;
+  ResizeOwnership ownership = 7;
+}
+
+message AttachmentHandle {
+  ResourceHandle resource = 1;
+  TerminalRef terminal = 2;
+  OperationStamp operation = 3;
+  string surface_id = 4;
+  string view_id = 5;
+}
+
+message PathDirectoryEntry {
+  string name = 1;
+  string path = 2;
+}
+
+message TerminalDefaultsCommand {
+  reserved 1;
+}
+
+message TerminalCreateCommand {
+  reserved 1;
+  TerminalCreateSpec terminal = 2;
+}
+
+message TerminalListCommand {
+  reserved 1;
+}
+
+message TerminalGetCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+}
+
+message TerminalRestartCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+}
+
+message TerminalKillCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+}
+
+message TerminalRemoveCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+}
+
+message TerminalSetMetadataCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  string name = 3;
+  map<string, string> tags = 4;
+}
+
+message TerminalSetTagsCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  map<string, string> tags = 3;
+}
+
+message TerminalAttachCommand {
+  reserved 1;
+  TerminalRef terminal = 2;
+  AttachmentMode mode = 3;
+  ResizePolicy resize_policy = 4;
+  string surface_id = 5;
+  string view_id = 6;
+  OperationStamp operation = 7;
+}
+
+message TerminalDetachCommand {
+  reserved 1;
+  ResourceHandle attachment = 2;
+  OperationStamp operation = 3;
+}
+
+message TerminalInputCommand {
+  reserved 1;
+  ResourceHandle attachment = 2;
+  OperationStamp operation = 3;
+  bytes data = 4;
+}
+
+message TerminalResizeCommand {
+  reserved 1;
+  ResourceHandle attachment = 2;
+  OperationStamp operation = 3;
+  TerminalSize size = 4;
+  ResizePolicy resize_policy = 5;
+  bool take_ownership = 6;
+  uint64 expected_owner_epoch = 7;
+}
+
+message TerminalResizeLockCommand {
+  reserved 1;
+  ResourceHandle attachment = 2;
+  OperationStamp operation = 3;
+  bool locked = 4;
+}
+
+message PathListDirectoriesCommand {
+  reserved 1;
+  string prefix = 2;
+  int32 limit = 3;
+}
+
+message TerminalCreateResult {
+  TerminalInfo terminal = 1;
+}
+
+message TerminalListResult {
+  repeated TerminalInfo terminals = 1;
+}
+
+message TerminalGetResult {
+  TerminalInfo terminal = 1;
+}
+
+message TerminalDefaultsResult {
+  TerminalDefaults defaults = 1;
+}
+
+message TerminalAttachResult {
+  AttachmentHandle attachment = 1;
+  AttachmentMode mode = 2;
+  ResizePolicy resize_policy = 3;
+  TerminalSize size = 4;
+  ResizeControl resize_control = 5;
+}
+
+message TerminalResizeResult {
+  TerminalSize size = 1;
+  bool resized = 2;
+  ResizeControl resize_control = 3;
+}
+
+message PathListDirectoriesResult {
+  string base_path = 1;
+  repeated PathDirectoryEntry entries = 2;
+  bool missing = 3;
+  bool truncated = 4;
+}
+
+message TerminalLifecycleEvent {
+  TerminalInfo terminal = 1;
+  bool attachment_projection = 2;
+  ResizeControl resize_control = 3;
+}
+
+message TerminalResizeControlEvent {
+  TerminalRef terminal = 1;
+  ResizeControl resize_control = 2;
+}

@@ -1,0 +1,12 @@
+App/build
+App/Pods
+App/output
+App/App/public
+App/CapApp-SPM/Binaries/AnyTTYClient.xcframework
+DerivedData*
+*.xcarchive
+*.ipa
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins

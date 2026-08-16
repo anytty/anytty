@@ -1,0 +1,40 @@
+---
+title: Build and contribute
+description: Build AnyTTY clients, validate the public boundary, and contribute with the DCO.
+---
+
+# Build and contribute
+
+The public repository contains user-device source and its release materials. Contributions should keep protocols, generated code, tests, docs, and security assumptions aligned.
+
+## Core checks
+
+```sh
+npm ci
+make build
+make test
+make test-clients
+npm run public:check
+```
+
+Android release checks additionally require Java 21 and an Android SDK; run `make test-android`. iOS requires macOS and Xcode; run `clients/mobile/ios/scripts/build-ios.sh`.
+
+## Documentation site
+
+```sh
+npm run site:build
+npm run site:check
+npm run site:preview
+```
+
+Astro prints the local preview URL when it starts; use its `/anytty/` path. GitHub Pages publishes the generated `site/dist` directory.
+
+## Contribution contract
+
+- Open an issue before large protocol, trust-boundary, or architecture work.
+- Keep pull requests focused and include exact validation commands.
+- Sign commits with `git commit -s` under the DCO.
+- Update third-party notices when dependencies or bundled assets change.
+- Never contribute credentials, private service source, production configuration, or user data.
+
+Continue with the repository [contribution guide](https://github.com/anytty/anytty/blob/main/CONTRIBUTING.md), [code of conduct](https://github.com/anytty/anytty/blob/main/CODE_OF_CONDUCT.md), and [governance policy](https://github.com/anytty/anytty/blob/main/GOVERNANCE.md).

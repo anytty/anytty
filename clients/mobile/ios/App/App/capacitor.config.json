@@ -1,0 +1,32 @@
+{
+	"appId": "com.anytty.app",
+	"appName": "AnyTTY",
+	"webDir": "dist",
+	"loggingBehavior": "none",
+	"server": {
+		"hostname": "localhost",
+		"appStartPath": "index.html",
+		"androidScheme": "http",
+		"allowNavigation": []
+	},
+	"plugins": {
+		"Keyboard": {
+			"resize": "none"
+		},
+		"StatusBar": {
+			"backgroundColor": "#000000",
+			"style": "DARK"
+		}
+	},
+	"android": {
+		"allowMixedContent": false
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"CAPBrowserPlugin",
+		"KeyboardPlugin",
+		"CAPNetworkPlugin",
+		"PreferencesPlugin",
+		"StatusBarPlugin"
+	]
+}

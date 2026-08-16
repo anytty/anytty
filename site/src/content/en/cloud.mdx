@@ -1,0 +1,28 @@
+---
+title: AnyTTY Cloud
+description: Understand what the public Cloud client includes and what remains managed.
+---
+
+# AnyTTY Cloud
+
+Public builds include the Cloud client and daemon agent needed to connect to the official service. Cloud changes discovery, signaling, and relay reachability; it does not become the terminal authority.
+
+## In this repository
+
+- Cloud client and daemon agent
+- WebRTC P2P and Relay client paths
+- Challenge-first authentication
+- Tickets, secure transport, and public protocol
+
+## Managed, not published here
+
+- Controller and Edge implementation
+- Cloud Web and account operations
+- Billing and database migrations
+- Production deployment and configuration
+
+## Cloud versus self-managed routes
+
+Local, SSH, and Direct can operate without AnyTTY Cloud. Direct requires you to provide network reachability and operate the route. The proprietary server components are not currently available as a self-hostable AnyTTY Cloud stack.
+
+> **No commercial claims yet.** This pre-release repository does not promise service availability, pricing, packages, or support tiers. Official terms must be published separately before they can be relied on.

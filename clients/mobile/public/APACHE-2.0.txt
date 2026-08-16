@@ -1,0 +1,24 @@
+AnyTTY Private Monorepo License Notice
+
+Copyright (c) 2026 AnyTTY authors. All rights reserved.
+
+This repository is the private authoritative development monorepo for AnyTTY.
+Except for third-party material identified by its own license notice, no
+permission is granted to use, copy, modify, publish, distribute, sublicense,
+or sell any source code, binary, documentation, build output, service asset,
+credential, configuration, or other material contained in this repository.
+
+Some directories are intended to be copied into a separate public repository
+in the future. That intent does not license those files while they remain in
+this private monorepo. A public AnyTTY snapshot is licensed only when it is
+published in a separate repository or distribution that contains its own
+applicable open-source LICENSE file.
+
+Third-party software, fonts, generated code, and other incorporated material
+remain subject to the notices and license terms supplied by their respective
+copyright holders. See THIRD_PARTY_NOTICES.txt and the license files located
+next to those materials.
+
+Commercial distribution of AnyTTY Cloud Companion, managed cloud services,
+enterprise bundles, or other private artifacts requires a separate written
+agreement from the applicable rights holder.

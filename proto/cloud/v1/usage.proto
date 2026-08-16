@@ -1,0 +1,249 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// RelayPreference is the ICE policy for one Cloud connection attempt.
+enum RelayPreference {
+  RELAY_PREFERENCE_UNSPECIFIED = 0;
+  RELAY_PREFERENCE_AUTO = 1;
+  RELAY_PREFERENCE_DIRECT_ONLY = 2;
+  RELAY_PREFERENCE_RELAY_ONLY = 3;
+}
+
+// RelayTransport is the physical TURN transport used by an Edge allocation.
+enum RelayTransport {
+  RELAY_TRANSPORT_UNSPECIFIED = 0;
+  RELAY_TRANSPORT_UDP = 1;
+  RELAY_TRANSPORT_TCP = 2;
+  RELAY_TRANSPORT_TLS = 3;
+}
+
+enum RelaySettlementKind {
+  RELAY_SETTLEMENT_KIND_UNSPECIFIED = 0;
+  RELAY_SETTLEMENT_KIND_EXACT = 1;
+  RELAY_SETTLEMENT_KIND_RECOVERY_MAX = 2;
+}
+
+enum RelayResponseCode {
+  RELAY_RESPONSE_CODE_UNSPECIFIED = 0;
+  RELAY_RESPONSE_CODE_APPLIED = 1;
+  RELAY_RESPONSE_CODE_REPLAY = 2;
+  RELAY_RESPONSE_CODE_TERMINAL = 3;
+  RELAY_RESPONSE_CODE_REJECTED = 4;
+  RELAY_RESPONSE_CODE_CONFLICT = 5;
+  RELAY_RESPONSE_CODE_UNAVAILABLE = 6;
+}
+
+// RelayPolicySnapshot contains only inputs that actually authorize Relay.
+// Both Controller and Edge hash its deterministic protobuf encoding.
+message RelayPolicySnapshot {
+  string account_id = 1;
+  uint64 account_revision = 2;
+  string account_state = 3;
+  string subscription_id = 4;
+  uint64 subscription_revision = 5;
+  string subscription_state = 6;
+  google.protobuf.Timestamp period_start = 7;
+  google.protobuf.Timestamp period_end = 8;
+  string plan_id = 9;
+  uint64 plan_version = 10;
+  uint64 plan_revision = 11;
+  bool relay_enabled = 12;
+  uint64 relay_max_bytes_per_period = 13;
+  uint64 relay_max_bytes_per_session = 14;
+  uint64 relay_max_rate_bytes_per_second = 15;
+  uint32 relay_max_concurrency = 16;
+  repeated string allowed_regions = 17;
+  string edge_id = 18;
+  uint64 edge_revision = 19;
+  bool edge_enabled = 20;
+  string edge_region = 21;
+  string daemon_id = 22;
+  uint64 daemon_state_revision = 23;
+  reserved 24 to 28;
+}
+
+message RelayReserveRequest {
+  string reservation_id = 1;
+  string account_id = 2;
+  string daemon_id = 3;
+  string client_id = 4;
+  string session_id = 5;
+  google.protobuf.Timestamp observed_at = 6;
+  bytes request_digest = 7;
+}
+
+message RelayGrant {
+  string reservation_id = 1;
+  string session_id = 2;
+  uint64 reserved_bytes = 3;
+  uint64 max_rate_bytes_per_second = 4;
+  uint64 renew_sequence = 5;
+  google.protobuf.Timestamp authorized_until = 6;
+  bytes policy_digest = 7;
+  RelayPolicySnapshot policy = 8;
+}
+
+message RelayReserveResponse {
+  string reservation_id = 1;
+  bytes request_digest = 2;
+  RelayResponseCode code = 3;
+  RelayGrant grant = 4;
+  RelaySettlementAck terminal = 5;
+  string error_message = 6;
+  CloudEntitlementFailure entitlement_failure = 7;
+}
+
+message RelayRenewRequest {
+  string reservation_id = 1;
+  uint64 renew_sequence = 2;
+  bytes policy_digest = 3;
+  google.protobuf.Timestamp observed_at = 4;
+}
+
+message RelayRenewResponse {
+  string reservation_id = 1;
+  uint64 renew_sequence = 2;
+  RelayResponseCode code = 3;
+  RelayGrant grant = 4;
+  RelaySettlementAck terminal = 5;
+  string error_message = 6;
+  CloudEntitlementFailure entitlement_failure = 7;
+}
+
+message RelaySettlement {
+  string reservation_id = 1;
+  RelaySettlementKind kind = 2;
+  uint64 ingress_bytes = 3;
+  uint64 egress_bytes = 4;
+  bytes policy_digest = 5;
+  google.protobuf.Timestamp observed_at = 6;
+}
+
+message RelaySettlementAck {
+  string reservation_id = 1;
+  RelaySettlementKind kind = 2;
+  uint64 ingress_bytes = 3;
+  uint64 egress_bytes = 4;
+  uint64 recovery_bytes = 5;
+  bytes policy_digest = 6;
+  google.protobuf.Timestamp observed_at = 7;
+  google.protobuf.Timestamp settled_at = 8;
+  RelayResponseCode code = 9;
+  string error_message = 10;
+}
+
+message RelayQueryRequest {
+  string reservation_id = 1;
+}
+
+message RelayQueryResponse {
+  string reservation_id = 1;
+  RelayResponseCode code = 2;
+  RelayGrant grant = 3;
+  RelaySettlementAck terminal = 4;
+  string error_message = 5;
+  CloudEntitlementFailure entitlement_failure = 6;
+}
+
+// RelayRuntimePolicy is a versioned commercial policy snapshot used by an
+// Edge for local Relay admission. It does not reserve bytes or require renewal.
+message RelayRuntimePolicy {
+  string account_id = 1;
+  string subscription_id = 2;
+  string plan_id = 3;
+  uint64 policy_revision = 4;
+  bool relay_enabled = 5;
+  uint64 relay_max_rate_bytes_per_second = 6;
+  uint32 relay_max_concurrency = 7;
+  uint64 relay_quota_bytes = 8;
+  google.protobuf.Timestamp period_start = 9;
+  google.protobuf.Timestamp period_end = 10;
+}
+
+// RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
+// has no local account policy. It never creates a durable reservation.
+message RelayAuthorizeRequest {
+  string request_id = 1;
+  string account_id = 2;
+  string daemon_id = 3;
+  string session_id = 4;
+  google.protobuf.Timestamp observed_at = 5;
+}
+
+message RelayAuthorizeResponse {
+  string request_id = 1;
+  RelayRuntimePolicy policy = 2;
+  CloudEntitlementFailure entitlement_failure = 3;
+}
+
+// RelayUsageSample is cumulative for one (Edge boot, account) counter epoch.
+// Retrying the same or an older value is therefore idempotent.
+message RelayUsageSample {
+  string account_id = 1;
+  uint64 cumulative_egress_bytes = 2;
+  google.protobuf.Timestamp sampled_at = 3;
+}
+
+message RelayUsageBatch {
+  uint64 batch_sequence = 1;
+  repeated RelayUsageSample samples = 2;
+}
+
+enum RelayAccountActionType {
+  RELAY_ACCOUNT_ACTION_TYPE_UNSPECIFIED = 0;
+  RELAY_ACCOUNT_ACTION_TYPE_ALLOW = 1;
+  RELAY_ACCOUNT_ACTION_TYPE_DENY_AND_CLOSE = 2;
+}
+
+message RelayAccountAction {
+  string account_id = 1;
+  RelayAccountActionType action = 2;
+  uint64 action_revision = 3;
+  uint64 used_bytes = 4;
+  uint64 quota_bytes = 5;
+  google.protobuf.Timestamp period_start = 6;
+  google.protobuf.Timestamp period_end = 7;
+  string reason = 8;
+}
+
+message RelayUsageAck {
+  uint64 batch_sequence = 1;
+  repeated RelayAccountAction actions = 2;
+  google.protobuf.Timestamp processed_at = 3;
+}
+
+// RelayICEConfig is derived from a committed Controller grant. It is durable
+// before leaving the Edge and never contains commercial authority of its own.
+message RelayICEConfig {
+  string reservation_id = 1;
+  repeated string urls = 2;
+  string username = 3;
+  string credential = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+enum RelayJournalStage {
+  RELAY_JOURNAL_STAGE_UNSPECIFIED = 0;
+  RELAY_JOURNAL_STAGE_REQUESTED = 1;
+  RELAY_JOURNAL_STAGE_HELD_UNEXPOSED = 2;
+  RELAY_JOURNAL_STAGE_EXPOSED = 3;
+  RELAY_JOURNAL_STAGE_RENEW_PENDING = 4;
+  RELAY_JOURNAL_STAGE_CLOSING = 5;
+  RELAY_JOURNAL_STAGE_SETTLEMENT_DURABLE = 6;
+}
+
+// RelayJournalRecord is the single durable bbolt value for one reservation.
+message RelayJournalRecord {
+  uint32 schema_version = 1;
+  RelayJournalStage stage = 2;
+  RelayReserveRequest reserve_request = 3;
+  RelayGrant grant = 4;
+  uint64 pending_renew_sequence = 5;
+  RelaySettlement settlement = 6;
+}

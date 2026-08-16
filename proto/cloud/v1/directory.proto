@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "cloud/v1/enrollment.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// BeginClientRouteRequest 只提交 DeviceIdentity 签名的发现 grant；Controller 不接收 terminal capability。
+message BeginClientRouteRequest {
+  SignedEnvelope cloud_route_grant = 1;
+}
+
+message ResolveClientRouteRequest {
+  string challenge_id = 1;
+  string request_id = 2;
+  bytes client_proof = 3;
+}
+
+message ResolveClientRouteResponse {
+  EdgeLocator edge_locator = 1;
+}
+
+// DirectoryService 只在首次发现或 Edge locator 失效时解析实时 daemon Presence。
+service DirectoryService {
+  rpc BeginClientRoute(BeginClientRouteRequest) returns (IdentityChallenge);
+  rpc ResolveClientRoute(ResolveClientRouteRequest) returns (ResolveClientRouteResponse);
+}

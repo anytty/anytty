@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum ApiCapability {
+  API_CAPABILITY_UNSPECIFIED = 0;
+  API_CAPABILITY_TYPED_ERRORS = 1;
+  API_CAPABILITY_ENDPOINT_SESSION_FENCE = 2;
+  API_CAPABILITY_OPERATION_CANCELLATION = 3;
+  API_CAPABILITY_RESOURCE_LIFECYCLE = 4;
+  API_CAPABILITY_TERMINAL_LIFECYCLE = 5;
+  API_CAPABILITY_TERMINAL_ATTACHMENT = 6;
+  API_CAPABILITY_PATH_QUERY = 7;
+  API_CAPABILITY_HISTORY = 8;
+  API_CAPABILITY_LIVE_SCREEN = 9;
+  API_CAPABILITY_FILE = 10;
+  API_CAPABILITY_STORAGE = 11;
+  API_CAPABILITY_EVENT_SUBSCRIPTION = 12;
+  API_CAPABILITY_CLIENT_ACCESS = 13;
+  API_CAPABILITY_REMOTE_CONTROL = 14;
+}
+
+enum ApiErrorCode {
+  API_ERROR_CODE_UNSPECIFIED = 0;
+  API_ERROR_CODE_INVALID_REQUEST = 1;
+  API_ERROR_CODE_UNSUPPORTED_VERSION = 2;
+  API_ERROR_CODE_UNSUPPORTED_CAPABILITY = 3;
+  API_ERROR_CODE_UNAUTHORIZED = 4;
+  API_ERROR_CODE_FORBIDDEN = 5;
+  API_ERROR_CODE_NOT_FOUND = 6;
+  API_ERROR_CODE_CONFLICT = 7;
+  API_ERROR_CODE_STALE_SESSION = 8;
+  API_ERROR_CODE_CANCELLED = 9;
+  API_ERROR_CODE_UNAVAILABLE = 10;
+  API_ERROR_CODE_INTERNAL = 11;
+  API_ERROR_CODE_ENTITLEMENT_DENIED = 12;
+  API_ERROR_CODE_RESOURCE_EXHAUSTED = 13;
+  API_ERROR_CODE_STALE_RESOURCE = 14;
+  API_ERROR_CODE_DAEMON_BLOCKED = 15;
+  API_ERROR_CODE_DAEMON_DELETED = 16;
+  API_ERROR_CODE_RELAY_NOT_IN_PLAN = 17;
+  API_ERROR_CODE_RELAY_QUOTA_EXHAUSTED = 18;
+  API_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED = 19;
+  API_ERROR_CODE_SUBSCRIPTION_INACTIVE = 20;
+  API_ERROR_CODE_RELAY_REGION_UNAVAILABLE = 21;
+}
+
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+  RESOURCE_KIND_OPERATION = 1;
+  RESOURCE_KIND_SUBSCRIPTION = 2;
+  RESOURCE_KIND_TERMINAL_ATTACHMENT = 3;
+  RESOURCE_KIND_HISTORY_WINDOW = 4;
+  RESOURCE_KIND_FILE_TRANSFER = 5;
+}
+
+message ApiVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+}
+
+message EndpointSessionStamp {
+  string endpoint_id = 1;
+  string route_id = 2;
+  uint64 generation = 3;
+}
+
+message OperationStamp {
+  EndpointSessionStamp session = 1;
+  string operation_id = 2;
+}
+
+message ResourceHandle {
+  bytes opaque_token = 1;
+  ResourceKind kind = 2;
+  EndpointSessionStamp session = 3;
+  uint64 generation = 4;
+}
+
+message RequestContext {
+  string request_id = 1;
+  ApiVersion api_version = 2;
+  reserved 3;
+  EndpointSessionStamp session = 4;
+}
+
+message ValidationErrorDetail {
+  string field = 1;
+  string reason = 2;
+}
+
+message StaleSessionErrorDetail {
+  EndpointSessionStamp requested = 1;
+  uint64 current_generation = 2;
+}
+
+message ResourceErrorDetail {
+  ResourceHandle resource = 1;
+}
+
+message OutputSyncLostErrorDetail {
+  string terminal_id = 1;
+  string consumer = 2;
+  uint64 parser_epoch = 3;
+  uint64 dropped_bytes = 4;
+  uint64 gap_after_line = 5;
+}
+
+message ApiError {
+  ApiErrorCode code = 1;
+  string message = 2;
+  bool retryable = 3;
+  bool attempted = 4;
+  oneof detail {
+    ValidationErrorDetail validation = 10;
+    StaleSessionErrorDetail stale_session = 11;
+    ResourceErrorDetail resource = 12;
+    OutputSyncLostErrorDetail output_sync_lost = 13;
+  }
+}

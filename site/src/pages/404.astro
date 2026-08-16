@@ -1,0 +1,12 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro'
+import { sitePath } from '@/lib/site'
+---
+
+<BaseLayout locale="en" title="Page not found" description="The requested AnyTTY page does not exist." pathname="/404/" alternates={false}>
+  <main id="main" class="site-container empty-state">
+    <p>404</p>
+    <h1>Page not found</h1>
+    <a class="ui-button" href={sitePath('/')}>Back to AnyTTY</a>
+  </main>
+</BaseLayout>

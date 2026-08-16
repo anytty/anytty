@@ -1,0 +1,274 @@
+@import '../ui/design-system.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-slide-up {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrainsMono NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'FiraCode NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/FiraCodeNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'FiraCode NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/FiraCodeNerdFontMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Hack NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/HackNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Hack NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/HackNerdFontMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'CascadiaCode NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/CaskaydiaCoveNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'CascadiaCode NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/CaskaydiaCoveNerdFontMono-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Iosevka NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/IosevkaNerdFontMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Iosevka NF';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/IosevkaNerdFontMono-Bold.woff2') format('woff2');
+}
+
+/* Shared fallback keeps Nerd Font private-use glyphs out of every selectable font. */
+@font-face {
+  font-family: 'Nerd Symbols Mono';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url('../assets/fonts/NerdFontSymbolsMono.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Nerd Symbols Mono';
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url('../assets/fonts/NerdFontSymbolsMono.woff2') format('woff2');
+}
+
+.xterm-wrapper .xterm {
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  touch-action: none;
+}
+.xterm-wrapper .xterm-screen {
+  touch-action: none;
+}
+.xterm-wrapper .xterm-viewport {
+  background-color: transparent !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: none;
+  width: 100% !important;
+}
+.xterm-wrapper .xterm-viewport::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
+}
+.xterm-wrapper .xterm-screen {
+  width: 100% !important;
+}
+.xterm-wrapper .xterm-screen canvas {
+  max-width: 100%;
+}
+.anytty-terminal-frame-hold {
+  position: absolute;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background: var(--anytty-terminal-bg);
+}
+.xterm-helper-textarea {
+  caret-color: transparent !important;
+  opacity: 0 !important;
+}
+
+.xterm.input-adjusted .xterm-helper-textarea {
+  bottom: var(--kb-input-bottom, 0px) !important;
+  top: auto !important;
+}
+
+@media (max-width: 767px) {
+  .xterm .composition-view.active {
+    opacity: 0 !important;
+  }
+
+  .xterm .composition-view {
+    max-width: 100% !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+  }
+}
+
+.comp-overlay {
+  background: #111827;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  bottom: 0;
+  color: #f4f4f5;
+  display: none;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  left: 0;
+  line-height: 1.6;
+  max-height: 40vh;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  padding: 6px 8px;
+  position: absolute;
+  right: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  z-index: 5;
+}
+
+.term-scrollbar-track {
+  bottom: 4px;
+  opacity: 0;
+  pointer-events: auto;
+  position: absolute;
+  right: 3px;
+  top: 4px;
+  transition: opacity 0.25s ease;
+  width: 16px;
+  z-index: 10;
+}
+
+.term-scrollbar-track.visible,
+.term-scrollbar-track:hover {
+  opacity: 1;
+}
+
+.term-scrollbar-thumb {
+  background: var(--anytty-scrollbar, rgba(255, 255, 255, 0.35));
+  border-radius: 999px;
+  min-height: 24px;
+  position: absolute;
+  right: 2px;
+  top: 0;
+  transition: width 0.15s ease, background 0.15s ease, border-radius 0.15s ease;
+  width: 3px;
+  will-change: transform;
+}
+
+.term-scrollbar-track.active .term-scrollbar-thumb,
+.term-scrollbar-track:hover .term-scrollbar-thumb {
+  background: var(--anytty-scrollbar-active, rgba(255, 255, 255, 0.55));
+  width: 10px;
+}
+
+.sel-magnifier {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.42);
+  display: none;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 100;
+}
+
+.sel-anchor-marker {
+  animation: sel-anchor-blink 1s step-end infinite;
+  background: #58a6ff;
+  box-shadow: 0 0 6px rgba(88, 166, 255, 0.6);
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  width: 3px;
+  z-index: 99;
+}
+
+@keyframes sel-anchor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(161, 161, 170, 0.4);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(113, 113, 122, 0.6);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+}

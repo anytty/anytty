@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/common.proto";
+import "apipb/storage.proto";
+import "apipb/terminal.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum ApplicationEventType {
+  APPLICATION_EVENT_TYPE_UNSPECIFIED = 0;
+  APPLICATION_EVENT_TYPE_TERMINAL_LIFECYCLE = 1;
+  reserved 2;
+  reserved 3;
+  reserved 4;
+  APPLICATION_EVENT_TYPE_STORAGE_CHANGED = 5;
+}
+
+message EventSubscribeCommand {
+  reserved 1;
+  repeated ApplicationEventType types = 2;
+  TerminalRef terminal = 3;
+  string storage_app_id = 4;
+  StorageScope storage_scope = 5;
+  string storage_owner_id = 6;
+  string storage_key_prefix = 7;
+}
+
+message EventSubscriptionResult { ResourceHandle subscription = 1; }

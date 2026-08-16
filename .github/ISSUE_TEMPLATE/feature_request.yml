@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a scoped improvement to open-source AnyTTY components
+title: "feature: "
+labels: [enhancement, needs-triage]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and documentation for this proposal.
+          required: true
+        - label: This request does not depend on publishing private Cloud server implementation.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [CLI/TUI, Core daemon, Shared UI, Android, iOS, Connectivity, Pairing/security, Public protocol, Documentation, Build/CI, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem and current limitation, not only a preferred implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include workflow, boundaries, and failure behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and compatibility impact
+      description: Note changes to trust, capabilities, credentials, protocols, stored data, or platforms.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

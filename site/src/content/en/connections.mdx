@@ -1,0 +1,34 @@
+---
+title: Connection routes
+description: Choose Local, SSH, Direct, or AnyTTY Cloud without changing daemon authority.
+---
+
+# Connection routes
+
+An endpoint identifies a daemon. Routes are independent ways to reach it, with policy controlling selection and fallback.
+
+## Local
+
+Uses the current user's local socket. Filesystem permissions and the daemon identity anchor trust. No Cloud is required.
+
+## SSH
+
+Uses OpenSSH, then reaches loopback signaling and ICE-TCP on the remote machine. Pin and verify the SSH host key. No Cloud is required.
+
+## Direct
+
+Connects to published signaling and ICE-TCP addresses, bound to the paired daemon identity and route credential. No Cloud is required.
+
+## Cloud
+
+Uses an assigned Edge for signaling, preferring WebRTC P2P and using Relay when necessary and allowed. This route uses the managed service.
+
+## Inspect endpoints
+
+```sh
+./.artifacts/bin/anytty endpoint list
+./.artifacts/bin/anytty endpoint show <endpoint-id>
+./.artifacts/bin/anytty endpoint test <endpoint-id>
+```
+
+Use command help from the exact checkout before adding or changing a route: `anytty endpoint --help`. Authorization and protocol errors are not treated as generic network failures, so route fallback cannot silently bypass a security decision.

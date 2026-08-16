@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/common.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum FileEntryType {
+  FILE_ENTRY_TYPE_UNSPECIFIED = 0;
+  FILE_ENTRY_TYPE_FILE = 1;
+  FILE_ENTRY_TYPE_DIRECTORY = 2;
+  FILE_ENTRY_TYPE_SYMLINK = 3;
+  FILE_ENTRY_TYPE_OTHER = 4;
+}
+
+message FileEntry {
+  string path = 1;
+  string name = 2;
+  FileEntryType type = 3;
+  int64 size = 4;
+  uint32 mode = 5;
+  int64 modified_at_unix_nano = 6;
+  string link_target = 7;
+}
+
+// FileUploadResumeHandle 是 owning daemon 签发的短期 opaque 上传凭据。
+// 它由已验证 principal 约束，可跨 protocol session 用于续传或销毁未完成上传，但不能打开 stream 或 release session-bound resource。
+message FileUploadResumeHandle { bytes opaque_token = 1; }
+
+message FileListCommand { reserved 1; string path = 2; string cursor = 3; int32 limit = 4; }
+message FileStatCommand { reserved 1; string path = 2; }
+message FilePreviewCommand { reserved 1; string path = 2; int64 max_bytes = 3; }
+message FileMkdirCommand { reserved 1; string path = 2; bool recursive = 3; }
+message FileRenameCommand { reserved 1; string path = 2; string new_path = 3; bool overwrite = 4; }
+message FileDeleteCommand { reserved 1; string path = 2; bool recursive = 3; }
+message FileCopyCommand { reserved 1; repeated string paths = 2; string target_directory = 3; bool overwrite = 4; }
+message FileMoveCommand { reserved 1; repeated string paths = 2; string target_directory = 3; bool overwrite = 4; }
+message FileDownloadOpenCommand { reserved 1; string path = 2; int64 offset = 3; int64 expected_size = 4; int64 expected_modified_at_unix_nano = 5; OperationStamp operation = 6; }
+message FileUploadOpenCommand { reserved 1; string path = 2; int64 size = 3; bool overwrite = 4; FileUploadResumeHandle resume = 5; OperationStamp operation = 6; }
+message FileTransferCancelCommand {
+  reserved 1;
+  ResourceHandle transfer = 2;
+  OperationStamp operation = 3;
+  FileUploadResumeHandle upload_resume = 4;
+}
+
+message FileListResult { string path = 1; repeated FileEntry entries = 2; string next_cursor = 3; }
+message FileStatResult { FileEntry entry = 1; }
+message FilePreviewResult { FileEntry entry = 1; string mime_type = 2; bytes content = 3; bool truncated = 4; }
+message FileOperationResult { string path = 1; string target_path = 2; bool success = 3; string error_code = 4; string error_message = 5; }
+message FileBatchResult { repeated FileOperationResult results = 1; }
+
+message FileTransferHandle {
+  ResourceHandle resource = 1;
+  string path = 2;
+  int64 offset = 3;
+  int64 size = 4;
+  int64 modified_at_unix_nano = 5;
+  OperationStamp operation = 6;
+  FileUploadResumeHandle resume = 7;
+  uint32 chunk_bytes = 8;
+  int64 window_bytes = 9;
+}
+
+message FileTransferOpenResult { FileTransferHandle transfer = 1; }
+message FileTransferCancelResult { bool cancelled = 1; }
+message FileTransferCompletedEvent { FileTransferHandle transfer = 1; int64 size = 2; bytes sha256 = 3; }

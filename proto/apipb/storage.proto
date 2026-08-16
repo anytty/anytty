@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+enum StorageScope {
+  STORAGE_SCOPE_UNSPECIFIED = 0;
+  STORAGE_SCOPE_PUBLIC = 1;
+  STORAGE_SCOPE_PRIVATE = 2;
+}
+
+message StorageKey { string app_id = 1; StorageScope scope = 2; string owner_id = 3; string key = 4; }
+message StorageEntry { StorageKey key = 1; bytes value = 2; uint64 version = 3; int64 updated_at_unix_nano = 4; }
+message StorageVersionFence { bool check_version = 1; uint64 expected_version = 2; }
+message StorageGetCommand { reserved 1; StorageKey key = 2; }
+message StoragePutCommand { reserved 1; StorageKey key = 2; bytes value = 3; StorageVersionFence version = 4; }
+message StorageDeleteCommand { reserved 1; StorageKey key = 2; StorageVersionFence version = 3; }
+message StorageListCommand { reserved 1; string app_id = 2; StorageScope scope = 3; string owner_id = 4; string prefix = 5; }
+message StorageGetResult { StorageEntry entry = 1; }
+message StoragePutResult { StorageEntry entry = 1; }
+message StorageDeleteResult { StorageKey key = 1; bool deleted = 2; uint64 version = 3; }
+message StorageListResult { repeated StorageEntry entries = 1; }
+message StorageChangedEvent { StorageKey key = 1; uint64 version = 2; string operation = 3; }

@@ -1,0 +1,44 @@
+---
+title: Quick start
+description: Build AnyTTY and start a local daemon and terminal.
+---
+
+# Quick start
+
+Build the current source, start the per-user daemon, and enter the TUI. AnyTTY is pre-release; these instructions track the repository rather than a published package.
+
+## Prerequisites
+
+Install Go 1.26.5, Node.js 24, and npm. Clone the public repository and install the locked JavaScript dependencies.
+
+```sh
+git clone https://github.com/anytty/anytty.git
+cd anytty
+npm ci
+make build
+```
+
+The binary is written to `.artifacts/bin/anytty`.
+
+## Run locally
+
+```sh
+./.artifacts/bin/anytty daemon start
+./.artifacts/bin/anytty
+```
+
+The second command opens the TUI against the default local endpoint. To create a shell and attach directly from the CLI:
+
+```sh
+./.artifacts/bin/anytty terminal create --attach -- zsh
+```
+
+## Verify the checkout
+
+```sh
+make test
+make test-clients
+npm run public:check
+```
+
+> **Need another machine?** Continue with SSH when you already have host access, or pair a Direct/Cloud-capable service and save it as an endpoint.

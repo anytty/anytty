@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+import "cloud/v1/runtime.proto";
+import "cloud/v1/usage.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+// DaemonCapability 是 enrollment 时授予 daemon 的 Edge 侧能力，不表达 terminal 权限。
+enum DaemonCapability {
+  DAEMON_CAPABILITY_UNSPECIFIED = 0;
+  DAEMON_CAPABILITY_SIGNALING = 1;
+}
+
+// DaemonBindingClaims 是 enrollment 的持久结果。它只绑定 daemon 身份和目标 Edge，
+// 不是 bearer token；每次 AgentGateway 连接仍必须证明 DeviceIdentity 私钥持有权。
+message DaemonBindingClaims {
+  string binding_id = 1;
+  string daemon_id = 2;
+  string account_id = 3;
+  string edge_id = 4;
+  string device_id = 5;
+  bytes device_public_key = 6;
+  repeated DaemonCapability capabilities = 7;
+  google.protobuf.Timestamp issued_at = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  reserved 10, 11;
+  bytes edge_locator_sha256 = 12;
+}
+
+// AgentHelloProofInput 覆盖 Edge 单次 challenge、完整 binding envelope 摘要和 AgentHello 中除 proof 自身外的全部字段。
+message AgentHelloProofInput {
+  bytes binding_envelope_sha256 = 1;
+  string daemon_id = 2;
+  string daemon_boot_id = 3;
+  string daemon_session_id = 4;
+  EdgeChallenge challenge = 5;
+  uint32 protocol_version = 6;
+  string message_id = 7;
+  uint64 stream_seq = 8;
+  google.protobuf.Timestamp sent_at = 9;
+  string software_version = 10;
+  uint64 attempt_generation = 11;
+}
+
+// CloudRouteGrantClaims 由 owning daemon 的 DeviceIdentity 签发，只授权发现和信令。
+// 该消息不得出现 terminal、scope、CapabilityGrant、命令或文件字段。
+message CloudRouteGrantClaims {
+  string grant_id = 1;
+  string daemon_id = 2;
+  bytes client_public_key = 3;
+  ClientProduct product = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+// ClientRouteProofInput 把客户端 proof 绑定到 Controller nonce、grant 和本次解析请求。
+message ClientRouteProofInput {
+  string challenge_id = 1;
+  bytes challenge = 2;
+  bytes grant_payload_sha256 = 3;
+  string request_id = 4;
+}
+
+// GatewayClientHelloProofInput 对两种 authorization 使用同一 v2 transcript。
+// authorization_sha256 是对应 SignedEnvelope 或 PairingAdmission 的确定性 protobuf 摘要。
+message GatewayClientHelloProofInput {
+  EdgeChallenge challenge = 1;
+  bytes authorization_sha256 = 2;
+  CloudClientAccessMode access_mode = 3;
+  uint32 protocol_version = 4;
+  string message_id = 5;
+  string client_id = 6;
+  string client_boot_id = 7;
+  string client_session_id = 8;
+  uint64 stream_seq = 9;
+  google.protobuf.Timestamp sent_at = 10;
+  bytes client_public_key = 11;
+  ClientProduct product = 12;
+  string software_version = 13;
+  uint64 attempt_generation = 14;
+  RelayPreference relay_preference = 15;
+  bool presence_probe = 16;
+}

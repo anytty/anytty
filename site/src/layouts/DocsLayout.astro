@@ -1,0 +1,22 @@
+---
+import BaseLayout from './BaseLayout.astro'
+import { docs, localizedPath, sitePath, type Locale } from '@/lib/site'
+
+interface Props { locale: Locale; slug: string; title: string; description: string }
+const { locale, slug, title, description } = Astro.props
+const pathname = localizedPath(locale, `/docs/${slug}`)
+---
+
+<BaseLayout locale={locale} title={title} description={description} pathname={pathname}>
+  <main id="main" class="site-container docs-layout">
+    <aside class="docs-sidebar">
+      <nav aria-label={locale === 'en' ? 'Documentation' : '文档目录'}>
+        <p>{locale === 'en' ? 'Documentation' : '文档目录'}</p>
+        {docs.map(([path, en, zh]) => (
+          <a aria-current={slug === path ? 'page' : undefined} href={sitePath(localizedPath(locale, `/docs/${path}`))}>{locale === 'en' ? en : zh}</a>
+        ))}
+      </nav>
+    </aside>
+    <article class="prose prose-neutral max-w-none"><slot /></article>
+  </main>
+</BaseLayout>

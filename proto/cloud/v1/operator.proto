@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package anytty.cloud.v1;
+
+import "cloud/v1/account.proto";
+import "cloud/v1/certificate.proto";
+import "cloud/v1/commerce.proto";
+import "cloud/v1/edge_config.proto";
+import "cloud/v1/runtime.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
+
+message PageRequest {
+  uint32 page_size = 1;
+  string cursor = 2;
+  string query = 3;
+  string sort = 4;
+}
+
+message OperatorOverview {
+  uint64 edge_total = 1;
+  uint64 edge_online = 2;
+  uint64 daemon_total = 3;
+  uint64 daemon_online = 4;
+  uint64 client_session_online = 5;
+  reserved 6, 7;
+  uint64 relay_bytes_current_period = 8;
+  string controller_instance_id = 9;
+  google.protobuf.Timestamp generated_at = 10;
+}
+
+message AccountSummary {
+  AccountProfile account = 1;
+  repeated AccountRole roles = 2;
+  uint64 daemon_count = 3;
+  SubscriptionProjection subscription = 4;
+  EffectiveEntitlement entitlement = 5;
+  UsagePeriodProjection usage = 6;
+}
+
+message RuntimeSessionProjection {
+  string session_id = 1;
+  string account_id = 2;
+  string daemon_id = 3;
+  string edge_id = 4;
+  string client_id = 5;
+  ClientProduct product = 6;
+  reserved 7;
+  uint64 generation = 8;
+  google.protobuf.Timestamp connected_at = 9;
+}
+
+message OperatorAuditEvent {
+  string audit_id = 1;
+  string actor_account_id = 2;
+  string actor_display_name = 3;
+  string action = 4;
+  string resource_type = 5;
+  string resource_id = 6;
+  string reason = 7;
+  string result = 8;
+  string correlation_id = 9;
+  google.protobuf.Timestamp occurred_at = 10;
+}
+
+message GetOperatorOverviewRequest {}
+message GetOperatorOverviewResponse { OperatorOverview overview = 1; }
+message ListOperatorAccountsRequest { PageRequest page = 1; }
+message ListOperatorAccountsResponse {
+  repeated AccountSummary accounts = 1;
+  string next_cursor = 2;
+}
+message GetOperatorAccountRequest { string account_id = 1; }
+message GetOperatorAccountResponse { AccountSummary account = 1; }
+message ProvisionAccountRequest {
+  string email = 1;
+  string display_name = 2;
+  string reason = 3;
+}
+message ProvisionAccountResponse {
+  AccountProfile account = 1;
+  string setup_credential = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message ResetAccountSetupRequest {
+  string account_id = 1;
+  string reason = 2;
+}
+message ResetAccountSetupResponse {
+  AccountProfile account = 1;
+  string setup_credential = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message ListRuntimeSessionsRequest { PageRequest page = 1; }
+message ListRuntimeSessionsResponse {
+  repeated RuntimeSessionProjection sessions = 1;
+  string next_cursor = 2;
+}
+message ListOperatorOrdersRequest { PageRequest page = 1; }
+message ListOperatorOrdersResponse {
+  repeated OrderProjection orders = 1;
+  string next_cursor = 2;
+}
+message ListOperatorSubscriptionsRequest { PageRequest page = 1; }
+message ListOperatorSubscriptionsResponse {
+  repeated SubscriptionProjection subscriptions = 1;
+  string next_cursor = 2;
+}
+message ListOperatorUsageRequest { PageRequest page = 1; }
+message ListOperatorUsageResponse {
+  repeated UsagePeriodProjection accounts = 1;
+  reserved 2;
+  string next_cursor = 3;
+}
+message ListOperatorAuditRequest { PageRequest page = 1; }
+message ListOperatorAuditResponse {
+  repeated OperatorAuditEvent events = 1;
+  string next_cursor = 2;
+}
+
+message SetAccountStateRequest {
+  string account_id = 1;
+  AccountState state = 2;
+  uint64 expected_revision = 3;
+  string reason = 4;
+}
+message SetAccountStateResponse { AccountProfile account = 1; }
+
+message SetAccountRoleRequest {
+  string account_id = 1;
+  AccountRole role = 2;
+  bool enabled = 3;
+  string reason = 4;
+}
+message SetAccountRoleResponse { repeated AccountRole roles = 1; }
+
+enum RuntimeCommandResult {
+  RUNTIME_COMMAND_RESULT_UNSPECIFIED = 0;
+  RUNTIME_COMMAND_RESULT_APPLIED = 1;
+  RUNTIME_COMMAND_RESULT_REJECTED = 2;
+  RUNTIME_COMMAND_RESULT_STALE = 3;
+  RUNTIME_COMMAND_RESULT_TIMEOUT = 4;
+  RUNTIME_COMMAND_RESULT_UNAVAILABLE = 5;
+}
+
+message DisconnectDaemonRequest {
+  string daemon_id = 1;
+  uint64 generation = 2;
+  string reason = 3;
+}
+message DisconnectDaemonResponse { RuntimeCommandResult result = 1; }
+message DisconnectSessionRequest {
+  string session_id = 1;
+  uint64 generation = 2;
+  string reason = 3;
+}
+message DisconnectSessionResponse { RuntimeCommandResult result = 1; }
+
+enum OperatorEventOperation {
+  OPERATOR_EVENT_OPERATION_UNSPECIFIED = 0;
+  OPERATOR_EVENT_OPERATION_UPSERT = 1;
+  OPERATOR_EVENT_OPERATION_DELETE = 2;
+  OPERATOR_EVENT_OPERATION_RESET = 3;
+}
+
+// OperatorRuntimeEvent 是 SSE 的失效提示，不携带实时对象完整内容。
+message OperatorRuntimeEvent {
+  string controller_instance_id = 1;
+  uint64 event_seq = 2;
+  string resource_kind = 3;
+  string resource_id = 4;
+  OperatorEventOperation operation = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+// OperatorService 是中文运营后台的唯一查询、持久 mutation 与实时控制 API。
+service OperatorService {
+  rpc GetOverview(GetOperatorOverviewRequest) returns (GetOperatorOverviewResponse);
+  rpc ListAccounts(ListOperatorAccountsRequest) returns (ListOperatorAccountsResponse);
+  rpc GetAccount(GetOperatorAccountRequest) returns (GetOperatorAccountResponse);
+  rpc ProvisionAccount(ProvisionAccountRequest) returns (ProvisionAccountResponse);
+  rpc ResetAccountSetup(ResetAccountSetupRequest) returns (ResetAccountSetupResponse);
+  rpc ListRuntimeSessions(ListRuntimeSessionsRequest) returns (ListRuntimeSessionsResponse);
+  rpc ListOrders(ListOperatorOrdersRequest) returns (ListOperatorOrdersResponse);
+  rpc ListSubscriptions(ListOperatorSubscriptionsRequest) returns (ListOperatorSubscriptionsResponse);
+  rpc ListUsage(ListOperatorUsageRequest) returns (ListOperatorUsageResponse);
+  rpc ListAudit(ListOperatorAuditRequest) returns (ListOperatorAuditResponse);
+  rpc SetAccountState(SetAccountStateRequest) returns (SetAccountStateResponse);
+  rpc SetAccountRole(SetAccountRoleRequest) returns (SetAccountRoleResponse);
+  rpc DisconnectDaemon(DisconnectDaemonRequest) returns (DisconnectDaemonResponse);
+  rpc DisconnectSession(DisconnectSessionRequest) returns (DisconnectSessionResponse);
+  rpc DeleteEdge(DeleteEdgeRequest) returns (DeleteEdgeResponse);
+  rpc ListCertificateProfiles(ListCertificateProfilesRequest) returns (ListCertificateProfilesResponse);
+  rpc UploadCertificateProfile(UploadCertificateProfileRequest) returns (UploadCertificateProfileResponse);
+  rpc BindCertificateProfile(BindCertificateProfileRequest) returns (BindCertificateProfileResponse);
+  rpc CreateEdgeIdentityRecovery(CreateEdgeIdentityRecoveryRequest) returns (CreateEdgeIdentityRecoveryResponse);
+}

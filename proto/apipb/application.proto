@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package anytty.api.v1;
+
+import "apipb/common.proto";
+import "apipb/access_remote.proto";
+import "apipb/events.proto";
+import "apipb/file.proto";
+import "apipb/history.proto";
+import "apipb/storage.proto";
+import "apipb/terminal.proto";
+
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+message CancelOperationCommand {
+  reserved 1;
+  OperationStamp operation = 2;
+}
+
+message ReleaseResourceCommand {
+  reserved 1;
+  ResourceHandle resource = 2;
+}
+
+message CommandEnvelope {
+  RequestContext context = 1;
+  oneof command {
+    CancelOperationCommand cancel_operation = 10;
+    ReleaseResourceCommand release_resource = 11;
+    TerminalDefaultsCommand terminal_defaults = 20;
+    TerminalCreateCommand terminal_create = 21;
+    TerminalListCommand terminal_list = 22;
+    TerminalGetCommand terminal_get = 23;
+    TerminalRestartCommand terminal_restart = 24;
+    TerminalKillCommand terminal_kill = 25;
+    TerminalRemoveCommand terminal_remove = 26;
+    TerminalSetMetadataCommand terminal_set_metadata = 27;
+    TerminalSetTagsCommand terminal_set_tags = 28;
+    TerminalAttachCommand terminal_attach = 29;
+    TerminalDetachCommand terminal_detach = 30;
+    TerminalInputCommand terminal_input = 31;
+    TerminalResizeCommand terminal_resize = 32;
+    TerminalResizeLockCommand terminal_resize_lock = 33;
+    PathListDirectoriesCommand path_list_directories = 34;
+    HistoryWindowCommand history_window = 40;
+    HistoryCopyCommand history_copy = 41;
+    HistoryReleaseCommand history_release = 42;
+    HistoryBacklogStatusCommand history_backlog_status = 43;
+    LiveScreenNextCommand live_screen_next = 44;
+    HistorySearchCommand history_search = 45;
+    EventSubscribeCommand event_subscribe = 46;
+    FileListCommand file_list = 60;
+    FileStatCommand file_stat = 61;
+    FilePreviewCommand file_preview = 62;
+    FileMkdirCommand file_mkdir = 63;
+    FileRenameCommand file_rename = 64;
+    FileDeleteCommand file_delete = 65;
+    FileCopyCommand file_copy = 66;
+    FileMoveCommand file_move = 67;
+    FileDownloadOpenCommand file_download_open = 68;
+    FileUploadOpenCommand file_upload_open = 69;
+    FileTransferCancelCommand file_transfer_cancel = 70;
+    StorageGetCommand storage_get = 80;
+    StoragePutCommand storage_put = 81;
+    StorageDeleteCommand storage_delete = 82;
+    StorageListCommand storage_list = 83;
+    ClientAccessIdentityCommand client_access_identity = 100;
+    ClientAccessListCommand client_access_list = 101;
+    ClientAccessTicketCreateCommand client_access_ticket_create = 102;
+    ClientAccessRevokeCommand client_access_revoke = 103;
+    RemoteStatusCommand remote_status = 110;
+    RemotePairStartCommand remote_pair_start = 111;
+    RemoteLocalEnableCommand remote_local_enable = 112;
+    RemoteLocalStatusCommand remote_local_status = 113;
+    RemoteLocalDisableCommand remote_local_disable = 114;
+    RemoteCloudEdgesCommand remote_cloud_edges = 115;
+    RemoteCloudPreferEdgeCommand remote_cloud_prefer_edge = 116;
+    RemoteCloudReselectEdgeCommand remote_cloud_reselect_edge = 117;
+    RemoteCloudStatusCommand remote_cloud_status = 118;
+    RemoteCloudEnableCommand remote_cloud_enable = 119;
+    RemoteCloudDisableCommand remote_cloud_disable = 120;
+  }
+}
+
+message AcknowledgeResult {}
+
+message ResultEnvelope {
+  string request_id = 1;
+  EndpointSessionStamp origin_session = 2;
+  oneof result {
+    AcknowledgeResult acknowledge = 10;
+    ApiError error = 11;
+    TerminalDefaultsResult terminal_defaults = 20;
+    TerminalCreateResult terminal_create = 21;
+    TerminalListResult terminal_list = 22;
+    TerminalGetResult terminal_get = 23;
+    TerminalAttachResult terminal_attach = 24;
+    TerminalResizeResult terminal_resize = 25;
+    PathListDirectoriesResult path_list_directories = 26;
+    HistoryWindowResult history_window = 40;
+    HistoryCopyResult history_copy = 41;
+    HistoryBacklogStatusResult history_backlog_status = 42;
+    NativeScreenResult live_screen = 43;
+    HistorySearchResult history_search = 44;
+    EventSubscriptionResult event_subscription = 45;
+    FileListResult file_list = 60;
+    FileStatResult file_stat = 61;
+    FilePreviewResult file_preview = 62;
+    FileOperationResult file_operation = 63;
+    FileBatchResult file_batch = 64;
+    FileTransferOpenResult file_transfer_open = 65;
+    FileTransferCancelResult file_transfer_cancel = 66;
+    StorageGetResult storage_get = 80;
+    StoragePutResult storage_put = 81;
+    StorageDeleteResult storage_delete = 82;
+    StorageListResult storage_list = 83;
+    ClientAccessIdentityResult client_access_identity = 100;
+    ClientAccessListResult client_access_list = 101;
+    ClientAccessTicketCreateResult client_access_ticket_create = 102;
+    ClientAccessRevokeResult client_access_revoke = 103;
+    RemoteStatusResult remote_status = 110;
+    RemotePairStartResult remote_pair_start = 111;
+    RemoteLocalStatusResult remote_local_status = 112;
+    RemoteCloudEdgesResult remote_cloud_edges = 113;
+    RemoteCloudStatusResult remote_cloud_status = 114;
+  }
+}
+
+message OperationCancelledEvent {
+  OperationStamp operation = 1;
+}
+
+message ResourceReleasedEvent {
+  ResourceHandle resource = 1;
+}
+
+message EventEnvelope {
+  reserved 21, 22, 23;
+  string event_id = 1;
+  int64 timestamp_unix_nano = 2;
+  ApiVersion api_version = 3;
+  EndpointSessionStamp origin_session = 4;
+  ResourceHandle subscription = 5;
+  oneof event {
+    OperationCancelledEvent operation_cancelled = 10;
+    ResourceReleasedEvent resource_released = 11;
+    TerminalLifecycleEvent terminal_lifecycle = 20;
+    StorageChangedEvent storage_changed = 30;
+    FileTransferCompletedEvent file_transfer_completed = 40;
+  }
+}
