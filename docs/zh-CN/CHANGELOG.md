@@ -1,0 +1,43 @@
+# 变更记录
+
+[English](../../CHANGELOG.md) | 简体中文
+
+本文件记录用户可见变化。当前版本仍为预发布版本，不提供稳定升级承诺；安全承诺见[安全边界](SECURITY_BOUNDARY.md)，使用说明见[文档索引](README.md)。
+
+## Unreleased
+
+## [0.0.1-beta.0] - 2026-08-17
+
+### Added
+
+- 增加基于 Markdown 的英中双语官方文档站、GitHub Pages Actions、本地构建预览和未来 `anytty.com` 自定义域名构建参数。
+- 增加 Apache-2.0 开源发布所需的社区治理文档、Issue/PR 模板、CODEOWNERS、Dependabot 和发布检查清单。
+- 增加公开仓库 HTML/Markdown 链接、双语页面结构、敏感路径、私有 import 和潜在凭据文件自动门禁。
+- 增加 Local、SSH、Direct 和 Cloud 多 route endpoint registry、测试与诊断命令。
+- 增加一次性二维码配对；Android App 只通过扫码添加设备，不登录也不自动发现设备。
+- 增加客户端基线驱动的终端 Full/Delta 拉取、历史分页、搜索、范围复制和 Live/History 连续切换。
+- 增加可选的 AnyTTY Cloud 连接，支持托管设备发现、P2P 协商、Relay 兜底，以及无需重启 daemon 的连接路径刷新。
+- 增加 Cloud 公开文档页面、可搜索主题、响应式目录和真实产品说明。
+- 增加完整项目 README、稳定专题文档和仓库文档索引。
+
+### Changed
+
+- PTY 输出改为每 terminal 单份有界 payload，并由 Live 与 History 独立 cursor 消费；溢出可配置为 `block` 或 `drop`。
+- TUI 和移动端在提交当前 renderer 批次后立即重挂 long-poll，不使用固定帧率窗口；渲染期间合并最新 damage，不排队过时帧。
+- App 前后台、WebView 重载和原生 session generation 变化会取消旧请求并从本地 endpoint registry 恢复。
+- 历史模式冻结进入时的视觉锚点，滚动到最新位置自动返回 Live；大范围复制在确认时才物化文本。
+- Cloud 路由只改变发现与传输方式，终端和文件权限仍由 daemon 控制。
+- repository layout guard 改为检查当前稳定文档、错误路径和构建产物，不限制额外 Markdown。
+
+### Security
+
+- terminal 和 file 权限统一由 daemon 的 AccessStore 与 client-bound CapabilityGrant 校验。
+- pairing claim 是短期一次性凭据，访问授权与客户端身份绑定并由 daemon 执行。
+- 远程连接验证 daemon 身份；身份、认证或授权失败时拒绝连接，不会通过切换路径降低安全要求。
+- 凭据使用安全存储并以原子方式更新，日志不记录秘密、终端内容或文件内容。
+
+### Removed
+
+- 删除账号自动发现移动设备的产品假设；Cloud 账号与 App endpoint registry 保持独立。
+- 删除重复 TUI 配置模板、已完成整改计划、过期架构草案和旧开发工作流文档。
+- 删除未发布旧协议、旧 YAML 和开发数据格式的兼容承诺。

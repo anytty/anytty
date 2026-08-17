@@ -19,7 +19,7 @@ const copy = {
     terminalTitle: "anytty · terminals", terminalRows: [["dev-shell", "attached", "local"], ["release", "detached", "ssh: builder"], ["logs", "running", "direct"]],
     appEyebrow: "Android + iOS", appTitle: "Your terminal and project files, in your pocket.", appLead: "Reconnect to running sessions, use a terminal-ready extra-key bar, and browse the same workspace without moving your processes away from their machine.",
     appPoints: ["Pair by QR or pasted claim", "Attach to running terminal sessions", "Preview, upload, and download files"], pairing: "Read pairing docs",
-    docsTitle: "The implementation and the operating model are documented together.", docsLead: "Start with the CLI and TUI workflow, then follow the connection, security, mobile, and contribution guides.", docs: "Open documentation",
+    docsTitle: "Everything you need to use AnyTTY, in one place.", docsLead: "Start with the CLI and TUI workflow, then follow the connection, security, mobile, and contribution guides.", docs: "Open documentation",
   },
   "zh-CN": {
     eyebrow: "开源远程终端",
@@ -35,7 +35,7 @@ const copy = {
     terminalTitle: "anytty · 终端", terminalRows: [["dev-shell", "已附加", "本机"], ["release", "已分离", "ssh: builder"], ["logs", "运行中", "direct"]],
     appEyebrow: "Android + iOS", appTitle: "把终端和项目文件带在身边。", appLead: "随时回到正在运行的会话，使用面向终端的扩展键盘，并浏览同一工作区；进程始终留在原来的机器上。",
     appPoints: ["扫描二维码或粘贴 claim 配对", "连接正在运行的终端会话", "预览、上传和下载文件"], pairing: "阅读配对文档",
-    docsTitle: "实现细节与运行模型放在同一套文档里。", docsLead: "先了解 CLI 与 TUI 工作流，再查看连接、安全、移动端和贡献指南。", docs: "打开文档",
+    docsTitle: "从安装到连接，所有使用文档集中在一处。", docsLead: "先了解 CLI 与 TUI 工作流，再查看连接、安全、移动端和贡献指南。", docs: "打开文档",
   },
 } as const;
 

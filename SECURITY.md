@@ -7,9 +7,9 @@ open a public issue containing exploit details, credentials, pairing material,
 terminal content, or private user data.
 
 The daemon is the final authority for terminal, file, device identity, and
-client permissions. Cloud services provide discovery, signaling, policy, and
-Relay transport, but cannot grant terminal or file capabilities. Review
-`ARCHITECTURE.md` and `docs/PAIRING_PROTOCOL.md` for the trust boundaries.
+client permissions. A connection service can provide reachability but cannot
+grant terminal or file capabilities. Review
+[`docs/SECURITY_BOUNDARY.md`](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
 
 Reports should include the affected version, prerequisites, a minimal
 reproduction using generated test credentials, impact, and known mitigations.

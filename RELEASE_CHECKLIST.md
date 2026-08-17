@@ -7,7 +7,7 @@ This checklist is for maintainers preparing an AnyTTY public release. The projec
 - [ ] Select a reviewed commit from the private authoritative monorepo.
 - [ ] Run `make check-public-source` in the private repository.
 - [ ] Sync with `make sync-public-source PUBLIC_DIR=../public` and review the complete public diff.
-- [ ] Confirm Controller, Edge, Cloud Web, billing, migrations, production deployment, operations, credentials, and private history are absent.
+- [ ] Confirm the export contains only reviewed user-device source and public documentation, with no private service implementation, production configuration, credentials, or private history.
 - [ ] Run `npm run public:check` in the public repository.
 - [ ] Review generated files, screenshots, fixtures, and notices for secrets and personal data.
 

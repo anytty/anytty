@@ -7,7 +7,7 @@
 - [ ] 从私有权威 monorepo 选择已审核提交。
 - [ ] 在私有仓库执行 `make check-public-source`。
 - [ ] 执行 `make sync-public-source PUBLIC_DIR=../public` 并审查全部公开差异。
-- [ ] 确认不存在 Controller、Edge、Cloud Web、计费、迁移、生产部署、运维配置、凭据和私有历史。
+- [ ] 确认导出内容仅包含经过审核的用户设备源码与公开文档，不含私有服务实现、生产配置、凭据或私有历史。
 - [ ] 在公开仓库执行 `npm run public:check`。
 - [ ] 检查生成文件、截图、fixture 和声明中没有秘密或个人数据。
 

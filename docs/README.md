@@ -2,14 +2,11 @@
 
 [English](../README.md) | [简体中文](zh-CN/README.md)
 
-## Product and architecture
+## Product and security
 
 - [Project overview](../README.md)
-- [Architecture and trust boundaries](../ARCHITECTURE.md)
-- [Open-source and managed-service boundary](OPEN_SOURCE_BOUNDARY.md)
+- [Security boundary](SECURITY_BOUNDARY.md)
 - [Terminal delivery model](TERMINAL_DELIVERY.md)
-- [QR pairing protocol](PAIRING_PROTOCOL.md)
-- [Cloud daemon lifecycle protocol](CLOUD_DAEMON_LIFECYCLE.md)
 
 ## Project participation
 

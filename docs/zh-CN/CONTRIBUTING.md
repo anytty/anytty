@@ -2,7 +2,7 @@
 
 AnyTTY 欢迎范围明确的修复、测试、文档、无障碍改进，以及保持现有安全边界的功能建议。项目当前处于早期 Beta，大型变更请先创建 issue 讨论。
 
-修改行为前请阅读 `README.md`、`ARCHITECTURE.md` 和相关协议文档。同一变更中的 schema、生成代码、实现、测试和文档必须保持一致。
+修改行为前请阅读 `README.md`、[安全边界](SECURITY_BOUNDARY.md)和相关用户指南。同一变更中的 schema、生成代码、实现、测试和文档必须保持一致。
 
 ```sh
 npm ci

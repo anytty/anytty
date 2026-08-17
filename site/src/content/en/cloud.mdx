@@ -1,28 +1,21 @@
 ---
 title: AnyTTY Cloud
-description: Understand what the public Cloud client includes and what remains managed.
+description: Reach terminals behind NAT with managed discovery, P2P negotiation, and Relay fallback.
 ---
 
 # AnyTTY Cloud
 
-Public builds include the Cloud client and daemon agent needed to connect to the official service. Cloud changes discovery, signaling, and relay reachability; it does not become the terminal authority.
+AnyTTY Cloud is an optional managed connection service for terminals that are difficult to reach directly. It works with the open-source AnyTTY clients and daemon.
 
-## In this repository
+## What Cloud adds
 
-- Cloud client and daemon agent
-- WebRTC P2P and Relay client paths
-- Challenge-first authentication
-- Tickets, secure transport, and public protocol
+- Managed device discovery
+- P2P connection negotiation when the network allows it
+- Relay fallback when a direct path is unavailable
+- One connection experience across desktop and mobile clients
 
-## Managed, not published here
+## Security boundary
 
-- Controller and Edge implementation
-- Cloud Web and account operations
-- Billing and database migrations
-- Production deployment and configuration
+Cloud helps an authorized client reach the target daemon. The daemon remains the final authority for terminal and file permissions, and remote traffic is authenticated and encrypted. A Relay forwards encrypted traffic without gaining terminal or file access.
 
-## Cloud versus self-managed routes
-
-Local, SSH, and Direct can operate without AnyTTY Cloud. Direct requires you to provide network reachability and operate the route. The proprietary server components are not currently available as a self-hostable AnyTTY Cloud stack.
-
-> **No commercial claims yet.** This pre-release repository does not promise service availability, pricing, packages, or support tiers. Official terms must be published separately before they can be relied on.
+Local, SSH, and Direct connections remain available when you prefer to manage reachability yourself. See the [security boundary](https://github.com/anytty/anytty/blob/main/docs/SECURITY_BOUNDARY.md) for the complete user-visible trust model.

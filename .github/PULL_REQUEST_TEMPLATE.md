@@ -5,7 +5,7 @@ Describe the user-visible behavior and why this change is needed.
 ## Security and boundary
 
 - [ ] I reviewed authentication, authorization, credential, protocol, and private-source impact.
-- [ ] This change does not add Controller, Edge, Cloud Web, billing, migration, deployment, operations, or production configuration source.
+- [ ] This change preserves the documented security boundary and does not add private service implementation, production configuration, credentials, or sensitive operational data.
 - [ ] Logs, fixtures, screenshots, and tests contain no secrets or private user data.
 
 ## Validation

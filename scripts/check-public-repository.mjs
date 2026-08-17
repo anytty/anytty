@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const siteOnly = process.argv.includes("--site-only");
 const failures = [];
-const requiredRoot = [".gitattributes", ".gitignore", "README.md", "README.zh-CN.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "SUPPORT.md", "GOVERNANCE.md", "TRADEMARKS.md", "CHANGELOG.md", "RELEASE_CHECKLIST.md"];
+const requiredRoot = [".gitattributes", ".gitignore", "README.md", "README.zh-CN.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "SUPPORT.md", "GOVERNANCE.md", "TRADEMARKS.md", "CHANGELOG.md", "RELEASE_CHECKLIST.md", "docs/SECURITY_BOUNDARY.md", "docs/zh-CN/SECURITY_BOUNDARY.md"];
 const forbiddenPaths = ["cloud/controller", "cloud/edge", "cloud/web", "cloud/deploy", "cloud/integration", "cmd/anytty-cloud-controller", "cmd/anytty-cloud-edge", "deploy", "migrations"];
 const allowedCloudPackages = new Set(["client", "daemon", "protocol", "securetransport", "ticket"]);
 
@@ -39,8 +39,10 @@ if (!siteOnly) {
   const riskyNames = publicFiles.filter((file) => /(?:^|\/)(?:\.env|credentials?|secrets?)(?:\.[^/]*)?$/i.test(path.relative(root, file)) && !file.endsWith(".example"));
   for (const file of riskyNames) failures.push(`possible sensitive configuration file: ${path.relative(root, file)}`);
   const markdownFiles = publicFiles.filter((file) => /\.mdx?$/.test(file) && !file.includes(`${path.sep}.artifacts${path.sep}`));
+  const privateArchitecturePattern = /\b(?:PostgreSQL|EdgeControl|AgentGateway|ClientGateway|KeyBundle)\b|Cloud Controller|Cloud Edge|数据库迁移|生产部署/;
   for (const file of markdownFiles) {
     const markdown = await readFile(file, "utf8");
+    if (privateArchitecturePattern.test(markdown)) failures.push(`${path.relative(root, file)} discloses managed-service implementation details`);
     for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
       const raw = match[1].replace(/^<|>$/g, "");
       if (/^(?:https?:|mailto:|#|\/)/.test(raw) || raw.includes("{base}")) continue;

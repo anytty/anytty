@@ -11,12 +11,12 @@ The daemon owns the identity and authorization decisions that protect terminals 
 
 - Pairing claims and enrollment material are short-lived, one-time, and replay-resistant.
 - Capability grants are bound to a client identity and enforced by the daemon.
-- Cloud AgentGateway and ClientGateway authenticate with challenge-first proofs.
-- Missing or inconsistent Cloud policy fails closed.
-- Terminal and file content are not part of Controller authority.
+- Remote connections authenticate the daemon identity and encrypt terminal and file traffic.
+- A Relay forwards encrypted traffic without gaining terminal or file permissions.
+- Authentication and authorization failures are rejected without falling back to weaker checks.
 
 ## Report a vulnerability
 
 Do not open a public issue. Use [GitHub private vulnerability reporting](https://github.com/anytty/anytty/security/advisories/new) with a minimal reproduction based on generated test credentials. Never include real keys, pairing claims, grants, terminal content, or personal data.
 
-Read the full [security policy](https://github.com/anytty/anytty/blob/main/SECURITY.md) and [architecture](https://github.com/anytty/anytty/blob/main/ARCHITECTURE.md).
+Read the full [security policy](https://github.com/anytty/anytty/blob/main/SECURITY.md) and [security boundary](https://github.com/anytty/anytty/blob/main/docs/SECURITY_BOUNDARY.md).
