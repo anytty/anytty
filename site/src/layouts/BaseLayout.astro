@@ -1,10 +1,9 @@
 ---
-import { ArrowDownToLine, GitFork, Languages } from 'lucide-react'
+import { ArrowDownToLine, Cloud, Languages, Moon, Sun } from 'lucide-react'
 
+import { GithubIcon } from '@/components/github-icon'
 import { NavigationSheet } from '@/components/navigation-sheet'
-import { buttonVariants } from '@/components/ui/button'
 import { canonicalUrl, localizedPath, sitePath, type Locale } from '@/lib/site'
-import { cn } from '@/lib/utils'
 import '@/styles/globals.css'
 
 interface Props {
@@ -18,7 +17,7 @@ interface Props {
 const { locale, title, description, pathname, alternates = true } = Astro.props
 const pageTitle = title
   ? `${title} | AnyTTY`
-  : locale === 'en' ? 'AnyTTY - Keep terminals running, come back anytime' : 'AnyTTY - 终端一直跑着，随时回来接管'
+  : locale === 'en' ? 'AnyTTY - One terminal pool, every client can take control' : 'AnyTTY - 一个终端池，所有客户端都能接管'
 const docsPath = localizedPath(locale, '/docs/quick-start')
 const homePath = localizedPath(locale)
 const alternate = !alternates
@@ -28,16 +27,18 @@ const alternate = !alternates
     : pathname.replace(/^\/zh-CN/, '') || '/'
 const labels = locale === 'en'
   ? {
-      features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', language: '中文',
+      features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', cloud: 'Cloud', language: '中文',
       skip: 'Skip to content', nav: 'Primary navigation', menuTitle: 'Explore AnyTTY',
       menuDescription: 'Open-source terminals that keep running across desktop, web, and mobile.',
       footer: 'Open-source terminals that keep running, so you can come back anytime.', support: 'Support', security: 'Security', close: 'Close menu',
+      theme: 'Toggle theme',
     }
   : {
-      features: '功能', screens: '多端体验', docs: '文档', download: '下载', language: 'English',
+      features: '功能', screens: '多端体验', docs: '文档', download: '下载', cloud: '云服务', language: 'English',
       skip: '跳到正文', nav: '主导航', menuTitle: '浏览 AnyTTY',
       menuDescription: '跨桌面、Web 与手机一直运行的开源终端。',
       footer: '终端一直跑着，随时回来接管的开源工具。', support: '支持', security: '安全', close: '关闭菜单',
+      theme: '切换主题',
     }
 
 const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0'
@@ -45,21 +46,30 @@ const mobileItems = [
   { label: labels.features, href: `${sitePath(homePath)}#features`, kind: 'default' as const },
   { label: labels.screens, href: `${sitePath(homePath)}#screens`, kind: 'default' as const },
   { label: labels.docs, href: sitePath(docsPath), kind: 'default' as const },
+  { label: labels.cloud, href: 'https://cloud.anytty.com', kind: 'cloud' as const },
   { label: 'GitHub', href: 'https://github.com/anytty/anytty', kind: 'github' as const },
-  { label: labels.language, href: sitePath(alternate), kind: 'language' as const },
   { label: labels.download, href: releaseUrl, kind: 'download' as const, emphasis: true },
 ]
 ---
 
 <!doctype html>
-<html lang={locale} class="scroll-smooth motion-reduce:scroll-auto">
+<html lang={locale} class="dark scroll-smooth motion-reduce:scroll-auto">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f8f8f6" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="generator" content={Astro.generator} />
+    <script is:inline>
+      (function () {
+        var root = document.documentElement
+        var stored = null
+        try { stored = localStorage.getItem('anytty-theme') } catch (e) {}
+        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+        root.classList.toggle('dark', dark)
+      })()
+    </script>
     <link rel="canonical" href={canonicalUrl(pathname)} />
     {alternates && <link rel="alternate" hreflang="en" href={canonicalUrl(locale === 'en' ? pathname : alternate)} />}
     {alternates && <link rel="alternate" hreflang="zh-CN" href={canonicalUrl(locale === 'zh-CN' ? pathname : alternate)} />}
@@ -78,60 +88,93 @@ const mobileItems = [
     <title>{pageTitle}</title>
     <slot name="head" />
   </head>
-  <body class="min-h-screen overflow-x-hidden bg-background text-foreground">
+  <body class="min-h-screen overflow-x-hidden bg-background pt-20 text-zinc-50">
     <a
       class="fixed left-4 top-4 z-[100] -translate-y-24 rounded-md bg-foreground px-4 py-3 text-sm text-background shadow-lg transition-transform focus:translate-y-0"
       href="#main"
     >
       {labels.skip}
     </a>
-    <header class="sticky top-0 z-50 bg-background/90 shadow-sm backdrop-blur-xl">
-      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
-        <a class="flex h-11 items-center gap-2.5 text-sm font-medium no-underline" href={sitePath(homePath)} aria-label="AnyTTY home">
-          <img class="size-8 rounded-lg" src={sitePath('/assets/app-icon.png')} alt="" width="32" height="32" />
-          <span>AnyTTY</span>
+    <header class="fixed inset-x-0 top-0 z-50 pt-4">
+      <div class="relative mx-auto flex w-full max-w-7xl items-center justify-center px-5 sm:px-8">
+        <a class="group absolute left-0 hidden rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring sm:left-2 sm:block" href={sitePath(homePath)} aria-label="AnyTTY home">
+          <span class="inline-flex items-center gap-2.5">
+            <img class="size-9 rounded-lg" src={sitePath('/assets/app-icon.png')} alt="" width="36" height="36" />
+            <span class="text-xl font-semibold tracking-tight text-zinc-100 transition-colors group-hover:text-zinc-100/80">AnyTTY</span>
+          </span>
         </a>
 
-        <nav class="hidden items-center gap-1 lg:flex" aria-label={labels.nav}>
-          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={`${sitePath(homePath)}#features`}>{labels.features}</a>
-          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
-          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={sitePath(docsPath)}>{labels.docs}</a>
-          <a class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'size-10')} href="https://github.com/anytty/anytty" aria-label="GitHub" title="GitHub">
-            <GitFork aria-hidden="true" />
+        <nav class="liquid-glass hidden items-center gap-1 rounded-full p-1.5 lg:flex" aria-label={labels.nav}>
+          <a class="rounded-full px-3 py-1.5 text-sm font-medium text-zinc-100 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:shadow-[inset_0_0_0_1px_var(--glass-ring)] sm:px-4" href={`${sitePath(homePath)}#features`}>{labels.features}</a>
+          <a class="rounded-full px-3 py-1.5 text-sm font-medium text-zinc-100 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:shadow-[inset_0_0_0_1px_var(--glass-ring)] sm:px-4" href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
+          <a class="rounded-full px-3 py-1.5 text-sm font-medium text-zinc-100 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:shadow-[inset_0_0_0_1px_var(--glass-ring)] sm:px-4" href={sitePath(docsPath)}>{labels.docs}</a>
+          <a class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-zinc-100 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:shadow-[inset_0_0_0_1px_var(--glass-ring)] sm:px-4" href="https://github.com/anytty/anytty" aria-label="GitHub" title="GitHub">
+            <GithubIcon className="size-4" aria-hidden="true" />
+            <span class="hidden sm:inline">GitHub</span>
           </a>
-          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 gap-2 px-3 font-normal')} href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'}>
-            <Languages aria-hidden="true" />{labels.language}
+          <a class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-zinc-100 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:shadow-[inset_0_0_0_1px_var(--glass-ring)] sm:px-4" href="https://cloud.anytty.com" aria-label={labels.cloud} title={labels.cloud}>
+            <Cloud className="size-4" aria-hidden="true" />
+            <span class="hidden sm:inline">{labels.cloud}</span>
           </a>
-          <a class={cn(buttonVariants({ variant: 'default' }), 'ml-1 h-10 px-4 font-normal')} href={releaseUrl}>
-            <ArrowDownToLine aria-hidden="true" />{labels.download}
+          <a class="ml-1 inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-all duration-200 ease-out hover:brightness-110 active:scale-[0.98] sm:px-4" href={releaseUrl}>
+            <ArrowDownToLine className="size-3.5" aria-hidden="true" />{labels.download}
           </a>
         </nav>
 
-        <NavigationSheet
-          client:load
-          label={labels.nav}
-          title={labels.menuTitle}
-          description={labels.menuDescription}
-          closeLabel={labels.close}
-          items={mobileItems}
-        />
+        <div class="absolute right-0 flex items-center gap-1 sm:right-2">
+          <a class="grid size-9 place-items-center rounded-full text-zinc-400 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:text-zinc-100" href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'} aria-label={labels.language} title={labels.language}>
+            <Languages className="size-4" aria-hidden="true" />
+          </a>
+          <button type="button" id="theme-toggle" class="grid size-9 place-items-center rounded-full text-zinc-400 transition-all duration-200 ease-out hover:bg-[var(--chip)] hover:text-zinc-100" aria-label={labels.theme} title={labels.theme}>
+            <Sun className="size-4 icon-sun" aria-hidden="true" />
+            <Moon className="hidden size-4 icon-moon" aria-hidden="true" />
+          </button>
+          <NavigationSheet
+            client:load
+            label={labels.nav}
+            title={labels.menuTitle}
+            description={labels.menuDescription}
+            closeLabel={labels.close}
+            items={mobileItems}
+          />
+        </div>
       </div>
     </header>
 
     <slot />
 
-    <footer class="bg-muted/60">
-      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+    <footer class="border-t border-[var(--line)] bg-zinc-950/70 text-zinc-400 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 text-sm sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
         <div class="flex items-center gap-3">
-          <img class="size-7 rounded-md" src={sitePath('/assets/app-icon.png')} alt="" width="28" height="28" loading="lazy" />
+          <img class="size-7 rounded-md ring-1 ring-[var(--line-strong)]" src={sitePath('/assets/app-icon.png')} alt="" width="28" height="28" loading="lazy" />
           <p>&copy; {new Date().getFullYear()} AnyTTY. {labels.footer}</p>
         </div>
         <nav class="flex flex-wrap items-center gap-x-5 gap-y-3" aria-label="Footer">
-          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
-          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/security">{labels.security}</a>
-          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
+          <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
+          <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/security">{labels.security}</a>
+          <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
         </nav>
       </div>
     </footer>
   </body>
+  <script is:inline>
+    (function () {
+      var root = document.documentElement
+      var toggle = document.getElementById('theme-toggle')
+      if (!toggle) return
+      var sync = function () {
+        var dark = root.classList.contains('dark')
+        var sun = toggle.querySelector('.icon-sun')
+        var moon = toggle.querySelector('.icon-moon')
+        if (sun) sun.classList.toggle('hidden', dark)
+        if (moon) moon.classList.toggle('hidden', !dark)
+      }
+      toggle.addEventListener('click', function () {
+        var dark = root.classList.toggle('dark')
+        try { localStorage.setItem('anytty-theme', dark ? 'dark' : 'light') } catch (e) {}
+        sync()
+      })
+      sync()
+    })()
+  </script>
 </html>

@@ -83,7 +83,7 @@ function Command({ command, prompt, copyLabel, copiedLabel }: {
   }
 
   return (
-    <div className="flex min-h-14 min-w-0 max-w-full items-center gap-3 rounded-lg bg-zinc-950 px-3 text-zinc-100 shadow-sm ring-1 ring-white/10 sm:px-4">
+    <div className="flex min-h-14 min-w-0 max-w-full items-center gap-3 rounded-lg bg-zinc-950 px-3 text-zinc-100 shadow-sm ring-1 ring-[var(--line)] sm:px-4">
       <span className="shrink-0 font-mono text-xs text-emerald-400" aria-hidden="true">{prompt}</span>
       <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap py-4 font-mono text-xs font-normal sm:text-sm">
         {command}
@@ -95,7 +95,7 @@ function Command({ command, prompt, copyLabel, copiedLabel }: {
               type="button"
               variant="ghost"
               size="icon"
-              className="size-11 shrink-0 text-zinc-300 hover:bg-white/10 hover:text-white"
+              className="size-11 shrink-0 text-zinc-300 hover:bg-[var(--chip)] hover:text-zinc-100"
               aria-label={copied ? copiedLabel : copyLabel}
               onClick={copy}
             >
