@@ -12,10 +12,10 @@ The Astro static build is written to `site/dist`. `site:preview` serves that gen
 
 English and Simplified Chinese MDX live in `site/content/en/` and `site/content/zh-CN/`. App Router pages live in `site/app/`, shared product sections in `site/components/`, and open-code shadcn components in `site/components/ui/`.
 
-The default build uses `https://anytty.github.io/anytty/`. To preview the future custom-domain layout without publishing DNS changes:
+The default build uses `https://anytty.github.io/anytty/` while no custom domain is configured. To preview the root-path custom-domain layout without publishing DNS changes:
 
 ```sh
 ANYTTY_SITE_CUSTOM_DOMAIN=true PUBLIC_ANYTTY_SITE_URL=https://anytty.com npm run site:build
 ```
 
-Add `site/public/CNAME` containing `anytty.com` only after DNS and the GitHub Pages custom-domain setting are ready. Then set repository variables `ANYTTY_SITE_CUSTOM_DOMAIN=true` and `ANYTTY_SITE_URL=https://anytty.com`.
+Add `site/public/CNAME` containing `anytty.com` when DNS and the GitHub Pages custom-domain setting are ready. The Pages workflow detects that file and automatically builds with `/` as the base path and `https://anytty.com` as the canonical site URL. Point `www.anytty.com` to the same GitHub Pages custom domain in DNS; GitHub Pages will serve both hostnames without a project subpath.

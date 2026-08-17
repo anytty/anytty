@@ -30,11 +30,25 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
+      - name: Detect Pages URL mode
+        id: site-mode
+        shell: bash
+        run: |
+          if [[ -s site/public/CNAME ]]; then
+            domain="$(head -n 1 site/public/CNAME | tr -d '[:space:]')"
+            echo "custom_domain=true" >> "$GITHUB_OUTPUT"
+            echo "base_path=/" >> "$GITHUB_OUTPUT"
+            echo "site_url=https://${domain}" >> "$GITHUB_OUTPUT"
+          else
+            echo "custom_domain=false" >> "$GITHUB_OUTPUT"
+            echo "base_path=/anytty" >> "$GITHUB_OUTPUT"
+            echo "site_url=https://anytty.github.io/anytty" >> "$GITHUB_OUTPUT"
+          fi
       - run: npm run site:check
         env:
-          ANYTTY_SITE_CUSTOM_DOMAIN: ${{ vars.ANYTTY_SITE_CUSTOM_DOMAIN || 'false' }}
-          ANYTTY_SITE_BASE_PATH: /anytty
-          PUBLIC_ANYTTY_SITE_URL: ${{ vars.ANYTTY_SITE_URL || 'https://anytty.github.io/anytty' }}
+          ANYTTY_SITE_CUSTOM_DOMAIN: ${{ steps.site-mode.outputs.custom_domain }}
+          ANYTTY_SITE_BASE_PATH: ${{ steps.site-mode.outputs.base_path }}
+          PUBLIC_ANYTTY_SITE_URL: ${{ steps.site-mode.outputs.site_url }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
