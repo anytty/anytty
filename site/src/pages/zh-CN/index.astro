@@ -2,8 +2,8 @@
 import { LandingPage } from '@/components/landing-page'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 
-const description = '面向用户自有 daemon 的开源 CLI、TUI、Android 与 iOS 远程终端和文件客户端。'
-const structuredData = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'AnyTTY', applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Android, iOS', isAccessibleForFree: true, license: 'https://www.apache.org/licenses/LICENSE-2.0', codeRepository: 'https://github.com/anytty/anytty' }
+const description = '让终端会话持续运行在你自己的机器上，再从 TUI、CLI、WebView、Android 或 iOS 随时接管。'
+const structuredData = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'AnyTTY', applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Windows, Android, iOS', isAccessibleForFree: true, license: 'https://www.apache.org/licenses/LICENSE-2.0', codeRepository: 'https://github.com/anytty/anytty', downloadUrl: 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0' }
 ---
 
 <BaseLayout locale="zh-CN" description={description} pathname="/zh-CN/">

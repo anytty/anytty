@@ -90,11 +90,11 @@ AnyTTY keeps terminal sessions running on your own machines and lets you return 
 <table>
   <tr>
     <td align="center"><img src="docs/assets/pad.png" alt="Codex and OpenCode running in a vertical split on a tablet" width="360"></td>
-    <td align="center"><img src="docs/assets/pad-ttt.png" alt="The TTT browser running inside a terminal on a tablet" width="360"></td>
+    <td align="center"><img src="docs/assets/pad-ttt.png" alt="The TTT editor running inside a terminal on a tablet" width="360"></td>
   </tr>
   <tr>
     <td align="center"><strong>Codex and OpenCode in a vertical split</strong></td>
-    <td align="center"><strong>TTT browser running inside the terminal</strong></td>
+    <td align="center"><strong>TTT editor running inside the terminal</strong></td>
   </tr>
 </table>
 

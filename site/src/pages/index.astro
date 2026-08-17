@@ -2,8 +2,8 @@
 import { LandingPage } from '@/components/landing-page'
 import BaseLayout from '@/layouts/BaseLayout.astro'
 
-const description = 'Open-source CLI, TUI, Android, and iOS clients for user-owned remote terminals and files.'
-const structuredData = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'AnyTTY', applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Android, iOS', isAccessibleForFree: true, license: 'https://www.apache.org/licenses/LICENSE-2.0', codeRepository: 'https://github.com/anytty/anytty' }
+const description = 'Keep terminal sessions running on machines you own and take control from the TUI, CLI, WebView, Android, or iOS.'
+const structuredData = { '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'AnyTTY', applicationCategory: 'DeveloperApplication', operatingSystem: 'Linux, macOS, Windows, Android, iOS', isAccessibleForFree: true, license: 'https://www.apache.org/licenses/LICENSE-2.0', codeRepository: 'https://github.com/anytty/anytty', downloadUrl: 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0' }
 ---
 
 <BaseLayout locale="en" description={description} pathname="/">

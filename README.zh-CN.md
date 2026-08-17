@@ -90,11 +90,11 @@ AnyTTY 让终端会话持续运行在你自己的机器上，并可随时从键�
 <table>
   <tr>
     <td align="center"><img src="docs/assets/pad.png" alt="平板上下分屏同时运行 Codex 与 OpenCode" width="360"></td>
-    <td align="center"><img src="docs/assets/pad-ttt.png" alt="在平板终端中运行 TTT 浏览器" width="360"></td>
+    <td align="center"><img src="docs/assets/pad-ttt.png" alt="在平板终端中运行 TTT 编辑器" width="360"></td>
   </tr>
   <tr>
     <td align="center"><strong>上下分屏同时运行 Codex 与 OpenCode</strong></td>
-    <td align="center"><strong>在终端内运行 TTT 浏览器</strong></td>
+    <td align="center"><strong>在终端内运行 TTT 编辑器</strong></td>
   </tr>
 </table>
 

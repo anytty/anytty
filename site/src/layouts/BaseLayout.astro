@@ -1,5 +1,5 @@
 ---
-import { GitBranch, Menu } from 'lucide-react'
+import { ArrowDownToLine, GitFork, Menu } from 'lucide-react'
 import { canonicalUrl, localizedPath, sitePath, type Locale } from '@/lib/site'
 import '@/styles/globals.css'
 
@@ -14,16 +14,17 @@ interface Props {
 const { locale, title, description, pathname, alternates = true } = Astro.props
 const pageTitle = title
   ? `${title} | AnyTTY`
-  : locale === 'en' ? 'AnyTTY - Open-source remote terminals' : 'AnyTTY - 开源远程终端'
+  : locale === 'en' ? 'AnyTTY - Keep terminals running' : 'AnyTTY - 让终端持续运行'
 const docsPath = localizedPath(locale, '/docs/quick-start')
+const homePath = localizedPath(locale)
 const alternate = !alternates
   ? localizedPath(locale === 'en' ? 'zh-CN' : 'en')
   : locale === 'en'
     ? (pathname === '/' ? '/zh-CN/' : `/zh-CN${pathname}`)
     : pathname.replace(/^\/zh-CN/, '') || '/'
 const labels = locale === 'en'
-  ? { docs: 'Docs', start: 'Quick start', language: '中文', skip: 'Skip to content', nav: 'Primary navigation', footer: 'Open-source remote terminal software.', support: 'Support', security: 'Security' }
-  : { docs: '文档', start: '快速开始', language: 'English', skip: '跳到正文', nav: '主导航', footer: '开源远程终端软件。', support: '支持', security: '安全' }
+  ? { features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', language: '中文', skip: 'Skip to content', nav: 'Primary navigation', footer: 'Open-source terminals that keep running.', support: 'Support', security: 'Security' }
+  : { features: '功能', screens: '多端体验', docs: '文档', download: '下载', language: 'English', skip: '跳到正文', nav: '主导航', footer: '让终端持续运行的开源工具。', support: '支持', security: '安全' }
 ---
 
 <!doctype html>
@@ -32,8 +33,8 @@ const labels = locale === 'en'
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#0b0c0f" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={canonicalUrl(pathname)} />
     {alternates && <link rel="alternate" hreflang="en" href={canonicalUrl(locale === 'en' ? pathname : alternate)} />}
@@ -46,45 +47,68 @@ const labels = locale === 'en'
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl(pathname)} />
-    <meta property="og:image" content={canonicalUrl('/assets/app-icon.png')} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content={canonicalUrl('/assets/product/mac-tui.webp')} />
+    <meta property="og:image:width" content="1800" />
+    <meta property="og:image:height" content="1125" />
+    <meta name="twitter:card" content="summary_large_image" />
     <title>{pageTitle}</title>
     <slot name="head" />
   </head>
   <body>
     <a class="skip-link" href="#main">{labels.skip}</a>
     <header class="site-header">
-      <div class="site-container flex h-16 items-center justify-between gap-6">
-        <a class="brand" href={sitePath(localizedPath(locale))} aria-label="AnyTTY home">
+      <div class="site-container header-inner">
+        <a class="brand" href={sitePath(homePath)} aria-label="AnyTTY home">
           <img src={sitePath('/assets/app-icon.png')} alt="" width="32" height="32" />
           <span>AnyTTY</span>
         </a>
-        <nav class="hidden items-center gap-1 md:flex" aria-label={labels.nav}>
-          <a class="ui-button ui-button-ghost ui-button-sm" href={sitePath(docsPath)}>{labels.docs}</a>
-          <a class="ui-button ui-button-ghost ui-button-icon" href="https://github.com/anytty/anytty" aria-label="GitHub"><GitBranch size={16} /></a>
-          <a class="ui-button ui-button-outline ui-button-sm" href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'}>{labels.language}</a>
-          <a class="ui-button ui-button-sm" href={sitePath(docsPath)}>{labels.start}</a>
+        <nav class="desktop-nav" aria-label={labels.nav}>
+          <a href={`${sitePath(homePath)}#features`}>{labels.features}</a>
+          <a href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
+          <a href={sitePath(docsPath)}>{labels.docs}</a>
+          <a class="header-icon-link" href="https://github.com/anytty/anytty" aria-label="GitHub" title="GitHub"><GitFork aria-hidden="true" /></a>
+          <a class="language-link" href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'}>{labels.language}</a>
+          <a class="header-download" href="https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0"><ArrowDownToLine aria-hidden="true" />{labels.download}</a>
         </nav>
-        <details class="mobile-nav md:hidden">
-          <summary class="ui-button ui-button-outline ui-button-icon" aria-label={labels.nav}><Menu size={16} /></summary>
+        <details class="mobile-nav">
+          <summary aria-label={labels.nav}><Menu aria-hidden="true" /></summary>
           <nav aria-label={labels.nav}>
+            <a href={`${sitePath(homePath)}#features`}>{labels.features}</a>
+            <a href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
             <a href={sitePath(docsPath)}>{labels.docs}</a>
             <a href="https://github.com/anytty/anytty">GitHub</a>
             <a href={sitePath(alternate)}>{labels.language}</a>
+            <a href="https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0">{labels.download}</a>
           </nav>
         </details>
       </div>
     </header>
     <slot />
-    <footer class="border-t border-border py-10">
-      <div class="site-container flex flex-col gap-5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <footer class="site-footer">
+      <div class="site-container footer-inner">
         <p>&copy; {new Date().getFullYear()} AnyTTY. {labels.footer}</p>
-        <nav class="flex flex-wrap gap-x-5 gap-y-2" aria-label="Footer">
+        <nav aria-label="Footer">
           <a href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
           <a href="https://github.com/anytty/anytty/security">{labels.security}</a>
           <a href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
         </nav>
       </div>
     </footer>
+    <script is:inline>
+      document.addEventListener('click', async (event) => {
+        const target = event.target instanceof Element ? event.target.closest('[data-copy-command]') : null
+        if (!(target instanceof HTMLButtonElement)) return
+        const command = target.dataset.copyCommand || ''
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
+          await navigator.clipboard.writeText(command)
+          const container = target.closest('.install-command')
+          container?.setAttribute('data-copied', 'true')
+          window.setTimeout(() => container?.removeAttribute('data-copied'), 1600)
+        } catch {
+          target.focus()
+        }
+      })
+    </script>
   </body>
 </html>

@@ -6,9 +6,8 @@ import { defineConfig } from 'astro/config'
 
 const customDomain = process.env.ANYTTY_SITE_CUSTOM_DOMAIN === 'true'
 const base = customDomain ? '/' : (process.env.ANYTTY_SITE_BASE_PATH || '/anytty')
-const site = customDomain
-  ? (process.env.PUBLIC_ANYTTY_SITE_URL || 'https://anytty.com')
-  : 'https://lozzo.github.io'
+const publicSiteUrl = process.env.PUBLIC_ANYTTY_SITE_URL || (customDomain ? 'https://anytty.com' : 'https://anytty.github.io/anytty')
+const site = new URL(publicSiteUrl).origin
 
 export default defineConfig({
   site,
