@@ -1,22 +1,91 @@
 ---
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+
+import { NavigationSheet } from '@/components/navigation-sheet'
+import { buttonVariants } from '@/components/ui/button'
 import BaseLayout from './BaseLayout.astro'
 import { docs, localizedPath, sitePath, type Locale } from '@/lib/site'
+import { cn } from '@/lib/utils'
 
 interface Props { locale: Locale; slug: string; title: string; description: string }
 const { locale, slug, title, description } = Astro.props
 const pathname = localizedPath(locale, `/docs/${slug}`)
+const activeIndex = docs.findIndex(([path]) => path === slug)
+const previous = activeIndex > 0 ? docs[activeIndex - 1] : undefined
+const next = activeIndex >= 0 && activeIndex < docs.length - 1 ? docs[activeIndex + 1] : undefined
+const labels = locale === 'en'
+  ? { directory: 'Documentation', menu: 'Open documentation menu', close: 'Close documentation menu', previous: 'Previous', next: 'Next', description: 'Choose a guide to continue.' }
+  : { directory: '文档目录', menu: '打开文档目录', close: '关闭文档目录', previous: '上一篇', next: '下一篇', description: '选择一个主题继续阅读。' }
+const navItems = docs.map(([path, en, zh]) => ({
+  label: locale === 'en' ? en : zh,
+  href: sitePath(localizedPath(locale, `/docs/${path}`)),
+  current: slug === path,
+  kind: 'default' as const,
+}))
+const proseClass = cn(
+  'prose prose-neutral min-w-0 max-w-3xl',
+  'prose-headings:font-medium prose-headings:tracking-normal prose-headings:text-foreground',
+  'prose-h1:mb-7 prose-h1:text-3xl prose-h1:leading-tight sm:prose-h1:text-4xl',
+  'prose-h2:mb-4 prose-h2:mt-12 prose-h2:text-xl prose-h2:leading-snug',
+  'prose-h3:mb-3 prose-h3:mt-9 prose-h3:text-base',
+  'prose-p:text-[15px] prose-p:font-normal prose-p:leading-7 prose-p:text-muted-foreground',
+  'prose-li:text-[15px] prose-li:leading-7 prose-li:text-muted-foreground',
+  'prose-strong:font-medium prose-strong:text-foreground',
+  'prose-a:font-normal prose-a:text-primary prose-a:underline-offset-4 hover:prose-a:text-primary/80',
+  'prose-code:font-mono prose-code:text-[13px] prose-code:font-normal prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none',
+  'prose-pre:overflow-x-auto prose-pre:rounded-lg prose-pre:bg-zinc-950 prose-pre:text-zinc-100 prose-pre:shadow-sm',
+  'prose-blockquote:rounded-r-lg prose-blockquote:border-primary prose-blockquote:bg-secondary/50 prose-blockquote:px-5 prose-blockquote:py-1 prose-blockquote:font-normal prose-blockquote:not-italic',
+  'prose-img:rounded-lg prose-img:shadow-sm',
+  'prose-hr:border-border/60',
+)
 ---
 
 <BaseLayout locale={locale} title={title} description={description} pathname={pathname}>
-  <main id="main" class="site-container docs-layout">
-    <aside class="docs-sidebar">
-      <nav aria-label={locale === 'en' ? 'Documentation' : '文档目录'}>
-        <p>{locale === 'en' ? 'Documentation' : '文档目录'}</p>
-        {docs.map(([path, en, zh]) => (
-          <a aria-current={slug === path ? 'page' : undefined} href={sitePath(localizedPath(locale, `/docs/${path}`))}>{locale === 'en' ? en : zh}</a>
-        ))}
-      </nav>
-    </aside>
-    <article class="prose prose-neutral max-w-none"><slot /></article>
+  <main id="main" class="mx-auto min-h-[calc(100vh-8rem)] max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
+    <div class="mb-8 lg:hidden">
+      <NavigationSheet
+        client:load
+        trigger="docs"
+        label={labels.menu}
+        title={labels.directory}
+        description={labels.description}
+        closeLabel={labels.close}
+        items={navItems}
+      />
+    </div>
+    <div class="grid items-start gap-12 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-16">
+      <aside class="sticky top-24 hidden lg:block">
+        <nav class="flex flex-col gap-1" aria-label={labels.directory}>
+          <p class="mb-3 px-3 text-xs font-medium text-muted-foreground">{labels.directory}</p>
+          {docs.map(([path, en, zh]) => (
+            <a
+              aria-current={slug === path ? 'page' : undefined}
+              class={cn(buttonVariants({ variant: slug === path ? 'secondary' : 'ghost' }), 'h-auto min-h-10 justify-start whitespace-normal px-3 py-2 text-left text-sm font-normal')}
+              href={sitePath(localizedPath(locale, `/docs/${path}`))}
+            >
+              {locale === 'en' ? en : zh}
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <article class={proseClass}>
+        <slot />
+        <nav class="not-prose mt-14 grid gap-3 sm:grid-cols-2" aria-label={locale === 'en' ? 'Documentation pagination' : '文档翻页'}>
+          {previous ? (
+            <a class={cn(buttonVariants({ variant: 'outline' }), 'h-auto min-h-16 justify-start gap-3 px-4 py-3 text-left font-normal')} href={sitePath(localizedPath(locale, `/docs/${previous[0]}`))}>
+              <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
+              <span><span class="block text-xs text-muted-foreground">{labels.previous}</span><span class="mt-1 block text-sm">{locale === 'en' ? previous[1] : previous[2]}</span></span>
+            </a>
+          ) : <span aria-hidden="true"></span>}
+          {next && (
+            <a class={cn(buttonVariants({ variant: 'outline' }), 'h-auto min-h-16 justify-between gap-3 px-4 py-3 text-left font-normal')} href={sitePath(localizedPath(locale, `/docs/${next[0]}`))}>
+              <span><span class="block text-xs text-muted-foreground">{labels.next}</span><span class="mt-1 block text-sm">{locale === 'en' ? next[1] : next[2]}</span></span>
+              <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+            </a>
+          )}
+        </nav>
+      </article>
+    </div>
   </main>
 </BaseLayout>

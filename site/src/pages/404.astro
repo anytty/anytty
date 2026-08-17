@@ -1,12 +1,14 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro'
 import { sitePath } from '@/lib/site'
+import { buttonVariants } from '@/components/ui/button'
 ---
 
 <BaseLayout locale="en" title="Page not found" description="The requested AnyTTY page does not exist." pathname="/404/" alternates={false}>
-  <main id="main" class="site-container empty-state">
-    <p>404</p>
-    <h1>Page not found</h1>
-    <a class="ui-button" href={sitePath('/')}>Back to AnyTTY</a>
+  <main id="main" class="mx-auto flex min-h-[calc(100vh-8rem)] max-w-3xl flex-col items-center justify-center px-4 py-20 text-center">
+    <p class="font-mono text-sm font-normal text-primary">404</p>
+    <h1 class="mt-4 text-3xl font-medium sm:text-4xl">Page not found</h1>
+    <p class="mt-4 text-base font-normal text-muted-foreground">The page may have moved, or the address is no longer available.</p>
+    <a class={`${buttonVariants({ variant: 'default' })} mt-8 h-11 px-5 font-normal`} href={sitePath('/')}>Back to AnyTTY</a>
   </main>
 </BaseLayout>

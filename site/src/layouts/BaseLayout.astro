@@ -1,6 +1,10 @@
 ---
-import { ArrowDownToLine, GitFork, Menu } from 'lucide-react'
+import { ArrowDownToLine, GitFork, Languages } from 'lucide-react'
+
+import { NavigationSheet } from '@/components/navigation-sheet'
+import { buttonVariants } from '@/components/ui/button'
 import { canonicalUrl, localizedPath, sitePath, type Locale } from '@/lib/site'
+import { cn } from '@/lib/utils'
 import '@/styles/globals.css'
 
 interface Props {
@@ -23,18 +27,38 @@ const alternate = !alternates
     ? (pathname === '/' ? '/zh-CN/' : `/zh-CN${pathname}`)
     : pathname.replace(/^\/zh-CN/, '') || '/'
 const labels = locale === 'en'
-  ? { features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', language: '中文', skip: 'Skip to content', nav: 'Primary navigation', footer: 'Open-source terminals that keep running.', support: 'Support', security: 'Security' }
-  : { features: '功能', screens: '多端体验', docs: '文档', download: '下载', language: 'English', skip: '跳到正文', nav: '主导航', footer: '让终端持续运行的开源工具。', support: '支持', security: '安全' }
+  ? {
+      features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', language: '中文',
+      skip: 'Skip to content', nav: 'Primary navigation', menuTitle: 'Explore AnyTTY',
+      menuDescription: 'Open-source terminal sessions across desktop, web, and mobile.',
+      footer: 'Open-source terminals that keep running.', support: 'Support', security: 'Security', close: 'Close menu',
+    }
+  : {
+      features: '功能', screens: '多端体验', docs: '文档', download: '下载', language: 'English',
+      skip: '跳到正文', nav: '主导航', menuTitle: '浏览 AnyTTY',
+      menuDescription: '跨桌面、Web 与手机持续运行的开源终端。',
+      footer: '让终端持续运行的开源工具。', support: '支持', security: '安全', close: '关闭菜单',
+    }
+
+const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0'
+const mobileItems = [
+  { label: labels.features, href: `${sitePath(homePath)}#features`, kind: 'default' as const },
+  { label: labels.screens, href: `${sitePath(homePath)}#screens`, kind: 'default' as const },
+  { label: labels.docs, href: sitePath(docsPath), kind: 'default' as const },
+  { label: 'GitHub', href: 'https://github.com/anytty/anytty', kind: 'github' as const },
+  { label: labels.language, href: sitePath(alternate), kind: 'language' as const },
+  { label: labels.download, href: releaseUrl, kind: 'download' as const, emphasis: true },
+]
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang={locale} class="scroll-smooth motion-reduce:scroll-auto">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#0b0c0f" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#f8f8f6" />
+    <meta name="color-scheme" content="light" />
     <meta name="generator" content={Astro.generator} />
     <link rel="canonical" href={canonicalUrl(pathname)} />
     {alternates && <link rel="alternate" hreflang="en" href={canonicalUrl(locale === 'en' ? pathname : alternate)} />}
@@ -54,61 +78,60 @@ const labels = locale === 'en'
     <title>{pageTitle}</title>
     <slot name="head" />
   </head>
-  <body>
-    <a class="skip-link" href="#main">{labels.skip}</a>
-    <header class="site-header">
-      <div class="site-container header-inner">
-        <a class="brand" href={sitePath(homePath)} aria-label="AnyTTY home">
-          <img src={sitePath('/assets/app-icon.png')} alt="" width="32" height="32" />
+  <body class="min-h-screen overflow-x-hidden bg-background text-foreground">
+    <a
+      class="fixed left-4 top-4 z-[100] -translate-y-24 rounded-md bg-foreground px-4 py-3 text-sm text-background shadow-lg transition-transform focus:translate-y-0"
+      href="#main"
+    >
+      {labels.skip}
+    </a>
+    <header class="sticky top-0 z-50 bg-background/90 shadow-sm backdrop-blur-xl">
+      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
+        <a class="flex h-11 items-center gap-2.5 text-sm font-medium no-underline" href={sitePath(homePath)} aria-label="AnyTTY home">
+          <img class="size-8 rounded-lg" src={sitePath('/assets/app-icon.png')} alt="" width="32" height="32" />
           <span>AnyTTY</span>
         </a>
-        <nav class="desktop-nav" aria-label={labels.nav}>
-          <a href={`${sitePath(homePath)}#features`}>{labels.features}</a>
-          <a href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
-          <a href={sitePath(docsPath)}>{labels.docs}</a>
-          <a class="header-icon-link" href="https://github.com/anytty/anytty" aria-label="GitHub" title="GitHub"><GitFork aria-hidden="true" /></a>
-          <a class="language-link" href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'}>{labels.language}</a>
-          <a class="header-download" href="https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0"><ArrowDownToLine aria-hidden="true" />{labels.download}</a>
+
+        <nav class="hidden items-center gap-1 lg:flex" aria-label={labels.nav}>
+          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={`${sitePath(homePath)}#features`}>{labels.features}</a>
+          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
+          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 px-3 font-normal')} href={sitePath(docsPath)}>{labels.docs}</a>
+          <a class={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'size-10')} href="https://github.com/anytty/anytty" aria-label="GitHub" title="GitHub">
+            <GitFork aria-hidden="true" />
+          </a>
+          <a class={cn(buttonVariants({ variant: 'ghost' }), 'h-10 gap-2 px-3 font-normal')} href={sitePath(alternate)} lang={locale === 'en' ? 'zh-CN' : 'en'}>
+            <Languages aria-hidden="true" />{labels.language}
+          </a>
+          <a class={cn(buttonVariants({ variant: 'default' }), 'ml-1 h-10 px-4 font-normal')} href={releaseUrl}>
+            <ArrowDownToLine aria-hidden="true" />{labels.download}
+          </a>
         </nav>
-        <details class="mobile-nav">
-          <summary aria-label={labels.nav}><Menu aria-hidden="true" /></summary>
-          <nav aria-label={labels.nav}>
-            <a href={`${sitePath(homePath)}#features`}>{labels.features}</a>
-            <a href={`${sitePath(homePath)}#screens`}>{labels.screens}</a>
-            <a href={sitePath(docsPath)}>{labels.docs}</a>
-            <a href="https://github.com/anytty/anytty">GitHub</a>
-            <a href={sitePath(alternate)}>{labels.language}</a>
-            <a href="https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0">{labels.download}</a>
-          </nav>
-        </details>
+
+        <NavigationSheet
+          client:load
+          label={labels.nav}
+          title={labels.menuTitle}
+          description={labels.menuDescription}
+          closeLabel={labels.close}
+          items={mobileItems}
+        />
       </div>
     </header>
+
     <slot />
-    <footer class="site-footer">
-      <div class="site-container footer-inner">
-        <p>&copy; {new Date().getFullYear()} AnyTTY. {labels.footer}</p>
-        <nav aria-label="Footer">
-          <a href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
-          <a href="https://github.com/anytty/anytty/security">{labels.security}</a>
-          <a href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
+
+    <footer class="bg-muted/60">
+      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <div class="flex items-center gap-3">
+          <img class="size-7 rounded-md" src={sitePath('/assets/app-icon.png')} alt="" width="28" height="28" loading="lazy" />
+          <p>&copy; {new Date().getFullYear()} AnyTTY. {labels.footer}</p>
+        </div>
+        <nav class="flex flex-wrap items-center gap-x-5 gap-y-3" aria-label="Footer">
+          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
+          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/security">{labels.security}</a>
+          <a class="transition-colors hover:text-foreground" href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
         </nav>
       </div>
     </footer>
-    <script is:inline>
-      document.addEventListener('click', async (event) => {
-        const target = event.target instanceof Element ? event.target.closest('[data-copy-command]') : null
-        if (!(target instanceof HTMLButtonElement)) return
-        const command = target.dataset.copyCommand || ''
-        try {
-          if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
-          await navigator.clipboard.writeText(command)
-          const container = target.closest('.install-command')
-          container?.setAttribute('data-copied', 'true')
-          window.setTimeout(() => container?.removeAttribute('data-copied'), 1600)
-        } catch {
-          target.focus()
-        }
-      })
-    </script>
   </body>
 </html>
