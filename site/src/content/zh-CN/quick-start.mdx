@@ -1,11 +1,11 @@
 ---
 title: 快速开始
-description: 安装 AnyTTY，启动本地 daemon 和终端。
+description: 安装 AnyTTY，启动本地 daemon，打开第一个终端。
 ---
 
 # 快速开始
 
-安装当前 Beta，启动当前用户的 daemon，然后进入 TUI。
+安装当前 Beta，启动当前用户的 daemon，然后打开 TUI。之后你可以创建终端、稍后重新连接，也可以从 CLI 或手机 App 管理它们。
 
 ## 安装
 
@@ -29,7 +29,7 @@ anytty daemon start
 anytty
 ```
 
-第二条命令针对默认 Local endpoint 打开 TUI。也可以直接从 CLI 创建 shell 并附加：
+第二条命令会打开 TUI 并连接本地 daemon。也可以直接从 CLI 创建 shell 并附加：
 
 ```sh
 anytty terminal create --name workspace --attach -- zsh
@@ -49,4 +49,4 @@ make test-clients
 npm run public:check
 ```
 
-> **需要连接其他机器？** 已有主机访问能力时优先使用 SSH；也可以配对支持 Direct 或 Cloud 的服务并保存为 endpoint。
+> **想在另一台机器上工作？** 已有主机访问能力时优先使用 SSH；也可以配对支持 Direct 或 Cloud 的服务并保存为连接点。

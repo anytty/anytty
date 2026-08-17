@@ -13,9 +13,9 @@ import { sitePath } from "@/lib/site";
 
 ## Trust sequence
 
-1. **The daemon creates a short-lived claim.** The offer is bound to the daemon identity, requested capabilities, and a single enrollment flow.
+1. **The daemon creates a short-lived claim.** The offer is tied to its identity, the requested access, and one enrollment flow.
 2. **The client scans or pastes the claim and proves its identity.** The native client stores endpoint data and credentials in platform-protected storage.
-3. **The daemon issues client-bound access.** Consumption is recorded so the same claim cannot be replayed.
+3. **The daemon issues access tied to that client.** The claim is marked as used, so it cannot be replayed.
 
 > **Treat an unredeemed QR as a secret.** Do not place pairing URIs in logs, screenshots, issue reports, chat, or version control. Revoke a grant from the daemon if a client is lost or no longer trusted.
 

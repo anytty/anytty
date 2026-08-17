@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.png" alt="AnyTTY Logo" width="120">
   <h1>AnyTTY</h1>
-  <p><strong>让终端持续运行，随时随地接管现场</strong></p>
+  <p><strong>终端一直跑着，你随时回来接管</strong></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-3d7ea6" alt="Apache-2.0 License"></a>
     <a href="https://github.com/anytty/anytty/releases"><img src="https://img.shields.io/github/v/release/anytty/anytty?include_prereleases&amp;sort=semver&amp;label=latest%20beta" alt="Latest Beta Release"></a>
@@ -13,7 +13,7 @@
   <p><a href="README.md">English</a> · 简体中文</p>
 </div>
 
-AnyTTY 让终端会话持续运行在你自己的机器上，并可随时从键盘优先的 TUI、CLI 或手机 App 回到现场。同一条连接还提供实用的远程文件浏览能力，适合查看项目文件、日志与下载内容。
+AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换设备或稍后再回来，任务都不会丢。你可以用键盘优先的 TUI、CLI 或手机 App 随时查看、接管，并通过同一条连接管理远程文件。
 
 > **Beta：** `v0.0.1-beta.0` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
 
@@ -30,17 +30,17 @@ AnyTTY 让终端会话持续运行在你自己的机器上，并可随时从键�
 
 ## 主要功能
 
-- **Terminal 与 Panel 解耦。** `terminal` 是由 daemon 持续运行的任务，TUI 中的 `workspace` 和 `panel` 只是观察与操作它的工作界面。Panel 不拥有、也不绑定某个 terminal；通过 Terminal Picker，可以让当前 panel 快速切换到任意 terminal，而不改变已有的分屏、浮动窗或 workspace 布局。这与 pane 通常直接承载进程的 tmux、Zellij 等传统终端复用器不同。
-- **Terminal 与消费者解耦。** TUI Panel、CLI、WebView 和手机 App 等交互消费者不会直接阻塞 terminal 的输出链路，而是按各自节奏读取最新画面快照，并通过独立 cursor 回溯历史。多个消费者同时连接时，terminal 不需要等待每个客户端完成网络传输或画面渲染；慢消费者只会让自己的视图暂时落后，重新读取最新快照即可追上，不会拖慢 terminal 中运行的程序，也不会影响其他消费者。
-- **原生支持 Windows。** Windows 与 macOS、Linux 一样是正式支持的平台，CLI、TUI 和 daemon 均提供 Windows x64 与 ARM64 构建，不需要依赖 WSL 才能使用核心能力。
-- **本地与远程终端属于同一个工作台。** 来自 Local、SSH、Direct 或 Cloud endpoint 的 terminal 都可以进入同一个 Terminal Picker，并像本地 terminal 一样查看、切换和操作。运行在远程工作站、服务器或构建机上的 AI Agent，也可以直接纳入本地工作流统一管理。
-- **基于文件、理论上无限的历史记录。** 终端输出持续写入历史文件，实时界面只保留有界数据，因此内存不会随着累计历史长度线性增长，长期运行时仍可保持近似稳定。AnyTTY 不预设历史行数上限，实际容量只取决于可用磁盘空间；只要磁盘容量继续增长，历史记录就可以继续增长。即使程序意外退出、连接中断，或 AI Agent 挂机执行了很久，也能快速回溯完整上下文。
-- **快速发现停止更新的终端。** 手机 App 的终端列表和 TUI 的 Terminal Picker 会集中展示终端状态与近期活动，便于快速定位长时间没有新输出的会话，进一步判断任务、服务或 Agent 是否仍在运行。
-- **随时从不同设备接管。** 同一个 terminal 可以在 TUI、CLI、内置 WebView，以及支持 Android 与 iOS 的手机 App 之间切换，不需要迁移或重启进程。移动端针对触控和终端输入做了专门优化，提供 `Esc`、`Ctrl`、方向键、翻页键等扩展按键，适合离开电脑后临时查看和处理任务。
-- **可选的 AnyTTY Cloud 内网连接。** 官方托管 Cloud 可以帮助位于 NAT 或内网中的 daemon 建立 P2P 连接；无法直连时自动使用 Relay 兜底，无需把终端服务直接开放到公网。
-- **远程连接默认加密。** SSH、Direct 和 Cloud 路由都使用经过加密与身份验证的连接；配对权限绑定到具体客户端，并可随时从 daemon 撤销。Relay 只负责转发加密流量，不拥有终端或文件权限。
-- **终端与文件使用同一条连接。** AnyTTY 不只传输终端画面，还提供文件浏览、上传、下载、重命名和选择能力。连接到内网或远程 endpoint 后，可以像处理终端一样处理该机器上经过授权的文件。
-- **移动端文件管理与在线预览。** 手机 App 内置文件管理器，可浏览远程目录并预览常见文本、文档、图片和媒体格式，临时检查日志、配置、构建结果或下载内容时无需切换到其他工具。
+- **关掉窗口，任务继续跑。** `terminal` 是由 daemon 一直运行的任务，TUI 里的 `workspace` 和 `panel` 只是查看和操作它的界面。切换当前 panel 观察的终端，不会改变已有分屏、浮动窗或工作区布局，也不需要重启任务。
+- **手机慢也不会拖累任务。** TUI Panel、CLI、WebView 和手机 App 各自按自己的节奏读取最新画面快照。某个客户端慢一点，只会让自己落后，不会让终端里的程序等待。
+- **Windows、macOS、Linux 体验一致。** Windows 是正式支持的一等平台，CLI、TUI 和 daemon 都提供 x64 与 ARM64 版本，核心功能不需要 WSL。
+- **本地和远程终端放在一起管理。** Local、SSH、Direct 或 Cloud 的终端都进入同一个选择器，可以像本地终端一样查看、切换和操作。远程工作站、服务器或构建机上的 AI Agent，也能纳入同一个工作流。
+- **历史记录不占内存。** 终端输出持续写入历史文件，实时界面只保留有界数据。历史记录没有固定行数上限，实际容量取决于磁盘空间。程序意外退出、连接中断或 Agent 挂机很久后，都能快速回到完整现场。
+- **快速发现停止更新的终端。** 手机 App 的终端列表和 TUI 选择器会同时展示状态与近期活动，方便定位长时间没有新输出的会话，判断任务是否还在运行。
+- **随时从不同设备接管。** 同一个终端可以在 TUI、CLI、内置 WebView 和 Android/iOS 手机 App 之间切换，不需要迁移或重启进程。移动端针对触控做了优化，提供 `Esc`、`Ctrl`、方向键、翻页等扩展按键。
+- **内网机器也能安全连接。** 可选的 AnyTTY Cloud 服务可以帮助位于 NAT 或内网中的 daemon 建立 P2P 连接；无法直连时自动使用 Relay 兜底，不需要把终端服务直接暴露到公网。
+- **远程连接默认加密。** SSH、Direct 和 Cloud 路由都使用经过身份验证和加密的连接。配对权限绑定到具体客户端，并可从 daemon 撤销。Relay 只转发加密流量，不拥有终端或文件权限。
+- **终端和文件走同一条连接。** AnyTTY 不只传输终端画面，还支持文件浏览、上传、下载、重命名和选择。连接远程机器后，可以像处理终端一样处理经过授权的文件。
+- **手机端文件管理和在线预览。** 手机 App 内置文件管理器，可浏览远程目录并预览常见文本、文档、图片、媒体和 3D 格式。查看日志、配置、构建结果或下载内容时，不用切换其他工具。
 
 ### 移动端终端
 
@@ -165,7 +165,7 @@ anytty attach workspace
 | Direct | 自己管理的局域网或公网可达环境 | 否 |
 | Cloud | 托管设备发现、P2P 协商与 Relay 兜底 | 是 |
 
-Local、SSH 与 Direct 可以完全基于本仓库使用。官方 Cloud 路由是可选能力；它改变的是发现和传输方式，不改变 daemon 对终端与文件权限的最终控制。
+Local、SSH 与 Direct 可以完全基于本仓库使用。Cloud 是可选能力；它改变的是如何连到机器，不改变终端与文件权限由谁控制。
 
 ## 从源码构建
 
@@ -184,7 +184,7 @@ make build
 
 AnyTTY 的 Apache-2.0 开源版本包含 CLI、TUI、daemon、共享 UI、Android 与 iOS 源码，以及 Local、SSH、Direct 等连接方式。你可以直接用它管理本地与远程终端、文件和长期任务，也可以自行构建各平台客户端。
 
-在此基础上，AnyTTY 还额外提供官方托管的 Cloud 服务，负责设备发现、P2P 协商和无法直连时的 Relay 兜底，让位于 NAT 或内网中的终端也能更轻松地安全连接。Cloud 是即开即用的增强服务，终端与文件权限仍由用户自己的 daemon 控制。用户可见的信任模型见[安全边界](docs/zh-CN/SECURITY_BOUNDARY.md)。
+在此基础上，AnyTTY 还额外提供官方托管的 Cloud 服务，负责设备发现、P2P 协商和无法直连时的 Relay 兜底，让位于 NAT 或内网中的终端也能更轻松地安全连接。Cloud 是可选的即开即用服务，终端与文件权限仍由你自己的 daemon 控制。用户可见的信任模型见[安全边界](docs/zh-CN/SECURITY_BOUNDARY.md)。
 
 ## 项目入口
 

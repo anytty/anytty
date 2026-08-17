@@ -5,7 +5,7 @@ description: Browse and transfer files through daemon-authorized roots.
 
 # File management
 
-File access travels over the selected endpoint route but remains a separate daemon-granted capability.
+File access uses the same connection as your terminal, but it is a separate permission granted by the daemon.
 
 ## CLI discovery
 
@@ -20,8 +20,8 @@ The current CLI exposes listing, upload, download, cancellation, and transfer in
 ## Safety properties
 
 - Requests are resolved within daemon-configured file roots.
-- Terminal permission does not imply file permission.
+- Having terminal access does not automatically give file access.
 - Transfers support cancellation and integrity checks.
 - Mobile credentials remain in native protected storage rather than WebView storage.
 
-> **Do not expose broad roots casually.** Use the narrowest root and capability needed. Treat downloaded terminal artifacts and logs as potentially sensitive user data.
+> **Keep file roots narrow.** Only grant the smallest root and permission needed for the work. Treat downloaded terminal artifacts and logs as potentially sensitive user data.

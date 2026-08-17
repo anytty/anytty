@@ -1,11 +1,11 @@
 ---
 title: Terminal management
-description: Create, attach, detach, inspect, and remove daemon-owned terminals.
+description: Create, attach, detach, inspect, and remove terminals that keep running in the background.
 ---
 
 # Terminal management
 
-A terminal remains owned by the daemon while clients attach, detach, reconnect, or switch between live output and retained history.
+A terminal stays alive under the daemon while clients attach, detach, reconnect, or switch between live output and saved history. Closing a client doesn't stop the terminal.
 
 ## Core lifecycle
 
@@ -22,6 +22,6 @@ Run `anytty terminal --help` for the exact flags in the current checkout. Killin
 
 ## Live and history
 
-Live rendering and history consumption use separate cursors. A client may freeze its history viewport while new output continues, then return to the current live frame without making the terminal process dependent on that client.
+Live rendering and history use separate cursors. You can freeze a history viewport while new output continues, then return to the current live frame without making the terminal process wait for you.
 
-> **Bounded by design.** Per-terminal output and subscriber queues have byte budgets. Overflow behavior is explicit; slow or disconnected clients do not create unbounded daemon memory growth.
+> **Bounded by design.** Per-terminal output and subscriber queues have byte budgets. Slow or disconnected clients won't make the daemon grow without limit.

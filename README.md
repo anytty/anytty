@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.png" alt="AnyTTY Logo" width="120">
   <h1>AnyTTY</h1>
-  <p><strong>Keep terminals running. Take control from anywhere.</strong></p>
+  <p><strong>Keep terminals running. Come back whenever you need to.</strong></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-3d7ea6" alt="Apache-2.0 License"></a>
     <a href="https://github.com/anytty/anytty/releases"><img src="https://img.shields.io/github/v/release/anytty/anytty?include_prereleases&amp;sort=semver&amp;label=latest%20beta" alt="Latest Beta Release"></a>
@@ -13,7 +13,7 @@
   <p>English · <a href="README.zh-CN.md">简体中文</a></p>
 </div>
 
-AnyTTY keeps terminal sessions running on your own machines and lets you return at any time through its keyboard-first TUI, CLI, or mobile app. The same connection also provides practical remote file browsing for project files, logs, and downloads.
+AnyTTY keeps terminal sessions running on your own machines, so you can close the window, switch devices, or come back later without losing the work. Use the keyboard-first TUI, CLI, or mobile app to check in, take control, and manage files over the same connection.
 
 > **Beta:** `v0.0.1-beta.0` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
 
@@ -30,17 +30,17 @@ AnyTTY keeps terminal sessions running on your own machines and lets you return 
 
 ## Key features
 
-- **Terminals and panels are decoupled.** A `terminal` is a task kept alive by the daemon; TUI `workspaces` and `panels` are only views used to observe and operate it. A panel neither owns nor stays bound to a terminal. The Terminal Picker can switch the current panel to any terminal without changing the existing split, floating-panel, or workspace layout. This differs from traditional terminal multiplexers such as tmux and Zellij, where a pane normally hosts a process directly.
-- **Terminals and consumers are decoupled.** Interactive consumers such as TUI panels, the CLI, WebView, and mobile apps do not block the terminal output path. Each reads the latest screen snapshot at its own pace and uses an independent cursor to revisit history. With multiple consumers connected, a terminal never waits for every client to finish network transfer or rendering. A slow consumer may temporarily fall behind, but it can catch up from a newer snapshot without slowing the program running in the terminal or affecting other consumers.
-- **Native Windows support.** Windows is a first-class platform alongside macOS and Linux. The CLI, TUI, and daemon ship for Windows x64 and ARM64, with no WSL dependency for core functionality.
-- **Local and remote terminals share one workspace.** Terminals from Local, SSH, Direct, or Cloud endpoints all appear in the same Terminal Picker and can be viewed, switched, and operated like local terminals. AI agents running on remote workstations, servers, or build machines can become part of the same local workflow.
-- **File-backed, theoretically unlimited history.** Terminal output is continuously written to history files while the live view retains only bounded data, so memory use does not grow linearly with accumulated history and remains approximately stable during long-running sessions. AnyTTY sets no fixed history line limit; practical capacity depends only on available disk space. As long as disk capacity can keep growing, history can keep growing too. You can quickly recover full context after a crash, a disconnected client, or a long unattended AI agent run.
-- **Find terminals that stopped updating.** The mobile terminal list and the TUI Terminal Picker show status and recent activity together, making it easy to spot sessions with no new output and determine whether a task, service, or agent is still running.
-- **Take control from different devices.** The same terminal can move between the TUI, CLI, embedded WebView, and Android or iOS mobile apps without migrating or restarting the process. The mobile experience is optimized for touch and terminal input, with extra keys for `Esc`, `Ctrl`, arrows, paging, and other common actions.
-- **Optional AnyTTY Cloud connectivity for private networks.** The managed Cloud service helps daemons behind NAT or private networks establish P2P connections, with automatic Relay fallback when a direct path is unavailable. You do not need to expose the terminal service directly to the public internet.
+- **Close the window, keep the work running.** A `terminal` is a task kept alive by the daemon. TUI `workspaces` and `panels` are just views, so switching which terminal a panel shows doesn't change your layout or restart the task.
+- **A slow phone won't slow the task.** TUI panels, the CLI, WebView, and mobile apps each read the latest screen snapshot at their own pace. A slow client can catch up later without making the terminal process wait.
+- **Windows, macOS, and Linux all work the same way.** Windows is a first-class platform. The CLI, TUI, and daemon ship for Windows x64 and ARM64, with no WSL required for core functionality.
+- **Local and remote terminals in one place.** Local, SSH, Direct, and Cloud terminals appear in the same picker and can be viewed, switched, and operated like local terminals. Remote AI agents can become part of the same workflow.
+- **History that doesn't eat memory.** Terminal output is written to history files while the live view keeps only bounded data. There is no fixed history line limit; practical capacity depends on disk space. After a crash, disconnect, or long unattended run, you can recover full context.
+- **Find terminals that stopped updating.** The mobile terminal list and TUI picker show status and recent activity together, so you can spot sessions with no new output and decide whether a task is still running.
+- **Take control from different devices.** The same terminal can move between the TUI, CLI, embedded WebView, and Android or iOS mobile apps without migrating or restarting the process. Mobile is optimized for touch, with extra keys for `Esc`, `Ctrl`, arrows, paging, and other common actions.
+- **Reach private-network machines without exposing them.** The optional AnyTTY Cloud service helps daemons behind NAT or private networks establish P2P connections, with automatic Relay fallback when a direct path is unavailable.
 - **Remote connections are encrypted by default.** SSH, Direct, and Cloud routes use authenticated, encrypted connections. Pairing access is bound to a specific client and can be revoked from the daemon. A Relay forwards encrypted traffic without gaining terminal or file permissions.
-- **Terminals and files share one connection.** AnyTTY carries more than terminal screens: it also supports file browsing, upload, download, rename, and selection. After connecting to a private-network or remote endpoint, you can work with authorized files on that machine just as you work with its terminals.
-- **Mobile file management and rich online previews.** The mobile app includes a file manager that browses remote directories and previews common text, document, image, media, and 3D formats. Logs, configuration, build results, and downloads can be inspected without switching apps.
+- **Terminals and files share one connection.** AnyTTY also supports file browsing, upload, download, rename, and selection. After connecting to a remote machine, you can work with authorized files on that machine just as you work with its terminals.
+- **Mobile file management and rich previews.** The mobile app includes a file manager that browses remote directories and previews common text, document, image, media, and 3D formats. Logs, configuration, build results, and downloads can be inspected without switching apps.
 
 ### Mobile terminals
 
@@ -165,7 +165,7 @@ The mobile app supports Android and iOS. The Android Beta APK is currently avail
 | Direct | Self-managed LAN or publicly reachable environments | No |
 | Cloud | Managed device discovery, P2P negotiation, and Relay fallback | Yes |
 
-Local, SSH, and Direct work entirely from this repository. The official Cloud route is optional: it changes discovery and transport, not the daemon's final authority over terminals and files.
+Local, SSH, and Direct work entirely from this repository. Cloud is optional: it changes how you reach a machine, not who controls terminal and file permissions.
 
 ## Build from source
 
@@ -184,7 +184,7 @@ The binary is written to `.artifacts/bin/anytty`. Run the main checks with `make
 
 The Apache-2.0 version includes the CLI, TUI, daemon, shared UI, Android and iOS source, plus Local, SSH, and Direct connection options. You can use it directly to manage local and remote terminals, files, and long-running tasks, and build clients for each platform.
 
-On top of that, AnyTTY provides an official managed Cloud service for device discovery, P2P negotiation, and Relay fallback when a direct connection is unavailable, making terminals behind NAT or private networks easier to reach securely. Cloud is an additional ready-to-use service; terminal and file permissions remain under the user's daemon. See the [security boundary](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
+On top of that, AnyTTY provides an official managed Cloud service for device discovery, P2P negotiation, and Relay fallback when a direct connection is unavailable, making terminals behind NAT or private networks easier to reach securely. Cloud is an optional ready-to-use service; terminal and file permissions stay with your daemon. See the [security boundary](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
 
 ## Project links
 

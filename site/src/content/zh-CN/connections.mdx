@@ -1,11 +1,11 @@
 ---
 title: 连接方式
-description: 在不改变 daemon 权限边界的前提下选择 Local、SSH、Direct 或 AnyTTY Cloud。
+description: 选择 Local、SSH、Direct 或 AnyTTY Cloud 连接你的 daemon。
 ---
 
 # 连接方式
 
-endpoint 标识一个 daemon，route 是到达它的不同方式，选择和 fallback 由本地策略控制。
+连接点（endpoint）标识一个 daemon，route 是到达它的不同方式，选择和回退由本地策略控制。
 
 ## Local
 
@@ -31,4 +31,4 @@ endpoint 标识一个 daemon，route 是到达它的不同方式，选择和 fal
 ./.artifacts/bin/anytty endpoint test <endpoint-id>
 ```
 
-新增或修改 route 前，请查看当前 checkout 的 `anytty endpoint --help`。授权和协议错误不会被当作普通网络故障，因此 fallback 不能静默绕过安全决定。
+新增或修改 route 前，请查看当前 checkout 的 `anytty endpoint --help`。如果 route 未获授权，AnyTTY 会直接失败，不会静默回退到更弱的连接。

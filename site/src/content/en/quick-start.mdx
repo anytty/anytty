@@ -1,11 +1,11 @@
 ---
 title: Quick start
-description: Install AnyTTY and start a local daemon and terminal.
+description: Install AnyTTY, start a local daemon, and open your first terminal.
 ---
 
 # Quick start
 
-Install the current beta, start the per-user daemon, and enter the TUI.
+Install the current beta, start the daemon for your user, and open the TUI. From there you can create terminals, attach to them later, and manage them from the CLI or mobile app.
 
 ## Install
 
@@ -29,7 +29,7 @@ anytty daemon start
 anytty
 ```
 
-The second command opens the TUI against the default local endpoint. To create a shell and attach directly from the CLI:
+The second command opens the TUI and connects to the local daemon. To create a shell and attach directly from the CLI:
 
 ```sh
 anytty terminal create --name workspace --attach -- zsh
@@ -49,4 +49,4 @@ make test-clients
 npm run public:check
 ```
 
-> **Need another machine?** Continue with SSH when you already have host access, or pair a Direct/Cloud-capable service and save it as an endpoint.
+> **Want to work on another machine?** Use SSH when you already have host access, or pair a Direct/Cloud-capable service and save it as an endpoint.

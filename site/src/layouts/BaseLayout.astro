@@ -18,7 +18,7 @@ interface Props {
 const { locale, title, description, pathname, alternates = true } = Astro.props
 const pageTitle = title
   ? `${title} | AnyTTY`
-  : locale === 'en' ? 'AnyTTY - Keep terminals running' : 'AnyTTY - 让终端持续运行'
+  : locale === 'en' ? 'AnyTTY - Keep terminals running, come back anytime' : 'AnyTTY - 终端一直跑着，随时回来接管'
 const docsPath = localizedPath(locale, '/docs/quick-start')
 const homePath = localizedPath(locale)
 const alternate = !alternates
@@ -30,14 +30,14 @@ const labels = locale === 'en'
   ? {
       features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', language: '中文',
       skip: 'Skip to content', nav: 'Primary navigation', menuTitle: 'Explore AnyTTY',
-      menuDescription: 'Open-source terminal sessions across desktop, web, and mobile.',
-      footer: 'Open-source terminals that keep running.', support: 'Support', security: 'Security', close: 'Close menu',
+      menuDescription: 'Open-source terminals that keep running across desktop, web, and mobile.',
+      footer: 'Open-source terminals that keep running, so you can come back anytime.', support: 'Support', security: 'Security', close: 'Close menu',
     }
   : {
       features: '功能', screens: '多端体验', docs: '文档', download: '下载', language: 'English',
       skip: '跳到正文', nav: '主导航', menuTitle: '浏览 AnyTTY',
-      menuDescription: '跨桌面、Web 与手机持续运行的开源终端。',
-      footer: '让终端持续运行的开源工具。', support: '支持', security: '安全', close: '关闭菜单',
+      menuDescription: '跨桌面、Web 与手机一直运行的开源终端。',
+      footer: '终端一直跑着，随时回来接管的开源工具。', support: '支持', security: '安全', close: '关闭菜单',
     }
 
 const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0'

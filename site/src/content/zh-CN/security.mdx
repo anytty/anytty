@@ -1,16 +1,16 @@
 ---
 title: 安全模型
-description: AnyTTY 的信任锚、权限边界、配对与 fail-closed 行为。
+description: AnyTTY 如何保护终端、文件、配对与连接。
 ---
 
 # 安全模型
 
-daemon 拥有保护终端与文件的身份和授权决定。传输或托管策略可以拒绝可达性，但不能提升客户端从 daemon 获得的 capability。
+AnyTTY 把终端与文件权限保留在 daemon 上。连接方式可以决定你是否能连到某台机器，但不能授予超过 daemon 已签发的访问权限。
 
 ## 安全不变量
 
-- pairing claim 与 enrollment 材料短期、一次性并拒绝重放。
-- capability grant 绑定客户端身份并由 daemon 执行。
+- pairing claim 短期、一次性，并且不能重放。
+- 访问授权绑定到具体客户端，并由 daemon 执行。
 - 远程连接验证 daemon 身份，并加密传输终端与文件数据。
 - Relay 只转发加密流量，不会获得终端或文件权限。
 - 身份或授权失败时直接拒绝连接，不会回退到更弱的校验方式。

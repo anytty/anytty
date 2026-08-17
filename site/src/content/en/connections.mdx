@@ -1,11 +1,11 @@
 ---
 title: Connection routes
-description: Choose Local, SSH, Direct, or AnyTTY Cloud without changing daemon authority.
+description: Choose Local, SSH, Direct, or AnyTTY Cloud to reach your daemon.
 ---
 
 # Connection routes
 
-An endpoint identifies a daemon. Routes are independent ways to reach it, with policy controlling selection and fallback.
+An endpoint identifies a daemon. Routes are different ways to reach it, and policy controls which route is used and when to fall back.
 
 ## Local
 
@@ -31,4 +31,4 @@ Uses managed device discovery and connection negotiation, preferring P2P and usi
 ./.artifacts/bin/anytty endpoint test <endpoint-id>
 ```
 
-Use command help from the exact checkout before adding or changing a route: `anytty endpoint --help`. Authorization and protocol errors are not treated as generic network failures, so route fallback cannot silently bypass a security decision.
+Use command help from the exact checkout before adding or changing a route: `anytty endpoint --help`. If a route is not authorized, AnyTTY fails closed instead of silently falling back to a weaker connection.
