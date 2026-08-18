@@ -31,6 +31,7 @@ message AccountProfile {
   uint64 revision = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp updated_at = 7;
+  bool email_verified = 8;
 }
 
 // AccountTokenCredential 只在登录或轮换 refresh token 时返回原始 token。

@@ -138,6 +138,7 @@ type AccountProfile struct {
 	Revision      uint64                 `protobuf:"varint,5,opt,name=revision,proto3" json:"revision,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	EmailVerified bool                   `protobuf:"varint,8,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -219,6 +220,13 @@ func (x *AccountProfile) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *AccountProfile) GetEmailVerified() bool {
+	if x != nil {
+		return x.EmailVerified
+	}
+	return false
 }
 
 // AccountTokenCredential 只在登录或轮换 refresh token 时返回原始 token。
@@ -1332,7 +1340,7 @@ var File_cloud_v1_account_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_account_proto_rawDesc = "" +
 	"\n" +
-	"\x16cloud/v1/account.proto\x12\x0fanytty.cloud.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xaf\x02\n" +
+	"\x16cloud/v1/account.proto\x12\x0fanytty.cloud.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd6\x02\n" +
 	"\x0eAccountProfile\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x14\n" +
@@ -1343,7 +1351,8 @@ const file_cloud_v1_account_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb0\x02\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
+	"\x0eemail_verified\x18\b \x01(\bR\remailVerified\"\xb0\x02\n" +
 	"\x16AccountTokenCredential\x12\x1d\n" +
 	"\n" +
 	"refresh_id\x18\x01 \x01(\tR\trefreshId\x12!\n" +
