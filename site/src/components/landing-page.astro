@@ -214,10 +214,10 @@ const accessIcons = [Cloud, LockKeyhole, Files]
           <img class="block aspect-[2862/1870] w-full cursor-zoom-in object-cover" src={sitePath('/assets/product/tui-main.webp')} alt={t.previewAlt} width="2862" height="1870" data-image-preview data-image-preview-center data-preview-label={t.tuiLabel} />
         </div>
         <figure class="hero-device hero-device-phone hidden lg:block" style={{ '--hero-tilt': '-8deg' }}>
-          <img class="block w-full cursor-zoom-in rounded-xl bg-zinc-900 object-cover ring-1 ring-[var(--line-strong)]" src={sitePath('/assets/product/mobile-terminals.webp')} alt={t.mobileAlts[0]} width="480" height="1068" loading="lazy" data-image-preview data-preview-label={t.mobileLabel} />
+          <img class="block w-full rounded-xl bg-zinc-900 object-cover ring-1 ring-[var(--line-strong)]" src={sitePath('/assets/product/mobile-terminals.webp')} alt={t.mobileAlts[0]} width="480" height="1068" loading="lazy" />
         </figure>
         <figure class="hero-device hero-device-pad hidden lg:block" style={{ '--hero-tilt': '6deg' }}>
-          <img class="block w-full cursor-zoom-in rounded-xl bg-zinc-900 object-cover ring-1 ring-[var(--line-strong)]" src={sitePath('/assets/product/pad-agents.webp')} alt={t.tabletAlts[0]} width="900" height="1179" loading="lazy" data-image-preview data-preview-label={t.tabletLabel} />
+          <img class="block w-full rounded-xl bg-zinc-900 object-cover ring-1 ring-[var(--line-strong)]" src={sitePath('/assets/product/pad-codex-opencode.webp')} alt={t.tabletAlts[0]} width="1200" height="1600" loading="lazy" />
         </figure>
       </div>
     </section>
@@ -393,7 +393,7 @@ const accessIcons = [Cloud, LockKeyhole, Files]
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
             {['mobile-terminals.webp', 'mobile-terminal.webp', 'mobile-files.webp'].map((image, index) => (
               <figure class="float-card group overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-[var(--line)]" style={{ '--float-delay': `${index * 0.5}s` }}>
-                <img class="block aspect-[480/1068] w-full cursor-zoom-in object-cover" src={sitePath(`/assets/product/${image}`)} alt={t.mobileAlts[index]} width="480" height="1068" loading="lazy" data-image-preview />
+                <img class="block aspect-[480/1068] w-full object-cover" src={sitePath(`/assets/product/${image}`)} alt={t.mobileAlts[index]} width="480" height="1068" loading="lazy" />
               </figure>
             ))}
           </div>
@@ -436,10 +436,12 @@ const accessIcons = [Cloud, LockKeyhole, Files]
           <p class="mt-5 max-w-2xl text-base font-normal leading-7 text-zinc-400">{t.tabletLead}</p>
         </div>
         <div class="mt-10 grid gap-6 md:grid-cols-2">
-          {['pad-agents.webp', 'pad-ttt-editor.webp'].map((image, index) => (
-            <figure class="float-card group overflow-hidden rounded-2xl" style={{ '--float-delay': `${index * 0.6}s` }}>
-              <img class="block w-full cursor-zoom-in object-cover ring-1 ring-[var(--line)]" src={sitePath(`/assets/product/${image}`)} alt={t.tabletAlts[index]} width="900" height={index === 0 ? '1179' : '1146'} loading="lazy" data-image-preview />
-              <figcaption class="mt-3 text-sm font-normal text-zinc-400">{t.tabletCaptions[index]}</figcaption>
+          {['pad-codex-opencode.webp', 'pad-ttt-editor.webp'].map((image, index) => (
+            <figure class="group">
+              <div class="float-card overflow-hidden rounded-2xl" style={{ '--float-delay': `${index * 0.6}s` }}>
+                <img class="block w-full object-cover ring-1 ring-[var(--line)]" src={sitePath(`/assets/product/${image}`)} alt={t.tabletAlts[index]} width="1200" height={index === 0 ? '1600' : '1528'} loading="lazy" />
+              </div>
+              <figcaption class="mt-3 text-sm font-normal text-zinc-500">{t.tabletCaptions[index]}</figcaption>
             </figure>
           ))}
         </div>

@@ -11,5 +11,5 @@ export const GET: APIRoute = () => new Response(JSON.stringify({
   display: 'standalone',
   background_color: '#ffffff',
   theme_color: '#ffffff',
-  icons: [{ src: sitePath('/assets/app-icon.png'), sizes: '1024x1024', type: 'image/png' }],
+  icons: [{ src: sitePath('/assets/app-icon.webp'), sizes: '1024x1024', type: 'image/webp' }],
 }), { headers: { 'Content-Type': 'application/manifest+json' } })
