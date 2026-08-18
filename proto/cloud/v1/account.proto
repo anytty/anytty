@@ -113,6 +113,12 @@ message RedeemAccountSetupResponse {
 message RevokeAccountRefreshTokenRequest { string refresh_id = 1; }
 message RevokeAccountRefreshTokenResponse {}
 
+// DeleteAccountRequest 由账号所有者提交：验证当前密码后永久删除账号及其个人数据（GDPR）。
+message DeleteAccountRequest {
+  string password = 1;
+}
+message DeleteAccountResponse {}
+
 // AccountService 是账号、credential、Access JWT 和 Refresh token 的唯一公共应用 API。
 service AccountService {
   rpc Login(LoginAccountRequest) returns (LoginAccountResponse);
@@ -124,4 +130,5 @@ service AccountService {
   rpc ChangePassword(ChangeAccountPasswordRequest) returns (ChangeAccountPasswordResponse);
   rpc RedeemAccountSetup(RedeemAccountSetupRequest) returns (RedeemAccountSetupResponse);
   rpc RevokeRefreshToken(RevokeAccountRefreshTokenRequest) returns (RevokeAccountRefreshTokenResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 }

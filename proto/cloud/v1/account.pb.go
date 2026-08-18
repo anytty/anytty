@@ -1247,6 +1247,87 @@ func (*RevokeAccountRefreshTokenResponse) Descriptor() ([]byte, []int) {
 	return file_cloud_v1_account_proto_rawDescGZIP(), []int{20}
 }
 
+// DeleteAccountRequest 由账号所有者提交：验证当前密码后永久删除账号及其个人数据（GDPR）。
+type DeleteAccountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Password      string                 `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAccountRequest) Reset() {
+	*x = DeleteAccountRequest{}
+	mi := &file_cloud_v1_account_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountRequest) ProtoMessage() {}
+
+func (x *DeleteAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cloud_v1_account_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAccountRequest) Descriptor() ([]byte, []int) {
+	return file_cloud_v1_account_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *DeleteAccountRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type DeleteAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAccountResponse) Reset() {
+	*x = DeleteAccountResponse{}
+	mi := &file_cloud_v1_account_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAccountResponse) ProtoMessage() {}
+
+func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cloud_v1_account_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccountResponse.ProtoReflect.Descriptor instead.
+func (*DeleteAccountResponse) Descriptor() ([]byte, []int) {
+	return file_cloud_v1_account_proto_rawDescGZIP(), []int{22}
+}
+
 var File_cloud_v1_account_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_account_proto_rawDesc = "" +
@@ -1335,7 +1416,10 @@ const file_cloud_v1_account_proto_rawDesc = "" +
 	" RevokeAccountRefreshTokenRequest\x12\x1d\n" +
 	"\n" +
 	"refresh_id\x18\x01 \x01(\tR\trefreshId\"#\n" +
-	"!RevokeAccountRefreshTokenResponse*~\n" +
+	"!RevokeAccountRefreshTokenResponse\"2\n" +
+	"\x14DeleteAccountRequest\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\"\x17\n" +
+	"\x15DeleteAccountResponse*~\n" +
 	"\fAccountState\x12\x1d\n" +
 	"\x19ACCOUNT_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15ACCOUNT_STATE_PENDING\x10\x01\x12\x18\n" +
@@ -1345,7 +1429,7 @@ const file_cloud_v1_account_proto_rawDesc = "" +
 	"\x18ACCOUNT_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ACCOUNT_ROLE_USER\x10\x01\x12\x19\n" +
 	"\x15ACCOUNT_ROLE_OPERATOR\x10\x02\x12\x16\n" +
-	"\x12ACCOUNT_ROLE_ADMIN\x10\x032\xe9\a\n" +
+	"\x12ACCOUNT_ROLE_ADMIN\x10\x032\xc9\b\n" +
 	"\x0eAccountService\x12T\n" +
 	"\x05Login\x12$.anytty.cloud.v1.LoginAccountRequest\x1a%.anytty.cloud.v1.LoginAccountResponse\x12d\n" +
 	"\aRefresh\x12+.anytty.cloud.v1.RefreshAccountTokenRequest\x1a,.anytty.cloud.v1.RefreshAccountTokenResponse\x12W\n" +
@@ -1356,7 +1440,8 @@ const file_cloud_v1_account_proto_rawDesc = "" +
 	"\x11ListRefreshTokens\x120.anytty.cloud.v1.ListAccountRefreshTokensRequest\x1a1.anytty.cloud.v1.ListAccountRefreshTokensResponse\x12o\n" +
 	"\x0eChangePassword\x12-.anytty.cloud.v1.ChangeAccountPasswordRequest\x1a..anytty.cloud.v1.ChangeAccountPasswordResponse\x12m\n" +
 	"\x12RedeemAccountSetup\x12*.anytty.cloud.v1.RedeemAccountSetupRequest\x1a+.anytty.cloud.v1.RedeemAccountSetupResponse\x12{\n" +
-	"\x12RevokeRefreshToken\x121.anytty.cloud.v1.RevokeAccountRefreshTokenRequest\x1a2.anytty.cloud.v1.RevokeAccountRefreshTokenResponseB1Z/github.com/anytty/anytty/proto/cloud/v1;cloudv1b\x06proto3"
+	"\x12RevokeRefreshToken\x121.anytty.cloud.v1.RevokeAccountRefreshTokenRequest\x1a2.anytty.cloud.v1.RevokeAccountRefreshTokenResponse\x12^\n" +
+	"\rDeleteAccount\x12%.anytty.cloud.v1.DeleteAccountRequest\x1a&.anytty.cloud.v1.DeleteAccountResponseB1Z/github.com/anytty/anytty/proto/cloud/v1;cloudv1b\x06proto3"
 
 var (
 	file_cloud_v1_account_proto_rawDescOnce sync.Once
@@ -1371,7 +1456,7 @@ func file_cloud_v1_account_proto_rawDescGZIP() []byte {
 }
 
 var file_cloud_v1_account_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_cloud_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_cloud_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_cloud_v1_account_proto_goTypes = []any{
 	(AccountState)(0),                          // 0: anytty.cloud.v1.AccountState
 	(AccountRole)(0),                           // 1: anytty.cloud.v1.AccountRole
@@ -1396,14 +1481,16 @@ var file_cloud_v1_account_proto_goTypes = []any{
 	(*RedeemAccountSetupResponse)(nil),         // 20: anytty.cloud.v1.RedeemAccountSetupResponse
 	(*RevokeAccountRefreshTokenRequest)(nil),   // 21: anytty.cloud.v1.RevokeAccountRefreshTokenRequest
 	(*RevokeAccountRefreshTokenResponse)(nil),  // 22: anytty.cloud.v1.RevokeAccountRefreshTokenResponse
-	(*timestamppb.Timestamp)(nil),              // 23: google.protobuf.Timestamp
+	(*DeleteAccountRequest)(nil),               // 23: anytty.cloud.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),              // 24: anytty.cloud.v1.DeleteAccountResponse
+	(*timestamppb.Timestamp)(nil),              // 25: google.protobuf.Timestamp
 }
 var file_cloud_v1_account_proto_depIdxs = []int32{
 	0,  // 0: anytty.cloud.v1.AccountProfile.state:type_name -> anytty.cloud.v1.AccountState
-	23, // 1: anytty.cloud.v1.AccountProfile.created_at:type_name -> google.protobuf.Timestamp
-	23, // 2: anytty.cloud.v1.AccountProfile.updated_at:type_name -> google.protobuf.Timestamp
-	23, // 3: anytty.cloud.v1.AccountTokenCredential.access_expires_at:type_name -> google.protobuf.Timestamp
-	23, // 4: anytty.cloud.v1.AccountTokenCredential.refresh_expires_at:type_name -> google.protobuf.Timestamp
+	25, // 1: anytty.cloud.v1.AccountProfile.created_at:type_name -> google.protobuf.Timestamp
+	25, // 2: anytty.cloud.v1.AccountProfile.updated_at:type_name -> google.protobuf.Timestamp
+	25, // 3: anytty.cloud.v1.AccountTokenCredential.access_expires_at:type_name -> google.protobuf.Timestamp
+	25, // 4: anytty.cloud.v1.AccountTokenCredential.refresh_expires_at:type_name -> google.protobuf.Timestamp
 	2,  // 5: anytty.cloud.v1.LoginAccountResponse.account:type_name -> anytty.cloud.v1.AccountProfile
 	1,  // 6: anytty.cloud.v1.LoginAccountResponse.roles:type_name -> anytty.cloud.v1.AccountRole
 	3,  // 7: anytty.cloud.v1.LoginAccountResponse.credential:type_name -> anytty.cloud.v1.AccountTokenCredential
@@ -1412,12 +1499,12 @@ var file_cloud_v1_account_proto_depIdxs = []int32{
 	3,  // 10: anytty.cloud.v1.RefreshAccountTokenResponse.credential:type_name -> anytty.cloud.v1.AccountTokenCredential
 	2,  // 11: anytty.cloud.v1.GetCurrentAccountResponse.account:type_name -> anytty.cloud.v1.AccountProfile
 	1,  // 12: anytty.cloud.v1.GetCurrentAccountResponse.roles:type_name -> anytty.cloud.v1.AccountRole
-	23, // 13: anytty.cloud.v1.GetCurrentAccountResponse.recent_auth_expires_at:type_name -> google.protobuf.Timestamp
-	23, // 14: anytty.cloud.v1.VerifyRecentAuthenticationResponse.expires_at:type_name -> google.protobuf.Timestamp
+	25, // 13: anytty.cloud.v1.GetCurrentAccountResponse.recent_auth_expires_at:type_name -> google.protobuf.Timestamp
+	25, // 14: anytty.cloud.v1.VerifyRecentAuthenticationResponse.expires_at:type_name -> google.protobuf.Timestamp
 	3,  // 15: anytty.cloud.v1.VerifyRecentAuthenticationResponse.credential:type_name -> anytty.cloud.v1.AccountTokenCredential
-	23, // 16: anytty.cloud.v1.AccountRefreshTokenProjection.created_at:type_name -> google.protobuf.Timestamp
-	23, // 17: anytty.cloud.v1.AccountRefreshTokenProjection.expires_at:type_name -> google.protobuf.Timestamp
-	23, // 18: anytty.cloud.v1.AccountRefreshTokenProjection.recent_auth_expires_at:type_name -> google.protobuf.Timestamp
+	25, // 16: anytty.cloud.v1.AccountRefreshTokenProjection.created_at:type_name -> google.protobuf.Timestamp
+	25, // 17: anytty.cloud.v1.AccountRefreshTokenProjection.expires_at:type_name -> google.protobuf.Timestamp
+	25, // 18: anytty.cloud.v1.AccountRefreshTokenProjection.recent_auth_expires_at:type_name -> google.protobuf.Timestamp
 	14, // 19: anytty.cloud.v1.ListAccountRefreshTokensResponse.refresh_tokens:type_name -> anytty.cloud.v1.AccountRefreshTokenProjection
 	2,  // 20: anytty.cloud.v1.ChangeAccountPasswordResponse.account:type_name -> anytty.cloud.v1.AccountProfile
 	2,  // 21: anytty.cloud.v1.RedeemAccountSetupResponse.account:type_name -> anytty.cloud.v1.AccountProfile
@@ -1432,17 +1519,19 @@ var file_cloud_v1_account_proto_depIdxs = []int32{
 	17, // 30: anytty.cloud.v1.AccountService.ChangePassword:input_type -> anytty.cloud.v1.ChangeAccountPasswordRequest
 	19, // 31: anytty.cloud.v1.AccountService.RedeemAccountSetup:input_type -> anytty.cloud.v1.RedeemAccountSetupRequest
 	21, // 32: anytty.cloud.v1.AccountService.RevokeRefreshToken:input_type -> anytty.cloud.v1.RevokeAccountRefreshTokenRequest
-	5,  // 33: anytty.cloud.v1.AccountService.Login:output_type -> anytty.cloud.v1.LoginAccountResponse
-	7,  // 34: anytty.cloud.v1.AccountService.Refresh:output_type -> anytty.cloud.v1.RefreshAccountTokenResponse
-	9,  // 35: anytty.cloud.v1.AccountService.Logout:output_type -> anytty.cloud.v1.LogoutAccountResponse
-	11, // 36: anytty.cloud.v1.AccountService.GetCurrent:output_type -> anytty.cloud.v1.GetCurrentAccountResponse
-	13, // 37: anytty.cloud.v1.AccountService.VerifyRecentAuthentication:output_type -> anytty.cloud.v1.VerifyRecentAuthenticationResponse
-	16, // 38: anytty.cloud.v1.AccountService.ListRefreshTokens:output_type -> anytty.cloud.v1.ListAccountRefreshTokensResponse
-	18, // 39: anytty.cloud.v1.AccountService.ChangePassword:output_type -> anytty.cloud.v1.ChangeAccountPasswordResponse
-	20, // 40: anytty.cloud.v1.AccountService.RedeemAccountSetup:output_type -> anytty.cloud.v1.RedeemAccountSetupResponse
-	22, // 41: anytty.cloud.v1.AccountService.RevokeRefreshToken:output_type -> anytty.cloud.v1.RevokeAccountRefreshTokenResponse
-	33, // [33:42] is the sub-list for method output_type
-	24, // [24:33] is the sub-list for method input_type
+	23, // 33: anytty.cloud.v1.AccountService.DeleteAccount:input_type -> anytty.cloud.v1.DeleteAccountRequest
+	5,  // 34: anytty.cloud.v1.AccountService.Login:output_type -> anytty.cloud.v1.LoginAccountResponse
+	7,  // 35: anytty.cloud.v1.AccountService.Refresh:output_type -> anytty.cloud.v1.RefreshAccountTokenResponse
+	9,  // 36: anytty.cloud.v1.AccountService.Logout:output_type -> anytty.cloud.v1.LogoutAccountResponse
+	11, // 37: anytty.cloud.v1.AccountService.GetCurrent:output_type -> anytty.cloud.v1.GetCurrentAccountResponse
+	13, // 38: anytty.cloud.v1.AccountService.VerifyRecentAuthentication:output_type -> anytty.cloud.v1.VerifyRecentAuthenticationResponse
+	16, // 39: anytty.cloud.v1.AccountService.ListRefreshTokens:output_type -> anytty.cloud.v1.ListAccountRefreshTokensResponse
+	18, // 40: anytty.cloud.v1.AccountService.ChangePassword:output_type -> anytty.cloud.v1.ChangeAccountPasswordResponse
+	20, // 41: anytty.cloud.v1.AccountService.RedeemAccountSetup:output_type -> anytty.cloud.v1.RedeemAccountSetupResponse
+	22, // 42: anytty.cloud.v1.AccountService.RevokeRefreshToken:output_type -> anytty.cloud.v1.RevokeAccountRefreshTokenResponse
+	24, // 43: anytty.cloud.v1.AccountService.DeleteAccount:output_type -> anytty.cloud.v1.DeleteAccountResponse
+	34, // [34:44] is the sub-list for method output_type
+	24, // [24:34] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
 	24, // [24:24] is the sub-list for extension extendee
 	0,  // [0:24] is the sub-list for field type_name
@@ -1459,7 +1548,7 @@ func file_cloud_v1_account_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cloud_v1_account_proto_rawDesc), len(file_cloud_v1_account_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
