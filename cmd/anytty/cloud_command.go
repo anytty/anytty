@@ -20,6 +20,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// defaultCloudControllerOrigin 是官方 AnyTTY Cloud API 域名，作为注册默认值内置。
+const defaultCloudControllerOrigin = "https://api.anytty.com"
+
 func cloudCommand(socket, logFile, configPath *string) *cobra.Command {
 	command := &cobra.Command{Use: "cloud", Short: "Manage AnyTTY Cloud enrollment", Args: cobra.NoArgs}
 	command.AddCommand(cloudEnrollCommand())
@@ -449,17 +452,16 @@ func cloudEnrollCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&controllerOrigin, "controller", "", "Controller HTTPS origin")
+	command.Flags().StringVar(&controllerOrigin, "controller", defaultCloudControllerOrigin, "Controller HTTPS origin (built-in default; override for self-hosted controllers)")
 	command.Flags().StringVar(&controllerAddress, "controller-address", "", "Controller gRPC address override")
 	command.Flags().StringVar(&controllerServerName, "controller-server-name", "", "Controller TLS server name override")
-	_ = command.MarkFlagRequired("controller")
 	return command
 }
 
 func resolveController(origin, addressOverride, serverOverride string) (string, string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
 	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.Path != "" {
-		return "", "", fmt.Errorf("--controller must be an HTTPS origin")
+		return "", "", fmt.Errorf("controller must be an HTTPS origin")
 	}
 	serverName := strings.TrimSpace(serverOverride)
 	if serverName == "" {
