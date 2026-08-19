@@ -153,6 +153,8 @@ func beginClipboardPaste(root state.Root, deps ClipboardActionDeps, text string)
 		root, releaseEffects = exitCopyModeWithRelease(root, CopyModeDeps{Core: deps.Core})
 	}
 	root = root.Advance()
+	var operationID string
+	root.TerminalViews, operationID = root.TerminalViews.NextTerminalOperation("paste", target.ViewID)
 	effects := append([]Effect{}, releaseEffects...)
 	effects = append(effects, FuncEffect{
 		Async:            true,
@@ -160,12 +162,14 @@ func beginClipboardPaste(root state.Root, deps ClipboardActionDeps, text string)
 		ForceSyncInTests: true,
 		Run: func(ctx context.Context) Msg {
 			err := deps.Terminal.SendInput(ctx, port.TerminalInputRequest{
-				EndpointID: target.EndpointID,
-				TerminalID: target.TerminalID,
-				Channel:    target.Channel,
-				SurfaceID:  target.SurfaceID,
-				ViewID:     target.ViewID,
-				Bytes:      encodeTerminalPaste(text, root.Surface.SurfaceForTerminalRef(state.NewTerminalRef(target.EndpointID, target.TerminalID)).Modes),
+				EndpointID:  target.EndpointID,
+				TerminalID:  target.TerminalID,
+				Channel:     target.Channel,
+				SurfaceID:   target.SurfaceID,
+				ViewID:      target.ViewID,
+				Bytes:       encodeTerminalPaste(text, root.Surface.SurfaceForTerminalRef(state.NewTerminalRef(target.EndpointID, target.TerminalID)).Modes),
+				Session:     target.Session,
+				OperationID: operationID,
 			})
 			return ClipboardPasteResultMsg{Text: text, Err: err}
 		},

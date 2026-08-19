@@ -6428,6 +6428,9 @@ func TestCopyModeClipboardHistoryOverlayFiltersAndPastesSelectedEntry(t *testing
 	if len(terminal.Inputs) != 1 || string(terminal.Inputs[0].Bytes) != "build\nlog" {
 		t.Fatalf("clipboard history paste should target selected entry, got %#v", terminal.Inputs)
 	}
+	if terminal.Inputs[0].OperationID == "" {
+		t.Fatalf("clipboard history paste should include terminal operation id, got %#v", terminal.Inputs[0])
+	}
 }
 
 func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {

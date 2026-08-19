@@ -145,6 +145,17 @@ func runV3E2ESmoke(ctx context.Context) (v3E2ESmokeResult, error) {
 	if err := drainV3RuntimeUntilFrameContains(ctx, runtime, host, "gamma"); err != nil {
 		return v3E2ESmokeResult{}, err
 	}
+	if err := runtime.Post(app.ClipboardPasteTextMsg{Text: "clip-paste"}); err != nil {
+		return v3E2ESmokeResult{}, err
+	}
+	if err := drainV3RuntimeUntilFrameContains(ctx, runtime, host, "clip-paste"); err != nil {
+		state := runtime.State()
+		lastFrame := ""
+		if frames := host.Frames(); len(frames) > 0 {
+			lastFrame = strings.Join(frames[len(frames)-1].Lines, "\n")
+		}
+		return v3E2ESmokeResult{}, fmt.Errorf("v3 e2e smoke: clipboard paste did not reach terminal: %w toasts=%#v session=%#v surface=%#v last_frame=%q", err, state.Shell.Toasts, state.Session, state.Surface, lastFrame)
+	}
 	if err := drainV3RuntimeUntilStyledChrome(ctx, runtime, host); err != nil {
 		return v3E2ESmokeResult{}, err
 	}
