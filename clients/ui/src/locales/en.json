@@ -243,6 +243,7 @@
     "scrollback": "Scrollback",
     "prefetch": "Prefetch threshold",
     "cursorBlink": "Cursor blink",
+    "autoAcquireResizeOwner": "Auto acquire resize control",
     "auto": "Auto",
     "resize": "Resize",
     "shiftUp": "Shift up",

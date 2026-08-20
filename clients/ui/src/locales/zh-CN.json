@@ -243,6 +243,7 @@
     "scrollback": "回滚行数",
     "prefetch": "预取阈值",
     "cursorBlink": "光标闪烁",
+    "autoAcquireResizeOwner": "自动获取尺寸控制",
     "auto": "自动",
     "resize": "调整终端大小",
     "shiftUp": "上移界面",

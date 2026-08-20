@@ -1788,6 +1788,19 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     }
   }, [activeTerminalHandle, handleConnectionAuthFailure, machine?.machineId, updateConnectionStatus])
 
+  const autoAcquiredResizeOwnerRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!effectiveTerminalSettings.autoAcquireResizeOwner) {
+      autoAcquiredResizeOwnerRef.current = null
+      return
+    }
+    if (!activeTerminalId || connectedTerminalId !== activeTerminalId) return
+    if (terminalResizeControl.canResize || terminalResizeControl.sizeLocked || terminalResizeControl.reason === 'size_locked') return
+    if (autoAcquiredResizeOwnerRef.current === activeTerminalId) return
+    autoAcquiredResizeOwnerRef.current = activeTerminalId
+    void acquireActiveResizeOwner()
+  }, [acquireActiveResizeOwner, activeTerminalId, connectedTerminalId, effectiveTerminalSettings.autoAcquireResizeOwner, terminalResizeControl])
+
   const deleteManagedTerminal = useCallback(async () => {
     if (!canManageTerminals || !selectedTerminalId) return
     const deletedTerminalId = selectedTerminalId

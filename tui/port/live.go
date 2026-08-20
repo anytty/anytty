@@ -64,6 +64,8 @@ type TerminalLiveEvent struct {
 	OwnerViewID          string
 	ResizeEpoch          uint64
 	SizeLocked           bool
+	Cols                 int
+	Rows                 int
 	Err                  error
 	Ready                bool
 }

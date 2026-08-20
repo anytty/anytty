@@ -88,6 +88,9 @@ func Default() state.TUIConfigStore {
 				HighlightMatches: true,
 			},
 		},
+		Terminal: state.TUITerminalConfig{
+			AutoTakeOwner: true,
+		},
 	}
 }
 
@@ -560,6 +563,7 @@ var scalarSetters = map[string]scalarSetter{
 	}),
 	"tui.interaction.picker.fuzzy_match":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Interaction.Picker.FuzzyMatch = value }),
 	"tui.interaction.picker.highlight_matches": setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Interaction.Picker.HighlightMatches = value }),
+	"tui.terminal.auto_take_owner":             setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Terminal.AutoTakeOwner = value }),
 }
 
 func setDynamicScalar(cfg *state.TUIConfigStore, path string, value string) (bool, error) {
@@ -869,6 +873,7 @@ var envScalarPaths = map[string]string{
 	"ANYTTY_TUI_CLIPBOARD_HISTORY_MAX_ITEMS":      "tui.interaction.clipboard_history.max_items",
 	"ANYTTY_TUI_CLIPBOARD_HISTORY_NAME_WIDTH":     "tui.interaction.clipboard_history.name_width",
 	"ANYTTY_TUI_CLIPBOARD_HISTORY_PREVIEW_RATIO":  "tui.interaction.clipboard_history.preview_width_ratio",
+	"ANYTTY_TUI_TERMINAL_AUTO_TAKE_OWNER":         "tui.terminal.auto_take_owner",
 }
 
 func Validate(cfg state.TUIConfigStore) error {

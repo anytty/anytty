@@ -10,6 +10,7 @@ type TUIConfigStore struct {
 	Chrome      TUIChromeConfig
 	Footer      TUIFooterConfig
 	Interaction TUIInteractionConfig
+	Terminal    TUITerminalConfig
 	Shortcuts   TUIShortcutConfig
 }
 
@@ -191,6 +192,12 @@ type TUIClipboardHistoryConfig struct {
 type TUIPickerConfig struct {
 	FuzzyMatch       string
 	HighlightMatches bool
+}
+
+// TUITerminalConfig 描述 TUI 对 terminal resize ownership 的本地策略。
+// AutoTakeOwner 只影响 TUI 是否在 attach/布局变化时主动请求 owner；daemon 仍是最终仲裁者。
+type TUITerminalConfig struct {
+	AutoTakeOwner bool
 }
 
 // TUIShortcutConfig 是当前 TUI 客户端快捷键配置的唯一入口。

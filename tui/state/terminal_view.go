@@ -43,6 +43,8 @@ type TerminalViewBinding struct {
 	ResizeRole          string                      `json:"resizeRole,omitempty"`
 	DesiredCols         int                         `json:"desiredCols,omitempty"`
 	DesiredRows         int                         `json:"desiredRows,omitempty"`
+	ActualCols          int                         `json:"actualCols,omitempty"`
+	ActualRows          int                         `json:"actualRows,omitempty"`
 	RequestSeq          uint64                      `json:"requestSeq,omitempty"`
 	LastError           string                      `json:"lastError,omitempty"`
 	PaneID              string                      `json:"paneId,omitempty"`
@@ -131,7 +133,7 @@ func NewEndpointPaneTerminalView(endpointID EndpointID, paneID string, terminalI
 		surfaceID = "tui"
 	}
 	resizeRole = normalizeTerminalResizeRole(resizeRole)
-	return TerminalViewBinding{ViewID: viewID, SurfaceID: surfaceID, EndpointID: NormalizeEndpointID(endpointID), TerminalID: terminalID, Channel: channel, ResizeRole: resizeRole, DesiredCols: cols, DesiredRows: rows, PaneID: paneID, Attached: terminalID != "" && channel != 0, CanResize: canResize}
+	return TerminalViewBinding{ViewID: viewID, SurfaceID: surfaceID, EndpointID: NormalizeEndpointID(endpointID), TerminalID: terminalID, Channel: channel, ResizeRole: resizeRole, DesiredCols: cols, DesiredRows: rows, ActualCols: cols, ActualRows: rows, PaneID: paneID, Attached: terminalID != "" && channel != 0, CanResize: canResize}
 }
 
 // NewFloatingTerminalView 构造默认 local endpoint 的 floating terminal view binding。
@@ -150,7 +152,7 @@ func NewEndpointFloatingTerminalView(endpointID EndpointID, floatingID string, p
 		surfaceID = "tui"
 	}
 	resizeRole = normalizeTerminalResizeRole(resizeRole)
-	return TerminalViewBinding{ViewID: viewID, SurfaceID: surfaceID, EndpointID: NormalizeEndpointID(endpointID), TerminalID: terminalID, Channel: channel, ResizeRole: resizeRole, DesiredCols: cols, DesiredRows: rows, FloatingID: floatingID, PaneID: paneID, Attached: terminalID != "" && channel != 0, CanResize: canResize}
+	return TerminalViewBinding{ViewID: viewID, SurfaceID: surfaceID, EndpointID: NormalizeEndpointID(endpointID), TerminalID: terminalID, Channel: channel, ResizeRole: resizeRole, DesiredCols: cols, DesiredRows: rows, ActualCols: cols, ActualRows: rows, FloatingID: floatingID, PaneID: paneID, Attached: terminalID != "" && channel != 0, CanResize: canResize}
 }
 
 func TerminalPaneViewID(paneID string) string {
@@ -737,6 +739,8 @@ func (store TerminalViewStore) clearDetachedOwnerProjectionLocked(detached Termi
 		binding.CanResize = false
 		binding.OwnerSurfaceID = ""
 		binding.OwnerViewID = ""
+		binding.ActualCols = 0
+		binding.ActualRows = 0
 		if !binding.SizeLocked {
 			binding.ControlReason = ""
 		}
@@ -754,6 +758,8 @@ func (binding TerminalViewBinding) clearRuntimeResizeControl() TerminalViewBindi
 	binding.OwnerSurfaceID = ""
 	binding.OwnerViewID = ""
 	binding.ResizeEpoch = 0
+	binding.ActualCols = 0
+	binding.ActualRows = 0
 	binding.OwnerAcquirePending = false
 	return binding
 }
@@ -883,6 +889,8 @@ func (store TerminalViewStore) ApplyResizeResult(viewID string, seq uint64, cols
 	}
 	binding.DesiredCols = cols
 	binding.DesiredRows = rows
+	binding.ActualCols = cols
+	binding.ActualRows = rows
 	binding.ResizePending = false
 	binding.OwnerAcquirePending = false
 	binding.LastError = lastError
@@ -901,6 +909,8 @@ type TerminalResizeControlProjection struct {
 	ResizeRole     string
 	SurfaceID      string
 	ViewID         string
+	Cols           int
+	Rows           int
 }
 
 func (store TerminalViewStore) ApplyResizeControl(viewID string, projection TerminalResizeControlProjection) (TerminalViewStore, bool) {
@@ -915,6 +925,12 @@ func (store TerminalViewStore) ApplyResizeControl(viewID string, projection Term
 	binding.OwnerSurfaceID = projection.OwnerSurfaceID
 	binding.OwnerViewID = projection.OwnerViewID
 	binding.ResizeEpoch = projection.ResizeEpoch
+	if projection.Cols > 0 {
+		binding.ActualCols = projection.Cols
+	}
+	if projection.Rows > 0 {
+		binding.ActualRows = projection.Rows
+	}
 	if projection.ResizeRole != "" {
 		wasOwner := binding.HasResizeOwner()
 		binding.ResizeRole = normalizeTerminalResizeRole(projection.ResizeRole)
@@ -922,6 +938,10 @@ func (store TerminalViewStore) ApplyResizeControl(viewID string, projection Term
 			// 中文说明：core 投影把当前 view 提升为 owner 后，下一次 layout pass 必须主动校验尺寸。
 			binding.ResizePending = true
 		}
+	}
+	if binding.HasResizeOwner() && binding.ActualCols > 0 && binding.ActualRows > 0 &&
+		(binding.ActualCols != binding.DesiredCols || binding.ActualRows != binding.DesiredRows) {
+		binding.ResizePending = true
 	}
 	if projection.SurfaceID != "" {
 		binding.SurfaceID = projection.SurfaceID
@@ -973,6 +993,12 @@ func (store TerminalViewStore) ApplyTerminalRefResizeControl(ref TerminalRef, pr
 		binding.OwnerSurfaceID = viewProjection.OwnerSurfaceID
 		binding.OwnerViewID = viewProjection.OwnerViewID
 		binding.ResizeEpoch = viewProjection.ResizeEpoch
+		if viewProjection.Cols > 0 {
+			binding.ActualCols = viewProjection.Cols
+		}
+		if viewProjection.Rows > 0 {
+			binding.ActualRows = viewProjection.Rows
+		}
 		binding.OwnerAcquirePending = false
 		wasOwner := binding.HasResizeOwner()
 		binding.ResizeRole = normalizeTerminalResizeRole(viewProjection.ResizeRole)
@@ -980,6 +1006,10 @@ func (store TerminalViewStore) ApplyTerminalRefResizeControl(ref TerminalRef, pr
 			binding.ResizePending = false
 		} else if !wasOwner {
 			// 中文说明：外部投影把当前 view 提升为 owner 后，下一轮布局要校验一次 PTY 尺寸。
+			binding.ResizePending = true
+		}
+		if binding.HasResizeOwner() && binding.ActualCols > 0 && binding.ActualRows > 0 &&
+			(binding.ActualCols != binding.DesiredCols || binding.ActualRows != binding.DesiredRows) {
 			binding.ResizePending = true
 		}
 		binding = binding.applyTerminalSizeLockProjection(binding.SizeLocked)

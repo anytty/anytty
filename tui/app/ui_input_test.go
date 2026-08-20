@@ -1389,7 +1389,7 @@ func TestInteractiveRuntimeCreateTerminalFormSubmitsTerminalCreate(t *testing.T)
 	host := NewFakeTerminalHost(64)
 	host.SetSize(80, 24)
 	runtime := NewInteractiveRuntime(
-		state.Root{Shell: state.DefaultShell().OpenPrompt(createTerminalPrompt(state.DefaultPaneID))},
+		state.Root{Shell: state.DefaultShell().OpenPrompt(createTerminalPrompt(state.DefaultPaneID)), Config: state.TUIConfigStore{Terminal: state.TUITerminalConfig{AutoTakeOwner: true}}},
 		host,
 		NewSyncEffectRunner(),
 		LiveDeps{Terminal: terminal},

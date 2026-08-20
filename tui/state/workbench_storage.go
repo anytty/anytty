@@ -231,6 +231,8 @@ func (binding TerminalViewBinding) ForWorkbenchStorage() TerminalViewBinding {
 	binding.OwnerSurfaceID = ""
 	binding.OwnerViewID = ""
 	binding.ResizeEpoch = 0
+	binding.ActualCols = 0
+	binding.ActualRows = 0
 	binding.ResizePending = false
 	binding.AttachPending = false
 	binding.Unresolved = false

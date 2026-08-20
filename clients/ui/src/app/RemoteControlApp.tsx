@@ -1547,6 +1547,15 @@ function SettingsView({
                 />
               </Suspense>
             </SettingsRow>
+            <SettingsRow label={t('settings.autoAcquireResizeOwner')}>
+              <Suspense fallback={<span aria-hidden="true" className="h-11 w-12 rounded-full bg-zinc-100" />}>
+                <LazySwitch
+                  aria-label={t('settings.autoAcquireResizeOwner')}
+                  checked={terminalSettings.autoAcquireResizeOwner}
+                  onCheckedChange={(checked) => { hapticSelection(); onTerminalSettingsChange({ autoAcquireResizeOwner: checked }) }}
+                />
+              </Suspense>
+            </SettingsRow>
           </SettingsSection>
 
           {privacyPolicyUrl ? (

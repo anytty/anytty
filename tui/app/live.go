@@ -567,7 +567,7 @@ func reduceLiveAttach(root state.Root, msg LiveAttachMsg, deps LiveDeps) (state.
 		cfg.ViewID = liveAttachDefaultViewID(root)
 	}
 	if cfg.ResizePolicy == "" {
-		cfg.ResizePolicy = state.TerminalResizeRoleFollower
+		cfg.ResizePolicy = terminalDefaultResizePolicy(root)
 	}
 	var candidate state.TerminalAttachCandidate
 	root, candidate = markLiveAttachPending(root, cfg)
@@ -1241,6 +1241,8 @@ func reduceLiveEvent(root state.Root, msg LiveEventMsg, deps LiveDeps) (state.Ro
 				OwnerSurfaceID: event.OwnerSurfaceID,
 				OwnerViewID:    event.OwnerViewID,
 				ResizeEpoch:    event.ResizeEpoch,
+				Cols:           event.Cols,
+				Rows:           event.Rows,
 			})
 		}
 		return root.Advance(), nil
@@ -1863,6 +1865,8 @@ func resizeControlProjectionFromResult(result port.TerminalResizeResult) state.T
 		ResizeRole:     result.ResizePolicy,
 		SurfaceID:      result.SurfaceID,
 		ViewID:         result.ViewID,
+		Cols:           result.Cols,
+		Rows:           result.Rows,
 	}
 }
 

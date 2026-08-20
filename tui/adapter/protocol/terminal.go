@@ -480,6 +480,10 @@ func terminalAttachmentEventFromProto(endpointID state.EndpointID, envelope *api
 			out.OwnerViewID = ownership.GetOwnerViewId()
 			out.ResizeEpoch = ownership.GetEpoch()
 			out.SizeLocked = ownership.GetSizeLocked()
+			if ownership.GetSize() != nil {
+				out.Cols = int(ownership.GetSize().GetCols())
+				out.Rows = int(ownership.GetSize().GetRows())
+			}
 		}
 	}
 	return out, true

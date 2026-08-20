@@ -38,6 +38,7 @@ export interface TerminalSettings {
   scrollback: number
   scrollbackPrefetchThresholdRows: number
   cursorBlink: boolean
+  autoAcquireResizeOwner: boolean
 }
 
 export const TERMINAL_SETTINGS_STORAGE_KEY = 'anytty.terminal.settings.v1'
@@ -746,6 +747,7 @@ export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
   scrollback: 10000,
   scrollbackPrefetchThresholdRows: 30,
   cursorBlink: true,
+  autoAcquireResizeOwner: false,
 }
 
 export function readTerminalSettings(storage: Pick<Storage, 'getItem'> | RemoteRuntimeStorage | undefined = browserStorage()): TerminalSettings {
@@ -885,6 +887,9 @@ export function normalizeTerminalSettings(input: Partial<TerminalSettings> | Rec
       1000,
     ),
     cursorBlink: typeof input.cursorBlink === 'boolean' ? input.cursorBlink : DEFAULT_TERMINAL_SETTINGS.cursorBlink,
+    autoAcquireResizeOwner: typeof input.autoAcquireResizeOwner === 'boolean'
+      ? input.autoAcquireResizeOwner
+      : DEFAULT_TERMINAL_SETTINGS.autoAcquireResizeOwner,
   }
 }
 

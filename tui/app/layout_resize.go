@@ -7,12 +7,26 @@ import (
 	"github.com/anytty/anytty/tui/state"
 )
 
+// terminalDefaultResizePolicy 返回 TUI 本地配置决定的 attach resize 策略。
+// 默认跟随 daemon 仲裁；开启 auto_take_owner 后，TUI 会主动请求 owner。
+func terminalDefaultResizePolicy(root state.Root) string {
+	if root.Config.Terminal.AutoTakeOwner {
+		return state.TerminalResizeRoleOwner
+	}
+	return state.TerminalResizeRoleFollower
+}
+
 // NewTerminalLayoutResizeReducer 把最新 shell/layout state 投影成所有可见 resize owner 的 content rect。
 // 这里不直接调用 terminal service，而是通过 LiveResizeMsg 回到 live reducer，保持 service IO 不越过 message path。
 func NewTerminalLayoutResizeReducer() Reducer {
 	return func(root state.Root, msg Msg) (state.Root, []Effect) {
 		if !terminalLayoutMayNeedResize(root, msg) {
 			return root, nil
+		}
+		if root.Config.Terminal.AutoTakeOwner {
+			if effects, ok := autoTakeOwnerEffects(root); ok {
+				return root, effects
+			}
 		}
 		if terminalLayoutNeedsAllVisibleOwnerResize(root, msg) {
 			if targets, ok := visibleResizeOwnerTargets(root, render.Rect{}); ok && len(targets) > 0 {
@@ -77,6 +91,28 @@ func NewTerminalLayoutResizeReducer() Reducer {
 			},
 		}}
 	}
+}
+
+func autoTakeOwnerEffects(root state.Root) ([]Effect, bool) {
+	binding, ok := activeTerminalViewBinding(root)
+	if !ok || binding.TerminalID == "" || !binding.Attached || binding.Channel == 0 || binding.HasResizeOwner() || binding.OwnerAcquirePending {
+		return nil, false
+	}
+	rect, ok := terminalViewContentRect(root, render.Rect{}, binding)
+	if !ok || rect.W <= 0 || rect.H <= 0 {
+		return nil, false
+	}
+	var decision state.TerminalViewResizeDecision
+	root.TerminalViews, decision = root.TerminalViews.RequestViewResizeOwner(binding.ViewID, rect.W, rect.H)
+	if !decision.Allowed {
+		return nil, false
+	}
+	seq := decision.Seq
+	return []Effect{FuncEffect{
+		Run: func(context.Context) Msg {
+			return LiveResizeMsg{EndpointID: binding.EndpointID, TerminalID: binding.TerminalID, Cols: rect.W, Rows: rect.H, Seq: seq, ViewID: binding.ViewID, TakeOwnership: true, ExpectedOwnerEpoch: binding.ResizeEpoch}
+		},
+	}}, true
 }
 
 func terminalLayoutNeedsAllVisibleOwnerResize(root state.Root, msg Msg) bool {

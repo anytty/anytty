@@ -552,7 +552,7 @@ func reduceTerminalPoolAttachRequest(root state.Root, msg TerminalPoolAttachRequ
 	cols, rows := terminalPoolAttachSizeForTarget(root, target)
 	resizePolicy := msg.ResizePolicy
 	if resizePolicy == "" {
-		resizePolicy = state.TerminalResizeRoleFollower
+		resizePolicy = terminalDefaultResizePolicy(root)
 	}
 	endpointID := state.NormalizeEndpointID(msg.EndpointID)
 	surfaceID := runtimeSurfaceID(root)
@@ -776,7 +776,7 @@ func reduceTerminalPoolCreateResult(root state.Root, msg TerminalPoolCreateResul
 	effects := []Effect{
 		FuncEffect{Run: func(context.Context) Msg { return TerminalPoolListRequestMsg{EndpointID: endpointID} }},
 		FuncEffect{Run: func(context.Context) Msg {
-			return TerminalPoolAttachRequestMsg{EndpointID: endpointID, TerminalID: result.TerminalID, TargetPaneID: msg.TargetPaneID, TargetFloatingID: msg.TargetFloatingID, ResizePolicy: state.TerminalResizeRoleOwner}
+			return TerminalPoolAttachRequestMsg{EndpointID: endpointID, TerminalID: result.TerminalID, TargetPaneID: msg.TargetPaneID, TargetFloatingID: msg.TargetFloatingID, ResizePolicy: terminalDefaultResizePolicy(root)}
 		}},
 	}
 	return root.Advance(), effects
@@ -1183,6 +1183,8 @@ func projectTerminalAttachResizeControl(store state.TerminalViewStore, result po
 		OwnerSurfaceID: result.OwnerSurfaceID,
 		OwnerViewID:    result.OwnerViewID,
 		ResizeEpoch:    result.ResizeEpoch,
+		Cols:           result.Cols,
+		Rows:           result.Rows,
 	})
 }
 
