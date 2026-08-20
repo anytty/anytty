@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/anytty/anytty/tui/state"
 )
@@ -326,9 +327,17 @@ func workbenchTreeInlineMeta(row state.WorkbenchTreeItem) string {
 			}
 			return string(row.EndpointStatus)
 		}
+		meta := ""
 		if row.Active {
-			return "active"
+			meta = "active"
 		}
+		if activity := TerminalOutputActivityLabel(row.LastOutputAt, time.Now()); activity != "" {
+			if meta != "" {
+				meta += " "
+			}
+			meta += activity
+		}
+		return meta
 	}
 	return ""
 }
@@ -399,11 +408,16 @@ func compactStringTokens(tokens []string) []string {
 
 func workbenchNavigatorResourceLines(root state.Root, selected state.WorkbenchTreeItem) []Line {
 	row, ok := workbenchTerminalPoolItem(root, selected)
+	activity := TerminalOutputActivityLabel(selected.LastOutputAt, time.Now())
 	if !ok {
-		return []Line{
+		lines := []Line{
 			workbenchNavigatorConnectionLine(root, selected, state.TerminalPoolPageItem{}),
 			workbenchNavigatorEndpointLine(selected, state.TerminalPoolPageItem{}),
 		}
+		if activity != "" {
+			lines = append(lines, workbenchNavigatorDetailLine("last output", activity))
+		}
+		return lines
 	}
 	lines := []Line{}
 	if !row.Resources.SampledAt.IsZero() {
@@ -411,6 +425,9 @@ func workbenchNavigatorResourceLines(root state.Root, selected state.WorkbenchTr
 	}
 	lines = append(lines, workbenchNavigatorConnectionLine(root, selected, row))
 	lines = append(lines, workbenchNavigatorEndpointLine(selected, row))
+	if activity != "" {
+		lines = append(lines, workbenchNavigatorDetailLine("last output", activity))
+	}
 	return lines
 }
 

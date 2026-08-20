@@ -221,14 +221,17 @@ export class NativeSessionManager {
     }
     if (connected && reason === 'network_replaced' && this.session?.isAlive()) {
       this.verification?.controller.abort(new Error('native network identity changed'))
+      this.publish(networkTransitionMachineConnectionSnapshot(this.machineId, forceRelay, this.reconnectAttempt, 'reconnecting', 'Network changed. Reconnecting...'))
       await this.replaceSession(this.session, forceRelay)
       return
     }
     if (connected && this.session?.isAlive() && this.connector.verify) {
+      this.publish(networkTransitionMachineConnectionSnapshot(this.machineId, forceRelay, this.reconnectAttempt, 'verifying', 'Verifying connection...'))
       await this.verifyCurrentSession(this.session, revision)
       return
     }
     if (connected && this.session?.isAlive() && reason !== 'available') {
+      this.publish(networkTransitionMachineConnectionSnapshot(this.machineId, forceRelay, this.reconnectAttempt, 'reconnecting', 'Reconnecting...'))
       await this.replaceSession(this.session, forceRelay)
       return
     }
@@ -678,6 +681,25 @@ function waitingNetworkMachineConnectionSnapshot(
     machineId,
     phase: 'waiting_network',
     statusText: 'Waiting for network...',
+    connectionInfo: null,
+    forceRelay,
+    relayInUse: false,
+    reconnectAttempt,
+    error: null,
+  }
+}
+
+function networkTransitionMachineConnectionSnapshot(
+  machineId: string,
+  forceRelay: boolean,
+  reconnectAttempt: number,
+  phase: 'verifying' | 'reconnecting',
+  statusText: string,
+): MachineConnectionSnapshot {
+  return {
+    machineId,
+    phase,
+    statusText,
     connectionInfo: null,
     forceRelay,
     relayInUse: false,

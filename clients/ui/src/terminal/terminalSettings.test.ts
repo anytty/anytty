@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_TERMINAL_SETTINGS, normalizeTerminalSettings, resolveTerminalTheme, resolveTerminalThemeUi, TERMINAL_FONT_OPTIONS, terminalThemeCssVariables } from './terminalSettings'
+import { DEFAULT_TERMINAL_SETTINGS, normalizeTerminalSettings, resolveTerminalTheme, resolveTerminalThemeUi, TERMINAL_FONT_OPTIONS, TERMINAL_SCROLL_INERTIA_OPTIONS, terminalThemeCssVariables } from './terminalSettings'
 
 describe('terminal theme UI variables', () => {
   it('exposes a complete local UI palette without changing app theme variables', () => {
@@ -42,6 +42,13 @@ describe('terminal theme UI variables', () => {
   it('keeps primary controls readable for both bright and dark theme accents', () => {
     expect(resolveTerminalThemeUi('nord-light').accentText).toBe('#0a0a0a')
     expect(resolveTerminalThemeUi('github-light').accentText).toBe('#ffffff')
+  })
+
+  it('normalizes scroll inertia to a supported preset', () => {
+    expect(DEFAULT_TERMINAL_SETTINGS.scrollInertia).toBe('medium')
+    expect(normalizeTerminalSettings({ scrollInertia: 'long' }).scrollInertia).toBe('long')
+    expect(normalizeTerminalSettings({ scrollInertia: 'missing' }).scrollInertia).toBe('medium')
+    expect(TERMINAL_SCROLL_INERTIA_OPTIONS).toEqual(['off', 'short', 'medium', 'long'])
   })
 
   it('offers bundled and platform terminal fonts while dropping stale settings', () => {

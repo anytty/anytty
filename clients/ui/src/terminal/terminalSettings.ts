@@ -3,7 +3,29 @@ import type { TerminalRenderer } from './Terminal'
 import type { RemoteRuntimeStorage } from '../core/transport'
 
 export type TerminalKeyboardMode = 'auto' | 'resize' | 'shift'
+export type TerminalScrollInertia = 'off' | 'short' | 'medium' | 'long'
 export type TerminalThemeGroup = 'dark' | 'light'
+
+export const TERMINAL_SCROLL_INERTIA_OPTIONS = ['off', 'short', 'medium', 'long'] as const satisfies readonly TerminalScrollInertia[]
+
+export interface TerminalMomentumProfile {
+  enabled: boolean
+  deceleration: number
+  minimumVelocity: number
+}
+
+export function resolveTerminalMomentumProfile(inertia: TerminalScrollInertia | undefined): TerminalMomentumProfile {
+  switch (inertia) {
+    case 'off':
+      return { enabled: false, deceleration: 0, minimumVelocity: 0 }
+    case 'short':
+      return { enabled: true, deceleration: 0.95, minimumVelocity: 60 }
+    case 'long':
+      return { enabled: true, deceleration: 0.99, minimumVelocity: 10 }
+    default:
+      return { enabled: true, deceleration: 0.985, minimumVelocity: 20 }
+  }
+}
 
 export interface TerminalThemeUi {
   page: string
@@ -35,6 +57,7 @@ export interface TerminalSettings {
   themeId: TerminalThemeId
   renderer: TerminalRenderer
   keyboardMode: TerminalKeyboardMode
+  scrollInertia: TerminalScrollInertia
   scrollback: number
   scrollbackPrefetchThresholdRows: number
   cursorBlink: boolean
@@ -744,6 +767,7 @@ export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
   themeId: 'anytty-dark',
   renderer: 'auto',
   keyboardMode: 'auto',
+  scrollInertia: 'medium',
   scrollback: 10000,
   scrollbackPrefetchThresholdRows: 30,
   cursorBlink: true,
@@ -879,6 +903,7 @@ export function normalizeTerminalSettings(input: Partial<TerminalSettings> | Rec
     themeId: isTerminalThemeId(input.themeId) ? input.themeId : DEFAULT_TERMINAL_SETTINGS.themeId,
     renderer: isTerminalRenderer(input.renderer) ? input.renderer : DEFAULT_TERMINAL_SETTINGS.renderer,
     keyboardMode: isTerminalKeyboardMode(input.keyboardMode) ? input.keyboardMode : DEFAULT_TERMINAL_SETTINGS.keyboardMode,
+    scrollInertia: isTerminalScrollInertia(input.scrollInertia) ? input.scrollInertia : DEFAULT_TERMINAL_SETTINGS.scrollInertia,
     scrollback: clampNumber(input.scrollback, DEFAULT_TERMINAL_SETTINGS.scrollback, 500, 50000),
     scrollbackPrefetchThresholdRows: clampNumber(
       input.scrollbackPrefetchThresholdRows,
@@ -930,6 +955,10 @@ function isTerminalRenderer(value: unknown): value is TerminalRenderer {
 
 function isTerminalKeyboardMode(value: unknown): value is TerminalKeyboardMode {
   return value === 'auto' || value === 'resize' || value === 'shift'
+}
+
+function isTerminalScrollInertia(value: unknown): value is TerminalScrollInertia {
+  return typeof value === 'string' && TERMINAL_SCROLL_INERTIA_OPTIONS.some((option) => option === value)
 }
 
 function isTerminalThemeId(value: unknown): value is TerminalThemeId {

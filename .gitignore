@@ -27,6 +27,14 @@
 /clients/mobile/android/.cxx/
 /clients/mobile/android/*/.cxx/
 /clients/mobile/android/local.properties
+/clients/mobile/android/certificates/
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.password
+*.passwords
 /剪贴板 *.png
 Screenshot_*.jpg
 *-debug-*.zip

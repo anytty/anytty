@@ -27,6 +27,7 @@ type TerminalPickerItem struct {
 	PoolState           string
 	Cols                int
 	Rows                int
+	LastOutputAt        time.Time
 	CreateNew           bool
 }
 
@@ -48,6 +49,7 @@ type TerminalPoolPageItem struct {
 	Tags                map[string]string
 	ExitCode            *int
 	ExitedAt            time.Time
+	LastOutputAt        time.Time
 	Cols                int
 	Rows                int
 	AttachmentCount     int

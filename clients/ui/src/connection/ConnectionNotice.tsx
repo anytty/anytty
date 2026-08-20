@@ -56,6 +56,7 @@ export function ConnectionNotice({
   const effectiveVariant: ConnectionNoticeVariant = variant === 'gate' && hasContent ? 'notice' : variant
   const Icon = connectionPresentationIcon(presentation)
   const busy = connectionPresentationIsBusy(presentation)
+  const spinBusy = busy && presentation.state === 'connecting'
   const critical = presentation.tone === 'critical'
 
   return (
@@ -66,7 +67,7 @@ export function ConnectionNotice({
         connectionToneContainerClass[presentation.tone],
         effectiveVariant === 'notice'
           ? 'rounded-none border-x-0 px-3 py-2.5'
-          : 'mx-auto max-w-md border-0 bg-transparent px-5 py-8 text-center shadow-none',
+          : 'mx-auto max-w-md rounded-lg border bg-[var(--card)] px-5 py-8 text-center shadow-sm',
         className,
       )}
       data-action={presentation.action}
@@ -84,7 +85,7 @@ export function ConnectionNotice({
         'flex min-w-0 gap-3',
         effectiveVariant === 'notice' ? 'items-start sm:items-center' : 'flex-col items-center',
       )}>
-        <NoticeIcon Icon={Icon} busy={busy} presentation={presentation} variant={effectiveVariant} />
+        <NoticeIcon Icon={Icon} busy={busy} spinBusy={spinBusy} presentation={presentation} variant={effectiveVariant} />
 
         <div className={cn('min-w-0 flex-1', effectiveVariant === 'gate' && 'w-full')}>
           <AlertTitle className={cn(
@@ -121,11 +122,13 @@ export function ConnectionNotice({
 function NoticeIcon({
   Icon,
   busy,
+  spinBusy,
   presentation,
   variant,
 }: {
   Icon: LucideIcon
   busy: boolean
+  spinBusy: boolean
   presentation: ConnectionPresentation
   variant: ConnectionNoticeVariant
 }) {
@@ -136,15 +139,10 @@ function NoticeIcon({
         'relative grid shrink-0 place-items-center rounded-md border border-[var(--border)] bg-[var(--muted)]',
         variant === 'notice' ? 'size-8' : 'size-11',
         connectionToneIconClass[presentation.tone],
+        busy && !spinBusy && 'animate-pulse motion-reduce:animate-none',
       )}
     >
-      <Icon className={variant === 'notice' ? 'size-4' : 'size-5'} />
-      {busy ? (
-        <Spinner
-          className={cn('absolute', variant === 'notice' ? 'size-7' : 'size-10')}
-          data-connection-spinner="true"
-        />
-      ) : null}
+      <Icon className={cn(variant === 'notice' ? 'size-4' : 'size-5', spinBusy && 'animate-spin motion-reduce:animate-none')} />
     </span>
   )
 }

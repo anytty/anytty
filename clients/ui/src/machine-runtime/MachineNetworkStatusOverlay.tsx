@@ -30,10 +30,7 @@ export function MachineNetworkStatusOverlay({
       <div className="w-full max-w-sm rounded-lg border border-[var(--anytty-border)] bg-[var(--anytty-surface)] px-4 py-3 text-[var(--anytty-text)] shadow-sm backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <Spinner className="h-5 w-5 text-[var(--anytty-accent)]" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold leading-5">{t('workspace.connection.progressTitle')}</p>
-            <p className="mt-0.5 break-words text-[12px] font-medium leading-5 text-[var(--anytty-muted)]">{label}</p>
-          </div>
+          <p className="min-w-0 break-words text-[13px] font-semibold leading-5">{label}</p>
         </div>
       </div>
     </div>

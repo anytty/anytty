@@ -114,7 +114,7 @@ func (adapter ProtocolTerminalServiceAdapter) List(ctx context.Context, req port
 	for _, terminal := range result.GetTerminals() {
 		items = append(items, port.TerminalPoolItem{
 			EndpointID: req.EndpointID, TerminalID: terminal.GetRef().GetTerminalId(), Title: terminalTitleFromProto(terminal), State: terminalStateFromProto(terminal.GetState()), CWD: terminal.GetCwd(),
-			Command: append([]string(nil), terminal.GetCommand()...), Tags: cloneStringMap(terminal.GetTags()), ExitCode: int32PointerToInt(terminal.ExitCode), ExitedAt: unixNanoTime(terminal.GetExitedAtUnixNano()),
+			Command: append([]string(nil), terminal.GetCommand()...), Tags: cloneStringMap(terminal.GetTags()), ExitCode: int32PointerToInt(terminal.ExitCode), ExitedAt: unixNanoTime(terminal.GetExitedAtUnixNano()), LastOutputAt: unixNanoTime(terminal.GetLastOutputAtUnixNano()),
 			Cols: int(terminal.GetSize().GetCols()), Rows: int(terminal.GetSize().GetRows()), AttachmentCount: int(terminal.GetAttachmentCount()),
 			Resources: port.TerminalResourceUsage{
 				PID: int(terminal.GetResources().GetPid()), CPUPercentX100: int(terminal.GetResources().GetCpuPercentX100()), MemoryBytes: terminal.GetResources().GetMemoryBytes(), SampledAt: unixNanoTime(terminal.GetResources().GetSampledAtUnixNano()),

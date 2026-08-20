@@ -72,3 +72,19 @@ func TestShortcutCatalogReplacementMatrix(t *testing.T) {
 		t.Fatalf("actions+scenes must keep user scene as the complete binding truth, got %#v", entries)
 	}
 }
+
+func TestShortcutEntriesHonorConfigKeyOrder(t *testing.T) {
+	shortcuts := state.TUIShortcutConfig{Configured: true, Scenes: map[string]state.TUIShortcutSceneConfig{
+		"global": {
+			KeyOrder: []string{"ctrl-g", "ctrl-p"},
+			Bindings: map[string]state.TUIShortcutBindingConfig{
+				"ctrl-g": {Action: "menu.system"},
+				"ctrl-p": {Action: "menu.panel"},
+			},
+		},
+	}}
+	entries := ShortcutEntriesForConfig(shortcuts)
+	if len(entries) != 2 || entries[0].Key != "ctrl-g" || entries[1].Key != "ctrl-p" {
+		t.Fatalf("shortcut entries must respect configured key order, got %#v", entries)
+	}
+}

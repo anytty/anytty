@@ -14,6 +14,7 @@ import { createFileApi, type FileEntry } from '../files/fileApi'
 import { fileEntryPath, normalizeFilePath, parentPath } from '../files/fileUtils'
 import { createPersistentPathBookmarkApi, type PathBookmark } from '../files/pathBookmarks'
 import { hapticImpact, hapticSelection } from '../platform/haptics'
+import { MachineNetworkStatusOverlay } from '../machine-runtime/MachineNetworkStatusOverlay'
 import { useMachineNetworkStatus } from '../machine-runtime/useMachineNetworkStatus'
 import { createRemoteClipboardApi, type RemoteClipboardEntry } from '../clipboard/clipboardApi'
 import { MobileTerminalKeybar } from '../terminal/MobileTerminalKeybar'
@@ -334,7 +335,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const connectionInputBlocked = connectionSessionUnavailable || activeSlotTerminalExited === true
   const canManageTerminals = !connectionSessionUnavailable && !requireVerification
   const hideTerminalListForUnavailableState = !phoneOnline || connectionRecoveryFailed || connectionPhase === 'failed' || Boolean(connectionFailure)
-  const showConnectionRecoveryBanner = hasConnectedOnce && (!phoneOnline || !connectionReady || showMachineNetworkOverlay || Boolean(connectionFailure) || connectionRecovered)
+  const showConnectionFailureBanner = !phoneOnline || connectionRecoveryFailed || connectionPhase === 'failed' || Boolean(connectionFailure)
+  const showConnectionRecoveryBanner = showConnectionFailureBanner || !connectionReady || connectionRecovered
   const initialConnectionFailure = !hasConnectedOnce
     ? !phoneOnline
       ? connectionFailurePresentation('phone offline', t, { phoneOnline: false })
@@ -722,7 +724,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
   const refreshTerminals = useCallback(async () => {
     if (!phoneOnlineRef.current || !connectionReadyRef.current) {
-      setLoadingTerminals(false)
       return
     }
     const seq = terminalRefreshSeqRef.current + 1
@@ -805,7 +806,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
   useEffect(() => {
     if (!phoneOnlineRef.current || !connectionReadyRef.current) {
-      setLoadingTerminals(false)
       return
     }
     let cancelled = false
@@ -1882,6 +1882,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
   const openConnectionInfo = useCallback(() => {
     const existingSession = connectedSession ?? machineSessionRef.current?.session ?? null
+    const connecting = isConnectingConnectionPhase(connectionPhase)
+    if (connecting) return
     if (!existingSession && !machine) {
       setConnectionInfoError(t('workspace.connection.unavailable'))
       setConnectionInfo(null)
@@ -1903,14 +1905,14 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     ).then((result) => {
       setConnectionInfo(result.info)
       setConnectionPolicyState(result.policy)
-      if (result.error) {
+      if (result.error && !connecting) {
         connectionPolicyFailureRef.current = { stage: 'refresh' }
         setConnectionInfoError(connectionErrorDisplayMessage(result.error, t, phoneOnline))
       }
     }).finally(() => {
       setConnectionInfoLoading(false)
     })
-  }, [connectedSession, connectionSessionUnavailable, connector, ensureMachineSession, forceRelayConnection, machine, phoneOnline, t])
+  }, [connectedSession, connectionPhase, connectionSessionUnavailable, connector, ensureMachineSession, forceRelayConnection, machine, phoneOnline, t])
 
   const applyConnectionPolicy = useCallback(async (policy: ConnectionPolicy) => {
   if (!connector.applyConnectionPolicy) {
@@ -2406,6 +2408,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const renderTerminalListPage = () => {
     if (!machine) return null
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
+    const showInitialLoadingOverlay = showDelayedMachineNetworkOverlay || showTerminalListLoader
 
     return (
       <aside
@@ -2474,7 +2477,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             retryPending={connectionRetryPending}
           />
         ) : null}
-        {page === 'terminal-list' && showConnectionRecoveryBanner ? (
+        {page === 'terminal-list' && showConnectionFailureBanner ? (
           <MachineConnectionBanner
             failure={connectionRecoveryFailure ?? connectionFailure}
             hasContent={hasLoadedTerminals && !hideTerminalListForUnavailableState}
@@ -2486,12 +2489,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             onRetry={connectionRecoveryFailed && onRetryConnectionRecovery ? () => { void onRetryConnectionRecovery() } : retryAfterFailure}
             retryPending={connectionRetryPending}
             onDetails={openConnectionInfo}
-          />
-        ) : showDelayedMachineNetworkOverlay ? (
-          <ConnectionNotice
-            presentation={workspaceConnectionPresentation({ phoneOnline, phase: connectionPhase ?? 'connecting' })}
-            title={displayedConnectionStatus || t('workspace.connecting')}
-            className="animate-in fade-in slide-in-from-top-1 duration-200"
           />
         ) : null}
         {error && !connectionFailure ? (
@@ -2520,9 +2517,12 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
         ) : null}
         {!hideTerminalListForUnavailableState && (hasLoadedTerminals || (!initialConnectionFailure && !requireVerification)) ? (
           <div
-            className="min-h-0 flex-1 overflow-y-auto p-3"
+            className="relative min-h-0 flex-1 overflow-y-auto p-3"
             data-testid="anytty-terminal-list-scroll"
           >
+            {showInitialLoadingOverlay && !showConnectionFailureBanner ? (
+              <MachineNetworkStatusOverlay phase={connectionPhase} status={connectionStatus} />
+            ) : null}
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
             <TerminalList
               machineId={machine.machineId}
@@ -2532,7 +2532,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               onOpenTerminal={openTerminal}
               onManageTerminal={openManageTerminal}
               activeTerminalId={activeTerminalId ?? undefined}
-              loading={showTerminalListLoader}
+              loading={showTerminalListLoader && !showInitialLoadingOverlay}
               loadingLabel={displayedConnectionStatus ?? t('workspace.connection.phase.connecting')}
               interactive={!connectionSessionUnavailable}
             />
@@ -2938,7 +2938,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                   selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 0}
                   settings={effectiveTerminalSettings}
                   preventFocus={keyboardFocusLocked || connectionInputBlocked}
-                  suppressConnectingOverlay={showConnectionRecoveryBanner}
+                    suppressConnectingOverlay={false}
                   historyOnly={activeTerminal?.state === 'exited'}
                 />
               ) : (
@@ -2987,7 +2987,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                     selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 1}
                     settings={effectiveTerminalSettings}
                     preventFocus={keyboardFocusLocked || connectionInputBlocked}
-                    suppressConnectingOverlay={showConnectionRecoveryBanner}
+                  suppressConnectingOverlay={false}
                     historyOnly={splitTerminal?.state === 'exited'}
                   />
                 ) : (
@@ -3118,7 +3118,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               <X className="h-5 w-5" />
             </Button>
           </div>
-          {filesOpen && showConnectionRecoveryBanner ? (
+          {showConnectionRecoveryBanner ? (
             <MachineConnectionBanner
               failure={connectionRecoveryFailure ?? connectionFailure}
               hasContent
@@ -3184,6 +3184,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
         <ConnectionInfoDialog
           info={connectionInfo}
           loading={connectionInfoLoading}
+          connecting={isConnectingConnectionPhase(connectionPhase)}
           error={connectionInfoError}
       policyState={connectionPolicyState}
       applying={connectionPolicyApplying}
@@ -3435,6 +3436,7 @@ function MobileSheetPanel({
 export function ConnectionInfoDialog({
   info,
   loading,
+  connecting = false,
   error,
   policyState,
   applying,
@@ -3449,6 +3451,7 @@ export function ConnectionInfoDialog({
 }: {
   info: ConnectionInfo | null
   loading: boolean
+  connecting?: boolean | undefined
   error: string | null
   policyState: ConnectionPolicyState | null
   applying: boolean
@@ -3487,7 +3490,7 @@ export function ConnectionInfoDialog({
         <header className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
           <div className="min-w-0">
             <h2 id="anytty-connection-title" className="text-[17px] font-semibold text-zinc-950">{t('workspace.connection.title')}</h2>
-            <p className="mt-0.5 text-[12px] font-medium text-zinc-500">{connectionTypeLabel(type, t)}</p>
+            <p className="mt-0.5 text-[12px] font-medium text-zinc-500">{connecting ? t('workspace.connection.phase.connecting') : connectionTypeLabel(type, t)}</p>
           </div>
           <Button variant="ghost" size="icon" aria-label={t('workspace.connection.closeInfo')} onClick={() => { hapticSelection(); onClose() }}>
             <X className="h-5 w-5" />
@@ -3495,6 +3498,11 @@ export function ConnectionInfoDialog({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {connecting && !error ? (
+            <div className="border-b border-blue-200 bg-blue-50 px-4 py-3 text-[13px] font-medium text-blue-800" role="status">
+              <p>{t('workspace.connection.phase.connecting')}</p>
+            </div>
+          ) : null}
           {error ? (
             <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-800" role="alert">
               <p>{error}</p>
@@ -3507,8 +3515,8 @@ export function ConnectionInfoDialog({
           <section className="border-b border-[var(--anytty-app-line)] px-4 py-4">
             <h3 className="text-[13px] font-semibold text-zinc-950">{t('workspace.connection.current')}</h3>
             <dl className="mt-2 overflow-hidden rounded-lg border border-[var(--anytty-app-line)]">
-              <ConnectionInfoRow label={t('workspace.connection.route')} value={loading ? t('workspace.connection.reading') : connectionRouteLabel(info?.routeKind, t)} strong />
-              <ConnectionInfoRow label={t('workspace.connection.path')} value={observedPathLabel(info?.observedPath, t)} />
+              <ConnectionInfoRow label={t('workspace.connection.route')} value={connecting ? t('workspace.connection.phase.connecting') : loading ? t('workspace.connection.reading') : connectionRouteLabel(info?.routeKind, t)} strong />
+              <ConnectionInfoRow label={t('workspace.connection.path')} value={connecting ? t('workspace.connection.phase.connecting') : observedPathLabel(info?.observedPath, t)} />
               <ConnectionInfoRow label={t('workspace.connection.localCandidateAddress')} value={candidateDiagnostic(info?.localAddr, info?.candidateType, t)} />
               {info?.localBaseAddr ? <ConnectionInfoRow label={t('workspace.connection.localBaseAddress')} value={info.localBaseAddr} /> : null}
               <ConnectionInfoRow label={t('workspace.connection.remoteCandidateAddress')} value={candidateDiagnostic(info?.remoteAddr, info?.remoteCandidateType, t)} />
@@ -3849,6 +3857,11 @@ function formatClipboardTimestamp(value: string): string {
 
 function isTransientConnectionPhase(phase: RtcConnectionStateSnapshot['phase']): boolean {
   return phase === 'probing' || phase === 'connecting'
+}
+
+function isConnectingConnectionPhase(phase: RtcConnectionStateSnapshot['phase'] | null | undefined): boolean {
+  return phase === 'probing' || phase === 'resolving' || phase === 'signaling' || phase === 'connecting' ||
+    phase === 'authorizing' || phase === 'verifying' || phase === 'reconnecting' || phase === 'waiting_network'
 }
 
 export function terminalInventoryRefreshIntervalMs(relayInUse: boolean): number {

@@ -34,7 +34,7 @@ describe('mobile product shell', () => {
     expect(mobileAppSource).toContain('entry.manager.networkChanged(connected, reason)')
     expect(mobileAppSource).toContain('networkChanged(event.connected, event.reason)')
     expect(mobileAppSource).toContain('NativeConnection.getNetworkSnapshot()')
-    expect(mobileAppSource).toContain('elapsed >= 2_500')
+    expect(mobileAppSource).toContain('heartbeatGap >= 2_500')
     expect(mobileAppSource).toMatch(
       /async verify\(session, signal\)[\s\S]*case: 'terminalDefaults'[\s\S]*response\.result\.case !== 'terminalDefaults'/,
     )

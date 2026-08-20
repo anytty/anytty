@@ -1213,6 +1213,7 @@ func terminalPoolItemsFromService(items []port.TerminalPoolItem) []state.Termina
 			Tags:            cloneStringMap(item.Tags),
 			ExitCode:        cloneIntPointer(item.ExitCode),
 			ExitedAt:        item.ExitedAt,
+			LastOutputAt:    item.LastOutputAt,
 			Cols:            item.Cols,
 			Rows:            item.Rows,
 			AttachmentCount: item.AttachmentCount,

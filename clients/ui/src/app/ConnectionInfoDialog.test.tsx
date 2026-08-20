@@ -158,6 +158,26 @@ describe('ConnectionInfoDialog', () => {
     expect(screen.getByText('192.168.1.20:41120')).toBeTruthy()
   })
 
+  it('shows connecting state instead of a failure while the session is still being established', () => {
+    render(<ConnectionInfoDialog
+      info={null}
+      loading={false}
+      connecting
+      error={null}
+      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
+      applying={false}
+      onClose={vi.fn()}
+      onRefresh={vi.fn()}
+      onRetry={vi.fn()}
+      onApply={vi.fn()}
+      onRestoreAuto={vi.fn()}
+      endpointId="studio"
+    />)
+
+    expect(screen.getByRole('status').textContent).toContain('Connecting to the device...')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('offers retry and Restore Auto for a policy or reconnect failure', async () => {
     const user = userEvent.setup()
     const onRestoreAuto = vi.fn()

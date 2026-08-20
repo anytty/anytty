@@ -1,5 +1,7 @@
 package state
 
+import "time"
+
 const (
 	DefaultWorkspaceID = "workspace-main"
 	DefaultTabID       = "tab-main"
@@ -292,6 +294,7 @@ type WorkbenchTreeItem struct {
 	EndpointLastError string
 	EndpointErrorKind EndpointErrorKind
 	TerminalID        string
+	LastOutputAt      time.Time
 	Depth             int
 	Expandable        bool
 	Collapsed         bool

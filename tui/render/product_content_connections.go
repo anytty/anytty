@@ -41,7 +41,7 @@ func buildConnectionsContent(root state.Root, shell state.ShellStore) ContentVM 
 		left := Line{}
 		if row < len(items) {
 			activeViews := root.TerminalViews.AttachedBindingCountForEndpoint(items[row].ID)
-			left = connectionsEndpointLine(items[row], row == selectedIndex, activeViews)
+			left = connectionsEndpointLine(items[row], row == selectedIndex, activeViews, endpointLastOutputActivityLabel(root, items[row].ID))
 		}
 		right := Line{}
 		if row < len(details) {
@@ -55,7 +55,7 @@ func buildConnectionsContent(root state.Root, shell state.ShellStore) ContentVM 
 	}
 }
 
-func connectionsEndpointLine(item state.EndpointItem, selected bool, activeViews int) Line {
+func connectionsEndpointLine(item state.EndpointItem, selected bool, activeViews int, activity string) Line {
 	marker, markerStyle, labelStyle := "  ", StyleMuted, StyleForeground
 	if selected {
 		marker, markerStyle, labelStyle = "▸ ", StyleAccent, StyleAccent
@@ -73,9 +73,29 @@ func connectionsEndpointLine(item state.EndpointItem, selected bool, activeViews
 	if status == "" {
 		status = "unknown"
 	}
-	return Line{Cells: []Cell{
+	cells := []Cell{
 		styledCell(marker, markerStyle), styledCell(checkbox, checkboxStyle), styledCell(item.DisplayLabel(), labelStyle), NewCell(" "), tokenCell(status, statusStyle),
-	}}
+	}
+	if activity != "" {
+		cells = append(cells, NewCell(" "), styledCell(activity, TerminalOutputActivityStyle(activity)))
+	}
+	return Line{Cells: cells}
+}
+
+// endpointLastOutputActivityLabel 返回该 endpoint 下所有 terminal 中最近一次非空 PTY 输出
+// 的活跃度标签；没有输出历史时返回空字符串。
+func endpointLastOutputActivityLabel(root state.Root, endpointID state.EndpointID) string {
+	endpointID = state.NormalizeEndpointID(endpointID)
+	var latest time.Time
+	for _, item := range root.TerminalPool.Items {
+		if item.EndpointID != endpointID || item.LastOutputAt.IsZero() {
+			continue
+		}
+		if item.LastOutputAt.After(latest) {
+			latest = item.LastOutputAt
+		}
+	}
+	return TerminalOutputActivityLabel(latest, time.Now())
 }
 
 func connectionsDetailLines(item state.EndpointItem, ok bool, width int, activeViews int) []Line {

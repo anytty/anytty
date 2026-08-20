@@ -155,11 +155,7 @@ func shortcutEntriesFromConfig(shortcuts state.TUIShortcutConfig) []ShortcutEntr
 	entries := []ShortcutEntry{}
 	for _, sceneName := range sceneNames {
 		scene := shortcuts.Scenes[sceneName]
-		keys := make([]string, 0, len(scene.Bindings))
-		for key := range scene.Bindings {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
+		keys := shortcutSceneBindingKeys(scene)
 		for _, key := range keys {
 			binding := scene.Bindings[key]
 			entry := shortcutEntryFromParts(sceneName, key, binding.Action, binding.Label)
@@ -168,6 +164,29 @@ func shortcutEntriesFromConfig(shortcuts state.TUIShortcutConfig) []ShortcutEntr
 		}
 	}
 	return entries
+}
+
+func shortcutSceneBindingKeys(scene state.TUIShortcutSceneConfig) []string {
+	ordered := make([]string, 0, len(scene.Bindings))
+	seen := map[string]bool{}
+	for _, key := range scene.KeyOrder {
+		if _, ok := scene.Bindings[key]; !ok || seen[key] {
+			continue
+		}
+		ordered = append(ordered, key)
+		seen[key] = true
+	}
+	if len(ordered) == len(scene.Bindings) {
+		return ordered
+	}
+	missing := make([]string, 0, len(scene.Bindings)-len(ordered))
+	for key := range scene.Bindings {
+		if !seen[key] {
+			missing = append(missing, key)
+		}
+	}
+	sort.Strings(missing)
+	return append(ordered, missing...)
 }
 
 func shortcutEntryFromParts(sceneName string, keyToken string, actionID string, label string) ShortcutEntry {

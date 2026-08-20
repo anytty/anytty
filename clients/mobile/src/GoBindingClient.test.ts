@@ -87,6 +87,34 @@ describe('Android binding bridge negotiation', () => {
     await expect(request).resolves.toBe(7n)
     await backend.close()
   })
+
+  it('rejects a request that never receives a bridge response', async () => {
+    vi.useFakeTimers()
+    try {
+      const sockets: TestWebSocket[] = []
+      vi.stubGlobal('WebSocket', testWebSocketClass(sockets))
+      nativeConnectionMock.getBridgeEndpoint.mockResolvedValue({ port: 43125, token: 'A'.repeat(43) })
+      const backend = new AndroidBindingBackend()
+
+      const request = backend.request(BindingOperation.EXECUTE, new Uint8Array(), 1n)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sockets).toHaveLength(1)
+      const socket = sockets[0]!
+      socket.open('anytty.binding.v1')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(socket.sent).toHaveLength(1)
+      socket.message(responseFrame(0x21, 0n, 0n))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(socket.sent).toHaveLength(2)
+
+      const assertion = expect(request).rejects.toThrow('Go binding bridge request timed out')
+      await vi.advanceTimersByTimeAsync(15_000)
+      await assertion
+      await backend.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 type TestWebSocket = {

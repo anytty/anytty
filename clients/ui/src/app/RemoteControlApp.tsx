@@ -15,6 +15,7 @@ import { normalizeHubBaseUrlCandidate } from '../api/hubUrl'
 import type { RemoteMachine } from '../core/remoteMachine'
 import {
   TERMINAL_FONT_OPTIONS,
+  TERMINAL_SCROLL_INERTIA_OPTIONS,
   TERMINAL_THEME_OPTIONS,
   readTerminalSettings,
   resolveTerminalThemeOption,
@@ -22,9 +23,11 @@ import {
   terminalThemeCssVariables,
   writeTerminalSettings,
   type TerminalKeyboardMode,
+  type TerminalScrollInertia,
   type TerminalSettings,
   type TerminalThemeOption,
 } from '../terminal/terminalSettings'
+import { ScrollInertiaPreview } from '../terminal/ScrollInertiaPreview'
 import { appThemeCssVariables, readAppTheme, writeAppTheme, type AppTheme } from './appTheme'
 import type { TerminalRenderer } from '../terminal/Terminal'
 import type { MachineAccessClass } from '../state/appMachine'
@@ -219,6 +222,7 @@ export interface RemoteControlAppProps {
   exportDebugLogs?: (() => Promise<void>) | undefined
   onRefreshMachines?: (() => Promise<void>) | undefined
   nativeNetworkStatusPlugin?: NativeNetworkStatusPlugin | undefined
+  phoneOnline?: boolean | undefined
   locallyDiscoveredMachineIds?: ReadonlySet<string> | undefined
   locallyDiscoveringMachineIds?: ReadonlySet<string> | undefined
   cloudPresenceByMachineId?: ReadonlyMap<string, CloudPresenceInput> | undefined
@@ -241,6 +245,7 @@ export function RemoteControlApp({
   exportDebugLogs,
   onRefreshMachines,
   nativeNetworkStatusPlugin,
+  phoneOnline: phoneOnlineProp,
   locallyDiscoveredMachineIds,
   locallyDiscoveringMachineIds,
   cloudPresenceByMachineId,
@@ -288,7 +293,8 @@ export function RemoteControlApp({
     () => remoteNetworkStateManager.state,
     () => remoteNetworkStateManager.state,
   )
-  const effectiveConnectionReady = connectionReady && remoteNetworkState.networkReady
+  const phoneOnline = phoneOnlineProp ?? remoteNetworkState.phoneOnline
+  const effectiveConnectionReady = connectionReady && (phoneOnlineProp !== undefined ? phoneOnline : remoteNetworkState.networkReady)
   const appThemeStyle = useMemo(() => appThemeCssVariables(appTheme) as CSSProperties, [appTheme])
   const cameraScanInFlightRef = useRef(false)
   const cameraScanAbortRef = useRef<AbortController | null>(null)
@@ -799,7 +805,7 @@ export function RemoteControlApp({
           storage={storage}
           terminalSettings={terminalSettings}
           runtime={getMachineRuntime(selectedMachine)}
-          phoneOnline={remoteNetworkState.phoneOnline}
+          phoneOnline={phoneOnline}
           connectionReady={effectiveConnectionReady}
           connectionRecoveryFailed={connectionRecoveryFailed}
           onRetryConnectionRecovery={onRetryConnectionRecovery}
@@ -821,7 +827,7 @@ export function RemoteControlApp({
           getMachineRuntime={(machine) => authorizedMachineIds.has(machine.id) ? getMachineRuntime(machine) : null}
           authorizedMachineIds={authorizedMachineIds}
           authorizationExpiries={authorizationExpiries}
-          phoneOnline={remoteNetworkState.phoneOnline}
+          phoneOnline={phoneOnline}
           connectionReady={effectiveConnectionReady}
           connectionRecoveryFailed={connectionRecoveryFailed}
           onRetryConnectionRecovery={onRetryConnectionRecovery}
@@ -864,7 +870,7 @@ export function RemoteControlApp({
           onClose={() => { hapticSelection(); setTransferCenterOpen(false) }}
           onResumeTransfer={resumeGlobalTransfer}
           onResumeAllTransfers={resumeAllGlobalTransfers}
-          remoteActionsDisabled={!remoteNetworkState.phoneOnline || !effectiveConnectionReady}
+          remoteActionsDisabled={!phoneOnline || !effectiveConnectionReady}
         />
       ) : null}
     </main>
@@ -1556,6 +1562,19 @@ function SettingsView({
                 />
               </Suspense>
             </SettingsRow>
+            <SettingsRow label={t('settings.scrollInertia')} stacked>
+              <div className="flex w-full flex-col gap-3">
+                <ScrollInertiaSlider
+                  value={terminalSettings.scrollInertia}
+                  onChange={(value) => onTerminalSettingsChange({ scrollInertia: value })}
+                />
+                <ScrollInertiaPreviewSheet
+                  inertia={terminalSettings.scrollInertia}
+                  onChange={(value) => onTerminalSettingsChange({ scrollInertia: value })}
+                  themeId={terminalSettings.themeId}
+                />
+              </div>
+            </SettingsRow>
           </SettingsSection>
 
           {privacyPolicyUrl ? (
@@ -1676,6 +1695,77 @@ function SettingsSelect({
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+function ScrollInertiaSlider({
+  onChange,
+  value,
+}: {
+  onChange: (value: TerminalScrollInertia) => void
+  value: TerminalScrollInertia
+}) {
+  const { t } = useTranslation()
+  const index = Math.max(0, TERMINAL_SCROLL_INERTIA_OPTIONS.indexOf(value))
+  const labels = TERMINAL_SCROLL_INERTIA_OPTIONS.map((option) => {
+    const key = `settings.inertia${option[0]!.toUpperCase()}${option.slice(1)}`
+    return t(key)
+  })
+  return (
+    <div className="w-full">
+      <input
+        aria-label={t('settings.scrollInertia')}
+        className="h-2 w-full accent-[var(--anytty-app-accent)]"
+        max={TERMINAL_SCROLL_INERTIA_OPTIONS.length - 1}
+        min={0}
+        step={1}
+        type="range"
+        value={index}
+        onChange={(event) => {
+          const nextIndex = Number(event.currentTarget.value)
+          onChange(TERMINAL_SCROLL_INERTIA_OPTIONS[nextIndex] ?? TERMINAL_SCROLL_INERTIA_OPTIONS[1]!)
+        }}
+      />
+      <div className="mt-2 flex w-full justify-between text-[11px] font-medium text-[var(--anytty-app-muted)]">
+        {labels.map((label, optionIndex) => (
+          <span className={optionIndex === index ? 'font-semibold text-[var(--anytty-app-text)]' : undefined} key={TERMINAL_SCROLL_INERTIA_OPTIONS[optionIndex]}>
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ScrollInertiaPreviewSheet({
+  inertia,
+  onChange,
+  themeId,
+}: {
+  inertia: TerminalScrollInertia
+  onChange: (value: TerminalScrollInertia) => void
+  themeId: TerminalSettings['themeId']
+}) {
+  const { t } = useTranslation()
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button className="h-11 w-full gap-2" variant="outline">
+          <SquareTerminal className="h-4 w-4" />
+          {t('settings.scrollInertiaPreview')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bottom-0 left-0 right-0 top-auto flex h-[88dvh] max-h-[88dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:h-[min(88dvh,48rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg">
+        <DialogHeader className="shrink-0 border-b border-[var(--anytty-app-line)] px-4 pb-3 pt-4 pr-14">
+          <DialogTitle>{t('settings.scrollInertia')}</DialogTitle>
+          <DialogDescription>{t('settings.scrollInertiaPreview')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <ScrollInertiaSlider value={inertia} onChange={onChange} />
+          <ScrollInertiaPreview inertia={inertia} themeId={themeId} className="h-[42dvh] min-h-56 flex-1 sm:h-[36dvh]" />
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

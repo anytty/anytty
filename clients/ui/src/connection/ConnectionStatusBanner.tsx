@@ -37,7 +37,7 @@ export function ConnectionStatusBanner({
       role="status"
       aria-live="polite"
     >
-      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
       <span className="min-w-0 truncate">{label}</span>
     </div>
   )

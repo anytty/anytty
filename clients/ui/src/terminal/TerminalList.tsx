@@ -141,6 +141,7 @@ export function TerminalList({
             const itemKey = uniqueTerminalListKey(terminalKeyCounts, machineId, terminal)
             const program = terminalProgramPresentation(terminal.foregroundProcess)
             const outputActivity = terminalOutputActivityLabel(terminal.lastOutputAt, Date.now(), t)
+            const outputActivityTone = terminalOutputActivityTone(terminal.lastOutputAt, Date.now())
             const pinned = pinnedTerminalIds.includes(terminal.terminalId)
             const dragging = drag?.terminalId === terminal.terminalId
             const dragTarget = drag?.targetTerminalId === terminal.terminalId
@@ -240,7 +241,7 @@ export function TerminalList({
                         ) : null}
                         {outputActivity ? (
                           <span className="inline-flex items-center gap-1 tabular-nums">
-                            <Clock3 className="size-3" />
+                            <Clock3 className={`size-3 ${terminalOutputActivityIconClass(outputActivityTone)}`} />
                             {outputActivity}
                           </span>
                         ) : null}
@@ -404,7 +405,41 @@ export function terminalOutputActivityLabel(
   const quietSeconds = Math.max(0, Math.floor((now - timestamp) / 1_000))
   if (quietSeconds < 5) return t('terminal.outputActivity.now')
   if (quietSeconds < 60) return t('terminal.outputActivity.seconds', { count: quietSeconds })
-  return t('terminal.outputActivity.minutes', { count: Math.floor(quietSeconds / 60) })
+  if (quietSeconds < 3_600) return t('terminal.outputActivity.minutes', { count: Math.floor(quietSeconds / 60) })
+  return t('terminal.outputActivity.hours', { count: Math.floor(quietSeconds / 3_600) })
+}
+
+// TerminalOutputActivityTone 是"最近一次输出"的活跃度档位，用于给列表行一个
+// 非红黄绿的提示色：刚有输出用蓝色系，静默越久越偏灰，避免把"安静"误读成错误。
+export type TerminalOutputActivityTone = 'fresh' | 'recent' | 'idle' | 'stale' | 'none'
+
+export function terminalOutputActivityTone(
+  lastOutputAt: string | undefined,
+  now: number,
+): TerminalOutputActivityTone {
+  if (!lastOutputAt) return 'none'
+  const timestamp = Date.parse(lastOutputAt)
+  if (!Number.isFinite(timestamp)) return 'none'
+  const quietSeconds = Math.max(0, Math.floor((now - timestamp) / 1_000))
+  if (quietSeconds < 5) return 'fresh'
+  if (quietSeconds < 60) return 'recent'
+  if (quietSeconds < 3_600) return 'idle'
+  return 'stale'
+}
+
+function terminalOutputActivityIconClass(tone: TerminalOutputActivityTone): string {
+  switch (tone) {
+    case 'fresh':
+      return 'text-sky-400'
+    case 'recent':
+      return 'text-sky-500'
+    case 'idle':
+      return 'text-zinc-400'
+    case 'stale':
+      return 'text-zinc-500'
+    default:
+      return 'text-zinc-400'
+  }
 }
 
 function uniqueTerminalListKey(counts: Map<string, number>, fallbackMachineId: string, terminal: Terminal): string {

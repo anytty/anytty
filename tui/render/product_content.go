@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	actiondomain "github.com/anytty/anytty/tui/action"
 	"github.com/anytty/anytty/tui/input"
@@ -129,6 +130,7 @@ const (
 	terminalPickerEndpointColumnWidth = 14
 	terminalPickerStateColumnWidth    = 8
 	terminalPickerSizeColumnWidth     = 7
+	terminalPickerLastColumnWidth     = 5
 	terminalPickerActionColumnWidth   = 6
 	terminalPickerColumnGapWidth      = 2
 	terminalPickerPrefixWidth         = 4
@@ -140,6 +142,8 @@ const (
 		terminalPickerStateColumnWidth +
 		terminalPickerColumnGapWidth +
 		terminalPickerSizeColumnWidth +
+		terminalPickerColumnGapWidth +
+		terminalPickerLastColumnWidth +
 		terminalPickerColumnGapWidth +
 		terminalPickerActionColumnWidth
 )
@@ -593,6 +597,10 @@ func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
 	if sizeText == "" {
 		sizeText = "-"
 	}
+	activityLabel := TerminalOutputActivityLabel(row.LastOutputAt, time.Now())
+	if activityLabel == "" {
+		activityLabel = "-"
+	}
 	endpointLabel := terminalPickerEndpointLabel(row)
 	cells := []Cell{
 		styledCell(marker, markerStyle),
@@ -606,6 +614,8 @@ func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
 	cells = append(cells, terminalPickerColumnCells(stateText, query, terminalPoolStateStyle(stateText), terminalPickerStateColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells(sizeText, query, textStyle, terminalPickerSizeColumnWidth)...)
+	cells = append(cells, pickerSpace("  "))
+	cells = append(cells, terminalPickerColumnCells(activityLabel, query, TerminalOutputActivityStyle(activityLabel), terminalPickerLastColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells("Attach", query, StylePickerMuted, terminalPickerActionColumnWidth)...)
 	return Line{Cells: cells}
@@ -816,7 +826,7 @@ func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int) []
 		}
 		regions = append(regions, HitRegion{
 			Kind:       HitRegionContentAction,
-			Rect:       Rect{Y: rowOffset + index, W: 72, H: 1},
+			Rect:       Rect{Y: rowOffset + index, W: terminalPickerHitRegionWidth, H: 1},
 			PaneID:     row.PaneID,
 			Row:        index,
 			HasRow:     true,

@@ -224,11 +224,13 @@ export type { CoreV2HistorySource } from './terminal/coreV2HistorySource'
 export {
   DEFAULT_TERMINAL_SETTINGS,
   TERMINAL_FONT_OPTIONS,
+  TERMINAL_SCROLL_INERTIA_OPTIONS,
   TERMINAL_SETTINGS_STORAGE_KEY,
   TERMINAL_THEME_OPTIONS,
   ANYTTY_DARK_TERMINAL_THEME,
   normalizeTerminalSettings,
   readTerminalSettings,
+  resolveTerminalMomentumProfile,
   resolveTerminalThemeOption,
   resolveTerminalTheme,
   resolveTerminalThemeUi,
@@ -238,6 +240,8 @@ export {
 export type {
   TerminalFontOption,
   TerminalKeyboardMode,
+  TerminalMomentumProfile,
+  TerminalScrollInertia,
   TerminalSettings,
   TerminalThemeId,
   TerminalThemeOption,

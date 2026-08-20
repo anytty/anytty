@@ -22,4 +22,9 @@ describe('terminal runtime boundary', () => {
   it('does not reconnect a channel after the terminal process has exited', () => {
     expect(shouldRecoverTerminalChannel({ isAlive: () => true }, 'terminal data channel closed: terminal exited')).toBe(false)
   })
+
+  it('recovers a live channel from generic transport failures', () => {
+    expect(shouldRecoverTerminalChannel({ isAlive: () => true }, 'client session is unavailable')).toBe(true)
+    expect(shouldRecoverTerminalChannel({ isAlive: () => true }, 'transport connection was interrupted')).toBe(true)
+  })
 })

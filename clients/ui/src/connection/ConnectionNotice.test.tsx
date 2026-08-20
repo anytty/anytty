@@ -99,7 +99,7 @@ describe('ConnectionNotice', () => {
     expect(retry.querySelector('svg')).toBeTruthy()
   })
 
-  it('keeps the connection icon still and spins only a separate progress ring', () => {
+  it('spins the connection icon while busy without a second progress ring', () => {
     render(
       <ConnectionNotice
         presentation={presentation({ state: 'connecting', tone: 'info' })}
@@ -108,10 +108,9 @@ describe('ConnectionNotice', () => {
     )
 
     const notice = screen.getByRole('status')
-    const spinner = notice.querySelector('[data-connection-spinner="true"]')
-    expect(spinner?.classList.contains('animate-spin')).toBe(true)
+    expect(notice.querySelector('[data-connection-spinner="true"]')).toBeNull()
     const icons = notice.querySelectorAll('svg')
-    expect(icons[0]?.classList.contains('animate-spin')).toBe(false)
+    expect(icons[0]?.classList.contains('animate-spin')).toBe(true)
   })
 })
 

@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/anytty/anytty/tui/state"
 )
@@ -402,6 +403,7 @@ const (
 	terminalManagerCPUColumnWidth    = 6
 	terminalManagerMemoryColumnWidth = 6
 	terminalManagerViewsColumnWidth  = 3
+	terminalManagerLastColumnWidth   = 5
 	terminalManagerColumnGapWidth    = 1
 	terminalManagerTrailingWidth     = 1
 )
@@ -416,6 +418,8 @@ func terminalManagerListHeaderLine(width int) Line {
 		styledCell(terminalManagerPadLeft("MEM", terminalManagerMemoryColumnWidth), StyleMuted),
 		NewCell(" "),
 		styledCell(terminalManagerPadLeft("V", terminalManagerViewsColumnWidth), StyleMuted),
+		NewCell(" "),
+		styledCell(terminalManagerPadLeft("LAST", terminalManagerLastColumnWidth), StyleMuted),
 		NewCell(" "),
 	}}
 }
@@ -442,6 +446,10 @@ func terminalManagerRowLine(row state.TerminalPoolPageItem, width int) Line {
 		cpu = terminalPoolCPUPercentShortLabel(row.Resources.CPUPercentX100)
 		memory = terminalPoolMemoryShortLabel(row.Resources.MemoryBytes)
 	}
+	activityLabel := TerminalOutputActivityLabel(row.LastOutputAt, time.Now())
+	if activityLabel == "" {
+		activityLabel = "-"
+	}
 	cells := fitContentLine(title, terminalManagerTitleColumnWidth(width), StyleForeground).Cells
 	cells = append(cells,
 		NewCell(" "),
@@ -451,13 +459,15 @@ func terminalManagerRowLine(row state.TerminalPoolPageItem, width int) Line {
 		NewCell(" "),
 		styledCell(terminalManagerPadLeft(terminalPoolAttachmentValue(row), terminalManagerViewsColumnWidth), StyleAccent),
 		NewCell(" "),
+		styledCell(terminalManagerPadLeft(activityLabel, terminalManagerLastColumnWidth), TerminalOutputActivityStyle(activityLabel)),
+		NewCell(" "),
 	)
 	return Line{Cells: cells}
 }
 
 func terminalManagerTitleColumnWidth(width int) int {
-	fixed := terminalManagerCPUColumnWidth + terminalManagerMemoryColumnWidth + terminalManagerViewsColumnWidth +
-		3*terminalManagerColumnGapWidth + terminalManagerTrailingWidth
+	fixed := terminalManagerCPUColumnWidth + terminalManagerMemoryColumnWidth + terminalManagerViewsColumnWidth + terminalManagerLastColumnWidth +
+		4*terminalManagerColumnGapWidth + terminalManagerTrailingWidth
 	return maxInt(1, width-fixed)
 }
 

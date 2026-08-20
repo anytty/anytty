@@ -25,7 +25,7 @@ describe('ConnectionSummary', () => {
     expect(summary.querySelector('svg')).toBeTruthy()
   })
 
-  it('announces an explicitly live status and respects reduced-motion for progress', () => {
+  it('announces an explicitly live status and spins the progress icon', () => {
     render(
       <ConnectionSummary
         announce
@@ -40,7 +40,7 @@ describe('ConnectionSummary', () => {
     expect(summary.querySelector('svg')?.classList.contains('motion-reduce:animate-none')).toBe(true)
   })
 
-  it('breathes a semantic route icon without adding a secondary spinner', () => {
+  it('breathes a semantic route icon while checking without adding a secondary spinner', () => {
     render(
       <ConnectionSummary
         icon={Cloud}

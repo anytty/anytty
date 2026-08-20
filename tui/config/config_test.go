@@ -744,6 +744,29 @@ func TestShortcutValidationUsesDomainScenesParametersAndCanonicalKeys(t *testing
 	}
 }
 
+func TestParseShortcutKeyOrderPreservesFileOrder(t *testing.T) {
+	parsed, err := Parse([]byte(`tui:
+  shortcuts:
+    global:
+      "ctrl-g": menu.system
+      "ctrl-p": menu.panel
+      "ctrl-alt+[1...2]": tab.jump.{key}
+`))
+	if err != nil {
+		t.Fatalf("parse ordered shortcuts: %v", err)
+	}
+	want := []string{"ctrl-g", "ctrl-p", "ctrl-alt-1", "ctrl-alt-2"}
+	got := parsed.Shortcuts.Scenes["global"].KeyOrder
+	if len(got) != len(want) {
+		t.Fatalf("shortcut key order mismatch: got=%v want=%v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("shortcut key order mismatch: got=%v want=%v", got, want)
+		}
+	}
+}
+
 func TestDefaultPathUsesXDGConfigHome(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)

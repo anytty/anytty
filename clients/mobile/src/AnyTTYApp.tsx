@@ -92,10 +92,6 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
   const networkRuntime = useMemo(() => createNativeNetworkRuntime(), [])
   const endpointRegistry = useMemo(() => new NativeEndpointRegistryProjection(), [])
   const nativeAppRuntime = useMemo(() => createNativeAppRuntime(endpointRegistry), [endpointRegistry])
-  useNativeNetworkSessionRecovery(
-    nativeAppRuntime.networkChanged,
-    nativeAppRuntime.initializeNetworkState,
-  )
   useNativeDisconnectAll(nativeAppRuntime.disconnectAll)
   const [registryReady, setRegistryReady] = useState(false)
   const [registryError, setRegistryError] = useState<string | null>(null)
@@ -119,11 +115,13 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
     }
   }, [endpointRegistry, networkRuntime])
   useEffect(() => { void refreshRegistry().catch(() => undefined) }, [refreshRegistry])
-  const nativeConnectionRecovery = useAppResumeSync(
+  const nativeConnectionRecovery = useNativeNetworkRecovery(
     refreshRegistry,
     nativeAppRuntime.resetGeneration,
     nativeAppRuntime.foregroundResume,
     nativeAppRuntime.resumeInterruptedTransfers,
+    nativeAppRuntime.networkChanged,
+    nativeAppRuntime.initializeNetworkState,
   )
   const externalPairingAdapter = useMemo(
     () => createNativeExternalPairingAdapter(endpointRegistry),
@@ -182,7 +180,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
         globalFileTransfer={globalFileTransfer}
         machineRuntimeFactory={machineRuntimeFactory}
         networkRuntime={networkRuntime}
-        nativeNetworkStatusPlugin={Network}
+        phoneOnline={nativeConnectionRecovery.phoneOnline}
         locallyDiscoveredMachineIds={localDiscovery.discoveredMachineIds}
         locallyDiscoveringMachineIds={localDiscovery.checkingMachineIds}
         cloudPresenceByMachineId={cloudPresenceByMachineId}
@@ -576,19 +574,26 @@ function replaceNativeGeneration(
 }
 
 /** Keep the native generation across backgrounding; replace only a bridge that actually failed. */
-function useAppResumeSync(
+function useNativeNetworkRecovery(
   refreshRegistry: (client?: GoBindingClient) => Promise<void>,
   resetRuntime: () => Promise<void>,
-  foregroundResume: () => Promise<void>,
+  foregroundResume: (options?: { forceReconnect?: boolean }) => Promise<void>,
   resumeInterruptedTransfers: () => void,
+  networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>,
+  initializeNetworkState: (connected: boolean) => Promise<void>,
 ): {
+  phoneOnline: boolean
   connectionReady: boolean
   connectionRecoveryFailed: boolean
   retryConnectionRecovery: () => Promise<void>
 } {
+  const [phoneOnline, setPhoneOnline] = useState(true)
   const [status, setStatus] = useState<'ready' | 'restoring' | 'failed'>('ready')
   const [recoveryFence] = useState(() => new NativeGenerationRecoveryFence())
   const [recoveryCoordinator] = useState(() => new NativeRecoveryCoordinator())
+  const lastBackgroundAtRef = useRef<number | null>(null)
+  const lastHeartbeatRef = useRef(Date.now())
+  const forceReconnectRef = useRef(false)
   const executeRecovery = useCallback(async ({ attempt, replaceBinding, reloadRegistry }: NativeRecoveryWork) => {
     if (!recoveryFence.isCurrent(attempt)) return
     markNativeBackground()
@@ -610,7 +615,10 @@ function useAppResumeSync(
         }
       }
       if (!recoveryFence.isCurrent(attempt)) return
-      await foregroundResume()
+      const forceReconnect = forceReconnectRef.current
+      forceReconnectRef.current = false
+      lastHeartbeatRef.current = Date.now()
+      await foregroundResume(forceReconnect ? { forceReconnect: true } : undefined)
       if (!recoveryFence.isCurrent(attempt)) return
       resumeInterruptedTransfers()
       setStatus('ready')
@@ -625,7 +633,7 @@ function useAppResumeSync(
     }
   }, [foregroundResume, recoveryFence, refreshRegistry, resetRuntime, resumeInterruptedTransfers])
   const runRecovery = useCallback((replaceBinding: boolean, reloadRegistry: boolean) => {
-    if (replaceBinding) setStatus('restoring')
+    setStatus('restoring')
     return recoveryCoordinator.request({ replaceBinding, reloadRegistry }, {
       beginAttempt: () => recoveryFence.beginAttempt(),
       isCurrent: (attempt) => recoveryFence.isCurrent(attempt),
@@ -640,10 +648,14 @@ function useAppResumeSync(
   useEffect(() => {
     const promise = CapApp.addListener('appStateChange', (state) => {
       if (!state.isActive) {
+        lastBackgroundAtRef.current = Date.now()
         recoveryFence.invalidate()
         markNativeBackground()
         return
       }
+      const backgroundMs = lastBackgroundAtRef.current === null ? 0 : Date.now() - lastBackgroundAtRef.current
+      lastBackgroundAtRef.current = null
+      forceReconnectRef.current = backgroundMs >= 5_000
       void runRecovery(false, true).catch(() => undefined)
     })
     const handleBindingClosed = () => { void runRecovery(true, false).catch(() => undefined) }
@@ -654,7 +666,82 @@ function useAppResumeSync(
     }
   }, [recoveryFence, runRecovery])
 
+  useEffect(() => {
+    let latestEpoch = 0
+    let cancelled = false
+    let receivedNativeEvent = false
+    const applyNetworkEvent = (event: NativeNetworkChangedEvent) => {
+      if (!Number.isSafeInteger(event.epoch) || event.epoch <= latestEpoch) return
+      latestEpoch = event.epoch
+      receivedNativeEvent = true
+      setPhoneOnline(event.connected)
+      void networkChanged(event.connected, event.reason).catch(() => undefined)
+    }
+    const synchronizeNetworkSnapshot = async (initialize: boolean) => {
+      try {
+        const snapshot = await NativeConnection.getNetworkSnapshot()
+        if (cancelled) return
+        if (snapshot.epoch > latestEpoch) {
+          applyNetworkEvent(snapshot)
+        } else if (initialize && !receivedNativeEvent) {
+          const status = await Network.getStatus()
+          if (!cancelled && !receivedNativeEvent) {
+            setPhoneOnline(status.connected)
+            await initializeNetworkState(status.connected)
+          }
+        }
+      } catch {
+        if (!initialize || cancelled || receivedNativeEvent) return
+        const status = await Network.getStatus()
+        if (!cancelled && !receivedNativeEvent) {
+          setPhoneOnline(status.connected)
+          await initializeNetworkState(status.connected)
+        }
+      }
+    }
+    const listener = NativeConnection.addListener('networkChanged', applyNetworkEvent)
+    void listener.then(() => synchronizeNetworkSnapshot(true)).catch(() => undefined)
+    const recoverAfterFreeze = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      const heartbeatGap = now - lastHeartbeatRef.current
+      const backgroundMs = lastBackgroundAtRef.current === null ? 0 : now - lastBackgroundAtRef.current
+      lastBackgroundAtRef.current = null
+      forceReconnectRef.current = backgroundMs >= 5_000 || heartbeatGap >= 3_000
+      lastHeartbeatRef.current = now
+      void runRecovery(false, true).catch(() => undefined)
+      void synchronizeNetworkSnapshot(false)
+    }
+    const synchronizeVisiblePage = () => {
+      if (document.visibilityState === 'hidden') {
+        lastBackgroundAtRef.current = Date.now()
+        recoveryFence.invalidate()
+        markNativeBackground()
+        return
+      }
+      recoverAfterFreeze()
+    }
+    document.addEventListener('visibilitychange', synchronizeVisiblePage)
+    const stallDetector = globalThis.setInterval(() => {
+      const now = Date.now()
+      const heartbeatGap = now - lastHeartbeatRef.current
+      lastHeartbeatRef.current = now
+      if (heartbeatGap >= 2_500 && document.visibilityState === 'visible') {
+        forceReconnectRef.current = true
+        void runRecovery(false, true).catch(() => undefined)
+        void synchronizeNetworkSnapshot(false)
+      }
+    }, 1_000)
+    return () => {
+      cancelled = true
+      globalThis.clearInterval(stallDetector)
+      document.removeEventListener('visibilitychange', synchronizeVisiblePage)
+      void listener.then((subscription) => subscription.remove())
+    }
+  }, [initializeNetworkState, networkChanged, recoveryFence, runRecovery])
+
   return {
+    phoneOnline,
     connectionReady: status === 'ready',
     connectionRecoveryFailed: status === 'failed',
     retryConnectionRecovery,
@@ -680,7 +767,9 @@ const nativeFetch: RemoteRuntimeFetch = async (input, init = {}) => {
   const method = init.method ?? 'GET'
   const headers = headersRecord(init.headers)
   const data = requestData(init.body)
-  const response = await CapacitorHttp.request({
+  const signal = init.signal
+  if (signal?.aborted) throw abortError(signal)
+  const responsePromise = CapacitorHttp.request({
     url,
     method,
     headers,
@@ -689,10 +778,29 @@ const nativeFetch: RemoteRuntimeFetch = async (input, init = {}) => {
     connectTimeout: nativeHttpConnectTimeoutMs,
     readTimeout: nativeHttpReadTimeoutMs,
   })
-
-  return new Response(responseText(response.data), {
-    status: response.status,
-    headers: response.headers,
+  if (!signal) {
+    const response = await responsePromise
+    return new Response(responseText(response.data), {
+      status: response.status,
+      headers: response.headers,
+    })
+  }
+  return await new Promise<Response>((resolve, reject) => {
+    const abort = () => reject(abortError(signal))
+    signal.addEventListener('abort', abort, { once: true })
+    void responsePromise.then(
+      (response) => {
+        signal.removeEventListener('abort', abort)
+        resolve(new Response(responseText(response.data), {
+          status: response.status,
+          headers: response.headers,
+        }))
+      },
+      (error) => {
+        signal.removeEventListener('abort', abort)
+        reject(error)
+      },
+    )
   })
 }
 
@@ -714,7 +822,7 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
   fileTransfer: FileTransferContext
   discardLocalState: () => Promise<void>
   resetGeneration: () => Promise<void>
-  foregroundResume: () => Promise<void>
+  foregroundResume: (options?: { forceReconnect?: boolean }) => Promise<void>
   initializeNetworkState: (connected: boolean) => Promise<void>
   networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>
   disconnectAll: () => Promise<void>
@@ -744,7 +852,11 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
         await entry.connector.release?.(entry.manager.machineID())
       }))
     },
-    async foregroundResume() {
+    async foregroundResume(options) {
+      if (options?.forceReconnect) {
+        await Promise.allSettled([...sessionManagers.values()].map((entry) => entry.manager.networkChanged(true, 'network_replaced')))
+        return
+      }
       await Promise.allSettled([...sessionManagers.values()].map((entry) => entry.manager.foregroundResume()))
     },
     async initializeNetworkState(connected) {
@@ -778,60 +890,6 @@ function useNativeDisconnectAll(disconnectAll: () => Promise<void>): void {
     })
     return () => { void listener.then((subscription) => subscription.remove()) }
   }, [disconnectAll])
-}
-
-function useNativeNetworkSessionRecovery(
-  networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>,
-  initializeNetworkState: (connected: boolean) => Promise<void>,
-): void {
-  useEffect(() => {
-    let latestEpoch = 0
-    let cancelled = false
-    let receivedNativeEvent = false
-    let lastTimerTick = Date.now()
-    const applyNetworkEvent = (event: NativeNetworkChangedEvent) => {
-      if (!Number.isSafeInteger(event.epoch) || event.epoch <= latestEpoch) return
-      latestEpoch = event.epoch
-      receivedNativeEvent = true
-      void networkChanged(event.connected, event.reason).catch(() => undefined)
-    }
-    const synchronizeNetworkSnapshot = async (initialize: boolean) => {
-      try {
-        const snapshot = await NativeConnection.getNetworkSnapshot()
-        if (cancelled) return
-        if (snapshot.epoch > latestEpoch) {
-          applyNetworkEvent(snapshot)
-        } else if (initialize && !receivedNativeEvent) {
-          const status = await Network.getStatus()
-          if (!cancelled && !receivedNativeEvent) await initializeNetworkState(status.connected)
-        }
-      } catch {
-        if (!initialize || cancelled || receivedNativeEvent) return
-        const status = await Network.getStatus()
-        if (!cancelled && !receivedNativeEvent) await initializeNetworkState(status.connected)
-      }
-    }
-    const listener = NativeConnection.addListener('networkChanged', applyNetworkEvent)
-    void listener.then(() => synchronizeNetworkSnapshot(true)).catch(() => undefined)
-    const synchronizeVisiblePage = () => {
-      if (document.visibilityState === 'visible') void synchronizeNetworkSnapshot(false)
-    }
-    document.addEventListener('visibilitychange', synchronizeVisiblePage)
-    const stallDetector = globalThis.setInterval(() => {
-      const now = Date.now()
-      const elapsed = now - lastTimerTick
-      lastTimerTick = now
-      if (elapsed >= 2_500 && document.visibilityState === 'visible') {
-        void synchronizeNetworkSnapshot(false)
-      }
-    }, 1_000)
-    return () => {
-      cancelled = true
-      globalThis.clearInterval(stallDetector)
-      document.removeEventListener('visibilitychange', synchronizeVisiblePage)
-      void listener.then((subscription) => subscription.remove())
-    }
-  }, [initializeNetworkState, networkChanged])
 }
 
 function createNativeMachineRuntime(

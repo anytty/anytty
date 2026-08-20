@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TerminalList, terminalOutputActivityLabel, terminalProgramPresentation, type TerminalListProps } from './TerminalList'
+import { TerminalList, terminalOutputActivityLabel, terminalOutputActivityTone, terminalProgramPresentation, type TerminalListProps } from './TerminalList'
 import type { Terminal } from '../core/model'
 import type { TFunction } from 'i18next'
 
@@ -91,7 +91,7 @@ describe('TerminalList', () => {
     expect(screen.queryByText('132 × 43')).toBeNull()
     expect(screen.getByText('Running')).toBeTruthy()
     expect(screen.getByText('Codex')).toBeTruthy()
-    expect(screen.getByText(/Quiet for 12s/)).toBeTruthy()
+    expect(screen.getByText('12s')).toBeTruthy()
     expect(screen.getByText('stopped worker')).toBeTruthy()
     expect(screen.getByText('Exited')).toBeTruthy()
     expect(screen.getByTestId('anytty-terminal-list').textContent).not.toMatch(/workspace|tab|window|pane|session/i)
@@ -118,6 +118,12 @@ describe('TerminalList', () => {
     const translate = ((key: string, options?: Record<string, unknown>) => `${key}:${String(options?.count ?? '')}`) as TFunction
     expect(terminalOutputActivityLabel('2026-08-13T00:00:00Z', Date.parse('2026-08-13T00:00:43Z'), translate)).toBe('terminal.outputActivity.seconds:43')
     expect(terminalOutputActivityLabel('2026-08-13T00:00:00Z', Date.parse('2026-08-13T00:02:10Z'), translate)).toBe('terminal.outputActivity.minutes:2')
+    expect(terminalOutputActivityLabel('2026-08-13T00:00:00Z', Date.parse('2026-08-13T03:00:00Z'), translate)).toBe('terminal.outputActivity.hours:3')
+    expect(terminalOutputActivityTone('2026-08-13T00:00:00Z', Date.parse('2026-08-13T00:00:02Z'))).toBe('fresh')
+    expect(terminalOutputActivityTone('2026-08-13T00:00:00Z', Date.parse('2026-08-13T00:00:43Z'))).toBe('recent')
+    expect(terminalOutputActivityTone('2026-08-13T00:00:00Z', Date.parse('2026-08-13T00:30:00Z'))).toBe('idle')
+    expect(terminalOutputActivityTone('2026-08-13T00:00:00Z', Date.parse('2026-08-13T03:00:00Z'))).toBe('stale')
+    expect(terminalOutputActivityTone(undefined, Date.now())).toBe('none')
   })
 
   it('shows an empty state without mentioning sessions, windows, panes, tabs, or workspaces', () => {

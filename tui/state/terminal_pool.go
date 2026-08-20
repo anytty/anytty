@@ -49,6 +49,7 @@ type TerminalPoolItem struct {
 	Tags            map[string]string
 	ExitCode        *int
 	ExitedAt        time.Time
+	LastOutputAt    time.Time
 	Cols            int
 	Rows            int
 	AttachmentCount int

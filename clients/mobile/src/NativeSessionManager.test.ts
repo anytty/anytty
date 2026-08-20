@@ -299,6 +299,25 @@ describe('NativeSessionManager', () => {
     await manager.reset()
   })
 
+  it('publishes a reconnecting state before replacing a session on network replacement', async () => {
+    const first = fakeSession()
+    const second = fakeSession(2n)
+    const connect = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
+    const manager = new NativeSessionManager('daemon-a', { connect })
+
+    await manager.get()
+    const phases: string[] = []
+    manager.connectionState.subscribe(() => phases.push(manager.connectionState.getSnapshot().phase))
+    await manager.networkChanged(true, 'network_replaced')
+
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(phases).toContain('reconnecting')
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    await manager.reset()
+  })
+
   it('keeps the same generation when a changed network still carries the application session', async () => {
     const session = fakeSession()
     const verify = vi.fn(async () => {})
@@ -306,11 +325,14 @@ describe('NativeSessionManager', () => {
     const manager = new NativeSessionManager('daemon-a', { connect, verify })
 
     await manager.get()
+    const phases: string[] = []
+    manager.connectionState.subscribe(() => phases.push(manager.connectionState.getSnapshot().phase))
     await manager.networkChanged(true, 'path_changed')
 
     expect(verify).toHaveBeenCalledWith(session, expect.any(AbortSignal))
     expect(connect).toHaveBeenCalledOnce()
     expect(session.invalidate).not.toHaveBeenCalled()
+    expect(phases).toContain('verifying')
     expect(manager.connectionState.getSnapshot()).toMatchObject({
       phase: 'connected',
       connectionInfo: { generation: 1n },

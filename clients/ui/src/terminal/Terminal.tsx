@@ -19,7 +19,7 @@ import { appendTerminalText } from './terminalTextWindow'
 import { useTerminalSession } from './useTerminalSession'
 import type { ProtoClientSession } from '../core/protoClientSession'
 import type { Terminal as RemoteTerminal } from '../core/model'
-import { DEFAULT_TERMINAL_SETTINGS, resolveTerminalTheme, type TerminalSettings } from './terminalSettings'
+import { DEFAULT_TERMINAL_SETTINGS, resolveTerminalMomentumProfile, resolveTerminalTheme, type TerminalSettings } from './terminalSettings'
 import { useTranslation } from 'react-i18next'
 import '../i18n'
 import { Button } from '../ui/button'
@@ -1289,6 +1289,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     let lastTouchTime = 0
     let momentumFrame = 0
     let smoothActive = false
+    let pendingScrollPx = 0
+    let scrollFrame = 0
+    const cancelScrollFrame = () => {
+      if (!scrollFrame) return
+      window.cancelAnimationFrame(scrollFrame)
+      scrollFrame = 0
+    }
     let totalPxOffset = 0
     let baseViewportY = 0
     let renderedViewportY = 0
@@ -1352,6 +1359,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     }
 
     const clearMomentum = () => {
+      cancelScrollFrame()
       if (!momentumFrame) return
       window.cancelAnimationFrame(momentumFrame)
       momentumFrame = 0
@@ -1854,6 +1862,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       return clamped || resumedLive
     }
 
+    const flushScrollFrame = () => {
+      if (scrollFrame) {
+        window.cancelAnimationFrame(scrollFrame)
+        scrollFrame = 0
+      }
+      if (pendingScrollPx === 0) return
+      if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) {
+        pendingScrollPx = 0
+        return
+      }
+      const px = pendingScrollPx
+      pendingScrollPx = 0
+      scrollPixels(px)
+    }
+
+    const queueScrollPixels = (px: number) => {
+      pendingScrollPx += px
+      if (scrollFrame) return
+      scrollFrame = window.requestAnimationFrame(() => {
+        scrollFrame = 0
+        if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) return
+        if (pendingScrollPx === 0) return
+        const queued = pendingScrollPx
+        pendingScrollPx = 0
+        scrollPixels(queued)
+      })
+    }
+
     const sendScrollInput = (down: boolean) => {
       if (isMouseModeActive()) {
         if (!screenElement) return
@@ -2189,7 +2225,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           lastTouchTime = now
           touchLastY = y
           smoothBegin()
-          scrollPixels(dy)
+          queueScrollPixels(dy)
           return
         }
         return
@@ -2232,10 +2268,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       }
 
       smoothBegin()
-      scrollPixels(dy)
+      queueScrollPixels(dy)
     }
 
     const handleTouchEnd = () => {
+      flushScrollFrame()
       if (selectionModeRef.current) {
         if (selectionTouchActive) {
           selectionTouchActive = false
@@ -2252,7 +2289,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         touchLastY = Number.NaN
         return
       }
-      if (!touchMoved && Date.now() - touchStartTime < 500) {
+      const touchEndNow = Date.now()
+      const gestureDt = Math.max(1, touchEndNow - touchStartTime)
+      const gestureVelocity = Number.isFinite(touchLastY)
+        ? ((touchStartY - touchLastY) / gestureDt) * 1000
+        : 0
+      if (Number.isFinite(gestureVelocity) && Math.abs(gestureVelocity) > Math.abs(velocityY)) {
+        velocityY = gestureVelocity
+      }
+      if (!touchMoved && touchEndNow - touchStartTime < 500) {
         if (isMouseModeActive() && screenElement) {
           const mouseOptions: MouseEventInit = {
             bubbles: true,
@@ -2271,14 +2316,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         }
         velocityY = 0
         smoothEnd()
-      } else if (!prefersReducedTerminalMotion() && Math.abs(velocityY) > 80) {
-        if (Date.now() - lastTouchTime > 80) {
+      } else if (!prefersReducedTerminalMotion() && resolveTerminalMomentumProfile(settingsRef.current.scrollInertia).enabled && Math.abs(velocityY) > 60) {
+        if (touchEndNow - lastTouchTime > 80) {
           velocityY = 0
           smoothEnd()
         } else {
+          const momentumProfile = resolveTerminalMomentumProfile(settingsRef.current.scrollInertia)
           let lastFrameTime = performance.now()
-          const deceleration = 0.97
-          const minimumVelocity = 80
+          const deceleration = momentumProfile.deceleration
+          const minimumVelocity = momentumProfile.minimumVelocity
           const step = (now: number) => {
             if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) {
               momentumFrame = 0

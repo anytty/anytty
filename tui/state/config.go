@@ -223,6 +223,7 @@ type TUIShortcutActionConfig struct {
 // 未修饰 Esc 是运行时保留的全局返回键，不属于任何 scene，也不能在这里覆盖。
 type TUIShortcutSceneConfig struct {
 	Bindings map[string]TUIShortcutBindingConfig
+	KeyOrder []string
 }
 
 // TUIShortcutBindingConfig 描述一个按键到 action 的绑定。

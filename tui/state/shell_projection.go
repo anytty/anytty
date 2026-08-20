@@ -19,15 +19,16 @@ func TerminalPickerItems(root Root) []TerminalPickerItem {
 		}
 		active := terminalPickerPoolItemActive(root, poolItem)
 		item := TerminalPickerItem{
-			EndpointID: poolItem.EndpointID,
-			Title:      terminalPoolTitle(poolItem),
-			Kind:       PaneTerminalLive,
-			TerminalID: poolItem.TerminalID,
-			Active:     active,
-			FromPool:   true,
-			PoolState:  terminalPickerPoolState(poolItem, active),
-			Cols:       poolItem.Cols,
-			Rows:       poolItem.Rows,
+			EndpointID:   poolItem.EndpointID,
+			Title:        terminalPoolTitle(poolItem),
+			Kind:         PaneTerminalLive,
+			TerminalID:   poolItem.TerminalID,
+			Active:       active,
+			FromPool:     true,
+			PoolState:    terminalPickerPoolState(poolItem, active),
+			Cols:         poolItem.Cols,
+			Rows:         poolItem.Rows,
+			LastOutputAt: poolItem.LastOutputAt,
 		}
 		item = terminalPickerItemWithEndpoint(root, item)
 		if !matchesTerminalPickerQuery(item, query) {
@@ -95,6 +96,7 @@ func TerminalPoolPageItems(root Root) []TerminalPoolPageItem {
 			Tags:            cloneStringMap(poolItem.Tags),
 			ExitCode:        cloneIntPointer(poolItem.ExitCode),
 			ExitedAt:        poolItem.ExitedAt,
+			LastOutputAt:    poolItem.LastOutputAt,
 			Cols:            poolItem.Cols,
 			Rows:            poolItem.Rows,
 			AttachmentCount: attachmentCount,

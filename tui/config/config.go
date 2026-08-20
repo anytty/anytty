@@ -403,6 +403,11 @@ func knownShortcutDynamicSection(path string) bool {
 	if scene == "actions" || !builtinShortcutScene(scene) {
 		return false
 	}
+	for _, suffix := range []string{".action", ".label", ".show"} {
+		if base, ok := strings.CutSuffix(key, suffix); ok {
+			return validShortcutKeyExpression(base)
+		}
+	}
 	return validShortcutKeyExpression(key)
 }
 
@@ -673,6 +678,7 @@ func setShortcutsDynamicScalar(cfg *state.TUIConfigStore, path string, value str
 	if scene.Bindings == nil {
 		scene.Bindings = map[string]state.TUIShortcutBindingConfig{}
 	}
+	scene.KeyOrder = appendShortcutKeyOrder(scene.KeyOrder, expandedKeys)
 	for _, expanded := range expandedKeys {
 		binding := scene.Bindings[expanded]
 		switch field {
@@ -710,6 +716,20 @@ func parseShortcutShow(value string) (bool, error) {
 	default:
 		return false, fmt.Errorf("show expects boolean true or false, got %q", value)
 	}
+}
+
+func appendShortcutKeyOrder(order []string, keys []string) []string {
+	seen := make(map[string]bool, len(order)+len(keys))
+	for _, existing := range order {
+		seen[existing] = true
+	}
+	for _, key := range keys {
+		if !seen[key] {
+			order = append(order, key)
+			seen[key] = true
+		}
+	}
+	return order
 }
 
 func validShortcutKeyExpression(value string) bool {

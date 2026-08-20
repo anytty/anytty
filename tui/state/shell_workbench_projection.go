@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 func WorkbenchTreeItems(root Root) []WorkbenchTreeItem {
@@ -74,6 +75,7 @@ func WorkbenchTreeItems(root Root) []WorkbenchTreeItem {
 					PaneKind:      pane.Kind,
 					EndpointID:    terminalRef.EndpointID,
 					TerminalID:    terminalID,
+					LastOutputAt:  workbenchTerminalLastOutputAt(root.TerminalPool, terminalRef),
 					Depth:         2,
 					Active:        tabActive && pane.ID == shell.ActivePaneID,
 					Summary:       workbenchPaneSummary(pane, terminalID),
@@ -103,6 +105,7 @@ func WorkbenchTreeItems(root Root) []WorkbenchTreeItem {
 					PaneKind:      pane.Kind,
 					EndpointID:    terminalRef.EndpointID,
 					TerminalID:    terminalID,
+					LastOutputAt:  workbenchTerminalLastOutputAt(root.TerminalPool, terminalRef),
 					Depth:         2,
 					Active:        tabActive && floating.Active,
 					Summary:       workbenchFloatingSummary(floating, terminalID),
@@ -172,6 +175,17 @@ func workbenchTerminalTitle(pool TerminalPoolStore, ref TerminalRef) string {
 		return terminalPoolTitle(item)
 	}
 	return ref.TerminalID
+}
+
+func workbenchTerminalLastOutputAt(pool TerminalPoolStore, ref TerminalRef) time.Time {
+	ref = ref.Normalize()
+	for _, item := range pool.Items {
+		if !item.TerminalRef().Equal(ref) {
+			continue
+		}
+		return item.LastOutputAt
+	}
+	return time.Time{}
 }
 
 func workbenchTreeItemWithEndpoint(root Root, item WorkbenchTreeItem) WorkbenchTreeItem {

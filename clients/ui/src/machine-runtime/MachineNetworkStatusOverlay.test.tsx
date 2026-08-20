@@ -24,7 +24,6 @@ describe('MachineNetworkStatusOverlay', () => {
     expect(card.className).toContain('text-[var(--anytty-text)]')
     expect(card.className).toContain('rounded-lg')
     expect(card.className).toContain('shadow-sm')
-    expect(card.textContent).toContain('Connecting to device')
     expect(card.textContent).toContain('Your phone is offline.')
   })
 
@@ -34,7 +33,7 @@ describe('MachineNetworkStatusOverlay', () => {
 
     const overlay = screen.getByTestId('anytty-machine-network-overlay')
     expect(overlay.textContent).toContain('正在连接设备')
-    expect(overlay.textContent).toContain('正在连接设备')
+    expect((overlay.textContent.match(/正在连接设备/g) ?? []).length).toBe(1)
     expect(overlay.textContent).not.toMatch(/JNI|runtime|handle/i)
   })
 })

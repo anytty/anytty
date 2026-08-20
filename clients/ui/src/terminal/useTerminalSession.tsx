@@ -1340,5 +1340,5 @@ function shouldRecoverRecentInput(reason?: string): boolean {
 export function shouldRecoverTerminalChannel(session: Pick<ProtoClientSession, 'isAlive'>, reason?: string): boolean {
   if (!session.isAlive() || !reason) return false
   if (/terminal (?:has )?exited|terminal removed|terminal not found/i.test(reason)) return false
-  return /terminal data channel|terminal channel send failed|terminal protocol .* timed out|native bridge|not open|closed|timed out|send failed|not attached|attachment channel|ensure resize requires attachment/i.test(reason)
+  return /terminal data channel|terminal channel send failed|terminal protocol .* timed out|native bridge|not open|closed|timed out|send failed|not attached|attachment channel|ensure resize requires attachment|unavailable|interrupted|disconnected|stale|client session|transport/i.test(reason)
 }

@@ -1,4 +1,5 @@
 import {
+  BindingOperation,
   ProtoBindingClient,
   ProtoBindingConnector,
   type BindingOperationCode,
@@ -16,10 +17,13 @@ const RESPONSE_HEADER_BYTES = 21
 const BRIDGE_PROTOCOL = 'anytty.binding.v1'
 const MAX_BRIDGE_MESSAGE_BYTES = 4 * 1024 * 1024
 const AUTH_TOKEN_BYTES = 43
+const BRIDGE_OPEN_REQUEST_TIMEOUT_MS = 45_000
+const BRIDGE_REQUEST_TIMEOUT_MS = 15_000
 
 type PendingBridgeRequest = {
   resolve(handle: bigint): void
   reject(error: Error): void
+  timeout: ReturnType<typeof setTimeout>
 }
 
 /** AndroidBindingBackend owns only the authenticated WebView-to-JNI binary bridge. */
@@ -28,6 +32,7 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
   private connectPromise: Promise<void> | null = null
   private nextRequestId = 0n
   private readonly pending = new Map<bigint, PendingBridgeRequest>()
+  private readonly abandoned = new Set<bigint>()
   private onEvent: ((payload: Uint8Array) => void) | null = null
   private onClosed: ((error: Error) => void) | null = null
   private closed = false
@@ -45,13 +50,55 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
     const socket = this.socket
     if (!socket || socket.readyState !== WebSocket.OPEN) throw new Error('Go binding bridge is unavailable')
     const frame = encodeBridgeRequestFrame(operation, requestId, payload, handle)
-    const result = new Promise<bigint>((resolve, reject) => this.pending.set(requestId, { resolve, reject }))
-    try {
-      socket.send(frame)
-    } catch (error) {
-      this.pending.delete(requestId)
-      throw error
-    }
+    const result = new Promise<bigint>((resolve, reject) => {
+      let settled = false
+      let abort: (() => void) | undefined
+      const timeout = globalThis.setTimeout(() => {
+        if (settled) return
+        settled = true
+        if (abort) signal?.removeEventListener('abort', abort)
+        this.pending.delete(requestId)
+        this.abandoned.add(requestId)
+        socket.close()
+        reject(new Error('Go binding bridge request timed out'))
+      }, bridgeRequestTimeoutMs(operation))
+      abort = () => {
+        if (settled) return
+        settled = true
+        globalThis.clearTimeout(timeout)
+        this.pending.delete(requestId)
+        this.abandoned.add(requestId)
+        reject(signal ? abortError(signal) : new DOMException('Aborted', 'AbortError'))
+      }
+      signal?.addEventListener('abort', abort, { once: true })
+      this.pending.set(requestId, {
+        resolve(value) {
+          if (settled) return
+          settled = true
+          globalThis.clearTimeout(timeout)
+          if (abort) signal?.removeEventListener('abort', abort)
+          resolve(value)
+        },
+        reject(error) {
+          if (settled) return
+          settled = true
+          globalThis.clearTimeout(timeout)
+          if (abort) signal?.removeEventListener('abort', abort)
+          reject(error)
+        },
+        timeout,
+      })
+      try {
+        socket.send(frame)
+      } catch (error) {
+        if (settled) return
+        settled = true
+        globalThis.clearTimeout(timeout)
+        if (abort) signal?.removeEventListener('abort', abort)
+        this.pending.delete(requestId)
+        reject(error)
+      }
+    })
     return await result
   }
 
@@ -155,9 +202,20 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
       this.onEvent?.(frame.payload)
       return
     }
+    if (this.abandoned.delete(frame.requestId)) {
+      if (frame.operation === OP_ACCEPTED && socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.send(encodeBridgeRequestFrame(BindingOperation.CANCEL, ++this.nextRequestId, new Uint8Array(), frame.handle))
+        } catch {
+          // The abandoned operation is already rejected; cancellation is best-effort.
+        }
+      }
+      return
+    }
     const pending = this.pending.get(frame.requestId)
     if (!pending) return
     this.pending.delete(frame.requestId)
+    globalThis.clearTimeout(pending.timeout)
     if (frame.operation === OP_ERROR) {
       pending.reject(new Error(new TextDecoder().decode(frame.payload) || 'native binding request failed'))
       return
@@ -176,8 +234,12 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
   }
 
   private rejectAll(error: Error): void {
-    for (const request of this.pending.values()) request.reject(error)
+    for (const request of this.pending.values()) {
+      globalThis.clearTimeout(request.timeout)
+      request.reject(error)
+    }
     this.pending.clear()
+    this.abandoned.clear()
   }
 }
 
@@ -220,6 +282,10 @@ export function decodeBridgeFrame(bytes: Uint8Array): { operation: number; reque
     handle: view.getBigUint64(9),
     payload: bytes.slice(RESPONSE_HEADER_BYTES),
   }
+}
+
+function bridgeRequestTimeoutMs(operation: BindingOperationCode): number {
+  return operation === BindingOperation.OPEN_SESSION ? BRIDGE_OPEN_REQUEST_TIMEOUT_MS : BRIDGE_REQUEST_TIMEOUT_MS
 }
 
 function abortError(signal: AbortSignal): Error {

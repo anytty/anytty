@@ -6,7 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
 func TestCloudStatusDisableEnableOffline(t *testing.T) {
@@ -38,6 +41,25 @@ func TestCloudStatusDisableEnableOffline(t *testing.T) {
 	}
 	if _, err := os.Stat(v3CloudDisabledPath()); !os.IsNotExist(err) {
 		t.Fatalf("disabled marker remains after enable: %v", err)
+	}
+}
+
+func TestWriteCloudEdgeSelectionIncludesScore(t *testing.T) {
+	command := newRootCmd()
+	var output bytes.Buffer
+	command.SetOut(&output)
+	selection := &cloudv1.DaemonEdgeSelection{
+		DaemonId: "daemon-test", SelectedEdgeId: "edge-test",
+		Candidates: []*cloudv1.DaemonEdgeCandidate{{
+			Locator: &cloudv1.EdgeLocator{EdgeId: "edge-test", Name: "CN2", Region: "CN2"},
+			Score:   -123.4, Status: "可用",
+		}},
+	}
+	if err := writeCloudEdgeSelection(command, selection); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "SCORE") || !strings.Contains(output.String(), "-123.4") {
+		t.Fatalf("Edge selection output missing score:\n%s", output.String())
 	}
 }
 

@@ -34,7 +34,7 @@ export function ConnectionSummary({
 }: ConnectionSummaryProps) {
   const Icon = icon ?? connectionPresentationIcon(presentation)
   const busy = connectionPresentationIsBusy(presentation)
-  const keepSemanticIconStill = busy && icon !== undefined
+  const spinBusy = busy && presentation.state === 'connecting'
 
   return (
     <div
@@ -58,10 +58,10 @@ export function ConnectionSummary({
         className={cn(
           'relative grid size-7 shrink-0 place-items-center rounded-md border border-[var(--border)] bg-[var(--muted)]',
           connectionToneIconClass[presentation.tone],
-          keepSemanticIconStill && 'animate-pulse motion-reduce:animate-none',
+          busy && !spinBusy && 'animate-pulse motion-reduce:animate-none',
         )}
       >
-        <Icon className={cn('size-4', busy && !keepSemanticIconStill && 'animate-spin motion-reduce:animate-none')} />
+        <Icon className={cn('size-4', spinBusy && 'animate-spin motion-reduce:animate-none')} />
       </span>
       <span className="min-w-0 truncate font-medium">{label}</span>
       {detail ? (

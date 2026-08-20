@@ -293,9 +293,9 @@ func writeCloudEdgeSelection(cmd *cobra.Command, selection *cloudv1.DaemonEdgeSe
 		if candidate.GetPreferred() {
 			flags += "preferred"
 		}
-		rows = append(rows, []string{locator.GetEdgeId(), locator.GetName(), locator.GetRegion(), latency, failures, candidate.GetStatus(), strings.TrimSpace(flags)})
+		rows = append(rows, []string{locator.GetEdgeId(), locator.GetName(), locator.GetRegion(), latency, failures, fmt.Sprintf("%.1f", candidate.GetScore()), candidate.GetStatus(), strings.TrimSpace(flags)})
 	}
-	return writeCLITable(cmd.OutOrStdout(), []string{"EDGE ID", "NAME", "REGION", "LATENCY", "CONNECT FAIL", "STATUS", "FLAGS"}, rows)
+	return writeCLITable(cmd.OutOrStdout(), []string{"EDGE ID", "NAME", "REGION", "LATENCY", "CONNECT FAIL", "SCORE", "STATUS", "FLAGS"}, rows)
 }
 
 type cloudStatusView struct {
