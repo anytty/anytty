@@ -544,6 +544,42 @@ func TestTerminalPoolCreateRequestRejectsDuplicateNameOnSameEndpoint(t *testing.
 	}
 }
 
+func TestTerminalPoolCreateRequestReusesNameAfterRenameWithFreshStableID(t *testing.T) {
+	terminal := &testkit.FakeTerminalService{CreateResult: port.TerminalCreateResult{State: "running"}}
+	reducer := newTerminalPoolReducerPrepared(LiveDeps{Terminal: terminal})
+	root := state.Root{
+		Shell: state.DefaultShell(),
+		TerminalPool: state.TerminalPoolStore{Items: []state.TerminalPoolItem{
+			{EndpointID: state.DefaultEndpointID, TerminalID: "A", Title: "B"},
+		}},
+		Endpoints: (state.EndpointStore{}).
+			Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "Local", Transport: state.EndpointTransportLocal, ConnectMode: state.EndpointConnectAuto, Enabled: true}).
+			ApplyDefaults(state.DefaultEndpointID, []string{"/bin/sh"}, "/tmp", ""),
+	}
+
+	_, effects := reducer(root, TerminalPoolCreateRequestMsg{Title: "A", TargetPaneID: state.DefaultPaneID})
+	if len(effects) != 1 {
+		t.Fatalf("renamed terminal should release its old display name, effects=%#v", effects)
+	}
+	result, ok := effects[0].(FuncEffect).Run(context.Background()).(TerminalPoolCreateResultMsg)
+	if !ok || result.Err != nil {
+		t.Fatalf("expected successful create result, got %#v", result)
+	}
+	if len(terminal.Creates) != 1 {
+		t.Fatalf("expected one terminal create, got %#v", terminal.Creates)
+	}
+	created := terminal.Creates[0]
+	if created.Title != "A" {
+		t.Fatalf("new terminal should keep the requested display name, got %#v", created)
+	}
+	if created.TerminalID == "A" || created.TerminalID == "" {
+		t.Fatalf("new terminal must avoid the renamed terminal's stable ID, got %#v", created)
+	}
+	if result.RequestedID != created.TerminalID {
+		t.Fatalf("create result should carry the fresh stable ID, result=%#v create=%#v", result, created)
+	}
+}
+
 func TestTerminalPickerGlobalCreateRowOpensPromptWithDraftEndpoint(t *testing.T) {
 	root := state.Root{
 		Shell: state.DefaultShell().OpenTerminalPicker(),

@@ -681,12 +681,12 @@ func reduceTerminalPoolCreateRequest(root state.Root, msg TerminalPoolCreateRequ
 		title = nextTerminalPoolID(root)
 	}
 	endpointID := state.NormalizeEndpointID(msg.EndpointID)
-	terminalID := terminalCreateIDFromName(title)
 	if terminalNameExists(root, endpointID, title) {
 		err := fmt.Sprintf("terminal name %q already exists on endpoint %q", title, endpointID)
 		root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "picker.new", Body: err})
 		return root.Advance(), nil
 	}
+	terminalID := terminalCreateID(root, endpointID, title)
 	command := append([]string(nil), msg.Command...)
 	if len(command) == 0 {
 		// 中文说明：create request 的默认 command 属于目标 endpoint 语义；
@@ -719,8 +719,14 @@ func reduceTerminalPoolCreateRequest(root state.Root, msg TerminalPoolCreateRequ
 	}}
 }
 
-func terminalCreateIDFromName(name string) string {
-	return strings.TrimSpace(name)
+func terminalCreateID(root state.Root, endpointID state.EndpointID, name string) string {
+	id := strings.TrimSpace(name)
+	if !terminalIDExists(root, endpointID, id) {
+		return id
+	}
+	// Rename keeps a terminal's stable ID. If that ID still occupies the newly
+	// available display name, create the new terminal with an opaque stable ID.
+	return nextTerminalPoolID(root)
 }
 
 func terminalNameExists(root state.Root, endpointID state.EndpointID, name string) bool {
@@ -733,19 +739,24 @@ func terminalNameExists(root state.Root, endpointID state.EndpointID, name strin
 		if item.TerminalRef().EndpointID != endpointID {
 			continue
 		}
-		if strings.TrimSpace(item.Title) == name || strings.TrimSpace(item.TerminalID) == name {
-			return true
-		}
-	}
-	if root.Session.TerminalRef().Equal(state.NewTerminalRef(endpointID, name)) {
-		return true
-	}
-	for _, binding := range root.TerminalViews.BindingsForTerminalRef(state.NewTerminalRef(endpointID, name)) {
-		if strings.TrimSpace(binding.TerminalID) == name {
+		if strings.TrimSpace(item.Title) == name {
 			return true
 		}
 	}
 	return false
+}
+
+func terminalIDExists(root state.Root, endpointID state.EndpointID, terminalID string) bool {
+	ref := state.NewTerminalRef(endpointID, terminalID)
+	for _, item := range root.TerminalPool.Items {
+		if item.TerminalRef().Equal(ref) {
+			return true
+		}
+	}
+	if root.Session.TerminalRef().Equal(ref) {
+		return true
+	}
+	return len(root.TerminalViews.BindingsForTerminalRef(ref)) > 0
 }
 
 func reduceTerminalPoolCreateResult(root state.Root, msg TerminalPoolCreateResultMsg) (state.Root, []Effect) {
