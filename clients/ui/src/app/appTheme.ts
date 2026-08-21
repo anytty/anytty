@@ -63,6 +63,7 @@ const APP_THEME_CSS_VARIABLES: Record<AppTheme, Record<string, string>> = {
     '--anytty-faint': '#a1a1aa',
     '--anytty-accent': '#18181b',
     '--anytty-accent-text': '#fafafa',
+    '--anytty-search-match': '#b45309',
     '--anytty-overlay': 'rgba(0, 0, 0, 0.48)',
   },
   dark: {
@@ -120,6 +121,7 @@ const APP_THEME_CSS_VARIABLES: Record<AppTheme, Record<string, string>> = {
     '--anytty-faint': '#71717a',
     '--anytty-accent': '#fafafa',
     '--anytty-accent-text': '#18181b',
+    '--anytty-search-match': '#fbbf24',
     '--anytty-overlay': 'rgba(0, 0, 0, 0.56)',
   },
 }

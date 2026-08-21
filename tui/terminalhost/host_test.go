@@ -197,6 +197,17 @@ func TestInputParserDecodesKittyCSIUCtrlDigits(t *testing.T) {
 	}
 }
 
+func TestKittyCSIUShiftedNRoutesToPreviousCopySearchMatch(t *testing.T) {
+	events := NewInputParser().Feed([]byte("\x1b[110;2u"))
+	if len(events) != 1 {
+		t.Fatalf("expected one shifted N event, got %#v", events)
+	}
+	intent := input.Route(events[0], true)
+	if intent.Kind != input.IntentShortcutAction || intent.Invocation.ID != "copy.search_previous" {
+		t.Fatalf("shifted N must route to previous search match: event=%#v intent=%#v", events[0], intent)
+	}
+}
+
 func TestInputParserProjectsKeyboardCapabilityAndSuppressesRelease(t *testing.T) {
 	got := NewInputParser().Feed([]byte("\x1b[?1u\x1b[49;5:3u"))
 	want := []input.InputEvent{

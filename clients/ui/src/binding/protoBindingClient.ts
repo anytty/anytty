@@ -791,6 +791,8 @@ class ProtoBindingSession implements ProtoClientSession {
   public connection?: AnyTTYClientBinding.ConnectionSnapshot,
   ) {}
 
+  get resourcePoolOwner(): ProtoClientSession { return this }
+
   execute(command: AnyTTYApiApplication.CommandEnvelope, options?: { signal?: AbortSignal }): Promise<AnyTTYApiApplication.ResultEnvelope> {
     if (!this.alive) return Promise.reject(new Error('Proto session is closed'))
     return this.client.execute(this.handle, command, options?.signal).catch((error: unknown) => {
@@ -806,7 +808,7 @@ class ProtoBindingSession implements ProtoClientSession {
 
   subscribeEvents(handler: (event: AnyTTYApiApplication.EventEnvelope) => void): ProtoClientSubscription {
     this.eventHandlers.add(handler)
-    return { close: () => this.eventHandlers.delete(handler) }
+    return { close: () => { this.eventHandlers.delete(handler) } }
   }
 
   subscribeClosed(handler: (error: ProtoClientSessionCloseError) => void): ProtoClientSubscription {
@@ -820,7 +822,7 @@ class ProtoBindingSession implements ProtoClientSession {
     }
     if (!this.alive) return { close() {} }
     this.closeHandlers.add(handler)
-    return { close: () => this.closeHandlers.delete(handler) }
+    return { close: () => { this.closeHandlers.delete(handler) } }
   }
 
   openResourceStream(resource: NonNullable<AnyTTYClientBinding.OpenResourceStreamRequest['resource']>, options?: { initialUploadOffset?: bigint; signal?: AbortSignal }): Promise<ProtoResourceStream> {
@@ -880,12 +882,12 @@ class ProtoBindingResourceStream implements ProtoResourceStream {
 
   subscribe(handler: (type: AnyTTYClientBinding.ResourceStreamFrameType, payload: Uint8Array) => void): ProtoClientSubscription {
     this.handlers.add(handler)
-    return { close: () => this.handlers.delete(handler) }
+    return { close: () => { this.handlers.delete(handler) } }
   }
 
   subscribeClosed(handler: (error: Error) => void): ProtoClientSubscription {
     this.closeHandlers.add(handler)
-    return { close: () => this.closeHandlers.delete(handler) }
+    return { close: () => { this.closeHandlers.delete(handler) } }
   }
 
   async close(): Promise<void> {

@@ -17,10 +17,13 @@ import { TerminalRefSchema } from '../generated/apipb/terminal_pb'
 import {
   coreV2HistoryWindowFromAPI,
   coreV2HistorySearchFromAPI,
+  coreV2HistorySearchScanFromAPI,
   type CoreV2HistoryCopyRequest,
   type CoreV2HistoryReleaseRequest,
   type CoreV2HistorySearchRequest,
   type CoreV2HistorySearchResult,
+  type CoreV2HistorySearchScanRequest,
+  type CoreV2HistorySearchScanResult,
   type CoreV2HistoryWindow,
   type CoreV2HistoryWindowRequest,
 } from './coreV2TerminalProtocol'
@@ -32,6 +35,7 @@ export interface CoreV2HistorySource {
   window(request: CoreV2HistoryWindowRequest, options?: { signal?: AbortSignal }): Promise<CoreV2HistoryWindow>
   copy(request: CoreV2HistoryCopyRequest, options?: { signal?: AbortSignal }): Promise<string>
   search(request: CoreV2HistorySearchRequest, options?: { signal?: AbortSignal }): Promise<CoreV2HistorySearchResult>
+  scan(request: CoreV2HistorySearchScanRequest, options?: { signal?: AbortSignal }): Promise<CoreV2HistorySearchScanResult>
   release?(
     request: CoreV2HistoryReleaseRequest & { generation?: string | number | bigint | undefined },
     options?: { signal?: AbortSignal },
@@ -124,6 +128,31 @@ function createProtoHistorySource(session: ProtoClientSession, machineId: string
       )
       if (result.result.case !== 'historySearch') throw new Error('history search returned no result')
       return coreV2HistorySearchFromAPI(result.result.value)
+    },
+    async scan(request, options) {
+      const command = create(HistorySearchCommandSchema, {
+        terminal: terminal(request.terminalId),
+        token: request.token,
+        historyGeneration: BigInt(request.generation ?? 0),
+        query: request.query,
+        mode: request.mode === 'glob'
+          ? HistorySearchMode.GLOB
+          : request.mode === 'regex'
+            ? HistorySearchMode.REGEX
+            : HistorySearchMode.TEXT,
+        direction: HistorySearchDirection.FORWARD,
+        cols: request.cols,
+        limit: 1,
+        start: request.start ? create(HistoryTextPositionSchema, { lineId: BigInt(request.start.lineId), col: request.start.col }) : undefined,
+        scan: true,
+        maxMatches: request.maxMatches,
+      })
+      const result = await session.execute(
+        create(CommandEnvelopeSchema, { command: { case: 'historySearch', value: command } }),
+        options,
+      )
+      if (result.result.case !== 'historySearch') throw new Error('history search scan returned no result')
+      return coreV2HistorySearchScanFromAPI(result.result.value)
     },
     async release(request, options) {
       await session.execute(

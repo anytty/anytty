@@ -111,6 +111,13 @@ type HistorySearchRequest struct {
 	Mode       state.HistorySearchMode
 	Direction  HistorySearchDirection
 	Start      state.CopyLogicalPosition
+	Scan       bool
+	MaxMatches int
+}
+
+type HistorySearchMatch struct {
+	Start state.CopyLogicalPosition
+	End   state.CopyLogicalPosition
 }
 
 // HistoryResult 把异步 request identity 与 authoritative history window 一起回投 reducer。
@@ -131,6 +138,9 @@ type HistorySearchResult struct {
 	End       state.CopyLogicalPosition
 	Window    state.HistoryWindow
 	Wrapped   bool
+	Matches   []HistorySearchMatch
+	Next      state.CopyLogicalPosition
+	Done      bool
 }
 
 // CoreClient 是 TUI copy/history effect 使用的 application port。

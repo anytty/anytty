@@ -103,9 +103,10 @@ func NewUIInputReducer() Reducer {
 			return next, nil
 		}
 		intent := input.RouteWithOptions(inputMsg.Event, input.RouteOptions{
-			Mode:           inputMode(root.Shell.ReadonlyDefaults().InteractionMode),
-			CopyModeActive: copyModeOwnsActiveInput(root),
-			Shortcuts:      root.Config.Shortcuts,
+			Mode:            inputMode(root.Shell.ReadonlyDefaults().InteractionMode),
+			CopyModeActive:  copyModeOwnsActiveInput(root),
+			TextInputActive: copyModeTextInputOwnsActiveInput(root),
+			Shortcuts:       root.Config.Shortcuts,
 		})
 		if intent.Kind == input.IntentShortcutAction {
 			invocation := intent.Invocation

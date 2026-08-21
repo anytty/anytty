@@ -35,8 +35,60 @@ func TestCopyHistoryLinesShowVisibleRegexSearchBar(t *testing.T) {
 		SearchMode: state.HistorySearchModeRegex, SearchEditing: true,
 	}
 	lines := copyHistoryLines(history, copyMode)
-	if len(lines) != 3 || !strings.Contains(lines[2].PlainString(), "⌕ [REGEX] 错误.*42") {
-		t.Fatalf("search bar lines = %#v", lines)
+	if len(lines) != 2 {
+		t.Fatalf("search footer must not be appended to terminal rows: %#v", lines)
+	}
+	footer := copyHistorySearchBar(copyMode, 40)
+	if !strings.Contains(footer.PlainString(), "⌕ [REGEX] 错误.*42") {
+		t.Fatalf("search footer = %#v", footer)
+	}
+}
+
+func TestCopyHistorySearchFooterTracksQueryCursorAndExposesModeControls(t *testing.T) {
+	copyMode := state.CopyModeStore{
+		Active: true, Query: "FINDME", SearchCursor: 3, SearchEditing: true,
+	}
+	search := copyHistorySearchFooter(copyMode)
+	line, cursor := searchBarPresentation(search, 100)
+	wantCursor := search.Prefix.Width() + DisplayWidth("FIN")
+	if cursor.Col != wantCursor {
+		t.Fatalf("search cursor col = %d, want %d; line=%q", cursor.Col, wantCursor, line.PlainString())
+	}
+	if got := line.PlainString(); !strings.Contains(got, "Tab mode Enter✓ Esc×") || strings.Contains(got, "N↑ n↓") {
+		t.Fatalf("editing search hint = %q", got)
+	}
+
+	copyMode.SearchEditing = false
+	line, _ = searchBarPresentation(copyHistorySearchFooter(copyMode), 100)
+	if got := line.PlainString(); !strings.Contains(got, "/edit Tab mode N↑ n↓ Esc×") {
+		t.Fatalf("submitted search hint = %q", got)
+	}
+}
+
+func TestCopyHistorySearchShowsStreamingCountAndDistinctMatchEmphasis(t *testing.T) {
+	history := state.HistoryStore{Cols: 64, Rows: []state.HistoryRow{{Text: "beta then beta", LineID: 1}}}
+	copyMode := state.CopyModeStore{
+		Active: true, BoundCols: 64, ViewRows: 2, Query: "beta", SearchScanPending: true,
+		Matches: []state.CopyMatch{
+			{StartRow: 0, StartCol: 0, EndRow: 0, EndCol: 4},
+			{StartRow: 0, StartCol: 10, EndRow: 0, EndCol: 14},
+		},
+		ActiveMatch: 1,
+		SearchResults: []state.CopyLogicalMatch{
+			{Start: state.CopyLogicalPosition{Valid: true, LineID: 1}, End: state.CopyLogicalPosition{Valid: true, LineID: 1, Col: 4}},
+			{Start: state.CopyLogicalPosition{Valid: true, LineID: 1, Col: 10}, End: state.CopyLogicalPosition{Valid: true, LineID: 1, Col: 14}},
+		},
+		SearchMatchStart: state.CopyLogicalPosition{Valid: true, LineID: 1, Col: 10},
+		SearchMatchEnd:   state.CopyLogicalPosition{Valid: true, LineID: 1, Col: 14},
+	}
+
+	lines := copyHistoryLines(history, copyMode)
+	if !lineHasStyledCell(lines[0], "beta", StyleSearchMatch) || !lineHasStyledCell(lines[0], "beta", StyleSearchCurrent) {
+		t.Fatalf("search matches should use weak and current emphasis, got %#v", lines[0])
+	}
+	footer := copyHistorySearchBar(copyMode, 64)
+	if !strings.Contains(footer.PlainString(), "⠋ 2/2+") || !strings.Contains(footer.PlainString(), "N↑ n↓ Esc×") {
+		t.Fatalf("search footer should expose streaming position and navigation, got %q", footer.PlainString())
 	}
 }
 

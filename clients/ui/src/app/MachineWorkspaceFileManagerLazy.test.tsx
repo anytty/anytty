@@ -9,6 +9,8 @@ import { AcknowledgeResultSchema } from '../generated/apipb/application_pb'
 import { anyttyI18n } from '../i18n'
 import { MockProtoSession, protoResult } from '../test/mockProtoSession'
 import type { RtcConnectionStateSnapshot } from '../core/transport'
+import { dispatchNativeBack, NATIVE_BACK_PRIORITY } from '../platform/nativeBack'
+import { useNativeBackHandler } from '../platform/useNativeBackHandler'
 import { MachineWorkspace } from './MachineWorkspace'
 
 const fileManagerLoader = vi.hoisted(() => ({
@@ -35,6 +37,17 @@ function StatefulFileManager({ active }: { active?: boolean }) {
   )
 }
 
+function FileManagerWithWorkspaceBackHandler({ active }: { active?: boolean }) {
+  useNativeBackHandler(
+    fileManagerWorkspaceBackHandler,
+    NATIVE_BACK_PRIORITY.WORKSPACE,
+    active,
+  )
+  return <div data-active={String(active)} data-testid="mock-file-manager" />
+}
+
+const fileManagerWorkspaceBackHandler = vi.fn()
+
 function createDeferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (error: unknown) => void
@@ -45,7 +58,10 @@ function createDeferred<T>() {
   return { promise, reject, resolve }
 }
 
-function renderWorkspace(initialMachine: Machine = { machineId: 'studio', name: 'Studio', state: 'online' }) {
+function renderWorkspace(
+  initialMachine: Machine = { machineId: 'studio', name: 'Studio', state: 'online' },
+  onBack?: () => void,
+) {
   let currentMachine = initialMachine
   const sessions = new Map<string, MockProtoSession>()
   const sessionFor = (machineId: string) => {
@@ -66,14 +82,14 @@ function renderWorkspace(initialMachine: Machine = { machineId: 'studio', name: 
     connect: vi.fn(async ({ machineId }: { machineId: string }) => sessionFor(machineId)),
   }
   const workspace = render(
-    <MachineWorkspace api={api} connector={connector} initialMachine={currentMachine} />,
+    <MachineWorkspace api={api} connector={connector} initialMachine={currentMachine} onBack={onBack} />,
   )
   return {
     ...workspace,
     rerenderMachine(machine: Machine) {
       currentMachine = machine
       workspace.rerender(
-        <MachineWorkspace api={api} connector={connector} initialMachine={currentMachine} />,
+        <MachineWorkspace api={api} connector={connector} initialMachine={currentMachine} onBack={onBack} />,
       )
     },
   }
@@ -83,6 +99,7 @@ describe('MachineWorkspace FileManager loading', () => {
   beforeEach(async () => {
     fileManagerLoader.load.mockReset()
     fileManagerLoader.reload.mockReset()
+    fileManagerWorkspaceBackHandler.mockReset()
     fileManagerLoader.load.mockResolvedValue(StatefulFileManager)
     await anyttyI18n.changeLanguage('en')
   })
@@ -111,6 +128,57 @@ describe('MachineWorkspace FileManager loading', () => {
     await waitFor(() => expect(screen.getByTestId('mock-file-manager').dataset.active).toBe('true'))
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Lazy file manager state' }).value).toBe('/remembered')
     expect(fileManagerLoader.load).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses its own left back button to return to the terminal list without leaving the device', async () => {
+    const onBack = vi.fn()
+    renderWorkspace(undefined, onBack)
+
+    await screen.findByTestId('anytty-terminal-list-page')
+    await userEvent.click(screen.getByRole('button', { name: 'Open files' }))
+    const overlay = await screen.findByTestId('anytty-machine-files-overlay')
+
+    expect(overlay.classList.contains('z-[60]')).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Close files' }))
+
+    expect(overlay.classList.contains('invisible')).toBe(true)
+    expect(screen.getByTestId('anytty-terminal-list-page')).toBeTruthy()
+    expect(onBack).not.toHaveBeenCalled()
+  })
+
+  it('closes files with one native back and returns to the terminal before its internal workspace handler', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cwd: '/srv/project', cols: 80, rows: 24,
+    }
+    const session = new MockProtoSession(
+      machine.machineId,
+      () => protoResult('acknowledge', create(AcknowledgeResultSchema)),
+    )
+    fileManagerLoader.load.mockResolvedValue(FileManagerWithWorkspaceBackHandler)
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      initialTerminalId={terminal.terminalId}
+      singlePane
+    />)
+
+    await screen.findByTestId('anytty-terminal-header')
+    await userEvent.click(screen.getByRole('button', { name: 'Open files' }))
+    await waitFor(() => expect(screen.getByTestId('mock-file-manager').dataset.active).toBe('true'))
+
+    act(() => { expect(dispatchNativeBack()).toBe(true) })
+
+    await waitFor(() => expect(screen.getByTestId('mock-file-manager').dataset.active).toBe('false'))
+    expect(screen.getByTestId('anytty-terminal-header')).toBeTruthy()
+    expect(screen.queryByTestId('anytty-terminal-list-page')).toBeNull()
+    expect(fileManagerWorkspaceBackHandler).not.toHaveBeenCalled()
   })
 
   it('contains an import rejection and reloads the application without exposing the raw error', async () => {

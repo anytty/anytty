@@ -9,9 +9,8 @@ internal data class NativeRendererDemandSnapshot(
 )
 
 /**
- * Process-owned canonical renderer demand. A new attachment inherits the last
- * snapshot until it submits its own full replacement, so WebView recreation
- * cannot briefly tear down a healthy native session.
+ * Process-owned canonical renderer demand. A new renderer starts with no demand;
+ * only its first full replacement may reactivate endpoints from visible work.
  */
 internal class NativeRendererDemandState(
     private val attachmentIdFactory: () -> String = { UUID.randomUUID().toString() },
@@ -23,6 +22,10 @@ internal class NativeRendererDemandState(
     fun attachRenderer(): NativeRendererDemandSnapshot {
         val nextAttachmentId = attachmentIdFactory().trim()
         check(nextAttachmentId.isNotEmpty()) { "renderer attachment ID is empty" }
+        if (endpointIds.isNotEmpty()) {
+            incrementRevision()
+            endpointIds.clear()
+        }
         attachmentId = nextAttachmentId
         return snapshot(nextAttachmentId)
     }

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	actiondomain "github.com/anytty/anytty/tui/action"
 	"github.com/anytty/anytty/tui/shortcut"
@@ -493,6 +494,13 @@ func ShortcutBindingSignature(sceneName string, keyToken string) (string, bool) 
 	if !ok {
 		return "", false
 	}
+	if key.Key == KeyChar && !key.Ctrl && !key.Alt && !key.Shift {
+		runes := []rune(key.Char)
+		if len(runes) == 1 && unicode.IsUpper(runes[0]) {
+			key.Char = string(unicode.ToLower(runes[0]))
+			key.Shift = true
+		}
+	}
 	key.Char = canonicalShortcutChar(key.Key, key.Char, key.Ctrl, key.Shift)
 	sceneKey := shortcutSceneCatalogKey(sceneName)
 	if mode, routed := shortcutSceneMode(sceneName); routed {
@@ -539,6 +547,9 @@ func routeKey(event InputEvent, options RouteOptions) Intent {
 		}
 		return Intent{Kind: IntentNone, Event: event, Reason: "forced passthrough without bytes"}
 	}
+	if options.TextInputActive && textInputOwnsKey(event) {
+		return Intent{Kind: IntentNone, Event: event, Reason: "text input active"}
+	}
 	catalog := shortcutCatalogForConfig(options.Shortcuts)
 	if options.Mode != InteractionModeNormal {
 		if binding, ok := lookupBinding(options.Mode, event, catalog); ok {
@@ -566,6 +577,18 @@ func routeKey(event InputEvent, options RouteOptions) Intent {
 		return Intent{Kind: IntentTerminalInput, Event: event, Bytes: data}
 	}
 	return Intent{Kind: IntentNone, Event: event}
+}
+
+func textInputOwnsKey(event InputEvent) bool {
+	if event.Ctrl || event.Alt {
+		return false
+	}
+	switch event.Key {
+	case KeyChar, KeyBackspace, KeyDelete, KeyLeft, KeyRight, KeyHome, KeyEnd:
+		return true
+	default:
+		return false
+	}
 }
 
 func routeMouse(event InputEvent, options RouteOptions) Intent {
@@ -611,11 +634,17 @@ func bindingMatches(binding Binding, event InputEvent) bool {
 	if !bindingCharMatches(binding, event) {
 		return false
 	}
+	if implicitUppercaseBindingMatches(binding, event) {
+		return true
+	}
 	return binding.Ctrl == event.Ctrl && binding.Alt == event.Alt && binding.Shift == event.Shift
 }
 
 func bindingCharMatches(binding Binding, event InputEvent) bool {
 	if binding.Char == event.Char {
+		return true
+	}
+	if implicitUppercaseBindingMatches(binding, event) {
 		return true
 	}
 	if binding.Key != KeyChar || !binding.Ctrl || !event.Ctrl {
@@ -626,6 +655,20 @@ func bindingCharMatches(binding Binding, event InputEvent) bool {
 	}
 	data, ok := ctrlCharBytes(binding.Char)
 	return ok && string(data) == event.Char
+}
+
+// Uppercase character tokens are the portable spelling for shifted text keys:
+// traditional TTY input reports "N", while enhanced protocols may report the
+// base character "n" plus an explicit Shift modifier.
+func implicitUppercaseBindingMatches(binding Binding, event InputEvent) bool {
+	if binding.Key != KeyChar || event.Key != KeyChar || binding.Ctrl || binding.Alt || binding.Shift ||
+		event.Ctrl || event.Alt || !event.Shift {
+		return false
+	}
+	bindingRunes := []rune(binding.Char)
+	eventRunes := []rune(event.Char)
+	return len(bindingRunes) == 1 && len(eventRunes) == 1 && unicode.IsUpper(bindingRunes[0]) &&
+		unicode.ToUpper(eventRunes[0]) == bindingRunes[0]
 }
 
 func canonicalShortcutChar(key Key, char string, ctrl bool, shift bool) string {

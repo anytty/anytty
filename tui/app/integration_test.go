@@ -84,6 +84,31 @@ func TestCopyModePageUpLatestAndOlderE2E(t *testing.T) {
 	}
 }
 
+func TestCopyModeSpaceTogglesSelectionWithoutExitingHistory(t *testing.T) {
+	root := state.Root{
+		History: state.HistoryStore{Rows: []state.HistoryRow{{Text: "select me", LineID: 1}}},
+		CopyMode: state.CopyModeStore{
+			Active:     true,
+			Phase:      state.CopyModeFrozenHistory,
+			BoundToken: "tok-1",
+			Cursor:     state.CopyPosition{Row: 0, Col: 2},
+		},
+	}
+
+	selected, _ := reduceCopyModeCommand(root, "copy.mark", CopyModeDeps{})
+	if selected.CopyMode.Mark == nil || selected.CopyMode.Selection == nil {
+		t.Fatalf("first space should start selection, got %#v", selected.CopyMode)
+	}
+
+	cleared, _ := reduceCopyModeCommand(selected, "copy.mark", CopyModeDeps{})
+	if !cleared.CopyMode.HistoryRenderable() || cleared.CopyMode.BoundToken != "tok-1" {
+		t.Fatalf("second space must keep history mode active, got %#v", cleared.CopyMode)
+	}
+	if cleared.CopyMode.Mark != nil || cleared.CopyMode.Selection != nil {
+		t.Fatalf("second space should leave selection mode, got %#v", cleared.CopyMode)
+	}
+}
+
 func TestCopyModeContinuousOlderPrependsAndKeepsTailBoundary(t *testing.T) {
 	core := &testkit.FakeCoreClient{
 		LatestResponses: []port.HistoryResult{{Window: historyWindowForApp(
@@ -6441,7 +6466,7 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 		{Text: "gamma beta", LineID: 12},
 		{Text: "delta", LineID: 13},
 		{Text: "epsilon", LineID: 14},
-		{Text: "zeta", LineID: 15},
+		{Text: "zeta beta", LineID: 15},
 	}
 	core := &testkit.FakeCoreClient{
 		LatestResponses: []port.HistoryResult{{Window: historyWindowForApp(
@@ -6454,7 +6479,8 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 		)}},
 		SearchResponses: []port.HistorySearchResult{
 			{Found: true, Start: state.CopyLogicalPosition{Valid: true, LineID: 11}, End: state.CopyLogicalPosition{Valid: true, LineID: 11, Col: 4}, Window: historyWindowForApp(state.HistoryWindowReplace, "term-1", "tok-1", 78, 7, rows)},
-			{Found: true, Start: state.CopyLogicalPosition{Valid: true, LineID: 12, Col: 6}, End: state.CopyLogicalPosition{Valid: true, LineID: 12, Col: 10}, Window: historyWindowForApp(state.HistoryWindowReplace, "term-1", "tok-1", 78, 7, rows)},
+			{Found: true, Start: state.CopyLogicalPosition{Valid: true, LineID: 15, Col: 5}, End: state.CopyLogicalPosition{Valid: true, LineID: 15, Col: 9}, Window: historyWindowForApp(state.HistoryWindowReplace, "term-1", "tok-1", 78, 7, rows)},
+			{Found: true, Start: state.CopyLogicalPosition{Valid: true, LineID: 11}, End: state.CopyLogicalPosition{Valid: true, LineID: 11, Col: 4}, Window: historyWindowForApp(state.HistoryWindowReplace, "term-1", "tok-1", 78, 7, rows)},
 		},
 	}
 	host := NewFakeTerminalHost(32)
@@ -6491,12 +6517,12 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 	if status := activeCopyContentStatus(runtime); !strings.Contains(status, `search:"beta"`) || !strings.Contains(status, "older:top") {
 		t.Fatalf("expected search status outside history body, got %q", status)
 	}
-	if lines := activeCopyContentLines(runtime); !slices.ContainsFunc(lines, func(line string) bool {
+	if lines := queryFrame.Lines; !slices.ContainsFunc(lines, func(line string) bool {
 		return strings.Contains(line, "⌕ [TEXT] beta")
 	}) {
-		t.Fatalf("copy history must render a visible search bar, got %#v", lines)
+		t.Fatalf("copy history must render a visible panel footer, got %#v", lines)
 	}
-	assertPaneVisualState(t, queryFrame, "beta", render.StyleWarning)
+	assertPaneVisualState(t, queryFrame, "beta", render.StyleSearchCurrent)
 
 	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "n"}); err != nil {
 		t.Fatalf("send next match: %v", err)
@@ -6504,8 +6530,29 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 	if err := runtime.Drain(context.Background()); err != nil {
 		t.Fatalf("drain next match: %v", err)
 	}
-	if runtime.State().CopyMode.ActiveMatch != 0 || runtime.State().CopyMode.Cursor.Row != 2 {
+	if runtime.State().CopyMode.ActiveMatch != 0 || runtime.State().CopyMode.Cursor.Row != 5 {
 		t.Fatalf("expected next search match, got %#v", runtime.State().CopyMode)
+	}
+	if copyMode := runtime.State().CopyMode; !copyMode.Active || copyMode.Query != "beta" || !copyMode.SearchBarVisible() {
+		t.Fatalf("next match must preserve the search session, got %#v", copyMode)
+	}
+	nextFooter := render.NewRenderVMBuilder().Build(runtime.State()).Shell.Footer
+	if !nextFooter.Search.Visible || nextFooter.Search.Value != "beta" {
+		t.Fatalf("next match must keep the global search footer, got %#v", nextFooter)
+	}
+
+	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "N"}); err != nil {
+		t.Fatalf("send previous match: %v", err)
+	}
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("drain previous match: %v", err)
+	}
+	if copyMode := runtime.State().CopyMode; !copyMode.Active || copyMode.Query != "beta" || !copyMode.SearchBarVisible() || copyMode.Cursor.Row != 1 {
+		t.Fatalf("previous match must preserve the search session, got %#v", copyMode)
+	}
+	previousFooter := render.NewRenderVMBuilder().Build(runtime.State()).Shell.Footer
+	if !previousFooter.Search.Visible || previousFooter.Search.Value != "beta" {
+		t.Fatalf("previous match must keep the global search footer, got %#v", previousFooter)
 	}
 	runtime.state.CopyMode.Cursor = state.CopyPosition{Row: 5}
 	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyPageDn}); err != nil {
@@ -6519,6 +6566,111 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 	}
 	if len(core.ReleaseRequests) != 1 || core.ReleaseRequests[0].Token != "tok-1" {
 		t.Fatalf("resuming live should release the frozen token once, got %#v", core.ReleaseRequests)
+	}
+}
+
+func TestCopyModeSearchEditingCapturesPrintableShortcutKeys(t *testing.T) {
+	root := state.Root{
+		Shell:   state.DefaultShell().BindPaneTerminal(state.PaneCommandTarget{PaneID: state.DefaultPaneID}, "term-1"),
+		History: state.HistoryStore{Rows: []state.HistoryRow{{Text: "query target", LineID: 1}}},
+		CopyMode: state.CopyModeStore{
+			Active: true, Phase: state.CopyModeFrozenHistory, SearchEditing: true,
+		},
+	}
+	core := &testkit.FakeCoreClient{}
+	reducer := ComposeReducers(
+		NewClipboardActionReducer(ClipboardActionDeps{Core: core}),
+		NewUIInputReducer(),
+		NewCopyModeReducer(CopyModeDeps{Core: core}),
+	)
+	want := "gnN/GHpyudhjkl "
+	for index, char := range want {
+		root, _ = reducer(root, InputMsg{Event: input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: string(char)}})
+		if root.CopyMode.Query != string([]rune(want)[:index+1]) || !root.CopyMode.SearchEditing {
+			t.Fatalf("search character %q was routed as a command, got %#v", char, root.CopyMode)
+		}
+	}
+	if root.CopyMode.Query != want || !root.CopyMode.SearchEditing {
+		t.Fatalf("printable copy shortcuts must edit the search query, got %#v", root.CopyMode)
+	}
+}
+
+func TestCopyModeSearchReopensExistingQueryForCursorEditingPasteAndModeSwitch(t *testing.T) {
+	root := state.Root{
+		Shell:   state.DefaultShell().BindPaneTerminal(state.PaneCommandTarget{PaneID: state.DefaultPaneID}, "term-1"),
+		History: state.HistoryStore{Rows: []state.HistoryRow{{Text: "FINDME target", LineID: 1}}},
+		CopyMode: state.CopyModeStore{
+			Active: true, Phase: state.CopyModeFrozenHistory, Query: "FINDME",
+			SearchMode: state.HistorySearchModeText, SearchScanComplete: true,
+		},
+	}
+	reducer := ComposeReducers(NewCopyModeReducer(CopyModeDeps{Core: &testkit.FakeCoreClient{}}))
+	apply := func(event input.InputEvent) {
+		var effects []Effect
+		root, effects = reducer(root, InputMsg{Event: event})
+		if len(effects) != 0 {
+			t.Fatalf("editing input %#v produced unexpected effects %#v", event, effects)
+		}
+	}
+
+	apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "/"})
+	if root.CopyMode.Query != "FINDME" || !root.CopyMode.SearchEditing || root.CopyMode.SearchCursor != 6 {
+		t.Fatalf("slash must reopen the existing query at its end, got %#v", root.CopyMode)
+	}
+	for range 3 {
+		apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyLeft})
+	}
+	apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyDelete})
+	apply(input.InputEvent{Kind: input.EventKindPaste, Paste: "X"})
+	if root.CopyMode.Query != "FINXME" || root.CopyMode.SearchCursor != 4 || !root.CopyMode.SearchEditing {
+		t.Fatalf("middle-character replacement failed, got %#v", root.CopyMode)
+	}
+	apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyHome})
+	apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight})
+	apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyEnd})
+	if root.CopyMode.SearchCursor != len([]rune(root.CopyMode.Query)) {
+		t.Fatalf("home/right/end cursor editing failed, got %#v", root.CopyMode)
+	}
+
+	for _, mode := range []state.HistorySearchMode{state.HistorySearchModeGlob, state.HistorySearchModeRegex, state.HistorySearchModeText} {
+		apply(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyTab})
+		if root.CopyMode.NormalizedSearchMode() != mode || !root.CopyMode.SearchEditing || root.CopyMode.Query != "FINXME" {
+			t.Fatalf("tab search mode = %q, want %q; copy=%#v", root.CopyMode.NormalizedSearchMode(), mode, root.CopyMode)
+		}
+	}
+}
+
+func TestCopyModeSearchSystemClipboardShortcutInsertsWithoutTerminalPaste(t *testing.T) {
+	clipboard := &testkit.FakeClipboardService{ReadResult: port.ClipboardReadResult{Text: "CLIP"}}
+	terminal := &testkit.FakeTerminalService{}
+	root := state.Root{
+		Shell: state.DefaultShell().BindPaneTerminal(state.PaneCommandTarget{PaneID: state.DefaultPaneID}, "term-1"),
+		CopyMode: state.CopyModeStore{
+			Active: true, Phase: state.CopyModeFrozenHistory, Query: "ab", SearchCursor: 1, SearchEditing: true,
+		},
+		Config: state.TUIConfigStore{Shortcuts: state.TUIShortcutConfig{Configured: true, Scenes: map[string]state.TUIShortcutSceneConfig{
+			"global": {Bindings: map[string]state.TUIShortcutBindingConfig{
+				"ctrl-v": {Action: "clipboard.paste_system"},
+			}},
+		}}},
+	}
+	reducer := NewClipboardActionReducer(ClipboardActionDeps{Clipboard: clipboard, Terminal: terminal})
+	next, effects := reducer(root, InputMsg{Event: input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x16", Ctrl: true}})
+	var paste Msg
+	for _, effect := range effects {
+		if run, ok := effect.(FuncEffect); ok {
+			paste = run.Run(context.Background())
+		}
+	}
+	if paste == nil {
+		t.Fatalf("system clipboard shortcut did not schedule a read: %#v", effects)
+	}
+	next, _ = reducer(next, paste)
+	if next.CopyMode.Query != "aCLIPb" || next.CopyMode.SearchCursor != 5 || !next.CopyMode.SearchEditing || !next.CopyMode.Active {
+		t.Fatalf("system clipboard did not insert into search query: %#v", next.CopyMode)
+	}
+	if len(terminal.Inputs) != 0 {
+		t.Fatalf("search paste leaked into the terminal: %#v", terminal.Inputs)
 	}
 }
 
@@ -6613,6 +6765,93 @@ func TestCopyModeSearchErrorClearsPendingWithoutBreakingLiveSession(t *testing.T
 	}
 	if !next.Session.Attached || next.Session.Channel != 9 || next.Session.LastError != "" || next.Surface.Err != "" {
 		t.Fatalf("search error broke the live terminal session: session=%#v surface=%#v", next.Session, next.Surface)
+	}
+}
+
+func TestCopyModeSearchScanBatchUpdatesCountAndVisibleMatches(t *testing.T) {
+	root := state.Root{
+		History: state.HistoryStore{
+			TerminalID: "term-a", Token: "tok-a", Cols: 80, Generation: 3,
+			Rows: []state.HistoryRow{{Text: "beta beta", LineID: 4}},
+		},
+		CopyMode: state.CopyModeStore{
+			Active: true, TerminalID: "term-a", BoundToken: "tok-a", Query: "beta",
+			SearchMode: state.HistorySearchModeText, SearchScanPending: true,
+			SearchMatchStart: state.CopyLogicalPosition{Valid: true, LineID: 4},
+			SearchMatchEnd:   state.CopyLogicalPosition{Valid: true, LineID: 4, Col: 4},
+		},
+	}
+	next, _ := NewCopyModeReducer(CopyModeDeps{})(root, CopyModeSearchScanBatchMsg{
+		Query: "beta", Mode: state.HistorySearchModeText, TerminalID: "term-a", Token: "tok-a", Done: true,
+		Matches: []port.HistorySearchMatch{
+			{Start: state.CopyLogicalPosition{Valid: true, LineID: 4}, End: state.CopyLogicalPosition{Valid: true, LineID: 4, Col: 4}},
+			{Start: state.CopyLogicalPosition{Valid: true, LineID: 4, Col: 5}, End: state.CopyLogicalPosition{Valid: true, LineID: 4, Col: 9}},
+		},
+	})
+
+	if next.CopyMode.SearchScanPending || !next.CopyMode.SearchScanComplete || len(next.CopyMode.SearchResults) != 2 || len(next.CopyMode.Matches) != 2 {
+		t.Fatalf("scan batch did not finalize the search session: %#v", next.CopyMode)
+	}
+	if current, total := next.CopyMode.SearchResultPosition(); current != 1 || total != 2 {
+		t.Fatalf("search result position = %d/%d, want 1/2", current, total)
+	}
+}
+
+func TestCopyModeSearchScanAggregatesBackgroundProgressMessages(t *testing.T) {
+	const responseCount = copyModeSearchScanPostSize / copyModeSearchScanRequestSize
+	core := &testkit.FakeCoreClient{SearchScanResponses: make([]port.HistorySearchResult, responseCount)}
+	lineID := uint64(1)
+	for responseIndex := range core.SearchScanResponses {
+		matches := make([]port.HistorySearchMatch, copyModeSearchScanRequestSize)
+		for matchIndex := range matches {
+			matches[matchIndex] = port.HistorySearchMatch{
+				Start: state.CopyLogicalPosition{Valid: true, LineID: lineID},
+				End:   state.CopyLogicalPosition{Valid: true, LineID: lineID, Col: 1},
+			}
+			lineID++
+		}
+		core.SearchScanResponses[responseIndex] = port.HistorySearchResult{
+			Found:   true,
+			Matches: matches,
+			Next:    state.CopyLogicalPosition{Valid: true, LineID: lineID},
+			Done:    responseIndex == responseCount-1,
+		}
+	}
+	root := state.Root{
+		History: state.HistoryStore{TerminalID: "term-a", Token: "tok-a", Cols: 80, Generation: 3},
+		CopyMode: state.CopyModeStore{
+			Active: true, TerminalID: "term-a", BoundToken: "tok-a", Query: "a",
+			SearchMode: state.HistorySearchModeText,
+		},
+	}
+
+	_, effects := beginCopyModeSearchScan(root, CopyModeDeps{Core: core})
+	if len(effects) != 1 {
+		t.Fatalf("expected one scan stream, got %#v", effects)
+	}
+	stream, ok := effects[0].(StreamEffect)
+	if !ok {
+		t.Fatalf("expected StreamEffect, got %T", effects[0])
+	}
+	var posted []CopyModeSearchScanBatchMsg
+	stream.Run(context.Background(), func(msg Msg) {
+		batch, ok := msg.(CopyModeSearchScanBatchMsg)
+		if !ok {
+			t.Fatalf("unexpected scan message %T", msg)
+		}
+		posted = append(posted, batch)
+	})
+
+	if len(posted) != 1 || !posted[0].Done || len(posted[0].Matches) != copyModeSearchScanPostSize {
+		t.Fatalf("scan should aggregate %d matches into one progress message, got %#v", copyModeSearchScanPostSize, posted)
+	}
+	if len(core.SearchScanRequests) != responseCount {
+		t.Fatalf("scan request count = %d, want %d", len(core.SearchScanRequests), responseCount)
+	}
+	for _, req := range core.SearchScanRequests {
+		if req.MaxMatches != copyModeSearchScanRequestSize {
+			t.Fatalf("scan request size = %d, want %d", req.MaxMatches, copyModeSearchScanRequestSize)
+		}
 	}
 }
 

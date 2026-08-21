@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/anytty/anytty/shared/perftrace"
 	"github.com/anytty/anytty/tui/input"
@@ -28,6 +30,9 @@ const (
 	copyModeHistoryMinRequestRows  = 64
 	copyModeHistoryMaxRequestRows  = 512
 	copyModeHistoryWindowScreens   = 8
+	copyModeSearchScanRequestSize  = 256
+	copyModeSearchScanPostSize     = 4096
+	copyModeSearchScanPostInterval = 50 * time.Millisecond
 )
 
 type CopyModeHistoryResultMsg struct {
@@ -91,9 +96,24 @@ type CopyModeSearchResultMsg struct {
 	EndpointID state.EndpointID
 	TerminalID string
 	Token      string
+	Mode       state.HistorySearchMode
 }
 
 func (CopyModeSearchResultMsg) isMsg() {}
+
+type CopyModeSearchScanBatchMsg struct {
+	Err        error
+	Query      string
+	Mode       state.HistorySearchMode
+	ViewID     string
+	EndpointID state.EndpointID
+	TerminalID string
+	Token      string
+	Matches    []port.HistorySearchMatch
+	Done       bool
+}
+
+func (CopyModeSearchScanBatchMsg) isMsg() {}
 
 type CopyModeReleaseHistoryMsg struct {
 	EndpointID state.EndpointID
@@ -258,7 +278,8 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			}
 			root, activeViewID := rootWithActiveCopyHistorySession(root)
 			copyOwnsInput := copyModeOwnsActiveInput(root)
-			if copyOwnsInput {
+			textInputActive := copyOwnsInput && root.CopyMode.SearchEditing
+			if copyOwnsInput && !textInputActive {
 				if _, ok := input.CopyModeEntryShortcutIntentWithShortcuts(msg.Event, root.Config.Shortcuts); ok {
 					if root.Shell.ReadonlyDefaults().ShortcutPassthroughWindowMatches(shortcutPassthroughKindCopy) {
 						// 中文说明：copy/history 的入口键本身不是 sticky mode；
@@ -270,7 +291,11 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 					return root, []Effect{handledEffect{}}
 				}
 			}
-			intent := input.RouteWithOptions(msg.Event, input.RouteOptions{CopyModeActive: copyOwnsInput, Shortcuts: root.Config.Shortcuts})
+			intent := input.RouteWithOptions(msg.Event, input.RouteOptions{
+				CopyModeActive:  copyOwnsInput,
+				TextInputActive: textInputActive,
+				Shortcuts:       root.Config.Shortcuts,
+			})
 			if intent.Kind == input.IntentShortcutAction {
 				var ok bool
 				intent, ok = shortcutIntentForInvocation(intent.Invocation, intent.Event)
@@ -400,6 +425,15 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			}
 			next, effects := reduceCopyModeSearchResult(root, msg, deps)
 			return saveCopyHistorySessionForView(next, activeViewID), effects
+		case CopyModeSearchScanBatchMsg:
+			activeViewID := msg.ViewID
+			if activeViewID == "" {
+				root, activeViewID = rootWithActiveCopyHistorySession(root)
+			} else {
+				root = rootWithCopyHistorySessionForView(root, activeViewID)
+			}
+			next := reduceCopyModeSearchScanBatch(root, msg)
+			return saveCopyHistorySessionForView(next, activeViewID), nil
 		case CopyModeReleaseHistoryMsg:
 			return root, releaseHistoryTokenEffects(deps, msg.EndpointID, msg.TerminalID, msg.Token)
 		case CopyModeScrollMsg:
@@ -479,6 +513,11 @@ func copyModeInputContext(copyMode state.CopyModeStore) bool {
 
 func copyModeOwnsActiveInput(root state.Root) bool {
 	return root.ActiveViewOwnsCopyInput()
+}
+
+func copyModeTextInputOwnsActiveInput(root state.Root) bool {
+	root, _ = rootWithActiveCopyHistorySession(root)
+	return copyModeOwnsActiveInput(root) && root.CopyMode.SearchEditing
 }
 
 func reduceCopyModeIntent(root state.Root, intent input.Intent, deps CopyModeDeps) (state.Root, []Effect) {
@@ -800,6 +839,10 @@ func reduceCopyModeCommand(root state.Root, command string, deps CopyModeDeps) (
 		if !root.CopyMode.CanSelect() {
 			return root, nil
 		}
+		if root.CopyMode.Mark != nil || root.CopyMode.Selection != nil {
+			root.CopyMode = root.CopyMode.ClearSelection()
+			return root.Advance(), nil
+		}
 		root.CopyMode = root.CopyMode.SetMark(root.CopyMode.Cursor)
 		root.CopyMode = root.CopyMode.RefreshLogicalSelection(root.History)
 		return root.Advance(), nil
@@ -819,26 +862,30 @@ func reduceCopyModeCommand(root state.Root, command string, deps CopyModeDeps) (
 			return root, nil
 		}
 		wasPending := root.CopyMode.SearchPending
-		root.CopyMode = root.CopyMode.SetQuery("", nil)
+		wasScanning := root.CopyMode.SearchScanPending
+		if root.CopyMode.Query == "" {
+			root.CopyMode = root.CopyMode.SetQuery("", nil)
+			root.CopyMode.SearchWrapped = false
+		}
+		root.CopyMode = root.CopyMode.SetSearchCursor(len([]rune(root.CopyMode.Query)))
 		root.CopyMode.SearchEditing = true
 		root.CopyMode.SearchPending = false
-		root.CopyMode.SearchWrapped = false
-		if wasPending {
-			return root.Advance(), []Effect{CancelEffect{Token: copyModeSearchRequestToken(root.CopyMode.ViewID)}}
-		}
-		return root.Advance(), nil
+		root.CopyMode.SearchScanPending = false
+		return root.Advance(), copyModeSearchCancelEffects(root.CopyMode.ViewID, wasPending, wasScanning)
 	case "copy.search_mode":
 		if !root.CopyMode.CanSearch() || !root.CopyMode.SearchBarVisible() {
 			return root, nil
 		}
 		wasPending := root.CopyMode.SearchPending
+		wasScanning := root.CopyMode.SearchScanPending
+		wasEditing := root.CopyMode.SearchEditing
 		root.CopyMode = root.CopyMode.CycleSearchMode()
+		if !wasEditing {
+			root.CopyMode = root.CopyMode.SetSearchCursor(len([]rune(root.CopyMode.Query)))
+		}
 		root.CopyMode.SearchEditing = true
 		root.CopyMode.SearchPending = false
-		if wasPending {
-			return root.Advance(), []Effect{CancelEffect{Token: copyModeSearchRequestToken(root.CopyMode.ViewID)}}
-		}
-		return root.Advance(), nil
+		return root.Advance(), copyModeSearchCancelEffects(root.CopyMode.ViewID, wasPending, wasScanning)
 	case "copy.search_next":
 		return beginCopyModeSearch(root, deps, port.HistorySearchForward)
 	case "copy.search_previous":
@@ -849,28 +896,82 @@ func reduceCopyModeCommand(root state.Root, command string, deps CopyModeDeps) (
 }
 
 func reduceCopyModeTextInput(root state.Root, event input.InputEvent, deps CopyModeDeps) (state.Root, []Effect, bool) {
+	if !root.CopyMode.SearchEditing {
+		return root, nil, false
+	}
+	if event.Kind == input.EventKindPaste {
+		text := normalizeCopyModeSearchPaste(event.Paste)
+		if text == "" {
+			return root, nil, true
+		}
+		return mutateCopyModeSearchQuery(root, func(store state.CopyModeStore) state.CopyModeStore {
+			return store.InsertSearchText(text)
+		})
+	}
 	if event.Kind != input.EventKindKey {
 		return root, nil, false
 	}
 	if isBackspaceEvent(event) {
-		if !root.CopyMode.SearchEditing {
+		return mutateCopyModeSearchQuery(root, func(store state.CopyModeStore) state.CopyModeStore {
+			return store.DeleteSearchBackward()
+		})
+	}
+	switch event.Key {
+	case input.KeyDelete:
+		return mutateCopyModeSearchQuery(root, func(store state.CopyModeStore) state.CopyModeStore {
+			return store.DeleteSearchForward()
+		})
+	case input.KeyLeft:
+		root.CopyMode = root.CopyMode.MoveSearchCursor(-1)
+		return root.Advance(), nil, true
+	case input.KeyRight:
+		root.CopyMode = root.CopyMode.MoveSearchCursor(1)
+		return root.Advance(), nil, true
+	case input.KeyHome:
+		root.CopyMode = root.CopyMode.SetSearchCursor(0)
+		return root.Advance(), nil, true
+	case input.KeyEnd:
+		root.CopyMode = root.CopyMode.SetSearchCursor(len([]rune(root.CopyMode.Query)))
+		return root.Advance(), nil, true
+	case input.KeyChar:
+		if event.Ctrl || event.Alt || event.Char == "" {
 			return root, nil, false
 		}
-		query := trimLastRune(root.CopyMode.Query)
-		root.CopyMode = root.CopyMode.SetQuery(query, nil)
-		root.CopyMode.SearchEditing = true
-		return root.Advance(), nil, true
-	}
-	if event.Key != input.KeyChar || event.Ctrl || event.Char == "" {
+		return mutateCopyModeSearchQuery(root, func(store state.CopyModeStore) state.CopyModeStore {
+			return store.InsertSearchText(event.Char)
+		})
+	default:
 		return root, nil, false
 	}
-	if !root.CopyMode.SearchEditing {
-		return root, nil, false
-	}
-	query := root.CopyMode.Query + event.Char
-	root.CopyMode = root.CopyMode.SetQuery(query, nil)
+}
+
+func mutateCopyModeSearchQuery(root state.Root, update func(state.CopyModeStore) state.CopyModeStore) (state.Root, []Effect, bool) {
+	before := root.CopyMode.Query
+	wasPending := root.CopyMode.SearchPending
+	wasScanning := root.CopyMode.SearchScanPending
+	root.CopyMode = update(root.CopyMode)
 	root.CopyMode.SearchEditing = true
-	return root.Advance(), nil, true
+	if root.CopyMode.Query == before {
+		return root, nil, true
+	}
+	return root.Advance(), copyModeSearchCancelEffects(root.CopyMode.ViewID, wasPending, wasScanning), true
+}
+
+func normalizeCopyModeSearchPaste(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	return strings.Map(func(value rune) rune {
+		switch value {
+		case '\r', '\n', '\t':
+			return ' '
+		case '\x7f':
+			return -1
+		default:
+			if value < ' ' {
+				return -1
+			}
+			return value
+		}
+	}, text)
 }
 
 func beginCopyModeSearch(root state.Root, deps CopyModeDeps, direction port.HistorySearchDirection) (state.Root, []Effect) {
@@ -905,9 +1006,11 @@ func beginCopyModeSearch(root state.Root, deps CopyModeDeps, direction port.Hist
 	viewID := root.CopyMode.ViewID
 	paneID := root.CopyMode.PaneID
 	query := root.CopyMode.Query
+	var scanEffects []Effect
+	root, scanEffects = beginCopyModeSearchScan(root, deps)
 	root = root.Advance()
 	token := copyModeSearchRequestToken(viewID)
-	return root, []Effect{
+	effects := []Effect{
 		FuncEffect{
 			Token:            token,
 			Async:            true,
@@ -919,17 +1022,18 @@ func beginCopyModeSearch(root state.Root, deps CopyModeDeps, direction port.Hist
 				result.Window.EndpointID = req.EndpointID
 				return CopyModeSearchResultMsg{
 					Result: result, Err: err, RequestID: state.RequestID(requestID), Query: query, PaneID: paneID, ViewID: viewID,
-					EndpointID: req.EndpointID, TerminalID: req.TerminalID, Token: req.Token,
+					EndpointID: req.EndpointID, TerminalID: req.TerminalID, Token: req.Token, Mode: req.Mode,
 				}
 			},
 		},
 	}
+	return root, append(effects, scanEffects...)
 }
 
 func reduceCopyModeSearchResult(root state.Root, msg CopyModeSearchResultMsg, deps CopyModeDeps) (state.Root, []Effect) {
 	if !root.CopyMode.Active || !root.CopyMode.SearchPending ||
 		root.CopyMode.SearchRequestID != msg.RequestID ||
-		root.CopyMode.Query != msg.Query || root.CopyMode.BoundToken != root.History.Token ||
+		root.CopyMode.Query != msg.Query || msg.Mode != "" && root.CopyMode.NormalizedSearchMode() != msg.Mode || root.CopyMode.BoundToken != root.History.Token ||
 		(msg.EndpointID != "" && root.CopyMode.EndpointID != msg.EndpointID) ||
 		(msg.TerminalID != "" && root.CopyMode.TerminalID != msg.TerminalID) ||
 		(msg.Token != "" && root.CopyMode.BoundToken != msg.Token) {
@@ -968,8 +1072,99 @@ func reduceCopyModeSearchResult(root state.Root, msg CopyModeSearchResultMsg, de
 	root.CopyMode.SearchMatchStart = msg.Result.Start
 	root.CopyMode.SearchMatchEnd = msg.Result.End
 	root.CopyMode.SearchWrapped = msg.Result.Wrapped
+	root.CopyMode = root.CopyMode.RefreshSearchMatches(root.History)
 	root.CopyMode = ensureCopyCursorVisible(root.CopyMode, len(root.History.Rows))
 	return root.Advance(), nil
+}
+
+func beginCopyModeSearchScan(root state.Root, deps CopyModeDeps) (state.Root, []Effect) {
+	if deps.Core == nil || root.CopyMode.Query == "" || root.CopyMode.SearchScanPending || root.CopyMode.SearchScanComplete {
+		return root, nil
+	}
+	query := root.CopyMode.Query
+	mode := root.CopyMode.NormalizedSearchMode()
+	viewID := root.CopyMode.ViewID
+	req := port.HistorySearchRequest{
+		EndpointID: root.CopyMode.EndpointID, TerminalID: root.CopyMode.TerminalID,
+		Cols: root.History.Cols, Rows: 1, Token: root.CopyMode.BoundToken, Generation: root.History.Generation,
+		Query: query, Mode: mode, Direction: port.HistorySearchForward, Scan: true, MaxMatches: copyModeSearchScanRequestSize,
+	}
+	root.CopyMode.SearchScanPending = true
+	root.CopyMode.SearchScanComplete = false
+	return root, []Effect{StreamEffect{Token: copyModeSearchScanToken(viewID), Run: func(ctx context.Context, post func(Msg)) {
+		pending := make([]port.HistorySearchMatch, 0, copyModeSearchScanPostSize)
+		lastPost := time.Now()
+		postPending := func(err error, done bool) {
+			matches := pending
+			pending = make([]port.HistorySearchMatch, 0, copyModeSearchScanPostSize)
+			post(CopyModeSearchScanBatchMsg{
+				Err: err, Query: query, Mode: mode, ViewID: viewID, EndpointID: req.EndpointID,
+				TerminalID: req.TerminalID, Token: req.Token, Matches: matches, Done: done,
+			})
+			lastPost = time.Now()
+		}
+		for {
+			result, err := deps.Core.HistorySearch(ctx, req)
+			if ctx.Err() != nil {
+				return
+			}
+			pending = append(pending, result.Matches...)
+			if err != nil || result.Done || len(pending) >= copyModeSearchScanPostSize || time.Since(lastPost) >= copyModeSearchScanPostInterval {
+				postPending(err, result.Done || err != nil)
+			}
+			if err != nil || result.Done {
+				return
+			}
+			if !result.Next.Valid || result.Next == req.Start {
+				postPending(nil, true)
+				return
+			}
+			req.Start = result.Next
+			runtime.Gosched()
+		}
+	}}}
+}
+
+func reduceCopyModeSearchScanBatch(root state.Root, msg CopyModeSearchScanBatchMsg) state.Root {
+	if !root.CopyMode.Active || !root.CopyMode.SearchScanPending || root.CopyMode.Query != msg.Query ||
+		root.CopyMode.NormalizedSearchMode() != msg.Mode ||
+		(msg.EndpointID != "" && root.CopyMode.EndpointID != msg.EndpointID) ||
+		(msg.TerminalID != "" && root.CopyMode.TerminalID != msg.TerminalID) ||
+		(msg.Token != "" && root.CopyMode.BoundToken != msg.Token) {
+		return root
+	}
+	if msg.Err != nil {
+		root.CopyMode.SearchScanPending = false
+		root.CopyMode.SearchError = msg.Err.Error()
+		return root.Advance()
+	}
+	results := make([]state.CopyLogicalMatch, len(msg.Matches))
+	for index, match := range msg.Matches {
+		results[index] = state.CopyLogicalMatch{Start: match.Start, End: match.End}
+	}
+	var err error
+	root.CopyMode, err = root.CopyMode.AppendSearchResults(root.History, results)
+	if err != nil {
+		root.CopyMode.SearchScanPending = false
+		root.CopyMode.SearchError = err.Error()
+		return root.Advance()
+	}
+	if msg.Done {
+		root.CopyMode.SearchScanPending = false
+		root.CopyMode.SearchScanComplete = true
+	}
+	return root.Advance()
+}
+
+func copyModeSearchCancelEffects(viewID string, pending bool, scanning bool) []Effect {
+	var effects []Effect
+	if pending {
+		effects = append(effects, CancelEffect{Token: copyModeSearchRequestToken(viewID)})
+	}
+	if scanning {
+		effects = append(effects, CancelEffect{Token: copyModeSearchScanToken(viewID)})
+	}
+	return effects
 }
 
 func copyModeLineEndPosition(history state.HistoryStore, row int) state.CopyPosition {
@@ -1871,6 +2066,10 @@ func copyModeSearchRequestToken(viewID string) CancelToken {
 	return CancelToken("copy.history.search:" + viewID)
 }
 
+func copyModeSearchScanToken(viewID string) CancelToken {
+	return CancelToken("copy.history.search-scan:" + viewID)
+}
+
 func copyModeCopyRequestToken(viewID string) CancelToken {
 	return CancelToken("copy.history.copy:" + viewID)
 }
@@ -1889,6 +2088,9 @@ func cancelPendingCopyModeHistoryEffects(root state.Root) []Effect {
 	if root.CopyMode.SearchPending && viewID != "" {
 		effects = append(effects, CancelEffect{Token: copyModeSearchRequestToken(viewID)})
 	}
+	if root.CopyMode.SearchScanPending && viewID != "" {
+		effects = append(effects, CancelEffect{Token: copyModeSearchScanToken(viewID)})
+	}
 	if root.CopyMode.CopyPending && viewID != "" {
 		effects = append(effects, CancelEffect{Token: copyModeCopyRequestToken(viewID)})
 	}
@@ -1906,6 +2108,9 @@ func copyHistoryCleanupEffectsForView(root state.Root, viewID string) []Effect {
 	}
 	if copyMode.SearchPending {
 		effects = append(effects, CancelEffect{Token: copyModeSearchRequestToken(viewID)})
+	}
+	if copyMode.SearchScanPending {
+		effects = append(effects, CancelEffect{Token: copyModeSearchScanToken(viewID)})
 	}
 	if copyMode.CopyPending {
 		effects = append(effects, CancelEffect{Token: copyModeCopyRequestToken(viewID)})

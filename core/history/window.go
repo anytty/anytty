@@ -161,6 +161,10 @@ type HistorySearchRequest struct {
 	// ContextBefore shifts the returned replacement window before the match.
 	// It must be smaller than Limit; zero preserves the interactive default.
 	ContextBefore int
+	// Scan returns chronological match positions in bounded batches and omits
+	// the replacement window used by interactive next/previous navigation.
+	Scan       bool
+	MaxMatches int
 }
 
 type HistorySearchResult struct {
@@ -168,6 +172,9 @@ type HistorySearchResult struct {
 	Match   HistoryCopyRange
 	Window  HistoryWindow
 	Wrapped bool
+	Matches []HistoryCopyRange
+	Next    HistoryCopyPosition
+	Done    bool
 }
 
 // HistoryLineSpan 把 projected rows 映射回 logical line 和 segment truth。它是

@@ -69,9 +69,11 @@ internal object NativeConnectionRuntimeOwner {
     }
 
     @Synchronized
-    fun attachRenderer(): NativeSupervisorDemandResult {
+    fun attachRenderer(context: Context): NativeSupervisorDemandResult {
+        val hadDemand = rendererDemand.hasDemand()
         val snapshot = rendererDemand.attachRenderer()
         replaceGoDemandLocked(snapshot)
+        if (hadDemand) AnyTTYConnectionService.stop(context.applicationContext)
         return supervisorDemandResult(snapshot)
     }
 

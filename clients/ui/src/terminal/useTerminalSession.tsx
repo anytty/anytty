@@ -10,6 +10,7 @@ import {
   TerminalClient,
   type TerminalClientCallbacks,
   type TerminalHistorySearchResult,
+  type TerminalHistorySearchScanBatch,
   type TerminalHistorySearchMode,
   type TerminalProtocolSession,
   type TerminalResizeControl,
@@ -71,6 +72,12 @@ export interface UseTerminalSessionResult {
     start?: { lineId: string; col: number } | undefined,
     mode?: TerminalHistorySearchMode | undefined,
   ): Promise<TerminalHistorySearchResult>
+  scanScrollback(
+    query: string,
+    cols: number,
+    onBatch: (batch: TerminalHistorySearchScanBatch) => void,
+    mode?: TerminalHistorySearchMode | undefined,
+  ): Promise<void>
   copyScrollback(
     range: { startLineId: string; startCol: number; endLineId: string; endCol: number },
     cols: number,
@@ -141,6 +148,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
   const historyRevisionRef = useRef(0)
   const loadingScrollbackRef = useRef(false)
   const scrollbackAbortControllerRef = useRef<AbortController | null>(null)
+  const historySearchScanAbortControllerRef = useRef<AbortController | null>(null)
   const hasMoreScrollbackRef = useRef(true)
   const scrollbackFrozenRef = useRef(false)
   const liveHistoryRevisionRef = useRef(0)
@@ -328,6 +336,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
       try {
         scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal channel reconnecting', 'AbortError'))
         scrollbackAbortControllerRef.current = null
+        historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal channel reconnecting', 'AbortError'))
+        historySearchScanAbortControllerRef.current = null
         scrollbackPrefetchPendingRef.current?.controller.abort(new DOMException('Terminal channel reconnecting', 'AbortError'))
         scrollbackPrefetchPendingRef.current = null
         scrollbackPrefetchRef.current = null
@@ -585,6 +595,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     loadingScrollbackRef.current = false
     scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal session replaced', 'AbortError'))
     scrollbackAbortControllerRef.current = null
+    historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal session replaced', 'AbortError'))
+    historySearchScanAbortControllerRef.current = null
     scrollbackPrefetchPendingRef.current?.controller.abort(new DOMException('Terminal session replaced', 'AbortError'))
     scrollbackPrefetchPendingRef.current = null
     scrollbackPrefetchRef.current = null
@@ -645,6 +657,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
       cancelled = true
       scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal session closed', 'AbortError'))
       scrollbackAbortControllerRef.current = null
+      historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal session closed', 'AbortError'))
+      historySearchScanAbortControllerRef.current = null
       scrollbackPrefetchPendingRef.current?.controller.abort(new DOMException('Terminal session closed', 'AbortError'))
       scrollbackPrefetchPendingRef.current = null
       scrollbackPrefetchRef.current = null
@@ -877,6 +891,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     clientRef.current?.setLiveScreenDemand(true)
     scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal history view resumed live output', 'AbortError'))
     scrollbackAbortControllerRef.current = null
+    historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal history view resumed live output', 'AbortError'))
+    historySearchScanAbortControllerRef.current = null
     scrollbackPrefetchPendingRef.current?.controller.abort(new DOMException('Terminal history view resumed live output', 'AbortError'))
     scrollbackPrefetchPendingRef.current = null
     scrollbackPrefetchRef.current = null
@@ -903,6 +919,8 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
   const resetScrollback = useCallback(() => {
     scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal history is being reloaded', 'AbortError'))
     scrollbackAbortControllerRef.current = null
+    historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal history is being reloaded', 'AbortError'))
+    historySearchScanAbortControllerRef.current = null
     scrollbackPrefetchPendingRef.current?.controller.abort(new DOMException('Terminal history is being reloaded', 'AbortError'))
     scrollbackPrefetchPendingRef.current = null
     scrollbackPrefetchRef.current = null
@@ -1189,9 +1207,29 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     return client.copyScrollback(range, cols)
   }, [])
 
+  const scanScrollback = useCallback(async (
+    query: string,
+    cols: number,
+    onBatch: (batch: TerminalHistorySearchScanBatch) => void,
+    mode: TerminalHistorySearchMode = 'text',
+  ): Promise<void> => {
+    const client = clientRef.current
+    if (!client) throw new Error('terminal client is not connected')
+    historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal history search scan superseded', 'AbortError'))
+    const controller = new AbortController()
+    historySearchScanAbortControllerRef.current = controller
+    try {
+      await client.scanScrollback(query, cols, onBatch, { signal: controller.signal, mode })
+    } finally {
+      if (historySearchScanAbortControllerRef.current === controller) historySearchScanAbortControllerRef.current = null
+    }
+  }, [])
+
   const cancelHistorySearch = useCallback(() => {
     scrollbackAbortControllerRef.current?.abort(new DOMException('Terminal history search closed', 'AbortError'))
     scrollbackAbortControllerRef.current = null
+    historySearchScanAbortControllerRef.current?.abort(new DOMException('Terminal history search closed', 'AbortError'))
+    historySearchScanAbortControllerRef.current = null
   }, [])
 
   const handleAppResume = useCallback((resumeKind: 'quick' | 'cold' | 'frozen') => {
@@ -1231,6 +1269,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     setResizeLock,
     loadScrollback,
     searchScrollback,
+    scanScrollback,
     copyScrollback,
     cancelHistorySearch,
     prefetchScrollback,

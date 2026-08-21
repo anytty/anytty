@@ -216,3 +216,29 @@ func TestHistoryWindowToProtoFitsRemotePageBudget(t *testing.T) {
 		t.Fatalf("100-row history response = %d bytes, want < 60 KiB", size)
 	}
 }
+
+func TestHistorySearchScanMappingPreservesBatchContinuation(t *testing.T) {
+	command := &apipb.HistorySearchCommand{
+		Terminal: &apipb.TerminalRef{TerminalId: "term-search"}, Token: "frozen", Query: "needle",
+		Direction: apipb.HistorySearchDirection_HISTORY_SEARCH_DIRECTION_FORWARD,
+		Scan:      true, MaxMatches: 32,
+		Start: &apipb.HistoryTextPosition{LineId: 9, Col: 4},
+	}
+	request := HistorySearchRequestFromProto(command)
+	if !request.Scan || request.MaxMatches != 32 || request.Start.LineID != 9 || request.Start.Col != 4 {
+		t.Fatalf("scan request = %#v", request)
+	}
+
+	result := HistorySearchToProto("machine", history.HistorySearchResult{
+		Found: true,
+		Matches: []history.HistoryCopyRange{{
+			Start: history.HistoryCopyPosition{LineID: 9, Col: 7},
+			End:   history.HistoryCopyPosition{LineID: 9, Col: 13},
+		}},
+		Next: history.HistoryCopyPosition{LineID: 9, Col: 13},
+	})
+	if len(result.GetScanMatches()) != 1 || result.GetScanMatches()[0].GetStartLineId() != 9 ||
+		result.GetScanNext().GetLineId() != 9 || result.GetScanNext().GetCol() != 13 || result.GetScanDone() {
+		t.Fatalf("scan result = %#v", result)
+	}
+}

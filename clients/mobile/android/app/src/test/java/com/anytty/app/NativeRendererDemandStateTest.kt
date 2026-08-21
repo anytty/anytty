@@ -6,7 +6,7 @@ import org.junit.Test
 
 class NativeRendererDemandStateTest {
     @Test
-    fun newAttachmentInheritsDemandAndFencesThePreviousRenderer() {
+    fun newAttachmentClearsStaleDemandAndFencesThePreviousRenderer() {
         var nextAttachment = 0
         val state = NativeRendererDemandState { "renderer-${++nextAttachment}" }
         val rendererA = state.attachRenderer()
@@ -18,8 +18,8 @@ class NativeRendererDemandStateTest {
 
         val rendererB = state.attachRenderer()
 
-        assertEquals(activeA.demandRevision, rendererB.demandRevision)
-        assertEquals(setOf("machine-a"), rendererB.endpointIds)
+        assertEquals(activeA.demandRevision + 1, rendererB.demandRevision)
+        assertEquals(emptySet<String>(), rendererB.endpointIds)
         assertThrows(IllegalStateException::class.java) {
             state.replaceDemand(
                 rendererA.attachmentId,

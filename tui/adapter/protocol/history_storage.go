@@ -190,6 +190,8 @@ func (adapter ProtocolCoreClientAdapter) HistorySearch(ctx context.Context, req 
 		Mode:              mode,
 		Cols:              int32(req.Cols),
 		Limit:             int32(req.Rows),
+		Scan:              req.Scan,
+		MaxMatches:        int32(req.MaxMatches),
 	}
 	if req.Start.Valid {
 		command.Start = &apipb.HistoryTextPosition{LineId: req.Start.LineID, Col: int32(req.Start.Col)}
@@ -198,7 +200,20 @@ func (adapter ProtocolCoreClientAdapter) HistorySearch(ctx context.Context, req 
 	if err != nil {
 		return port.HistorySearchResult{RequestID: req.RequestID}, normalizeProtocolHistoryWindowError(err)
 	}
-	out := port.HistorySearchResult{RequestID: req.RequestID, Found: result.GetFound(), Wrapped: result.GetWrapped()}
+	out := port.HistorySearchResult{RequestID: req.RequestID, Found: result.GetFound(), Wrapped: result.GetWrapped(), Done: result.GetScanDone()}
+	if req.Scan {
+		out.Matches = make([]port.HistorySearchMatch, 0, len(result.GetScanMatches()))
+		for _, match := range result.GetScanMatches() {
+			out.Matches = append(out.Matches, port.HistorySearchMatch{
+				Start: state.CopyLogicalPosition{Valid: true, LineID: match.GetStartLineId(), Col: int(match.GetStartCol())},
+				End:   state.CopyLogicalPosition{Valid: true, LineID: match.GetEndLineId(), Col: int(match.GetEndCol())},
+			})
+		}
+		if next := result.GetScanNext(); next != nil && next.GetLineId() != 0 {
+			out.Next = state.CopyLogicalPosition{Valid: true, LineID: next.GetLineId(), Col: int(next.GetCol())}
+		}
+		return out, nil
+	}
 	if !out.Found {
 		return out, nil
 	}

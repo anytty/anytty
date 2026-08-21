@@ -209,7 +209,8 @@ export interface MachineRuntime {
     subscribe(listener: () => void): () => void
   } | undefined
   fileTransfer?: FileTransferContext | undefined
-  probeConnection?(): Promise<void>
+  retainConnectionDemand?(): () => void
+  probeConnection?(): Promise<ConnectionInfo | null | void>
   disconnect?(): void | Promise<void>
   dispose?(): void | Promise<void>
 }
@@ -1041,6 +1042,7 @@ function MachineTerminalListView({
           key={machine.id}
           api={runtime.api}
           connector={runtime.connector}
+          retainConnectionDemand={runtime.retainConnectionDemand}
           className="min-h-0 flex-1"
           cloudPresence={machine.cloudPresence}
           initialMachine={{
@@ -2477,8 +2479,8 @@ function MachineConnectionSettingsDialog({
     const getPolicy = runtime?.connector.getConnectionPolicy
     void (async () => {
       try {
-        if (probeFirst) await runtime?.probeConnection?.()
-        setInfo(runtime?.listConnectionState?.getSnapshot().connectionInfo ?? null)
+        const probedInfo = probeFirst ? await runtime?.probeConnection?.() : undefined
+        setInfo(probedInfo ?? runtime?.listConnectionState?.getSnapshot().connectionInfo ?? null)
         if (!getPolicy) {
           setPolicyState(null)
           setError(t('workspace.connection.policyUnavailable'))
@@ -2508,8 +2510,8 @@ function MachineConnectionSettingsDialog({
     try {
       await applyPolicy(policy)
       setPolicyState((current) => current ? { ...current, policy } : current)
-      await runtime.probeConnection?.()
-      setInfo(runtime.listConnectionState?.getSnapshot().connectionInfo ?? null)
+      const probedInfo = await runtime.probeConnection?.()
+      setInfo(probedInfo ?? runtime.listConnectionState?.getSnapshot().connectionInfo ?? null)
     } catch (err) {
       setError(connectionErrorDisplayMessage(err, t))
     } finally {

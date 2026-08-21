@@ -188,6 +188,7 @@ type Intent struct {
 type RouteOptions struct {
 	Mode                     InteractionMode
 	CopyModeActive           bool
+	TextInputActive          bool
 	TerminalMousePassthrough bool
 	ForceTerminalPassthrough bool
 	Shortcuts                state.TUIShortcutConfig
@@ -206,6 +207,9 @@ func RouteWithOptions(event InputEvent, options RouteOptions) Intent {
 	case EventKindKey:
 		return routeKey(event, options)
 	case EventKindPaste:
+		if options.TextInputActive {
+			return Intent{Kind: IntentNone, Event: event, Reason: "text input paste"}
+		}
 		return Intent{Kind: IntentTerminalInput, Event: event, Bytes: []byte(event.Paste), Reason: "structured paste body"}
 	case EventKindMouse:
 		return routeMouse(event, options)

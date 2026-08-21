@@ -1203,8 +1203,11 @@ type HistorySearchCommand struct {
 	Start             *HistoryTextPosition   `protobuf:"bytes,9,opt,name=start,proto3" json:"start,omitempty"`
 	Mode              HistorySearchMode      `protobuf:"varint,10,opt,name=mode,proto3,enum=anytty.api.v1.HistorySearchMode" json:"mode,omitempty"`
 	ContextBefore     int32                  `protobuf:"varint,11,opt,name=context_before,json=contextBefore,proto3" json:"context_before,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// scan returns chronological match batches without a replacement window.
+	Scan          bool  `protobuf:"varint,12,opt,name=scan,proto3" json:"scan,omitempty"`
+	MaxMatches    int32 `protobuf:"varint,13,opt,name=max_matches,json=maxMatches,proto3" json:"max_matches,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *HistorySearchCommand) Reset() {
@@ -1303,6 +1306,20 @@ func (x *HistorySearchCommand) GetMode() HistorySearchMode {
 func (x *HistorySearchCommand) GetContextBefore() int32 {
 	if x != nil {
 		return x.ContextBefore
+	}
+	return 0
+}
+
+func (x *HistorySearchCommand) GetScan() bool {
+	if x != nil {
+		return x.Scan
+	}
+	return false
+}
+
+func (x *HistorySearchCommand) GetMaxMatches() int32 {
+	if x != nil {
+		return x.MaxMatches
 	}
 	return 0
 }
@@ -2021,6 +2038,9 @@ type HistorySearchResult struct {
 	Match         *HistoryRange          `protobuf:"bytes,2,opt,name=match,proto3" json:"match,omitempty"`
 	Window        *HistoryWindowResult   `protobuf:"bytes,3,opt,name=window,proto3" json:"window,omitempty"`
 	Wrapped       bool                   `protobuf:"varint,4,opt,name=wrapped,proto3" json:"wrapped,omitempty"`
+	ScanMatches   []*HistoryRange        `protobuf:"bytes,5,rep,name=scan_matches,json=scanMatches,proto3" json:"scan_matches,omitempty"`
+	ScanNext      *HistoryTextPosition   `protobuf:"bytes,6,opt,name=scan_next,json=scanNext,proto3" json:"scan_next,omitempty"`
+	ScanDone      bool                   `protobuf:"varint,7,opt,name=scan_done,json=scanDone,proto3" json:"scan_done,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2079,6 +2099,27 @@ func (x *HistorySearchResult) GetWindow() *HistoryWindowResult {
 func (x *HistorySearchResult) GetWrapped() bool {
 	if x != nil {
 		return x.Wrapped
+	}
+	return false
+}
+
+func (x *HistorySearchResult) GetScanMatches() []*HistoryRange {
+	if x != nil {
+		return x.ScanMatches
+	}
+	return nil
+}
+
+func (x *HistorySearchResult) GetScanNext() *HistoryTextPosition {
+	if x != nil {
+		return x.ScanNext
+	}
+	return nil
+}
+
+func (x *HistorySearchResult) GetScanDone() bool {
+	if x != nil {
+		return x.ScanDone
 	}
 	return false
 }
@@ -2588,7 +2629,7 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\tmax_bytes\x18\x05 \x01(\x05R\bmaxBytesJ\x04\b\x01\x10\x02\"@\n" +
 	"\x13HistoryTextPosition\x12\x17\n" +
 	"\aline_id\x18\x01 \x01(\x04R\x06lineId\x12\x10\n" +
-	"\x03col\x18\x02 \x01(\x05R\x03col\"\xb5\x03\n" +
+	"\x03col\x18\x02 \x01(\x05R\x03col\"\xea\x03\n" +
 	"\x14HistorySearchCommand\x126\n" +
 	"\bterminal\x18\x02 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12-\n" +
@@ -2600,7 +2641,10 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\x05start\x18\t \x01(\v2\".anytty.api.v1.HistoryTextPositionR\x05start\x124\n" +
 	"\x04mode\x18\n" +
 	" \x01(\x0e2 .anytty.api.v1.HistorySearchModeR\x04mode\x12%\n" +
-	"\x0econtext_before\x18\v \x01(\x05R\rcontextBeforeJ\x04\b\x01\x10\x02\"\x9a\x01\n" +
+	"\x0econtext_before\x18\v \x01(\x05R\rcontextBefore\x12\x12\n" +
+	"\x04scan\x18\f \x01(\bR\x04scan\x12\x1f\n" +
+	"\vmax_matches\x18\r \x01(\x05R\n" +
+	"maxMatchesJ\x04\b\x01\x10\x02\"\x9a\x01\n" +
 	"\x15HistoryReleaseCommand\x126\n" +
 	"\bterminal\x18\x02 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12-\n" +
@@ -2681,12 +2725,15 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\x11HistoryCopyResult\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x126\n" +
 	"\x04next\x18\x02 \x01(\v2\".anytty.api.v1.HistoryTextPositionR\x04next\x12\x12\n" +
-	"\x04done\x18\x03 \x01(\bR\x04done\"\xb4\x01\n" +
+	"\x04done\x18\x03 \x01(\bR\x04done\"\xd2\x02\n" +
 	"\x13HistorySearchResult\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x121\n" +
 	"\x05match\x18\x02 \x01(\v2\x1b.anytty.api.v1.HistoryRangeR\x05match\x12:\n" +
 	"\x06window\x18\x03 \x01(\v2\".anytty.api.v1.HistoryWindowResultR\x06window\x12\x18\n" +
-	"\awrapped\x18\x04 \x01(\bR\awrapped\"\xde\x04\n" +
+	"\awrapped\x18\x04 \x01(\bR\awrapped\x12>\n" +
+	"\fscan_matches\x18\x05 \x03(\v2\x1b.anytty.api.v1.HistoryRangeR\vscanMatches\x12?\n" +
+	"\tscan_next\x18\x06 \x01(\v2\".anytty.api.v1.HistoryTextPositionR\bscanNext\x12\x1b\n" +
+	"\tscan_done\x18\a \x01(\bR\bscanDone\"\xde\x04\n" +
 	"\x1aHistoryBacklogStatusResult\x126\n" +
 	"\bterminal\x18\x01 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12'\n" +
 	"\x0fhistory_enabled\x18\x02 \x01(\bR\x0ehistoryEnabled\x120\n" +
@@ -2846,20 +2893,22 @@ var file_apipb_history_proto_depIdxs = []int32{
 	16, // 28: anytty.api.v1.HistoryCopyResult.next:type_name -> anytty.api.v1.HistoryTextPosition
 	13, // 29: anytty.api.v1.HistorySearchResult.match:type_name -> anytty.api.v1.HistoryRange
 	23, // 30: anytty.api.v1.HistorySearchResult.window:type_name -> anytty.api.v1.HistoryWindowResult
-	31, // 31: anytty.api.v1.HistoryBacklogStatusResult.terminal:type_name -> anytty.api.v1.TerminalRef
-	31, // 32: anytty.api.v1.LiveScreenNextCommand.terminal:type_name -> anytty.api.v1.TerminalRef
-	9,  // 33: anytty.api.v1.ScreenRowReplace.row:type_name -> anytty.api.v1.ScreenRow
-	31, // 34: anytty.api.v1.NativeScreenResult.terminal:type_name -> anytty.api.v1.TerminalRef
-	32, // 35: anytty.api.v1.NativeScreenResult.size:type_name -> anytty.api.v1.TerminalSize
-	29, // 36: anytty.api.v1.NativeScreenResult.row_replacements:type_name -> anytty.api.v1.ScreenRowReplace
-	10, // 37: anytty.api.v1.NativeScreenResult.cursor:type_name -> anytty.api.v1.TerminalCursor
-	11, // 38: anytty.api.v1.NativeScreenResult.modes:type_name -> anytty.api.v1.TerminalModes
-	28, // 39: anytty.api.v1.NativeScreenResult.row_copies:type_name -> anytty.api.v1.ScreenRowCopy
-	40, // [40:40] is the sub-list for method output_type
-	40, // [40:40] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	13, // 31: anytty.api.v1.HistorySearchResult.scan_matches:type_name -> anytty.api.v1.HistoryRange
+	16, // 32: anytty.api.v1.HistorySearchResult.scan_next:type_name -> anytty.api.v1.HistoryTextPosition
+	31, // 33: anytty.api.v1.HistoryBacklogStatusResult.terminal:type_name -> anytty.api.v1.TerminalRef
+	31, // 34: anytty.api.v1.LiveScreenNextCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	9,  // 35: anytty.api.v1.ScreenRowReplace.row:type_name -> anytty.api.v1.ScreenRow
+	31, // 36: anytty.api.v1.NativeScreenResult.terminal:type_name -> anytty.api.v1.TerminalRef
+	32, // 37: anytty.api.v1.NativeScreenResult.size:type_name -> anytty.api.v1.TerminalSize
+	29, // 38: anytty.api.v1.NativeScreenResult.row_replacements:type_name -> anytty.api.v1.ScreenRowReplace
+	10, // 39: anytty.api.v1.NativeScreenResult.cursor:type_name -> anytty.api.v1.TerminalCursor
+	11, // 40: anytty.api.v1.NativeScreenResult.modes:type_name -> anytty.api.v1.TerminalModes
+	28, // 41: anytty.api.v1.NativeScreenResult.row_copies:type_name -> anytty.api.v1.ScreenRowCopy
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_apipb_history_proto_init() }

@@ -12,6 +12,7 @@ import {
   type TerminalModifierState,
 } from './mobileTerminalInput'
 import type {
+  TerminalHistoryLogicalMatch,
   TerminalHistoryMatchRange,
   TerminalHistorySearchMode,
   TerminalResizeControl,
@@ -31,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import '../i18n'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { NativeSelect } from '../ui/native-select'
 import { Spinner } from '../ui/spinner'
 import { useConnectionRecoveryOverlay, type ConnectionRecoveryOverlayIntent } from '../connection/ConnectionRecoveryOverlay'
 
@@ -44,6 +46,8 @@ const historyApplyBatchDelayMs = 160
 const historyApplyScrollIdleMs = 180
 const historyApplyMaxDelayMs = 900
 const historyApplyWatchdogMs = 4000
+const historyPullMaxOffsetPx = 44
+const historyPullReleaseMs = 220
 const xtermWriteStatsIntervalMs = 1000
 const xtermWriteSlowMs = 500
 const xtermWriteLargeChars = 128 * 1024
@@ -122,6 +126,49 @@ function effectiveRendererMode(configuredRenderer: TerminalRenderer): TerminalRe
   return configuredRenderer
 }
 
+function historyLogicalMatchesToVisualRanges(
+  history: NonNullable<TerminalSnapshotPayload['history']>,
+  matches: TerminalHistoryLogicalMatch[],
+): TerminalHistoryMatchRange[] {
+  const lineIds = history.rowLogicalLineIds ?? []
+  const rowStarts = history.rowLogicalStartCols ?? []
+  const ranges: TerminalHistoryMatchRange[] = []
+  for (const match of matches) {
+    for (let row = 0; row < lineIds.length; row += 1) {
+      const lineId = lineIds[row]
+      if (!lineId || !historyLineWithinMatch(lineId, match)) continue
+      const rowStart = Math.max(0, rowStarts[row] ?? 0)
+      const nextStart = lineIds[row + 1] === lineId ? Math.max(rowStart, rowStarts[row + 1] ?? rowStart + history.cols) : rowStart + history.cols
+      const matchStart = lineId === match.startLineId ? match.startCol : rowStart
+      const matchEnd = lineId === match.endLineId ? match.endCol : nextStart
+      const startCol = Math.max(rowStart, matchStart) - rowStart
+      const endCol = Math.min(nextStart, matchEnd) - rowStart
+      if (endCol > startCol) ranges.push({ row, startCol, endCol })
+    }
+  }
+  return ranges
+}
+
+function historyLineWithinMatch(lineId: string, match: TerminalHistoryLogicalMatch): boolean {
+  try {
+    const line = BigInt(lineId)
+    return line >= BigInt(match.startLineId) && line <= BigInt(match.endLineId)
+  } catch {
+    return lineId === match.startLineId || lineId === match.endLineId
+  }
+}
+
+function sameHistoryLogicalMatch(left: TerminalHistoryLogicalMatch, right: TerminalHistoryLogicalMatch): boolean {
+  return left.startLineId === right.startLineId && left.startCol === right.startCol &&
+    left.endLineId === right.endLineId && left.endCol === right.endCol
+}
+
+function historySearchRailOffset(match: TerminalHistoryLogicalMatch, totalLines: number): string {
+  const line = Number.parseInt(match.startLineId, 10)
+  if (!Number.isFinite(line) || totalLines <= 1) return '0%'
+  return `${Math.max(0, Math.min(100, ((line - 1) / (totalLines - 1)) * 100))}%`
+}
+
 interface PendingHistoryApply {
   revision: number
   cols: number
@@ -148,6 +195,7 @@ export interface TerminalProps {
   onBufferChange?: ((isAlternate: boolean) => void) | undefined
   onResizeControl?: ((control: TerminalResizeControl) => void) | undefined
   onTerminalInfoChange?: ((terminal: RemoteTerminal) => void) | undefined
+  onHistorySearchOpenChange?: ((open: boolean) => void) | undefined
   modifierState?: TerminalModifierState | undefined
   onModifierStateChange?: ((state: TerminalModifierState) => void) | undefined
   selectionMode?: boolean | undefined
@@ -194,6 +242,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     onBufferChange,
     onResizeControl,
     onTerminalInfoChange,
+    onHistorySearchOpenChange,
     modifierState,
     onModifierStateChange,
     selectionMode = false,
@@ -254,7 +303,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const recoveryRevisionAppliedRef = useRef(0)
   const pendingHistoryViewportRef = useRef<number | null>(null)
   const pendingHistoryApplyRef = useRef<PendingHistoryApply | null>(null)
-  const historySearchDecorationsRef = useRef<Array<{ dispose(): void }>>([])
+  const historySearchHighlightLayerRef = useRef<HTMLDivElement | null>(null)
   const historyApplyQueuedAtRef = useRef(0)
   const historyApplyTimerRef = useRef<number | null>(null)
   const historyLoadArmedByUserRef = useRef(false)
@@ -319,7 +368,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const [historySearchQuery, setHistorySearchQuery] = useState('')
   const [historySearchMode, setHistorySearchMode] = useState<TerminalHistorySearchMode>('text')
   const [historySearchBusy, setHistorySearchBusy] = useState(false)
+  const [historySearchScanBusy, setHistorySearchScanBusy] = useState(false)
+  const [historySearchScanComplete, setHistorySearchScanComplete] = useState(false)
+  const [historySearchMatches, setHistorySearchMatches] = useState<TerminalHistoryLogicalMatch[]>([])
+  const [historySearchActiveMatch, setHistorySearchActiveMatch] = useState<TerminalHistoryLogicalMatch | null>(null)
+  const [historySearchWrapped, setHistorySearchWrapped] = useState(false)
   const [historySearchMessage, setHistorySearchMessage] = useState('')
+  const historySearchOpenRef = useRef(false)
+  const historySearchMatchesRef = useRef<TerminalHistoryLogicalMatch[]>([])
+  const historySearchScanKeyRef = useRef('')
   const historySearchLastMatchRef = useRef<{
     query: string
     mode: TerminalHistorySearchMode
@@ -330,8 +387,54 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   } | null>(null)
 
   const clearHistorySearchHighlight = useCallback(() => {
-    for (const disposable of historySearchDecorationsRef.current.splice(0)) disposable.dispose()
+    historySearchHighlightLayerRef.current?.replaceChildren()
   }, [])
+
+  const paintHistorySearchHighlights = useCallback((term: XTerm, activeRanges?: TerminalHistoryMatchRange[]) => {
+    clearHistorySearchHighlight()
+    const history = historyMetadataRef.current
+    const active = historySearchLastMatchRef.current
+    const layer = historySearchHighlightLayerRef.current
+    if (!history || !layer || term.cols <= 0 || term.rows <= 0) return
+    const weakMatches = active
+      ? historySearchMatchesRef.current.filter((match) => !sameHistoryLogicalMatch(match, active))
+      : historySearchMatchesRef.current
+    const weakRanges = historyLogicalMatchesToVisualRanges(history, weakMatches)
+    const currentRanges = activeRanges ?? (active ? historyLogicalMatchesToVisualRanges(history, [active]) : [])
+    const screen = layer.parentElement
+    const screenRect = screen?.getBoundingClientRect()
+    const screenWidth = screen?.clientWidth || screenRect?.width || term.cols
+    const screenHeight = screen?.clientHeight || screenRect?.height || term.rows
+    const cellWidth = screenWidth / term.cols
+    const cellHeight = screenHeight / term.rows
+    const viewportY = term.buffer.active.viewportY
+    const fragment = document.createDocumentFragment()
+    const decorate = (range: TerminalHistoryMatchRange, current: boolean) => {
+      const startCol = Math.max(0, Math.min(term.cols - 1, Math.trunc(range.startCol)))
+      const endCol = Math.max(startCol + 1, Math.min(term.cols, Math.trunc(range.endCol)))
+      const visibleRow = Math.trunc(range.row) - viewportY
+      if (visibleRow < 0 || visibleRow >= term.rows) return
+      const highlight = document.createElement('span')
+      highlight.className = current
+        ? 'anytty-history-search-highlight anytty-history-search-highlight-current'
+        : 'anytty-history-search-highlight'
+      highlight.dataset.current = current ? 'true' : 'false'
+      highlight.style.transform = `translate3d(${startCol * cellWidth}px, ${visibleRow * cellHeight}px, 0)`
+      highlight.style.width = `${(endCol - startCol) * cellWidth}px`
+      highlight.style.height = `${cellHeight}px`
+      fragment.append(highlight)
+    }
+    weakRanges.forEach((range) => decorate(range, false))
+    currentRanges.forEach((range) => decorate(range, true))
+    layer.append(fragment)
+  }, [clearHistorySearchHighlight])
+
+  useEffect(() => {
+    historySearchOpenRef.current = historySearchOpen
+    onHistorySearchOpenChange?.(historySearchOpen)
+  }, [historySearchOpen, onHistorySearchOpenChange])
+
+  useEffect(() => () => onHistorySearchOpenChange?.(false), [onHistorySearchOpenChange])
 
   const showHistoryLoading = useCallback(() => {
     if (historyLoadingHideTimerRef.current !== null) {
@@ -611,12 +714,52 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   useEffect(() => {
     updateHistoryStatusRef.current()
     if (!terminalSession.terminalSnapshot?.history) {
+      terminalSession.cancelHistorySearch()
       setHistorySearchOpen(false)
       setHistorySearchMessage('')
       historySearchLastMatchRef.current = null
+      historySearchMatchesRef.current = []
+      historySearchScanKeyRef.current = ''
+      setHistorySearchMatches([])
+      setHistorySearchActiveMatch(null)
+      setHistorySearchScanBusy(false)
+      setHistorySearchScanComplete(false)
+      setHistorySearchWrapped(false)
       clearHistorySearchHighlight()
     }
-  }, [clearHistorySearchHighlight, terminalSession.terminalSnapshot?.history?.revision])
+  }, [clearHistorySearchHighlight, terminalSession.cancelHistorySearch, terminalSession.terminalSnapshot?.history?.revision])
+
+  const runHistorySearchScan = useCallback(async (query: string, mode: TerminalHistorySearchMode, cols: number) => {
+    const key = `${query}\u0000${mode}\u0000${cols}`
+    if (historySearchScanKeyRef.current === key && (historySearchScanBusy || historySearchScanComplete)) return
+    historySearchScanKeyRef.current = key
+    historySearchMatchesRef.current = []
+    setHistorySearchMatches([])
+    setHistorySearchScanBusy(true)
+    setHistorySearchScanComplete(false)
+    try {
+      await terminalSession.scanScrollback(query, cols, (batch) => {
+        if (historySearchScanKeyRef.current !== key) return
+        setHistorySearchMatches((current) => {
+          const next = [...current]
+          for (const match of batch.matches) {
+            if (!next.some((candidate) => sameHistoryLogicalMatch(candidate, match))) next.push(match)
+          }
+          historySearchMatchesRef.current = next
+          return next
+        })
+        if (batch.done) setHistorySearchScanComplete(true)
+      }, mode)
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError') && historySearchScanKeyRef.current === key) {
+        setHistorySearchMessage(error instanceof Error && error.message.trim()
+          ? error.message
+          : t('terminal.tools.searchUnavailable'))
+      }
+    } finally {
+      if (historySearchScanKeyRef.current === key) setHistorySearchScanBusy(false)
+    }
+  }, [historySearchScanBusy, historySearchScanComplete, t, terminalSession.scanScrollback])
 
   const runHistorySearch = useCallback(async (direction: 'forward' | 'backward') => {
     const query = historySearchQuery
@@ -628,6 +771,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       if (!historyMetadataRef.current) {
         await loadScrollbackRef.current(historyScrollbackPageRows, false, term.cols)
       }
+      void runHistorySearchScan(query, historySearchMode, term.cols)
       const previous = historySearchLastMatchRef.current?.query === query &&
         historySearchLastMatchRef.current?.mode === historySearchMode
         ? historySearchLastMatchRef.current
@@ -640,11 +784,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       const result = await terminalSession.searchScrollback(query, direction, term.cols, start, historySearchMode)
       if (!result.found || !result.match) {
         historySearchLastMatchRef.current = null
-        clearHistorySearchHighlight()
+        setHistorySearchActiveMatch(null)
+        setHistorySearchWrapped(false)
+        paintHistorySearchHighlights(term)
         setHistorySearchMessage(t('terminal.tools.searchNoResults'))
         return
       }
       historySearchLastMatchRef.current = { query, mode: historySearchMode, ...result.match }
+      setHistorySearchActiveMatch(result.match)
+      setHistorySearchWrapped(result.wrapped)
       setHistorySearchMessage(result.wrapped
         ? t('terminal.tools.searchWrapped')
         : t('terminal.tools.searchMatch', { line: result.match.startLineId }))
@@ -658,7 +806,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     } finally {
       setHistorySearchBusy(false)
     }
-  }, [clearHistorySearchHighlight, historySearchBusy, historySearchMode, historySearchQuery, t, terminalSession.searchScrollback])
+  }, [historySearchBusy, historySearchMode, historySearchQuery, paintHistorySearchHighlights, runHistorySearchScan, t, terminalSession.searchScrollback])
+
+  useEffect(() => {
+    const term = xtermRef.current
+    if (!term || !historySearchOpen) return
+    paintHistorySearchHighlights(term)
+  }, [historySearchActiveMatch, historySearchMatches, historySearchOpen, paintHistorySearchHighlights, terminalSession.terminalSnapshot?.history?.revision])
 
   useEffect(() => {
     surfaceReadyRef.current = false
@@ -1406,6 +1560,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       }
       return screenElement
     }
+    const historySearchHighlightLayer = document.createElement('div')
+    historySearchHighlightLayer.className = 'anytty-history-search-highlights'
+    historySearchHighlightLayer.setAttribute('aria-hidden', 'true')
+    resolveScreenElement()?.append(historySearchHighlightLayer)
+    historySearchHighlightLayerRef.current = historySearchHighlightLayer
     const getLineHeight = () => Math.ceil((term.element?.clientHeight ?? 0) / term.rows) || 20
     let lineHeightPx = getLineHeight()
     let touchAccum = 0
@@ -1435,6 +1594,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     let scrollbarDragging = false
     let scrollbarDragStartY = 0
     let scrollbarDragStartRatio = 0
+    let historyPrefetchPending = false
+    let historyPullOffsetPx = 0
+    let historyPullReleaseTimer = 0
+    let historyPullReleasing = false
+    let historyPullLoading = false
+    let nudgeHistoryPullVisual = (_pixels: number) => {}
+    let releaseHistoryPullVisual = () => {}
+    let setHistoryPullLoading = (_loading: boolean) => {}
     let historyEntryGestureReady = false
     let selectionAnchorCol = 0
     let selectionAnchorRow = 0
@@ -1503,6 +1670,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     scrollbarThumb.className = 'term-scrollbar-thumb'
     scrollbarTrack.append(scrollbarThumb)
     container.append(scrollbarTrack)
+
+    const historyPullIndicator = document.createElement('div')
+    historyPullIndicator.className = 'term-history-pull-indicator'
+    historyPullIndicator.setAttribute('aria-hidden', 'true')
+    container.append(historyPullIndicator)
 
     const magnifier = document.createElement('div')
     magnifier.className = 'sel-magnifier'
@@ -1641,6 +1813,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       showHistoryLoading()
       if (restoreViewport) {
         pullingHistoryRef.current = true
+        setHistoryPullLoading(true)
       }
       historyRestoreViewportOnLoadRef.current = restoreViewport
       pendingHistoryViewportRef.current = restoreViewport ? term.buffer.active.viewportY : null
@@ -1700,6 +1873,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         historyRestoreViewportOnLoadRef.current = false
         if (!keepVisibleForApply) {
           pullingHistoryRef.current = false
+          setHistoryPullLoading(false)
           hideHistoryLoading()
           if (!loadCancelled || selectionModeExitPendingRef.current) {
             resumeFrozenHistoryAtBottomRef.current(true)
@@ -1724,13 +1898,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     }
 
     const maybePrefetchScrollback = () => {
-      if (!historyLoadArmedByUserRef.current) return
+      if (historyPrefetchPending || !historyLoadArmedByUserRef.current) return
       const thresholdRows = terminalHistoryPrefetchThresholdRows(
         settingsRef.current.scrollbackPrefetchThresholdRows,
         term.rows,
       )
       if (term.buffer.active.viewportY > thresholdRows) return
-      void loadScrollbackPage(true)
+      historyPrefetchPending = true
+      void loadScrollbackPage(true).finally(() => {
+        historyPrefetchPending = false
+      })
     }
     maybePrefetchScrollbackRef.current = maybePrefetchScrollback
 
@@ -1774,6 +1951,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         heldFrame?.remove()
         historyApplyingRef.current = false
         pullingHistoryRef.current = false
+        setHistoryPullLoading(false)
         historyProjectionReloadPendingRef.current = false
         historyLoadedRowsRequestedRef.current = historyLoadedRowsAppliedRef.current
         hideHistoryLoading()
@@ -1791,6 +1969,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           }
           historyLoadedRowsAppliedRef.current = pending.loadedRows
           historyApplyingRef.current = false
+          setHistoryPullLoading(false)
           hideHistoryLoading()
           if (pending.restoreViewportY !== null) {
             maybePrefetchScrollbackRef.current()
@@ -1849,25 +2028,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             cancelBottomAnchor()
             term.scrollToLine(currentViewportY + viewportOffsetRows)
           }
-          if (pending.searchMatchRanges?.length) {
-            const cursorLine = term.buffer.active.baseY + term.buffer.active.cursorY
-            for (const range of pending.searchMatchRanges) {
-              const startCol = Math.max(0, Math.min(term.cols - 1, Math.trunc(range.startCol)))
-              const endCol = Math.max(startCol + 1, Math.min(term.cols, Math.trunc(range.endCol)))
-              const marker = term.registerMarker(Math.trunc(range.row) - cursorLine)
-              const decoration = term.registerDecoration({
-                marker,
-                x: startCol,
-                width: endCol - startCol,
-                height: 1,
-                backgroundColor: '#F59E0B',
-                foregroundColor: '#111827',
-                layer: 'top',
-              })
-              if (decoration) historySearchDecorationsRef.current.push(decoration)
-              historySearchDecorationsRef.current.push(marker)
-            }
-          }
+          paintHistorySearchHighlights(term, pending.searchMatchRanges)
           if (selectionModeRef.current) {
             if (selectionPhase !== 'idle' && viewportOffsetRows > 0) {
               selectionAnchorRow += viewportOffsetRows
@@ -1946,12 +2107,90 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
     const syncTransform = () => {
       const currentScreenElement = resolveScreenElement()
-      if (!currentScreenElement || !smoothActive) return
-      const renderedPx = (renderedViewportY - baseViewportY) * lineHeightPx
-      const subLinePx = totalPxOffset - renderedPx
-      const transform = `translateY(${-subLinePx}px)`
+      if (!currentScreenElement) return
+      const renderedPx = smoothActive ? (renderedViewportY - baseViewportY) * lineHeightPx : 0
+      const subLinePx = smoothActive ? totalPxOffset - renderedPx : 0
+      const translateY = historyPullOffsetPx - subLinePx
+      if (!smoothActive && !historyPullReleasing && Math.abs(translateY) < 0.01) {
+        currentScreenElement.style.transform = ''
+        primedHistoryFrameRef.current?.setTransform('')
+        return
+      }
+      const transform = `translateY(${translateY}px)`
       currentScreenElement.style.transform = transform
       primedHistoryFrameRef.current?.setTransform(transform)
+    }
+
+    const updateHistoryPullIndicator = () => {
+      const progress = Math.min(1, historyPullOffsetPx / historyPullMaxOffsetPx)
+      historyPullIndicator.style.setProperty('--term-history-pull-scale', `${0.25 + progress * 0.75}`)
+      historyPullIndicator.style.setProperty('--term-history-pull-opacity', `${0.35 + progress * 0.65}`)
+      historyPullIndicator.classList.toggle('visible', progress > 0 || historyPullLoading)
+      historyPullIndicator.classList.toggle('loading', historyPullLoading)
+    }
+
+    const clearHistoryPullReleaseTimer = () => {
+      if (!historyPullReleaseTimer) return
+      window.clearTimeout(historyPullReleaseTimer)
+      historyPullReleaseTimer = 0
+    }
+
+    releaseHistoryPullVisual = () => {
+      clearHistoryPullReleaseTimer()
+      if (historyPullOffsetPx <= 0) {
+        updateHistoryPullIndicator()
+        return
+      }
+      historyPullReleasing = true
+      const currentScreenElement = resolveScreenElement()
+      if (currentScreenElement) {
+        currentScreenElement.style.transition = prefersReducedTerminalMotion()
+          ? ''
+          : `transform ${historyPullReleaseMs}ms cubic-bezier(0.22, 1.35, 0.36, 1)`
+      }
+      historyPullOffsetPx = 0
+      syncTransform()
+      updateHistoryPullIndicator()
+      historyPullReleaseTimer = window.setTimeout(() => {
+        historyPullReleaseTimer = 0
+        historyPullReleasing = false
+        const screen = resolveScreenElement()
+        if (screen) {
+          screen.style.transition = ''
+          if (!smoothActive) {
+            screen.style.transform = ''
+            screen.style.willChange = ''
+          }
+        }
+        if (!smoothActive) primedHistoryFrameRef.current?.setTransform('')
+        updateHistoryPullIndicator()
+      }, prefersReducedTerminalMotion() ? 0 : historyPullReleaseMs)
+    }
+
+    nudgeHistoryPullVisual = (pixels: number) => {
+      if (pixels <= 0) return
+      clearHistoryPullReleaseTimer()
+      historyPullReleasing = false
+      const currentScreenElement = resolveScreenElement()
+      if (currentScreenElement) {
+        currentScreenElement.style.transition = ''
+        currentScreenElement.style.willChange = 'transform'
+      }
+      if (!prefersReducedTerminalMotion()) {
+        const remaining = Math.max(0, historyPullMaxOffsetPx - historyPullOffsetPx)
+        const resisted = Math.max(1.5, pixels * 0.24) * (remaining / historyPullMaxOffsetPx)
+        historyPullOffsetPx = Math.min(historyPullMaxOffsetPx, historyPullOffsetPx + resisted)
+        syncTransform()
+      }
+      updateHistoryPullIndicator()
+      if (!touchActive) {
+        historyPullReleaseTimer = window.setTimeout(releaseHistoryPullVisual, 70)
+      }
+    }
+
+    setHistoryPullLoading = (loading: boolean) => {
+      historyPullLoading = loading
+      updateHistoryPullIndicator()
     }
 
     const smoothBegin = () => {
@@ -1967,13 +2206,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
     const smoothEnd = () => {
       if (!smoothActive) return
+      smoothActive = false
       const currentScreenElement = resolveScreenElement()
       if (currentScreenElement) {
-        currentScreenElement.style.transform = ''
-        currentScreenElement.style.willChange = ''
+        if (historyPullOffsetPx > 0 || historyPullReleasing) {
+          syncTransform()
+        } else {
+          currentScreenElement.style.transform = ''
+          currentScreenElement.style.willChange = ''
+        }
       }
-      primedHistoryFrameRef.current?.setTransform('')
-      smoothActive = false
+      if (historyPullOffsetPx <= 0 && !historyPullReleasing) {
+        primedHistoryFrameRef.current?.setTransform('')
+      }
     }
 
     const resetTransientViewportOffset = () => {
@@ -1991,8 +2236,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       })
       if (preserveTuiGesture) return
       clearMomentum()
+      clearHistoryPullReleaseTimer()
+      historyPullOffsetPx = 0
+      historyPullReleasing = false
+      updateHistoryPullIndicator()
       const currentScreenElement = resolveScreenElement()
       if (currentScreenElement) {
+        currentScreenElement.style.transition = ''
         currentScreenElement.style.transform = ''
         currentScreenElement.style.willChange = ''
       }
@@ -2025,7 +2275,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         if (actualViewportY !== Math.round(desiredViewportY)) {
           totalPxOffset = (actualViewportY - baseViewportY) * lineHeightPx
           clamped = true
-          if (px < 0) maybePrefetchScrollback()
+          if (px < 0) {
+            nudgeHistoryPullVisual(Math.abs(px))
+            maybePrefetchScrollback()
+          }
         }
       }
       syncTransform()
@@ -2547,6 +2800,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           return
         }
         smoothEnd()
+        releaseHistoryPullVisual()
         touchLastY = Number.NaN
         return
       }
@@ -2587,7 +2841,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           },
         })
       }
-      if (!touchMoved && touchEndNow - touchStartTime < 500) {
+      if (historyPullOffsetPx > 0) {
+        velocityY = 0
+        smoothEnd()
+        releaseHistoryPullVisual()
+      } else if (!touchMoved && touchEndNow - touchStartTime < 500) {
         const currentScreenElement = resolveScreenElement()
         if (isMouseModeActive() && currentScreenElement) {
           const mouseOptions: MouseEventInit = {
@@ -2719,6 +2977,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           showScrollbar()
           hideScrollbarDelayed()
         }
+        if (historySearchOpenRef.current) paintHistorySearchHighlights(term)
       })
       : { dispose() {} }
     const bufferDisposable = term.buffer.onBufferChange?.(() => {
@@ -2776,6 +3035,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           historyLoadedRowsAppliedRef.current > 0
         armHistoryScrollbackLoad()
         if (term.buffer.active.viewportY <= thresholdRows) {
+          if (term.buffer.active.viewportY <= 0) {
+            nudgeHistoryPullVisual(Math.max(8, Math.abs(event.deltaY)))
+          }
           maybePrefetchScrollback()
         }
       } else if (event.deltaY !== 0) {
@@ -2949,6 +3211,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         historyApplyTimerRef.current = null
       }
       pendingHistoryApplyRef.current = null
+      historyPrefetchPending = false
+      clearHistoryPullReleaseTimer()
+      historyPullOffsetPx = 0
+      historyPullLoading = false
+      historyPullReleasing = false
       clearHistorySearchHighlight()
       historyLoadArmedByUserRef.current = false
       primedHistoryFrameRef.current?.remove()
@@ -2995,6 +3262,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       document.removeEventListener('touchend', handleScrollbarTouchEnd)
       document.removeEventListener('touchcancel', handleScrollbarTouchEnd)
       scrollbarTrack.remove()
+      historyPullIndicator.remove()
+      historySearchHighlightLayer.remove()
+      if (historySearchHighlightLayerRef.current === historySearchHighlightLayer) {
+        historySearchHighlightLayerRef.current = null
+      }
       magnifier.remove()
       selectionAnchorMarker.remove()
       if (xtermRef.current === term) xtermRef.current = null
@@ -3014,7 +3286,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       }
       setHistoryStatusVisible(false)
     }
-  }, [cancelBottomAnchor, clearHistorySearchHighlight, clearLiveOutputWatchdog, fitAndMaybeSendResize, historyOnly, isScrolledToBottom, keepBottomAnchored, logTerminal, markSurfaceReady, reloadHistoryProjectionWhenIdle, renderer, scheduleFit, sendInputAtCurrentSize, sendUserInput, settings.renderer, writeToXterm])
+  }, [cancelBottomAnchor, clearHistorySearchHighlight, clearLiveOutputWatchdog, fitAndMaybeSendResize, historyOnly, isScrolledToBottom, keepBottomAnchored, logTerminal, markSurfaceReady, paintHistorySearchHighlights, reloadHistoryProjectionWhenIdle, renderer, scheduleFit, sendInputAtCurrentSize, sendUserInput, settings.renderer, writeToXterm])
 
   useEffect(() => {
     isOpenRef.current = isOpen
@@ -3186,6 +3458,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     }
   }, [clearLiveOutputWatchdog, historyOnly, keepBottomAnchored, logTerminal, markSurfaceReady, reloadHistoryProjectionWhenIdle, terminalSession.markLiveScreenCompleted, terminalSession.markLiveScreenSubmitted, terminalSession.terminalSnapshot, terminalSession.terminalText, writeToXterm])
 
+  const historySearchActiveIndex = historySearchActiveMatch
+    ? historySearchMatches.findIndex((match) => sameHistoryLogicalMatch(match, historySearchActiveMatch)) + 1
+    : 0
+  const historySearchCountLabel = !historySearchQuery.trim()
+    ? '0 / 0'
+    : historySearchScanBusy
+      ? `${historySearchActiveIndex > 0 ? historySearchActiveIndex : '–'} / ${historySearchMatches.length}+`
+      : historySearchScanComplete
+        ? `${historySearchActiveIndex > 0 ? historySearchActiveIndex : historySearchMatches.length === 0 ? 0 : '–'} / ${historySearchMatches.length}`
+        : historySearchActiveMatch
+          ? '– / ?'
+          : '0 / ?'
+  const historySearchRailMatches = historySearchMatches.length <= 120
+    ? historySearchMatches
+    : historySearchMatches.filter((_, index) => index % Math.ceil(historySearchMatches.length / 120) === 0)
+
   return (
     <section
       className={`relative isolate flex h-full min-h-0 w-full flex-col overflow-hidden ${className || ''}`}
@@ -3235,73 +3523,118 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           type="button"
           aria-label={t('terminal.tools.searchHistory')}
           className="ml-1 grid h-11 w-11 shrink-0 place-items-center text-[var(--anytty-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px]"
-          onClick={() => setHistorySearchOpen(true)}
+          onClick={() => {
+            void hapticSelection()
+            setHistorySearchOpen(true)
+          }}
         >
           <Search className="h-4 w-4" />
         </Button>
       </div>
+      {historySearchOpen && historySearchRailMatches.length > 0 ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute right-0 top-2 z-[58] w-1"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 6.75rem)' }}
+        >
+          {historySearchRailMatches.map((match, index) => {
+            const current = historySearchActiveMatch ? sameHistoryLogicalMatch(match, historySearchActiveMatch) : false
+            return <span
+              key={`${match.startLineId}:${match.startCol}:${index}`}
+              className={`absolute right-0 block h-0.5 ${current ? 'w-1 bg-amber-300' : 'w-0.5 bg-amber-500/55'}`}
+              style={{ top: historySearchRailOffset(match, terminalSession.terminalSnapshot?.history?.logicalTotalRows ?? 0) }}
+            />
+          })}
+        </div>
+      ) : null}
       {historySearchOpen ? (
         <form
           aria-busy={historySearchBusy}
-          className="absolute z-[60] rounded-lg border border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] p-2 text-[var(--anytty-text)] shadow-lg"
+          className="absolute inset-x-0 bottom-0 z-[60] border-t border-[var(--anytty-border)] bg-[var(--anytty-surface)] px-1 py-1 text-[var(--anytty-text)] shadow-[0_-6px_20px_rgba(0,0,0,0.28)]"
           data-testid="anytty-history-search"
           onSubmit={(event) => { event.preventDefault(); void runHistorySearch('forward') }}
-          style={{
-            bottom: 'max(4rem, calc(env(safe-area-inset-bottom) + 3.25rem))',
-            left: 'max(0.5rem, env(safe-area-inset-left))',
-            right: 'max(0.5rem, env(safe-area-inset-right))',
-          }}
+          style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
         >
-          <div className="mb-2 grid grid-cols-3 overflow-hidden rounded-md border border-[var(--anytty-border-subtle)]" role="group" aria-label={t('terminal.searchModes.label')}>
-            {(['text', 'glob', 'regex'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={historySearchMode === mode}
-                className={`min-h-9 border-r border-[var(--anytty-border-subtle)] px-2 text-xs font-semibold last:border-r-0 ${historySearchMode === mode ? 'bg-[var(--anytty-accent)] text-white' : 'bg-[var(--anytty-bg)] text-[var(--anytty-muted)]'}`}
-                onClick={() => {
-                  terminalSession.cancelHistorySearch()
-                  historySearchLastMatchRef.current = null
-                  clearHistorySearchHighlight()
-                  setHistorySearchMode(mode)
-                  setHistorySearchMessage('')
-                }}
-              >
-                {t(`terminal.searchModes.${mode}`)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <Search className="ml-1 h-4 w-4 shrink-0 text-[var(--anytty-muted)]" aria-hidden="true" />
-            <Input
-              autoFocus
-              aria-label={t('terminal.tools.searchHistory')}
-              className="h-11 min-w-0 flex-1 border-[var(--anytty-border-subtle)] bg-[var(--anytty-bg)] focus-visible:border-[var(--anytty-accent)]"
-              value={historySearchQuery}
+          <div className="flex h-11 min-w-0 items-center gap-1">
+            <NativeSelect
+              aria-label={t('terminal.searchModes.label')}
+              className="h-11 w-11 shrink-0 border-[var(--anytty-border-subtle)] bg-[var(--anytty-bg)] px-1 pr-6 font-mono text-xs font-semibold min-[360px]:w-[4.75rem] min-[360px]:px-2 min-[360px]:pr-7"
+              value={historySearchMode}
               onChange={(event) => {
                 terminalSession.cancelHistorySearch()
+                historySearchScanKeyRef.current = ''
                 historySearchLastMatchRef.current = null
+                historySearchMatchesRef.current = []
                 clearHistorySearchHighlight()
-                setHistorySearchQuery(event.target.value)
+                setHistorySearchMode(event.target.value as TerminalHistorySearchMode)
+                setHistorySearchMatches([])
+                setHistorySearchActiveMatch(null)
+                setHistorySearchScanBusy(false)
+                setHistorySearchScanComplete(false)
+                setHistorySearchWrapped(false)
                 setHistorySearchMessage('')
               }}
-            />
-            <Button variant="ghost" type="button" aria-label={t('terminal.tools.searchPrevious')} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-[var(--anytty-border-subtle)]" disabled={historySearchBusy || !historySearchQuery.trim()} onClick={() => { void runHistorySearch('backward') }}>
+            >
+              {(['text', 'glob', 'regex'] as const).map((mode) => (
+                <option key={mode} value={mode}>{t(`terminal.searchModes.${mode}`)}</option>
+              ))}
+            </NativeSelect>
+            <label className="flex h-11 min-w-8 flex-1 items-center gap-1 rounded-md border border-[var(--anytty-border-subtle)] bg-[var(--anytty-bg)] px-2 focus-within:ring-2 focus-within:ring-[var(--anytty-accent)] min-[360px]:min-w-[3.5rem]">
+              <Search className="h-4 w-4 shrink-0 text-[var(--anytty-muted)]" aria-hidden="true" />
+              <Input
+                autoFocus
+                aria-label={t('terminal.tools.searchHistory')}
+                className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 font-mono shadow-none focus-visible:ring-0"
+                value={historySearchQuery}
+                onChange={(event) => {
+                  terminalSession.cancelHistorySearch()
+                  historySearchScanKeyRef.current = ''
+                  historySearchLastMatchRef.current = null
+                  historySearchMatchesRef.current = []
+                  clearHistorySearchHighlight()
+                  setHistorySearchQuery(event.target.value)
+                  setHistorySearchMatches([])
+                  setHistorySearchActiveMatch(null)
+                  setHistorySearchScanBusy(false)
+                  setHistorySearchScanComplete(false)
+                  setHistorySearchWrapped(false)
+                  setHistorySearchMessage('')
+                }}
+              />
+            </label>
+            <span
+              aria-label={t('terminal.tools.searchResultCount', { current: historySearchActiveIndex, total: historySearchMatches.length })}
+              className={`flex min-w-[3.25rem] shrink-0 items-center justify-end gap-1 whitespace-nowrap font-mono text-[11px] tabular-nums ${historySearchMessage && !historySearchBusy ? 'text-amber-400' : 'text-[var(--anytty-muted)]'}`}
+              role="status"
+            >
+              {historySearchWrapped ? <span aria-hidden="true">↻</span> : null}
+              {historySearchScanBusy ? <Spinner className="h-3 w-3" aria-hidden="true" /> : null}
+              {historySearchCountLabel}
+            </span>
+            <Button variant="ghost" type="button" aria-label={t('terminal.tools.searchPrevious')} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-[var(--anytty-border-subtle)]" disabled={historySearchBusy || !historySearchQuery.trim()} onClick={() => { void hapticSelection(); void runHistorySearch('backward') }}>
               <ArrowUp className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" type="submit" aria-label={t('terminal.tools.searchNext')} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-[var(--anytty-border-subtle)]" disabled={historySearchBusy || !historySearchQuery.trim()}>
+            <Button variant="ghost" type="submit" aria-label={t('terminal.tools.searchNext')} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-[var(--anytty-border-subtle)]" disabled={historySearchBusy || !historySearchQuery.trim()} onClick={() => { void hapticSelection() }}>
               {historySearchBusy ? <Spinner aria-hidden="true" /> : <ArrowDown className="h-4 w-4" />}
             </Button>
             <Button variant="ghost" type="button" aria-label={t('common.close')} className="grid h-11 w-11 shrink-0 place-items-center" onClick={() => {
               terminalSession.cancelHistorySearch()
+              historySearchScanKeyRef.current = ''
               historySearchLastMatchRef.current = null
+              historySearchMatchesRef.current = []
               clearHistorySearchHighlight()
+              setHistorySearchMatches([])
+              setHistorySearchActiveMatch(null)
+              setHistorySearchScanBusy(false)
+              setHistorySearchScanComplete(false)
+              setHistorySearchWrapped(false)
+              setHistorySearchMessage('')
               setHistorySearchOpen(false)
             }}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-          {historySearchMessage ? <p className="mt-1 px-1 text-xs text-[var(--anytty-muted)]" role="status">{historySearchMessage}</p> : null}
+          {historySearchMessage ? <span className="sr-only" role="status">{historySearchMessage}</span> : null}
         </form>
       ) : null}
       {historyLoadFailure !== 'none' && !showConnectingOverlay ? (

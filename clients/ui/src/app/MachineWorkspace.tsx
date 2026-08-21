@@ -94,6 +94,7 @@ const browserSystemClipboard: SystemClipboard = {
 export interface MachineWorkspaceProps {
   api: MachineWorkspaceInventoryApi
   connector: MachineWorkspaceConnector
+  retainConnectionDemand?: (() => () => void) | undefined
   className?: string | undefined
   initialMachine?: Machine | undefined
   inventoryEvents?: TerminalInventoryEvents | undefined
@@ -156,7 +157,7 @@ function inventoryCacheForConnector(connector: MachineWorkspaceConnector): Map<s
  * MachineWorkspace 编排单个设备的 terminal/file 用户界面并消费 Go-owned session 投影。
  * 它不拥有 Endpoint、Route、credential 或 generation 真值，连接阶段仅用于本地化展示和交互反馈。
  */
-export function MachineWorkspace({ api, connector, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
+export function MachineWorkspace({ api, connector, retainConnectionDemand, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
   const { t } = useTranslation()
   const connectionReady = appConnectionIsReady(connectionState)
   const initialInventory = initialMachine ? inventoryCacheForConnector(connector).get(initialMachine.machineId) : undefined
@@ -247,6 +248,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const [pasteConfirmText, setPasteConfirmText] = useState('')
   const [splitTerminalId, setSplitTerminalId] = useState<string | null>(null)
   const [activeTerminalSlot, setActiveTerminalSlot] = useState<TerminalSlot>(0)
+  const [terminalHistorySearchOpenBySlot, setTerminalHistorySearchOpenBySlot] = useState<Record<TerminalSlot, boolean>>({
+    0: false,
+    1: false,
+  })
+
   const [syncSplitInput, setSyncSplitInput] = useState(false)
   const [terminalBufferBySlot, setTerminalBufferBySlot] = useState<Record<TerminalSlot, 'normal' | 'alternate'>>({
     0: 'normal',
@@ -255,6 +261,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>(() => readTerminalSettings())
   const terminalRef = useRef<TerminalHandle | null>(null)
   const splitTerminalRef = useRef<TerminalHandle | null>(null)
+  const fileReturnPageRef = useRef<AppPage>('terminal-list')
   const fileManagerLoadRequestRef = useRef(0)
   const fileManagerLoadStatusRef = useRef<FileManagerLoadState['status']>('idle')
   const fileManagerLoaderMountedRef = useRef(true)
@@ -323,6 +330,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const terminalHeaderMachine = machine?.name || machine?.machineId || ''
   const terminalHeaderDirectory = activeToolTerminal?.cwd || activeTerminal?.cwd || splitTerminal?.cwd || ''
   const terminalHeaderSummary = [machine?.name, terminalHeaderTitle, terminalHeaderDirectory].filter(Boolean).join(' · ')
+
+  useEffect(() => retainConnectionDemand?.(), [retainConnectionDemand])
 
   useEffect(() => {
     setTerminalOrder(readTerminalOrder(machine?.machineId ?? ''))
@@ -483,6 +492,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     setFileManagerLoadState({ status: 'idle' })
     setFilesOpen(false)
     setHasOpenedFiles(false)
+    fileReturnPageRef.current = 'terminal-list'
     setFileTerminalId(null)
     setFileInitialPath('/')
     setFileContextKey('machine:/')
@@ -1584,6 +1594,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       setError(t('workspace.fileAccessNotReady'))
       return
     }
+    fileReturnPageRef.current = page
     const fileTerminal = page === 'terminal' ? activeToolTerminal : (activeToolTerminal ?? terminals[0] ?? null)
     const fallbackPath = fileTerminal?.cwd || '/'
     const resolveTerminalDirectory = page === 'terminal' && Boolean(fileTerminal)
@@ -1989,8 +2000,9 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     if (await restartTerminalById(selectedTerminalId)) setMobileSheet(null)
   }, [restartTerminalById, selectedTerminalId])
 
-  const openTerminalPanel = useCallback(() => {
+  const closeFiles = useCallback(() => {
     setFilesOpen(false)
+    setPage(fileReturnPageRef.current)
     window.setTimeout(() => {
       terminalRef.current?.fit()
       splitTerminalRef.current?.fit()
@@ -2501,12 +2513,12 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     }
   }, NATIVE_BACK_PRIORITY.NESTED_OVERLAY, nestedOverlayOpen)
 
-  const workspaceNavigationOpen = filesOpen || page === 'terminal' || Boolean(onBack)
   useNativeBackHandler(() => {
-    if (filesOpen) {
-      openTerminalPanel()
-      return
-    }
+    closeFiles()
+  }, NATIVE_BACK_PRIORITY.FILE_MANAGER, filesOpen)
+
+  const workspaceNavigationOpen = !filesOpen && (page === 'terminal' || Boolean(onBack))
+  useNativeBackHandler(() => {
     if (page === 'terminal') {
       showTerminalListPage()
       return
@@ -3035,6 +3047,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                   onCursorMove={handleCursorMove}
                   onResizeControl={(control) => setTerminalResizeControlBySlot((current) => ({ ...current, 0: control }))}
                   onTerminalInfoChange={applyTerminalInfo}
+                  onHistorySearchOpenChange={(open) => setTerminalHistorySearchOpenBySlot((current) => current[0] === open ? current : { ...current, 0: open })}
                   selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 0}
                   settings={effectiveTerminalSettings}
                   preventFocus={keyboardFocusLocked || connectionInputBlocked}
@@ -3075,6 +3088,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                     onCursorMove={handleCursorMove}
                     onResizeControl={(control) => setTerminalResizeControlBySlot((current) => ({ ...current, 1: control }))}
                     onTerminalInfoChange={applyTerminalInfo}
+                    onHistorySearchOpenChange={(open) => setTerminalHistorySearchOpenBySlot((current) => current[1] === open ? current : { ...current, 1: open })}
                     selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 1}
                     settings={effectiveTerminalSettings}
                     preventFocus={keyboardFocusLocked || connectionInputBlocked}
@@ -3091,7 +3105,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
           </div>
         </div>
 
-        {!activeSlotTerminalExited ? <MobileTerminalKeybar
+        {!activeSlotTerminalExited && !terminalHistorySearchOpenBySlot[activeTerminalSlot] ? <MobileTerminalKeybar
           ref={mobileKeybarRef}
           className={`relative z-20 row-start-3 w-full max-w-full transition-opacity duration-200 ${connectionInputBlocked ? 'pointer-events-none opacity-55' : ''}`}
           onInput={sendTerminalInput}
@@ -3225,20 +3239,21 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
       {hasOpenedFiles ? (
         <div
-          className={`absolute inset-0 z-30 flex flex-col bg-[var(--background)] transition-transform duration-200 ${singlePane ? '' : 'md:left-auto md:right-0 md:w-[450px] md:border-l md:border-[var(--anytty-app-line)]'} ${filesOpen ? (singlePane ? 'translate-y-0 visible' : 'translate-y-0 md:translate-x-0 visible') : (singlePane ? 'translate-y-full invisible' : 'translate-y-full md:translate-y-0 md:translate-x-full invisible')}`}
+          className={`absolute inset-0 z-[60] flex flex-col bg-[var(--background)] transition-transform duration-200 ${singlePane ? '' : 'md:left-auto md:right-0 md:w-[450px] md:border-l md:border-[var(--anytty-app-line)]'} ${filesOpen ? (singlePane ? 'translate-y-0 visible' : 'translate-y-0 md:translate-x-0 visible') : (singlePane ? 'translate-y-full invisible' : 'translate-y-full md:translate-y-0 md:translate-x-full invisible')}`}
           data-testid="anytty-machine-files-overlay"
         >
-          <div className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex shrink-0 items-center justify-between border-b px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] ${singlePane ? '' : 'md:h-14 md:pb-0 md:pt-0'}`}>
-            <div className="flex items-center gap-2">
-              <Folder className="h-5 w-5 text-zinc-500" />
-              <span className="text-[17px] font-bold tracking-tight text-zinc-900">{t('files.list')}</span>
-            </div>
+          <div className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex shrink-0 items-center border-b px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] ${singlePane ? '' : 'md:h-14 md:pb-0 md:pt-0'}`}>
             <Button variant="ghost" size="icon"
               aria-label={t('workspace.closeFiles')}
-              onClick={() => { hapticSelection(); openTerminalPanel() }}
+              className="mr-1 shrink-0 border-transparent bg-transparent"
+              onClick={() => { hapticSelection(); closeFiles() }}
             >
-              <X className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
+            <div className="flex min-w-0 items-center gap-2">
+              <Folder className="h-5 w-5 text-zinc-500" />
+              <span className="truncate text-[17px] font-bold tracking-tight text-zinc-900">{t('files.list')}</span>
+            </div>
           </div>
           {renderSession ? LoadedFileManager ? (
             <LoadedFileManager

@@ -68,23 +68,37 @@ func boxGlyphForConnections(connections uint8) (string, bool) {
 }
 
 func mergeBoxCellConnections(existing uint8, incoming uint8, existingStyle StyleToken, incomingStyle StyleToken) uint8 {
-	// 中文说明：active split 边框是当前焦点 owner；它覆盖共享 junction，避免视觉上伸到相邻 pane。
-	if existingStyle == StyleAccent && incomingStyle != StyleAccent {
+	// 中文说明：history 边框和 active split 边框是当前 owner；它们覆盖共享 junction，避免视觉上伸到相邻 pane。
+	if boxBorderStylePriority(existingStyle) > boxBorderStylePriority(incomingStyle) {
 		return existing
 	}
-	if incomingStyle == StyleAccent && existingStyle != StyleAccent {
+	if boxBorderStylePriority(incomingStyle) > boxBorderStylePriority(existingStyle) {
 		return incoming
 	}
 	return existing | incoming
 }
 
 func mergeBoxCellStyle(existing StyleToken, incoming StyleToken) StyleToken {
-	// 中文说明：split-line 的 shared divider 会被多个 pane 先后 merge；active 边框是焦点真值，不能被后绘制的 muted pane 降级。
-	if existing == StyleAccent || incoming == StyleAccent {
-		return StyleAccent
+	// 中文说明：shared divider 优先保留 history，其次保留 active，不能被后绘制的 muted pane 降级。
+	if boxBorderStylePriority(existing) > boxBorderStylePriority(incoming) {
+		return existing
+	}
+	if boxBorderStylePriority(incoming) > boxBorderStylePriority(existing) {
+		return incoming
 	}
 	if incoming != "" {
 		return incoming
 	}
 	return existing
+}
+
+func boxBorderStylePriority(style StyleToken) int {
+	switch style {
+	case StyleHistoryBorder:
+		return 2
+	case StyleAccent:
+		return 1
+	default:
+		return 0
+	}
 }

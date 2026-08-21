@@ -31,6 +31,9 @@ func appendFooterHitRegions(out []HitRegion, footer FooterVM, rect Rect, frame R
 	if rect.W <= 0 || rect.H <= 0 || !footer.Visible {
 		return out
 	}
+	if footer.Search.Visible {
+		return out
+	}
 	_ = frame
 	left := footerLeftSegments(footer, rect.W)
 	right := footerMetadataSegments(footer, footerHintIsCritical(footer))

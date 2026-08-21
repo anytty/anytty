@@ -32,6 +32,7 @@ import type {
   TerminalInputSize,
   TerminalHistorySearchMode,
   TerminalHistorySearchResult,
+  TerminalHistorySearchScanBatch,
   TerminalProtocolChannel,
   TerminalProtocolEvent,
   TerminalProtocolSession,
@@ -291,6 +292,23 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
         alternate: false,
       },
     }
+  }
+
+  scanScrollback(
+    terminalId: string,
+    query: string,
+    cols: number,
+    onBatch: (batch: TerminalHistorySearchScanBatch) => void,
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
+  ): Promise<void> {
+    return this.scrollbackPager.scan({
+      terminalId,
+      query,
+      mode: options?.mode ?? 'text',
+      cols,
+      batchSize: 64,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    }, onBatch)
   }
 
   copyScrollback(

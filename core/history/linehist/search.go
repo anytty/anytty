@@ -11,6 +11,11 @@ import (
 
 const historySearchReadBatchLines = 256
 
+const (
+	historySearchScanDefaultMatches = 64
+	historySearchScanMaxMatches     = 256
+)
+
 func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest) (history.HistorySearchResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -46,7 +51,34 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 	}
 	total := viewLogicalTotal(view)
 	if total == 0 {
-		return history.HistorySearchResult{}, nil
+		return history.HistorySearchResult{Done: req.Scan}, nil
+	}
+	if req.Scan {
+		if req.Direction == history.HistorySearchBackward {
+			return history.HistorySearchResult{}, history.ErrHistoryInvalidMutation
+		}
+		maxMatches := req.MaxMatches
+		if maxMatches <= 0 {
+			maxMatches = historySearchScanDefaultMatches
+		}
+		if maxMatches > historySearchScanMaxMatches {
+			return history.HistorySearchResult{}, history.ErrHistoryInvalidMutation
+		}
+		startLine := 0
+		startCol := maxInt(0, req.Start.Col)
+		if req.Start.LineID != 0 {
+			startLine = clampInt(int(req.Start.LineID)-1, 0, total-1)
+		}
+		matches, next, done, err := store.scanFrozenView(ctx, view, pattern, startLine, startCol, maxMatches)
+		if errors.Is(err, errRetentionChanged) {
+			return history.HistorySearchResult{}, history.ErrHistoryStaleWindow
+		}
+		if err != nil {
+			return history.HistorySearchResult{}, err
+		}
+		return history.HistorySearchResult{
+			Found: len(matches) > 0, Matches: matches, Next: next, Done: done,
+		}, nil
 	}
 	startLine := 0
 	startCol := maxInt(0, req.Start.Col)
@@ -88,6 +120,63 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 	window := buildWindow(windowReq, rows, total, history.HistoryWindowReplace, boundary, view.generation, pageStart > 0)
 	window.ViewportAnchor = view.anchor
 	return history.HistorySearchResult{Found: true, Match: match, Window: window, Wrapped: wrapped}, nil
+}
+
+func (store *Store) scanFrozenView(ctx context.Context, view liveView, pattern *history.HistorySearchPattern, startLine int, startCol int, maxMatches int) ([]history.HistoryCopyRange, history.HistoryCopyPosition, bool, error) {
+	total := viewLogicalTotal(view)
+	if startLine >= total {
+		return nil, history.HistoryCopyPosition{}, true, nil
+	}
+	matches := make([]history.HistoryCopyRange, 0, maxMatches)
+	var next history.HistoryCopyPosition
+	visitText := func(logicalIndex int, text string) bool {
+		lineMin := 0
+		if logicalIndex == startLine {
+			lineMin = startCol
+		}
+		for _, match := range pattern.FindAllStringIndex(text) {
+			matchStart := xansi.StringWidth(text[:match.Start])
+			if matchStart < lineMin {
+				continue
+			}
+			matchEnd := xansi.StringWidth(text[:match.End])
+			lineID := history.LogicalLineID(logicalIndex + 1)
+			matches = append(matches, history.HistoryCopyRange{
+				Start: history.HistoryCopyPosition{LineID: lineID, Col: matchStart},
+				End:   history.HistoryCopyPosition{LineID: lineID, Col: matchEnd},
+			})
+			// Continue after the match start so overlapping matches remain visible
+			// when a batch boundary falls between them.
+			next = history.HistoryCopyPosition{LineID: lineID, Col: matchStart + 1}
+			if len(matches) >= maxMatches {
+				return false
+			}
+		}
+		return true
+	}
+	if startLine < view.coldCount {
+		coldEnd := view.coldCount
+		if err := store.engine.VisitSearchLinesAtRetention(ctx, view.retention, view.coldBase+startLine, view.coldBase+coldEnd, false, pattern.RequiredLiterals(), func(index int, line Line) bool {
+			return visitText(index-view.coldBase, LineText(line))
+		}); err != nil {
+			return nil, history.HistoryCopyPosition{}, false, err
+		}
+	}
+	if len(matches) < maxMatches {
+		hotStart := maxInt(startLine, view.coldCount)
+		for index := hotStart; index < view.coldCount+len(view.hot); index++ {
+			if err := ctx.Err(); err != nil {
+				return nil, history.HistoryCopyPosition{}, false, err
+			}
+			if !visitText(index, historySearchText(view.hot[index-view.coldCount].Cells)) {
+				break
+			}
+		}
+	}
+	if len(matches) >= maxMatches {
+		return matches, next, false, nil
+	}
+	return matches, history.HistoryCopyPosition{}, true, nil
 }
 
 func (store *Store) searchFrozenView(ctx context.Context, view liveView, pattern *history.HistorySearchPattern, direction history.HistorySearchDirection, startLine int, startCol int) (history.HistoryCopyRange, bool, bool, error) {

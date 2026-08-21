@@ -30,11 +30,15 @@ func NewBackNavigationReducer(copyMode CopyModeDeps) Reducer {
 		case state.BackNavigationCopy:
 			if root.CopyMode.SearchBarVisible() {
 				pending := root.CopyMode.SearchPending
+				scanning := root.CopyMode.SearchScanPending
 				viewID := root.CopyMode.ViewID
 				root.CopyMode = root.CopyMode.CloseSearch()
 				effects := []Effect{handledEffect{}}
 				if pending {
 					effects = append(effects, CancelEffect{Token: copyModeSearchRequestToken(viewID)})
+				}
+				if scanning {
+					effects = append(effects, CancelEffect{Token: copyModeSearchScanToken(viewID)})
 				}
 				return root.Advance(), effects
 			}

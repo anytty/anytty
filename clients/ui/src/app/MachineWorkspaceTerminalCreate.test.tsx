@@ -94,6 +94,27 @@ describe('MachineWorkspace terminal creation', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
   })
 
+  it('retains native connection demand only while the workspace is mounted', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const releaseDemand = vi.fn()
+    const retainConnectionDemand = vi.fn(() => releaseDemand)
+    const view = render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => []),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+      retainConnectionDemand={retainConnectionDemand}
+    />)
+
+    await waitFor(() => expect(retainConnectionDemand).toHaveBeenCalledOnce())
+    expect(releaseDemand).not.toHaveBeenCalled()
+
+    view.unmount()
+    expect(releaseDemand).toHaveBeenCalledOnce()
+  })
+
   it('keeps native single-pane navigation at landscape widths', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
@@ -1115,6 +1136,39 @@ describe('MachineWorkspace terminal creation', () => {
     act(() => { expect(dispatchNativeBack()).toBe(true) })
     expect(screen.getByTestId('anytty-terminal-list-page')).toBeTruthy()
     expect(dispatchNativeBack()).toBe(false)
+  })
+
+  it('returns from Files to the terminal that opened it before returning to the terminal list', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cwd: '/', cols: 80, rows: 24,
+    }
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    expect(await screen.findByTestId('anytty-terminal-header')).toBeTruthy()
+    expect(screen.getByTestId('mock-terminal').dataset.terminalId).toBe('term-shell')
+
+    await userEvent.click(screen.getByTestId('anytty-terminal-files-button'))
+    expect(screen.getByTestId('anytty-machine-files-overlay').classList.contains('visible')).toBe(true)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close files' }))
+    expect(screen.getByTestId('anytty-machine-files-overlay').classList.contains('invisible')).toBe(true)
+    expect(screen.queryByTestId('anytty-terminal-list-page')).toBeNull()
+    expect(screen.getByTestId('anytty-terminal-header')).toBeTruthy()
+    expect(screen.getByTestId('mock-terminal').dataset.terminalId).toBe('term-shell')
+
+    act(() => { expect(dispatchNativeBack()).toBe(true) })
+    expect(screen.getByTestId('anytty-terminal-list-page')).toBeTruthy()
   })
 
   it('closes Files before a split terminal hidden underneath it', async () => {

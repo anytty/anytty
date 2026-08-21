@@ -191,6 +191,8 @@ func HistorySearchRequestFromProto(command *apipb.HistorySearchCommand) history.
 		Mode:          historySearchModeFromProto(command.GetMode()),
 		Direction:     direction,
 		ContextBefore: int(command.GetContextBefore()),
+		Scan:          command.GetScan(),
+		MaxMatches:    int(command.GetMaxMatches()),
 		Start: history.HistoryCopyPosition{
 			LineID: history.LogicalLineID(command.GetStart().GetLineId()),
 			Col:    int(command.GetStart().GetCol()),
@@ -256,7 +258,19 @@ func HistoryCopyChunkToProto(result history.HistoryCopyChunkResult) *apipb.Histo
 }
 
 func HistorySearchToProto(endpointID string, result history.HistorySearchResult) *apipb.HistorySearchResult {
-	response := &apipb.HistorySearchResult{Found: result.Found, Wrapped: result.Wrapped}
+	response := &apipb.HistorySearchResult{Found: result.Found, Wrapped: result.Wrapped, ScanDone: result.Done}
+	for _, match := range result.Matches {
+		response.ScanMatches = append(response.ScanMatches, &apipb.HistoryRange{
+			StartLineId: uint64(match.Start.LineID), StartCol: int32(match.Start.Col),
+			EndLineId: uint64(match.End.LineID), EndCol: int32(match.End.Col),
+		})
+	}
+	if result.Next.LineID != 0 {
+		response.ScanNext = &apipb.HistoryTextPosition{LineId: uint64(result.Next.LineID), Col: int32(result.Next.Col)}
+	}
+	if len(result.Matches) > 0 {
+		return response
+	}
 	if !result.Found {
 		return response
 	}

@@ -172,10 +172,31 @@
   width: 0;
 }
 .xterm-wrapper .xterm-screen {
+  position: relative;
   width: 100% !important;
 }
 .xterm-wrapper .xterm-screen canvas {
   max-width: 100%;
+}
+.anytty-history-search-highlights {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background: transparent;
+}
+.anytty-history-search-highlight {
+  position: absolute;
+  inset: 0 auto auto 0;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--anytty-search-match) 24%, transparent);
+  border-block-end: 1px solid color-mix(in srgb, var(--anytty-search-match) 58%, transparent);
+}
+.anytty-history-search-highlight-current {
+  background: color-mix(in srgb, var(--anytty-search-match) 42%, transparent);
+  border: 1px solid var(--anytty-search-match);
 }
 .anytty-terminal-frame-hold {
   position: absolute;
@@ -261,6 +282,48 @@
 .term-scrollbar-track:hover .term-scrollbar-thumb {
   background: var(--anytty-scrollbar-active, rgba(255, 255, 255, 0.55));
   width: 10px;
+}
+
+.term-history-pull-indicator {
+  --term-history-pull-opacity: 0.35;
+  --term-history-pull-scale: 0.25;
+  background: #f59e0b;
+  border-radius: 2px;
+  height: 3px;
+  left: 50%;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 7px;
+  transform: translateX(-50%) scaleX(var(--term-history-pull-scale));
+  transform-origin: center;
+  transition: opacity 120ms ease, transform 120ms ease;
+  width: 36px;
+  z-index: 12;
+}
+
+.term-history-pull-indicator.visible {
+  opacity: var(--term-history-pull-opacity);
+}
+
+.term-history-pull-indicator.loading {
+  animation: term-history-pull-pulse 900ms ease-in-out infinite;
+  opacity: 0.85;
+}
+
+@keyframes term-history-pull-pulse {
+  0%, 100% { transform: translateX(-50%) scaleX(0.4); }
+  50% { transform: translateX(-50%) scaleX(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term-history-pull-indicator {
+    transition: none;
+  }
+
+  .term-history-pull-indicator.loading {
+    animation: none;
+  }
 }
 
 .sel-magnifier {

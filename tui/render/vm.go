@@ -117,7 +117,8 @@ func buildFooterVM(root state.Root, shell state.ShellStore, content ContentVM) F
 	footerConfig := root.Config.Footer
 	modeConfig := footerConfig.Modes[mode]
 	return FooterVM{
-		Visible:                          shell.FooterVisible,
+		Visible:                          shell.FooterVisible || content.Search.Visible,
+		Search:                           content.Search,
 		Mode:                             mode,
 		ModeIcon:                         modeConfig.Icon,
 		ModeLabel:                        modeConfig.Label,
@@ -708,7 +709,7 @@ func buildPanelChromeVMWithZoom(root state.Root, pane state.PaneState, active bo
 	actions := defaultPaneChromeActionVMsForZoom(style, zoomMode)
 	terminal := terminalChromeVM(root, pane, active, content, style)
 	var meta []ChromeSlotVM
-	if active && content.Kind == ContentCopyHistory && content.Status != "" {
+	if active && content.Kind == ContentCopyHistory && content.Status != "" && !content.Search.Visible {
 		meta = append(meta, ChromeSlotVM{Text: compactCopyHistoryChromeStatus(content.Status), Style: StyleMuted})
 	}
 	return PanelChromeVM{
@@ -1237,12 +1238,17 @@ func copyHistoryPendingReason(root state.Root, history state.HistoryStore, copyM
 }
 
 func buildCopyHistoryContentVM(root state.Root, history state.HistoryStore, copyMode state.CopyModeStore) ContentVM {
+	cursor := copyMode.Cursor
+	copyMode = copyMode.RefreshSearchMatches(history)
+	copyMode.Cursor = cursor
 	extent := copyHistoryContentExtent(root, history, copyMode)
+	search := copyHistorySearchFooter(copyMode)
 	if !canRenderCopyHistory(root, history, copyMode) {
 		reason := copyHistoryPendingReason(root, history, copyMode)
 		content := ContentVM{
 			Kind:    ContentCopyHistory,
 			Lines:   []Line{NewLine(reason)},
+			Search:  search,
 			Status:  copyHistoryStatus(history, copyMode),
 			Pending: true,
 			Extent:  extent,
@@ -1260,6 +1266,7 @@ func buildCopyHistoryContentVM(root state.Root, history state.HistoryStore, copy
 	content := ContentVM{
 		Kind:   ContentCopyHistory,
 		Lines:  copyHistoryLines(history, copyMode),
+		Search: search,
 		Status: copyHistoryStatus(history, copyMode),
 		Extent: extent,
 	}

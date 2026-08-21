@@ -105,6 +105,9 @@ const (
 	StyleInfo                StyleToken = "info"
 	StyleSuccess             StyleToken = "success"
 	StyleWarning             StyleToken = "warning"
+	StyleHistoryBorder       StyleToken = "history-border"
+	StyleSearchMatch         StyleToken = "search-match"
+	StyleSearchCurrent       StyleToken = "search-current"
 	StyleDanger              StyleToken = "danger"
 	StyleDangerStrong        StyleToken = "danger-strong"
 	StyleOverlay             StyleToken = "overlay"
@@ -492,6 +495,12 @@ func ansiForStyleToken(token StyleToken, theme Theme) string {
 		return sgrForeground(theme.Success, false)
 	case StyleWarning:
 		return sgrForeground(theme.Warning, false)
+	case StyleHistoryBorder:
+		return sgrForeground(theme.Warning, true)
+	case StyleSearchMatch:
+		return sgrForeground(theme.Warning, false) + "\x1b[2m\x1b[4m"
+	case StyleSearchCurrent:
+		return sgrForegroundBackground(theme.HostBG, theme.Warning, true)
 	case StyleDanger:
 		return sgrForeground(theme.Danger, false)
 	case StyleDangerStrong:
@@ -791,6 +800,7 @@ const (
 type ContentVM struct {
 	Kind       ContentKind
 	Lines      []Line
+	Search     SearchBarVM
 	Extent     ContentExtent
 	Layout     ContentLayoutVM
 	Meta       ContentMetaVM
@@ -800,6 +810,20 @@ type ContentVM struct {
 	Error      string
 	Cursor     Cursor
 	HitRegions []HitRegion
+}
+
+// SearchBarVM replaces the global footer while the active panel owns a search session.
+// Prefix/value stay left aligned while status and optional hints stay right aligned.
+type SearchBarVM struct {
+	Visible      bool
+	Prefix       Line
+	Value        string
+	ValueCursor  int
+	CursorPlaced bool
+	Status       Line
+	WideHint     Line
+	WideMinWidth int
+	Cursor       Cursor
 }
 
 // ContentMetaVM 保存渲染层不能从文本行反推的布局元数据；这些值由对应 content projector 生成，
@@ -1062,6 +1086,7 @@ const (
 
 type FooterVM struct {
 	Visible                          bool
+	Search                           SearchBarVM
 	Mode                             string
 	ModeIcon                         string
 	ModeLabel                        string

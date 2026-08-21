@@ -4,7 +4,7 @@ import type { ResourceStreamFrameType } from '../generated/bindingpb/client_bind
 import type { ConnectionSnapshot } from '../generated/bindingpb/client_binding_pb'
 
 export interface ProtoClientSubscription {
-  close(): void
+  close(): void | Promise<void>
 }
 
 export interface ProtoClientSessionCloseError extends Error {
@@ -27,6 +27,8 @@ export interface ProtoResourceStream {
 export interface ProtoClientSession {
   readonly stamp: EndpointSessionStamp
   readonly connection?: ConnectionSnapshot | undefined
+  /** Stable owner shared by lightweight leases that allocate resources on the same physical session. */
+  readonly resourcePoolOwner?: ProtoClientSession
   getConnectionSnapshot?(): Promise<ConnectionSnapshot | undefined>
   execute(command: CommandEnvelope, options?: { signal?: AbortSignal }): Promise<ResultEnvelope>
   subscribeEvents(handler: (event: EventEnvelope) => void): ProtoClientSubscription

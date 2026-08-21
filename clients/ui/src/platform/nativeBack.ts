@@ -3,6 +3,7 @@ export type AnyTTYNativeBackHandler = () => void
 export const NATIVE_BACK_PRIORITY = {
   ROOT: 10,
   WORKSPACE: 20,
+  FILE_MANAGER: 25,
   TRANSFER: 30,
   SCANNER: 40,
   NESTED_OVERLAY: 50,

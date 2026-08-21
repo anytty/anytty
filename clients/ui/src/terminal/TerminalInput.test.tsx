@@ -45,6 +45,7 @@ const terminalHarness = vi.hoisted(() => ({
   historySelectionPosition: undefined as undefined | { start: { x: number; y: number }; end: { x: number; y: number } },
   historyCopy: vi.fn(),
   historySearch: vi.fn(),
+  historySearchScan: vi.fn(),
   historySearchCancel: vi.fn(),
   channelState: 'open' as 'open' | 'connecting',
   historyLoad: vi.fn(),
@@ -230,6 +231,7 @@ vi.mock('./useTerminalSession', () => ({
     releaseResizeOwner: async () => ({ canResize: false, reason: 'follower' }),
     loadScrollback: terminalHarness.historyLoad,
     searchScrollback: terminalHarness.historySearch,
+    scanScrollback: terminalHarness.historySearchScan,
     copyScrollback: terminalHarness.historyCopy,
     cancelHistorySearch: terminalHarness.historySearchCancel,
     prefetchScrollback: async () => false,
@@ -258,6 +260,9 @@ describe('Terminal input modifier boundary', () => {
     terminalHarness.historySelectionPosition = undefined
     terminalHarness.historyCopy.mockReset()
     terminalHarness.historySearch.mockReset().mockResolvedValue({ found: false, wrapped: false })
+    terminalHarness.historySearchScan.mockReset().mockImplementation(async (_query, _cols, onBatch) => {
+      onBatch({ matches: [], done: true })
+    })
     terminalHarness.historySearchCancel.mockReset()
     terminalHarness.liveSnapshot = null
     terminalHarness.channelState = 'open'
@@ -759,6 +764,37 @@ describe('Terminal input modifier boundary', () => {
     expect(screen.queryByTestId('anytty-history-loading')).toBeNull()
   })
 
+  it('damps repeated pull gestures and coalesces history loads while a page is pending', async () => {
+    terminalHarness.historySnapshot = true
+    let resolveLoad: ((result: { loadedRows: number; totalRows: number; hasMore: boolean; alternate: boolean }) => void) | undefined
+    terminalHarness.historyLoad.mockImplementationOnce(() => new Promise((resolve) => { resolveLoad = resolve }))
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const output = (terminalHarness.instances[0] as FakeXTermInstance).element?.querySelector('.xterm-screen') as HTMLElement | null
+    if (!output) throw new Error('missing terminal screen')
+
+    vi.useFakeTimers()
+    fireEvent.wheel(output, { deltaY: -80 })
+    fireEvent.wheel(output, { deltaY: -80 })
+    fireEvent.wheel(output, { deltaY: -80 })
+
+    const indicator = document.querySelector('.term-history-pull-indicator') as HTMLElement | null
+    expect(terminalHarness.historyLoad).toHaveBeenCalledOnce()
+    expect(indicator?.classList.contains('visible')).toBe(true)
+    expect(indicator?.classList.contains('loading')).toBe(true)
+    expect(output.style.transform).toMatch(/^translateY\([1-9]/)
+
+    act(() => vi.advanceTimersByTime(300))
+    expect(terminalHarness.historyLoad).toHaveBeenCalledOnce()
+    expect(output.style.transform).toBe('')
+
+    await act(async () => {
+      resolveLoad?.({ loadedRows: 0, totalRows: 0, hasMore: false, alternate: false })
+      await Promise.resolve()
+    })
+    expect(indicator?.classList.contains('loading')).toBe(false)
+  })
+
   it('shows a labeled spinner only after history loading exceeds two seconds', async () => {
     terminalHarness.historySnapshot = true
     let resolveLoad: ((result: { loadedRows: number; totalRows: number; hasMore: boolean; alternate: boolean }) => void) | undefined
@@ -1120,14 +1156,11 @@ describe('Terminal input modifier boundary', () => {
     })
     view.rerender(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
     await waitFor(() => expect(terminalHarness.xtermResets).toBeGreaterThan(1))
-    expect(terminalHarness.xtermDecorations).toContainEqual(expect.objectContaining({
-      x: 2,
-      width: 5,
-      height: 1,
-      backgroundColor: '#F59E0B',
-      foregroundColor: '#111827',
-      layer: 'top',
-    }))
+    await waitFor(() => expect(view.container.querySelectorAll('.anytty-history-search-highlight-current')).toHaveLength(1))
+    const currentHighlight = view.container.querySelector('.anytty-history-search-highlight-current') as HTMLElement
+    expect(currentHighlight.style.transform).toContain('translate3d(2px,')
+    expect(currentHighlight.style.width).toBe('5px')
+    expect(terminalHarness.xtermDecorations).toHaveLength(0)
     expect(terminalHarness.historyResume).not.toHaveBeenCalled()
     act(() => xterm.emitRender())
     expect(terminalHarness.historyResume).not.toHaveBeenCalled()
@@ -1176,8 +1209,9 @@ describe('Terminal input modifier boundary', () => {
 
     act(() => ref.current?.openHistorySearch())
     const input = await screen.findByRole('textbox', { name: 'Search history' })
-    expect(screen.getByRole('button', { name: 'Text' }).getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(screen.getByRole('button', { name: 'Regex' }))
+    const mode = screen.getByRole('combobox', { name: 'Search mode' })
+    expect((mode as HTMLSelectElement).value).toBe('text')
+    fireEvent.change(mode, { target: { value: 'regex' } })
     fireEvent.change(input, { target: { value: 'current prompt' } })
     fireEvent.click(screen.getByRole('button', { name: 'Next match' }))
 
@@ -1190,6 +1224,45 @@ describe('Terminal input modifier boundary', () => {
       'regex',
     ))
     expect(await screen.findByText('No matches')).toBeTruthy()
+  })
+
+  it('streams a total count and paints weak and current history matches', async () => {
+    terminalHarness.historySnapshot = true
+    terminalHarness.historyMetadata = historyMetadata({
+      loadedRows: 2,
+      logicalTotalRows: 2,
+      rowLogicalLineIds: ['1', '2'],
+      rowInLogicalLines: [0, 0],
+      rowLogicalStartCols: [0, 0],
+      rowTimestampsUnixMs: [undefined, undefined],
+    })
+    terminalHarness.historySearch.mockResolvedValue({
+      found: true,
+      wrapped: false,
+      match: { startLineId: '1', startCol: 1, endLineId: '1', endCol: 4 },
+    })
+    terminalHarness.historySearchScan.mockImplementation(async (_query, _cols, onBatch) => {
+      onBatch({
+        matches: [
+          { startLineId: '1', startCol: 1, endLineId: '1', endCol: 4 },
+          { startLineId: '2', startCol: 2, endLineId: '2', endCol: 6 },
+        ],
+        done: true,
+      })
+    })
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Search history' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Search history' }), { target: { value: 'term' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }))
+
+    expect(await screen.findByText('1 / 2')).toBeTruthy()
+    const terminal = screen.getByTestId('anytty-terminal')
+    await waitFor(() => expect(terminal.querySelectorAll('.anytty-history-search-highlight')).toHaveLength(2))
+    expect(terminal.querySelectorAll('.anytty-history-search-highlight-current')).toHaveLength(1)
+    expect(terminal.querySelector('.anytty-history-search-highlights')).toBeTruthy()
+    expect(terminalHarness.xtermDecorations).toHaveLength(0)
   })
 
   it('returns the underlying acceptance result from imperative input and paste handles', async () => {

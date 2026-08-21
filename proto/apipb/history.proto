@@ -157,6 +157,9 @@ message HistorySearchCommand {
   HistoryTextPosition start = 9;
   HistorySearchMode mode = 10;
   int32 context_before = 11;
+  // scan returns chronological match batches without a replacement window.
+  bool scan = 12;
+  int32 max_matches = 13;
 }
 
 message HistoryReleaseCommand {
@@ -246,6 +249,9 @@ message HistorySearchResult {
   HistoryRange match = 2;
   HistoryWindowResult window = 3;
   bool wrapped = 4;
+  repeated HistoryRange scan_matches = 5;
+  HistoryTextPosition scan_next = 6;
+  bool scan_done = 7;
 }
 
 message HistoryBacklogStatusResult {

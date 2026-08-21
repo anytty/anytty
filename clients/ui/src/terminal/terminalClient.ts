@@ -108,6 +108,18 @@ export interface TerminalHistoryMatchRange {
   endCol: number
 }
 
+export interface TerminalHistoryLogicalMatch {
+  startLineId: string
+  startCol: number
+  endLineId: string
+  endCol: number
+}
+
+export interface TerminalHistorySearchScanBatch {
+  matches: TerminalHistoryLogicalMatch[]
+  done: boolean
+}
+
 export type TerminalHistorySearchMode = 'text' | 'glob' | 'regex'
 
 export type TerminalInfoPayload = Record<string, unknown>
@@ -175,6 +187,13 @@ export interface TerminalProtocolSession {
     start?: { lineId: string; col: number } | undefined,
     options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
   ): Promise<TerminalHistorySearchResult>
+  scanScrollback?(
+    terminalId: string,
+    query: string,
+    cols: number,
+    onBatch: (batch: TerminalHistorySearchScanBatch) => void,
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
+  ): Promise<void>
   copyScrollback?(
     terminalId: string,
     range: { startLineId: string; startCol: number; endLineId: string; endCol: number },
@@ -358,6 +377,18 @@ export class TerminalClient {
       return Promise.reject(new Error('terminal history search is not available'))
     }
     return this.session.searchScrollback(this.terminalId, query, direction, cols, limit, start, options)
+  }
+
+  scanScrollback(
+    query: string,
+    cols: number,
+    onBatch: (batch: TerminalHistorySearchScanBatch) => void,
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
+  ): Promise<void> {
+    if (!this.session || !this.terminalId || !this.session.scanScrollback) {
+      return Promise.reject(new Error('terminal history search scan is not available'))
+    }
+    return this.session.scanScrollback(this.terminalId, query, cols, onBatch, options)
   }
 
   copyScrollback(

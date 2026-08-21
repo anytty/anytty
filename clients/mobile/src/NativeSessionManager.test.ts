@@ -1,8 +1,8 @@
 import { create } from '@bufbuild/protobuf'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProtoClientSession, ProtoClientSubscription, ProtoResourceStream } from '@anytty/ui'
-import { EndpointSessionStampSchema, type ResourceHandle } from '../../ui/src/generated/apipb/common_pb'
-import { CommandEnvelopeSchema, type CommandEnvelope, type EventEnvelope, type ResultEnvelope } from '../../ui/src/generated/apipb/application_pb'
+import { EndpointSessionStampSchema, ResourceHandleSchema, type ResourceHandle } from '../../ui/src/generated/apipb/common_pb'
+import { CommandEnvelopeSchema, ReleaseResourceCommandSchema, type CommandEnvelope, type EventEnvelope, type ResultEnvelope } from '../../ui/src/generated/apipb/application_pb'
 import { ConnectionCandidateType, ConnectionObservedPath, ConnectionRouteKind, ConnectionSnapshotSchema, type ConnectionSnapshot } from '../../ui/src/generated/bindingpb/client_binding_pb'
 import { NativeSessionManager } from './NativeSessionManager'
 
@@ -10,7 +10,7 @@ type ProtoClientSessionCloseHandler = Parameters<ProtoClientSession['subscribeCl
 type ProtoClientSessionCloseError = Parameters<ProtoClientSessionCloseHandler>[0]
 
 describe('NativeSessionManager', () => {
-  it('starts idle and retains a session only after an explicit probe', async () => {
+  it('returns to idle after an explicit probe releases its temporary demand', async () => {
     const session = fakeSession()
     const connect = vi.fn(async () => session)
     const manager = new NativeSessionManager('daemon-a', { connect })
@@ -21,11 +21,13 @@ describe('NativeSessionManager', () => {
       connectionInfo: null,
     })
 
-    await manager.probe()
+    const probedInfo = await manager.probe()
 
     expect(connect).toHaveBeenCalledOnce()
-    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
-    expect(session.close).not.toHaveBeenCalled()
+    expect(probedInfo).toMatchObject({ generation: 1n })
+    await vi.waitFor(() => expect(session.invalidate).toHaveBeenCalledOnce())
+    expect(session.close).toHaveBeenCalledOnce()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'idle' })
   })
 
   it('does not start the first business connection before foreground recovery is ready', async () => {
@@ -63,6 +65,37 @@ describe('NativeSessionManager', () => {
     finishForeground()
     await expect(executing).resolves.toBeDefined()
     expect(session.execute).toHaveBeenCalledOnce()
+  })
+
+  it('does not let lease close suppress resource cleanup waiting on the foreground barrier', async () => {
+    let foregroundReady = Promise.resolve()
+    const session = fakeSession()
+    const manager = new NativeSessionManager('daemon-a', { connect: vi.fn(async () => session) }, {
+      waitForForeground: async () => await foregroundReady,
+    })
+    const lease = await manager.get()
+    let finishForeground!: () => void
+    foregroundReady = new Promise<void>((resolve) => { finishForeground = resolve })
+    const cleanup = lease.execute(create(CommandEnvelopeSchema, {
+      command: {
+        case: 'releaseResource',
+        value: create(ReleaseResourceCommandSchema, {
+          resource: create(ResourceHandleSchema, { opaqueToken: new Uint8Array([1]) }),
+        }),
+      },
+    }))
+    const businessCommand = lease.execute(create(CommandEnvelopeSchema))
+
+    await Promise.resolve()
+    await lease.close()
+    finishForeground()
+
+    await expect(cleanup).resolves.toBeDefined()
+    await expect(businessCommand).rejects.toThrow('Proto session lease is closed')
+    expect(session.execute).toHaveBeenCalledOnce()
+    expect(session.execute).toHaveBeenCalledWith(expect.objectContaining({
+      command: expect.objectContaining({ case: 'releaseResource' }),
+    }), undefined)
   })
 
   it('keeps the first consumer pending while a transient open failure reconnects', async () => {
@@ -165,24 +198,73 @@ describe('NativeSessionManager', () => {
     expect(session.close).toHaveBeenCalledTimes(1)
   })
 
-  it('reuses the device DataChannel after every terminal UI lease has closed', async () => {
+  it('does not activate or disconnect native transport for a workspace that never acquires a session', async () => {
+    const connect = vi.fn(async () => fakeSession())
+    const disconnect = vi.fn(async () => undefined)
+    const setActive = vi.fn(async () => {})
+    const manager = new NativeSessionManager('daemon-a', { connect, disconnect, setActive })
+
+    expect(manager.hasConnectionDemand()).toBe(false)
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
+    expect(manager.hasConnectionDemand()).toBe(true)
+    releaseWorkspaceDemand()
+    expect(manager.hasConnectionDemand()).toBe(false)
+    await Promise.resolve()
+
+    expect(connect).not.toHaveBeenCalled()
+    expect(setActive).not.toHaveBeenCalled()
+    expect(disconnect).not.toHaveBeenCalled()
+  })
+
+  it('keeps native demand active until the last independent lease closes', async () => {
     const session = fakeSession()
-    const connect = vi.fn(async () => session)
+    const setActive = vi.fn(async () => {})
+    const disconnect = vi.fn(async () => { await session.invalidate?.() })
+    const manager = new NativeSessionManager('daemon-a', {
+      connect: vi.fn(async () => session),
+      disconnect,
+      setActive,
+    })
+
+    const workspace = await manager.lease()
+    const transfer = await manager.get()
+    await workspace.close()
+    await Promise.resolve()
+
+    expect(setActive).toHaveBeenCalledTimes(1)
+    expect(setActive).toHaveBeenLastCalledWith('daemon-a', true)
+    expect(disconnect).not.toHaveBeenCalled()
+
+    await transfer.close()
+    await vi.waitFor(() => expect(disconnect).toHaveBeenCalledOnce())
+    expect(setActive).toHaveBeenLastCalledWith('daemon-a', false)
+    expect(session.close).toHaveBeenCalledOnce()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'idle' })
+  })
+
+  it('opens a fresh device DataChannel after every demand owner has closed', async () => {
+    const first = fakeSession()
+    const second = fakeSession(2n)
+    const connect = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
     const manager = new NativeSessionManager('daemon-a', { connect })
 
     const inventory = await manager.get()
     const firstTerminal = await manager.lease()
     await inventory.close()
     await firstTerminal.close()
+    await vi.waitFor(() => expect(first.invalidate).toHaveBeenCalledOnce())
 
     const reopenedTerminal = await manager.lease()
 
-    expect(connect).toHaveBeenCalledTimes(1)
+    expect(connect).toHaveBeenCalledTimes(2)
     expect(reopenedTerminal.isAlive()).toBe(true)
-    expect(session.close).not.toHaveBeenCalled()
+    expect(reopenedTerminal.stamp.generation).toBe(2n)
+    expect(first.close).toHaveBeenCalledOnce()
   })
 
-  it('projects a pooled relay connection until it is explicitly reset', async () => {
+  it('clears a pooled relay connection after its last demand owner closes', async () => {
     const session = fakeSession(1n, create(ConnectionSnapshotSchema, {
       routeId: 'cloud-primary',
       routeKind: ConnectionRouteKind.CLOUD,
@@ -197,17 +279,13 @@ describe('NativeSessionManager', () => {
     const workspace = await manager.lease()
     await workspace.close()
 
+    await vi.waitFor(() => expect(session.invalidate).toHaveBeenCalledOnce())
     expect(manager.connectionState.getSnapshot()).toMatchObject({
-      phase: 'connected',
-      relayInUse: true,
-      connectionInfo: { path: 'hub', observedPath: 'single_relay' },
+      phase: 'idle',
+      relayInUse: false,
+      connectionInfo: null,
     })
-    expect(session.close).not.toHaveBeenCalled()
-
-    await manager.reset()
-
-    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'idle', relayInUse: false })
-    expect(session.close).toHaveBeenCalledTimes(1)
+    expect(session.close).toHaveBeenCalledOnce()
     expect(listener).toHaveBeenCalled()
   })
 
@@ -239,6 +317,7 @@ describe('NativeSessionManager', () => {
     }))
     const connect = vi.fn(async () => session)
     const manager = new NativeSessionManager('daemon-a', { connect })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
     const initial = await manager.get()
     await initial.close()
     const phases: string[] = []
@@ -249,6 +328,9 @@ describe('NativeSessionManager', () => {
     expect(reopened.isAlive()).toBe(true)
     expect(phases.length).toBeGreaterThan(0)
     expect(phases.every((phase) => phase === 'connected')).toBe(true)
+    await reopened.close()
+    releaseWorkspaceDemand()
+    await vi.waitFor(() => expect(session.invalidate).toHaveBeenCalledOnce())
   })
 
   it('opens a fresh Go session after the owned session becomes stale', async () => {
@@ -360,6 +442,7 @@ describe('NativeSessionManager', () => {
       .mockResolvedValueOnce(second)
     const setActive = vi.fn(async () => {})
     const manager = new NativeSessionManager('daemon-a', { connect, setActive })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
 
     const lease = await manager.get()
     await lease.close()
@@ -372,6 +455,7 @@ describe('NativeSessionManager', () => {
     expect(setActive).toHaveBeenCalledTimes(1)
     expect(setActive).toHaveBeenCalledWith('daemon-a', true)
     await manager.reset()
+    releaseWorkspaceDemand()
   })
 
   it('publishes a reconnecting state before replacing a session on network replacement', async () => {
@@ -423,6 +507,7 @@ describe('NativeSessionManager', () => {
       .mockResolvedValueOnce(first)
       .mockResolvedValueOnce(recovered)
     const manager = new NativeSessionManager('daemon-a', { connect })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
 
     try {
       const lease = await manager.get()
@@ -455,6 +540,7 @@ describe('NativeSessionManager', () => {
       })
     } finally {
       await manager.reset()
+      releaseWorkspaceDemand()
       vi.useRealTimers()
     }
   })
@@ -502,6 +588,7 @@ describe('NativeSessionManager', () => {
       })
       .mockResolvedValueOnce(recovered)
     const manager = new NativeSessionManager('daemon-a', { connect })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
     const pending = manager.get()
 
     try {
@@ -519,6 +606,7 @@ describe('NativeSessionManager', () => {
       expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
     } finally {
       await manager.reset()
+      releaseWorkspaceDemand()
       vi.useRealTimers()
     }
   })
@@ -550,7 +638,7 @@ describe('NativeSessionManager', () => {
     }
   })
 
-  it('blocks the first native acquire when constructed offline', async () => {
+  it('does not revive a failed offline acquire until a new consumer requests it', async () => {
     const connect = vi.fn(async () => fakeSession())
     const manager = new NativeSessionManager(
       'daemon-a',
@@ -564,8 +652,13 @@ describe('NativeSessionManager', () => {
 
     await manager.networkChanged(true)
 
+    expect(connect).not.toHaveBeenCalled()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'idle' })
+
+    const lease = await manager.get()
     expect(connect).toHaveBeenCalledOnce()
     expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    await lease.close()
     await manager.reset()
   })
 
@@ -996,6 +1089,7 @@ describe('NativeSessionManager', () => {
       })
       .mockResolvedValueOnce(undefined)
     const manager = new NativeSessionManager('daemon-a', { connect, verify }, { verifyOnFirstAcquire: true })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
     const acquiring = manager.get()
 
     await Promise.resolve()
@@ -1012,6 +1106,7 @@ describe('NativeSessionManager', () => {
       connectionInfo: { generation: 2n },
     })
     await manager.reset()
+    releaseWorkspaceDemand()
   })
 
   it('does not let delayed stale-session cleanup replace a recovered network session', async () => {
@@ -1091,12 +1186,15 @@ describe('NativeSessionManager', () => {
       throw failure
     })
     const manager = new NativeSessionManager('daemon-a', { connect })
+    const releaseWorkspaceDemand = manager.retainConnectionDemand()
     const snapshots: Array<{ error?: Error }> = []
 
     await expect(manager.get({ onConnectionState: (snapshot) => snapshots.push(snapshot) })).rejects.toBe(failure)
 
     expect(snapshots.some((snapshot) => snapshot.error === failure)).toBe(true)
     expect(manager.connectionState.getSnapshot().error).toBe(failure)
+    await manager.reset()
+    releaseWorkspaceDemand()
   })
 
   it('does not publish an asynchronous failure for an explicit reset', async () => {
@@ -1305,7 +1403,7 @@ function fakeSession(generation = 1n, connection?: ConnectionSnapshot): ProtoCli
     subscribeEvents: vi.fn((_handler: (event: EventEnvelope) => void): ProtoClientSubscription => ({ close() {} })),
     subscribeClosed: vi.fn((handler): ProtoClientSubscription => {
       closeHandlers.add(handler)
-      return { close: () => closeHandlers.delete(handler) }
+      return { close: () => { closeHandlers.delete(handler) } }
     }),
     openResourceStream: vi.fn(async (_resource: ResourceHandle): Promise<ProtoResourceStream> => { throw new Error('unused') }),
     isAlive: () => alive,

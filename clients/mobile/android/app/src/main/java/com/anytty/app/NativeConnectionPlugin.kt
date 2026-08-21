@@ -51,7 +51,7 @@ class NativeConnectionPlugin : Plugin() {
     override fun load() {
         try {
             runtimeCoordinator.load()
-            adoptDemandResult(NativeConnectionRuntimeOwner.attachRenderer())
+            adoptDemandResult(NativeConnectionRuntimeOwner.attachRenderer(context.applicationContext))
             val connectivity = context.applicationContext
                 .getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             latestNetworkSnapshot = NativeNetworkSnapshot(

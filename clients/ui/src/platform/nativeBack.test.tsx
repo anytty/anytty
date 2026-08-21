@@ -45,11 +45,12 @@ describe('native back handler registry', () => {
     expect(lower).not.toHaveBeenCalled()
   })
 
-  it('orders nested overlay, scanner, transfer, workspace, then root', () => {
+  it('orders nested overlay, scanner, transfer, file manager, workspace, then root', () => {
     const consumed: string[] = []
     const entries = [
       ['root', NATIVE_BACK_PRIORITY.ROOT],
       ['workspace', NATIVE_BACK_PRIORITY.WORKSPACE],
+      ['file-manager', NATIVE_BACK_PRIORITY.FILE_MANAGER],
       ['transfer', NATIVE_BACK_PRIORITY.TRANSFER],
       ['scanner', NATIVE_BACK_PRIORITY.SCANNER],
       ['nested', NATIVE_BACK_PRIORITY.NESTED_OVERLAY],
@@ -65,7 +66,7 @@ describe('native back handler registry', () => {
     for (let index = 0; index < entries.length; index += 1) {
       expect(dispatchNativeBack()).toBe(true)
     }
-    expect(consumed).toEqual(['nested', 'scanner', 'transfer', 'workspace', 'root'])
+    expect(consumed).toEqual(['nested', 'scanner', 'transfer', 'file-manager', 'workspace', 'root'])
     expect(dispatchNativeBack()).toBe(false)
   })
 

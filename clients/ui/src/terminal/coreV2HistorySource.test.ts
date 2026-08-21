@@ -135,6 +135,49 @@ describe('CoreV2HistorySource generated Proto API', () => {
     ])
   })
 
+  it('scans frozen search matches in bounded batches without requesting a replacement window', async () => {
+    const session = new MockProtoSession('machine-local', () => protoResult('historySearch', create(HistorySearchResultSchema, {
+      scanMatches: [
+        create(HistoryRangeSchema, { startLineId: 4n, startCol: 1, endLineId: 4n, endCol: 7 }),
+        create(HistoryRangeSchema, { startLineId: 9n, startCol: 2, endLineId: 9n, endCol: 8 }),
+      ],
+      scanNext: create(HistoryTextPositionSchema, { lineId: 9n, col: 8 }),
+      scanDone: false,
+    })))
+    const source = createCoreV2HistorySource(session, 'machine-local')
+
+    const result = await source.scan({
+      terminalId: 'terminal-1', token: 'hist-token', generation: 7n, query: 'needle', mode: 'text',
+      cols: 80, maxMatches: 64, start: { lineId: '1', col: 0 },
+    })
+
+    expect(result).toEqual({
+      matches: [
+        { startLineId: '4', startCol: 1, endLineId: '4', endCol: 7 },
+        { startLineId: '9', startCol: 2, endLineId: '9', endCol: 8 },
+      ],
+      next: { lineId: '9', col: 8 },
+      done: false,
+    })
+    expect(session.commands[0]?.command).toMatchObject({
+      case: 'historySearch',
+      value: { scan: true, maxMatches: 64, limit: 1, direction: HistorySearchDirection.FORWARD },
+    })
+  })
+
+  it('rejects a scan response without a completed batch or continuation', async () => {
+    const session = new MockProtoSession('machine-local', () => protoResult(
+      'historySearch',
+      create(HistorySearchResultSchema, { found: false }),
+    ))
+    const source = createCoreV2HistorySource(session, 'machine-local')
+
+    await expect(source.scan({
+      terminalId: 'terminal-1', token: 'hist-token', generation: 7n, query: 'needle', mode: 'text',
+      cols: 80, maxMatches: 64,
+    })).rejects.toThrow('history search scan returned an incomplete batch')
+  })
+
   it('returns an explicit no-match result and rejects wrong result cases', async () => {
     const noMatchSession = new MockProtoSession('machine-local', () => protoResult(
       'historySearch',

@@ -4,6 +4,10 @@ func measureCursor(shell ShellVM, plan LayoutPlan) (Cursor, Rect) {
 	if overlayOwnsCursor(shell.Overlay) {
 		return cursorWithRectOrAnchor(shell.Overlay.Content.Cursor, plan.OverlayContentRect)
 	}
+	if search := shell.Footer.Search; search.Visible && (search.Cursor.Visible || search.Cursor.Anchor) {
+		_, cursor := searchBarPresentation(search, plan.Footer.W)
+		return cursorWithRectOrAnchor(cursor, plan.Footer)
+	}
 	for i := len(plan.Floatings) - 1; i >= 0; i-- {
 		floating := plan.Floatings[i]
 		if !floating.Floating.Active {

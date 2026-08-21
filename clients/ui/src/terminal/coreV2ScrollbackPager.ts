@@ -31,6 +31,11 @@ export interface CoreV2ScrollbackSearchPage {
   matchRanges?: Array<{ row: number; startCol: number; endCol: number }> | undefined
 }
 
+export interface CoreV2ScrollbackSearchScanBatch {
+  matches: Array<{ startLineId: string; startCol: number; endLineId: string; endCol: number }>
+  done: boolean
+}
+
 interface CoreV2ScrollbackState {
   cols: number
   token: string
@@ -158,6 +163,49 @@ export class CoreV2ScrollbackPager {
       match: result.match,
       matchRow,
       matchRanges,
+    }
+  }
+
+  async scan(
+    input: {
+      terminalId: string
+      query: string
+      mode?: CoreV2HistorySearchMode | undefined
+      cols: number
+      batchSize?: number | undefined
+      signal?: AbortSignal | undefined
+    },
+    onBatch: (batch: CoreV2ScrollbackSearchScanBatch) => void,
+  ): Promise<void> {
+    const current = this.stateByTerminal.get(input.terminalId)
+    if (!current || current.cols !== input.cols) throw new Error('history search scan requires a loaded frozen window')
+    let start: { lineId: string; col: number } | undefined
+    for (;;) {
+      let result
+      try {
+        result = await this.source.scan({
+          terminalId: input.terminalId,
+          token: current.token,
+          generation: current.generation,
+          query: input.query,
+          mode: input.mode ?? 'text',
+          cols: input.cols,
+          maxMatches: Math.max(1, Math.min(256, Math.trunc(input.batchSize ?? 64))),
+          ...(start ? { start } : {}),
+        }, input.signal ? { signal: input.signal } : undefined)
+      } catch (error) {
+        if (isTerminalHistoryControlError(error)) {
+          this.stateByTerminal.delete(input.terminalId)
+          this.release(input.terminalId, current)
+        }
+        throw error
+      }
+      onBatch({ matches: result.matches, done: result.done })
+      if (result.done) return
+      if (!result.next || result.next.lineId === start?.lineId && result.next.col === start.col) {
+        throw new Error('history search scan continuation did not advance')
+      }
+      start = result.next
     }
   }
 

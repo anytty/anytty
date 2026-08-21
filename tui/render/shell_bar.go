@@ -68,6 +68,10 @@ func renderFooter(c *canvas, footer FooterVM, rect Rect, frame Rect) {
 	if rect.W <= 0 || rect.H <= 0 {
 		return
 	}
+	if footer.Search.Visible {
+		renderSearchBar(c, footer.Search, rect, "shell:footer:search", LayerChrome)
+		return
+	}
 	_ = frame
 	left := footerLeftSegments(footer, rect.W)
 	right := footerMetadataSegments(footer, footerHintIsCritical(footer))

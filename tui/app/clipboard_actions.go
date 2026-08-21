@@ -24,7 +24,9 @@ type ClipboardPasteResultMsg struct {
 func (ClipboardPasteResultMsg) isMsg() {}
 
 type ClipboardPasteTextMsg struct {
-	Text string
+	Text         string
+	Search       bool
+	SearchViewID string
 }
 
 func (ClipboardPasteTextMsg) isMsg() {}
@@ -37,9 +39,10 @@ func NewClipboardActionReducer(deps ClipboardActionDeps) Reducer {
 				return root, nil
 			}
 			intent := input.RouteWithOptions(msg.Event, input.RouteOptions{
-				Mode:           inputMode(root.Shell.ReadonlyDefaults().InteractionMode),
-				CopyModeActive: copyModeOwnsActiveInput(root),
-				Shortcuts:      root.Config.Shortcuts,
+				Mode:            inputMode(root.Shell.ReadonlyDefaults().InteractionMode),
+				CopyModeActive:  copyModeOwnsActiveInput(root),
+				TextInputActive: copyModeTextInputOwnsActiveInput(root),
+				Shortcuts:       root.Config.Shortcuts,
 			})
 			if intent.Kind == input.IntentShortcutAction {
 				var ok bool
@@ -56,6 +59,9 @@ func NewClipboardActionReducer(deps ClipboardActionDeps) Reducer {
 			}
 			return reduceClipboardIntent(root, intent, deps)
 		case ClipboardPasteTextMsg:
+			if msg.Search {
+				return reduceClipboardSearchPasteText(root, msg)
+			}
 			return reduceClipboardPasteText(root, deps, msg.Text)
 		case ClipboardPasteResultMsg:
 			if msg.Err == nil {
@@ -102,6 +108,7 @@ func reduceClipboardPaste(root state.Root, deps ClipboardActionDeps, readSystemC
 		if deps.Clipboard == nil {
 			return setClipboardActionError(root, "clipboard service missing"), nil
 		}
+		searchPaste, searchViewID := clipboardSearchPasteTarget(root)
 		return root, []Effect{FuncEffect{
 			Async:            true,
 			ForceSyncInTests: true,
@@ -113,7 +120,7 @@ func reduceClipboardPaste(root state.Root, deps ClipboardActionDeps, readSystemC
 				if result.Text == "" {
 					return ClipboardPasteResultMsg{Err: errors.New("system clipboard is empty")}
 				}
-				return ClipboardPasteTextMsg{Text: result.Text}
+				return ClipboardPasteTextMsg{Text: result.Text, Search: searchPaste, SearchViewID: searchViewID}
 			},
 		}}
 	}
@@ -129,6 +136,23 @@ func reduceClipboardPaste(root state.Root, deps ClipboardActionDeps, readSystemC
 		return root.Advance(), nil
 	}
 	return beginClipboardPaste(root, deps, text)
+}
+
+func clipboardSearchPasteTarget(root state.Root) (bool, string) {
+	root, viewID := rootWithActiveCopyHistorySession(root)
+	return copyModeOwnsActiveInput(root) && root.CopyMode.SearchEditing, viewID
+}
+
+func reduceClipboardSearchPasteText(root state.Root, msg ClipboardPasteTextMsg) (state.Root, []Effect) {
+	root, activeViewID := rootWithActiveCopyHistorySession(root)
+	if msg.SearchViewID != "" && msg.SearchViewID != activeViewID || !copyModeOwnsActiveInput(root) || !root.CopyMode.SearchEditing {
+		return root, nil
+	}
+	next, effects, handled := reduceCopyModeTextInput(root, input.InputEvent{Kind: input.EventKindPaste, Paste: msg.Text}, CopyModeDeps{})
+	if !handled {
+		return root, nil
+	}
+	return saveCopyHistorySessionForView(next, activeViewID), effects
 }
 
 func reduceClipboardPasteText(root state.Root, deps ClipboardActionDeps, text string) (state.Root, []Effect) {

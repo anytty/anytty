@@ -144,6 +144,23 @@ export type CoreV2HistorySearchResult =
   | { found: false; wrapped: false }
   | { found: true; match: CoreV2HistoryRange; window: CoreV2HistoryWindow; wrapped: boolean }
 
+export interface CoreV2HistorySearchScanRequest {
+  terminalId: string
+  token: string
+  generation?: string | number | bigint | undefined
+  query: string
+  mode?: CoreV2HistorySearchMode | undefined
+  cols: number
+  maxMatches: number
+  start?: CoreV2HistoryTextPosition | undefined
+}
+
+export interface CoreV2HistorySearchScanResult {
+  matches: CoreV2HistoryRange[]
+  next?: CoreV2HistoryTextPosition | undefined
+  done: boolean
+}
+
 export interface CoreV2HistoryReleaseRequest {
   terminalId: string
   token: string
@@ -158,6 +175,17 @@ export function coreV2HistorySearchFromAPI(value: HistorySearchResult): CoreV2Hi
     window: coreV2HistoryWindowFromAPI(value.window),
     wrapped: value.wrapped,
   }
+}
+
+export function coreV2HistorySearchScanFromAPI(value: HistorySearchResult): CoreV2HistorySearchScanResult {
+  const matches = value.scanMatches.map(historyRangeFromAPI)
+  const next = value.scanNext && value.scanNext.lineId !== 0n
+    ? { lineId: value.scanNext.lineId.toString(), col: value.scanNext.col }
+    : undefined
+  if (!value.scanDone && (matches.length === 0 || !next)) {
+    throw new Error('history search scan returned an incomplete batch')
+  }
+  return { matches, next, done: value.scanDone }
 }
 
 export function coreV2HistoryWindowFromAPI(value: HistoryWindowResult): CoreV2HistoryWindow {

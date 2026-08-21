@@ -246,6 +246,109 @@ func TestStoreSearchFrozenHistoryAcrossColdAndHotRows(t *testing.T) {
 	}
 }
 
+func TestStoreSearchScanStreamsChronologicalBatches(t *testing.T) {
+	harness := newStoreHarness(t, 40, 3)
+	harness.write("alpha needle needle\r\nbeta\r\ngamma needle\r\n")
+	frozen, err := harness.store.Freeze(history.FreezeHistoryRequest{Cols: 40, Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := harness.store.Search(context.Background(), history.HistorySearchRequest{
+		TerminalID: "term-store", Token: frozen.Token, Cols: 40, Limit: 1,
+		Query: "needle", Direction: history.HistorySearchForward, Scan: true, MaxMatches: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Found || first.Done || len(first.Matches) != 2 {
+		t.Fatalf("first scan batch = %#v", first)
+	}
+	if first.Matches[0].Start.LineID != 1 || first.Matches[0].Start.Col != 6 ||
+		first.Matches[1].Start.LineID != 1 || first.Matches[1].Start.Col != 13 {
+		t.Fatalf("first scan matches = %#v", first.Matches)
+	}
+	if first.Next.LineID != 1 || first.Next.Col != first.Matches[1].Start.Col+1 {
+		t.Fatalf("first scan continuation = %#v, want one column after match start", first.Next)
+	}
+
+	second, err := harness.store.Search(context.Background(), history.HistorySearchRequest{
+		TerminalID: "term-store", Token: frozen.Token, Cols: 40, Limit: 1,
+		Query: "needle", Direction: history.HistorySearchForward, Start: first.Next,
+		Scan: true, MaxMatches: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !second.Found || !second.Done || len(second.Matches) != 1 || second.Matches[0].Start.LineID != 3 {
+		t.Fatalf("second scan batch = %#v", second)
+	}
+	if second.Next.LineID != 0 {
+		t.Fatalf("completed scan must clear continuation, got %#v", second.Next)
+	}
+}
+
+func TestStoreSearchScanReturnsEveryMatchAcrossMultipleBatches(t *testing.T) {
+	harness := newStoreHarness(t, 20, 3)
+	harness.write(strings.Repeat("0\r\n", 130))
+	frozen, err := harness.store.Freeze(history.FreezeHistoryRequest{Cols: 20, Limit: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var next history.HistoryCopyPosition
+	total := 0
+	batches := 0
+	for {
+		result, err := harness.store.Search(context.Background(), history.HistorySearchRequest{
+			TerminalID: "term-store", Token: frozen.Token, Cols: 20, Limit: 3,
+			Query: "0", Direction: history.HistorySearchForward, Start: next,
+			Scan: true, MaxMatches: 64,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		batches++
+		total += len(result.Matches)
+		if result.Done {
+			break
+		}
+		if result.Next.LineID == 0 || batches > 3 {
+			t.Fatalf("scan did not make progress after batch %d: %#v", batches, result)
+		}
+		next = result.Next
+	}
+	if total != 130 || batches != 3 {
+		t.Fatalf("scan returned %d matches in %d batches, want 130 matches in 3 batches", total, batches)
+	}
+}
+
+func TestStoreSearchScanKeepsOverlappingMatchesAcrossBatches(t *testing.T) {
+	harness := newStoreHarness(t, 20, 2)
+	harness.write("banana\r\n")
+	frozen, err := harness.store.Freeze(history.FreezeHistoryRequest{Cols: 20, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := harness.store.Search(context.Background(), history.HistorySearchRequest{
+		TerminalID: "term-store", Token: frozen.Token, Cols: 20, Limit: 1, Query: "ana",
+		Direction: history.HistorySearchForward, Scan: true, MaxMatches: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := harness.store.Search(context.Background(), history.HistorySearchRequest{
+		TerminalID: "term-store", Token: frozen.Token, Cols: 20, Limit: 1, Query: "ana", Start: first.Next,
+		Direction: history.HistorySearchForward, Scan: true, MaxMatches: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Matches) != 1 || first.Matches[0].Start.Col != 1 || len(second.Matches) != 1 || second.Matches[0].Start.Col != 3 {
+		t.Fatalf("overlapping batches = first %#v second %#v", first, second)
+	}
+}
+
 func TestStoreSearchReportsDisplayCellColumns(t *testing.T) {
 	harness := newStoreHarness(t, 24, 3)
 	harness.write("a你b needle\r\n")

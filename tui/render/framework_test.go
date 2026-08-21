@@ -404,6 +404,58 @@ func TestFrameworkUsesKnownViewportExactly(t *testing.T) {
 	assertAllRowsWidth(t, result.Lines(), 12)
 }
 
+func TestFrameworkUsesHistoryBorderForCopyHistoryPanel(t *testing.T) {
+	result := NewRenderer(DefaultTheme()).RenderResult(RenderVM{Shell: ShellVM{
+		Layout: LayoutVM{Viewport: Rect{W: 24, H: 8}, Panels: []PanelVM{{
+			ID:           "pane-1",
+			Title:        "shell",
+			Presentation: PanelPresentationCard,
+			Active:       true,
+			Content:      ContentVM{Kind: ContentCopyHistory, Lines: []Line{NewLine("history")}},
+		}}},
+	}})
+
+	assertStyledCellAt(t, result.StyledLines(), 0, 0, "┌", StyleHistoryBorder)
+	assertStyledCellAt(t, result.StyledLines(), 7, 23, "┘", StyleHistoryBorder)
+}
+
+func TestFrameworkReplacesGlobalFooterWithActiveHistorySearch(t *testing.T) {
+	search := SearchBarVM{
+		Visible: true,
+		Prefix:  NewLine("⌕ [TEXT] "),
+		Value:   "needle",
+		Status:  NewLine("  2/17"),
+		Cursor:  Cursor{Visible: true, Shape: CursorShapeBar},
+	}
+	result := NewRenderer(DefaultTheme()).RenderResult(RenderVM{Shell: ShellVM{
+		Footer: FooterVM{Visible: true, Search: search},
+		Layout: LayoutVM{Viewport: Rect{W: 30, H: 10}, Panels: []PanelVM{{
+			ID:           "pane-1",
+			Title:        "shell",
+			Presentation: PanelPresentationCard,
+			Active:       true,
+			Content: ContentVM{
+				Kind:   ContentCopyHistory,
+				Lines:  []Line{NewLine("row one"), NewLine("row two")},
+				Extent: ContentExtent{Known: true, Cols: 12, Rows: 2},
+			},
+		}}},
+	}})
+
+	if got := result.Lines()[9]; !strings.Contains(got, "⌕ [TEXT] needle") || !strings.Contains(got, "2/17") {
+		t.Fatalf("search must replace the global footer, got %q", got)
+	}
+	if result.CursorRect.Y != 9 {
+		t.Fatalf("search cursor must follow the global footer, got %#v", result.CursorRect)
+	}
+	if !strings.Contains(result.Lines()[8], "└") || !strings.Contains(result.Lines()[8], "┘") {
+		t.Fatalf("search must not overwrite or move the panel's bottom border, got %#v", result.Lines())
+	}
+	if !strings.Contains(result.Lines()[1], "row one") || !strings.Contains(result.Lines()[2], "row two") {
+		t.Fatalf("search must not consume a terminal content row, got %#v", result.Lines())
+	}
+}
+
 func TestFrameworkRendersSplitLineHorizontalAndVertical(t *testing.T) {
 	panels := []PanelVM{
 		{ID: "pane-1", Title: "shell", Presentation: PanelPresentationSplitLine, Active: false, Content: ContentVM{Kind: ContentPlaceholder, Lines: []Line{NewLine("left")}}},

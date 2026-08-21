@@ -1763,6 +1763,21 @@ func TestCopyModeSelectionFollowsMarkAndCursor(t *testing.T) {
 	}
 }
 
+func TestCopyModeClearSelectionKeepsHistoryModeActive(t *testing.T) {
+	copyMode := CopyModeStore{Active: true, Phase: CopyModeFrozenHistory, BoundToken: "tok-1"}.
+		SetMark(CopyPosition{Row: 1, Col: 2})
+	copyMode.CopyExitAfterSuccess = true
+
+	copyMode = copyMode.ClearSelection()
+
+	if !copyMode.HistoryRenderable() || !copyMode.Active || copyMode.BoundToken != "tok-1" {
+		t.Fatalf("clearing a selection must keep frozen history active, got %#v", copyMode)
+	}
+	if copyMode.Mark != nil || copyMode.Selection != nil || copyMode.CopyExitAfterSuccess {
+		t.Fatalf("clearing a selection must reset only selection state, got %#v", copyMode)
+	}
+}
+
 func TestCopyModeQueryAndScrollClamp(t *testing.T) {
 	history := HistoryStore{Rows: []HistoryRow{{Text: "alpha beta", LineID: 1}, {Text: "beta gamma", LineID: 2}, {Text: "delta", LineID: 3}}}
 	copyMode := (CopyModeStore{ViewRows: 3}).SetQuery("beta", []CopyMatch{{StartRow: 0, StartCol: 6, EndRow: 0, EndCol: 10}})
@@ -1871,6 +1886,62 @@ func TestReflowHistoryLogicalLinesTailFillDoesNotAddRowsOnResize(t *testing.T) {
 	}
 	if rows[1].TailFill == nil || rows[1].TailFill.BG != "idx:24" {
 		t.Fatalf("final row should keep tail fill metadata, got %#v", rows[1])
+	}
+}
+
+func TestCopyModeAppendSearchResultsKeepsLargeCatalogOffTheVisibleProjection(t *testing.T) {
+	const total = 100_000
+	results := make([]CopyLogicalMatch, total)
+	for index := range results {
+		lineID := uint64(index + 1)
+		results[index] = CopyLogicalMatch{
+			Start: CopyLogicalPosition{Valid: true, LineID: lineID},
+			End:   CopyLogicalPosition{Valid: true, LineID: lineID, Col: 1},
+		}
+	}
+	history := HistoryStore{Rows: make([]HistoryRow, 24)}
+	for index := range history.Rows {
+		history.Rows[index] = HistoryRow{Text: "a", LineID: uint64(50_000 + index)}
+	}
+	store := CopyModeStore{
+		Active:           true,
+		ViewRows:         24,
+		SearchMatchStart: CopyLogicalPosition{Valid: true, LineID: 50_010},
+		SearchMatchEnd:   CopyLogicalPosition{Valid: true, LineID: 50_010, Col: 1},
+	}
+
+	next, err := store.AppendSearchResults(history, results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next.SearchResults) != total {
+		t.Fatalf("catalog count = %d, want %d", len(next.SearchResults), total)
+	}
+	if len(next.Matches) != 24 {
+		t.Fatalf("visible projection should contain only 24 viewport matches, got %d", len(next.Matches))
+	}
+	if current, gotTotal := next.SearchResultPosition(); current != 50_010 || gotTotal != total {
+		t.Fatalf("search result position = %d/%d, want 50010/%d", current, gotTotal, total)
+	}
+}
+
+func TestCopyModeSearchQueryEditingUsesCursorPosition(t *testing.T) {
+	store := CopyModeStore{Query: "FINDME", SearchCursor: 3}
+	store = store.DeleteSearchForward().InsertSearchText("X")
+	if store.Query != "FINXME" || store.SearchCursor != 4 {
+		t.Fatalf("replace middle query character = %#v", store)
+	}
+	store = store.MoveSearchCursor(-2).DeleteSearchBackward()
+	if store.Query != "FNXME" || store.SearchCursor != 1 {
+		t.Fatalf("backspace at cursor = %#v", store)
+	}
+	store = store.SetSearchCursor(0).DeleteSearchBackward()
+	if store.Query != "FNXME" || store.SearchCursor != 0 {
+		t.Fatalf("backspace at start changed query = %#v", store)
+	}
+	store = store.SetSearchCursor(999).DeleteSearchForward()
+	if store.Query != "FNXME" || store.SearchCursor != len([]rune(store.Query)) {
+		t.Fatalf("delete at end changed query = %#v", store)
 	}
 }
 

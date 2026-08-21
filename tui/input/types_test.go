@@ -90,6 +90,58 @@ func TestRouteCopyModePasteShortcuts(t *testing.T) {
 	assertShortcutAction(t, systemClipboard, "clipboard.paste_system")
 }
 
+func TestRouteCopyModeSearchNavigationNormalizesEnhancedUppercase(t *testing.T) {
+	assertShortcutAction(t, Route(InputEvent{Kind: EventKindKey, Key: KeyChar, Char: "n"}, true), "copy.search_next")
+	assertShortcutAction(t, Route(InputEvent{Kind: EventKindKey, Key: KeyChar, Char: "N"}, true), "copy.search_previous")
+
+	for _, event := range []InputEvent{
+		{Kind: EventKindKey, Key: KeyChar, Char: "n", Shift: true, KeyboardProtocol: KeyboardProtocolKittyCSIU},
+		{Kind: EventKindKey, Key: KeyChar, Char: "N", Shift: true, KeyboardProtocol: KeyboardProtocolKittyCSIU},
+	} {
+		assertShortcutAction(t, Route(event, true), "copy.search_previous")
+	}
+}
+
+func TestRouteTextInputCapturesPrintableCopyShortcuts(t *testing.T) {
+	for _, char := range []string{"g", "G", "n", "N", "/", "H", "p", "P", "y"} {
+		intent := RouteWithOptions(InputEvent{Kind: EventKindKey, Key: KeyChar, Char: char}, RouteOptions{
+			CopyModeActive:  true,
+			TextInputActive: true,
+		})
+		if intent.Kind != IntentNone || intent.Event.Char != char {
+			t.Fatalf("text input character %q must bypass shortcut routing, got %#v", char, intent)
+		}
+	}
+	for _, key := range []Key{KeyBackspace, KeyDelete, KeyLeft, KeyRight, KeyHome, KeyEnd} {
+		intent := RouteWithOptions(InputEvent{Kind: EventKindKey, Key: key}, RouteOptions{
+			CopyModeActive:  true,
+			TextInputActive: true,
+		})
+		if intent.Kind != IntentNone || intent.Event.Key != key {
+			t.Fatalf("text input editing key %q must bypass shortcut routing, got %#v", key, intent)
+		}
+	}
+	paste := RouteWithOptions(InputEvent{Kind: EventKindPaste, Paste: "query"}, RouteOptions{
+		CopyModeActive:  true,
+		TextInputActive: true,
+	})
+	if paste.Kind != IntentNone || paste.Event.Paste != "query" {
+		t.Fatalf("text input paste must bypass terminal routing, got %#v", paste)
+	}
+	assertShortcutAction(t, RouteWithOptions(InputEvent{Kind: EventKindKey, Key: KeyEnter}, RouteOptions{
+		CopyModeActive:  true,
+		TextInputActive: true,
+	}), "copy.accept")
+	assertShortcutAction(t, RouteWithOptions(InputEvent{Kind: EventKindKey, Key: KeyTab}, RouteOptions{
+		CopyModeActive:  true,
+		TextInputActive: true,
+	}), "copy.search_mode")
+	assertShortcutAction(t, RouteWithOptions(InputEvent{Kind: EventKindKey, Key: KeyChar, Char: "\x06", Ctrl: true}, RouteOptions{
+		CopyModeActive:  true,
+		TextInputActive: true,
+	}), "menu.terminal_picker")
+}
+
 func TestRouteInteractionModePrefixesAndModeKeys(t *testing.T) {
 	ctrlP := Route(InputEvent{Kind: EventKindKey, Key: KeyChar, Char: "\x10", Ctrl: true}, false)
 	assertShortcutAction(t, ctrlP, "menu.panel")
@@ -240,6 +292,20 @@ func TestShortcutEnhancedRequirementUsesTraditionalCanonicalEvent(t *testing.T) 
 		if ShortcutKeyRequiresEnhancedKeyboard(token) {
 			t.Fatalf("%q has an equivalent traditional TTY representation", token)
 		}
+	}
+}
+
+func TestShortcutBindingSignatureTreatsUppercaseAsShiftedText(t *testing.T) {
+	uppercase, ok := ShortcutBindingSignature("copy", "N")
+	if !ok {
+		t.Fatal("uppercase shortcut signature was rejected")
+	}
+	shifted, ok := ShortcutBindingSignature("copy", "shift-n")
+	if !ok {
+		t.Fatal("shifted shortcut signature was rejected")
+	}
+	if uppercase != shifted {
+		t.Fatalf("uppercase and explicitly shifted text keys must share a runtime signature: %q != %q", uppercase, shifted)
 	}
 }
 

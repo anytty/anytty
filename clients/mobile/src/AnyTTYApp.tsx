@@ -918,7 +918,6 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
 } {
   const transferStore = new NativeFileTransferStore()
   const sessionManagers = new Map<string, NativeSessionEntry>()
-  const autoResumeMachines = new Set<string>()
   let networkRevision = 0
   let networkConnected = true
   transferStore.setSessionResolver(async (machineId, signal) => {
@@ -931,7 +930,11 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
       return transferStore.discardForLocalReset()
     },
     resumeInterruptedTransfers() {
-      void transferStore.resumeInterruptedTransfers()
+      // The device list creates managers for status projection. Only a visible
+      // workspace or a live task may turn foreground recovery into a connection.
+      for (const [machineId, entry] of sessionManagers) {
+        if (entry.manager.hasConnectionDemand()) void transferStore.resumeInterruptedTransfers(machineId)
+      }
     },
     async resetGeneration() {
       await transferStore.suspendForRuntimeReset()
@@ -964,7 +967,6 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
       return createNativeMachineRuntime(input.machine, input.storage, endpointRegistry, {
         sessionManagers,
         transferStore,
-        autoResumeMachines,
         networkConnected: () => networkConnected,
       })
     },
@@ -988,7 +990,6 @@ function createNativeMachineRuntime(
   shared: {
     sessionManagers: Map<string, NativeSessionEntry>
     transferStore: NativeFileTransferStore
-    autoResumeMachines: Set<string>
     networkConnected: () => boolean
   },
 ): MachineRuntime {
@@ -1027,10 +1028,6 @@ function createNativeMachineRuntime(
   const sessionManager = entry.manager
   const connector = entry.connector
   const transferStore = shared.transferStore
-  if (!shared.autoResumeMachines.has(machine.id)) {
-    shared.autoResumeMachines.add(machine.id)
-    queueMicrotask(() => { void transferStore.resumeInterruptedTransfers(machine.id) })
-  }
 
   const api: MachineWorkspaceProps['api'] = {
     async getStatus(): Promise<LocalStatus> {
@@ -1130,6 +1127,14 @@ function createNativeMachineRuntime(
     inventoryEvents: createNativeInventoryEvents(machine.id, sessionManager),
     connectionStateEvents: createNativeConnectionStateEvents(machine.id, sessionManager),
     listConnectionState: sessionManager.connectionState,
+    retainConnectionDemand: () => {
+      const releaseDemand = sessionManager.retainConnectionDemand()
+      // Entering this workspace is the user-intent boundary for persisted transfers.
+      queueMicrotask(() => {
+        if (sessionManager.hasConnectionDemand()) void transferStore.resumeInterruptedTransfers(machine.id)
+      })
+      return releaseDemand
+    },
     probeConnection: () => sessionManager.probe(),
     fileTransfer: createFileTransferContext(machine.id, transferStore),
     async disconnect() {

@@ -46,8 +46,8 @@ type PendingNativeNetworkChange = {
  *
  * Go Client Engine 仍拥有 route、PeerSession 与 generation 真值；这里仅保证 workspace、inventory
  * 和文件传输复用同一个 binding session handle，避免 UI 消费者各自 openSession 后互相使 generation
- * 失效。页面、terminal 和文件资源的 lease 关闭都不关闭底层 session；reset 只在 Android
- * generation 更换、显式重连或 Endpoint 配置失效时关闭底层 session。
+ * 失效。workspace、任务和临时 lease 共同持有按需连接；最后一个持有者释放后关闭底层 session。
+ * reset 仍用于 Android generation 更换、显式重连或 Endpoint 配置失效。
  */
 export class NativeSessionManager {
   private session: ProtoClientSession | null = null
@@ -59,6 +59,8 @@ export class NativeSessionManager {
   private reconnectAttempt = 0
   private reconnectBackoffIndex = 0
   private reconnectTimer: ReturnType<typeof globalThis.setTimeout> | null = null
+  private readonly demandOwners = new Set<symbol>()
+  private demandRevision = 0
   private networkChangeRevision = 0
   private networkChangeWorker: Promise<void> | null = null
   private activeNetworkChange: PendingNativeNetworkChange | null = null
@@ -103,15 +105,38 @@ export class NativeSessionManager {
   /** machineID 仅供 generation owner 释放同一 Endpoint 的 connector 资源。 */
   machineID(): string { return this.machineId }
 
+  /** Prevents an acquired endpoint session from becoming unused until this owner is released. */
+  retainConnectionDemand(): () => void {
+    const owner = Symbol(this.machineId)
+    this.demandOwners.add(owner)
+    this.demandRevision += 1
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      if (!this.demandOwners.delete(owner)) return
+      const revision = ++this.demandRevision
+      if (this.demandOwners.size === 0) {
+        queueMicrotask(() => { void this.disconnectWhenUnused(revision) })
+      }
+    }
+  }
+
+  hasConnectionDemand(): boolean { return this.demandOwners.size > 0 }
+
   /** get 为 inventory 和文件传输取得当前 Endpoint 的独立 UI lease。 */
   get(options?: RtcConnectOptions): Promise<ProtoClientSession> {
     return this.acquireForConsumer(options)
   }
 
-  /** probe establishes and retains the pooled endpoint session while releasing its short-lived UI lease. */
-  async probe(): Promise<void> {
+  /** probe temporarily verifies an endpoint and releases both its UI lease and connection demand. */
+  async probe(): Promise<ConnectionInfo | null> {
     const lease = await this.acquireForConsumer()
-    await lease.close()
+    try {
+      return this.connectionState.getSnapshot().connectionInfo
+    } finally {
+      await lease.close()
+    }
   }
 
   /** lease 为 workspace 取得当前 Endpoint 的独立 UI lease。 */
@@ -125,7 +150,7 @@ export class NativeSessionManager {
     await this.lastKeepAliveUpdate
   }
 
-  /** disconnect is an explicit user action and invalidates the pooled physical generation. */
+  /** disconnect invalidates the pooled physical generation after explicit or last-owner release. */
   async disconnect(): Promise<void> {
     const session = this.resetOwnedSession(false, false)
     const keepAliveUpdate = this.lastKeepAliveUpdate
@@ -516,25 +541,31 @@ export class NativeSessionManager {
 
   /** Business consumers wait for the foreground generation and survive manager-owned transient retries. */
   private async acquireForConsumer(options?: RtcConnectOptions): Promise<ProtoClientSession> {
-    while (true) {
-      if (this.waitForForeground) await this.waitForForeground(options?.signal)
-      try {
-        return await this.acquire(options)
-      } catch (failure) {
-        if (options?.signal?.aborted) throw abortError(options.signal)
-        const error = connectionFailure(failure)
-        if (
-          this.goOwnsMaintenance() &&
-          this.keepAliveRequested &&
-          this.networkConnected &&
-          shouldKeepGoConsumerPending(error)
-        ) {
-          await waitForRetryWindow(options?.signal)
-          continue
+    const releaseDemand = this.retainConnectionDemand()
+    try {
+      while (true) {
+        if (this.waitForForeground) await this.waitForForeground(options?.signal)
+        try {
+          return await this.acquire(options, releaseDemand)
+        } catch (failure) {
+          if (options?.signal?.aborted) throw abortError(options.signal)
+          const error = connectionFailure(failure)
+          if (
+            this.goOwnsMaintenance() &&
+            this.keepAliveRequested &&
+            this.networkConnected &&
+            shouldKeepGoConsumerPending(error)
+          ) {
+            await waitForRetryWindow(options?.signal)
+            continue
+          }
+          if (!this.keepAliveRequested || !this.networkConnected || !shouldKeepConsumerPending(error)) throw failure
+          await this.waitForRecoverableSession(options?.signal)
         }
-        if (!this.keepAliveRequested || !this.networkConnected || !shouldKeepConsumerPending(error)) throw failure
-        await this.waitForRecoverableSession(options?.signal)
       }
+    } catch (failure) {
+      releaseDemand()
+      throw failure
     }
   }
 
@@ -579,7 +610,7 @@ export class NativeSessionManager {
     })
   }
 
-  private async acquire(options?: RtcConnectOptions): Promise<ProtoClientSession> {
+  private async acquire(options?: RtcConnectOptions, releaseDemand?: () => void): Promise<ProtoClientSession> {
     const acquireEpoch = this.epoch
     this.clearReconnectTimer()
     const activation = this.setKeepAliveRequested(true)
@@ -603,7 +634,7 @@ export class NativeSessionManager {
       if (!this.networkConnected) throw networkUnavailableError()
       if (this.session?.isAlive()) {
         this.publish(connectedMachineConnectionSnapshot(this.machineId, this.session, this.snapshot.forceRelay, this.reconnectAttempt))
-        return new NativeSessionLease(this.session, this.waitForForeground)
+        return new NativeSessionLease(this.session, this.waitForForeground, releaseDemand)
       }
       const staleSession = this.session
       if (staleSession) {
@@ -616,7 +647,7 @@ export class NativeSessionManager {
         }
         if (this.session?.isAlive()) {
           this.publish(connectedMachineConnectionSnapshot(this.machineId, this.session, this.snapshot.forceRelay, this.reconnectAttempt))
-          return new NativeSessionLease(this.session, this.waitForForeground)
+          return new NativeSessionLease(this.session, this.waitForForeground, releaseDemand)
         }
       }
       if (!this.pending) {
@@ -740,7 +771,7 @@ export class NativeSessionManager {
       }
       const opened = await awaitSessionLease(this.pending, options?.signal)
       if (!opened.isAlive()) throw new Error('Go client session is unavailable')
-      return new NativeSessionLease(opened, this.waitForForeground)
+      return new NativeSessionLease(opened, this.waitForForeground, releaseDemand)
     } finally {
       stopForwarding()
     }
@@ -857,6 +888,16 @@ export class NativeSessionManager {
 
   private goOwnsMaintenance(): boolean {
     return this.connector.isGoManaged?.(this.machineId) === true
+  }
+
+  private async disconnectWhenUnused(revision: number): Promise<void> {
+    if (revision !== this.demandRevision || this.demandOwners.size !== 0) return
+    if (!this.keepAliveRequested && !this.session && !this.pending) return
+    try {
+      await this.disconnect()
+    } catch {
+      // Passive demand release must not turn a completed UI/task cleanup into an error.
+    }
   }
 }
 
@@ -1131,18 +1172,35 @@ function connectedMachineConnectionSnapshot(
 class NativeSessionLease implements ProtoClientSession {
   private alive = true
   private readonly subscriptions = new Set<ProtoClientSubscription>()
+  private readonly cleanupOperations = new Set<Promise<unknown>>()
+  private demandReleased = false
 
   constructor(
     private readonly session: ProtoClientSession,
     private readonly waitForForeground?: (signal?: AbortSignal) => Promise<void>,
+    private readonly releaseDemand?: () => void,
   ) {}
 
   get stamp(): EndpointSessionStamp { return this.session.stamp }
   get connection() { return this.session.connection }
+  get resourcePoolOwner(): ProtoClientSession { return this.session.resourcePoolOwner ?? this.session }
 
   async execute(command: CommandEnvelope, options?: { signal?: AbortSignal }): Promise<ResultEnvelope> {
-    if (this.waitForForeground) await this.waitForForeground(options?.signal)
-    return await this.requireAlive().execute(command, options)
+    // Cleanup belongs to the resource-owning physical session. Capture it before
+    // the foreground wait so an immediately closed UI lease cannot suppress the release.
+    const cleanupSession = releasesSessionResource(command) ? this.requireAlive() : null
+    const operation = (async () => {
+      if (this.waitForForeground) await this.waitForForeground(options?.signal)
+      return await (cleanupSession ?? this.requireAlive()).execute(command, options)
+    })()
+    if (cleanupSession) {
+      this.cleanupOperations.add(operation)
+      void operation.then(
+        () => this.finishCleanupOperation(operation),
+        () => this.finishCleanupOperation(operation),
+      )
+    }
+    return await operation
   }
 
   subscribeEvents(handler: (event: EventEnvelope) => void): ProtoClientSubscription {
@@ -1187,11 +1245,37 @@ class NativeSessionLease implements ProtoClientSession {
     this.alive = false
     for (const subscription of [...this.subscriptions]) subscription.close()
     this.subscriptions.clear()
+    if (this.cleanupOperations.size === 0) {
+      this.releaseDemandOnce()
+    }
+  }
+
+  private finishCleanupOperation(operation: Promise<unknown>): void {
+    this.cleanupOperations.delete(operation)
+    if (!this.alive && this.cleanupOperations.size === 0) this.releaseDemandOnce()
+  }
+
+  private releaseDemandOnce(): void {
+    if (this.demandReleased) return
+    this.demandReleased = true
+    this.releaseDemand?.()
   }
 
   private requireAlive(): ProtoClientSession {
     if (!this.isAlive()) throw new Error('Proto session lease is closed')
     return this.session
+  }
+}
+
+function releasesSessionResource(command: CommandEnvelope): boolean {
+  switch (command.command.case) {
+    case 'releaseResource':
+    case 'terminalDetach':
+    case 'historyRelease':
+    case 'fileTransferCancel':
+      return true
+    default:
+      return false
   }
 }
 

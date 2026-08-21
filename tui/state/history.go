@@ -2,6 +2,7 @@ package state
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -274,13 +275,17 @@ type CopyModeStore struct {
 	Selection            *CopySelection
 	Query                string
 	SearchMode           HistorySearchMode
+	SearchCursor         int
 	Matches              []CopyMatch
 	ActiveMatch          int
 	SearchEditing        bool
 	SearchPending        bool
+	SearchScanPending    bool
+	SearchScanComplete   bool
 	SearchRequestID      RequestID
 	SearchMatchStart     CopyLogicalPosition
 	SearchMatchEnd       CopyLogicalPosition
+	SearchResults        []CopyLogicalMatch
 	SearchWrapped        bool
 	SearchError          string
 	CopyPending          bool
@@ -322,6 +327,11 @@ type CopyMatch struct {
 	EndCol   int
 }
 
+type CopyLogicalMatch struct {
+	Start CopyLogicalPosition
+	End   CopyLogicalPosition
+}
+
 type CopySelection struct {
 	Anchor        CopyPosition
 	Focus         CopyPosition
@@ -341,6 +351,7 @@ var (
 	ErrHistoryRequestPending = errors.New("history request pending")
 	ErrStaleHistoryResponse  = errors.New("stale history response")
 	ErrHistoryWindowMismatch = errors.New("history window mismatch")
+	ErrHistorySearchOrder    = errors.New("history search results are not strictly ordered")
 )
 
 func historyRowsToLogicalLines(rows []HistoryRow, spans []HistoryLineSpan) []HistoryLogicalLine {
@@ -1050,6 +1061,13 @@ func (store CopyModeStore) SetMark(pos CopyPosition) CopyModeStore {
 	return store
 }
 
+func (store CopyModeStore) ClearSelection() CopyModeStore {
+	store.Mark = nil
+	store.Selection = nil
+	store.CopyExitAfterSuccess = false
+	return store
+}
+
 func (store CopyModeStore) RefreshLogicalSelection(history HistoryStore) CopyModeStore {
 	if store.Selection == nil {
 		return store
@@ -1119,14 +1137,71 @@ func (store CopyModeStore) SetQuery(query string, matches []CopyMatch) CopyModeS
 		store.SearchMatchStart = CopyLogicalPosition{}
 		store.SearchMatchEnd = CopyLogicalPosition{}
 		store.SearchWrapped = false
+		store.SearchResults = nil
+		store.SearchScanPending = false
+		store.SearchScanComplete = false
 	}
 	store.Query = query
+	store.SearchCursor = clampCopyInt(store.SearchCursor, 0, len([]rune(query)))
 	store.SearchError = ""
 	store.Matches = cloneCopyMatches(matches)
 	store.ActiveMatch = 0
 	if len(store.Matches) > 0 {
 		store.Cursor = CopyPosition{Row: store.Matches[0].StartRow, Col: store.Matches[0].StartCol}
 	}
+	return store
+}
+
+func (store CopyModeStore) SetSearchCursor(cursor int) CopyModeStore {
+	store.SearchCursor = clampCopyInt(cursor, 0, len([]rune(store.Query)))
+	return store
+}
+
+func (store CopyModeStore) MoveSearchCursor(delta int) CopyModeStore {
+	return store.SetSearchCursor(store.SearchCursor + delta)
+}
+
+func (store CopyModeStore) InsertSearchText(text string) CopyModeStore {
+	if text == "" {
+		return store
+	}
+	runes := []rune(store.Query)
+	cursor := clampCopyInt(store.SearchCursor, 0, len(runes))
+	insert := []rune(text)
+	next := make([]rune, 0, len(runes)+len(insert))
+	next = append(next, runes[:cursor]...)
+	next = append(next, insert...)
+	next = append(next, runes[cursor:]...)
+	store = store.SetQuery(string(next), nil)
+	store.SearchCursor = cursor + len(insert)
+	return store
+}
+
+func (store CopyModeStore) DeleteSearchBackward() CopyModeStore {
+	runes := []rune(store.Query)
+	cursor := clampCopyInt(store.SearchCursor, 0, len(runes))
+	if cursor == 0 {
+		return store
+	}
+	next := make([]rune, 0, len(runes)-1)
+	next = append(next, runes[:cursor-1]...)
+	next = append(next, runes[cursor:]...)
+	store = store.SetQuery(string(next), nil)
+	store.SearchCursor = cursor - 1
+	return store
+}
+
+func (store CopyModeStore) DeleteSearchForward() CopyModeStore {
+	runes := []rune(store.Query)
+	cursor := clampCopyInt(store.SearchCursor, 0, len(runes))
+	if cursor >= len(runes) {
+		return store
+	}
+	next := make([]rune, 0, len(runes)-1)
+	next = append(next, runes[:cursor]...)
+	next = append(next, runes[cursor+1:]...)
+	store = store.SetQuery(string(next), nil)
+	store.SearchCursor = cursor
 	return store
 }
 
@@ -1152,6 +1227,9 @@ func (store CopyModeStore) CycleSearchMode() CopyModeStore {
 	store.ActiveMatch = 0
 	store.SearchMatchStart = CopyLogicalPosition{}
 	store.SearchMatchEnd = CopyLogicalPosition{}
+	store.SearchResults = nil
+	store.SearchScanPending = false
+	store.SearchScanComplete = false
 	store.SearchWrapped = false
 	store.SearchError = ""
 	return store
@@ -1163,6 +1241,7 @@ func (store CopyModeStore) SearchBarVisible() bool {
 
 func (store CopyModeStore) CloseSearch() CopyModeStore {
 	store.Query = ""
+	store.SearchCursor = 0
 	store.Matches = nil
 	store.ActiveMatch = 0
 	store.SearchEditing = false
@@ -1170,29 +1249,163 @@ func (store CopyModeStore) CloseSearch() CopyModeStore {
 	store.SearchRequestID = 0
 	store.SearchMatchStart = CopyLogicalPosition{}
 	store.SearchMatchEnd = CopyLogicalPosition{}
+	store.SearchResults = nil
+	store.SearchScanPending = false
+	store.SearchScanComplete = false
 	store.SearchWrapped = false
 	store.SearchError = ""
 	return store
 }
 
 func (store CopyModeStore) RefreshSearchMatch(history HistoryStore) CopyModeStore {
-	if !store.SearchMatchStart.Valid || !store.SearchMatchEnd.Valid {
-		store.Matches = nil
-		store.ActiveMatch = 0
-		return store
-	}
-	start := CopyPositionForLogicalPosition(history, store.SearchMatchStart)
-	end := CopyPositionForLogicalPosition(history, store.SearchMatchEnd)
-	if CopyLogicalPositionForPosition(history, start).LineID != store.SearchMatchStart.LineID ||
-		CopyLogicalPositionForPosition(history, end).LineID != store.SearchMatchEnd.LineID {
-		store.Matches = nil
-		store.ActiveMatch = 0
-		return store
-	}
-	store.Matches = []CopyMatch{{StartRow: start.Row, StartCol: start.Col, EndRow: end.Row, EndCol: end.Col}}
+	return store.RefreshSearchMatches(history)
+}
+
+func (store CopyModeStore) RefreshSearchMatches(history HistoryStore) CopyModeStore {
+	store.Matches = nil
 	store.ActiveMatch = 0
-	store.Cursor = start
+	activeVisual := -1
+	for _, visible := range visibleHistorySearchRanges(history, store) {
+		start := sort.Search(len(store.SearchResults), func(index int) bool {
+			result := store.SearchResults[index]
+			return result.Start.LineID > visible.LineID || result.Start.LineID == visible.LineID && result.Start.Col >= visible.From
+		})
+		if start > 0 {
+			previous := store.SearchResults[start-1]
+			if previous.Start.LineID == visible.LineID && previous.End.Col > visible.From {
+				start--
+			}
+		}
+		for index := start; index < len(store.SearchResults); index++ {
+			result := store.SearchResults[index]
+			if result.Start.LineID != visible.LineID || result.Start.Col >= visible.To {
+				break
+			}
+			if result.End.Col <= visible.From {
+				continue
+			}
+			match, ok := copyMatchForLogicalRange(history, result.Start, result.End)
+			if !ok {
+				continue
+			}
+			if copyLogicalPositionSame(result.Start, store.SearchMatchStart) && copyLogicalPositionSame(result.End, store.SearchMatchEnd) {
+				activeVisual = len(store.Matches)
+			}
+			store.Matches = append(store.Matches, match)
+		}
+	}
+	if store.SearchMatchStart.Valid && store.SearchMatchEnd.Valid && activeVisual < 0 {
+		if match, ok := copyMatchForLogicalRange(history, store.SearchMatchStart, store.SearchMatchEnd); ok {
+			activeVisual = len(store.Matches)
+			store.Matches = append(store.Matches, match)
+		}
+	}
+	if activeVisual >= 0 {
+		store.ActiveMatch = activeVisual
+		store.Cursor = CopyPositionForLogicalPosition(history, store.SearchMatchStart)
+	}
 	return store
+}
+
+// AppendSearchResults consumes the strict chronological scan contract. It only
+// compares the append boundary, avoiding the quadratic whole-catalog dedupe
+// that made high-frequency searches block the reducer.
+func (store CopyModeStore) AppendSearchResults(history HistoryStore, results []CopyLogicalMatch) (CopyModeStore, error) {
+	for _, result := range results {
+		if !result.Start.Valid || !result.End.Valid || compareCopyLogicalPosition(result.Start, result.End) > 0 {
+			return store, ErrHistorySearchOrder
+		}
+		if len(store.SearchResults) > 0 {
+			order := compareCopyLogicalMatch(store.SearchResults[len(store.SearchResults)-1], result)
+			if order > 0 {
+				return store, ErrHistorySearchOrder
+			}
+			if order == 0 {
+				continue
+			}
+		}
+		store.SearchResults = append(store.SearchResults, result)
+	}
+	return store.RefreshSearchMatches(history), nil
+}
+
+type historySearchVisibleRange struct {
+	LineID uint64
+	From   int
+	To     int
+}
+
+func visibleHistorySearchRanges(history HistoryStore, store CopyModeStore) []historySearchVisibleRange {
+	if len(history.Rows) == 0 {
+		return nil
+	}
+	top := clampCopyInt(store.ViewportTop, 0, len(history.Rows))
+	bottom := minCopyInt(len(history.Rows), top+copyVisibleRowsForStore(store))
+	ranges := make([]historySearchVisibleRange, 0, bottom-top)
+	for rowIndex := top; rowIndex < bottom; rowIndex++ {
+		row := history.Rows[rowIndex]
+		if row.LineID == 0 {
+			continue
+		}
+		from := historyLogicalOffsetForPosition(history, CopyPosition{Row: rowIndex}).col
+		to := from + HistoryRowDisplayWidth(row)
+		if len(ranges) > 0 && ranges[len(ranges)-1].LineID == row.LineID {
+			ranges[len(ranges)-1].To = maxCopyInt(ranges[len(ranges)-1].To, to)
+			continue
+		}
+		ranges = append(ranges, historySearchVisibleRange{LineID: row.LineID, From: from, To: to})
+	}
+	return ranges
+}
+
+func copyMatchForLogicalRange(history HistoryStore, startLogical CopyLogicalPosition, endLogical CopyLogicalPosition) (CopyMatch, bool) {
+	if !startLogical.Valid || !endLogical.Valid {
+		return CopyMatch{}, false
+	}
+	start := CopyPositionForLogicalPosition(history, startLogical)
+	end := CopyPositionForLogicalPosition(history, endLogical)
+	if !copyLogicalPositionSame(CopyLogicalPositionForPosition(history, start), startLogical) ||
+		!copyLogicalPositionSame(CopyLogicalPositionForPosition(history, end), endLogical) {
+		return CopyMatch{}, false
+	}
+	return CopyMatch{StartRow: start.Row, StartCol: start.Col, EndRow: end.Row, EndCol: end.Col}, true
+}
+
+func (store CopyModeStore) SearchResultPosition() (int, int) {
+	if !store.SearchMatchStart.Valid || !store.SearchMatchEnd.Valid {
+		return 0, len(store.SearchResults)
+	}
+	target := CopyLogicalMatch{Start: store.SearchMatchStart, End: store.SearchMatchEnd}
+	index := sort.Search(len(store.SearchResults), func(index int) bool {
+		return compareCopyLogicalMatch(store.SearchResults[index], target) >= 0
+	})
+	if index < len(store.SearchResults) && compareCopyLogicalMatch(store.SearchResults[index], target) == 0 {
+		return index + 1, len(store.SearchResults)
+	}
+	return 0, len(store.SearchResults)
+}
+
+func compareCopyLogicalMatch(left CopyLogicalMatch, right CopyLogicalMatch) int {
+	if order := compareCopyLogicalPosition(left.Start, right.Start); order != 0 {
+		return order
+	}
+	return compareCopyLogicalPosition(left.End, right.End)
+}
+
+func compareCopyLogicalPosition(left CopyLogicalPosition, right CopyLogicalPosition) int {
+	if left.LineID < right.LineID {
+		return -1
+	}
+	if left.LineID > right.LineID {
+		return 1
+	}
+	if left.Col < right.Col {
+		return -1
+	}
+	if left.Col > right.Col {
+		return 1
+	}
+	return 0
 }
 
 func historyLineSpansForSearch(history HistoryStore) []HistoryLineSpan {
@@ -2013,16 +2226,16 @@ func maxCopyInt(left int, right int) int {
 	return right
 }
 
+func minCopyInt(left int, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
 func copyVisibleRowsForStore(store CopyModeStore) int {
 	if store.ViewRows > 0 {
-		rows := store.ViewRows
-		if store.SearchBarVisible() && rows > 1 {
-			rows--
-		}
-		return maxCopyInt(1, rows)
-	}
-	if store.SearchBarVisible() {
-		return 7
+		return maxCopyInt(1, store.ViewRows)
 	}
 	return 8
 }

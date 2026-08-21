@@ -135,6 +135,9 @@ func panelTitle(panel PanelVM) string {
 }
 
 func paneChromeStyle(panel PanelVM) StyleToken {
+	if panel.Content.Kind == ContentCopyHistory {
+		return StyleHistoryBorder
+	}
 	if panel.Active {
 		return StyleAccent
 	}

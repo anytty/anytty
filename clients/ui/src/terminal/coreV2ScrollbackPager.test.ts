@@ -7,6 +7,8 @@ import type {
   CoreV2HistoryCopyRequest,
   CoreV2HistorySearchRequest,
   CoreV2HistorySearchResult,
+  CoreV2HistorySearchScanRequest,
+  CoreV2HistorySearchScanResult,
   CoreV2HistoryWindow,
   CoreV2HistoryWindowRequest,
 } from './coreV2TerminalProtocol'
@@ -238,6 +240,33 @@ describe('CoreV2ScrollbackPager', () => {
     await expect(pager.copy('terminal-1', 80, { startLineId: '42', startCol: 0, endLineId: '42', endCol: 1 })).rejects.toThrow('loaded frozen window')
   })
 
+  it('streams scan batches from the frozen generation without replacing the paging state', async () => {
+    const source = new MockSource(
+      [window({ lineId: '42', token: 'token-1', generation: '7', hasMore: true })],
+      undefined,
+      'selected',
+      [
+        { matches: [{ startLineId: '4', startCol: 1, endLineId: '4', endCol: 7 }], next: { lineId: '4', col: 7 }, done: false },
+        { matches: [{ startLineId: '9', startCol: 2, endLineId: '9', endCol: 8 }], done: true },
+      ],
+    )
+    const pager = new CoreV2ScrollbackPager(source)
+    await pager.load({ terminalId: 'terminal-1', offset: 0, limit: 1, cols: 80 })
+    const batches: CoreV2HistorySearchScanResult[] = []
+
+    await pager.scan({ terminalId: 'terminal-1', query: 'needle', mode: 'text', cols: 80 }, (batch) => batches.push(batch))
+
+    expect(batches).toEqual([
+      { matches: [{ startLineId: '4', startCol: 1, endLineId: '4', endCol: 7 }], done: false },
+      { matches: [{ startLineId: '9', startCol: 2, endLineId: '9', endCol: 8 }], done: true },
+    ])
+    expect(source.scanRequests).toEqual([
+      expect.objectContaining({ token: 'token-1', generation: '7', maxMatches: 64 }),
+      expect.objectContaining({ token: 'token-1', generation: '7', start: { lineId: '4', col: 7 } }),
+    ])
+    await expect(pager.copy('terminal-1', 80, { startLineId: '42', startCol: 0, endLineId: '42', endCol: 1 })).resolves.toBe('selected')
+  })
+
   it('copies a logical range from the current frozen generation', async () => {
     const source = new MockSource([window({ lineId: '42', token: 'token-1', generation: '7', hasMore: true })], undefined, 'selected')
     const pager = new CoreV2ScrollbackPager(source)
@@ -257,12 +286,14 @@ class MockSource implements CoreV2HistorySource {
   readonly requests: CoreV2HistoryWindowRequest[] = []
   readonly copyRequests: CoreV2HistoryCopyRequest[] = []
   readonly searchRequests: CoreV2HistorySearchRequest[] = []
+  readonly scanRequests: CoreV2HistorySearchScanRequest[] = []
   readonly releases: Array<{ terminalId: string; token: string; generation?: string | number | bigint }> = []
 
   constructor(
     private readonly windows: Array<CoreV2HistoryWindow | Error>,
     private readonly searchResult?: CoreV2HistorySearchResult | Error,
     private readonly copyText = '',
+    private readonly scanResults: CoreV2HistorySearchScanResult[] = [],
   ) {}
 
   async window(request: CoreV2HistoryWindowRequest): Promise<CoreV2HistoryWindow> {
@@ -283,6 +314,13 @@ class MockSource implements CoreV2HistorySource {
     if (!this.searchResult) throw new Error('not used')
     if (this.searchResult instanceof Error) throw this.searchResult
     return this.searchResult
+  }
+
+  async scan(request: CoreV2HistorySearchScanRequest): Promise<CoreV2HistorySearchScanResult> {
+    this.scanRequests.push(request)
+    const result = this.scanResults.shift()
+    if (!result) throw new Error('unexpected history scan request')
+    return result
   }
 
   async release(request: { terminalId: string; token: string; generation?: string | number | bigint }): Promise<void> {

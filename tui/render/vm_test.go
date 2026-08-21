@@ -206,6 +206,39 @@ func TestRenderVMBuilderKeepsCopyHistoryOnBoundPaneWhenInactive(t *testing.T) {
 	}
 }
 
+func TestRenderVMBuilderRestoresSearchFooterForActivePanel(t *testing.T) {
+	viewOne := state.TerminalPaneViewID(state.DefaultPaneID)
+	viewTwo := state.TerminalPaneViewID("pane-2")
+	shell := state.DefaultShell().
+		SplitActivePane(state.PaneState{ID: "pane-2", Title: "two", Kind: state.PaneTerminalLive, TerminalID: "term-2"}, state.SplitDirectionVertical).
+		FocusPane(state.PaneCommandTarget{PaneID: state.DefaultPaneID})
+	root := state.Root{Shell: shell}
+	root.TerminalViews = root.TerminalViews.
+		BindPane(state.NewPaneTerminalView(state.DefaultPaneID, "term-1", 1, 40, 12, state.TerminalResizeRoleOwner, "surface-1", viewOne, true)).
+		BindPane(state.NewPaneTerminalView("pane-2", "term-2", 2, 40, 12, state.TerminalResizeRoleFollower, "surface-2", viewTwo, false))
+	root = root.WithCopyHistorySession(viewOne,
+		state.HistoryStore{PaneID: state.DefaultPaneID, ViewID: viewOne, TerminalID: "term-1", Token: "tok-1", Cols: 40, Rows: []state.HistoryRow{{Text: "alpha", LineID: 1}}},
+		state.CopyModeStore{Active: true, PaneID: state.DefaultPaneID, ViewID: viewOne, TerminalID: "term-1", BoundToken: "tok-1", BoundCols: 40, Query: "alpha", SearchEditing: true},
+	)
+
+	first := NewRenderVMBuilder().Build(root).Shell.Footer
+	if !first.Search.Visible || first.Search.Value != "alpha" {
+		t.Fatalf("active panel search should replace the global footer, got %#v", first)
+	}
+
+	root.Shell = root.Shell.FocusPane(state.PaneCommandTarget{PaneID: "pane-2"})
+	second := NewRenderVMBuilder().Build(root).Shell.Footer
+	if second.Search.Visible || len(second.ActionTokens) == 0 {
+		t.Fatalf("panel without search should restore its regular footer menu, got %#v", second)
+	}
+
+	root.Shell = root.Shell.FocusPane(state.PaneCommandTarget{PaneID: state.DefaultPaneID})
+	restored := NewRenderVMBuilder().Build(root).Shell.Footer
+	if !restored.Search.Visible || restored.Search.Value != "alpha" {
+		t.Fatalf("returning to the panel should restore its search condition, got %#v", restored)
+	}
+}
+
 func TestRenderVMBuilderUsesBoundPaneViewIDForCopyHistory(t *testing.T) {
 	viewID := "cmd/anytty-v3-main"
 	root := state.Root{
@@ -1571,14 +1604,18 @@ func TestRenderVMBuilderCopyHistorySelectionAndSearchUseDisplayColumns(t *testin
 			}},
 		},
 		CopyMode: state.CopyModeStore{
-			Active:      true,
-			TerminalID:  "term-1",
-			BoundToken:  "tok-1",
-			BoundCols:   12,
-			Cursor:      state.CopyPosition{Row: 0, Col: 4},
-			Query:       "好b",
-			Matches:     []state.CopyMatch{{StartRow: 0, StartCol: 1, EndRow: 0, EndCol: 4}},
-			ActiveMatch: 0,
+			Active:           true,
+			TerminalID:       "term-1",
+			BoundToken:       "tok-1",
+			BoundCols:        12,
+			Cursor:           state.CopyPosition{Row: 0, Col: 4},
+			Query:            "好b",
+			SearchMatchStart: state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 1},
+			SearchMatchEnd:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 4},
+			SearchResults: []state.CopyLogicalMatch{{
+				Start: state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 1},
+				End:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 4},
+			}},
 			Selection: &state.CopySelection{
 				Anchor: state.CopyPosition{Row: 0, Col: 1},
 				Focus:  state.CopyPosition{Row: 0, Col: 4},
@@ -1602,7 +1639,7 @@ func TestRenderVMBuilderCopyHistorySelectionAndSearchUseDisplayColumns(t *testin
 
 	root.CopyMode.Selection = nil
 	content = activeContent(NewRenderVMBuilder().Build(root).Shell)
-	if !lineHasStyledCell(content.Lines[0], "好", StyleWarning) || !lineHasStyledCell(content.Lines[0], "b", StyleWarning) {
+	if !lineHasStyledCell(content.Lines[0], "好", StyleSearchCurrent) || !lineHasStyledCell(content.Lines[0], "b", StyleSearchCurrent) {
 		t.Fatalf("search should split styled cells by display columns, got %#v", content.Lines[0])
 	}
 	if !lineHasLinkCell(content.Lines[0], "好", "file://wide.txt", "row=1") || !lineHasLinkCell(content.Lines[0], "b", "file://split.txt", "row=1") {
@@ -1627,21 +1664,25 @@ func TestRenderVMBuilderCopyHistorySearchUsesGraphemeDisplayColumns(t *testing.T
 			}},
 		},
 		CopyMode: state.CopyModeStore{
-			Active:      true,
-			TerminalID:  "term-1",
-			BoundToken:  "tok-1",
-			BoundCols:   12,
-			Query:       family,
-			Matches:     []state.CopyMatch{{StartRow: 0, StartCol: 0, EndRow: 0, EndCol: 2}},
-			ActiveMatch: 0,
+			Active:           true,
+			TerminalID:       "term-1",
+			BoundToken:       "tok-1",
+			BoundCols:        12,
+			Query:            family,
+			SearchMatchStart: state.CopyLogicalPosition{Valid: true, LineID: 10},
+			SearchMatchEnd:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 2},
+			SearchResults: []state.CopyLogicalMatch{{
+				Start: state.CopyLogicalPosition{Valid: true, LineID: 10},
+				End:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 2},
+			}},
 		},
 	}
 
 	content := activeContent(NewRenderVMBuilder().Build(root).Shell)
-	if !lineHasStyledCell(content.Lines[0], family, StyleWarning) {
+	if !lineHasStyledCell(content.Lines[0], family, StyleSearchCurrent) {
 		t.Fatalf("search should highlight emoji grapheme as one display range, got %#v", content.Lines[0])
 	}
-	if lineHasStyledCell(content.Lines[0], "x", StyleWarning) {
+	if lineHasStyledCell(content.Lines[0], "x", StyleSearchCurrent) {
 		t.Fatalf("search highlight should not leak into trailing x, got %#v", content.Lines[0])
 	}
 }
@@ -1659,24 +1700,28 @@ func TestRenderVMBuilderCopyHistorySearchHighlightsAcrossReflowRows(t *testing.T
 			Lines: []state.HistoryLineSpan{{LineID: 10, StartRow: 0, EndRow: 1}},
 		},
 		CopyMode: state.CopyModeStore{
-			Active:      true,
-			TerminalID:  "term-1",
-			BoundToken:  "tok-1",
-			BoundCols:   8,
-			Query:       "beta",
-			Matches:     []state.CopyMatch{{StartRow: 0, StartCol: 5, EndRow: 1, EndCol: 2}},
-			ActiveMatch: 0,
+			Active:           true,
+			TerminalID:       "term-1",
+			BoundToken:       "tok-1",
+			BoundCols:        8,
+			Query:            "beta",
+			SearchMatchStart: state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 5},
+			SearchMatchEnd:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 9},
+			SearchResults: []state.CopyLogicalMatch{{
+				Start: state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 5},
+				End:   state.CopyLogicalPosition{Valid: true, LineID: 10, Col: 9},
+			}},
 		},
 	}
 
 	content := activeContent(NewRenderVMBuilder().Build(root).Shell)
-	if !lineHasStyledCell(content.Lines[0], "be", StyleWarning) {
+	if !lineHasStyledCell(content.Lines[0], "be", StyleSearchCurrent) {
 		t.Fatalf("first reflow row should highlight cross-row search suffix, got %#v", content.Lines[0])
 	}
-	if !lineHasStyledCell(content.Lines[1], "ta", StyleWarning) {
+	if !lineHasStyledCell(content.Lines[1], "ta", StyleSearchCurrent) {
 		t.Fatalf("second reflow row should highlight cross-row search prefix, got %#v", content.Lines[1])
 	}
-	if lineHasStyledCell(content.Lines[1], "gamma", StyleWarning) {
+	if lineHasStyledCell(content.Lines[1], "gamma", StyleSearchCurrent) {
 		t.Fatalf("cross-row search highlight must not leak past match end, got %#v", content.Lines[1])
 	}
 }

@@ -10,20 +10,22 @@ import (
 )
 
 type FakeCoreClient struct {
-	LatestResponses []port.HistoryResult
-	OlderResponses  []port.HistoryResult
-	NewerResponses  []port.HistoryResult
-	OldestResponses []port.HistoryResult
-	CopyResponses   []port.HistoryCopyRangeResult
-	SearchResponses []port.HistorySearchResult
-	LatestRequests  []port.HistoryLatestRequest
-	OlderRequests   []port.HistoryOlderRequest
-	NewerRequests   []port.HistoryNewerRequest
-	OldestRequests  []port.HistoryOldestRequest
-	CopyRequests    []port.HistoryCopyRangeRequest
-	SearchRequests  []port.HistorySearchRequest
-	ReleaseRequests []port.HistoryReleaseRequest
-	ReleaseErr      error
+	LatestResponses     []port.HistoryResult
+	OlderResponses      []port.HistoryResult
+	NewerResponses      []port.HistoryResult
+	OldestResponses     []port.HistoryResult
+	CopyResponses       []port.HistoryCopyRangeResult
+	SearchResponses     []port.HistorySearchResult
+	SearchScanResponses []port.HistorySearchResult
+	LatestRequests      []port.HistoryLatestRequest
+	OlderRequests       []port.HistoryOlderRequest
+	NewerRequests       []port.HistoryNewerRequest
+	OldestRequests      []port.HistoryOldestRequest
+	CopyRequests        []port.HistoryCopyRangeRequest
+	SearchRequests      []port.HistorySearchRequest
+	SearchScanRequests  []port.HistorySearchRequest
+	ReleaseRequests     []port.HistoryReleaseRequest
+	ReleaseErr          error
 }
 
 func (client *FakeCoreClient) HistoryLatest(_ context.Context, req port.HistoryLatestRequest) (port.HistoryResult, error) {
@@ -81,6 +83,16 @@ func (client *FakeCoreClient) HistoryCopyRange(_ context.Context, req port.Histo
 }
 
 func (client *FakeCoreClient) HistorySearch(_ context.Context, req port.HistorySearchRequest) (port.HistorySearchResult, error) {
+	if req.Scan {
+		client.SearchScanRequests = append(client.SearchScanRequests, req)
+		if len(client.SearchScanResponses) == 0 {
+			return port.HistorySearchResult{RequestID: req.RequestID, Done: true}, nil
+		}
+		result := client.SearchScanResponses[0]
+		client.SearchScanResponses = client.SearchScanResponses[1:]
+		result.RequestID = req.RequestID
+		return result, nil
+	}
 	client.SearchRequests = append(client.SearchRequests, req)
 	if len(client.SearchResponses) == 0 {
 		return port.HistorySearchResult{RequestID: req.RequestID}, port.ErrMissingHistoryResponse
