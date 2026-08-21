@@ -34,6 +34,10 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
   lifecycle migration, and presentation-only preserved alt frame.
 - `7e32d6f`: lazy alternate screen, compact used-row cache, and removal of
   redundant screen frames from production line-history deltas.
+- `25668eb`: reproducible idle/burst benchmark and benchmark-only explicit GC
+  fence shared by baseline and current binaries.
+- `9508623`: chronological CLI history search starts at the oldest frozen line;
+  this fixed the burst verifier's cold-history BEGIN lookup.
 
 ## Verification so far
 
@@ -42,7 +46,11 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
 - Targeted tests pass for queue order, flush, overflow gap, slow-history live
   invalidation, lifecycle ownership, CJK eviction, alt presentation overlay,
   lazy alt allocation, and boundary-only line-history deltas.
-- Race and full-repository suites: pending final validation.
+- `go test -race ./vterm/... ./core/...`: passed.
+- `go test ./...`: passed with the host session's `ANYTTY` and
+  `ANYTTY_TERMINAL_ID` markers removed so nested-TUI guards see a normal test
+  environment.
+- `git diff --check`: passed.
 
 ## Memory data
 
@@ -56,4 +64,16 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
   baseline physical median 66,700,672 B and HeapAlloc 48,528,128 B; current
   physical median 30,901,696 B and HeapAlloc 11,192,520 B. Physical footprint
   fell 53.67% and is 29.47 MiB, satisfying both idle thresholds.
-- Final clean-commit idle rerun and 64 MiB burst verification: pending.
+- Final clean-code run at `9508623`, five idle 157x79 `/bin/zsh -f`
+  terminals: baseline physical median 65,586,688 B, current 32,228,736 B
+  (30.74 MiB), a 50.86% reduction. Current HeapAlloc/HeapInuse/HeapSys were
+  17,903,808 / 20,414,464 / 23,920,640 B.
+- The 64 MiB burst completed in 7 seconds with BEGIN and END found in
+  authoritative history, zero dropped bytes, zero gap boundaries, and history
+  available. Peak HeapAlloc was 98,838,048 B. After explicit GC and settling,
+  HeapAlloc/HeapInuse were 18,609,088 / 21,094,400 B, physical median was
+  51,136,128 B, the five-second NumGC delta was 1, and daemon CPU was 0.7%.
+  These figures show prompt heap recovery and no sustained GC thrash; HeapSys
+  remains reserved after the burst and can be reused by later output.
+- Final artifacts: `.artifacts/single-vterm-memory/final-9508623` (intentionally
+  ignored by git).
