@@ -21,25 +21,39 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
 - Restart seals the old visible tail, creates a fresh parser around the
   preserved visible frame, and clears old process modes and partial escape
   state.
+- The alternate screen is allocated only on first DEC alt-screen entry.
+  Line-history deltas omit converted screen frames because queries read the hot
+  frame from the shared VTerm under the history fence. Used-row projections
+  cache only their logical width until a caller explicitly requests a full row.
 
 ## Checkpoints
 
 - `99e7c68`: combined VTerm live-damage and history-delta API plus differential
   tests.
-- Core single-emulator owner and typed history queue: implementation complete,
-  checkpoint commit pending final review.
+- `dadafec`: core single-emulator owner, typed asynchronous history queue,
+  lifecycle migration, and presentation-only preserved alt frame.
+- `7e32d6f`: lazy alternate screen, compact used-row cache, and removal of
+  redundant screen frames from production line-history deltas.
 
 ## Verification so far
 
-- `go test ./vterm/...`: passed before the core migration; new targeted VTerm
-  ownership tests pass.
-- `go test ./core/...`: passed after the core migration.
+- `go test ./vterm/...`: passed after the allocation changes.
+- `go test ./core/...`: passed after the allocation changes.
 - Targeted tests pass for queue order, flush, overflow gap, slow-history live
-  invalidation, lifecycle ownership, CJK eviction, and alt presentation overlay.
+  invalidation, lifecycle ownership, CJK eviction, alt presentation overlay,
+  lazy alt allocation, and boundary-only line-history deltas.
+- Race and full-repository suites: pending final validation.
 
 ## Memory data
 
-- Baseline reference supplied at goal start: five idle 157x79 terminals, about
-  73 MB daemon physical footprint and 43 MB Go HeapAlloc.
-- Reproducible before/after and 64 MB burst measurements: pending benchmark
-  harness implementation.
+- Reproducible harness: `scripts/benchmark-single-vterm-memory.sh`. It builds
+  checkpoint `f9eb081` and the current tree with the same benchmark-only SIGUSR1
+  GC fence, starts isolated daemons, and excludes child-shell memory.
+- Intermediate pre-frame-removal measurements showed 67,372,480 B baseline vs
+  44,516,864 B current (33.92% reduction), identifying the remaining converted
+  frame cache as the acceptance blocker.
+- Post-frame-removal idle trial, five 157x79 `/bin/zsh -f` terminals:
+  baseline physical median 66,700,672 B and HeapAlloc 48,528,128 B; current
+  physical median 30,901,696 B and HeapAlloc 11,192,520 B. Physical footprint
+  fell 53.67% and is 29.47 MiB, satisfying both idle thresholds.
+- Final clean-commit idle rerun and 64 MiB burst verification: pending.
