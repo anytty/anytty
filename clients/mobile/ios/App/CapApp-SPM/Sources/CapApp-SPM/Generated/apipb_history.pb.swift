@@ -146,6 +146,48 @@ public nonisolated enum Anytty_Api_V1_HistorySearchDirection: SwiftProtobuf.Enum
 
 }
 
+public nonisolated enum Anytty_Api_V1_HistorySearchMode: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case text // = 1
+  case glob // = 2
+  case regex // = 3
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .text
+    case 2: self = .glob
+    case 3: self = .regex
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .text: return 1
+    case .glob: return 2
+    case .regex: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Anytty_Api_V1_HistorySearchMode] = [
+    .unspecified,
+    .text,
+    .glob,
+    .regex,
+  ]
+
+}
+
 public nonisolated enum Anytty_Api_V1_HistoryCursorSegment: SwiftProtobuf.Enum, Swift.CaseIterable {
   public typealias RawValue = Int
   case unspecified // = 0
@@ -610,6 +652,10 @@ public nonisolated struct Anytty_Api_V1_HistorySearchCommand: Sendable {
   public var hasStart: Bool {self._start != nil}
   /// Clears the value of `start`. Subsequent reads from it will return its default value.
   public mutating func clearStart() {self._start = nil}
+
+  public var mode: Anytty_Api_V1_HistorySearchMode = .unspecified
+
+  public var contextBefore: Int32 = 0
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1192,6 +1238,10 @@ nonisolated extension Anytty_Api_V1_HistoryWindowOperation: SwiftProtobuf._Proto
 
 nonisolated extension Anytty_Api_V1_HistorySearchDirection: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0HISTORY_SEARCH_DIRECTION_UNSPECIFIED\0\u{1}HISTORY_SEARCH_DIRECTION_FORWARD\0\u{1}HISTORY_SEARCH_DIRECTION_BACKWARD\0")
+}
+
+nonisolated extension Anytty_Api_V1_HistorySearchMode: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0HISTORY_SEARCH_MODE_UNSPECIFIED\0\u{1}HISTORY_SEARCH_MODE_TEXT\0\u{1}HISTORY_SEARCH_MODE_GLOB\0\u{1}HISTORY_SEARCH_MODE_REGEX\0")
 }
 
 nonisolated extension Anytty_Api_V1_HistoryCursorSegment: SwiftProtobuf._ProtoNameProviding {
@@ -1805,7 +1855,7 @@ nonisolated extension Anytty_Api_V1_HistoryTextPosition: SwiftProtobuf.Message, 
 
 nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".HistorySearchCommand"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\u{2}terminal\0\u{1}token\0\u{3}history_generation\0\u{1}query\0\u{1}direction\0\u{1}cols\0\u{1}limit\0\u{1}start\0\u{c}\u{1}\u{1}")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\u{2}terminal\0\u{1}token\0\u{3}history_generation\0\u{1}query\0\u{1}direction\0\u{1}cols\0\u{1}limit\0\u{1}start\0\u{1}mode\0\u{3}context_before\0\u{c}\u{1}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1821,6 +1871,8 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
       case 7: try { try decoder.decodeSingularInt32Field(value: &self.cols) }()
       case 8: try { try decoder.decodeSingularInt32Field(value: &self.limit) }()
       case 9: try { try decoder.decodeSingularMessageField(value: &self._start) }()
+      case 10: try { try decoder.decodeSingularEnumField(value: &self.mode) }()
+      case 11: try { try decoder.decodeSingularInt32Field(value: &self.contextBefore) }()
       default: break
       }
     }
@@ -1855,6 +1907,12 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
     try { if let v = self._start {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
     } }()
+    if self.mode != .unspecified {
+      try visitor.visitSingularEnumField(value: self.mode, fieldNumber: 10)
+    }
+    if self.contextBefore != 0 {
+      try visitor.visitSingularInt32Field(value: self.contextBefore, fieldNumber: 11)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1867,6 +1925,8 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
     if lhs.cols != rhs.cols {return false}
     if lhs.limit != rhs.limit {return false}
     if lhs._start != rhs._start {return false}
+    if lhs.mode != rhs.mode {return false}
+    if lhs.contextBefore != rhs.contextBefore {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

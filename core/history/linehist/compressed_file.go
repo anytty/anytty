@@ -53,31 +53,37 @@ type CompressedLineFileOptions struct {
 }
 
 type compressedBlock struct {
-	offset    int64
-	firstLine int
-	lineCount int
-	rawLen    uint32
-	storedLen uint32
-	codec     uint8
-	checksum  uint32
-	createdAt int64
+	offset               int64
+	firstLine            int
+	lineCount            int
+	rawLen               uint32
+	storedLen            uint32
+	codec                uint8
+	checksum             uint32
+	createdAt            int64
+	searchBloom          []byte
+	searchBloomReady     bool
+	searchBloomPersisted bool
 }
 
 // CompressedLineFile 以独立压缩块保存 logical lines。块头本身就是可重建
-// 索引，因此不再为每行写 24-byte sidecar；分页最多解压命中的 256 KiB 块。
+// 位置索引；搜索另用固定上限的块级 q-gram sidecar，不建立逐行 postings。
 type CompressedLineFile struct {
-	path           string
-	file           *os.File
-	options        CompressedLineFileOptions
-	encoder        *zstd.Encoder
-	decoder        *zstd.Decoder
-	blocks         []compressedBlock
-	persistedLines int
-	pending        []Line
-	pendingBytes   int
-	writeOffset    int64
-	retentionEpoch uint64
-	gapOffsets     []int
+	path            string
+	file            *os.File
+	options         CompressedLineFileOptions
+	encoder         *zstd.Encoder
+	decoder         *zstd.Decoder
+	blocks          []compressedBlock
+	persistedLines  int
+	pending         []Line
+	pendingBytes    int
+	writeOffset     int64
+	retentionEpoch  uint64
+	gapOffsets      []int
+	searchIndexPath string
+	searchIndexFile *os.File
+	searchIndexSize int64
 }
 
 // OpenCompressedLineFile 打开生产块存储。旧格式不参与恢复：检测到非当前
@@ -108,6 +114,7 @@ func OpenCompressedLineFile(dir string, terminalID string, options CompressedLin
 		_ = file.Close()
 		return nil, err
 	}
+	result.openSearchIndex()
 	if err := result.enforceLimit(); err != nil {
 		_ = result.Close()
 		return nil, err
@@ -408,7 +415,11 @@ func (f *CompressedLineFile) Sync() error {
 	if err := f.flushPending(); err != nil {
 		return err
 	}
-	return f.file.Sync()
+	if err := f.file.Sync(); err != nil {
+		return err
+	}
+	f.syncSearchIndex()
+	return nil
 }
 
 func (f *CompressedLineFile) Close() error {
@@ -422,6 +433,7 @@ func (f *CompressedLineFile) Close() error {
 		result = errors.Join(result, f.file.Close())
 		f.file = nil
 	}
+	f.closeSearchIndex()
 	return errors.Join(result, f.closeCodecs())
 }
 
@@ -468,7 +480,10 @@ func (f *CompressedLineFile) flushPending() error {
 		checksum:  checksum,
 		createdAt: createdAt,
 	}
+	block.searchBloom = buildBlockSearchBloom(f.pending)
+	block.searchBloomReady = true
 	f.blocks = append(f.blocks, block)
+	f.appendSearchIndexRecord(&f.blocks[len(f.blocks)-1])
 	f.persistedLines += len(f.pending)
 	f.writeOffset += int64(len(header) + len(stored))
 	f.pending = nil
@@ -634,14 +649,14 @@ func (f *CompressedLineFile) enforceLimit() error {
 		}
 		needsRewrite = start > 0
 	}
-	if f.options.MaxBytes > 0 && f.writeOffset > f.options.MaxBytes {
+	if f.options.MaxBytes > 0 && f.writeOffset+f.searchIndexSize > f.options.MaxBytes {
 		needsRewrite = true
 		target := f.options.MaxBytes * compressedRetentionNumerator / compressedRetentionDenominator
 		used := int64(0)
 		sizeStart := len(f.blocks)
 		gapIndex := len(f.gapOffsets) - 1
 		for i := len(f.blocks) - 1; i >= 0; i-- {
-			size := int64(compressedBlockHeaderSize) + int64(f.blocks[i].storedLen)
+			size := int64(compressedBlockHeaderSize) + int64(f.blocks[i].storedLen) + searchIndexStoredBytes(f.blocks[i])
 			for gapIndex >= 0 && f.gapOffsets[gapIndex] > f.blocks[i].firstLine {
 				size += compressedBlockHeaderSize
 				gapIndex--
@@ -744,6 +759,9 @@ func (f *CompressedLineFile) rewriteBlocks(start int) error {
 	f.persistedLines = newFirst
 	f.writeOffset = newOffset
 	f.gapOffsets = newGapOffsets
+	if err := f.rewriteSearchIndex(); err != nil {
+		f.closeSearchIndex()
+	}
 	if err := filepublish.SyncDirectory(filepath.Dir(f.path)); err != nil {
 		return err
 	}

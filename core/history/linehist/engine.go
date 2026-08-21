@@ -35,6 +35,10 @@ type lineVisitor interface {
 	VisitLines(start int, end int, reverse bool, visit func(index int, line Line) bool) error
 }
 
+type searchLineBatchReader interface {
+	readSearchBatch(start int, end int, cursor int, reverse bool, filters []searchQueryGrams) (firstLine int, lines []Line, nextCursor int, err error)
+}
+
 type retentionPruner interface {
 	PruneRetention() error
 }
@@ -274,6 +278,65 @@ func (e *Engine) VisitLinesAtRetentionBatched(ctx context.Context, epoch uint64,
 			}
 		}
 		batchStart = batchEnd
+	}
+	return nil
+}
+
+// VisitSearchLinesAtRetention visits one physical storage block per lock hold.
+// Compressed storage can reject a block through its trigram filter without
+// decompressing it; legacy/test storage keeps the generic 256-line fallback.
+func (e *Engine) VisitSearchLinesAtRetention(ctx context.Context, epoch uint64, start int, end int, reverse bool, requiredLiterals []string, visit func(index int, line Line) bool) error {
+	if e == nil || end <= start {
+		return nil
+	}
+	e.mu.Lock()
+	reader, ok := e.file.(searchLineBatchReader)
+	e.mu.Unlock()
+	if !ok {
+		return e.VisitLinesAtRetentionBatched(ctx, epoch, start, end, reverse, 256, visit)
+	}
+	filters := make([]searchQueryGrams, 0, len(requiredLiterals))
+	for _, literal := range requiredLiterals {
+		filters = append(filters, querySearchGrams(literal))
+	}
+	cursor := start
+	if reverse {
+		cursor = end
+	}
+	for (reverse && cursor > start) || (!reverse && cursor < end) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		e.mu.Lock()
+		if storageRetentionEpoch(e.file) != epoch {
+			e.mu.Unlock()
+			return errRetentionChanged
+		}
+		firstLine, lines, nextCursor, err := reader.readSearchBatch(start, end, cursor, reverse, filters)
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		if reverse {
+			for index := len(lines) - 1; index >= 0; index-- {
+				if !visit(firstLine+index, lines[index]) {
+					return nil
+				}
+			}
+			if nextCursor >= cursor {
+				return errors.New("history reverse search batch did not advance")
+			}
+		} else {
+			for index, line := range lines {
+				if !visit(firstLine+index, line) {
+					return nil
+				}
+			}
+			if nextCursor <= cursor {
+				return errors.New("history forward search batch did not advance")
+			}
+		}
+		cursor = nextCursor
 	}
 	return nil
 }

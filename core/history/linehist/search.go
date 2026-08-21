@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/anytty/anytty/core/history"
 	xansi "github.com/charmbracelet/x/ansi"
@@ -25,9 +24,16 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 	if req.Direction != history.HistorySearchForward && req.Direction != history.HistorySearchBackward {
 		return history.HistorySearchResult{}, history.ErrHistoryInvalidMutation
 	}
+	pattern, err := history.CompileHistorySearchPattern(req.Mode, req.Query)
+	if err != nil {
+		return history.HistorySearchResult{}, err
+	}
 	limit, err := normalizedLimit(req.Limit)
 	if err != nil {
 		return history.HistorySearchResult{}, err
+	}
+	if req.ContextBefore < 0 || req.ContextBefore >= limit {
+		return history.HistorySearchResult{}, history.ErrHistoryInvalidMutation
 	}
 	windowReq, view, err := store.viewForRequest(history.HistoryWindowRequest{
 		TerminalID: req.TerminalID,
@@ -49,9 +55,15 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 	} else if req.Direction == history.HistorySearchBackward {
 		startLine = total - 1
 		startCol = int(^uint(0) >> 1)
+	} else if len(view.hot) > 0 {
+		// A first search has no client cursor. Start at the frozen in-memory
+		// frontier so pending/open-tail/current-screen content does not wait
+		// behind a complete cold-file scan. Forward search still wraps through
+		// the complete frozen snapshot when the frontier has no match.
+		startLine = view.coldCount
 	}
 
-	match, found, wrapped, err := store.searchFrozenView(ctx, view, req.Query, req.Direction, startLine, startCol)
+	match, found, wrapped, err := store.searchFrozenView(ctx, view, pattern, req.Direction, startLine, startCol)
 	if err != nil {
 		if errors.Is(err, errRetentionChanged) {
 			return history.HistorySearchResult{}, history.ErrHistoryStaleWindow
@@ -62,7 +74,7 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 		return history.HistorySearchResult{}, nil
 	}
 	matchOffset := int(match.Start.LineID) - 1
-	pageStart := matchOffset
+	pageStart := maxInt(0, matchOffset-req.ContextBefore)
 	pageEnd := minInt(total, pageStart+limit)
 	rows, _, err := store.windowRowsForward(view, pageStart, pageEnd)
 	if err != nil {
@@ -78,43 +90,43 @@ func (store *Store) Search(ctx context.Context, req history.HistorySearchRequest
 	return history.HistorySearchResult{Found: true, Match: match, Window: window, Wrapped: wrapped}, nil
 }
 
-func (store *Store) searchFrozenView(ctx context.Context, view liveView, query string, direction history.HistorySearchDirection, startLine int, startCol int) (history.HistoryCopyRange, bool, bool, error) {
+func (store *Store) searchFrozenView(ctx context.Context, view liveView, pattern *history.HistorySearchPattern, direction history.HistorySearchDirection, startLine int, startCol int) (history.HistoryCopyRange, bool, bool, error) {
 	total := viewLogicalTotal(view)
 	if direction == history.HistorySearchForward {
-		if match, ok, err := store.searchLineRange(ctx, view, query, direction, startLine, total, startLine, startCol, -1); err != nil || ok {
+		if match, ok, err := store.searchLineRange(ctx, view, pattern, direction, startLine, total, startLine, startCol, -1); err != nil || ok {
 			return match, ok, false, err
 		}
 		if startCol == 0 {
-			match, ok, err := store.searchLineRange(ctx, view, query, direction, 0, startLine, -1, 0, -1)
+			match, ok, err := store.searchLineRange(ctx, view, pattern, direction, 0, startLine, -1, 0, -1)
 			return match, ok, ok, err
 		}
-		match, ok, err := store.searchLineRange(ctx, view, query, direction, 0, startLine+1, startLine, 0, startCol-1)
+		match, ok, err := store.searchLineRange(ctx, view, pattern, direction, 0, startLine+1, startLine, 0, startCol-1)
 		return match, ok, ok, err
 	}
 	if startCol == 0 {
-		if match, ok, err := store.searchLineRange(ctx, view, query, direction, 0, startLine, -1, 0, -1); err != nil || ok {
+		if match, ok, err := store.searchLineRange(ctx, view, pattern, direction, 0, startLine, -1, 0, -1); err != nil || ok {
 			return match, ok, false, err
 		}
-		match, ok, err := store.searchLineRange(ctx, view, query, direction, startLine, total, startLine, startCol, -1)
+		match, ok, err := store.searchLineRange(ctx, view, pattern, direction, startLine, total, startLine, startCol, -1)
 		return match, ok, ok, err
 	}
-	if match, ok, err := store.searchLineRange(ctx, view, query, direction, 0, startLine+1, startLine, 0, startCol-1); err != nil || ok {
+	if match, ok, err := store.searchLineRange(ctx, view, pattern, direction, 0, startLine+1, startLine, 0, startCol-1); err != nil || ok {
 		return match, ok, false, err
 	}
-	match, ok, err := store.searchLineRange(ctx, view, query, direction, startLine, total, startLine, startCol, -1)
+	match, ok, err := store.searchLineRange(ctx, view, pattern, direction, startLine, total, startLine, startCol, -1)
 	return match, ok, ok, err
 }
 
-func (store *Store) searchLineRange(ctx context.Context, view liveView, query string, direction history.HistorySearchDirection, start int, end int, constrainedLine int, minCol int, maxCol int) (history.HistoryCopyRange, bool, error) {
+func (store *Store) searchLineRange(ctx context.Context, view liveView, pattern *history.HistorySearchPattern, direction history.HistorySearchDirection, start int, end int, constrainedLine int, minCol int, maxCol int) (history.HistoryCopyRange, bool, error) {
 	reverse := direction == history.HistorySearchBackward
 	var result history.HistoryCopyRange
 	found := false
-	visit := func(logicalIndex int, cells []history.Cell) bool {
+	visitText := func(logicalIndex int, text string) bool {
 		lineMin, lineMax := 0, -1
 		if logicalIndex == constrainedLine {
 			lineMin, lineMax = minCol, maxCol
 		}
-		startMatch, endMatch, ok := findHistoryLineMatch(cells, query, reverse, lineMin, lineMax)
+		startMatch, endMatch, ok := findHistoryPatternMatch(text, pattern, reverse, lineMin, lineMax)
 		if !ok {
 			return true
 		}
@@ -126,6 +138,9 @@ func (store *Store) searchLineRange(ctx context.Context, view liveView, query st
 		found = true
 		return false
 	}
+	visitCells := func(logicalIndex int, cells []history.Cell) bool {
+		return visitText(logicalIndex, historySearchText(cells))
+	}
 	if reverse {
 		hotStart := maxInt(start, view.coldCount)
 		hotEnd := minInt(end, view.coldCount+len(view.hot))
@@ -133,12 +148,12 @@ func (store *Store) searchLineRange(ctx context.Context, view liveView, query st
 			if err := ctx.Err(); err != nil {
 				return result, false, err
 			}
-			visit(index, view.hot[index-view.coldCount].Cells)
+			visitCells(index, view.hot[index-view.coldCount].Cells)
 		}
 		if !found && start < view.coldCount {
 			coldEnd := minInt(end, view.coldCount)
-			err := store.engine.VisitLinesAtRetentionBatched(ctx, view.retention, view.coldBase+start, view.coldBase+coldEnd, true, historySearchReadBatchLines, func(index int, line Line) bool {
-				return visit(index-view.coldBase, cellsFromRuns(line.Runs))
+			err := store.engine.VisitSearchLinesAtRetention(ctx, view.retention, view.coldBase+start, view.coldBase+coldEnd, true, pattern.RequiredLiterals(), func(index int, line Line) bool {
+				return visitText(index-view.coldBase, LineText(line))
 			})
 			if err != nil {
 				return result, false, err
@@ -148,8 +163,8 @@ func (store *Store) searchLineRange(ctx context.Context, view liveView, query st
 	}
 	if start < view.coldCount {
 		coldEnd := minInt(end, view.coldCount)
-		err := store.engine.VisitLinesAtRetentionBatched(ctx, view.retention, view.coldBase+start, view.coldBase+coldEnd, false, historySearchReadBatchLines, func(index int, line Line) bool {
-			return visit(index-view.coldBase, cellsFromRuns(line.Runs))
+		err := store.engine.VisitSearchLinesAtRetention(ctx, view.retention, view.coldBase+start, view.coldBase+coldEnd, false, pattern.RequiredLiterals(), func(index int, line Line) bool {
+			return visitText(index-view.coldBase, LineText(line))
 		})
 		if err != nil {
 			return result, false, err
@@ -162,40 +177,40 @@ func (store *Store) searchLineRange(ctx context.Context, view liveView, query st
 			if err := ctx.Err(); err != nil {
 				return result, false, err
 			}
-			visit(index, view.hot[index-view.coldCount].Cells)
+			visitCells(index, view.hot[index-view.coldCount].Cells)
 		}
 	}
 	return result, found, nil
 }
 
 func findHistoryLineMatch(cells []history.Cell, query string, reverse bool, minCol int, maxCol int) (int, int, bool) {
-	text := historySearchText(cells)
-	if text == "" || query == "" {
+	return findHistoryTextMatch(historySearchText(cells), query, reverse, minCol, maxCol)
+}
+
+func findHistoryTextMatch(text string, query string, reverse bool, minCol int, maxCol int) (int, int, bool) {
+	pattern, err := history.CompileHistorySearchPattern(history.HistorySearchModeText, query)
+	if err != nil {
+		return 0, 0, false
+	}
+	return findHistoryPatternMatch(text, pattern, reverse, minCol, maxCol)
+}
+
+func findHistoryPatternMatch(text string, pattern *history.HistorySearchPattern, reverse bool, minCol int, maxCol int) (int, int, bool) {
+	if text == "" || pattern == nil {
 		return 0, 0, false
 	}
 	matchStart, matchEnd := 0, 0
 	found := false
-	for byteOffset := 0; byteOffset <= len(text); {
-		relative := strings.Index(text[byteOffset:], query)
-		if relative < 0 {
-			break
-		}
-		startByte := byteOffset + relative
-		endByte := startByte + len(query)
-		startCol := xansi.StringWidth(text[:startByte])
+	for _, match := range pattern.FindAllStringIndex(text) {
+		startCol := xansi.StringWidth(text[:match.Start])
 		if startCol >= minCol && (maxCol < 0 || startCol <= maxCol) {
 			matchStart = startCol
-			matchEnd = xansi.StringWidth(text[:endByte])
+			matchEnd = xansi.StringWidth(text[:match.End])
 			found = true
 			if !reverse {
 				break
 			}
 		}
-		_, size := utf8.DecodeRuneInString(text[startByte:])
-		if size == 0 {
-			break
-		}
-		byteOffset = startByte + size
 	}
 	return matchStart, matchEnd, found
 }

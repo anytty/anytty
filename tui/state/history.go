@@ -273,6 +273,7 @@ type CopyModeStore struct {
 	Mark                 *CopyPosition
 	Selection            *CopySelection
 	Query                string
+	SearchMode           HistorySearchMode
 	Matches              []CopyMatch
 	ActiveMatch          int
 	SearchEditing        bool
@@ -281,6 +282,7 @@ type CopyModeStore struct {
 	SearchMatchStart     CopyLogicalPosition
 	SearchMatchEnd       CopyLogicalPosition
 	SearchWrapped        bool
+	SearchError          string
 	CopyPending          bool
 	CopyRequestID        RequestID
 	CopyExitAfterSuccess bool
@@ -289,6 +291,14 @@ type CopyModeStore struct {
 	RequestID            RequestID
 	Empty                bool
 }
+
+type HistorySearchMode string
+
+const (
+	HistorySearchModeText  HistorySearchMode = "text"
+	HistorySearchModeGlob  HistorySearchMode = "glob"
+	HistorySearchModeRegex HistorySearchMode = "regex"
+)
 
 type CopyPosition struct {
 	Row int
@@ -1111,11 +1121,57 @@ func (store CopyModeStore) SetQuery(query string, matches []CopyMatch) CopyModeS
 		store.SearchWrapped = false
 	}
 	store.Query = query
+	store.SearchError = ""
 	store.Matches = cloneCopyMatches(matches)
 	store.ActiveMatch = 0
 	if len(store.Matches) > 0 {
 		store.Cursor = CopyPosition{Row: store.Matches[0].StartRow, Col: store.Matches[0].StartCol}
 	}
+	return store
+}
+
+func (store CopyModeStore) NormalizedSearchMode() HistorySearchMode {
+	switch store.SearchMode {
+	case HistorySearchModeGlob, HistorySearchModeRegex:
+		return store.SearchMode
+	default:
+		return HistorySearchModeText
+	}
+}
+
+func (store CopyModeStore) CycleSearchMode() CopyModeStore {
+	switch store.NormalizedSearchMode() {
+	case HistorySearchModeText:
+		store.SearchMode = HistorySearchModeGlob
+	case HistorySearchModeGlob:
+		store.SearchMode = HistorySearchModeRegex
+	default:
+		store.SearchMode = HistorySearchModeText
+	}
+	store.Matches = nil
+	store.ActiveMatch = 0
+	store.SearchMatchStart = CopyLogicalPosition{}
+	store.SearchMatchEnd = CopyLogicalPosition{}
+	store.SearchWrapped = false
+	store.SearchError = ""
+	return store
+}
+
+func (store CopyModeStore) SearchBarVisible() bool {
+	return store.Active && (store.SearchEditing || store.SearchPending || store.Query != "" || store.SearchError != "")
+}
+
+func (store CopyModeStore) CloseSearch() CopyModeStore {
+	store.Query = ""
+	store.Matches = nil
+	store.ActiveMatch = 0
+	store.SearchEditing = false
+	store.SearchPending = false
+	store.SearchRequestID = 0
+	store.SearchMatchStart = CopyLogicalPosition{}
+	store.SearchMatchEnd = CopyLogicalPosition{}
+	store.SearchWrapped = false
+	store.SearchError = ""
 	return store
 }
 
@@ -1959,7 +2015,14 @@ func maxCopyInt(left int, right int) int {
 
 func copyVisibleRowsForStore(store CopyModeStore) int {
 	if store.ViewRows > 0 {
-		return maxCopyInt(1, store.ViewRows)
+		rows := store.ViewRows
+		if store.SearchBarVisible() && rows > 1 {
+			rows--
+		}
+		return maxCopyInt(1, rows)
+	}
+	if store.SearchBarVisible() {
+		return 7
 	}
 	return 8
 }

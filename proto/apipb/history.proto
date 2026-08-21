@@ -27,6 +27,13 @@ enum HistorySearchDirection {
   HISTORY_SEARCH_DIRECTION_BACKWARD = 2;
 }
 
+enum HistorySearchMode {
+  HISTORY_SEARCH_MODE_UNSPECIFIED = 0;
+  HISTORY_SEARCH_MODE_TEXT = 1;
+  HISTORY_SEARCH_MODE_GLOB = 2;
+  HISTORY_SEARCH_MODE_REGEX = 3;
+}
+
 enum HistoryCursorSegment {
   HISTORY_CURSOR_SEGMENT_UNSPECIFIED = 0;
   HISTORY_CURSOR_SEGMENT_COMMITTED = 1;
@@ -148,6 +155,8 @@ message HistorySearchCommand {
   int32 cols = 7;
   int32 limit = 8;
   HistoryTextPosition start = 9;
+  HistorySearchMode mode = 10;
+  int32 context_before = 11;
 }
 
 message HistoryReleaseCommand {

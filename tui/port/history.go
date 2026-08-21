@@ -108,6 +108,7 @@ type HistorySearchRequest struct {
 	Token      string
 	Generation uint64
 	Query      string
+	Mode       state.HistorySearchMode
 	Direction  HistorySearchDirection
 	Start      state.CopyLogicalPosition
 }

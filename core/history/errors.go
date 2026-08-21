@@ -10,6 +10,10 @@ import (
 // projector fallback 的兜底错误。
 var ErrHistoryInvalidMutation = errors.New("invalid history mutation")
 
+// ErrHistoryInvalidSearchPattern identifies a malformed, unsupported, or
+// zero-width history search expression.
+var ErrHistoryInvalidSearchPattern = errors.New("invalid history search pattern")
+
 // ErrHistoryUnsupportedWindowMode 表示 history window 请求的分页方向不是
 // authoritative store 支持的模式。调用方不能因此退回 TUI 本地 scrollback。
 var ErrHistoryUnsupportedWindowMode = errors.New("unsupported history window mode")

@@ -174,12 +174,20 @@ func (adapter ProtocolCoreClientAdapter) HistorySearch(ctx context.Context, req 
 	if req.Direction == port.HistorySearchBackward {
 		direction = apipb.HistorySearchDirection_HISTORY_SEARCH_DIRECTION_BACKWARD
 	}
+	mode := apipb.HistorySearchMode_HISTORY_SEARCH_MODE_TEXT
+	switch req.Mode {
+	case state.HistorySearchModeGlob:
+		mode = apipb.HistorySearchMode_HISTORY_SEARCH_MODE_GLOB
+	case state.HistorySearchModeRegex:
+		mode = apipb.HistorySearchMode_HISTORY_SEARCH_MODE_REGEX
+	}
 	command := &apipb.HistorySearchCommand{
 		Terminal:          &apipb.TerminalRef{EndpointId: string(req.EndpointID), TerminalId: req.TerminalID},
 		Token:             req.Token,
 		HistoryGeneration: req.Generation,
 		Query:             req.Query,
 		Direction:         direction,
+		Mode:              mode,
 		Cols:              int32(req.Cols),
 		Limit:             int32(req.Rows),
 	}

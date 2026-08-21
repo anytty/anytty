@@ -155,8 +155,12 @@ type HistorySearchRequest struct {
 	Cols       int
 	Limit      int
 	Query      string
+	Mode       HistorySearchMode
 	Direction  HistorySearchDirection
 	Start      HistoryCopyPosition
+	// ContextBefore shifts the returned replacement window before the match.
+	// It must be smaller than Limit; zero preserves the interactive default.
+	ContextBefore int
 }
 
 type HistorySearchResult struct {

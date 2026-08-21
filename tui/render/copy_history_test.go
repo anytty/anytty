@@ -28,6 +28,18 @@ func TestCopyHistoryContentANSILineAtOffsetsInternalColumnAnchors(t *testing.T) 
 	}
 }
 
+func TestCopyHistoryLinesShowVisibleRegexSearchBar(t *testing.T) {
+	history := state.HistoryStore{Cols: 40, Rows: []state.HistoryRow{{Text: "first"}, {Text: "second"}}}
+	copyMode := state.CopyModeStore{
+		Active: true, BoundCols: 40, ViewRows: 3, Query: "错误.*42",
+		SearchMode: state.HistorySearchModeRegex, SearchEditing: true,
+	}
+	lines := copyHistoryLines(history, copyMode)
+	if len(lines) != 3 || !strings.Contains(lines[2].PlainString(), "⌕ [REGEX] 错误.*42") {
+		t.Fatalf("search bar lines = %#v", lines)
+	}
+}
+
 func TestCopyHistoryContentANSILineUsesTailFillDisplayOnly(t *testing.T) {
 	tail := state.HistoryCellStyle{BG: "idx:24"}
 	row := state.HistoryRow{

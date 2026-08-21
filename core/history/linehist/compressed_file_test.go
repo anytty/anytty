@@ -591,14 +591,14 @@ func TestDeleteTerminalAndAllHistoryFiles(t *testing.T) {
 		}
 	}
 	removed, err := DeleteTerminalHistory(dir, "one")
-	if err != nil || removed != 1 {
+	if err != nil || removed != 2 {
 		t.Fatalf("delete one removed=%d err=%v", removed, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "one.logical-lines.bin")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("terminal history remains: %v", err)
 	}
 	removed, err = DeleteAllHistory(dir)
-	if err != nil || removed != 1 {
+	if err != nil || removed != 2 {
 		t.Fatalf("delete all removed=%d err=%v", removed, err)
 	}
 }

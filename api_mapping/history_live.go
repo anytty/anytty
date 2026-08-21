@@ -84,6 +84,17 @@ func ValidateHistoryLiveCommand(command *apipb.CommandEnvelope) error {
 		if value.HistorySearch.GetStart().GetCol() < 0 {
 			return validation("history_search.start.col", "must not be negative")
 		}
+		if value.HistorySearch.GetContextBefore() < 0 || value.HistorySearch.GetContextBefore() >= value.HistorySearch.GetLimit() {
+			return validation("history_search.context_before", "must be non-negative and smaller than limit")
+		}
+		switch value.HistorySearch.GetMode() {
+		case apipb.HistorySearchMode_HISTORY_SEARCH_MODE_UNSPECIFIED,
+			apipb.HistorySearchMode_HISTORY_SEARCH_MODE_TEXT,
+			apipb.HistorySearchMode_HISTORY_SEARCH_MODE_GLOB,
+			apipb.HistorySearchMode_HISTORY_SEARCH_MODE_REGEX:
+		default:
+			return validation("history_search.mode", "must be text, glob, or regex")
+		}
 		switch value.HistorySearch.GetDirection() {
 		case apipb.HistorySearchDirection_HISTORY_SEARCH_DIRECTION_FORWARD,
 			apipb.HistorySearchDirection_HISTORY_SEARCH_DIRECTION_BACKWARD:
@@ -172,16 +183,29 @@ func HistorySearchRequestFromProto(command *apipb.HistorySearchCommand) history.
 		direction = history.HistorySearchBackward
 	}
 	return history.HistorySearchRequest{
-		TerminalID: command.GetTerminal().GetTerminalId(),
-		Token:      history.HistoryToken(command.GetToken()),
-		Cols:       int(command.GetCols()),
-		Limit:      int(command.GetLimit()),
-		Query:      command.GetQuery(),
-		Direction:  direction,
+		TerminalID:    command.GetTerminal().GetTerminalId(),
+		Token:         history.HistoryToken(command.GetToken()),
+		Cols:          int(command.GetCols()),
+		Limit:         int(command.GetLimit()),
+		Query:         command.GetQuery(),
+		Mode:          historySearchModeFromProto(command.GetMode()),
+		Direction:     direction,
+		ContextBefore: int(command.GetContextBefore()),
 		Start: history.HistoryCopyPosition{
 			LineID: history.LogicalLineID(command.GetStart().GetLineId()),
 			Col:    int(command.GetStart().GetCol()),
 		},
+	}
+}
+
+func historySearchModeFromProto(mode apipb.HistorySearchMode) history.HistorySearchMode {
+	switch mode {
+	case apipb.HistorySearchMode_HISTORY_SEARCH_MODE_GLOB:
+		return history.HistorySearchModeGlob
+	case apipb.HistorySearchMode_HISTORY_SEARCH_MODE_REGEX:
+		return history.HistorySearchModeRegex
+	default:
+		return history.HistorySearchModeText
 	}
 }
 

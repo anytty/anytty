@@ -27,6 +27,21 @@ func PrepareDirectory(dir string, options CompressedLineFileOptions) error {
 			continue
 		}
 		name := entry.Name()
+		if strings.HasSuffix(name, searchIndexObsoleteV1Suffix) || strings.HasSuffix(name, searchIndexObsoleteV2Suffix) || strings.HasSuffix(name, searchIndexObsoleteV3Suffix) {
+			if removeErr := os.Remove(filepath.Join(dir, name)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				result = errors.Join(result, removeErr)
+			}
+			continue
+		}
+		if strings.HasSuffix(name, searchIndexSuffix) {
+			mainPath := strings.TrimSuffix(filepath.Join(dir, name), searchIndexSuffix)
+			if _, err := os.Stat(mainPath); errors.Is(err, os.ErrNotExist) {
+				if removeErr := os.Remove(filepath.Join(dir, name)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+					result = errors.Join(result, removeErr)
+				}
+			}
+			continue
+		}
 		if obsoleteHistoryFileName(name) {
 			if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				result = errors.Join(result, err)
@@ -41,6 +56,9 @@ func PrepareDirectory(dir string, options CompressedLineFileOptions) error {
 		terminalID, err := url.PathUnescape(escapedID)
 		if err != nil || strings.TrimSpace(terminalID) == "" || url.PathEscape(terminalID) != escapedID {
 			if removeErr := os.Remove(filepath.Join(dir, name)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				result = errors.Join(result, removeErr)
+			}
+			if removeErr := os.Remove(searchIndexPath(filepath.Join(dir, name))); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 				result = errors.Join(result, removeErr)
 			}
 			continue
@@ -68,6 +86,10 @@ func DeleteTerminalHistory(dir string, terminalID string) (int, error) {
 	base := strings.TrimSuffix(currentPath, ".logical-lines.bin")
 	paths := []string{
 		currentPath,
+		searchIndexPath(currentPath),
+		currentPath + searchIndexObsoleteV1Suffix,
+		currentPath + searchIndexObsoleteV2Suffix,
+		currentPath + searchIndexObsoleteV3Suffix,
 		currentPath + ".idx",
 		base + ".history-lines.bin",
 		base + ".screen-rows.bin",
@@ -96,7 +118,7 @@ func DeleteAllHistory(dir string) (int, error) {
 			continue
 		}
 		name := entry.Name()
-		if strings.HasSuffix(name, ".logical-lines.bin") || obsoleteHistoryFileName(name) {
+		if strings.HasSuffix(name, ".logical-lines.bin") || strings.HasSuffix(name, searchIndexSuffix) || strings.HasSuffix(name, searchIndexObsoleteV1Suffix) || strings.HasSuffix(name, searchIndexObsoleteV2Suffix) || strings.HasSuffix(name, searchIndexObsoleteV3Suffix) || obsoleteHistoryFileName(name) {
 			paths = append(paths, filepath.Join(dir, name))
 		}
 	}

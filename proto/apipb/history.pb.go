@@ -177,6 +177,58 @@ func (HistorySearchDirection) EnumDescriptor() ([]byte, []int) {
 	return file_apipb_history_proto_rawDescGZIP(), []int{2}
 }
 
+type HistorySearchMode int32
+
+const (
+	HistorySearchMode_HISTORY_SEARCH_MODE_UNSPECIFIED HistorySearchMode = 0
+	HistorySearchMode_HISTORY_SEARCH_MODE_TEXT        HistorySearchMode = 1
+	HistorySearchMode_HISTORY_SEARCH_MODE_GLOB        HistorySearchMode = 2
+	HistorySearchMode_HISTORY_SEARCH_MODE_REGEX       HistorySearchMode = 3
+)
+
+// Enum value maps for HistorySearchMode.
+var (
+	HistorySearchMode_name = map[int32]string{
+		0: "HISTORY_SEARCH_MODE_UNSPECIFIED",
+		1: "HISTORY_SEARCH_MODE_TEXT",
+		2: "HISTORY_SEARCH_MODE_GLOB",
+		3: "HISTORY_SEARCH_MODE_REGEX",
+	}
+	HistorySearchMode_value = map[string]int32{
+		"HISTORY_SEARCH_MODE_UNSPECIFIED": 0,
+		"HISTORY_SEARCH_MODE_TEXT":        1,
+		"HISTORY_SEARCH_MODE_GLOB":        2,
+		"HISTORY_SEARCH_MODE_REGEX":       3,
+	}
+)
+
+func (x HistorySearchMode) Enum() *HistorySearchMode {
+	p := new(HistorySearchMode)
+	*p = x
+	return p
+}
+
+func (x HistorySearchMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HistorySearchMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_apipb_history_proto_enumTypes[3].Descriptor()
+}
+
+func (HistorySearchMode) Type() protoreflect.EnumType {
+	return &file_apipb_history_proto_enumTypes[3]
+}
+
+func (x HistorySearchMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HistorySearchMode.Descriptor instead.
+func (HistorySearchMode) EnumDescriptor() ([]byte, []int) {
+	return file_apipb_history_proto_rawDescGZIP(), []int{3}
+}
+
 type HistoryCursorSegment int32
 
 const (
@@ -216,11 +268,11 @@ func (x HistoryCursorSegment) String() string {
 }
 
 func (HistoryCursorSegment) Descriptor() protoreflect.EnumDescriptor {
-	return file_apipb_history_proto_enumTypes[3].Descriptor()
+	return file_apipb_history_proto_enumTypes[4].Descriptor()
 }
 
 func (HistoryCursorSegment) Type() protoreflect.EnumType {
-	return &file_apipb_history_proto_enumTypes[3]
+	return &file_apipb_history_proto_enumTypes[4]
 }
 
 func (x HistoryCursorSegment) Number() protoreflect.EnumNumber {
@@ -229,7 +281,7 @@ func (x HistoryCursorSegment) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HistoryCursorSegment.Descriptor instead.
 func (HistoryCursorSegment) EnumDescriptor() ([]byte, []int) {
-	return file_apipb_history_proto_rawDescGZIP(), []int{3}
+	return file_apipb_history_proto_rawDescGZIP(), []int{4}
 }
 
 type RowOwnership int32
@@ -271,11 +323,11 @@ func (x RowOwnership) String() string {
 }
 
 func (RowOwnership) Descriptor() protoreflect.EnumDescriptor {
-	return file_apipb_history_proto_enumTypes[4].Descriptor()
+	return file_apipb_history_proto_enumTypes[5].Descriptor()
 }
 
 func (RowOwnership) Type() protoreflect.EnumType {
-	return &file_apipb_history_proto_enumTypes[4]
+	return &file_apipb_history_proto_enumTypes[5]
 }
 
 func (x RowOwnership) Number() protoreflect.EnumNumber {
@@ -284,7 +336,7 @@ func (x RowOwnership) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RowOwnership.Descriptor instead.
 func (RowOwnership) EnumDescriptor() ([]byte, []int) {
-	return file_apipb_history_proto_rawDescGZIP(), []int{4}
+	return file_apipb_history_proto_rawDescGZIP(), []int{5}
 }
 
 type CursorShape int32
@@ -323,11 +375,11 @@ func (x CursorShape) String() string {
 }
 
 func (CursorShape) Descriptor() protoreflect.EnumDescriptor {
-	return file_apipb_history_proto_enumTypes[5].Descriptor()
+	return file_apipb_history_proto_enumTypes[6].Descriptor()
 }
 
 func (CursorShape) Type() protoreflect.EnumType {
-	return &file_apipb_history_proto_enumTypes[5]
+	return &file_apipb_history_proto_enumTypes[6]
 }
 
 func (x CursorShape) Number() protoreflect.EnumNumber {
@@ -336,7 +388,7 @@ func (x CursorShape) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use CursorShape.Descriptor instead.
 func (CursorShape) EnumDescriptor() ([]byte, []int) {
-	return file_apipb_history_proto_rawDescGZIP(), []int{5}
+	return file_apipb_history_proto_rawDescGZIP(), []int{6}
 }
 
 type CellStyle struct {
@@ -1149,6 +1201,8 @@ type HistorySearchCommand struct {
 	Cols              int32                  `protobuf:"varint,7,opt,name=cols,proto3" json:"cols,omitempty"`
 	Limit             int32                  `protobuf:"varint,8,opt,name=limit,proto3" json:"limit,omitempty"`
 	Start             *HistoryTextPosition   `protobuf:"bytes,9,opt,name=start,proto3" json:"start,omitempty"`
+	Mode              HistorySearchMode      `protobuf:"varint,10,opt,name=mode,proto3,enum=anytty.api.v1.HistorySearchMode" json:"mode,omitempty"`
+	ContextBefore     int32                  `protobuf:"varint,11,opt,name=context_before,json=contextBefore,proto3" json:"context_before,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1237,6 +1291,20 @@ func (x *HistorySearchCommand) GetStart() *HistoryTextPosition {
 		return x.Start
 	}
 	return nil
+}
+
+func (x *HistorySearchCommand) GetMode() HistorySearchMode {
+	if x != nil {
+		return x.Mode
+	}
+	return HistorySearchMode_HISTORY_SEARCH_MODE_UNSPECIFIED
+}
+
+func (x *HistorySearchCommand) GetContextBefore() int32 {
+	if x != nil {
+		return x.ContextBefore
+	}
+	return 0
 }
 
 type HistoryReleaseCommand struct {
@@ -2520,7 +2588,7 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\tmax_bytes\x18\x05 \x01(\x05R\bmaxBytesJ\x04\b\x01\x10\x02\"@\n" +
 	"\x13HistoryTextPosition\x12\x17\n" +
 	"\aline_id\x18\x01 \x01(\x04R\x06lineId\x12\x10\n" +
-	"\x03col\x18\x02 \x01(\x05R\x03col\"\xd8\x02\n" +
+	"\x03col\x18\x02 \x01(\x05R\x03col\"\xb5\x03\n" +
 	"\x14HistorySearchCommand\x126\n" +
 	"\bterminal\x18\x02 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12-\n" +
@@ -2529,7 +2597,10 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\tdirection\x18\x06 \x01(\x0e2%.anytty.api.v1.HistorySearchDirectionR\tdirection\x12\x12\n" +
 	"\x04cols\x18\a \x01(\x05R\x04cols\x12\x14\n" +
 	"\x05limit\x18\b \x01(\x05R\x05limit\x128\n" +
-	"\x05start\x18\t \x01(\v2\".anytty.api.v1.HistoryTextPositionR\x05startJ\x04\b\x01\x10\x02\"\x9a\x01\n" +
+	"\x05start\x18\t \x01(\v2\".anytty.api.v1.HistoryTextPositionR\x05start\x124\n" +
+	"\x04mode\x18\n" +
+	" \x01(\x0e2 .anytty.api.v1.HistorySearchModeR\x04mode\x12%\n" +
+	"\x0econtext_before\x18\v \x01(\x05R\rcontextBeforeJ\x04\b\x01\x10\x02\"\x9a\x01\n" +
 	"\x15HistoryReleaseCommand\x126\n" +
 	"\bterminal\x18\x02 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12\x14\n" +
 	"\x05token\x18\x03 \x01(\tR\x05token\x12-\n" +
@@ -2670,7 +2741,12 @@ const file_apipb_history_proto_rawDesc = "" +
 	"\x16HistorySearchDirection\x12(\n" +
 	"$HISTORY_SEARCH_DIRECTION_UNSPECIFIED\x10\x00\x12$\n" +
 	" HISTORY_SEARCH_DIRECTION_FORWARD\x10\x01\x12%\n" +
-	"!HISTORY_SEARCH_DIRECTION_BACKWARD\x10\x02*\xf7\x01\n" +
+	"!HISTORY_SEARCH_DIRECTION_BACKWARD\x10\x02*\x93\x01\n" +
+	"\x11HistorySearchMode\x12#\n" +
+	"\x1fHISTORY_SEARCH_MODE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18HISTORY_SEARCH_MODE_TEXT\x10\x01\x12\x1c\n" +
+	"\x18HISTORY_SEARCH_MODE_GLOB\x10\x02\x12\x1d\n" +
+	"\x19HISTORY_SEARCH_MODE_REGEX\x10\x03*\xf7\x01\n" +
 	"\x14HistoryCursorSegment\x12&\n" +
 	"\"HISTORY_CURSOR_SEGMENT_UNSPECIFIED\x10\x00\x12$\n" +
 	" HISTORY_CURSOR_SEGMENT_COMMITTED\x10\x01\x120\n" +
@@ -2701,87 +2777,89 @@ func file_apipb_history_proto_rawDescGZIP() []byte {
 	return file_apipb_history_proto_rawDescData
 }
 
-var file_apipb_history_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_apipb_history_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
 var file_apipb_history_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_apipb_history_proto_goTypes = []any{
 	(HistoryWindowMode)(0),              // 0: anytty.api.v1.HistoryWindowMode
 	(HistoryWindowOperation)(0),         // 1: anytty.api.v1.HistoryWindowOperation
 	(HistorySearchDirection)(0),         // 2: anytty.api.v1.HistorySearchDirection
-	(HistoryCursorSegment)(0),           // 3: anytty.api.v1.HistoryCursorSegment
-	(RowOwnership)(0),                   // 4: anytty.api.v1.RowOwnership
-	(CursorShape)(0),                    // 5: anytty.api.v1.CursorShape
-	(*CellStyle)(nil),                   // 6: anytty.api.v1.CellStyle
-	(*ScreenCell)(nil),                  // 7: anytty.api.v1.ScreenCell
-	(*ScreenRow)(nil),                   // 8: anytty.api.v1.ScreenRow
-	(*TerminalCursor)(nil),              // 9: anytty.api.v1.TerminalCursor
-	(*TerminalModes)(nil),               // 10: anytty.api.v1.TerminalModes
-	(*HistoryCursor)(nil),               // 11: anytty.api.v1.HistoryCursor
-	(*HistoryRange)(nil),                // 12: anytty.api.v1.HistoryRange
-	(*HistoryWindowCommand)(nil),        // 13: anytty.api.v1.HistoryWindowCommand
-	(*HistoryCopyCommand)(nil),          // 14: anytty.api.v1.HistoryCopyCommand
-	(*HistoryTextPosition)(nil),         // 15: anytty.api.v1.HistoryTextPosition
-	(*HistorySearchCommand)(nil),        // 16: anytty.api.v1.HistorySearchCommand
-	(*HistoryReleaseCommand)(nil),       // 17: anytty.api.v1.HistoryReleaseCommand
-	(*HistoryBacklogStatusCommand)(nil), // 18: anytty.api.v1.HistoryBacklogStatusCommand
-	(*HistoryLineSpan)(nil),             // 19: anytty.api.v1.HistoryLineSpan
-	(*HistoryRow)(nil),                  // 20: anytty.api.v1.HistoryRow
-	(*HistoryViewportAnchor)(nil),       // 21: anytty.api.v1.HistoryViewportAnchor
-	(*HistoryWindowResult)(nil),         // 22: anytty.api.v1.HistoryWindowResult
-	(*HistoryCopyResult)(nil),           // 23: anytty.api.v1.HistoryCopyResult
-	(*HistorySearchResult)(nil),         // 24: anytty.api.v1.HistorySearchResult
-	(*HistoryBacklogStatusResult)(nil),  // 25: anytty.api.v1.HistoryBacklogStatusResult
-	(*LiveScreenNextCommand)(nil),       // 26: anytty.api.v1.LiveScreenNextCommand
-	(*ScreenRowCopy)(nil),               // 27: anytty.api.v1.ScreenRowCopy
-	(*ScreenRowReplace)(nil),            // 28: anytty.api.v1.ScreenRowReplace
-	(*NativeScreenResult)(nil),          // 29: anytty.api.v1.NativeScreenResult
-	(*TerminalRef)(nil),                 // 30: anytty.api.v1.TerminalRef
-	(*TerminalSize)(nil),                // 31: anytty.api.v1.TerminalSize
+	(HistorySearchMode)(0),              // 3: anytty.api.v1.HistorySearchMode
+	(HistoryCursorSegment)(0),           // 4: anytty.api.v1.HistoryCursorSegment
+	(RowOwnership)(0),                   // 5: anytty.api.v1.RowOwnership
+	(CursorShape)(0),                    // 6: anytty.api.v1.CursorShape
+	(*CellStyle)(nil),                   // 7: anytty.api.v1.CellStyle
+	(*ScreenCell)(nil),                  // 8: anytty.api.v1.ScreenCell
+	(*ScreenRow)(nil),                   // 9: anytty.api.v1.ScreenRow
+	(*TerminalCursor)(nil),              // 10: anytty.api.v1.TerminalCursor
+	(*TerminalModes)(nil),               // 11: anytty.api.v1.TerminalModes
+	(*HistoryCursor)(nil),               // 12: anytty.api.v1.HistoryCursor
+	(*HistoryRange)(nil),                // 13: anytty.api.v1.HistoryRange
+	(*HistoryWindowCommand)(nil),        // 14: anytty.api.v1.HistoryWindowCommand
+	(*HistoryCopyCommand)(nil),          // 15: anytty.api.v1.HistoryCopyCommand
+	(*HistoryTextPosition)(nil),         // 16: anytty.api.v1.HistoryTextPosition
+	(*HistorySearchCommand)(nil),        // 17: anytty.api.v1.HistorySearchCommand
+	(*HistoryReleaseCommand)(nil),       // 18: anytty.api.v1.HistoryReleaseCommand
+	(*HistoryBacklogStatusCommand)(nil), // 19: anytty.api.v1.HistoryBacklogStatusCommand
+	(*HistoryLineSpan)(nil),             // 20: anytty.api.v1.HistoryLineSpan
+	(*HistoryRow)(nil),                  // 21: anytty.api.v1.HistoryRow
+	(*HistoryViewportAnchor)(nil),       // 22: anytty.api.v1.HistoryViewportAnchor
+	(*HistoryWindowResult)(nil),         // 23: anytty.api.v1.HistoryWindowResult
+	(*HistoryCopyResult)(nil),           // 24: anytty.api.v1.HistoryCopyResult
+	(*HistorySearchResult)(nil),         // 25: anytty.api.v1.HistorySearchResult
+	(*HistoryBacklogStatusResult)(nil),  // 26: anytty.api.v1.HistoryBacklogStatusResult
+	(*LiveScreenNextCommand)(nil),       // 27: anytty.api.v1.LiveScreenNextCommand
+	(*ScreenRowCopy)(nil),               // 28: anytty.api.v1.ScreenRowCopy
+	(*ScreenRowReplace)(nil),            // 29: anytty.api.v1.ScreenRowReplace
+	(*NativeScreenResult)(nil),          // 30: anytty.api.v1.NativeScreenResult
+	(*TerminalRef)(nil),                 // 31: anytty.api.v1.TerminalRef
+	(*TerminalSize)(nil),                // 32: anytty.api.v1.TerminalSize
 }
 var file_apipb_history_proto_depIdxs = []int32{
-	6,  // 0: anytty.api.v1.ScreenCell.style:type_name -> anytty.api.v1.CellStyle
-	7,  // 1: anytty.api.v1.ScreenRow.cells:type_name -> anytty.api.v1.ScreenCell
-	6,  // 2: anytty.api.v1.ScreenRow.tail_fill:type_name -> anytty.api.v1.CellStyle
-	5,  // 3: anytty.api.v1.TerminalCursor.shape:type_name -> anytty.api.v1.CursorShape
-	3,  // 4: anytty.api.v1.HistoryCursor.segment:type_name -> anytty.api.v1.HistoryCursorSegment
-	30, // 5: anytty.api.v1.HistoryWindowCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	7,  // 0: anytty.api.v1.ScreenCell.style:type_name -> anytty.api.v1.CellStyle
+	8,  // 1: anytty.api.v1.ScreenRow.cells:type_name -> anytty.api.v1.ScreenCell
+	7,  // 2: anytty.api.v1.ScreenRow.tail_fill:type_name -> anytty.api.v1.CellStyle
+	6,  // 3: anytty.api.v1.TerminalCursor.shape:type_name -> anytty.api.v1.CursorShape
+	4,  // 4: anytty.api.v1.HistoryCursor.segment:type_name -> anytty.api.v1.HistoryCursorSegment
+	31, // 5: anytty.api.v1.HistoryWindowCommand.terminal:type_name -> anytty.api.v1.TerminalRef
 	0,  // 6: anytty.api.v1.HistoryWindowCommand.mode:type_name -> anytty.api.v1.HistoryWindowMode
-	11, // 7: anytty.api.v1.HistoryWindowCommand.before_cursor:type_name -> anytty.api.v1.HistoryCursor
-	11, // 8: anytty.api.v1.HistoryWindowCommand.after_cursor:type_name -> anytty.api.v1.HistoryCursor
-	12, // 9: anytty.api.v1.HistoryWindowCommand.range:type_name -> anytty.api.v1.HistoryRange
-	30, // 10: anytty.api.v1.HistoryCopyCommand.terminal:type_name -> anytty.api.v1.TerminalRef
-	13, // 11: anytty.api.v1.HistoryCopyCommand.window:type_name -> anytty.api.v1.HistoryWindowCommand
-	30, // 12: anytty.api.v1.HistorySearchCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	12, // 7: anytty.api.v1.HistoryWindowCommand.before_cursor:type_name -> anytty.api.v1.HistoryCursor
+	12, // 8: anytty.api.v1.HistoryWindowCommand.after_cursor:type_name -> anytty.api.v1.HistoryCursor
+	13, // 9: anytty.api.v1.HistoryWindowCommand.range:type_name -> anytty.api.v1.HistoryRange
+	31, // 10: anytty.api.v1.HistoryCopyCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	14, // 11: anytty.api.v1.HistoryCopyCommand.window:type_name -> anytty.api.v1.HistoryWindowCommand
+	31, // 12: anytty.api.v1.HistorySearchCommand.terminal:type_name -> anytty.api.v1.TerminalRef
 	2,  // 13: anytty.api.v1.HistorySearchCommand.direction:type_name -> anytty.api.v1.HistorySearchDirection
-	15, // 14: anytty.api.v1.HistorySearchCommand.start:type_name -> anytty.api.v1.HistoryTextPosition
-	30, // 15: anytty.api.v1.HistoryReleaseCommand.terminal:type_name -> anytty.api.v1.TerminalRef
-	30, // 16: anytty.api.v1.HistoryBacklogStatusCommand.terminal:type_name -> anytty.api.v1.TerminalRef
-	8,  // 17: anytty.api.v1.HistoryRow.row:type_name -> anytty.api.v1.ScreenRow
-	4,  // 18: anytty.api.v1.HistoryRow.ownership:type_name -> anytty.api.v1.RowOwnership
-	3,  // 19: anytty.api.v1.HistoryRow.segment:type_name -> anytty.api.v1.HistoryCursorSegment
-	30, // 20: anytty.api.v1.HistoryWindowResult.terminal:type_name -> anytty.api.v1.TerminalRef
-	1,  // 21: anytty.api.v1.HistoryWindowResult.operation:type_name -> anytty.api.v1.HistoryWindowOperation
-	31, // 22: anytty.api.v1.HistoryWindowResult.size:type_name -> anytty.api.v1.TerminalSize
-	20, // 23: anytty.api.v1.HistoryWindowResult.rows:type_name -> anytty.api.v1.HistoryRow
-	19, // 24: anytty.api.v1.HistoryWindowResult.lines:type_name -> anytty.api.v1.HistoryLineSpan
-	11, // 25: anytty.api.v1.HistoryWindowResult.cursor:type_name -> anytty.api.v1.HistoryCursor
-	21, // 26: anytty.api.v1.HistoryWindowResult.viewport_anchor:type_name -> anytty.api.v1.HistoryViewportAnchor
-	15, // 27: anytty.api.v1.HistoryCopyResult.next:type_name -> anytty.api.v1.HistoryTextPosition
-	12, // 28: anytty.api.v1.HistorySearchResult.match:type_name -> anytty.api.v1.HistoryRange
-	22, // 29: anytty.api.v1.HistorySearchResult.window:type_name -> anytty.api.v1.HistoryWindowResult
-	30, // 30: anytty.api.v1.HistoryBacklogStatusResult.terminal:type_name -> anytty.api.v1.TerminalRef
-	30, // 31: anytty.api.v1.LiveScreenNextCommand.terminal:type_name -> anytty.api.v1.TerminalRef
-	8,  // 32: anytty.api.v1.ScreenRowReplace.row:type_name -> anytty.api.v1.ScreenRow
-	30, // 33: anytty.api.v1.NativeScreenResult.terminal:type_name -> anytty.api.v1.TerminalRef
-	31, // 34: anytty.api.v1.NativeScreenResult.size:type_name -> anytty.api.v1.TerminalSize
-	28, // 35: anytty.api.v1.NativeScreenResult.row_replacements:type_name -> anytty.api.v1.ScreenRowReplace
-	9,  // 36: anytty.api.v1.NativeScreenResult.cursor:type_name -> anytty.api.v1.TerminalCursor
-	10, // 37: anytty.api.v1.NativeScreenResult.modes:type_name -> anytty.api.v1.TerminalModes
-	27, // 38: anytty.api.v1.NativeScreenResult.row_copies:type_name -> anytty.api.v1.ScreenRowCopy
-	39, // [39:39] is the sub-list for method output_type
-	39, // [39:39] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	16, // 14: anytty.api.v1.HistorySearchCommand.start:type_name -> anytty.api.v1.HistoryTextPosition
+	3,  // 15: anytty.api.v1.HistorySearchCommand.mode:type_name -> anytty.api.v1.HistorySearchMode
+	31, // 16: anytty.api.v1.HistoryReleaseCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	31, // 17: anytty.api.v1.HistoryBacklogStatusCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	9,  // 18: anytty.api.v1.HistoryRow.row:type_name -> anytty.api.v1.ScreenRow
+	5,  // 19: anytty.api.v1.HistoryRow.ownership:type_name -> anytty.api.v1.RowOwnership
+	4,  // 20: anytty.api.v1.HistoryRow.segment:type_name -> anytty.api.v1.HistoryCursorSegment
+	31, // 21: anytty.api.v1.HistoryWindowResult.terminal:type_name -> anytty.api.v1.TerminalRef
+	1,  // 22: anytty.api.v1.HistoryWindowResult.operation:type_name -> anytty.api.v1.HistoryWindowOperation
+	32, // 23: anytty.api.v1.HistoryWindowResult.size:type_name -> anytty.api.v1.TerminalSize
+	21, // 24: anytty.api.v1.HistoryWindowResult.rows:type_name -> anytty.api.v1.HistoryRow
+	20, // 25: anytty.api.v1.HistoryWindowResult.lines:type_name -> anytty.api.v1.HistoryLineSpan
+	12, // 26: anytty.api.v1.HistoryWindowResult.cursor:type_name -> anytty.api.v1.HistoryCursor
+	22, // 27: anytty.api.v1.HistoryWindowResult.viewport_anchor:type_name -> anytty.api.v1.HistoryViewportAnchor
+	16, // 28: anytty.api.v1.HistoryCopyResult.next:type_name -> anytty.api.v1.HistoryTextPosition
+	13, // 29: anytty.api.v1.HistorySearchResult.match:type_name -> anytty.api.v1.HistoryRange
+	23, // 30: anytty.api.v1.HistorySearchResult.window:type_name -> anytty.api.v1.HistoryWindowResult
+	31, // 31: anytty.api.v1.HistoryBacklogStatusResult.terminal:type_name -> anytty.api.v1.TerminalRef
+	31, // 32: anytty.api.v1.LiveScreenNextCommand.terminal:type_name -> anytty.api.v1.TerminalRef
+	9,  // 33: anytty.api.v1.ScreenRowReplace.row:type_name -> anytty.api.v1.ScreenRow
+	31, // 34: anytty.api.v1.NativeScreenResult.terminal:type_name -> anytty.api.v1.TerminalRef
+	32, // 35: anytty.api.v1.NativeScreenResult.size:type_name -> anytty.api.v1.TerminalSize
+	29, // 36: anytty.api.v1.NativeScreenResult.row_replacements:type_name -> anytty.api.v1.ScreenRowReplace
+	10, // 37: anytty.api.v1.NativeScreenResult.cursor:type_name -> anytty.api.v1.TerminalCursor
+	11, // 38: anytty.api.v1.NativeScreenResult.modes:type_name -> anytty.api.v1.TerminalModes
+	28, // 39: anytty.api.v1.NativeScreenResult.row_copies:type_name -> anytty.api.v1.ScreenRowCopy
+	40, // [40:40] is the sub-list for method output_type
+	40, // [40:40] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_apipb_history_proto_init() }
@@ -2795,7 +2873,7 @@ func file_apipb_history_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apipb_history_proto_rawDesc), len(file_apipb_history_proto_rawDesc)),
-			NumEnums:      6,
+			NumEnums:      7,
 			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,

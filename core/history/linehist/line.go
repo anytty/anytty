@@ -40,8 +40,8 @@ type Line struct {
 	UpdatedAt time.Time
 }
 
-// LineText 返回 logical line 的 plain text 派生值。它只用于测试与诊断，
-// 不能反过来成为渲染或去重 truth。
+// LineText 返回 logical line 的 plain text 派生值。搜索索引、测试与诊断可
+// 使用它；它不能反过来成为渲染或去重 truth。
 func LineText(line Line) string {
 	var out strings.Builder
 	for _, run := range line.Runs {

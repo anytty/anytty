@@ -17,6 +17,7 @@ func newHistoryCommand(socket, logFile, configPath *string) *cobra.Command {
 	}
 	command.AddCommand(newHistoryDeleteCommand(socket, logFile, configPath))
 	command.AddCommand(newHistoryPruneCommand(socket, logFile, configPath))
+	command.AddCommand(newHistorySearchCommand(socket, logFile))
 	return command
 }
 

@@ -153,13 +153,17 @@ func TestProtocolCoreClientAdapterMapsHistorySearch(t *testing.T) {
 	adapter := ProtocolCoreClientAdapter{Application: newProtoTestApplication(t, executor)}
 	result, err := adapter.HistorySearch(context.Background(), port.HistorySearchRequest{
 		RequestID: 9, EndpointID: "local", TerminalID: "term-1", Token: "token-1", Cols: 80, Rows: 20,
-		Query: "needle", Direction: port.HistorySearchForward,
+		Query: "needle.*", Mode: state.HistorySearchModeRegex, Direction: port.HistorySearchForward,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Found || result.Start.LineID != 41 || result.Start.Col != 2 || result.Window.Token != "token-1" {
 		t.Fatalf("search result=%#v", result)
+	}
+	command := executor.commands[len(executor.commands)-1].GetHistorySearch()
+	if command.GetMode() != apipb.HistorySearchMode_HISTORY_SEARCH_MODE_REGEX || command.GetQuery() != "needle.*" {
+		t.Fatalf("search command mode=%v query=%q", command.GetMode(), command.GetQuery())
 	}
 }
 

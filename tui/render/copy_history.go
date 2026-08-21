@@ -21,7 +21,7 @@ type copySearchRange struct {
 var copyHistorySelectionANSIStyle = ANSICellStyle{FG: "ansi:8", BG: "ansi:3"}
 
 func copyHistoryLines(history state.HistoryStore, copyMode state.CopyModeStore) []Line {
-	if len(history.Rows) == 0 {
+	if len(history.Rows) == 0 && !copyMode.SearchBarVisible() {
 		return nil
 	}
 	selection := normalizedCopySelection(copyMode)
@@ -30,6 +30,12 @@ func copyHistoryLines(history state.HistoryStore, copyMode state.CopyModeStore) 
 	lines := make([]Line, 0, len(rows))
 	for _, visible := range rows {
 		lines = append(lines, copyHistoryLine(history.Rows[visible], visible, selection, activeSearchRange(copyMode, visible), width))
+	}
+	if copyMode.SearchBarVisible() {
+		for len(lines) < copyHistoryVisibleHeight(copyMode) {
+			lines = append(lines, Line{})
+		}
+		lines = append(lines, copyHistorySearchBar(copyMode, width))
 	}
 	return lines
 }
@@ -409,6 +415,13 @@ func normalizedCopySelection(copyMode state.CopyModeStore) copySelectionRange {
 }
 
 func copyHistoryCursor(history state.HistoryStore, copyMode state.CopyModeStore) Cursor {
+	if copyMode.SearchEditing && copyMode.SearchBarVisible() {
+		width := copyHistoryRenderWidth(history, copyMode)
+		prefix := copyHistorySearchBarPrefix(copyMode)
+		available := maxInt(1, width-DisplayWidth(prefix)-1)
+		queryWidth := minInt(DisplayWidth(copyMode.Query), available)
+		return Cursor{Visible: true, Row: copyHistoryVisibleHeight(copyMode), Col: minInt(maxInt(0, width-1), DisplayWidth(prefix)+queryWidth), Shape: CursorShapeBar}
+	}
 	if !copyMode.Active || len(history.Rows) == 0 {
 		return Cursor{}
 	}
@@ -529,10 +542,65 @@ func copyVisibleRows(history state.HistoryStore, copyMode state.CopyModeStore) [
 }
 
 func copyHistoryVisibleHeight(copyMode state.CopyModeStore) int {
-	if copyMode.ViewRows > 0 {
-		return maxInt(1, copyMode.ViewRows)
+	reserved := 0
+	if copyMode.SearchBarVisible() {
+		reserved = 1
 	}
-	return 8
+	if copyMode.ViewRows > 0 {
+		return maxInt(1, copyMode.ViewRows-reserved)
+	}
+	return 8 - reserved
+}
+
+func copyHistorySearchBar(copyMode state.CopyModeStore, width int) Line {
+	prefix := copyHistorySearchBarPrefix(copyMode)
+	status := copyHistorySearchBarStatus(copyMode)
+	available := maxInt(1, width-DisplayWidth(prefix)-DisplayWidth(status))
+	query := copyMode.Query
+	if queryWidth := DisplayWidth(query); queryWidth > available {
+		query = SliceCells(query, queryWidth-available, queryWidth)
+	}
+	cells := []Cell{
+		styledCell("⌕ ", StylePickerAccent),
+		styledCell(strings.TrimPrefix(prefix, "⌕ "), StyleAccent),
+		NewCell(query),
+	}
+	if status != "" {
+		style := StyleMuted
+		if copyMode.SearchError != "" || len(copyMode.Matches) == 0 && !copyMode.SearchPending {
+			style = StyleWarning
+		}
+		cells = append(cells, styledCell(status, style))
+	}
+	return Line{Cells: cells}
+}
+
+func copyHistorySearchBarPrefix(copyMode state.CopyModeStore) string {
+	label := "TEXT"
+	switch copyMode.NormalizedSearchMode() {
+	case state.HistorySearchModeGlob:
+		label = "GLOB"
+	case state.HistorySearchModeRegex:
+		label = "REGEX"
+	}
+	return "⌕ [" + label + "] "
+}
+
+func copyHistorySearchBarStatus(copyMode state.CopyModeStore) string {
+	switch {
+	case copyMode.SearchError != "":
+		return "  " + copyMode.SearchError
+	case copyMode.SearchPending:
+		return "  searching"
+	case copyMode.Query == "":
+		return ""
+	case len(copyMode.Matches) == 0:
+		return "  no match"
+	case copyMode.SearchWrapped:
+		return "  wrapped"
+	default:
+		return "  match"
+	}
 }
 
 func copyHistoryViewportTop(history state.HistoryStore, copyMode state.CopyModeStore) int {

@@ -39,7 +39,7 @@ func TestHistoryDeleteCommandRemovesTerminalHistoryWhileDaemonStopped(t *testing
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "deleted 1 history file") {
+	if !strings.Contains(output.String(), "deleted 2 history file") {
 		t.Fatalf("unexpected output %q", output.String())
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
