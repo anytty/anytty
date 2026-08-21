@@ -180,6 +180,7 @@ type VTerm struct {
 	scrollbackTimestamps     []time.Time
 	screenTimestamps         []time.Time
 	primarySavedTimestamps   []time.Time
+	primarySavedOwnership    []string
 	scrollbackRowKinds       []string
 	screenRowKinds           []string
 	scrollbackOwnership      []string
@@ -295,6 +296,7 @@ type DamageOp struct {
 	TailFill   *CellStyle
 	Timestamp  time.Time
 	RowKind    string
+	Ownership  string
 	Wrapped    bool
 	WrappedSet bool
 }
@@ -313,6 +315,11 @@ type ScrollbackRowAppend struct {
 	WrappedSet bool
 	Ownership  string
 }
+
+// HistoryPersistedOwnership marks visible rows that core has already appended
+// to authoritative history. They remain renderable, but must not be emitted as
+// new history when they later leave the shared emulator's screen.
+const HistoryPersistedOwnership = "history-persisted"
 
 type ScreenUpdate struct {
 	FullReplace      bool
@@ -829,6 +836,8 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 	beforeScrollbackLen := v.scrollbackRowCountLocked()
 	beforeScreenTimestamps := v.screenTimestamps
 	beforeScreenRowKinds := v.screenRowKinds
+	beforeScreenOwnership := v.screenOwnership
+	beforePersistedRows := v.persistedScreenRowsLocked(beforeScreenOwnership)
 	snapshotFinish(0)
 	defer func() {
 		if r := recover(); r != nil {
@@ -874,7 +883,7 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 		afterHeight = v.emu.Height()
 		afterAltScreen = v.emu.IsAltScreen()
 	}
-	v.capturePrimaryTimestampsOnAltEnter(beforeAltScreen, afterAltScreen, beforeScreenTimestamps)
+	v.capturePrimaryMetadataOnAltEnter(beforeAltScreen, afterAltScreen, beforeScreenTimestamps, beforeScreenOwnership)
 	dirtyRows, dirtyReliable := v.consumeTouchedRowsLocked()
 	now := time.Now().UTC()
 	var afterScreen []rowFingerprint
@@ -898,8 +907,8 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 	}
 	fingerprintFinish(0)
 	metadataFinish := traceMeasure("vterm.write.reconcile.metadata")
-	cachePlan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScrollbackLen, afterScreen, now)
-	v.restorePrimaryTimestampsOnAltExit(beforeAltScreen, afterAltScreen, afterHeight)
+	cachePlan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforeScrollbackLen, afterScreen, now)
+	v.restorePrimaryMetadataOnAltExit(beforeAltScreen, afterAltScreen, afterHeight)
 	metadataFinish(0)
 	rowCacheFinish := traceMeasure("vterm.write.reconcile.row_cache")
 	v.reconcileRowCachesLocked(beforeScreen, cachePlan)
@@ -908,7 +917,7 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 		if damageMode == writeDamageEvictionOnly {
 			damage = v.writeDamageHeaderLocked(cachePlan)
 			if hasDirectDamage {
-				evictedOps, altEvictedOps := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds)
+				evictedOps, altEvictedOps := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforePersistedRows)
 				damage.SemanticOps = v.semanticBoundaryOpsFromCharmVTDamagesLocked(directDamages)
 				damage.EvictedAppend = evictedOps
 				if len(altEvictedOps) > 0 {
@@ -937,7 +946,7 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 			beforeWidth == afterWidth &&
 			beforeHeight == afterHeight &&
 			beforeAltScreen == afterAltScreen {
-			evictedOps, altEvictedOps := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds)
+			evictedOps, altEvictedOps := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforePersistedRows)
 			historyOps := filterNonEmptyEvictedAppendOps(evictedOps)
 			alternateOps := filterNonEmptyEvictedAppendOps(altEvictedOps)
 			directStats := directDamageStats(directDamages, afterWidth, afterHeight)
@@ -977,7 +986,7 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 				// 兜底也为空，进 alt 前滚出的主屏行会永久丢失。这里同样按有序
 				// damage 流归属 primary eviction，只填 EvictedAppend，不改旧
 				// AlternateAppend/ScrollbackAppend 消费契约。
-				evictedOps, _ := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds)
+				evictedOps, _ := v.evictedAppendOpsFromCharmVTDamages(directDamages, beforeAltScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforePersistedRows)
 				damage.EvictedAppend = evictedOps
 			}
 		}
@@ -1012,6 +1021,7 @@ func (v *VTerm) writeLatest(data []byte) (n int, err error, damage WriteDamage) 
 	beforeScrollbackLen := v.scrollbackRowCountLocked()
 	beforeScreenTimestamps := v.screenTimestamps
 	beforeScreenRowKinds := v.screenRowKinds
+	beforeScreenOwnership := v.screenOwnership
 	snapshotFinish(0)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1043,7 +1053,7 @@ func (v *VTerm) writeLatest(data []byte) (n int, err error, damage WriteDamage) 
 		afterHeight = v.emu.Height()
 		afterAltScreen = v.emu.IsAltScreen()
 	}
-	v.capturePrimaryTimestampsOnAltEnter(beforeAltScreen, afterAltScreen, beforeScreenTimestamps)
+	v.capturePrimaryMetadataOnAltEnter(beforeAltScreen, afterAltScreen, beforeScreenTimestamps, beforeScreenOwnership)
 	dirtyRows, dirtyReliable := v.consumeTouchedRowsLocked()
 	now := time.Now().UTC()
 	var afterScreen []rowFingerprint
@@ -1067,8 +1077,8 @@ func (v *VTerm) writeLatest(data []byte) (n int, err error, damage WriteDamage) 
 	}
 	fingerprintFinish(0)
 	metadataFinish := traceMeasure("vterm.write_latest.reconcile.metadata")
-	cachePlan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScrollbackLen, afterScreen, now)
-	v.restorePrimaryTimestampsOnAltExit(beforeAltScreen, afterAltScreen, afterHeight)
+	cachePlan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforeScrollbackLen, afterScreen, now)
+	v.restorePrimaryMetadataOnAltExit(beforeAltScreen, afterAltScreen, afterHeight)
 	metadataFinish(0)
 	rowCacheFinish := traceMeasure("vterm.write_latest.reconcile.row_cache")
 	v.reconcileRowCachesLocked(beforeScreen, cachePlan)
@@ -1693,6 +1703,7 @@ func (v *VTerm) resizeWithDamageLocked(cols, rows int) WriteDamage {
 	beforeScrollbackLen := v.scrollbackRowCountLocked()
 	beforeScreenTimestamps := v.screenTimestamps
 	beforeScreenRowKinds := v.screenRowKinds
+	beforeScreenOwnership := v.screenOwnership
 	beforeScreenRows := v.screenRowsForResizeLocked(len(beforeScreen))
 	beforeScreenTailFills := v.screenTailFillsForResizeLocked(len(beforeScreen))
 	beforeScreenWrapped := v.screenWrappedLocked(len(beforeScreen))
@@ -1716,7 +1727,7 @@ func (v *VTerm) resizeWithDamageLocked(cols, rows int) WriteDamage {
 	v.cursor.Col = pos.X
 	afterScreen := v.screenRowFingerprintsLocked()
 	v.screenFingerprintCache = afterScreen
-	plan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScrollbackLen, afterScreen, time.Now().UTC())
+	plan := v.reconcileRowMetadataLocked(beforeScreen, beforeScreenTimestamps, beforeScreenRowKinds, beforeScreenOwnership, beforeScrollbackLen, afterScreen, time.Now().UTC())
 	v.invalidateRowCachesLocked()
 	damage := v.writeDamageRequiresFullReplaceLocked(plan, "resize")
 	afterScreenRows := v.screenRowsForResizeLocked(len(afterScreen))
@@ -2035,32 +2046,72 @@ func (v *VTerm) ScrollbackRowOwnershipAt(y int) string {
 	return stringAt(v.scrollbackOwnership, y)
 }
 
-func (v *VTerm) capturePrimaryTimestampsOnAltEnter(beforeAlt bool, afterAlt bool, before []time.Time) {
+func (v *VTerm) capturePrimaryMetadataOnAltEnter(beforeAlt bool, afterAlt bool, timestamps []time.Time, ownership []string) {
 	if !beforeAlt && afterAlt {
-		v.primarySavedTimestamps = cloneTimeSlice(before)
+		v.primarySavedTimestamps = cloneTimeSlice(timestamps)
+		v.primarySavedOwnership = cloneStringSlice(ownership)
 	}
 }
 
-func (v *VTerm) restorePrimaryTimestampsOnAltExit(beforeAlt bool, afterAlt bool, height int) {
+func (v *VTerm) restorePrimaryMetadataOnAltExit(beforeAlt bool, afterAlt bool, height int) {
 	if !beforeAlt || afterAlt {
 		return
 	}
 	v.screenTimestamps = normalizeTimeSlice(v.primarySavedTimestamps, height)
+	v.screenOwnership = normalizeStringSlice(v.primarySavedOwnership, height)
 	v.primarySavedTimestamps = nil
+	v.primarySavedOwnership = nil
+}
+
+// MarkCurrentScreenHistoryPersisted records that core has committed the current
+// visible timeline through an explicit lifecycle operation. The cells stay in
+// the emulator for presentation and restart context, while future semantic
+// deltas retain enough ownership to avoid committing them twice.
+func (v *VTerm) MarkCurrentScreenHistoryPersisted() {
+	if v == nil {
+		return
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	height := len(v.screenOwnership)
+	if v.emu != nil {
+		height = v.emu.Height()
+	}
+	v.screenOwnership = normalizeStringSlice(v.screenOwnership, height)
+	for row := range v.screenOwnership {
+		fingerprint := v.screenRowFingerprintLocked(row)
+		if !rowFingerprintIsBlank(fingerprint) || row < v.cursor.Row || row == v.cursor.Row && v.cursor.Col > 0 {
+			v.screenOwnership[row] = HistoryPersistedOwnership
+		}
+	}
+	if v.emu != nil && v.emu.IsAltScreen() {
+		height := v.emu.PrimaryHeight()
+		v.primarySavedOwnership = normalizeStringSlice(v.primarySavedOwnership, height)
+		for row := range v.primarySavedOwnership {
+			v.primarySavedOwnership[row] = HistoryPersistedOwnership
+		}
+	}
 }
 
 // PrimarySavedScreenRows 返回 primary 屏当前行（used 宽度裁剪）、软换行标志与时间，
 // 与是否处于 alt screen 无关。linehist 无限历史在 alt 期间用它投影"被 alt
 // 覆盖但仍未滚出"的主屏时间线尾部；它是 live 读投影，不是第二份 history truth。
 func (v *VTerm) PrimarySavedScreenRows() ([][]Cell, []bool, []time.Time) {
+	rows, wrapped, timestamps, _ := v.PrimarySavedScreenRowsWithOwnership()
+	return rows, wrapped, timestamps
+}
+
+// PrimarySavedScreenRowsWithOwnership extends PrimarySavedScreenRows with the
+// lifecycle ownership used by the single-emulator history projection.
+func (v *VTerm) PrimarySavedScreenRowsWithOwnership() ([][]Cell, []bool, []time.Time, []string) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 	if v.emu == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	height := v.emu.PrimaryHeight()
 	if height <= 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	rows := make([][]Cell, height)
 	wrapped := make([]bool, height)
@@ -2079,7 +2130,11 @@ func (v *VTerm) PrimarySavedScreenRows() ([][]Cell, []bool, []time.Time) {
 		}
 		wrapped[y] = v.emu.PrimaryLineWrapped(y)
 	}
-	return rows, wrapped, normalizeTimeSlice(timestamps, height)
+	ownership := v.screenOwnership
+	if v.emu.IsAltScreen() {
+		ownership = v.primarySavedOwnership
+	}
+	return rows, wrapped, normalizeTimeSlice(timestamps, height), normalizeStringSlice(ownership, height)
 }
 
 func (v *VTerm) ScreenWrapped() []bool {
@@ -2162,6 +2217,27 @@ func (v *VTerm) ScreenVisualHashes() []uint64 {
 		rows[row] = rowFingerprintVisualHash(v.screenRowFingerprintLocked(row))
 	}
 	return rows
+}
+
+// VisualRowHash returns the same visual fingerprint shape used by
+// ScreenVisualHashes for a detached presentation row.
+func VisualRowHash(cells []Cell, width int) uint64 {
+	if width < 0 {
+		width = 0
+	}
+	fingerprint := rowFingerprint{hash: rowFingerprintOffset64, blank: true}
+	hashUint64(&fingerprint.hash, uint64(width))
+	hashBool(&fingerprint.hash, false)
+	for col := 0; col < width; col++ {
+		cell := Cell{}
+		if col < len(cells) {
+			cell = cells[col]
+		}
+		if !hashVTermCellFingerprint(&fingerprint.hash, cell) {
+			fingerprint.blank = false
+		}
+	}
+	return rowFingerprintVisualHash(fingerprint)
 }
 
 func (v *VTerm) CursorState() CursorState {
@@ -3209,7 +3285,7 @@ func hashVTermCellFingerprint(hash *uint64, cell Cell) bool {
 		cell.Width <= 1
 }
 
-func (v *VTerm) reconcileRowMetadataLocked(beforeScreen []rowFingerprint, beforeScreenTimestamps []time.Time, beforeScreenRowKinds []string, beforeScrollbackLen int, afterScreen []rowFingerprint, now time.Time) rowCacheReconcilePlan {
+func (v *VTerm) reconcileRowMetadataLocked(beforeScreen []rowFingerprint, beforeScreenTimestamps []time.Time, beforeScreenRowKinds []string, beforeScreenOwnership []string, beforeScrollbackLen int, afterScreen []rowFingerprint, now time.Time) rowCacheReconcilePlan {
 	if v.emu == nil {
 		v.screenTimestamps = nil
 		v.scrollbackTimestamps = nil
@@ -3243,7 +3319,7 @@ func (v *VTerm) reconcileRowMetadataLocked(beforeScreen []rowFingerprint, before
 		}
 		v.scrollbackTimestamps = append(v.scrollbackTimestamps, ts)
 		v.scrollbackRowKinds = append(v.scrollbackRowKinds, stringAt(beforeScreenRowKinds, i))
-		v.scrollbackOwnership = append(v.scrollbackOwnership, "")
+		v.scrollbackOwnership = append(v.scrollbackOwnership, stringAt(beforeScreenOwnership, i))
 	}
 	for i := preservedFromBefore; i < requiredAppends; i++ {
 		v.scrollbackTimestamps = append(v.scrollbackTimestamps, now)
@@ -3262,6 +3338,8 @@ func (v *VTerm) reconcileRowMetadataLocked(beforeScreen []rowFingerprint, before
 	clear(nextScreenTimestamps)
 	nextScreenRowKinds := reuseStringSlice(v.screenRowKindsScratch, len(afterScreen))
 	clear(nextScreenRowKinds)
+	nextScreenOwnership := make([]string, len(afterScreen))
+	claimedPersistedRows := make([]bool, len(beforeScreenOwnership))
 	for row := range afterScreen {
 		mappedRow := row + preservedFromBefore
 		if screenScrollShift > 0 {
@@ -3270,13 +3348,38 @@ func (v *VTerm) reconcileRowMetadataLocked(beforeScreen []rowFingerprint, before
 		if mappedRow < len(beforeScreen) && mappedRow < len(beforeScreenTimestamps) && rowFingerprintsEqual(beforeScreen[mappedRow], afterScreen[row]) {
 			nextScreenTimestamps[row] = beforeScreenTimestamps[mappedRow]
 			nextScreenRowKinds[row] = stringAt(beforeScreenRowKinds, mappedRow)
+			nextScreenOwnership[row] = stringAt(beforeScreenOwnership, mappedRow)
+			if nextScreenOwnership[row] == HistoryPersistedOwnership && mappedRow < len(claimedPersistedRows) {
+				claimedPersistedRows[mappedRow] = true
+			}
 		}
 		if nextScreenTimestamps[row].IsZero() && shouldAssignTimestampToRowFingerprint(afterScreen[row], row, v.cursor.Row) {
 			nextScreenTimestamps[row] = now
 		}
 	}
+	// A zero-capacity emulator has no scrollback length signal. If several rows
+	// change in one write, fingerprint shift detection can be inconclusive even
+	// though an untouched persisted row moved upward. Recover only strict upward
+	// moves, one-to-one; same-position rows were handled above and freshly
+	// created rows at the bottom cannot inherit this fallback ownership.
+	for row := range afterScreen {
+		if nextScreenOwnership[row] != "" {
+			continue
+		}
+		for source := row + 1; source < len(beforeScreen); source++ {
+			if source >= len(beforeScreenOwnership) || claimedPersistedRows[source] ||
+				beforeScreenOwnership[source] != HistoryPersistedOwnership ||
+				!rowFingerprintsEqual(beforeScreen[source], afterScreen[row]) {
+				continue
+			}
+			nextScreenOwnership[row] = HistoryPersistedOwnership
+			claimedPersistedRows[source] = true
+			break
+		}
+	}
 	v.screenTimestamps = nextScreenTimestamps
 	v.screenRowKinds = nextScreenRowKinds
+	v.screenOwnership = nextScreenOwnership
 	if oldScreenTimestamps == nil {
 		v.screenTimestampsScratch = nil
 	} else {
@@ -4278,11 +4381,12 @@ func resizeReflowLineIsBlank(row resizeReflowLine) bool {
 // ED2（ClearWithScrollback）的滚出行不走 recordScrollbackLine，而是随
 // ControlDamage("ed").ScrollOut 携带——它们同样"真正离开可见区且不可再寻址"，
 // 必须按流内顺序并入 eviction，否则 `clear` 前的屏幕内容会从历史中凭空消失。
-func (v *VTerm) evictedAppendOpsFromCharmVTDamages(damages []charmvt.Damage, altAtStart bool, timestamps []time.Time, rowKinds []string) (evicted []DamageOp, alternate []DamageOp) {
+func (v *VTerm) evictedAppendOpsFromCharmVTDamages(damages []charmvt.Damage, altAtStart bool, timestamps []time.Time, rowKinds []string, ownership []string, persistedRows [][]Cell) (evicted []DamageOp, alternate []DamageOp) {
 	if len(damages) == 0 {
 		return nil, nil
 	}
 	altActive := altAtStart
+	matchedPersistedRows := make([]bool, len(persistedRows))
 	appendOp := func(op DamageOp) {
 		if altActive {
 			alternate = append(alternate, op)
@@ -4297,14 +4401,87 @@ func (v *VTerm) evictedAppendOpsFromCharmVTDamages(damages []charmvt.Damage, alt
 				altActive = d.Enabled
 			}
 		case charmvt.ScrollbackDamage:
-			appendOp(damageOpFromScrollbackRowAppend(v.scrollbackRowAppendFromCharmVTDamage(d, timestamps, rowKinds)))
+			row := d.Y
+			if row < 0 {
+				row = 0
+			}
+			append := v.scrollbackRowAppendFromCharmVTDamage(d, timestamps, rowKinds, "")
+			append.Ownership = matchedPersistedOwnership(append, row, ownership, persistedRows, matchedPersistedRows)
+			appendOp(damageOpFromScrollbackRowAppend(append))
 		case charmvt.ControlDamage:
 			for _, scrollOut := range d.ScrollOut {
-				appendOp(damageOpFromScrollbackRowAppend(v.scrollbackRowAppendFromCharmVTDamage(scrollOut, timestamps, rowKinds)))
+				append := v.scrollbackRowAppendFromCharmVTDamage(scrollOut, timestamps, rowKinds, "")
+				append.Ownership = matchedPersistedOwnership(append, scrollOut.Y, ownership, persistedRows, matchedPersistedRows)
+				appendOp(damageOpFromScrollbackRowAppend(append))
 			}
 		}
 	}
 	return evicted, alternate
+}
+
+// persistedScreenRowsLocked captures only rows whose content has already been
+// committed outside the emulator transaction. Keeping this sparse avoids a
+// second full-screen copy on every PTY write.
+func (v *VTerm) persistedScreenRowsLocked(ownership []string) [][]Cell {
+	var rows [][]Cell
+	for row, owner := range ownership {
+		if owner != HistoryPersistedOwnership {
+			continue
+		}
+		if rows == nil {
+			rows = make([][]Cell, len(ownership))
+		}
+		rows[row] = cloneCellSlice(v.screenRowUsedViewLocked(row))
+	}
+	return rows
+}
+
+// Damage row indices describe positions in the ordered scroll stream. During
+// a large write those positions can be reused by rows created by the same
+// write, so an index-only ownership lookup can suppress fresh history. Match
+// the immutable proof against the pre-write persisted content and consume each
+// persisted row at most once.
+func matchedPersistedOwnership(row ScrollbackRowAppend, preferred int, ownership []string, persistedRows [][]Cell, matched []bool) string {
+	proofText := scrollbackRowAppendText(row)
+	if len(persistedRows) == 0 {
+		return ""
+	}
+	matches := func(index int) bool {
+		return index >= 0 && index < len(persistedRows) &&
+			index < len(ownership) && ownership[index] == HistoryPersistedOwnership &&
+			index < len(matched) && !matched[index] &&
+			cellRowText(persistedRows[index]) == proofText
+	}
+	if matches(preferred) {
+		matched[preferred] = true
+		return HistoryPersistedOwnership
+	}
+	for index := range persistedRows {
+		if matches(index) {
+			matched[index] = true
+			return HistoryPersistedOwnership
+		}
+	}
+	return ""
+}
+
+func scrollbackRowAppendText(row ScrollbackRowAppend) string {
+	if len(row.Runs) > 0 {
+		var builder strings.Builder
+		for _, run := range row.Runs {
+			builder.WriteString(run.Text)
+		}
+		return builder.String()
+	}
+	return cellRowText(row.Cells)
+}
+
+func cellRowText(cells []Cell) string {
+	var builder strings.Builder
+	for _, cell := range cells {
+		builder.WriteString(cell.Content)
+	}
+	return builder.String()
 }
 
 func filterNonEmptyEvictedAppendOps(ops []DamageOp) []DamageOp {
@@ -4333,12 +4510,12 @@ func (v *VTerm) scrollbackRowAppendsFromCharmVTDamages(rows []charmvt.Scrollback
 		if row.Text == "" && len(row.Runs) == 0 && len(row.Cells) == 0 {
 			continue
 		}
-		out = append(out, v.scrollbackRowAppendFromCharmVTDamage(row, timestamps, rowKinds))
+		out = append(out, v.scrollbackRowAppendFromCharmVTDamage(row, timestamps, rowKinds, ""))
 	}
 	return out
 }
 
-func (v *VTerm) scrollbackRowAppendFromCharmVTDamage(row charmvt.ScrollbackDamage, timestamps []time.Time, rowKinds []string) ScrollbackRowAppend {
+func (v *VTerm) scrollbackRowAppendFromCharmVTDamage(row charmvt.ScrollbackDamage, timestamps []time.Time, rowKinds []string, ownership string) ScrollbackRowAppend {
 	cells := uvCellsToVTermDamageCells(v, row.Cells)
 	runs := []CellRun(nil)
 	switch {
@@ -4354,6 +4531,7 @@ func (v *VTerm) scrollbackRowAppendFromCharmVTDamage(row charmvt.ScrollbackDamag
 		Runs:       runs,
 		Timestamp:  timeAt(timestamps, row.Y),
 		RowKind:    stringAt(rowKinds, row.Y),
+		Ownership:  ownership,
 		Row:        row.Y,
 		RowSet:     row.Y >= 0,
 		Wrapped:    row.Wrapped,
@@ -4367,6 +4545,7 @@ func damageOpFromScrollbackRowAppend(row ScrollbackRowAppend) DamageOp {
 		Runs:       cloneCellRuns(row.Runs),
 		Timestamp:  row.Timestamp,
 		RowKind:    row.RowKind,
+		Ownership:  row.Ownership,
 		Row:        row.Row,
 		RowSet:     row.RowSet,
 		Wrapped:    row.Wrapped,

@@ -21,6 +21,7 @@ type ScreenRow struct {
 	Cells     []vterm.Cell
 	Wrapped   bool
 	UpdatedAt time.Time
+	Ownership string
 }
 
 // ScreenSnapshot 是查询时刻的 emulator 当前屏（热段唯一来源）。
@@ -62,10 +63,14 @@ func ScreenSnapshotFromVTerm(vt *vterm.VTerm) ScreenSnapshot {
 		rows = append(rows, row)
 	})
 	wrapped := vt.ScreenWrapped()
+	ownership := vt.ScreenOwnership()
 	last := -1
 	for i := range rows {
 		if i < len(wrapped) {
 			rows[i].Wrapped = wrapped[i]
+		}
+		if i < len(ownership) {
+			rows[i].Ownership = ownership[i]
 		}
 		if len(rows[i].Cells) > 0 || rows[i].Wrapped {
 			last = i
@@ -73,7 +78,7 @@ func ScreenSnapshotFromVTerm(vt *vterm.VTerm) ScreenSnapshot {
 	}
 	snap := ScreenSnapshot{Cols: info.Cols, ViewportRows: info.Rows, Rows: rows[:last+1], InAlt: info.IsAlternateScreen}
 	if info.IsAlternateScreen {
-		primaryCells, primaryWrapped, primaryTimestamps := vt.PrimarySavedScreenRows()
+		primaryCells, primaryWrapped, primaryTimestamps, primaryOwnership := vt.PrimarySavedScreenRowsWithOwnership()
 		primary := make([]ScreenRow, len(primaryCells))
 		lastPrimary := -1
 		for i := range primaryCells {
@@ -83,6 +88,9 @@ func ScreenSnapshotFromVTerm(vt *vterm.VTerm) ScreenSnapshot {
 			}
 			if i < len(primaryWrapped) {
 				primary[i].Wrapped = primaryWrapped[i]
+			}
+			if i < len(primaryOwnership) {
+				primary[i].Ownership = primaryOwnership[i]
 			}
 			if len(primary[i].Cells) > 0 || primary[i].Wrapped {
 				lastPrimary = i
@@ -254,6 +262,17 @@ func (store *Store) AppendGapBoundary() error {
 	}
 	unlock := store.lockGate()
 	defer unlock()
+	err := store.ApplyGapBoundary()
+	return err
+}
+
+// ApplyGapBoundary persists a parser/output gap while the caller already owns
+// the ingest gate. The single-emulator delta worker uses this form so it does
+// not recursively acquire the composite history view gate.
+func (store *Store) ApplyGapBoundary() error {
+	if store == nil {
+		return nil
+	}
 	err := store.engine.AppendGapBoundary()
 	store.noteHistoryMutation()
 	return err
@@ -818,6 +837,9 @@ func hotRowsFromScreen(coldCount int, openTail []Run, openTailUpdatedAt time.Tim
 	primaryTopOffset := historyCellsDisplayWidth(current)
 	haveCurrent := len(current) > 0
 	for _, screenRow := range primaryRows {
+		if screenRow.Ownership == vterm.HistoryPersistedOwnership {
+			continue
+		}
 		current = append(current, cellsFromVTermCells(screenRow.Cells)...)
 		if screenRow.UpdatedAt.After(currentUpdatedAt) {
 			currentUpdatedAt = screenRow.UpdatedAt

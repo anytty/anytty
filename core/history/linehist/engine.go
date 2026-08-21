@@ -61,7 +61,8 @@ func NewEngine(file LineStorage) *Engine {
 
 // ApplyEvictedRows 按事务顺序消费滚出的物理行，把拼装完成的 logical line
 // 批量落盘。滚出行的完整性（空行保留、alt 归因、ring 关闭）由 vterm
-// EvictedRows 保证，这里不再做任何过滤或对账。
+// EvictedRows 保证。Rows explicitly committed by a core lifecycle boundary
+// remain visible in the shared emulator but are not appended a second time.
 func (e *Engine) ApplyEvictedRows(rows []vterm.TerminalSemanticScrollOut) error {
 	if e == nil || len(rows) == 0 {
 		return nil
@@ -70,6 +71,9 @@ func (e *Engine) ApplyEvictedRows(rows []vterm.TerminalSemanticScrollOut) error 
 	defer e.mu.Unlock()
 	var batch []Line
 	for _, row := range rows {
+		if row.Ownership == vterm.HistoryPersistedOwnership {
+			continue
+		}
 		batch = append(batch, e.asm.AppendEvictedRow(row)...)
 	}
 	return e.file.AppendLines(batch)
@@ -393,6 +397,9 @@ func (e *Engine) SealPrimaryScreenRows(rows []ScreenRow) error {
 	defer e.mu.Unlock()
 	var batch []Line
 	for _, row := range rows {
+		if row.Ownership == vterm.HistoryPersistedOwnership {
+			continue
+		}
 		batch = append(batch, e.asm.AppendEvictedRow(vterm.TerminalSemanticScrollOut{
 			Cells:      cloneScreenRowCells(row.Cells),
 			Timestamp:  row.UpdatedAt,

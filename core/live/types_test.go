@@ -175,6 +175,35 @@ func TestSurfaceTrackPreservesStyledAltScreenFrameOnExit(t *testing.T) {
 	}
 }
 
+func TestSurfaceTrackPreservedAltFrameIsPresentationOnly(t *testing.T) {
+	surface := NewSurfaceTrackWithOptions(SurfaceSize{Cols: 24, Rows: 4}, SurfaceTrackOptions{
+		CaptureLineHistory:           true,
+		PreserveAltScreenFrameOnExit: true,
+	})
+	surface.Write("canonical-primary")
+	surface.Write("\x1b[?1049h\x1b[2Jpresentation-alt\x1b[?1049l")
+
+	if got := strings.Join(surface.Rows(), "\n"); !strings.Contains(got, "presentation-alt") {
+		t.Fatalf("live presentation lost preserved alt frame: %q", got)
+	}
+	canonical := surface.LineHistoryScreenSnapshot()
+	var canonicalText strings.Builder
+	for _, row := range canonical.Rows {
+		for _, cell := range row.Cells {
+			canonicalText.WriteString(cell.Content)
+		}
+		canonicalText.WriteByte('\n')
+	}
+	if got := canonicalText.String(); strings.Contains(got, "presentation-alt") || !strings.Contains(got, "canonical-primary") {
+		t.Fatalf("presentation overlay polluted canonical history snapshot: %q", got)
+	}
+
+	surface.Write("next")
+	if got := strings.Join(surface.Rows(), "\n"); strings.Contains(got, "presentation-alt") || !strings.Contains(got, "next") {
+		t.Fatalf("real PTY output did not replace presentation overlay: %q", got)
+	}
+}
+
 func TestSurfaceTrackPreservesAltScreenFrameStyledBlankLayoutRows(t *testing.T) {
 	surface := NewSurfaceTrackWithOptions(SurfaceSize{Cols: 18, Rows: 5}, SurfaceTrackOptions{
 		PreserveAltScreenFrameOnExit: true,

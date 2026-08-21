@@ -212,6 +212,56 @@ func TestEvictedRowsED2InsideAltStaysOutOfPrimary(t *testing.T) {
 	}
 }
 
+func TestPersistedOwnershipFollowsWrappedRowsWithDisabledScrollback(t *testing.T) {
+	vt := New(12, 3, 0, nil)
+	source := NewLineHistorySemanticSourceFromVTerm(vt)
+	if _, _, err := source.ApplyPTYWriteWithLiveDamage([]byte("command: shell\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	vt.MarkCurrentScreenHistoryPersisted()
+
+	var evicted []TerminalSemanticScrollOut
+	for _, raw := range []string{"line01\r\n", "line02\r\n", "line03\r\n"} {
+		tx, _, err := source.ApplyPTYWriteWithLiveDamage([]byte(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		evicted = append(evicted, tx.EvictedRows...)
+	}
+	owners := make(map[string]string)
+	for _, row := range evicted {
+		owners[semanticScrollOutText(row)] = row.Ownership
+	}
+	for _, text := range []string{"command: she", "ll"} {
+		if owners[text] != HistoryPersistedOwnership {
+			t.Fatalf("wrapped persisted row %q ownership = %q, evicted=%#v", text, owners[text], evicted)
+		}
+	}
+	if owners["line01"] == HistoryPersistedOwnership {
+		t.Fatalf("fresh PTY row inherited persisted ownership: %#v", evicted)
+	}
+}
+
+func TestPersistedOwnershipDoesNotLeakToFreshRowsInLargeWrite(t *testing.T) {
+	vt := New(8, 2, 0, nil)
+	source := NewLineHistorySemanticSourceFromVTerm(vt)
+	if _, _, err := source.ApplyPTYWriteWithLiveDamage([]byte(" shell\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	vt.MarkCurrentScreenHistoryPersisted()
+
+	tx, _, err := source.ApplyPTYWriteWithLiveDamage([]byte("中文历史第一行\r\n中文第二行\r\nthird\r\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range tx.EvictedRows {
+		text := semanticScrollOutText(row)
+		if strings.Contains(text, "中文") && row.Ownership == HistoryPersistedOwnership {
+			t.Fatalf("fresh row %q inherited lifecycle ownership: %#v", text, tx.EvictedRows)
+		}
+	}
+}
+
 func evictedTextsForTest(rows []TerminalSemanticScrollOut) []string {
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {

@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/anytty/anytty/core/history/linehist"
 	vterm "github.com/anytty/anytty/vterm/vterm"
 )
 
@@ -27,15 +28,19 @@ func (s SurfaceSize) Valid() bool {
 type SurfaceTrack struct {
 	size                         SurfaceSize
 	vt                           *vterm.VTerm
+	historySource                *vterm.SemanticSource
 	onResponse                   vterm.ResponseHandler
 	pending                      string
 	preserveAltScreenFrameOnExit bool
+	presentationOverlay          [][]vterm.Cell
+	presentationCursor           vterm.CursorState
 }
 
 // SurfaceTrackOptions 定义 live surface 的本地渲染策略和 PTY response 边界。
 // OnResponse 只用于把 OSC/DA/DSR 等终端查询响应回写 PTY；不能借这个回调写 history。
 type SurfaceTrackOptions struct {
 	PreserveAltScreenFrameOnExit bool
+	CaptureLineHistory           bool
 	OnResponse                   vterm.ResponseHandler
 }
 
@@ -48,6 +53,9 @@ type SurfaceWriteResult struct {
 	ChangedRows []int
 	FullReplace bool
 	rowSources  []int
+	// HistoryTransactions are immutable line-history deltas produced by the
+	// same emulator writes that updated the live screen.
+	HistoryTransactions []vterm.TerminalSemanticTransaction
 }
 
 // SurfaceRowCopy maps exact final rows back to the screen before WriteWithResult.
@@ -95,12 +103,17 @@ func NewSurfaceTrackWithOptions(size SurfaceSize, options SurfaceTrackOptions) *
 	if !size.Valid() {
 		size = SurfaceSize{Cols: 80, Rows: 24}
 	}
-	return &SurfaceTrack{
+	vt := vterm.New(size.Cols, size.Rows, 0, options.OnResponse)
+	surface := &SurfaceTrack{
 		size:                         size,
-		vt:                           vterm.New(size.Cols, size.Rows, 0, options.OnResponse),
+		vt:                           vt,
 		onResponse:                   options.OnResponse,
 		preserveAltScreenFrameOnExit: options.PreserveAltScreenFrameOnExit,
 	}
+	if options.CaptureLineHistory {
+		surface.historySource = vterm.NewLineHistorySemanticSourceFromVTerm(vt)
+	}
+	return surface
 }
 
 // Size 返回 live surface 当前尺寸。它只描述 native screen 投影尺寸，不是 history
@@ -113,12 +126,25 @@ func (surface *SurfaceTrack) Size() SurfaceSize {
 // R358 后该方法不返回 history transaction；Terminal 会通过独立 history semantic
 // source 发送 resize boundary，避免 live surface 重新承载 history proof。
 func (surface *SurfaceTrack) Resize(size SurfaceSize) {
+	_, _ = surface.ResizeWithHistory(size)
+}
+
+// ResizeWithHistory advances the shared emulator once and returns the
+// line-history resize transaction when history capture is enabled.
+func (surface *SurfaceTrack) ResizeWithHistory(size SurfaceSize) (vterm.TerminalSemanticTransaction, bool) {
 	if !size.Valid() {
-		return
+		return vterm.TerminalSemanticTransaction{}, false
 	}
 	surface.size = size
+	surface.clearPresentationOverlay()
 	surface.ensureVTerm()
+	if surface.historySource != nil {
+		tx, _ := surface.historySource.Resize(vterm.TerminalSemanticSize{Cols: size.Cols, Rows: size.Rows})
+		tx.Raw = ""
+		return tx, true
+	}
 	surface.vt.ResizeWithDamage(size.Cols, size.Rows)
+	return vterm.TerminalSemanticTransaction{}, false
 }
 
 // ResetForRestartPreservingScreen 在进程重启时保留当前可见 tail 并重建 VTerm。
@@ -127,6 +153,7 @@ func (surface *SurfaceTrack) Resize(size SurfaceSize) {
 func (surface *SurfaceTrack) ResetForRestartPreservingScreen() {
 	surface.ensureVTerm()
 	snapshot := surface.Snapshot()
+	surface.clearPresentationOverlay()
 	rows := cloneVTermCellRows(snapshot.Screen.Cells)
 	size := surface.size
 	rows, cursor := restartPreservedScreenRows(rows, size.Rows)
@@ -134,6 +161,9 @@ func (surface *SurfaceTrack) ResetForRestartPreservingScreen() {
 	// 但用全新 VTerm 丢弃旧程序的 mouse/bracketed paste/alt-screen/pending escape 状态。
 	_ = surface.vt.Close()
 	surface.vt = vterm.New(size.Cols, size.Rows, 0, surface.onResponse)
+	if surface.historySource != nil {
+		surface.historySource = vterm.NewLineHistorySemanticSourceFromVTerm(surface.vt)
+	}
 	surface.pending = ""
 	if len(rows) == 0 {
 		return
@@ -152,14 +182,18 @@ func (surface *SurfaceTrack) ResetForRestartPreservingScreen() {
 		cursor,
 		vterm.TerminalModes{AutoWrap: true},
 	)
+	if surface.historySource != nil {
+		surface.vt.MarkCurrentScreenHistoryPersisted()
+	}
 }
 
 // Write 把 PTY text 写入 native live screen。
 // 它是实时显示热路径，只维护 latest screen；需要 history 的调用方必须走 core
 // Terminal 的 history semantic worker，而不是从这里取 transaction。
 func (surface *SurfaceTrack) Write(text string) {
-	if text != "" && surface.pending == "" && !strings.Contains(text, "\x1b[?") {
+	if surface.historySource == nil && text != "" && surface.pending == "" && !strings.Contains(text, "\x1b[?") {
 		surface.ensureVTerm()
+		surface.clearPresentationOverlay()
 		_, _, _ = surface.vt.WriteForLatestFrame([]byte(text))
 		return
 	}
@@ -181,13 +215,13 @@ func (surface *SurfaceTrack) WriteWithResult(text string) SurfaceWriteResult {
 	for text != "" {
 		idx := strings.Index(text, "\x1b[?")
 		if idx < 0 {
-			mergeSurfaceWriteDamage(&result, surface.writeRaw(text))
+			surface.applyRaw(&result, text)
 			raw.WriteString(text)
 			appendSurfaceWriteRawSegment(&result, &raw)
 			return result
 		}
 		if idx > 0 {
-			mergeSurfaceWriteDamage(&result, surface.writeRaw(text[:idx]))
+			surface.applyRaw(&result, text[:idx])
 			raw.WriteString(text[:idx])
 			text = text[idx:]
 			continue
@@ -199,17 +233,18 @@ func (surface *SurfaceTrack) WriteWithResult(text string) SurfaceWriteResult {
 			return result
 		}
 		if consumed <= 0 {
-			mergeSurfaceWriteDamage(&result, surface.writeRaw(text[:1]))
+			surface.applyRaw(&result, text[:1])
 			raw.WriteString(text[:1])
 			text = text[1:]
 			continue
 		}
 		if action == privateModeAltExit && surface.vt.IsAltScreen() {
 			altFrame := surface.altScreenFrameCells()
-			mergeSurfaceWriteDamage(&result, surface.writeRaw(text[:consumed]))
+			surface.applyRaw(&result, text[:consumed])
 			raw.WriteString(text[:consumed])
 			if surface.preserveAltScreenFrameOnExit {
-				surface.appendAltScreenFrameCells(altFrame)
+				surface.appendPresentationRows(altFrame)
+				result.FullReplace = true
 			}
 			if len(altFrame) > 0 {
 				result.Segments = append(result.Segments, SurfaceWriteSegment{
@@ -221,7 +256,7 @@ func (surface *SurfaceTrack) WriteWithResult(text string) SurfaceWriteResult {
 			text = text[consumed:]
 			continue
 		}
-		mergeSurfaceWriteDamage(&result, surface.writeRaw(text[:consumed]))
+		surface.applyRaw(&result, text[:consumed])
 		raw.WriteString(text[:consumed])
 		text = text[consumed:]
 	}
@@ -229,6 +264,32 @@ func (surface *SurfaceTrack) WriteWithResult(text string) SurfaceWriteResult {
 		appendSurfaceWriteRawSegment(&result, &raw)
 	}
 	return result
+}
+
+// WriteHistoryPersisted updates the canonical live emulator for a core-owned
+// lifecycle marker that has already been appended to authoritative history.
+// Its semantic deltas are deliberately not handed to the history queue; row
+// ownership prevents the visible marker from reappearing when it later scrolls.
+func (surface *SurfaceTrack) WriteHistoryPersisted(text string) SurfaceWriteResult {
+	previousOverlay := cloneVTermCellRows(surface.presentationOverlay)
+	previousCursor := surface.presentationCursor
+	result := surface.WriteWithResult(text)
+	if len(previousOverlay) > 0 {
+		surface.presentationOverlay = previousOverlay
+		surface.presentationCursor = previousCursor
+		surface.appendPresentationRows(presentationRowsFromLifecycleText(text))
+		result.FullReplace = true
+	}
+	result.HistoryTransactions = nil
+	surface.MarkCurrentScreenHistoryPersisted()
+	return result
+}
+
+// MarkCurrentScreenHistoryPersisted excludes the current visible timeline from
+// future hot/cold history projection without changing presentation cells.
+func (surface *SurfaceTrack) MarkCurrentScreenHistoryPersisted() {
+	surface.ensureVTerm()
+	surface.vt.MarkCurrentScreenHistoryPersisted()
 }
 
 func appendSurfaceWriteRawSegment(result *SurfaceWriteResult, raw *strings.Builder) {
@@ -239,13 +300,22 @@ func appendSurfaceWriteRawSegment(result *SurfaceWriteResult, raw *strings.Build
 	raw.Reset()
 }
 
-func (surface *SurfaceTrack) writeRaw(text string) vterm.WriteDamage {
+func (surface *SurfaceTrack) applyRaw(result *SurfaceWriteResult, text string) {
 	if text == "" {
-		return vterm.WriteDamage{}
+		return
 	}
-	// 这里只保留 touched-row 索引，不构造 history transaction、cell damage 或帧队列。
+	if surface.clearPresentationOverlay() {
+		result.FullReplace = true
+	}
+	if surface.historySource != nil {
+		tx, damage, _ := surface.historySource.ApplyPTYWriteWithLiveDamage([]byte(text))
+		tx.Raw = ""
+		result.HistoryTransactions = append(result.HistoryTransactions, tx)
+		mergeSurfaceWriteDamage(result, damage)
+		return
+	}
 	_, _, damage := surface.vt.WriteForLatestFrame([]byte(text))
-	return damage
+	mergeSurfaceWriteDamage(result, damage)
 }
 
 func mergeSurfaceWriteDamage(result *SurfaceWriteResult, damage vterm.WriteDamage) {
@@ -333,16 +403,78 @@ func (surface *SurfaceTrack) altScreenFrameCells() [][]vterm.Cell {
 	return rows
 }
 
-func (surface *SurfaceTrack) appendAltScreenFrameCells(rows [][]vterm.Cell) {
+func (surface *SurfaceTrack) appendPresentationRows(rows [][]vterm.Cell) {
 	if len(rows) == 0 {
 		return
 	}
-	var builder strings.Builder
-	builder.WriteString("\r\n")
-	// 中文说明：alt-screen 退出时只把最后一帧追加到 live surface，
-	// 这里用 cell replay 保留 SGR、带背景空白和列布局，但不回写 history parser。
-	builder.Write(vterm.EncodeHistoryRowsReplay(rows))
-	surface.writeRaw(builder.String())
+	height := surface.size.Rows
+	if height <= 0 {
+		return
+	}
+	base := surface.presentationOverlay
+	cursor := surface.presentationCursor
+	if len(base) == 0 {
+		base = surface.vt.TrimmedScreenContent().Cells
+		cursor = surface.vt.CursorState()
+	}
+	overlay := make([][]vterm.Cell, height)
+	for row := 0; row < height && row < len(base); row++ {
+		overlay[row] = cloneVTermCellRows([][]vterm.Cell{base[row]})[0]
+	}
+	target := cursor.Row + 1
+	for _, row := range rows {
+		if target >= height {
+			copy(overlay, overlay[1:])
+			overlay[height-1] = nil
+			target = height - 1
+		}
+		overlay[target] = cloneVTermCellRows([][]vterm.Cell{row})[0]
+		target++
+	}
+	surface.presentationOverlay = overlay
+	cursorRow := target
+	if cursorRow >= height {
+		cursorRow = height - 1
+	}
+	surface.presentationCursor = vterm.CursorState{
+		Row:     cursorRow,
+		Col:     0,
+		Visible: cursor.Visible,
+		Shape:   cursor.Shape,
+		Blink:   cursor.Blink,
+	}
+}
+
+func (surface *SurfaceTrack) clearPresentationOverlay() bool {
+	hadOverlay := len(surface.presentationOverlay) > 0
+	surface.presentationOverlay = nil
+	surface.presentationCursor = vterm.CursorState{}
+	return hadOverlay
+}
+
+func presentationRowsFromLifecycleText(text string) [][]vterm.Cell {
+	text = strings.TrimPrefix(text, "\r\n")
+	text = strings.TrimSuffix(text, "\r\n")
+	if text == "" {
+		return nil
+	}
+	lines := strings.Split(text, "\r\n")
+	rows := make([][]vterm.Cell, len(lines))
+	for row, line := range lines {
+		cells := make([]vterm.Cell, 0, len(line))
+		for _, content := range line {
+			cells = append(cells, vterm.Cell{Content: string(content), Width: 1})
+		}
+		rows[row] = cells
+	}
+	return rows
+}
+
+// LineHistoryScreenSnapshot returns the canonical hot primary timeline. The
+// caller must serialize it with writes to this SurfaceTrack.
+func (surface *SurfaceTrack) LineHistoryScreenSnapshot() linehist.ScreenSnapshot {
+	surface.ensureVTerm()
+	return linehist.ScreenSnapshotFromVTerm(surface.vt)
 }
 
 // Rows 返回当前 native screen 的纯文本行，主要用于测试和兼容诊断。
@@ -363,12 +495,18 @@ func (surface *SurfaceTrack) Rows() []string {
 // 调用方只能用于实时显示或进入态上下文；history truth 必须继续走 core history store。
 func (surface *SurfaceTrack) Snapshot() SurfaceSnapshot {
 	surface.ensureVTerm()
+	screen := surface.vt.TrimmedScreenContent()
+	cursor := surface.vt.CursorState()
+	if len(surface.presentationOverlay) > 0 {
+		screen = vterm.ScreenData{Cells: cloneVTermCellRows(surface.presentationOverlay)}
+		cursor = surface.presentationCursor
+	}
 	return SurfaceSnapshot{
 		Size: surface.size,
 		// 中文说明：live snapshot 是协议/渲染高频路径，保留行数和 styled footprint，
 		// 但不克隆每行尾部的纯默认空白，避免压力输出反复搬运整屏空白。
-		Screen: surface.vt.TrimmedScreenContent(),
-		Cursor: surface.vt.CursorState(),
+		Screen: screen,
+		Cursor: cursor,
 		Modes:  surface.vt.Modes(),
 	}
 }
@@ -377,6 +515,20 @@ func (surface *SurfaceTrack) Snapshot() SurfaceSnapshot {
 // visit 回调只在调用期间有效，调用方不能保存 cellAt 闭包或把这些 rows 当历史来源。
 func (surface *SurfaceTrack) VisitTrimmedScreenRows(visit func(rowIndex int, cellCount int, cellAt func(int) vterm.Cell)) vterm.TrimmedScreenRowsInfo {
 	surface.ensureVTerm()
+	if len(surface.presentationOverlay) > 0 {
+		for rowIndex, row := range surface.presentationOverlay {
+			trimmed := trimTrailingDefaultBlankCells(row)
+			if visit != nil {
+				visit(rowIndex, len(trimmed), func(index int) vterm.Cell { return trimmed[index] })
+			}
+		}
+		modes := surface.vt.Modes()
+		return vterm.TrimmedScreenRowsInfo{
+			Cols: surface.size.Cols, Rows: surface.size.Rows,
+			IsAlternateScreen: modes.AlternateScreen,
+			Cursor:            surface.presentationCursor, Modes: modes,
+		}
+	}
 	return surface.vt.VisitTrimmedScreenRows(visit)
 }
 
@@ -384,6 +536,17 @@ func (surface *SurfaceTrack) VisitTrimmedScreenRows(visit func(rowIndex int, cel
 // protocol session to compare the next client-confirmed frame.
 func (surface *SurfaceTrack) VisualRowHashes() []uint64 {
 	surface.ensureVTerm()
+	if len(surface.presentationOverlay) > 0 {
+		hashes := make([]uint64, surface.size.Rows)
+		for row := range hashes {
+			var cells []vterm.Cell
+			if row < len(surface.presentationOverlay) {
+				cells = surface.presentationOverlay[row]
+			}
+			hashes[row] = vterm.VisualRowHash(cells, surface.size.Cols)
+		}
+		return hashes
+	}
 	return surface.vt.ScreenVisualHashes()
 }
 

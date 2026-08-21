@@ -209,7 +209,7 @@ func TestTerminalHistoryDisabledUsesNativeScreenOnlyWritePath(t *testing.T) {
 	}
 }
 
-func TestR396ProcessOutputFansOutLiveSurfaceAndHistorySemanticConsumer(t *testing.T) {
+func TestProcessOutputUsesSharedLiveEmulatorAndTypedHistoryDelta(t *testing.T) {
 	factory := newRecordingProcessFactory()
 	server := NewServer(WithProcessFactory(factory))
 	events := server.Events(context.Background(), EventFilter{
@@ -250,15 +250,17 @@ func TestR396ProcessOutputFansOutLiveSurfaceAndHistorySemanticConsumer(t *testin
 		t.Fatalf("history.window should flush history semantic backlog: %v", err)
 	}
 	if got := strings.Join(historyRowTexts(window.Rows), "|"); got != "alpha|beta" {
-		t.Fatalf("history queue must consume tap semantic transaction, got %q window=%#v", got, window)
+		t.Fatalf("history queue must consume shared-emulator transaction, got %q window=%#v", got, window)
 	}
 	terminal, err := server.Terminal("term-r373-fanout")
 	if err != nil {
 		t.Fatalf("terminal: %v", err)
 	}
-	records := terminal.tap.InputRecords()
-	if len(records) != 1 || records[0].Kind != SemanticTapInputWrite {
-		t.Fatalf("history semantic consumer must receive process output once, records=%#v", records)
+	if terminal.tap != nil {
+		t.Fatalf("production path allocated a second semantic parser: %#v", terminal.tap)
+	}
+	if terminal.currentHistoryDeltaQueue() == nil {
+		t.Fatal("history-enabled production path did not install typed delta queue")
 	}
 }
 
@@ -350,8 +352,8 @@ func TestR396ProcessOutputResponseOwnerRemainsLiveSurfaceOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("terminal: %v", err)
 	}
-	if records := terminal.tap.InputRecords(); len(records) != 1 || records[0].Kind != SemanticTapInputWrite {
-		t.Fatalf("history semantic consumer must still observe response-producing output without writing response, records=%#v", records)
+	if terminal.tap != nil {
+		t.Fatalf("response-producing output allocated a second semantic parser: %#v", terminal.tap)
 	}
 }
 
@@ -1262,8 +1264,8 @@ func TestTerminalRestartSpawnFailurePreservesCurrentOutputGeneration(t *testing.
 	liveActive := oldBuffer.consumers[terminalOutputConsumerLive].active
 	historyActive := oldBuffer.consumers[terminalOutputConsumerHistory].active
 	oldBuffer.mu.Unlock()
-	if !liveActive || !historyActive {
-		t.Fatalf("failed restart stopped old consumers: live=%t history=%t", liveActive, historyActive)
+	if !liveActive || historyActive {
+		t.Fatalf("failed restart changed single-consumer generation: live=%t legacy_history=%t", liveActive, historyActive)
 	}
 	select {
 	case <-oldProcess.cancel:

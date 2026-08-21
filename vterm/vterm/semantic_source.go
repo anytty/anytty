@@ -32,6 +32,7 @@ type TerminalSemanticScrollOut struct {
 	Cells     []TerminalSemanticCell
 	Runs      []TerminalSemanticCellRun
 	Timestamp time.Time
+	Ownership string
 	// Row/RowSet 表示该 proof 来源于清屏/滚动前的 primary viewport row。
 	// core-v2 只能用它过滤 current primary frame ownership，不能据此反推新内容。
 	Row        int
@@ -257,6 +258,7 @@ func terminalSemanticScrollOutFromAppend(scrollOut ScrollbackRowAppend) Terminal
 		Cells:      cloneCellSlice(scrollOut.Cells),
 		Runs:       cloneCellRuns(scrollOut.Runs),
 		Timestamp:  scrollOut.Timestamp,
+		Ownership:  scrollOut.Ownership,
 		Row:        scrollOut.Row,
 		RowSet:     scrollOut.RowSet,
 		Wrapped:    scrollOut.Wrapped,
@@ -269,6 +271,7 @@ func terminalSemanticScrollOutFromDamageOp(scrollOut DamageOp) TerminalSemanticS
 		Cells:      cloneCellSlice(scrollOut.Cells),
 		Runs:       cloneCellRuns(scrollOut.Runs),
 		Timestamp:  scrollOut.Timestamp,
+		Ownership:  scrollOut.Ownership,
 		Row:        scrollOut.Row,
 		RowSet:     scrollOut.RowSet,
 		Wrapped:    scrollOut.Wrapped,
@@ -286,7 +289,7 @@ func terminalSemanticScrollOutAlreadyIncluded(existing []TerminalSemanticScrollO
 }
 
 func terminalSemanticScrollOutEqual(left TerminalSemanticScrollOut, right TerminalSemanticScrollOut) bool {
-	if left.Row != right.Row || left.RowSet != right.RowSet || left.Wrapped != right.Wrapped || left.WrappedSet != right.WrappedSet || !left.Timestamp.Equal(right.Timestamp) {
+	if left.Row != right.Row || left.RowSet != right.RowSet || left.Ownership != right.Ownership || left.Wrapped != right.Wrapped || left.WrappedSet != right.WrappedSet || !left.Timestamp.Equal(right.Timestamp) {
 		return false
 	}
 	if len(left.Cells) != len(right.Cells) || len(left.Runs) != len(right.Runs) {

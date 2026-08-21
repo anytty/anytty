@@ -138,24 +138,22 @@ func TestTerminalFlushHistoryWaitsForConsumerThenSyncsExactlyOnce(t *testing.T) 
 		}
 	}()
 	factory.process(terminalID).emitOutput("current hot screen")
-	terminal.queueMu.Lock()
-	buffer := terminal.outputBuffer
-	terminal.queueMu.Unlock()
-	if buffer == nil {
-		t.Fatal("history output buffer is not installed")
+	queue := terminal.currentHistoryDeltaQueue()
+	if queue == nil {
+		t.Fatal("history delta queue is not installed")
 	}
 	waitForOutputCondition(t, func() bool {
-		buffer.mu.Lock()
-		defer buffer.mu.Unlock()
-		return buffer.consumers[terminalOutputConsumerHistory].inFlight != nil
+		queue.mu.Lock()
+		defer queue.mu.Unlock()
+		return queue.inFlight != nil
 	}, "history consumer did not enter the blocked ingest")
 
 	flushed := make(chan error, 1)
 	go func() { flushed <- terminal.FlushHistory(context.Background()) }()
 	waitForOutputCondition(t, func() bool {
-		buffer.mu.Lock()
-		defer buffer.mu.Unlock()
-		return buffer.flushWaiters[terminalOutputConsumerHistory] == 1
+		queue.mu.Lock()
+		defer queue.mu.Unlock()
+		return queue.flushWaiters == 1
 	}, "FlushHistory did not wait at the history consumer fence")
 	_, syncCalls, _ = storage.counts()
 	if syncCalls != 0 {
@@ -346,21 +344,22 @@ func TestTerminalCloseDrainsPayloadAlreadyInSharedBufferAndSyncsOnce(t *testing.
 	// The durability contract starts after this payload has entered the shared
 	// buffer; bytes produced after RemoveTerminal starts are future output.
 	factory.process(terminalID).emitOutput("close durable payload")
-	terminal.queueMu.Lock()
-	buffer := terminal.outputBuffer
-	terminal.queueMu.Unlock()
+	queue := terminal.currentHistoryDeltaQueue()
+	if queue == nil {
+		t.Fatal("history delta queue is not installed")
+	}
 	waitForOutputCondition(t, func() bool {
-		buffer.mu.Lock()
-		defer buffer.mu.Unlock()
-		return buffer.consumers[terminalOutputConsumerHistory].inFlight != nil
+		queue.mu.Lock()
+		defer queue.mu.Unlock()
+		return queue.inFlight != nil
 	}, "history consumer did not enter the blocked close ingest")
 
 	closed := make(chan error, 1)
 	go func() { closed <- server.RemoveTerminal(terminalID) }()
 	waitForOutputCondition(t, func() bool {
-		buffer.mu.Lock()
-		defer buffer.mu.Unlock()
-		return buffer.flushWaiters[terminalOutputConsumerHistory] == 1
+		queue.mu.Lock()
+		defer queue.mu.Unlock()
+		return queue.flushWaiters == 1
 	}, "normal close did not wait at the history consumer fence")
 	terminal.tapOpMu.Unlock()
 	locked = false
