@@ -169,10 +169,11 @@ func runHistorySearch(ctx context.Context, client historySearchProtocol, termina
 	}()
 
 	printer := newHistoryContextPrinter(writer, pattern, cfg.before, cfg.after, cfg.maxCount, historySearchColorEnabled(writer, cfg.color))
-	startLineID := latest.GetFirstLineId()
-	if startLineID == 0 {
-		startLineID = 1
-	}
+	// Search output is chronological. The initial latest window exists to
+	// freeze the complete view, but its FirstLineId belongs to that tail page;
+	// using it as the cursor makes an older match a wrapped result that the CLI
+	// deliberately does not print.
+	startLineID := uint64(1)
 	var page *apipb.HistoryWindowResult
 	var lastProcessed uint64
 	for !printer.done {

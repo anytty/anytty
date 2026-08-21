@@ -43,7 +43,7 @@ func TestHistoryContextPrinterHighlightsChineseMatchAndMergesContext(t *testing.
 
 func TestRunHistorySearchUsesServerModeAndContext(t *testing.T) {
 	client := &fakeHistorySearchProtocol{
-		latest: &apipb.HistoryWindowResult{Token: "frozen", HistoryGeneration: 7, FirstLineId: 1, LastLineId: 5},
+		latest: &apipb.HistoryWindowResult{Token: "frozen", HistoryGeneration: 7, FirstLineId: 5, LastLineId: 5},
 		searchResults: []*apipb.HistorySearchResult{{
 			Found: true,
 			Match: &apipb.HistoryRange{StartLineId: 2, EndLineId: 2, EndCol: 2},
@@ -75,6 +75,9 @@ func TestRunHistorySearchUsesServerModeAndContext(t *testing.T) {
 	request := client.searchCommands[0]
 	if request.GetMode() != apipb.HistorySearchMode_HISTORY_SEARCH_MODE_GLOB || request.GetContextBefore() != 1 {
 		t.Fatalf("search mode=%v context=%d", request.GetMode(), request.GetContextBefore())
+	}
+	if request.GetStart().GetLineId() != 1 {
+		t.Fatalf("chronological search started at logical line %d, want 1", request.GetStart().GetLineId())
 	}
 	if client.releases != 1 {
 		t.Fatalf("releases = %d", client.releases)
