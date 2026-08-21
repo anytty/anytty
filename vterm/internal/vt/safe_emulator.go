@@ -98,7 +98,9 @@ func (se *SafeEmulator) ResizeAndTailScreen(w, h int, rows []uv.Line, wrapped []
 		}
 	}
 	e.scrs[0].Resize(w, h)
-	e.scrs[1].Resize(w, h)
+	if e.scrs[1].buf != nil {
+		e.scrs[1].Resize(w, h)
+	}
 	e.tabstops = uv.DefaultTabStops(w)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {

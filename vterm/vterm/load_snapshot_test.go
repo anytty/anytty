@@ -508,6 +508,25 @@ func TestTrimmedScreenContentDropsOnlyDefaultBlankTail(t *testing.T) {
 	}
 }
 
+func TestUsedScreenRowCachesOnlyLogicalWidth(t *testing.T) {
+	vt := New(157, 79, 0, nil)
+	if _, err, _ := vt.WriteForLatestFrame([]byte("short")); err != nil {
+		t.Fatal(err)
+	}
+	if got := vt.UsedScreenRow(0); len(got) != len("short") {
+		t.Fatalf("used row length = %d, want %d", len(got), len("short"))
+	}
+	vt.mu.RLock()
+	cachedWidth := len(vt.screenRowCache[0])
+	vt.mu.RUnlock()
+	if cachedWidth != len("short") {
+		t.Fatalf("cached row width = %d, want logical width %d", cachedWidth, len("short"))
+	}
+	if got := vt.ScreenRowView(0); len(got) != 157 {
+		t.Fatalf("full row view length = %d, want 157", len(got))
+	}
+}
+
 func TestVisitTrimmedScreenRowsMatchesTrimmedScreenContent(t *testing.T) {
 	vt := New(8, 3, 100, nil)
 	if _, err, _ := vt.WriteForLatestFrame([]byte("abc\r\n\x1b[44mxy  ")); err != nil {

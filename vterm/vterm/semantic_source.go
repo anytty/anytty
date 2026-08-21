@@ -208,6 +208,13 @@ func (source *SemanticSource) transactionFromDamage(seq uint64, raw string, dama
 	for _, scrollOut := range evictedSource {
 		tx.EvictedRows = append(tx.EvictedRows, terminalSemanticScrollOutFromDamageOp(scrollOut))
 	}
+	tx.AltEntered = terminalSemanticDamageHasAltMode(damage, true)
+	tx.AltExited = terminalSemanticDamageHasAltMode(damage, false)
+	tx.SynchronizedBegin = terminalSemanticDamageHasSyncMode(damage, true)
+	tx.SynchronizedEnd = terminalSemanticDamageHasSyncMode(damage, false)
+	if source.vt != nil {
+		tx.SynchronizedActive = source.vt.Modes().SynchronizedOutput
+	}
 	// 中文说明：WriteDamage 是本次 write 的临时语义 payload，transaction 在
 	// SemanticSource 边界接管它的所有权；tap 之后的 fan-out deep-copy 仍由
 	// SemanticTapResult.Transaction 负责，避免 live hot path 多做一轮 op/cell clone。
@@ -225,13 +232,6 @@ func (source *SemanticSource) transactionFromDamage(seq uint64, raw string, dama
 			tx.PrimaryScrollOut = append(tx.PrimaryScrollOut, terminalSemanticScrollOutFromAppend(scrollOut))
 		}
 	}
-	tx.AltEntered = terminalSemanticDamageHasAltMode(damage, true)
-	tx.AltExited = terminalSemanticDamageHasAltMode(damage, false)
-	tx.SynchronizedBegin = terminalSemanticDamageHasSyncMode(damage, true)
-	tx.SynchronizedEnd = terminalSemanticDamageHasSyncMode(damage, false)
-	if source.vt != nil {
-		tx.SynchronizedActive = source.vt.Modes().SynchronizedOutput
-	}
 	if terminalSemanticShouldAttachTransactionScrollOut(damage, tx) {
 		for _, scrollOut := range damage.ScrollbackAppend {
 			proof := terminalSemanticScrollOutFromDamageOp(scrollOut)
@@ -241,7 +241,11 @@ func (source *SemanticSource) transactionFromDamage(seq uint64, raw string, dama
 			tx.PrimaryScrollOut = append(tx.PrimaryScrollOut, proof)
 		}
 	}
-	if source.vt != nil && terminalSemanticShouldAttachFrame(damage, tx) {
+	// The line-history store consumes immutable evictions and explicit
+	// boundaries, then reads the hot frame from this same VTerm under its query
+	// fence. Attaching another converted frame here has no consumer and pins a
+	// full vterm.Cell projection in the VTerm row cache for every terminal.
+	if !source.evictionOnly && source.vt != nil && terminalSemanticShouldAttachFrame(damage, tx) {
 		screen := source.vt.UsedScreenContent()
 		frame := &TerminalSemanticFrame{Rows: cloneCellRows(screen.Cells), Cols: size.Cols}
 		if screen.IsAlternateScreen {

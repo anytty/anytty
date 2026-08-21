@@ -127,6 +127,34 @@ func TestR450LineHistorySemanticSourceDropsOrdinaryTextOps(t *testing.T) {
 	if !clearTx.ClearScrollback {
 		t.Fatalf("linehist production source must keep ED3 clear-scrollback boundary: %#v", clearTx)
 	}
+	if clearTx.PrimaryFrame != nil || clearTx.AltFrame != nil {
+		t.Fatalf("linehist delta must read the hot frame from its shared VTerm, got embedded frame %#v", clearTx)
+	}
+}
+
+func TestLineHistorySemanticSourceOmitsFramesButKeepsBoundaries(t *testing.T) {
+	source := NewLineHistorySemanticSource(16, 3, 0, nil)
+	tx, err := source.ApplyPTYWrite([]byte("\x1b[?2026hsync\x1b[?2026l\x1b[?1049halt\x1b[?1049l"))
+	if err != nil {
+		t.Fatalf("apply synchronized alt-screen write: %v", err)
+	}
+	if !tx.SynchronizedBegin || !tx.SynchronizedEnd || !tx.AltEntered || !tx.AltExited {
+		t.Fatalf("linehist delta lost semantic boundaries: %#v", tx)
+	}
+	if tx.PrimaryFrame != nil || tx.AltFrame != nil || tx.AltExitFrame != nil {
+		t.Fatalf("linehist delta must not duplicate the shared VTerm frame: %#v", tx)
+	}
+
+	resizeTx, err := source.Resize(TerminalSemanticSize{Cols: 20, Rows: 5})
+	if err != nil {
+		t.Fatalf("resize linehist source: %v", err)
+	}
+	if !resizeTx.RequiresFullReplace || resizeTx.FullReplaceReason != "resize" {
+		t.Fatalf("resize boundary lost from linehist delta: %#v", resizeTx)
+	}
+	if resizeTx.PrimaryFrame != nil || resizeTx.AltFrame != nil {
+		t.Fatalf("linehist resize delta must not duplicate the shared VTerm frame: %#v", resizeTx)
+	}
 }
 
 func TestLineHistorySemanticSourceSingleWriteMatchesSplitLiveAndHistory(t *testing.T) {

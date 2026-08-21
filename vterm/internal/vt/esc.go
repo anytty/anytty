@@ -29,7 +29,9 @@ func (e *Emulator) fullReset() {
 		e.scr.damage.recordControl("ris", x, y, 0)
 	}
 	e.scrs[0].Reset()
-	e.scrs[1].Reset()
+	if e.scrs[1].buf != nil {
+		e.scrs[1].Reset()
+	}
 	e.resetTabStops()
 
 	// XXX: Do we reset all modes here? Investigate.

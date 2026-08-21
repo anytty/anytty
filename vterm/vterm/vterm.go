@@ -2992,7 +2992,7 @@ func (v *VTerm) screenRowViewLocked(y int) []Cell {
 	if len(v.screenRowCache) != v.emu.Height() {
 		v.invalidateRowCachesLocked()
 	}
-	if cached := v.screenRowCache[y]; cached != nil {
+	if cached := v.screenRowCache[y]; len(cached) == v.emu.Width() {
 		return cached
 	}
 	width := v.emu.Width()
@@ -3012,11 +3012,21 @@ func (v *VTerm) screenRowUsedViewLocked(y int) []Cell {
 	if used <= 0 {
 		return v.screenRowViewLocked(y)
 	}
-	row := v.screenRowViewLocked(y)
-	if used > len(row) {
-		used = len(row)
+	if width := v.emu.Width(); used > width {
+		used = width
 	}
-	return row[:used]
+	if len(v.screenRowCache) != v.emu.Height() {
+		v.invalidateRowCachesLocked()
+	}
+	if cached := v.screenRowCache[y]; len(cached) >= used {
+		return cached[:used]
+	}
+	row := make([]Cell, used)
+	for x := 0; x < used; x++ {
+		row[x] = v.convertCell(v.emu.CellAt(x, y))
+	}
+	v.screenRowCache[y] = row
+	return row
 }
 
 func (v *VTerm) trimmedScreenRowCellsLocked(y int) []Cell {

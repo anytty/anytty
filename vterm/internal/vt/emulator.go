@@ -25,7 +25,8 @@ type Emulator struct {
 	// The terminal's indexed 256 colors.
 	colors [256]color.Color
 
-	// Both main and alt screens and a pointer to the currently active screen.
+	// Main and alternate screens plus the currently active screen. The alternate
+	// screen remains its zero value until the first DEC alt-screen entry.
 	scrs [2]Screen
 	scr  *Screen
 
@@ -84,7 +85,6 @@ var _ Terminal = (*Emulator)(nil)
 func NewEmulator(w, h int) *Emulator {
 	t := new(Emulator)
 	t.scrs[0] = *NewScreen(w, h)
-	t.scrs[1] = *NewScreen(w, h)
 	t.scr = &t.scrs[0]
 	t.scrs[0].cb = &t.cb
 	t.scrs[1].cb = &t.cb
@@ -126,6 +126,18 @@ func (e *Emulator) SetCallbacks(cb Callbacks) {
 	e.cb = cb
 	e.scrs[0].cb = &e.cb
 	e.scrs[1].cb = &e.cb
+}
+
+func (e *Emulator) ensureAltScreen() {
+	if e == nil || e.scrs[1].buf != nil {
+		return
+	}
+	damage := e.scrs[1].damage
+	alt := NewScreen(e.scrs[0].Width(), e.scrs[0].Height())
+	alt.SetScrollback(nil)
+	alt.cb = &e.cb
+	alt.damage = damage
+	e.scrs[1] = *alt
 }
 
 // Touched returns the touched lines in the current screen buffer.
@@ -259,7 +271,9 @@ func (e *Emulator) Resize(width int, height int) {
 	} else {
 		_, _ = e.scrs[0].Reflow(width, height, x, y)
 	}
-	e.scrs[1].Resize(width, height)
+	if e.scrs[1].buf != nil {
+		e.scrs[1].Resize(width, height)
+	}
 	e.tabstops = uv.DefaultTabStops(width)
 
 	e.setCursor(x, y)

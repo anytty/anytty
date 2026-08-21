@@ -1874,3 +1874,42 @@ func TestPrintableASCIIFastPathPreservesCharsetAndRepeat(t *testing.T) {
 		t.Fatalf("unexpected cursor position: %v", pos)
 	}
 }
+
+func TestAlternateScreenAllocatesOnFirstEntry(t *testing.T) {
+	emulator := NewEmulator(157, 79)
+	if emulator.scrs[1].buf != nil {
+		t.Fatal("alternate screen was allocated eagerly")
+	}
+	emulator.Resize(120, 40)
+	if emulator.scrs[1].buf != nil {
+		t.Fatal("primary resize allocated alternate screen")
+	}
+	if _, err := emulator.Write([]byte("primary")); err != nil {
+		t.Fatal(err)
+	}
+	if emulator.scrs[1].buf != nil {
+		t.Fatal("ordinary output allocated alternate screen")
+	}
+
+	if _, err := emulator.Write([]byte("\x1b[?1049hAlt")); err != nil {
+		t.Fatal(err)
+	}
+	if emulator.scrs[1].buf == nil || !emulator.IsAltScreen() {
+		t.Fatal("alternate screen was not allocated on entry")
+	}
+	if emulator.Width() != 120 || emulator.Height() != 40 {
+		t.Fatalf("lazy alternate size = %dx%d", emulator.Width(), emulator.Height())
+	}
+	if got := emulator.Line(0); len(got) < 3 || got[0].Content != "A" {
+		t.Fatalf("alternate screen output = %#v", got)
+	}
+	if _, err := emulator.Write([]byte("\x1b[?1049l")); err != nil {
+		t.Fatal(err)
+	}
+	if emulator.IsAltScreen() {
+		t.Fatal("alternate screen did not exit")
+	}
+	if got := emulator.Line(0); len(got) < 7 || got[0].Content != "p" {
+		t.Fatalf("primary screen was not restored: %#v", got)
+	}
+}
