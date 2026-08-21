@@ -429,6 +429,47 @@ public nonisolated enum Anytty_Client_Binding_V1_EndpointConnectionPhase: SwiftP
 
 }
 
+/// EndpointSupervisorMode is selected by the Android rollout policy for each
+/// demanded endpoint. Shadow records decisions while TS remains authoritative;
+/// takeover moves probe/dial/backoff ownership into Go.
+public nonisolated enum Anytty_Client_Binding_V1_EndpointSupervisorMode: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case shadow // = 1
+  case takeover // = 2
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .shadow
+    case 2: self = .takeover
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .shadow: return 1
+    case .takeover: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [Anytty_Client_Binding_V1_EndpointSupervisorMode] = [
+    .unspecified,
+    .shadow,
+    .takeover,
+  ]
+
+}
+
 /// ConnectionSnapshot 是同一个 Go-owned ReadySession 的只读诊断投影。
 /// 它只携带 selected candidate pair 的 IP/port，禁止携带 SDP、credential、账号或 terminal 数据。
 public nonisolated struct Anytty_Client_Binding_V1_ConnectionSnapshot: @unchecked Sendable {
@@ -2764,6 +2805,109 @@ public nonisolated struct Anytty_Client_Binding_V1_PTYStreamClosed: Sendable {
   public init() {}
 }
 
+public nonisolated struct Anytty_Client_Binding_V1_EndpointSupervisorDemand: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var endpointID: String = String()
+
+  public var mode: Anytty_Client_Binding_V1_EndpointSupervisorMode = .unspecified
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Anytty_Client_Binding_V1_EndpointSupervisorDemandSnapshot: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var attachmentID: String = String()
+
+  public var demandRevision: UInt64 = 0
+
+  public var endpoints: [Anytty_Client_Binding_V1_EndpointSupervisorDemand] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// Network metadata is only a wake-up hint. connected=false pauses dialing but
+/// does not itself invalidate a retained physical winner.
+public nonisolated struct Anytty_Client_Binding_V1_EndpointSupervisorHostSignal: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var revision: UInt64 = 0
+
+  public var connected: Bool = false
+
+  public var reason: String = String()
+
+  public var foreground: Bool = false
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public nonisolated struct Anytty_Client_Binding_V1_EndpointSupervisorProjection: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var endpointID: String = String()
+
+  public var mode: Anytty_Client_Binding_V1_EndpointSupervisorMode = .unspecified
+
+  public var phase: String = String()
+
+  public var controlRevision: UInt64 = 0
+
+  public var attemptID: UInt64 = 0
+
+  public var session: Anytty_Api_V1_EndpointSessionStamp {
+    get {_session ?? Anytty_Api_V1_EndpointSessionStamp()}
+    set {_session = newValue}
+  }
+  /// Returns true if `session` has been explicitly set.
+  public var hasSession: Bool {self._session != nil}
+  /// Clears the value of `session`. Subsequent reads from it will return its default value.
+  public mutating func clearSession() {self._session = nil}
+
+  public var errorCode: String = String()
+
+  public var message: String = String()
+
+  public var probeCount: UInt64 = 0
+
+  public var dialCount: UInt64 = 0
+
+  public var backoffCount: UInt64 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _session: Anytty_Api_V1_EndpointSessionStamp? = nil
+}
+
+public nonisolated struct Anytty_Client_Binding_V1_EndpointSupervisorSnapshot: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var endpoints: [Anytty_Client_Binding_V1_EndpointSupervisorProjection] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate nonisolated let _protobuf_package = "anytty.client.binding.v1"
@@ -2798,6 +2942,10 @@ nonisolated extension Anytty_Client_Binding_V1_ConnectionPolicyAvailabilityReaso
 
 nonisolated extension Anytty_Client_Binding_V1_EndpointConnectionPhase: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0ENDPOINT_CONNECTION_PHASE_UNSPECIFIED\0\u{1}ENDPOINT_CONNECTION_PHASE_IDLE\0\u{1}ENDPOINT_CONNECTION_PHASE_PLANNING\0\u{1}ENDPOINT_CONNECTION_PHASE_RESOLVING\0\u{1}ENDPOINT_CONNECTION_PHASE_SIGNALING\0\u{1}ENDPOINT_CONNECTION_PHASE_CONNECTING\0\u{1}ENDPOINT_CONNECTION_PHASE_AUTHORIZING\0\u{1}ENDPOINT_CONNECTION_PHASE_READY\0\u{1}ENDPOINT_CONNECTION_PHASE_OFFLINE\0")
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorMode: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0ENDPOINT_SUPERVISOR_MODE_UNSPECIFIED\0\u{1}ENDPOINT_SUPERVISOR_MODE_SHADOW\0\u{1}ENDPOINT_SUPERVISOR_MODE_TAKEOVER\0")
 }
 
 nonisolated extension Anytty_Client_Binding_V1_ConnectionSnapshot: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -7368,6 +7516,240 @@ nonisolated extension Anytty_Client_Binding_V1_PTYStreamClosed: SwiftProtobuf.Me
 
   public static func ==(lhs: Anytty_Client_Binding_V1_PTYStreamClosed, rhs: Anytty_Client_Binding_V1_PTYStreamClosed) -> Bool {
     if lhs.exitCode != rhs.exitCode {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorDemand: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointSupervisorDemand"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}endpoint_id\0\u{1}mode\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.endpointID) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.mode) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.endpointID.isEmpty {
+      try visitor.visitSingularStringField(value: self.endpointID, fieldNumber: 1)
+    }
+    if self.mode != .unspecified {
+      try visitor.visitSingularEnumField(value: self.mode, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Client_Binding_V1_EndpointSupervisorDemand, rhs: Anytty_Client_Binding_V1_EndpointSupervisorDemand) -> Bool {
+    if lhs.endpointID != rhs.endpointID {return false}
+    if lhs.mode != rhs.mode {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorDemandSnapshot: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointSupervisorDemandSnapshot"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}attachment_id\0\u{3}demand_revision\0\u{1}endpoints\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.attachmentID) }()
+      case 2: try { try decoder.decodeSingularUInt64Field(value: &self.demandRevision) }()
+      case 3: try { try decoder.decodeRepeatedMessageField(value: &self.endpoints) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.attachmentID.isEmpty {
+      try visitor.visitSingularStringField(value: self.attachmentID, fieldNumber: 1)
+    }
+    if self.demandRevision != 0 {
+      try visitor.visitSingularUInt64Field(value: self.demandRevision, fieldNumber: 2)
+    }
+    if !self.endpoints.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.endpoints, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Client_Binding_V1_EndpointSupervisorDemandSnapshot, rhs: Anytty_Client_Binding_V1_EndpointSupervisorDemandSnapshot) -> Bool {
+    if lhs.attachmentID != rhs.attachmentID {return false}
+    if lhs.demandRevision != rhs.demandRevision {return false}
+    if lhs.endpoints != rhs.endpoints {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorHostSignal: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointSupervisorHostSignal"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}revision\0\u{1}connected\0\u{1}reason\0\u{1}foreground\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularUInt64Field(value: &self.revision) }()
+      case 2: try { try decoder.decodeSingularBoolField(value: &self.connected) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.reason) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.foreground) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if self.revision != 0 {
+      try visitor.visitSingularUInt64Field(value: self.revision, fieldNumber: 1)
+    }
+    if self.connected != false {
+      try visitor.visitSingularBoolField(value: self.connected, fieldNumber: 2)
+    }
+    if !self.reason.isEmpty {
+      try visitor.visitSingularStringField(value: self.reason, fieldNumber: 3)
+    }
+    if self.foreground != false {
+      try visitor.visitSingularBoolField(value: self.foreground, fieldNumber: 4)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Client_Binding_V1_EndpointSupervisorHostSignal, rhs: Anytty_Client_Binding_V1_EndpointSupervisorHostSignal) -> Bool {
+    if lhs.revision != rhs.revision {return false}
+    if lhs.connected != rhs.connected {return false}
+    if lhs.reason != rhs.reason {return false}
+    if lhs.foreground != rhs.foreground {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorProjection: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointSupervisorProjection"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}endpoint_id\0\u{1}mode\0\u{1}phase\0\u{3}control_revision\0\u{3}attempt_id\0\u{1}session\0\u{3}error_code\0\u{1}message\0\u{3}probe_count\0\u{3}dial_count\0\u{3}backoff_count\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.endpointID) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.mode) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.phase) }()
+      case 4: try { try decoder.decodeSingularUInt64Field(value: &self.controlRevision) }()
+      case 5: try { try decoder.decodeSingularUInt64Field(value: &self.attemptID) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._session) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.errorCode) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.message) }()
+      case 9: try { try decoder.decodeSingularUInt64Field(value: &self.probeCount) }()
+      case 10: try { try decoder.decodeSingularUInt64Field(value: &self.dialCount) }()
+      case 11: try { try decoder.decodeSingularUInt64Field(value: &self.backoffCount) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.endpointID.isEmpty {
+      try visitor.visitSingularStringField(value: self.endpointID, fieldNumber: 1)
+    }
+    if self.mode != .unspecified {
+      try visitor.visitSingularEnumField(value: self.mode, fieldNumber: 2)
+    }
+    if !self.phase.isEmpty {
+      try visitor.visitSingularStringField(value: self.phase, fieldNumber: 3)
+    }
+    if self.controlRevision != 0 {
+      try visitor.visitSingularUInt64Field(value: self.controlRevision, fieldNumber: 4)
+    }
+    if self.attemptID != 0 {
+      try visitor.visitSingularUInt64Field(value: self.attemptID, fieldNumber: 5)
+    }
+    try { if let v = self._session {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    if !self.errorCode.isEmpty {
+      try visitor.visitSingularStringField(value: self.errorCode, fieldNumber: 7)
+    }
+    if !self.message.isEmpty {
+      try visitor.visitSingularStringField(value: self.message, fieldNumber: 8)
+    }
+    if self.probeCount != 0 {
+      try visitor.visitSingularUInt64Field(value: self.probeCount, fieldNumber: 9)
+    }
+    if self.dialCount != 0 {
+      try visitor.visitSingularUInt64Field(value: self.dialCount, fieldNumber: 10)
+    }
+    if self.backoffCount != 0 {
+      try visitor.visitSingularUInt64Field(value: self.backoffCount, fieldNumber: 11)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Client_Binding_V1_EndpointSupervisorProjection, rhs: Anytty_Client_Binding_V1_EndpointSupervisorProjection) -> Bool {
+    if lhs.endpointID != rhs.endpointID {return false}
+    if lhs.mode != rhs.mode {return false}
+    if lhs.phase != rhs.phase {return false}
+    if lhs.controlRevision != rhs.controlRevision {return false}
+    if lhs.attemptID != rhs.attemptID {return false}
+    if lhs._session != rhs._session {return false}
+    if lhs.errorCode != rhs.errorCode {return false}
+    if lhs.message != rhs.message {return false}
+    if lhs.probeCount != rhs.probeCount {return false}
+    if lhs.dialCount != rhs.dialCount {return false}
+    if lhs.backoffCount != rhs.backoffCount {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+nonisolated extension Anytty_Client_Binding_V1_EndpointSupervisorSnapshot: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".EndpointSupervisorSnapshot"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}endpoints\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.endpoints) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.endpoints.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.endpoints, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Client_Binding_V1_EndpointSupervisorSnapshot, rhs: Anytty_Client_Binding_V1_EndpointSupervisorSnapshot) -> Bool {
+    if lhs.endpoints != rhs.endpoints {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -377,7 +377,7 @@ func (engine *Engine) runImportPairing(handle uint64, ctx context.Context, host 
 		log.Printf("anytty binding pairing failed: %v", err)
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ImportPairing{ImportPairing: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ImportPairing{ImportPairing: result}})
 }
 
 func (engine *Engine) runDeleteCredential(handle uint64, ctx context.Context, host CredentialHost, request *bindingpb.DeleteCredentialRequest) {
@@ -390,7 +390,7 @@ func (engine *Engine) runDeleteCredential(handle uint64, ctx context.Context, ho
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_DeleteCredential{DeleteCredential: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_DeleteCredential{DeleteCredential: result}})
 }
 
 func (engine *Engine) runEndpointRegistryGet(handle uint64, ctx context.Context, host EndpointRegistryHost, request *bindingpb.EndpointRegistryGetRequest) {
@@ -408,7 +408,7 @@ func (engine *Engine) runEndpointRegistryGet(handle uint64, ctx context.Context,
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointRegistryGet{EndpointRegistryGet: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointRegistryGet{EndpointRegistryGet: result}})
 }
 
 func (engine *Engine) runEndpointUpsert(handle uint64, ctx context.Context, host EndpointRegistryHost, request *bindingpb.EndpointUpsertRequest) {
@@ -426,7 +426,7 @@ func (engine *Engine) runEndpointUpsert(handle uint64, ctx context.Context, host
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointUpsert{EndpointUpsert: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointUpsert{EndpointUpsert: result}})
 }
 
 func (engine *Engine) runEndpointDelete(handle uint64, ctx context.Context, host EndpointRegistryHost, request *bindingpb.EndpointDeleteRequest) {
@@ -444,7 +444,7 @@ func (engine *Engine) runEndpointDelete(handle uint64, ctx context.Context, host
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointDelete{EndpointDelete: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointDelete{EndpointDelete: result}})
 }
 
 func (engine *Engine) runEndpointShareReceive(handle uint64, ctx context.Context, host EndpointShareHost, request *bindingpb.EndpointShareReceiveRequest) {
@@ -462,7 +462,7 @@ func (engine *Engine) runEndpointShareReceive(handle uint64, ctx context.Context
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointShareReceive{EndpointShareReceive: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointShareReceive{EndpointShareReceive: result}})
 }
 
 func (engine *Engine) runEndpointShareCommit(handle uint64, ctx context.Context, host EndpointShareHost, request *bindingpb.EndpointShareCommitRequest) {
@@ -480,7 +480,7 @@ func (engine *Engine) runEndpointShareCommit(handle uint64, ctx context.Context,
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointShareCommit{EndpointShareCommit: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointShareCommit{EndpointShareCommit: result}})
 }
 
 func (engine *Engine) runSSHCredentialProvision(handle uint64, ctx context.Context, host SSHCredentialHost, request *bindingpb.SSHCredentialProvisionRequest) {
@@ -498,7 +498,7 @@ func (engine *Engine) runSSHCredentialProvision(handle uint64, ctx context.Conte
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_SshCredentialProvision{SshCredentialProvision: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_SshCredentialProvision{SshCredentialProvision: result}})
 }
 
 func (engine *Engine) runConnectionPolicyGet(handle uint64, ctx context.Context, host ConnectionPolicyHost, request *bindingpb.ConnectionPolicyGetRequest) {
@@ -516,7 +516,7 @@ func (engine *Engine) runConnectionPolicyGet(handle uint64, ctx context.Context,
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionPolicyGet{ConnectionPolicyGet: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionPolicyGet{ConnectionPolicyGet: result}})
 }
 
 func (engine *Engine) runConnectionPolicyApply(handle uint64, ctx context.Context, host ConnectionPolicyHost, request *bindingpb.ConnectionPolicyApplyRequest) {
@@ -534,7 +534,7 @@ func (engine *Engine) runConnectionPolicyApply(handle uint64, ctx context.Contex
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionPolicyApply{ConnectionPolicyApply: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionPolicyApply{ConnectionPolicyApply: result}})
 }
 
 func (engine *Engine) runConnectionSnapshotGet(handle uint64, ctx context.Context, session clientruntime.ApplicationReadyPeerSession, request *bindingpb.ConnectionSnapshotGetRequest) {
@@ -557,7 +557,7 @@ func (engine *Engine) runConnectionSnapshotGet(handle uint64, ctx context.Contex
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionSnapshotGet{ConnectionSnapshotGet: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ConnectionSnapshotGet{ConnectionSnapshotGet: result}})
 }
 
 func (engine *Engine) runSessionInvalidate(handle uint64, ctx context.Context, host SessionInvalidationHost, session clientruntime.ApplicationReadyPeerSession, request *bindingpb.SessionInvalidateRequest) {
@@ -572,7 +572,7 @@ func (engine *Engine) runSessionInvalidate(handle uint64, ctx context.Context, h
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_SessionInvalidate{SessionInvalidate: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_SessionInvalidate{SessionInvalidate: result}})
 }
 
 func (engine *Engine) runEndpointDisconnect(handle uint64, ctx context.Context, host EndpointDisconnectionHost, request *bindingpb.EndpointDisconnectRequest) {
@@ -587,7 +587,7 @@ func (engine *Engine) runEndpointDisconnect(handle uint64, ctx context.Context, 
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointDisconnect{EndpointDisconnect: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointDisconnect{EndpointDisconnect: result}})
 }
 
 func (engine *Engine) runEndpointCloudPresenceGet(handle uint64, ctx context.Context, host CloudPresenceHost, request *bindingpb.EndpointCloudPresenceGetRequest) {
@@ -605,5 +605,5 @@ func (engine *Engine) runEndpointCloudPresenceGet(handle uint64, ctx context.Con
 	if err != nil {
 		result.Error = apiError(err)
 	}
-	engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointCloudPresenceGet{EndpointCloudPresenceGet: result}})
+	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_EndpointCloudPresenceGet{EndpointCloudPresenceGet: result}})
 }

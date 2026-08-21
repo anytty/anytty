@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { anyttyI18n } from '../i18n'
 import type { RtcConnectionPhase } from '../core/transport'
-import { connectionPathLabel, connectionPhaseLabel, connectionStatusIsSettled } from './connectionState'
+import { connectionPathLabel, connectionPhaseLabel, connectionStatusIsSettled, inferConnectionPhase } from './connectionState'
 
 describe('connectionStatusIsSettled', () => {
   it('stops the busy overlay when a connection attempt fails', () => {
@@ -37,5 +37,11 @@ describe('connection display projection', () => {
     expect(connectionPathLabel('hub')).toBe('AnyTTY Cloud')
     expect(connectionPathLabel('local')).toBe('Local')
     expect(connectionPathLabel(undefined)).toBe('Connection')
+  })
+
+  it('never classifies disconnected status text as connected', () => {
+    expect(inferConnectionPhase('Disconnected from device')).toBe('failed')
+    expect(inferConnectionPhase('Not connected')).toBe('failed')
+    expect(inferConnectionPhase('Connected')).toBe('connected')
   })
 })

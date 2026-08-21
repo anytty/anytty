@@ -23,7 +23,7 @@ import (
 const (
 	// ABIVersion 是 C/JNI/WASM binding 符号与 EventEnvelope 语义版本。
 	// 不兼容的 handle ownership、函数签名或事件 oneof 变更必须递增该值。
-	ABIVersion uint32 = 4
+	ABIVersion uint32 = 5
 	// MaxPayloadBytes 限制跨语言单次 protobuf 输入，防止 JNI/WASM 分配无界内存。
 	MaxPayloadBytes      = 4 << 20
 	defaultEventCapacity = 256
@@ -61,29 +61,31 @@ type Engine struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	mu          sync.Mutex
-	closed      bool
-	nextHandle  uint64
-	operations  map[uint64]*operation
-	sessions    map[uint64]*sessionRecord
-	streams     map[uint64]*streamRecord
-	cleanupTTL  time.Duration
-	openTimeout time.Duration
-
-	emitMu    sync.Mutex
-	sequence  uint64
-	events    chan []byte
-	closeOnce sync.Once
+	mu             sync.Mutex
+	closed         bool
+	nextHandle     uint64
+	nextRenderer   uint64
+	activeRenderer uint64
+	operations     map[uint64]*operation
+	sessions       map[uint64]*sessionRecord
+	streams        map[uint64]*streamRecord
+	renderers      map[uint64]*rendererRecord
+	eventCapacity  int
+	cleanupTTL     time.Duration
+	openTimeout    time.Duration
+	closeOnce      sync.Once
 }
 
 type operation struct {
 	cancel        context.CancelFunc
 	sessionHandle uint64
+	rendererID    uint64
 	done          bool
 }
 
 type sessionRecord struct {
 	session      clientruntime.ApplicationReadyPeerSession
+	rendererID   uint64
 	activeOps    int
 	closing      bool
 	closeStarted bool
@@ -94,10 +96,28 @@ type streamRecord struct {
 	sendMu        sync.Mutex
 	stream        clientruntime.ResourceStream
 	sessionHandle uint64
+	rendererID    uint64
 	closed        bool
 	uploadHash    hash.Hash
 	uploadBytes   int64
 	uploadStart   int64
+}
+
+type rendererRecord struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	done      chan struct{}
+	events    chan []byte
+	emitMu    sync.Mutex
+	sequence  uint64
+	closeOnce sync.Once
+}
+
+type rendererCleanup struct {
+	renderer   *rendererRecord
+	operations []context.CancelFunc
+	sessions   []clientruntime.ApplicationReadyPeerSession
+	streams    []*streamRecord
 }
 
 // NewEngine 创建使用默认有界事件容量的 binding engine。
@@ -116,11 +136,123 @@ func NewEngineWithEventCapacity(host Host, capacity int) (*Engine, error) {
 		return nil, fmt.Errorf("binding event capacity must be positive")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Engine{
+	engine := &Engine{
 		host: host, ctx: ctx, cancel: cancel, done: make(chan struct{}),
-		operations: make(map[uint64]*operation), sessions: make(map[uint64]*sessionRecord), streams: make(map[uint64]*streamRecord), events: make(chan []byte, capacity),
+		operations: make(map[uint64]*operation), sessions: make(map[uint64]*sessionRecord), streams: make(map[uint64]*streamRecord),
+		renderers: make(map[uint64]*rendererRecord), eventCapacity: capacity,
 		cleanupTTL: 5 * time.Second, openTimeout: defaultOpenTimeout,
-	}, nil
+	}
+	engine.activeRenderer = engine.newRendererLocked()
+	return engine, nil
+}
+
+// AttachRenderer creates a fresh handle and event arena, fencing and cleaning the previous renderer.
+// The Go runtime and its pooled physical endpoint sessions remain owned by Host.
+func (engine *Engine) AttachRenderer() (uint64, error) {
+	if engine == nil {
+		return 0, ErrClosed
+	}
+	engine.mu.Lock()
+	if engine.closed {
+		engine.mu.Unlock()
+		return 0, ErrClosed
+	}
+	if engine.nextRenderer == ^uint64(0) {
+		engine.mu.Unlock()
+		return 0, fmt.Errorf("binding renderer sequence is exhausted")
+	}
+	previous := engine.activeRenderer
+	rendererID := engine.newRendererLocked()
+	cleanup := engine.detachRendererLocked(previous)
+	engine.mu.Unlock()
+	_ = cleanup.run()
+	return rendererID, nil
+}
+
+// DetachRenderer atomically revokes every handle created by rendererID.
+// A stale detach is harmless and cannot affect a newer renderer.
+func (engine *Engine) DetachRenderer(rendererID uint64) error {
+	if engine == nil || rendererID == 0 {
+		return nil
+	}
+	engine.mu.Lock()
+	cleanup := engine.detachRendererLocked(rendererID)
+	engine.mu.Unlock()
+	return cleanup.run()
+}
+
+func (engine *Engine) newRendererLocked() uint64 {
+	engine.nextRenderer++
+	ctx, cancel := context.WithCancel(engine.ctx)
+	engine.renderers[engine.nextRenderer] = &rendererRecord{
+		ctx: ctx, cancel: cancel, done: make(chan struct{}), events: make(chan []byte, engine.eventCapacity),
+	}
+	engine.activeRenderer = engine.nextRenderer
+	return engine.nextRenderer
+}
+
+func (engine *Engine) detachRendererLocked(rendererID uint64) rendererCleanup {
+	record := engine.renderers[rendererID]
+	if record == nil {
+		return rendererCleanup{}
+	}
+	delete(engine.renderers, rendererID)
+	if engine.activeRenderer == rendererID {
+		engine.activeRenderer = 0
+	}
+	cleanup := rendererCleanup{renderer: record}
+	for handle, operation := range engine.operations {
+		if operation.rendererID != rendererID {
+			continue
+		}
+		cleanup.operations = append(cleanup.operations, operation.cancel)
+		delete(engine.operations, handle)
+	}
+	for handle, stream := range engine.streams {
+		if stream.rendererID != rendererID {
+			continue
+		}
+		stream.closed = true
+		cleanup.streams = append(cleanup.streams, stream)
+		delete(engine.streams, handle)
+	}
+	for handle, session := range engine.sessions {
+		if session.rendererID != rendererID {
+			continue
+		}
+		session.closed = true
+		cleanup.sessions = append(cleanup.sessions, session.session)
+		delete(engine.sessions, handle)
+	}
+	return cleanup
+}
+
+func (cleanup rendererCleanup) run() error {
+	if cleanup.renderer == nil {
+		return nil
+	}
+	cleanup.renderer.closeOnce.Do(func() {
+		cleanup.renderer.cancel()
+		close(cleanup.renderer.done)
+	})
+	for _, cancel := range cleanup.operations {
+		cancel()
+	}
+	var first error
+	for _, stream := range cleanup.streams {
+		stream.sendMu.Lock()
+		err := stream.stream.Close()
+		stream.sendMu.Unlock()
+		if err != nil && first == nil {
+			first = err
+		}
+	}
+	for _, session := range cleanup.sessions {
+		if err := session.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
 }
 
 // OpenResourceStream 解析 bindingpb.OpenResourceStreamRequest，并把 session-bound framing stream 注册为 opaque handle。
@@ -174,7 +306,7 @@ func (engine *Engine) OpenResourceStream(sessionHandle uint64, payload []byte) (
 	handle, err := engine.allocateHandleLocked()
 	if err == nil {
 		engine.streams[handle] = &streamRecord{
-			stream: stream, sessionHandle: sessionHandle, uploadHash: sha256.New(),
+			stream: stream, sessionHandle: sessionHandle, rendererID: sessionRecord.rendererID, uploadHash: sha256.New(),
 			uploadBytes: request.GetInitialUploadOffset(), uploadStart: request.GetInitialUploadOffset(),
 		}
 	}
@@ -279,7 +411,7 @@ func (engine *Engine) CloseResourceStream(handle uint64) error {
 		return ErrClosed
 	}
 	record := engine.streams[handle]
-	if record == nil {
+	if record == nil || record.rendererID != engine.activeRenderer {
 		engine.mu.Unlock()
 		return ErrInvalidHandle
 	}
@@ -349,12 +481,35 @@ func (engine *Engine) NextEvent(ctx context.Context) ([]byte, error) {
 	if engine == nil {
 		return nil, ErrClosed
 	}
+	engine.mu.Lock()
+	rendererID := engine.activeRenderer
+	engine.mu.Unlock()
+	return engine.NextEventForRenderer(ctx, rendererID)
+}
+
+// NextEventForRenderer reads only events emitted by rendererID's arena.
+func (engine *Engine) NextEventForRenderer(ctx context.Context, rendererID uint64) ([]byte, error) {
+	if engine == nil {
+		return nil, ErrClosed
+	}
+	engine.mu.Lock()
+	if engine.closed {
+		engine.mu.Unlock()
+		return nil, ErrClosed
+	}
+	renderer := engine.renderers[rendererID]
+	engine.mu.Unlock()
+	if renderer == nil {
+		return nil, ErrInvalidHandle
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-engine.done:
 		return nil, ErrClosed
-	case payload := <-engine.events:
+	case <-renderer.done:
+		return nil, ErrInvalidHandle
+	case payload := <-renderer.events:
 		return append([]byte(nil), payload...), nil
 	}
 }
@@ -368,7 +523,7 @@ func (engine *Engine) Cancel(operationHandle uint64) error {
 		return ErrClosed
 	}
 	operation := engine.operations[operationHandle]
-	if operation == nil {
+	if operation == nil || operation.rendererID != engine.activeRenderer {
 		return ErrInvalidHandle
 	}
 	if operation.done {
@@ -387,7 +542,7 @@ func (engine *Engine) CloseSession(sessionHandle uint64) error {
 		return ErrClosed
 	}
 	record := engine.sessions[sessionHandle]
-	if record == nil {
+	if record == nil || record.rendererID != engine.activeRenderer {
 		engine.mu.Unlock()
 		return ErrInvalidHandle
 	}
@@ -438,6 +593,9 @@ func (engine *Engine) Release(handle uint64) error {
 		return ErrClosed
 	}
 	if operation := engine.operations[handle]; operation != nil {
+		if operation.rendererID != engine.activeRenderer {
+			return ErrInvalidHandle
+		}
 		if !operation.done {
 			return ErrHandleActive
 		}
@@ -445,6 +603,9 @@ func (engine *Engine) Release(handle uint64) error {
 		return nil
 	}
 	if record := engine.sessions[handle]; record != nil {
+		if record.rendererID != engine.activeRenderer {
+			return ErrInvalidHandle
+		}
 		if !record.closed {
 			return ErrHandleActive
 		}
@@ -452,6 +613,9 @@ func (engine *Engine) Release(handle uint64) error {
 		return nil
 	}
 	if record := engine.streams[handle]; record != nil {
+		if record.rendererID != engine.activeRenderer {
+			return ErrInvalidHandle
+		}
 		if !record.closed {
 			return ErrHandleActive
 		}
@@ -471,6 +635,12 @@ func (engine *Engine) Close() error {
 	engine.closeOnce.Do(func() {
 		engine.mu.Lock()
 		engine.closed = true
+		renderers := make([]*rendererRecord, 0, len(engine.renderers))
+		for rendererID, renderer := range engine.renderers {
+			renderers = append(renderers, renderer)
+			delete(engine.renderers, rendererID)
+		}
+		engine.activeRenderer = 0
 		for _, operation := range engine.operations {
 			operation.cancel()
 		}
@@ -489,6 +659,12 @@ func (engine *Engine) Close() error {
 		engine.mu.Unlock()
 		engine.cancel()
 		close(engine.done)
+		for _, renderer := range renderers {
+			renderer.closeOnce.Do(func() {
+				renderer.cancel()
+				close(renderer.done)
+			})
+		}
 		for _, stream := range streams {
 			stream.sendMu.Lock()
 			err := stream.stream.Close()
@@ -518,7 +694,7 @@ func (engine *Engine) forwardResourceStream(handle uint64, stream clientruntime.
 		if terminalError != nil && !errors.Is(terminalError, io.EOF) && !errors.Is(terminalError, context.Canceled) {
 			event.GetResourceStreamClosed().Error = apiError(terminalError)
 		}
-		engine.emit(event)
+		engine.emitForHandle(handle, event)
 	}()
 	for {
 		typ, payload, err := stream.Receive(engine.ctx)
@@ -536,7 +712,7 @@ func (engine *Engine) forwardResourceStream(handle uint64, stream clientruntime.
 			terminalError = err
 			return
 		}
-		engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ResourceStreamFrame{ResourceStreamFrame: &bindingpb.ResourceStreamFrame{
+		engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_ResourceStreamFrame{ResourceStreamFrame: &bindingpb.ResourceStreamFrame{
 			StreamHandle: handle, Type: bindingType, Payload: append([]byte(nil), payload...),
 		}}})
 	}
@@ -571,7 +747,7 @@ func (engine *Engine) runOpen(handle uint64, ctx context.Context, request *bindi
 			var allocateErr error
 			sessionHandle, allocateErr = engine.allocateHandleLocked()
 			if allocateErr == nil {
-				engine.sessions[sessionHandle] = &sessionRecord{session: session}
+				engine.sessions[sessionHandle] = &sessionRecord{session: session, rendererID: operation.rendererID}
 			}
 			engine.mu.Unlock()
 			if allocateErr != nil {
@@ -596,7 +772,7 @@ func (engine *Engine) runOpen(handle uint64, ctx context.Context, request *bindi
 	} else {
 		event.GetOpenSession().Error = apiError(err)
 	}
-	engine.emit(event)
+	engine.emitForHandle(handle, event)
 	if session != nil {
 		go engine.forwardSession(sessionHandle, session)
 	}
@@ -634,7 +810,7 @@ func (engine *Engine) forwardOpenLifecycle(handle uint64, request *bindingpb.Ope
 			if event.Phase == clientruntime.EndpointPhaseIdle {
 				continue
 			}
-			engine.emit(endpointConnectionEvent(handle, request.GetRequestId(), event))
+			engine.emitForHandle(handle, endpointConnectionEvent(handle, request.GetRequestId(), event))
 		}
 	}()
 	return func() {
@@ -788,7 +964,7 @@ func (engine *Engine) runExecute(handle, sessionHandle uint64, ctx context.Conte
 	} else {
 		event.GetExecute().Result = proto.Clone(result).(*apipb.ResultEnvelope)
 	}
-	engine.emit(event)
+	engine.emitForHandle(handle, event)
 }
 
 func invalidateSessionAfterCleanupFailure(session clientruntime.ApplicationReadyPeerSession, cause error) error {
@@ -864,7 +1040,7 @@ func (engine *Engine) forwardSession(handle uint64, session clientruntime.Applic
 				return
 			}
 			if event != nil {
-				engine.emit(&bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_Application{Application: &bindingpb.ApplicationEvent{
+				engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_Application{Application: &bindingpb.ApplicationEvent{
 					SessionHandle: handle, Event: proto.Clone(event).(*apipb.EventEnvelope),
 				}}})
 			}
@@ -911,21 +1087,25 @@ func (engine *Engine) finishSession(handle uint64, session clientruntime.Applica
 	if err != nil && !errors.Is(err, io.EOF) {
 		event.GetSessionClosed().Error = apiError(err)
 	}
-	engine.emit(event)
+	engine.emitForHandle(handle, event)
 }
 
 func (engine *Engine) startOperation() (uint64, context.Context, error) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
+	renderer := engine.renderers[engine.activeRenderer]
 	if engine.closed {
 		return 0, nil, ErrClosed
+	}
+	if renderer == nil {
+		return 0, nil, ErrInvalidHandle
 	}
 	handle, err := engine.allocateHandleLocked()
 	if err != nil {
 		return 0, nil, err
 	}
-	ctx, cancel := context.WithCancel(engine.ctx)
-	engine.operations[handle] = &operation{cancel: cancel}
+	ctx, cancel := context.WithCancel(renderer.ctx)
+	engine.operations[handle] = &operation{cancel: cancel, rendererID: engine.activeRenderer}
 	return handle, ctx, nil
 }
 
@@ -936,15 +1116,19 @@ func (engine *Engine) startSessionOperation(sessionHandle uint64) (uint64, conte
 		return 0, nil, nil, ErrClosed
 	}
 	record := engine.sessions[sessionHandle]
-	if record == nil || record.closing || record.closed {
+	if record == nil || record.rendererID != engine.activeRenderer || record.closing || record.closed {
+		return 0, nil, nil, ErrInvalidHandle
+	}
+	renderer := engine.renderers[record.rendererID]
+	if renderer == nil {
 		return 0, nil, nil, ErrInvalidHandle
 	}
 	handle, err := engine.allocateHandleLocked()
 	if err != nil {
 		return 0, nil, nil, err
 	}
-	ctx, cancel := context.WithCancel(engine.ctx)
-	engine.operations[handle] = &operation{cancel: cancel, sessionHandle: sessionHandle}
+	ctx, cancel := context.WithCancel(renderer.ctx)
+	engine.operations[handle] = &operation{cancel: cancel, sessionHandle: sessionHandle, rendererID: record.rendererID}
 	record.activeOps++
 	return handle, ctx, record.session, nil
 }
@@ -995,7 +1179,7 @@ func (engine *Engine) activeSession(handle uint64) (clientruntime.ApplicationRea
 		return nil, ErrClosed
 	}
 	record := engine.sessions[handle]
-	if record == nil || record.closing || record.closed {
+	if record == nil || record.rendererID != engine.activeRenderer || record.closing || record.closed {
 		return nil, ErrInvalidHandle
 	}
 	return record.session, nil
@@ -1008,7 +1192,7 @@ func (engine *Engine) activeStreamRecord(handle uint64) (*streamRecord, error) {
 		return nil, ErrClosed
 	}
 	record := engine.streams[handle]
-	if record == nil || record.closed {
+	if record == nil || record.rendererID != engine.activeRenderer || record.closed {
 		return nil, ErrInvalidHandle
 	}
 	return record, nil
@@ -1018,11 +1202,11 @@ func (engine *Engine) validateStreamSendLocked(handle uint64, record *streamReco
 	if engine.closed {
 		return ErrClosed
 	}
-	if record == nil || engine.streams[handle] != record || record.closed {
+	if record == nil || engine.streams[handle] != record || record.rendererID != engine.activeRenderer || record.closed {
 		return ErrInvalidHandle
 	}
 	session := engine.sessions[record.sessionHandle]
-	if session == nil || session.closing || session.closed {
+	if session == nil || session.rendererID != record.rendererID || session.closing || session.closed {
 		return ErrInvalidHandle
 	}
 	return nil
@@ -1102,22 +1286,37 @@ func bindingPayloadForWireFrame(typ uint8, payload []byte) ([]byte, error) {
 	}
 }
 
-func (engine *Engine) emit(event *bindingpb.EventEnvelope) {
-	if engine == nil || event == nil {
+func (engine *Engine) emitForHandle(handle uint64, event *bindingpb.EventEnvelope) {
+	if engine == nil || handle == 0 || event == nil {
 		return
 	}
-	engine.emitMu.Lock()
-	defer engine.emitMu.Unlock()
-	engine.sequence++
+	engine.mu.Lock()
+	rendererID := uint64(0)
+	if operation := engine.operations[handle]; operation != nil {
+		rendererID = operation.rendererID
+	} else if session := engine.sessions[handle]; session != nil {
+		rendererID = session.rendererID
+	} else if stream := engine.streams[handle]; stream != nil {
+		rendererID = stream.rendererID
+	}
+	renderer := engine.renderers[rendererID]
+	engine.mu.Unlock()
+	if renderer == nil {
+		return
+	}
+	renderer.emitMu.Lock()
+	defer renderer.emitMu.Unlock()
+	renderer.sequence++
 	event.AbiVersion = ABIVersion
-	event.Sequence = engine.sequence
+	event.Sequence = renderer.sequence
 	payload, err := (proto.MarshalOptions{Deterministic: true}).Marshal(event)
 	if err != nil {
 		return
 	}
 	select {
 	case <-engine.done:
-	case engine.events <- payload:
+	case <-renderer.done:
+	case renderer.events <- payload:
 	}
 }
 

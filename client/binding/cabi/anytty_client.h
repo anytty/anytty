@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define ANYTTY_CLIENT_ABI_VERSION 4u
+#define ANYTTY_CLIENT_ABI_VERSION 5u
 
 typedef uint64_t anytty_handle_t;
 
@@ -34,6 +34,10 @@ uint32_t anytty_client_abi_version(void);
 anytty_status_v1 anytty_engine_create(anytty_handle_t *out_engine_handle);
 anytty_status_v1 anytty_bridge_start(anytty_handle_t engine_handle, const uint8_t *token, size_t token_length, uint16_t *out_port);
 anytty_status_v1 anytty_local_probe(const uint8_t *local_discovery_proto, size_t local_discovery_length, uint8_t *out_reachable);
+anytty_status_v1 anytty_supervisor_replace_demand(anytty_handle_t engine_handle, const uint8_t *demand_proto, size_t demand_length);
+anytty_status_v1 anytty_supervisor_signal(anytty_handle_t engine_handle, const uint8_t *signal_proto, size_t signal_length);
+anytty_status_v1 anytty_supervisor_wait_ready(anytty_handle_t engine_handle, uint32_t timeout_millis);
+anytty_status_v1 anytty_supervisor_snapshot(anytty_handle_t engine_handle, anytty_buffer_v1 *out_snapshot_proto);
 anytty_status_v1 anytty_engine_open_session(anytty_handle_t engine_handle, const uint8_t *request_proto, size_t request_length, anytty_handle_t *out_operation_handle);
 anytty_status_v1 anytty_engine_execute(anytty_handle_t engine_handle, anytty_handle_t session_handle, const uint8_t *command_proto, size_t command_length, anytty_handle_t *out_operation_handle);
 anytty_status_v1 anytty_engine_open_resource_stream(anytty_handle_t engine_handle, anytty_handle_t session_handle, const uint8_t *request_proto, size_t request_length, anytty_handle_t *out_stream_handle);

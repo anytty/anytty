@@ -1,14 +1,22 @@
 package com.anytty.app;
 
 import android.webkit.WebResourceRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeWebViewClient;
 
 public final class AnyTTYWebViewClient extends BridgeWebViewClient {
-    public AnyTTYWebViewClient(Bridge bridge) {
+    public interface RendererGoneHandler {
+        boolean onRendererGone(WebView view, RenderProcessGoneDetail detail);
+    }
+
+    private final RendererGoneHandler rendererGoneHandler;
+
+    public AnyTTYWebViewClient(Bridge bridge, RendererGoneHandler rendererGoneHandler) {
         super(bridge);
+        this.rendererGoneHandler = rendererGoneHandler;
     }
 
     @Override
@@ -20,5 +28,10 @@ public final class AnyTTYWebViewClient extends BridgeWebViewClient {
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
         return !AnyTTYLocalUrl.isCanonical(url);
+    }
+
+    @Override
+    public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+        return rendererGoneHandler.onRendererGone(view, detail);
     }
 }

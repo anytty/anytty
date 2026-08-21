@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NativeGenerationRecoveryFence } from './NativeGenerationRecoveryFence'
-import { NativeRecoveryCoordinator, type NativeRecoveryWork } from './NativeRecoveryCoordinator'
+import {
+  NativeRecoveryCoordinator,
+  resumeNativeForegroundTargets,
+  type NativeRecoveryWork,
+} from './NativeRecoveryCoordinator'
 
 describe('NativeRecoveryCoordinator', () => {
   it('coalesces repeated work into one active recovery', async () => {
@@ -8,8 +12,8 @@ describe('NativeRecoveryCoordinator', () => {
     const gate = deferred<void>()
     harness.execute.mockImplementationOnce(async () => await gate.promise)
 
-    const first = harness.request({ replaceBinding: true, reloadRegistry: false })
-    const repeated = harness.request({ replaceBinding: true, reloadRegistry: false })
+    const first = harness.request('repair')
+    const repeated = harness.request('repair')
 
     expect(repeated).toBe(first)
     gate.resolve()
@@ -17,21 +21,20 @@ describe('NativeRecoveryCoordinator', () => {
     expect(harness.execute).toHaveBeenCalledOnce()
   })
 
-  it('drains one OR-upgraded request after invalidating the active attempt', async () => {
+  it('drains one upgraded request after invalidating the active attempt', async () => {
     const harness = recoveryHarness()
     const gate = deferred<void>()
     harness.execute.mockImplementationOnce(async () => await gate.promise)
 
-    const recovery = harness.request({ replaceBinding: false, reloadRegistry: true })
-    harness.request({ replaceBinding: true, reloadRegistry: false })
-    harness.request({ replaceBinding: false, reloadRegistry: true })
+    const recovery = harness.request('ensure_ready')
+    harness.request('repair')
+    harness.request('ensure_ready')
     gate.resolve()
     await recovery
 
     expect(harness.execute).toHaveBeenCalledTimes(2)
     expect(harness.execute.mock.calls[1]?.[0]).toMatchObject({
-      replaceBinding: true,
-      reloadRegistry: true,
+      intent: 'repair',
     })
   })
 
@@ -40,16 +43,15 @@ describe('NativeRecoveryCoordinator', () => {
     const gate = deferred<void>()
     harness.execute.mockImplementationOnce(async () => await gate.promise)
 
-    const recovery = harness.request({ replaceBinding: false, reloadRegistry: true })
+    const recovery = harness.request('ensure_ready')
     harness.fence.invalidate()
-    harness.request({ replaceBinding: false, reloadRegistry: true })
+    harness.request('ensure_ready')
     gate.resolve()
     await recovery
 
     expect(harness.execute).toHaveBeenCalledTimes(2)
     expect(harness.execute.mock.calls[1]?.[0]).toMatchObject({
-      replaceBinding: false,
-      reloadRegistry: true,
+      intent: 'ensure_ready',
     })
   })
 
@@ -61,12 +63,62 @@ describe('NativeRecoveryCoordinator', () => {
       throw new Error('stale bridge failed')
     })
 
-    const recovery = harness.request({ replaceBinding: false, reloadRegistry: true })
-    harness.request({ replaceBinding: true, reloadRegistry: false })
+    const recovery = harness.request('ensure_ready')
+    harness.request('repair')
     gate.resolve()
 
     await expect(recovery).resolves.toBeUndefined()
     expect(harness.execute).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not downgrade a pending repair request', async () => {
+    const harness = recoveryHarness()
+    const gate = deferred<void>()
+    harness.execute.mockImplementationOnce(async () => await gate.promise)
+
+    const recovery = harness.request('ensure_ready')
+    harness.request('repair', 'binding_closed')
+    harness.request('ensure_ready', 'page_visible')
+    gate.resolve()
+    await recovery
+
+    expect(harness.execute).toHaveBeenCalledTimes(2)
+    expect(harness.execute.mock.calls[1]?.[0]).toMatchObject({
+      intent: 'repair',
+      trigger: 'binding_closed',
+    })
+  })
+})
+
+describe('resumeNativeForegroundTargets', () => {
+  it('waits for every target and rejects a single endpoint failure unchanged', async () => {
+    const failure = new Error('endpoint-a failed')
+    const second = deferred<void>()
+    const resumed = resumeNativeForegroundTargets([
+      { endpointId: 'endpoint-a', resume: async () => { throw failure } },
+      { endpointId: 'endpoint-b', resume: async () => await second.promise },
+    ])
+    let settled = false
+    void resumed.finally(() => { settled = true }).catch(() => undefined)
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    second.resolve()
+
+    await expect(resumed).rejects.toBe(failure)
+  })
+
+  it('aggregates multiple endpoint failures with endpoint context', async () => {
+    const failureA = new Error('endpoint-a failed')
+    const failureB = new Error('endpoint-b failed')
+
+    await expect(resumeNativeForegroundTargets([
+      { endpointId: 'endpoint-a', resume: async () => { throw failureA } },
+      { endpointId: 'endpoint-b', resume: async () => { throw failureB } },
+    ])).rejects.toMatchObject({
+      message: 'Native foreground resume failed for endpoints: endpoint-a, endpoint-b',
+      errors: [failureA, failureB],
+    })
   })
 })
 
@@ -77,8 +129,11 @@ function recoveryHarness() {
   return {
     execute,
     fence,
-    request(request: { replaceBinding: boolean; reloadRegistry: boolean }) {
-      return coordinator.request(request, {
+    request(intent: 'ensure_ready' | 'repair', trigger: 'app_resume' | 'page_visible' | 'binding_closed' = 'app_resume') {
+      return coordinator.request({
+        intent,
+        trigger,
+      }, {
         beginAttempt: () => fence.beginAttempt(),
         isCurrent: (attempt) => fence.isCurrent(attempt),
         execute,

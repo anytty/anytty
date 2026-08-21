@@ -342,6 +342,30 @@ func (owner *SessionOwner) ApplicationSession(lease SessionLease) (ApplicationRe
 	}, nil
 }
 
+// AcquireCurrent returns a consumer lease for the current ready winner without
+// resolving configuration or starting a route attempt. Endpoint supervisors use
+// this to probe a retained physical session before deciding to replace it.
+func (owner *SessionOwner) AcquireCurrent(endpointID endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	if owner == nil || strings.TrimSpace(string(endpointID)) == "" {
+		return nil, runtimeError(ErrorInvalidRequest, "session owner and endpoint_id are required", nil)
+	}
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.closed {
+		return nil, runtimeError(ErrorUnavailable, "session owner is closed", nil)
+	}
+	current := owner.current[endpointID]
+	if current == nil || !owner.authority.isCurrent(endpointID, current.Stamp().Generation, current) {
+		return nil, runtimeError(ErrorNotFound, fmt.Sprintf("endpoint %q has no current session", endpointID), nil)
+	}
+	select {
+	case <-current.Done():
+		return nil, runtimeError(ErrorNotFound, fmt.Sprintf("endpoint %q has no live current session", endpointID), current.Err())
+	default:
+	}
+	return owner.newSharedLeaseLocked(endpointID, current), nil
+}
+
 // ExecuteApplication 把 generated Proto command 路由到 stamp 指定的当前 ready session。
 // generation 不匹配时在进入 protocol adapter 前失败，非幂等 command 不会被自动重放到新 session。
 func (owner *SessionOwner) ExecuteApplication(ctx context.Context, stamp EndpointSessionStamp, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {

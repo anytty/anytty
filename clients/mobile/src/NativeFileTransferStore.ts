@@ -1241,6 +1241,10 @@ type UploadSource = {
   close(): Promise<void>
 }
 
+// Android WebView fragments bridge messages at the 64 KiB boundary. Leave
+// enough room for the bridge header and both protobuf envelopes.
+const MAX_BRIDGE_UPLOAD_DATA_BYTES = 60 * 1024
+
 async function sendUploadSource(
   stream: ProtoResourceStream,
   transfer: AnyTTYApiFile.FileTransferHandle,
@@ -1296,7 +1300,7 @@ async function sendUploadSource(
       if (terminalError) throw terminalError
       if (credit <= 0) await new Promise<void>((resolve) => { wake = resolve })
       if (terminalError) throw terminalError
-      const length = Math.min(transfer.chunkBytes, credit, source.size - offset)
+      const length = Math.min(transfer.chunkBytes, credit, source.size - offset, MAX_BRIDGE_UPLOAD_DATA_BYTES)
       const data = await source.read(offset, length)
       if (data.byteLength !== length) throw new Error('upload source returned the wrong chunk length')
       const chunkOffset = offset

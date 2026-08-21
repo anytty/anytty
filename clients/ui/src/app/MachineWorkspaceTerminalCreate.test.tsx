@@ -17,6 +17,7 @@ import { MockProtoSession, protoResult } from '../test/mockProtoSession'
 import { DEFAULT_TERMINAL_SETTINGS } from '../terminal/terminalSettings'
 import type { RtcConnectionStateSnapshot } from '../core/transport'
 import { MachineWorkspace } from './MachineWorkspace'
+import { ConnectionRecoveryOverlayProvider } from '../connection/ConnectionRecoveryOverlay'
 
 const terminalRender = vi.hoisted(() => vi.fn())
 const terminalSendInput = vi.hoisted(() => vi.fn())
@@ -25,6 +26,10 @@ const terminalFocus = vi.hoisted(() => vi.fn())
 const terminalBlur = vi.hoisted(() => vi.fn())
 const terminalFit = vi.hoisted(() => vi.fn())
 const terminalReattach = vi.hoisted(() => vi.fn())
+const terminalRequestResizeOwner = vi.hoisted(() => vi.fn())
+const terminalReleaseResizeOwner = vi.hoisted(() => vi.fn())
+const terminalSetResizeLock = vi.hoisted(() => vi.fn())
+const terminalOpenHistorySearch = vi.hoisted(() => vi.fn())
 const terminalHarness = vi.hoisted(() => ({ exposeHandle: true, selection: '' }))
 const originalInnerWidth = window.innerWidth
 
@@ -35,11 +40,16 @@ vi.mock('../terminal/Terminal', () => ({
     useImperativeHandle(ref, () => terminalHarness.exposeHandle ? ({
       sendInput: (data: string) => terminalSendInput(terminalId, data),
       sendResize: () => {},
-      requestResizeOwner: async () => ({ canResize: true, reason: 'owner' }),
-      releaseResizeOwner: async () => ({ canResize: false, reason: 'follower' }),
+      requestResizeOwner: () => terminalRequestResizeOwner(terminalId),
+      releaseResizeOwner: () => terminalReleaseResizeOwner(terminalId),
+      setResizeLock: async (locked: boolean) => {
+        terminalSetResizeLock(terminalId, locked)
+        return { canResize: !locked, reason: locked ? 'size_locked' : 'owner', sizeLocked: locked }
+      },
       focus: () => terminalFocus(terminalId),
       blur: () => terminalBlur(terminalId),
       fit: () => terminalFit(terminalId),
+      openHistorySearch: () => terminalOpenHistorySearch(terminalId),
       reattach: (...args: unknown[]) => terminalReattach(terminalId, ...args),
       selectAll: () => { terminalHarness.selection = 'selected terminal text' },
       selectVisible: () => { terminalHarness.selection = 'selected terminal text' },
@@ -70,6 +80,10 @@ describe('MachineWorkspace terminal creation', () => {
     terminalBlur.mockReset()
     terminalFit.mockReset()
     terminalReattach.mockReset()
+    terminalRequestResizeOwner.mockReset().mockResolvedValue({ canResize: true, reason: 'owner' })
+    terminalReleaseResizeOwner.mockReset().mockResolvedValue({ canResize: false, reason: 'follower' })
+    terminalSetResizeLock.mockReset()
+    terminalOpenHistorySearch.mockReset()
     terminalHarness.exposeHandle = true
     terminalHarness.selection = ''
     await anyttyI18n.changeLanguage('en')
@@ -192,8 +206,7 @@ describe('MachineWorkspace terminal creation', () => {
     expect(within(header).getByRole('button', { name: 'Split terminal' })).toBeTruthy()
     expect(within(header).queryByRole('button', { name: 'Control resize' })).toBeNull()
     expect(within(header).getByRole('button', { name: 'Terminal tools' })).toBeTruthy()
-    const menuButton = within(header).getByTestId('anytty-terminal-menu-button')
-    expect(menuButton.querySelector('.lucide-ellipsis')).toBeTruthy()
+    expect(within(header).queryByTestId('anytty-terminal-menu-button')).toBeNull()
     expect(header.className).toContain('min-h-11')
     expect(Array.from(header.querySelectorAll('button')).every((button) => (
       button.className.includes('h-9') || button.className.includes('min-h-9') || button.className.includes('h-11')
@@ -211,6 +224,235 @@ describe('MachineWorkspace terminal creation', () => {
     fireEvent.pointerMove(handle, { pointerId: 1, clientY: 150 })
     fireEvent.pointerUp(handle, { pointerId: 1, clientY: 150 })
     expect(dialog.className).toContain('h-[60dvh]')
+  })
+
+  it('loads other machines only when expanded and switches directly to their terminal', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const remoteTerminal = {
+      terminalId: 'term-logs', machineId: 'server', title: 'Logs', state: 'running' as const,
+      command: 'tail -f app.log', cols: 80, rows: 24,
+    }
+    const loadMachineTerminals = vi.fn(async () => [remoteTerminal])
+    const onSwitchTerminal = vi.fn()
+    const session = new MockProtoSession('studio')
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      terminalSwitcherMachines={[
+        { machineId: 'studio', name: 'Studio', terminalCount: 1 },
+        { machineId: 'server', name: 'Server', terminalCount: 1 },
+      ]}
+      loadMachineTerminals={loadMachineTerminals}
+      onSwitchTerminal={onSwitchTerminal}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await userEvent.click(screen.getByRole('button', { name: /Switch terminal:/ }))
+    const groups = await screen.findByTestId('anytty-terminal-machine-groups')
+    expect(within(groups).queryByRole('button', { name: 'Open Logs' })).toBeNull()
+    const serverGroup = groups.querySelector('[data-switcher-machine-id="server"]') as HTMLElement
+    await userEvent.click(within(serverGroup).getByRole('button', { name: /Server/ }))
+
+    expect(loadMachineTerminals).toHaveBeenCalledTimes(1)
+    await userEvent.click(await within(serverGroup).findByRole('button', { name: 'Open Logs' }))
+    expect(onSwitchTerminal).toHaveBeenCalledWith({ machineId: 'server', terminalId: 'term-logs' })
+  })
+
+  it('persists keyboard layout mode for the same terminal', async () => {
+    const values = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value) },
+      removeItem: (key: string) => { values.delete(key) },
+    }
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    const renderWorkspace = () => render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+      storage={storage}
+    />)
+
+    const first = renderWorkspace()
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: 'Always Shift' }))
+    expect(Array.from(values.entries())).toContainEqual([
+      'anytty.terminal.keyboard-mode.v1:studio:term-shell',
+      'shift',
+    ])
+    first.unmount()
+
+    renderWorkspace()
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    expect(screen.getByRole('button', { name: 'Always Shift' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('opens history search for the active terminal from the tools toolbar', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: 'Search history' }))
+
+    expect(terminalOpenHistorySearch).toHaveBeenCalledOnce()
+    expect(terminalOpenHistorySearch).toHaveBeenCalledWith('term-shell')
+    expect(screen.queryByTestId('anytty-terminal-action-toolbar')).toBeNull()
+  })
+
+  it('pastes from the injected system clipboard without reading remote clipboard history', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    const readText = vi.fn(async () => 'from phone clipboard')
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+      systemClipboard={{ readText, writeText: vi.fn() }}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: 'Paste' }))
+
+    await waitFor(() => expect(terminalPasteText).toHaveBeenCalledWith('term-shell', 'from phone clipboard'))
+    expect(readText).toHaveBeenCalledOnce()
+  })
+
+  it('shows a localized paste failure instead of the native clipboard exception', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+      systemClipboard={{
+        readText: vi.fn(async () => { throw new Error("Failed to execute 'readText' on 'Clipboard': Read permission denied.") }),
+        writeText: vi.fn(),
+      }}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: 'Paste' }))
+
+    expect((await screen.findAllByText('Unable to read the system clipboard')).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Read permission denied/)).toBeNull()
+  })
+
+  it('locks terminal size independently from owner permission', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cwd: '/srv/shell', cols: 80, rows: 24 }
+    const session = new MockProtoSession('studio')
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: /Acquire owner permission/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Release owner permission/ })).toBeTruthy())
+    terminalFocus.mockClear()
+    await userEvent.click(screen.getByRole('button', { name: 'Lock terminal size' }))
+
+    await waitFor(() => expect(terminalSetResizeLock).toHaveBeenCalledWith('term-shell', true))
+    await waitFor(() => expect(session.commands.some((command) => command.command.case === 'terminalSetTags')).toBe(true))
+    const command = session.commands.find((item) => item.command.case === 'terminalSetTags')
+    expect(command?.command.value).toMatchObject({ tags: { 'anytty.size_lock': 'lock', cwd: '/srv/shell' } })
+    expect(session.commands.some((item) => item.command.case === 'terminalSetMetadata')).toBe(false)
+    await waitFor(() => expect(terminalFit).toHaveBeenCalledWith('term-shell'))
+    expect(terminalFocus).not.toHaveBeenCalled()
+  })
+
+  it('lets a locked follower take owner permission and then unlock the terminal size', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    const terminalProps = terminalRender.mock.calls.at(-1)?.[0] as {
+      onResizeControl: (control: { canResize: boolean; reason: string; sizeLocked?: boolean }) => void
+    }
+    act(() => terminalProps.onResizeControl({ canResize: false, reason: 'follower', sizeLocked: true }))
+    terminalRequestResizeOwner.mockResolvedValueOnce({ canResize: false, reason: 'size_locked', sizeLocked: true })
+
+    await openTerminalTools()
+    const acquireOwnerButton = screen.getByRole('button', { name: /Acquire owner permission/ })
+    expect(acquireOwnerButton.hasAttribute('disabled')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Unlock terminal size' }).hasAttribute('disabled')).toBe(true)
+
+    await userEvent.click(acquireOwnerButton)
+    await waitFor(() => expect(screen.getByRole('button', { name: /Release owner permission/ })).toBeTruthy())
+    const unlockButton = screen.getByRole('button', { name: 'Unlock terminal size' })
+    expect(unlockButton.hasAttribute('disabled')).toBe(false)
+    await userEvent.click(unlockButton)
+
+    await waitFor(() => expect(terminalSetResizeLock).toHaveBeenCalledWith('term-shell', false))
+  })
+
+  it('keeps resize-control failures local instead of reporting a network failure', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, cols: 80, rows: 24 }
+    const session = new MockProtoSession('studio')
+    render(<ConnectionRecoveryOverlayProvider><MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+    /></ConnectionRecoveryOverlayProvider>)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await openTerminalTools()
+    await userEvent.click(screen.getByRole('button', { name: /Acquire owner permission/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Release owner permission/ })).toBeTruthy())
+    terminalSetResizeLock.mockImplementationOnce(() => { throw new Error('terminal resize lock is not available') })
+    await userEvent.click(screen.getByRole('button', { name: 'Lock terminal size' }))
+
+    expect(await screen.findByText('Could not update the terminal size lock')).toBeTruthy()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
   })
 
   it('opens an exited split terminal as read-only history', async () => {
@@ -289,7 +531,7 @@ describe('MachineWorkspace terminal creation', () => {
     expect(screen.queryByText('Terminal exited')).toBeNull()
   })
 
-  it('closes only the 320px topmost menu before the selection toolbar while split', async () => {
+  it('keeps moved session actions in the unified toolbar while split', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminals = [
@@ -318,20 +560,10 @@ describe('MachineWorkspace terminal creation', () => {
     const header = await screen.findByTestId('anytty-terminal-header')
     expect(window.innerWidth).toBe(320)
 
-    const menuButton = within(header).getByRole('button', { name: 'Open terminal menu' })
     await userEvent.click(within(header).getByTestId('anytty-terminal-split-button'))
     await userEvent.click(within(await screen.findByTestId('anytty-split-terminal-sheet')).getByRole('button', { name: 'Open Logs' }))
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
 
-    await userEvent.click(menuButton)
-    const menuSheet = await screen.findByTestId('anytty-terminal-menu-sheet')
-    expect(menuSheet.className).toContain('absolute')
-    expect(menuSheet.className).toContain('origin-top-right')
-    expect(within(menuSheet).getByRole('button', { name: 'Control resize' })).toBeTruthy()
-    const connectionEntry = within(menuSheet).getByRole('button', { name: 'Connection' })
-    expect(connectionEntry.className.split(/\s+/)).not.toContain('border-t')
-    expect(within(menuSheet).queryByRole('button', { name: 'Terminal tools' })).toBeNull()
-    await userEvent.keyboard('{Escape}')
     const toolsButton = within(header).getByTestId('anytty-terminal-tools-button')
     await userEvent.click(toolsButton)
     const toolbar = screen.getByTestId('anytty-terminal-action-toolbar')
@@ -339,9 +571,12 @@ describe('MachineWorkspace terminal creation', () => {
     expect(within(toolbar).getByRole('button', { name: 'Decrease terminal font size' }).classList.contains('h-11')).toBe(true)
     expect(within(toolbar).getByRole('button', { name: 'Increase terminal font size' }).classList.contains('h-11')).toBe(true)
     expect(within(toolbar).getByRole('button', { name: 'Renderer: Auto' }).classList.contains('h-11')).toBe(true)
-    expect(within(toolbar).getByRole('button', { name: 'Paste' }).classList.contains('min-h-11')).toBe(true)
-    expect(within(toolbar).getByRole('button', { name: 'Clipboard' }).classList.contains('min-h-11')).toBe(true)
-    expect(within(toolbar).getByRole('button', { name: 'Snippets' }).classList.contains('min-h-11')).toBe(true)
+    expect(within(toolbar).getByRole('button', { name: 'Paste' }).classList.contains('h-11')).toBe(true)
+    expect(within(toolbar).getByRole('button', { name: 'Clipboard' }).classList.contains('h-11')).toBe(true)
+    expect(within(toolbar).getByRole('button', { name: 'Snippets' }).classList.contains('h-11')).toBe(true)
+    expect(within(toolbar).getByRole('button', { name: 'Connection' })).toBeTruthy()
+    expect(within(toolbar).getByRole('button', { name: 'Sync input' })).toBeTruthy()
+    expect(within(toolbar).getByRole('button', { name: 'Close split' })).toBeTruthy()
     expect(Array.from(toolbar.querySelectorAll('button')).every((button) => (
       button.classList.contains('h-11') || button.classList.contains('min-h-11')
     ))).toBe(true)
@@ -357,17 +592,6 @@ describe('MachineWorkspace terminal creation', () => {
       button.classList.contains('h-11') || button.classList.contains('min-h-11')
     ))).toBe(true)
 
-    await userEvent.click(menuButton)
-    expect(await screen.findByTestId('anytty-terminal-menu-sheet')).toBeTruthy()
-    expect(screen.getByTestId('anytty-terminal-action-toolbar')).toBeTruthy()
-    await userEvent.keyboard('{Escape}')
-    expect(screen.queryByTestId('anytty-terminal-menu-sheet')).toBeNull()
-    expect(screen.getByTestId('anytty-terminal-action-toolbar')).toBeTruthy()
-    expect(screen.getByTestId('anytty-split-terminal-panel')).toBeTruthy()
-    expect(document.activeElement).toBe(menuButton)
-
-    await userEvent.tab()
-    expect(selectionToolbar.contains(document.activeElement)).toBe(true)
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByTestId('anytty-terminal-action-toolbar')).toBeNull()
     expect(screen.getByTestId('anytty-split-terminal-panel')).toBeTruthy()
@@ -521,7 +745,7 @@ describe('MachineWorkspace terminal creation', () => {
     expect(terminalRender.mock.calls.every(([props]) => (props as { session: MockProtoSession }).session === freshSession)).toBe(true)
   })
 
-  it('pauses terminal input while the phone is offline', async () => {
+  it('pauses terminal input during native recovery without rendering workspace banners', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminal = {
       terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
@@ -533,52 +757,55 @@ describe('MachineWorkspace terminal creation', () => {
       listTerminals: vi.fn(async () => [terminal]),
     }
     const connector = { connect: vi.fn(async () => session), reconnect: vi.fn(async () => undefined) }
-    const retryConnectionRecovery = vi.fn(async () => undefined)
     const view = render(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await screen.findByTestId('mock-terminal')
-    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} connectionReady={false} />)
-    await screen.findByText('Your phone is offline')
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline connectionState="checking" />)
+    expect(screen.queryByText(/Restoring the app connection/)).toBeNull()
+    expect((terminalRender.mock.calls.at(-1)?.[0] as { onInput: (data: string) => boolean }).onInput('blocked')).toBe(false)
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline />)
+    await waitFor(() => expect(connector.reconnect).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(connector.connect).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('Connection restored')).toBeNull()
+
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} />)
+    expect(screen.queryByText('Your phone is offline')).toBeNull()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
 
     const latestProps = terminalRender.mock.calls.at(-1)?.[0] as { onInput: (data: string) => boolean }
     expect(latestProps.onInput('whoami\n')).toBe(false)
     expect(terminalSendInput).not.toHaveBeenCalled()
 
-    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline connectionReady={false} />)
-    await screen.findByText('Connection interrupted. Reconnecting')
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline connectionState="recovering" />)
+    expect(screen.queryByText(/Restoring the app connection/)).toBeNull()
     expect((terminalRender.mock.calls.at(-1)?.[0] as { onInput: (data: string) => boolean }).onInput('blocked')).toBe(false)
     expect(terminalSendInput).not.toHaveBeenCalled()
-    expect(connector.reconnect).not.toHaveBeenCalled()
-    expect(connector.connect).toHaveBeenCalledTimes(1)
+    expect(connector.reconnect).toHaveBeenCalledTimes(1)
+    expect(connector.connect).toHaveBeenCalledTimes(2)
 
     view.rerender(<MachineWorkspace
       api={api}
       connector={connector}
       initialMachine={machine}
       phoneOnline
-      connectionReady={false}
-      connectionRecoveryFailed
-      onRetryConnectionRecovery={retryConnectionRecovery}
+      connectionState="failed"
     />)
-    expect(await screen.findByText('Connection service unavailable')).toBeTruthy()
-    const retry = screen.getByRole('button', { name: 'Retry' })
-    expect(retry.className).toContain('min-h-11')
-    await userEvent.click(retry)
-    expect(retryConnectionRecovery).toHaveBeenCalledOnce()
-    expect(connector.connect).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('The app connection could not be restored.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(connector.connect).toHaveBeenCalledTimes(2)
 
-    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline connectionReady />)
-    await waitFor(() => expect(connector.reconnect).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(connector.connect).toHaveBeenCalledTimes(2))
-    expect(await screen.findByText('Connection restored')).toBeTruthy()
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline />)
+    await waitFor(() => expect(connector.reconnect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(connector.connect).toHaveBeenCalledTimes(3))
+    expect(screen.queryByText('Connection restored')).toBeNull()
 
-    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} connectionReady={false} />)
-    await screen.findByText('Your phone is offline')
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} />)
+    expect(screen.queryByText('Your phone is offline')).toBeNull()
     expect(screen.queryByText('Connection restored')).toBeNull()
   })
 
-  it('replaces the cached terminal list with a connection gate while unavailable', async () => {
+  it('keeps the cached terminal list visible but inert while the app layer is unavailable', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminal = {
       terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
@@ -589,29 +816,26 @@ describe('MachineWorkspace terminal creation', () => {
       listTerminals: vi.fn(async () => [terminal]),
     }
     const connector = { connect: vi.fn(async () => new MockProtoSession('studio')), reconnect: vi.fn(async () => undefined) }
-    const view = render(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline connectionReady />)
+    const view = render(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline />)
 
     await screen.findByRole('button', { name: 'Open Shell' })
     expect(screen.getByTestId('anytty-terminal-list-scroll')).toBeTruthy()
 
-    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} connectionReady={false} />)
-    const offlineTitle = await screen.findByText('Your phone is offline')
-    expect(offlineTitle.closest('[data-variant]')?.getAttribute('data-variant')).toBe('gate')
-    expect(screen.queryByTestId('anytty-terminal-list-scroll')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Open Shell' })).toBeNull()
+    view.rerender(<MachineWorkspace api={api} connector={connector} initialMachine={machine} phoneOnline={false} />)
+    expect(screen.queryByText('Your phone is offline')).toBeNull()
+    expect(screen.getByTestId('anytty-terminal-list-scroll')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Open Shell' }) as HTMLButtonElement).disabled).toBe(true)
 
     view.rerender(<MachineWorkspace
       api={api}
       connector={connector}
       initialMachine={machine}
       phoneOnline
-      connectionReady={false}
-      connectionRecoveryFailed
+      connectionState="failed"
     />)
-    const failureTitle = await screen.findByText('Connection service unavailable')
-    expect(failureTitle.closest('[data-variant]')?.getAttribute('data-variant')).toBe('gate')
-    expect(screen.queryByTestId('anytty-terminal-list-scroll')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Open Shell' })).toBeNull()
+    expect(screen.queryByText('The app connection could not be restored.')).toBeNull()
+    expect(screen.getByTestId('anytty-terminal-list-scroll')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Open Shell' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('lets the native session manager own phone network recovery', async () => {
@@ -639,15 +863,15 @@ describe('MachineWorkspace terminal creation', () => {
       connectionStateEvents,
       initialMachine: machine,
     }
-    const view = render(<MachineWorkspace {...props} phoneOnline connectionReady />)
+    const view = render(<MachineWorkspace {...props} phoneOnline />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await screen.findByTestId('mock-terminal')
     expect(connect).toHaveBeenCalledTimes(1)
 
-    view.rerender(<MachineWorkspace {...props} phoneOnline={false} connectionReady />)
-    await screen.findByText('Your phone is offline')
-    view.rerender(<MachineWorkspace {...props} phoneOnline connectionReady />)
+    view.rerender(<MachineWorkspace {...props} phoneOnline={false} />)
+    expect(screen.queryByText('Your phone is offline')).toBeNull()
+    view.rerender(<MachineWorkspace {...props} phoneOnline />)
 
     expect(reconnect).not.toHaveBeenCalled()
     act(() => publishConnectionState?.({
@@ -657,6 +881,13 @@ describe('MachineWorkspace terminal creation', () => {
       relayInUse: false,
     }))
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(1))
+    expect(reconnect).not.toHaveBeenCalled()
+
+    view.rerender(<MachineWorkspace {...props} phoneOnline connectionState="recovering" />)
+    expect(screen.queryByText(/Restoring the app connection/)).toBeNull()
+    view.rerender(<MachineWorkspace {...props} phoneOnline />)
+    await Promise.resolve()
+    expect(connect).toHaveBeenCalledTimes(1)
     expect(reconnect).not.toHaveBeenCalled()
   })
 
@@ -668,16 +899,22 @@ describe('MachineWorkspace terminal creation', () => {
     }
     const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
     const onNeedsReauthorization = vi.fn()
+    const onBack = vi.fn()
 
-    render(<MachineWorkspace
-      api={{
-        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
-        listTerminals: vi.fn(async () => [terminal]),
-      }}
-      connector={{ connect: vi.fn(async () => session) }}
-      initialMachine={machine}
-      onNeedsReauthorization={onNeedsReauthorization}
-    />)
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals: vi.fn(async () => [terminal]),
+          }}
+          connector={{ connect: vi.fn(async () => session) }}
+          initialMachine={machine}
+          onNeedsReauthorization={onNeedsReauthorization}
+          onBack={onBack}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await screen.findByTestId('mock-terminal')
@@ -689,14 +926,27 @@ describe('MachineWorkspace terminal creation', () => {
     })
 
     expect(await screen.findByText('Cloud enrollment was deleted')).toBeTruthy()
-    const retryOtherRoutes = screen.getByRole('button', { name: 'Retry other routes' })
-    expect(retryOtherRoutes.className).toContain('min-h-11')
-    const scan = screen.getByRole('button', { name: 'Scan QR' })
+    const overlay = screen.getByTestId('anytty-connection-recovery-overlay')
+    const root = overlay.closest<HTMLElement>('[data-anytty-connection-overlay-root]')
+    const terminalHeader = screen.getByTestId('anytty-terminal-header')
+    const backToList = screen.getByRole('button', { name: 'Back to terminal list' })
+    expect(screen.getAllByTestId('anytty-connection-recovery-overlay')).toHaveLength(1)
+    expect(screen.getByTestId('anytty-terminal-page').contains(root)).toBe(true)
+    expect(terminalHeader.contains(root)).toBe(false)
+    expect(root?.contains(backToList)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry other routes' })).toBeNull()
+    const scan = screen.getByRole('button', { name: 'Open device pairing' })
     expect(scan.className).toContain('min-h-11')
-    expect(scan.parentElement?.className).toContain('grid-cols-1')
-    expect(scan.parentElement?.className).toContain('min-[360px]:grid-cols-2')
     await userEvent.click(scan)
     expect(onNeedsReauthorization).toHaveBeenCalledWith('studio')
+
+    await userEvent.click(backToList)
+    const backToMachines = await screen.findByRole('button', { name: 'Back to devices' })
+    expect(screen.getAllByTestId('anytty-connection-recovery-overlay')).toHaveLength(1)
+    expect(screen.getByTestId('anytty-terminal-list-page').contains(screen.getByTestId('anytty-connection-recovery-overlay'))).toBe(true)
+    expect(screen.getByTestId('anytty-terminal-list-page').querySelector('header')?.contains(screen.getByTestId('anytty-connection-recovery-overlay'))).toBe(false)
+    await userEvent.click(backToMachines)
+    expect(onBack).toHaveBeenCalledOnce()
   })
 
   it('returns false without a terminal handle and for a rejected single-target send', async () => {
@@ -769,7 +1019,7 @@ describe('MachineWorkspace terminal creation', () => {
     const splitSheet = await screen.findByTestId('anytty-split-terminal-sheet')
     await userEvent.click(within(splitSheet).getByRole('button', { name: 'Open Logs' }))
     await waitFor(() => expect(screen.getAllByTestId('mock-terminal')).toHaveLength(2))
-    await userEvent.click(screen.getByRole('button', { name: 'Open terminal menu' }))
+    await userEvent.click(screen.getByTestId('anytty-terminal-tools-button'))
     await userEvent.click(await screen.findByRole('button', { name: 'Sync input' }))
 
     const onInput = (terminalRender.mock.calls.at(-1)?.[0] as { onInput: (data: string) => boolean }).onInput
@@ -1033,23 +1283,48 @@ describe('MachineWorkspace terminal creation', () => {
       .mockResolvedValueOnce(staleSession)
       .mockResolvedValueOnce(freshSession)
     const listTerminals = vi.fn(async () => [])
+    const api = {
+      getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+      listTerminals,
+    }
 
-    render(<MachineWorkspace
-      api={{
-        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
-        listTerminals,
-      }}
+    const connectionStateEvents = { subscribe: vi.fn(() => ({ close() {} })) }
+    const view = render(<MachineWorkspace
+      api={api}
       connector={{ connect }}
+      connectionStateEvents={connectionStateEvents}
       initialMachine={machine}
     />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open files' }))
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(1))
+    view.rerender(<MachineWorkspace
+      api={api}
+      connector={{ connect }}
+      connectionState="checking"
+      connectionStateEvents={connectionStateEvents}
+      initialMachine={machine}
+    />)
     await staleSession.close()
     document.dispatchEvent(new Event('anytty:resume'))
+    await Promise.resolve()
+    expect(connect).toHaveBeenCalledTimes(1)
+
+    view.rerender(<MachineWorkspace
+      api={api}
+      connector={{ connect }}
+      connectionState="ready"
+      connectionStateEvents={connectionStateEvents}
+      initialMachine={machine}
+    />)
+    document.dispatchEvent(new CustomEvent('anytty:resume', { detail: { revision: 1 } }))
 
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(listTerminals.mock.calls.length).toBeGreaterThan(1))
+    act(() => {
+      document.dispatchEvent(new CustomEvent('anytty:resume', { detail: { revision: 1 } }))
+    })
+    expect(connect).toHaveBeenCalledTimes(2)
   })
 
   it('keeps a healthy terminal channel attached across a foreground resume', async () => {

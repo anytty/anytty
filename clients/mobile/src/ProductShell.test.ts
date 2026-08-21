@@ -12,6 +12,8 @@ import foregroundServiceSource from '../android/app/src/main/java/com/anytty/app
 import androidBuildScriptSource from '../../../scripts/build-android-client.sh?raw'
 import androidBoundarySource from '../../../scripts/verify-android-apk-boundary.sh?raw'
 import androidLogSource from '../../../client/binding/enginehost/host.go?raw'
+import mainActivitySource from '../android/app/src/main/java/com/anytty/app/MainActivity.java?raw'
+import webViewClientSource from '../android/app/src/main/java/com/anytty/app/AnyTTYWebViewClient.java?raw'
 
 describe('mobile product shell', () => {
   it('does not expose staging IP addresses in the official App shell', () => {
@@ -28,13 +30,14 @@ describe('mobile product shell', () => {
     expect(nativeRuntimeOwnerSource).toContain('private var goEngine')
     expect(nativeRuntimeOwnerSource).toContain('GoClientNative.startBridge')
     expect(iosNativeConnectionSource).toContain('GoClientNative.startBridge')
-    expect(nativeRuntimeOwnerSource).toContain('setEndpointActive')
+    expect(nativeRuntimeOwnerSource).toContain('replaceRendererDemand')
+    expect(nativeRuntimeOwnerSource).toContain('baseDemandRevision')
     expect(nativeConnectionSource).toContain('nativeNetworkChangedPayload(epoch, connected, reason)')
     expect(nativeConnectionSource).toContain('fun getNetworkSnapshot(call: PluginCall)')
     expect(mobileAppSource).toContain('entry.manager.networkChanged(connected, reason)')
     expect(mobileAppSource).toContain('networkChanged(event.connected, event.reason)')
     expect(mobileAppSource).toContain('NativeConnection.getNetworkSnapshot()')
-    expect(mobileAppSource).toContain('heartbeatGap >= 2_500')
+    expect(mobileAppSource).toContain('heartbeatGap >= rendererStallReconcileMs')
     expect(mobileAppSource).toMatch(
       /async verify\(session, signal\)[\s\S]*case: 'terminalDefaults'[\s\S]*response\.result\.case !== 'terminalDefaults'/,
     )
@@ -44,20 +47,35 @@ describe('mobile product shell', () => {
       /function createNativeInventoryEvents[\s\S]*sessionManager\.connectionState\.subscribe\(synchronize\)/,
     )
     expect(mobileAppSource).toContain("document.addEventListener('anytty:binding-closed'")
-    expect(mobileAppSource).toContain('void runRecovery(false, true)')
+    expect(mobileAppSource).toContain("trigger: 'app_resume'")
+    expect(mobileAppSource).toContain("trigger: 'renderer_stall'")
+    expect(mobileAppSource).toContain('waitForForeground: (signal) => nativeForegroundBarrier.wait(signal)')
     expect(mobileAppSource).toMatch(
-      /else if \(reloadRegistry\)[\s\S]*await goBindingClient\.getEndpointRegistry\(\)[\s\S]*catch/,
+      /successfulRecoveryRevision === 0 \|\| connectionState !== 'ready'[\s\S]*new CustomEvent\('anytty:resume'/,
     )
-    expect(mobileAppSource).toContain('connectionReady={nativeConnectionRecovery.connectionReady}')
+    expect(mobileAppSource).toMatch(
+      /intent === 'repair'[\s\S]*goBindingClient\.getEndpointRegistry\(\)[\s\S]*catch/,
+    )
+    expect(mobileAppSource).toContain('connectionState={nativeConnectionRecovery.connectionState}')
     expect(mobileAppSource).toContain('onRetryConnectionRecovery={nativeConnectionRecovery.retryConnectionRecovery}')
   })
 
   it('exports the session activity contract on Android and iOS', () => {
-    expect(nativeConnectionSource).toContain('fun setSessionActive(call: PluginCall)')
-    expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "setSessionActive"')
+    expect(nativeConnectionSource).toContain('fun replaceSessionDemand(call: PluginCall)')
+    expect(nativeConnectionSource).toContain('NativeConnectionRuntimeOwner.replaceRendererDemand')
+    expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "replaceSessionDemand"')
     expect(iosNativeConnectionSource).toMatch(
-      /@objc func setSessionActive[\s\S]*getString\("machineId"\)[\s\S]*guard !machineID\.isEmpty[\s\S]*call\.resolve\(\)/,
+      /@objc func replaceSessionDemand[\s\S]*getArray\("endpointIds", String\.self\)[\s\S]*call\.resolve\(\["goManagedEndpointIds": \[\]\]\)/,
     )
+  })
+
+  it('recovers a terminated or unresponsive Android WebView renderer natively', () => {
+    expect(webViewClientSource).toContain('onRenderProcessGone')
+    expect(mainActivitySource).toContain('WebViewCompat.setWebViewRenderProcessClient')
+    expect(mainActivitySource).toContain('WEB_VIEW_RENDERER_TERMINATE')
+    expect(mainActivitySource).toContain('Build.VERSION.SDK_INT >= Build.VERSION_CODES.O')
+    expect(mainActivitySource).toContain('webView.destroy()')
+    expect(mainActivitySource).toContain('mainHandler.post(this::recreate)')
   })
 
   it('projects native local discovery without feeding it into session recovery', () => {

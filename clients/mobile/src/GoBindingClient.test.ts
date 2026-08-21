@@ -115,6 +115,39 @@ describe('Android binding bridge negotiation', () => {
       vi.useRealTimers()
     }
   })
+
+  it('ignores a delayed close callback from an older socket', async () => {
+    const sockets: TestWebSocket[] = []
+    vi.stubGlobal('WebSocket', testWebSocketClass(sockets))
+    nativeConnectionMock.getBridgeEndpoint.mockResolvedValue({ port: 43126, token: 'A'.repeat(43) })
+    const backend = new AndroidBindingBackend()
+    const onClosed = vi.fn()
+    backend.start(() => undefined, onClosed)
+
+    const firstRequest = backend.request(BindingOperation.OPEN_SESSION, new Uint8Array())
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    const first = sockets[0]!
+    first.open('anytty.binding.v1')
+    first.message(responseFrame(0x21, 0n, 0n))
+    await vi.waitFor(() => expect(first.sent).toHaveLength(2))
+    first.message(responseFrame(0x20, 1n, 7n))
+    await expect(firstRequest).resolves.toBe(7n)
+    first.disconnect()
+    expect(onClosed).toHaveBeenCalledOnce()
+
+    const secondRequest = backend.request(BindingOperation.OPEN_SESSION, new Uint8Array())
+    await vi.waitFor(() => expect(sockets).toHaveLength(2))
+    const second = sockets[1]!
+    second.open('anytty.binding.v1')
+    second.message(responseFrame(0x21, 0n, 0n))
+    await vi.waitFor(() => expect(second.sent).toHaveLength(2))
+
+    first.disconnect()
+    second.message(responseFrame(0x20, 2n, 8n))
+    await expect(secondRequest).resolves.toBe(8n)
+    expect(onClosed).toHaveBeenCalledOnce()
+    await backend.close()
+  })
 })
 
 type TestWebSocket = {
@@ -123,6 +156,7 @@ type TestWebSocket = {
   readonly sent: Uint8Array[]
   open(protocol: string): void
   message(bytes: Uint8Array): void
+  disconnect(): void
 }
 
 function testWebSocketClass(sockets: TestWebSocket[]) {
@@ -156,6 +190,11 @@ function testWebSocketClass(sockets: TestWebSocket[]) {
     message(bytes: Uint8Array) {
       const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
       this.onmessage?.(new MessageEvent('message', { data }))
+    }
+
+    disconnect() {
+      this.readyState = 3
+      this.onclose?.(new CloseEvent('close'))
     }
   }
 }

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { create } from '@bufbuild/protobuf'
-import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Link2, Link2Off, Monitor, MoreHorizontal, PanelBottomClose, Pin, Plus, RefreshCw, Rows2, Scaling, SlidersHorizontal, SquarePen, Trash2, Unlock, WifiOff, X } from 'lucide-react'
+import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Monitor, Pin, Plus, RefreshCw, Rows2, SlidersHorizontal, SquarePen, Trash2, X } from 'lucide-react'
 import { connectionPhaseLabel, connectionSnapshotFromStatus } from '../connection/connectionState'
 import { connectionErrorDisplayMessage, connectionFailurePresentation, isAuthorizationConnectionError, isCancelledConnectionError, type ConnectionFailurePresentation } from '../connection/connectionErrorPresentation'
 import { ConnectionNotice } from '../connection/ConnectionNotice'
 import { projectConnectionPresentation } from '../connection/connectionPresentation'
+import { appConnectionIsReady, type AppConnectionState } from '../connection/appConnectionState'
+import { ConnectionRecoveryOverlayHost, useConnectionRecoveryOverlay, type ConnectionRecoveryOverlayIntent } from '../connection/ConnectionRecoveryOverlay'
 import type { MachineConnectionSnapshot } from '../connection/machineConnectionSnapshot'
 import { cloudPresenceEdgeLabel, type CloudPresenceSnapshot } from '../connection/cloudPresence'
 import { ConnectionRouteManager, type ConnectionRouteManagementAdapter } from '../connection/ConnectionRouteManager'
@@ -14,7 +16,6 @@ import { createFileApi, type FileEntry } from '../files/fileApi'
 import { fileEntryPath, normalizeFilePath, parentPath } from '../files/fileUtils'
 import { createPersistentPathBookmarkApi, type PathBookmark } from '../files/pathBookmarks'
 import { hapticImpact, hapticSelection } from '../platform/haptics'
-import { MachineNetworkStatusOverlay } from '../machine-runtime/MachineNetworkStatusOverlay'
 import { useMachineNetworkStatus } from '../machine-runtime/useMachineNetworkStatus'
 import { createRemoteClipboardApi, type RemoteClipboardEntry } from '../clipboard/clipboardApi'
 import { MobileTerminalKeybar } from '../terminal/MobileTerminalKeybar'
@@ -26,12 +27,12 @@ import { TerminalEnvironmentEditor } from '../terminal/TerminalEnvironmentEditor
 import { TerminalFnPanel } from '../terminal/TerminalFnPanel'
 import { NATIVE_BACK_PRIORITY } from '../platform/nativeBack'
 import { useNativeBackHandler } from '../platform/useNativeBackHandler'
-import { defaultTerminalResizeControl, type TerminalResizeControl } from '../terminal/terminalClient'
+import { defaultTerminalResizeControl, terminalResizeControlOwnsResize, type TerminalResizeControl } from '../terminal/terminalClient'
 import { TerminalList } from '../terminal/TerminalList'
 import { pinTerminal, readTerminalOrder, reorderPinnedTerminal, sortTerminalIds, unpinTerminal, writeTerminalOrder } from '../terminal/terminalOrder'
 import { createTerminalManagementApi } from '../terminal/terminalManagementApi'
 import { formatCommandLine, parseCommandLine, validateEnvironmentVariables } from '../terminal/terminalCreateForm'
-import { readTerminalSettings, terminalThemeCssVariables, writeTerminalSettings, type TerminalSettings } from '../terminal/terminalSettings'
+import { readTerminalKeyboardMode, readTerminalSettings, terminalThemeCssVariables, writeTerminalKeyboardMode, writeTerminalSettings, type TerminalKeyboardMode, type TerminalSettings } from '../terminal/terminalSettings'
 import type { Machine, Terminal as RemoteTerminal } from '../core/model'
 import type { ProtoClientSession } from '../core/protoClientSession'
 import { openProtoEventSubscription } from '../core/protoEventSubscription'
@@ -67,6 +68,29 @@ export type MachineWorkspaceConnector = {
   routeManagement?: ConnectionRouteManagementAdapter | undefined
 }
 
+export interface MachineWorkspaceSwitcherMachine {
+  machineId: string
+  name: string
+  state?: Machine['state'] | undefined
+  terminalCount?: number | undefined
+}
+
+export interface SystemClipboard {
+  readText(): Promise<string>
+  writeText(text: string): Promise<void>
+}
+
+const browserSystemClipboard: SystemClipboard = {
+  async readText() {
+    if (!navigator.clipboard?.readText) throw new Error('clipboard read is unavailable')
+    return await navigator.clipboard.readText()
+  },
+  async writeText(text: string) {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard write is unavailable')
+    await navigator.clipboard.writeText(text)
+  },
+}
+
 export interface MachineWorkspaceProps {
   api: MachineWorkspaceInventoryApi
   connector: MachineWorkspaceConnector
@@ -81,18 +105,26 @@ export interface MachineWorkspaceProps {
   onNeedsReauthorization?: ((machineId: string) => void) | undefined
   onTerminalSettingsChange?: ((patch: Partial<TerminalSettings>) => void) | undefined
   phoneOnline?: boolean | undefined
-  connectionReady?: boolean | undefined
-  connectionRecoveryFailed?: boolean | undefined
+  connectionState?: AppConnectionState | undefined
   cloudPresence?: CloudPresenceSnapshot | undefined
-  onRetryConnectionRecovery?: (() => void | Promise<void>) | undefined
   singlePane?: boolean | undefined
   storage?: RemoteRuntimeStorage | undefined
+  initialTerminalId?: string | undefined
+  onInitialTerminalOpened?: ((machineId: string, terminalId: string) => void) | undefined
+  terminalSwitcherMachines?: readonly MachineWorkspaceSwitcherMachine[] | undefined
+  loadMachineTerminals?: ((machineId: string) => Promise<RemoteTerminal[]>) | undefined
+  onSwitchTerminal?: ((intent: { machineId: string; terminalId: string }) => void) | undefined
+  systemClipboard?: SystemClipboard | undefined
 }
 
 type TerminalEditorSheet = 'create-terminal' | 'edit-terminal'
-type MobileSheet = 'terminals' | 'terminal-menu' | 'split-terminal' | 'manage-terminal' | TerminalEditorSheet | 'terminal-path-picker' | 'terminal-path-bookmarks' | 'clipboard-history' | null
+type MobileSheet = 'terminals' | 'split-terminal' | 'manage-terminal' | TerminalEditorSheet | 'terminal-path-picker' | 'terminal-path-bookmarks' | 'clipboard-history' | null
 type AppPage = 'terminal-list' | 'terminal'
 type TerminalSlot = 0 | 1
+type TerminalSwitcherInventory =
+  | { status: 'loading'; terminals: RemoteTerminal[] }
+  | { status: 'ready'; terminals: RemoteTerminal[] }
+  | { status: 'error'; terminals: RemoteTerminal[] }
 type FileManagerLoadState =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -124,8 +156,9 @@ function inventoryCacheForConnector(connector: MachineWorkspaceConnector): Map<s
  * MachineWorkspace 编排单个设备的 terminal/file 用户界面并消费 Go-owned session 投影。
  * 它不拥有 Endpoint、Route、credential 或 generation 真值，连接阶段仅用于本地化展示和交互反馈。
  */
-export function MachineWorkspace({ api, connector, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionReady = true, connectionRecoveryFailed = false, cloudPresence, onRetryConnectionRecovery, singlePane = false, storage }: MachineWorkspaceProps) {
+export function MachineWorkspace({ api, connector, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
   const { t } = useTranslation()
+  const connectionReady = appConnectionIsReady(connectionState)
   const initialInventory = initialMachine ? inventoryCacheForConnector(connector).get(initialMachine.machineId) : undefined
   const [machine, setMachine] = useState<Machine | null>(() => initialInventory?.machine ?? initialMachine ?? null)
   const [terminals, setTerminals] = useState<RemoteTerminal[]>(() => initialInventory?.terminals ?? [])
@@ -138,7 +171,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const [connectionRetryPending, setConnectionRetryPending] = useState(false)
   const connectionRetryPromiseRef = useRef<Promise<void> | null>(null)
   const [hasConnectedOnce, setHasConnectedOnce] = useState(false)
-  const [connectionRecovered, setConnectionRecovered] = useState(false)
   const [pairStatus, setPairStatus] = useState<string | null>(null)
   const [verifiedDevice, setVerifiedDevice] = useState<boolean | null>(true)
   const [connectedSession, setConnectedSession] = useState<MachineWorkspaceClientSession | null>(null)
@@ -159,8 +191,15 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const connectionPolicyReconnectPendingRef = useRef(false)
   const connectionPolicyFailureRef = useRef<{ stage: 'refresh' | 'apply' | 'reconnect'; policy?: ConnectionPolicy } | null>(null)
   const [manualReconnectNonce, setManualReconnectNonce] = useState(0)
-  const [terminalResizeControl, setTerminalResizeControl] = useState<TerminalResizeControl>(defaultTerminalResizeControl)
-  const [unlockingResize, setUnlockingResize] = useState(false)
+  const [terminalResizeControlBySlot, setTerminalResizeControlBySlot] = useState<Record<TerminalSlot, TerminalResizeControl>>({
+    0: defaultTerminalResizeControl,
+    1: defaultTerminalResizeControl,
+  })
+  const [resizeOwnerPending, setResizeOwnerPending] = useState(false)
+  const [sizeLockPending, setSizeLockPending] = useState(false)
+  const [terminalKeyboardModeRevision, setTerminalKeyboardModeRevision] = useState(0)
+  const [expandedTerminalSwitcherMachineId, setExpandedTerminalSwitcherMachineId] = useState<string | null>(null)
+  const [terminalSwitcherInventoryByMachine, setTerminalSwitcherInventoryByMachine] = useState<Record<string, TerminalSwitcherInventory>>({})
 
   const [page, setPage] = useState<AppPage>('terminal-list')
   const [filesOpen, setFilesOpen] = useState(false)
@@ -257,9 +296,9 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const latestSplitTerminalIdRef = useRef<string | null>(null)
   const handledManualReconnectNonceRef = useRef(0)
   const resizeLockedHintShownRef = useRef(false)
-  const connectionInterruptedRef = useRef(false)
   const previousPhoneOnlineRef = useRef(phoneOnline)
-  const previousConnectionReadyRef = useRef(connectionReady)
+  const previousConnectionStateRef = useRef(connectionState)
+  const handledNativeResumeRevisionRef = useRef(0)
   const phoneOnlineRef = useRef(phoneOnline)
   const connectionReadyRef = useRef(connectionReady)
   const hasConnectedOnceRef = useRef(hasConnectedOnce)
@@ -270,6 +309,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const activeTerminal = terminals.find((terminal) => terminal.terminalId === activeTerminalId)
   const splitTerminal = terminals.find((terminal) => terminal.terminalId === splitTerminalId)
   const activeToolTerminal = activeTerminalSlot === 1 && splitTerminal ? splitTerminal : activeTerminal
+  const activeTerminalResizeControl = terminalResizeControlBySlot[activeTerminalSlot]
   // connectedSession 是 React 投影，不是 generation 真值。底层 Go session 已失效时，
   // Terminal/FileManager 必须等待新 lease，不能先挂载旧资源再由 effect 事后清理。
   const renderSession = connectedSession && isProtoSessionAlive(connectedSession) ? connectedSession : null
@@ -300,8 +340,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const reorderTerminalPins = useCallback((terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => {
     updateTerminalPins((current) => reorderPinnedTerminal(current, terminalId, targetTerminalId, placement))
   }, [updateTerminalPins])
-  const activeTerminalResizeLocked = terminalResizeControl.sizeLocked === true || terminalResizeControl.reason === 'size_locked'
-  const activeTerminalOwnsResize = terminalResizeControl.canResize === true
+  const activeTerminalResizeLocked = activeTerminalResizeControl.sizeLocked === true || activeTerminalResizeControl.reason === 'size_locked'
   const resizeLockedHint = t('workspace.resize.lockedHint')
   const requireVerification = verifiedDevice === false
   const emptyTransferSnapshot = useMemo(() => ({ transfers: [], hasActiveTransfers: false }), [])
@@ -322,30 +361,24 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const displayedConnectionStatus = connectionPhase
     ? connectionPhaseLabel(connectionPhase, t)
     : connectionStatus
-  const connectionRecoveryFailure = useMemo(
-    () => connectionRecoveryFailed
-      ? connectionFailurePresentation(Object.assign(new Error('native connection recovery failed'), { code: 'temporary' }), t)
-      : null,
-    [connectionRecoveryFailed, t],
-  )
   const activeSlotTerminalExited = activeTerminalSlot === 1
     ? splitTerminal?.state === 'exited'
     : activeTerminal?.state === 'exited'
   const connectionSessionUnavailable = !phoneOnline || !connectionReady || showMachineNetworkOverlay || Boolean(connectionFailure)
   const connectionInputBlocked = connectionSessionUnavailable || activeSlotTerminalExited === true
   const canManageTerminals = !connectionSessionUnavailable && !requireVerification
-  const hideTerminalListForUnavailableState = !phoneOnline || connectionRecoveryFailed || connectionPhase === 'failed' || Boolean(connectionFailure)
-  const showConnectionFailureBanner = !phoneOnline || connectionRecoveryFailed || connectionPhase === 'failed' || Boolean(connectionFailure)
-  const showConnectionRecoveryBanner = showConnectionFailureBanner || !connectionReady || connectionRecovered
-  const initialConnectionFailure = !hasConnectedOnce
-    ? !phoneOnline
-      ? connectionFailurePresentation('phone offline', t, { phoneOnline: false })
-      : connectionRecoveryFailure ?? connectionFailure
-    : null
+  const initialConnectionFailure = !hasConnectedOnce && phoneOnline && connectionReady ? connectionFailure : null
+  const hideTerminalListForUnavailableState = Boolean(initialConnectionFailure)
   const effectiveTerminalSettings = terminalSettingsProp ?? terminalSettings
-  const activeResizeSurfaceId = activeTerminalId && machine?.machineId
-    ? appTerminalSurfaceId(machine.machineId, activeTerminalId)
-    : ''
+  const activeTerminalKeyboardMode = useMemo<TerminalKeyboardMode>(() => {
+    if (!machine || !activeToolTerminal) return effectiveTerminalSettings.keyboardMode
+    return readTerminalKeyboardMode(machine.machineId, activeToolTerminal.terminalId, storage) ?? effectiveTerminalSettings.keyboardMode
+  }, [activeToolTerminal, effectiveTerminalSettings.keyboardMode, machine, storage, terminalKeyboardModeRevision])
+  const updateActiveTerminalKeyboardMode = useCallback((mode: TerminalKeyboardMode) => {
+    if (!machine || !activeToolTerminal) return
+    writeTerminalKeyboardMode(machine.machineId, activeToolTerminal.terminalId, mode, storage)
+    setTerminalKeyboardModeRevision((current) => current + 1)
+  }, [activeToolTerminal, machine, storage])
   const terminalThemeStyle = useMemo(
     () => terminalThemeCssVariables(effectiveTerminalSettings.themeId) as CSSProperties,
     [effectiveTerminalSettings.themeId],
@@ -366,12 +399,12 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       setFileManagerLoadState({ status: 'error' })
     })
   }, [])
-  const keyboardShouldResize = useCallback(() => {
-    if (splitTerminalId) return true
-    if (effectiveTerminalSettings.keyboardMode === 'resize') return true
-    if (effectiveTerminalSettings.keyboardMode === 'shift') return false
-    return terminalBufferBySlot[0] === 'alternate'
-  }, [effectiveTerminalSettings.keyboardMode, splitTerminalId, terminalBufferBySlot])
+  const getKeyboardLayoutMode = useCallback(() => {
+    if (splitTerminalId) return 'resize' as const
+    if (activeTerminalKeyboardMode === 'resize') return 'resize' as const
+    if (activeTerminalKeyboardMode === 'shift') return 'shift' as const
+    return terminalBufferBySlot[activeTerminalSlot] === 'alternate' ? 'resize' as const : 'shift' as const
+  }, [activeTerminalKeyboardMode, activeTerminalSlot, splitTerminalId, terminalBufferBySlot])
   const {
     keyboardVisible,
     reapplyKeyboardLayout,
@@ -385,7 +418,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     mainRef: terminalAreaRef,
     termWrapperRef: terminalWrapperRef,
     getTermRef: () => activeTerminalSlotRef.current === 1 ? splitTerminalRef.current : terminalRef.current,
-    shouldResize: keyboardShouldResize,
+    getLayoutMode: getKeyboardLayoutMode,
     onKeyboardHide: () => {
       requestAnimationFrame(() => {
         terminalRef.current?.fit()
@@ -404,13 +437,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
   useEffect(() => {
     reapplyKeyboardLayout()
-    if (keyboardShouldResize()) {
-      requestAnimationFrame(() => {
-        terminalRef.current?.fit()
-        splitTerminalRef.current?.fit()
-      })
-    }
-  }, [activeTerminalSlot, effectiveTerminalSettings.keyboardMode, keyboardShouldResize, reapplyKeyboardLayout, splitTerminalId, terminalBufferBySlot])
+    requestAnimationFrame(() => {
+      terminalRef.current?.fit()
+      splitTerminalRef.current?.fit()
+    })
+  }, [activeTerminalKeyboardMode, activeTerminalSlot, getKeyboardLayoutMode, reapplyKeyboardLayout, splitTerminalId, terminalBufferBySlot])
 
   useEffect(() => {
     latestActiveTerminalIdRef.current = activeTerminalId
@@ -473,10 +504,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
     let fitFrame = 0
     const refitTerminals = () => {
-      if (keyboardVisible && !keyboardShouldResize()) {
-        reapplyKeyboardLayout()
-        return
-      }
+      if (keyboardVisible) reapplyKeyboardLayout()
       if (fitFrame) cancelAnimationFrame(fitFrame)
       fitFrame = requestAnimationFrame(() => {
         fitFrame = requestAnimationFrame(() => {
@@ -495,7 +523,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       observer.disconnect()
       if (fitFrame) cancelAnimationFrame(fitFrame)
     }
-  }, [keyboardShouldResize, keyboardVisible, page, reapplyKeyboardLayout])
+  }, [keyboardVisible, page, reapplyKeyboardLayout])
 
   const updateTerminalSettings = useCallback((patch: Partial<TerminalSettings>) => {
     if (onTerminalSettingsChange) {
@@ -519,10 +547,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       setConnectionFailure(null)
       setHasConnectedOnce(true)
       hasConnectedOnceRef.current = true
-      if (connectionInterruptedRef.current) {
-        connectionInterruptedRef.current = false
-        setConnectionRecovered(true)
-      }
       if (session) {
         setConnectedSession(session)
         const terminalId = latestActiveTerminalIdRef.current
@@ -541,7 +565,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     }
       return
     }
-    setConnectionRecovered(false)
     if (snapshot.phase === 'idle') {
       clearConnectionStatus()
       return
@@ -564,7 +587,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       if (isAuthorizationConnectionError(source)) handleConnectionAuthFailure(snapshot.machineId)
       setError(message)
       setConnectionFailure(failure)
-      if (hasConnectedOnceRef.current) connectionInterruptedRef.current = true
     if (connectionPolicyReconnectPendingRef.current) {
     connectionPolicyReconnectPendingRef.current = false
     setConnectionPolicyApplying(false)
@@ -576,9 +598,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     }
       updateConnectionStatus(message, 'failed')
       return
-    }
-    if (snapshot.phase === 'reconnecting' || snapshot.phase === 'waiting_network' || snapshot.phase === 'verifying') {
-      if (hasConnectedOnceRef.current) connectionInterruptedRef.current = true
     }
     updateConnectionStatus(snapshot.statusText || connectionPhaseLabel(snapshot.phase, t), snapshot.phase)
   }, [clearConnectionStatus, clearConnectionStatusSoon, handleConnectionAuthFailure, t, updateConnectionStatus])
@@ -784,11 +803,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       return next
     })
 
-    if (activeTerminalId === terminal.terminalId && activeResizeSurfaceId) {
-      setTerminalResizeControl(resizeControlFromRuntimeTerminal(terminal, activeResizeSurfaceId))
-    }
     return true
-  }, [activeResizeSurfaceId, activeTerminalId])
+  }, [])
 
   const applyTerminalInfo = useCallback((terminal: RemoteTerminal) => {
     if (machine && terminal.machineId !== machine.machineId) return
@@ -799,10 +815,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       next[index] = { ...next[index], ...terminal }
       return next
     })
-    if (activeTerminalId === terminal.terminalId && terminal.state === 'exited') {
-      setTerminalResizeControl(defaultTerminalResizeControl)
+    if (terminal.state === 'exited' && (activeTerminalId === terminal.terminalId || splitTerminalId === terminal.terminalId)) {
+      const slot: TerminalSlot = splitTerminalId === terminal.terminalId ? 1 : 0
+      setTerminalResizeControlBySlot((current) => ({ ...current, [slot]: defaultTerminalResizeControl }))
     }
-  }, [activeTerminalId, machine])
+  }, [activeTerminalId, machine, splitTerminalId])
 
   useEffect(() => {
     if (!phoneOnlineRef.current || !connectionReadyRef.current) {
@@ -1093,10 +1110,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       setConnectionFailure(null)
       setHasConnectedOnce(true)
       hasConnectedOnceRef.current = true
-      if (connectionInterruptedRef.current) {
-        connectionInterruptedRef.current = false
-        setConnectionRecovered(true)
-      }
       setConnectedSession(session)
       setConnectedTerminalId(activeTerminalId)
       setConnectingTerminalId(null)
@@ -1195,7 +1208,14 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   }, [clearConnectionStatus, ensureMachineSession, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, manualReconnectNonce, page, refreshTerminals, requireVerification, t, updateConnectionStatus, updateFromConnectionState])
 
   useEffect(() => {
-    const handleResume = () => {
+    const handleResume = (event: Event) => {
+      const revision = event instanceof CustomEvent && Number.isSafeInteger(event.detail?.revision)
+        ? Number(event.detail.revision)
+        : null
+      if (revision !== null) {
+        if (revision <= handledNativeResumeRevisionRef.current) return
+        handledNativeResumeRevisionRef.current = revision
+      }
       resetKeyboardLayout()
       // Native generation recovery owns reconnect while connectionReady is false.
       // The ready transition below will start exactly one replacement attempt.
@@ -1216,6 +1236,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
       setConnectedSession(session)
       setError(null)
+      setConnectionFailure(null)
       terminalRef.current?.fit()
       splitTerminalRef.current?.fit()
     }
@@ -1263,6 +1284,68 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     setPage('terminal')
     setMobileSheet(null)
   }, [connectionSessionUnavailable, handleConnectionAuthFailure, machine, requireVerification, splitTerminalId, t])
+
+  const handledInitialTerminalRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!initialTerminalId || !machine || !hasLoadedTerminals || connectionSessionUnavailable) return
+    const intentKey = `${machine.machineId}:${initialTerminalId}`
+    if (handledInitialTerminalRef.current === intentKey) return
+    if (!terminals.some((terminal) => terminal.terminalId === initialTerminalId)) {
+      handledInitialTerminalRef.current = intentKey
+      onInitialTerminalOpened?.(machine.machineId, initialTerminalId)
+      return
+    }
+    handledInitialTerminalRef.current = intentKey
+    openTerminal({ machineId: machine.machineId, terminalId: initialTerminalId })
+    onInitialTerminalOpened?.(machine.machineId, initialTerminalId)
+  }, [connectionSessionUnavailable, hasLoadedTerminals, initialTerminalId, machine, onInitialTerminalOpened, openTerminal, terminals])
+
+  const switcherMachines = useMemo<MachineWorkspaceSwitcherMachine[]>(() => {
+    if (!machine) return []
+    const current: MachineWorkspaceSwitcherMachine = {
+      machineId: machine.machineId,
+      name: machine.name,
+      state: machine.state,
+      terminalCount: terminals.length,
+    }
+    const seen = new Set([machine.machineId])
+    return [current, ...terminalSwitcherMachines.filter((candidate) => {
+      if (seen.has(candidate.machineId)) return false
+      seen.add(candidate.machineId)
+      return true
+    })]
+  }, [machine, terminalSwitcherMachines, terminals.length])
+
+  const loadTerminalSwitcherMachine = useCallback((machineId: string) => {
+    if (!loadMachineTerminals) return
+    setTerminalSwitcherInventoryByMachine((current) => ({
+      ...current,
+      [machineId]: { status: 'loading', terminals: current[machineId]?.terminals ?? [] },
+    }))
+    void loadMachineTerminals(machineId).then((loaded) => {
+      setTerminalSwitcherInventoryByMachine((current) => ({
+        ...current,
+        [machineId]: { status: 'ready', terminals: loaded.filter((terminal) => terminal.machineId === machineId) },
+      }))
+    }).catch(() => {
+      setTerminalSwitcherInventoryByMachine((current) => ({
+        ...current,
+        [machineId]: { status: 'error', terminals: current[machineId]?.terminals ?? [] },
+      }))
+    })
+  }, [loadMachineTerminals])
+
+  const toggleTerminalSwitcherMachine = useCallback((machineId: string) => {
+    const willExpand = expandedTerminalSwitcherMachineId !== machineId
+    setExpandedTerminalSwitcherMachineId(willExpand ? machineId : null)
+    if (!willExpand || machineId === machine?.machineId || terminalSwitcherInventoryByMachine[machineId]?.status === 'ready' || terminalSwitcherInventoryByMachine[machineId]?.status === 'loading') return
+    loadTerminalSwitcherMachine(machineId)
+  }, [expandedTerminalSwitcherMachineId, loadTerminalSwitcherMachine, machine?.machineId, terminalSwitcherInventoryByMachine])
+
+  useEffect(() => {
+    setExpandedTerminalSwitcherMachineId(machine?.machineId ?? null)
+    setTerminalSwitcherInventoryByMachine({})
+  }, [machine?.machineId])
 
   const openSplitTerminalSheet = useCallback(() => {
     if (requireVerification) {
@@ -1426,42 +1509,47 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     return retry
   }, [clearConnectionStatus, retryConnection, t, updateConnectionStatus])
 
-  useEffect(() => {
-    if (!connectionRecovered) return
-    const timer = setTimeout(() => setConnectionRecovered(false), 1_600)
-    return () => clearTimeout(timer)
-  }, [connectionRecovered])
+  const machineConnectionOverlayIntent = useMemo<ConnectionRecoveryOverlayIntent | null>(() => {
+    if (!phoneOnline || !connectionReady) return null
+    if (hasConnectedOnce && (connectionFailure || connectionPhase === 'failed')) {
+      const title = connectionFailure?.title ?? t('machines.connectionFailed')
+      const description = connectionFailure?.message ?? t('errors.connectionInterrupted')
+      const machineId = machine?.machineId
+      const action = connectionFailure?.requiresPairing && machineId
+        ? {
+            label: t('machines.scanPairing'),
+            onClick: () => handleConnectionAuthFailure(machineId),
+          }
+        : !connectionFailure || connectionFailure.retryable || connectionFailure.reason === 'daemon_deleted'
+          ? {
+              label: t(connectionFailure?.reason === 'daemon_deleted' ? 'workspace.retryOtherRoutes' : 'workspace.connection.retry'),
+              onClick: () => { void retryAfterFailure() },
+              pending: connectionRetryPending,
+            }
+          : undefined
+      return { kind: 'failed', title, description, ...(action ? { action } : {}) }
+    }
+    if (!showDelayedMachineNetworkOverlay) return null
+    return {
+      kind: connectionPhase === 'waiting_network' ? 'offline' : 'recovering',
+      title: displayedConnectionStatus || t('connectionStatus.recovering'),
+      ...(hasConnectedOnce ? { description: t('connectionStatus.inputPaused') } : {}),
+    }
+  }, [connectionFailure, connectionPhase, connectionReady, connectionRetryPending, displayedConnectionStatus, handleConnectionAuthFailure, hasConnectedOnce, machine?.machineId, phoneOnline, retryAfterFailure, showDelayedMachineNetworkOverlay, t])
+  useConnectionRecoveryOverlay(machineConnectionOverlayIntent)
 
   useEffect(() => {
     const wasPhoneOnline = previousPhoneOnlineRef.current
-    const wasConnectionReady = previousConnectionReadyRef.current
+    const previousConnectionState = previousConnectionStateRef.current
     previousPhoneOnlineRef.current = phoneOnline
-    previousConnectionReadyRef.current = connectionReady
-    if (!phoneOnline) {
-      setConnectionRecovered(false)
-      if (hasConnectedOnceRef.current) connectionInterruptedRef.current = true
-      updateConnectionStatus(connectionPhaseLabel('waiting_network', t), 'waiting_network')
-      return
-    }
-    if (!connectionReady) {
-      setConnectionRecovered(false)
-      setError(null)
-      setConnectionFailure(null)
-      if (hasConnectedOnceRef.current) connectionInterruptedRef.current = true
-      if (connectionRecoveryFailed) {
-        updateConnectionStatus(connectionRecoveryFailure?.message || t('machines.networkRecoveryFailed'), 'failed')
-      } else {
-        updateConnectionStatus(t('machines.restoringNetwork'), 'reconnecting')
-      }
-      return
-    }
-    const bindingRecovered = !wasConnectionReady && connectionReady
+    previousConnectionStateRef.current = connectionState
+    if (!phoneOnline || connectionState !== 'ready') return
+    const appRecoveryCompleted = previousConnectionState !== 'ready' && !connectionStateEvents
     const browserNetworkRecovered = !wasPhoneOnline && phoneOnline && !connectionStateEvents
-    if (bindingRecovered || browserNetworkRecovered) {
-      updateConnectionStatus(connectionPhaseLabel('reconnecting', t), 'reconnecting')
+    if (appRecoveryCompleted || browserNetworkRecovered) {
       retryAfterFailure()
     }
-  }, [connectionReady, connectionRecoveryFailed, connectionRecoveryFailure?.message, connectionStateEvents, phoneOnline, retryAfterFailure, t, updateConnectionStatus])
+  }, [connectionState, connectionStateEvents, phoneOnline, retryAfterFailure])
 
   useEffect(() => {
     if (!pairStatus) return
@@ -1470,11 +1558,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   }, [pairStatus, resizeLockedHint])
 
   useEffect(() => {
-    if (!(terminalResizeControl.sizeLocked || terminalResizeControl.reason === 'size_locked')) return
+    if (!(activeTerminalResizeControl.sizeLocked || activeTerminalResizeControl.reason === 'size_locked')) return
     if (resizeLockedHintShownRef.current) return
     resizeLockedHintShownRef.current = true
     setPairStatus(resizeLockedHint)
-  }, [resizeLockedHint, terminalResizeControl.reason, terminalResizeControl.sizeLocked])
+  }, [activeTerminalResizeControl.reason, activeTerminalResizeControl.sizeLocked, resizeLockedHint])
 
   const showTerminalListPage = useCallback(() => {
     setPage('terminal-list')
@@ -1731,35 +1819,59 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
     }
   }, [canManageTerminals, selectedTerminal, selectedTerminalId, refreshTerminals, t, terminalForm, terminalSubmitting, withManagementApi])
 
-  const unlockTerminalResize = useCallback(async () => {
-    if (!canManageTerminals || !activeTerminalId) return
-    setUnlockingResize(true)
-    try {
-      const management = await withManagementApi()
-      await management.api.updateTerminal({
-        terminalId: activeTerminalId,
-        sizeLockMode: 'off',
-      })
-      setTerminalResizeControl(defaultTerminalResizeControl)
-      await refreshTerminals()
-      terminalRef.current?.reattach(management.session)
-      window.setTimeout(() => {
-        terminalRef.current?.fit()
-        terminalRef.current?.focus()
-      }, 0)
-      setPairStatus(t('workspace.resize.unlocked'))
-    } catch (err) {
-      const message = connectionErrorDisplayMessage(err, t)
-      if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
-      updateConnectionStatus(message, 'failed')
-    } finally {
-      setUnlockingResize(false)
+  const toggleActiveTerminalSizeLock = useCallback(async () => {
+    if (!canManageTerminals || !activeToolTerminal || sizeLockPending) return
+    if (!terminalResizeControlOwnsResize(activeTerminalResizeControl)) {
+      setPairStatus(t('workspace.resize.acquireFirst'))
+      return
     }
-  }, [activeTerminalId, canManageTerminals, handleConnectionAuthFailure, machine?.machineId, refreshTerminals, updateConnectionStatus, withManagementApi])
+    const terminalId = activeToolTerminal.terminalId
+    const slot = activeTerminalSlot
+    const nextLocked = !activeTerminalResizeLocked
+    const terminalHandle = activeTerminalHandle()
+    if (!terminalHandle) return
+    setSizeLockPending(true)
+    let protocolApplied = false
+    let metadataApplied = false
+    try {
+      const control = await terminalHandle.setResizeLock(nextLocked)
+      if (control.sizeLocked !== nextLocked) throw new Error('terminal resize lock was not accepted')
+      protocolApplied = true
+      const management = await withManagementApi()
+      await management.api.updateTerminalSizeLock({
+        terminalId,
+        cwd: activeToolTerminal.cwd,
+        sizeLockMode: nextLocked ? 'lock' : 'off',
+      })
+      metadataApplied = true
+      setTerminals((current) => current.map((terminal) => terminal.terminalId === terminalId
+        ? { ...terminal, sizeLocked: nextLocked, sizeLockMode: nextLocked ? 'lock' : 'off' }
+        : terminal))
+      setTerminalResizeControlBySlot((current) => ({
+        ...current,
+        [slot]: control,
+      }))
+      await refreshTerminals()
+      window.setTimeout(() => {
+        terminalHandle.fit()
+      }, 0)
+      setPairStatus(t(nextLocked ? 'workspace.resize.locked' : 'workspace.resize.unlocked'))
+    } catch (err) {
+      if (protocolApplied && !metadataApplied) void terminalHandle.setResizeLock(!nextLocked).catch(() => undefined)
+      if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
+      else setPairStatus(t('workspace.resize.lockFailed'))
+    } finally {
+      setSizeLockPending(false)
+    }
+  }, [activeTerminalHandle, activeTerminalResizeControl, activeTerminalResizeLocked, activeTerminalSlot, activeToolTerminal, canManageTerminals, handleConnectionAuthFailure, machine?.machineId, refreshTerminals, sizeLockPending, t, withManagementApi])
 
   const acquireActiveResizeOwner = useCallback(async () => {
+    if (resizeOwnerPending) return
+    const slot = activeTerminalSlot
+    setResizeOwnerPending(true)
     try {
       const control = await activeTerminalHandle()?.requestResizeOwner()
+      if (control) setTerminalResizeControlBySlot((current) => ({ ...current, [slot]: control }))
       if (control?.canResize) {
         setPairStatus(t('workspace.resize.acquired'))
         window.setTimeout(() => {
@@ -1771,22 +1883,28 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
         setPairStatus(t('workspace.resize.unavailable'))
       }
     } catch (err) {
-      const message = connectionErrorDisplayMessage(err, t)
       if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
-      updateConnectionStatus(message, 'failed')
+      else setPairStatus(t('workspace.resize.acquireFailed'))
+    } finally {
+      setResizeOwnerPending(false)
     }
-  }, [activeTerminalHandle, handleConnectionAuthFailure, machine?.machineId, updateConnectionStatus])
+  }, [activeTerminalHandle, activeTerminalSlot, handleConnectionAuthFailure, machine?.machineId, resizeOwnerPending, t])
 
   const releaseActiveResizeOwner = useCallback(async () => {
+    if (resizeOwnerPending) return
+    const slot = activeTerminalSlot
+    setResizeOwnerPending(true)
     try {
-      await activeTerminalHandle()?.releaseResizeOwner()
+      const control = await activeTerminalHandle()?.releaseResizeOwner()
+      if (control) setTerminalResizeControlBySlot((current) => ({ ...current, [slot]: control }))
       setPairStatus(t('workspace.resize.released'))
     } catch (err) {
-      const message = connectionErrorDisplayMessage(err, t)
       if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
-      updateConnectionStatus(message, 'failed')
+      else setPairStatus(t('workspace.resize.releaseFailed'))
+    } finally {
+      setResizeOwnerPending(false)
     }
-  }, [activeTerminalHandle, handleConnectionAuthFailure, machine?.machineId, updateConnectionStatus])
+  }, [activeTerminalHandle, activeTerminalSlot, handleConnectionAuthFailure, machine?.machineId, resizeOwnerPending, t])
 
   const autoAcquiredResizeOwnerRef = useRef<string | null>(null)
   useEffect(() => {
@@ -1794,12 +1912,12 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
       autoAcquiredResizeOwnerRef.current = null
       return
     }
-    if (!activeTerminalId || connectedTerminalId !== activeTerminalId) return
-    if (terminalResizeControl.canResize || terminalResizeControl.sizeLocked || terminalResizeControl.reason === 'size_locked') return
-    if (autoAcquiredResizeOwnerRef.current === activeTerminalId) return
-    autoAcquiredResizeOwnerRef.current = activeTerminalId
+    if (!activeToolTerminal || !renderSession || activeToolTerminal.state === 'exited') return
+    if (activeTerminalResizeControl.canResize || activeTerminalResizeControl.sizeLocked || activeTerminalResizeControl.reason === 'size_locked') return
+    if (autoAcquiredResizeOwnerRef.current === activeToolTerminal.terminalId) return
+    autoAcquiredResizeOwnerRef.current = activeToolTerminal.terminalId
     void acquireActiveResizeOwner()
-  }, [acquireActiveResizeOwner, activeTerminalId, connectedTerminalId, effectiveTerminalSettings.autoAcquireResizeOwner, terminalResizeControl])
+  }, [acquireActiveResizeOwner, activeTerminalResizeControl, activeToolTerminal, effectiveTerminalSettings.autoAcquireResizeOwner, renderSession])
 
   const deleteManagedTerminal = useCallback(async () => {
     if (!canManageTerminals || !selectedTerminalId) return
@@ -1882,7 +2000,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
   const openConnectionInfo = useCallback(() => {
     const existingSession = connectedSession ?? machineSessionRef.current?.session ?? null
-    const connecting = isConnectingConnectionPhase(connectionPhase)
+    const connecting = phoneOnline && isConnectingConnectionPhase(connectionPhase)
     if (connecting) return
     if (!existingSession && !machine) {
       setConnectionInfoError(t('workspace.connection.unavailable'))
@@ -2092,32 +2210,23 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const loadBrowserClipboardDraft = useCallback(async () => {
     setClipboardError(null)
     try {
-      const text = await navigator.clipboard.readText()
+      const text = await systemClipboard.readText()
       setClipboardDraft(text)
       setEditingClipboardId(null)
     } catch {
       setClipboardError(t('workspace.browserClipboardError'))
     }
-  }, [t])
+  }, [systemClipboard, t])
 
   const handleTerminalPaste = useCallback(async () => {
-    let remoteClipboardError: unknown
+    setError(null)
     try {
-      const session = await withMachineSession()
-      const [latest] = await createRemoteClipboardApi(session).list()
-      if (latest?.text && pasteTerminalTextWithConfirm(latest.text)) return
-    } catch (err) {
-      remoteClipboardError = err
-    }
-
-    try {
-      const text = await navigator.clipboard.readText()
+      const text = await systemClipboard.readText()
       pasteTerminalTextWithConfirm(text)
-    } catch (err) {
-      const fallbackMessage = err instanceof Error ? err.message : t('workspace.clipboardReadError')
-      setError(remoteClipboardError instanceof Error ? remoteClipboardError.message : fallbackMessage)
+    } catch {
+      setError(t('workspace.clipboardReadError'))
     }
-  }, [pasteTerminalTextWithConfirm, withMachineSession])
+  }, [pasteTerminalTextWithConfirm, systemClipboard, t])
 
   const renderTerminalPathPickerSheet = () => {
     if (mobileSheet !== 'terminal-path-picker') return null
@@ -2408,14 +2517,12 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
   const renderTerminalListPage = () => {
     if (!machine) return null
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
-    const showInitialLoadingOverlay = showDelayedMachineNetworkOverlay || showTerminalListLoader
-
     return (
       <aside
         className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : 'md:flex md:w-72 md:flex-none md:border-r md:border-[var(--anytty-app-line)]'} ${page === 'terminal' ? 'hidden' : 'flex'}`}
         data-testid={page === 'terminal' ? undefined : 'anytty-terminal-list-page'}
       >
-        <header className={`border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : 'md:pt-0'}`}>
+        <header className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : 'md:pt-0'}`}>
           <div className="flex min-w-0 items-center gap-2">
             {onBack ? (
               <Button variant="ghost" size="icon"
@@ -2449,7 +2556,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               aria-hidden={page === 'terminal' ? 'true' : undefined}
               aria-label={t('workspace.openFiles')}
               className="border-transparent bg-transparent disabled:opacity-40"
-              disabled={connectionSessionUnavailable}
+              disabled={!phoneOnline || !connectionReady}
               tabIndex={page === 'terminal' ? -1 : undefined}
               onClick={() => { hapticSelection(); openFiles() }}
             >
@@ -2473,22 +2580,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             failure={initialConnectionFailure}
             onBack={onBack}
             onPairAgain={initialConnectionFailure.requiresPairing ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
-            onRetry={connectionRecoveryFailed && onRetryConnectionRecovery ? () => { void onRetryConnectionRecovery() } : retryAfterFailure}
+            onRetry={retryAfterFailure}
             retryPending={connectionRetryPending}
-          />
-        ) : null}
-        {page === 'terminal-list' && showConnectionFailureBanner ? (
-          <MachineConnectionBanner
-            failure={connectionRecoveryFailure ?? connectionFailure}
-            hasContent={hasLoadedTerminals && !hideTerminalListForUnavailableState}
-            label={displayedConnectionStatus}
-            phase={connectionPhase}
-            phoneOnline={phoneOnline}
-            recovered={connectionRecovered}
-            onPairAgain={(connectionRecoveryFailure ?? connectionFailure)?.requiresPairing ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
-            onRetry={connectionRecoveryFailed && onRetryConnectionRecovery ? () => { void onRetryConnectionRecovery() } : retryAfterFailure}
-            retryPending={connectionRetryPending}
-            onDetails={openConnectionInfo}
           />
         ) : null}
         {error && !connectionFailure ? (
@@ -2520,9 +2613,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             className="relative min-h-0 flex-1 overflow-y-auto p-3"
             data-testid="anytty-terminal-list-scroll"
           >
-            {showInitialLoadingOverlay && !showConnectionFailureBanner ? (
-              <MachineNetworkStatusOverlay phase={connectionPhase} status={connectionStatus} />
-            ) : null}
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
             <TerminalList
               machineId={machine.machineId}
@@ -2532,8 +2622,8 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               onOpenTerminal={openTerminal}
               onManageTerminal={openManageTerminal}
               activeTerminalId={activeTerminalId ?? undefined}
-              loading={showTerminalListLoader && !showInitialLoadingOverlay}
-              loadingLabel={displayedConnectionStatus ?? t('workspace.connection.phase.connecting')}
+              loading={showTerminalListLoader}
+              loadingLabel={t('common.loading')}
               interactive={!connectionSessionUnavailable}
             />
           </div>
@@ -2694,13 +2784,17 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
         {renderTerminalPathPickerSheet()}
         {renderTerminalPathBookmarksSheet()}
+        {page === 'terminal-list' ? <ConnectionRecoveryOverlayHost /> : null}
       </aside>
     )
   }
 
   useEffect(() => {
-    setTerminalResizeControl(defaultTerminalResizeControl)
-  }, [activeTerminalId, connectedSession])
+    setTerminalResizeControlBySlot({
+      0: defaultTerminalResizeControl,
+      1: defaultTerminalResizeControl,
+    })
+  }, [activeTerminalId, connectedSession, splitTerminalId])
 
   useEffect(() => () => {
     disconnectMachineSession()
@@ -2749,7 +2843,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
         ) : (
           <>
         <header
-          className={`relative z-30 row-start-1 flex min-h-11 min-w-0 max-w-full shrink-0 items-center justify-between overflow-hidden border-b border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] px-0.5 pt-[env(safe-area-inset-top)] ${singlePane ? '' : 'md:hidden'}`}
+          className={`relative z-50 row-start-1 flex min-h-11 min-w-0 max-w-full shrink-0 items-center justify-between overflow-hidden border-b border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] px-0.5 pt-[env(safe-area-inset-top)] ${singlePane ? '' : 'md:hidden'}`}
           data-testid="anytty-terminal-header"
         >
           <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -2766,7 +2860,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               aria-label={`${t('workspace.switchTerminal')}: ${terminalHeaderSummary}`}
               className="flex h-11 min-w-0 flex-1 flex-col items-start justify-center gap-0 overflow-hidden px-0.5 text-left transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40"
               disabled={connectionSessionUnavailable}
-              onClick={() => { hapticSelection(); setMobileSheet('terminals') }}
+              onClick={() => {
+                hapticSelection()
+                setExpandedTerminalSwitcherMachineId(machine.machineId)
+                setMobileSheet('terminals')
+              }}
               title={terminalHeaderSummary}
             >
               <span aria-hidden="true" className="flex w-full min-w-0 items-center gap-1 text-[11px] font-semibold leading-4 text-[var(--anytty-text)]" data-testid="anytty-terminal-title">
@@ -2815,16 +2913,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             >
               <SlidersHorizontal className="h-[17px] w-[17px]" />
             </Button>
-            <Button variant="ghost"
-              type="button"
-              aria-label={t('workspace.openTerminalMenu')}
-              title={t('workspace.openTerminalMenu')}
-              data-testid="anytty-terminal-menu-button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)]"
-              onClick={() => { hapticSelection(); setMobileSheet('terminal-menu') }}
-            >
-              <MoreHorizontal className="h-[18px] w-[18px]" />
-            </Button>
           </div>
         </header>
 
@@ -2842,7 +2930,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               escapeEnabled={!mobileSheet && !filesOpen && !pasteConfirmText && !connectionInfoOpen && !transferCenterOpen}
               renderer={effectiveTerminalSettings.renderer}
               fontSize={effectiveTerminalSettings.fontSize}
-              resizeControl={terminalResizeControl}
+              keyboardMode={activeTerminalKeyboardMode}
+              resizeControl={activeTerminalResizeControl}
+              sizeLocked={activeTerminalResizeLocked}
+              resizeOwnerPending={resizeOwnerPending}
+              sizeLockPending={sizeLockPending}
               onModeChange={setTerminalToolbarModeAndReset}
               onClose={() => setTerminalToolbarVisibility(false)}
               onEscape={closeTerminalToolbarFromKeyboard}
@@ -2859,7 +2951,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                 if (!terminal) return
                 void terminal.getSelectionForClipboard().then(async (selected) => {
                   if (!selected) return false
-                  await navigator.clipboard.writeText(selected)
+                  await systemClipboard.writeText(selected)
                   return true
                 }).then((copied) => {
                   if (!copied) return
@@ -2871,6 +2963,10 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                 })
               }}
               onPaste={() => { void handleTerminalPaste() }}
+              onOpenHistorySearch={() => {
+                activeTerminalHandle()?.openHistorySearch()
+                setTerminalToolbarVisibility(false)
+              }}
               onOpenClipboardHistory={openClipboardHistory}
               onOpenSnippets={() => {
                 setTerminalFnOpen((current) => !current)
@@ -2878,8 +2974,25 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               }}
               onRendererChange={(renderer) => updateTerminalSettings({ renderer })}
               onFontSizeChange={(fontSize) => updateTerminalSettings({ fontSize })}
+              onKeyboardModeChange={updateActiveTerminalKeyboardMode}
               onAcquireResizeOwner={() => { void acquireActiveResizeOwner() }}
               onReleaseResizeOwner={() => { void releaseActiveResizeOwner() }}
+              onToggleSizeLock={() => { void toggleActiveTerminalSizeLock() }}
+              onOpenConnectionInfo={() => {
+                setTerminalToolbarOpen(false)
+                openConnectionInfo()
+              }}
+              splitTerminalOpen={Boolean(splitTerminalId)}
+              syncSplitInput={syncSplitInput}
+              onToggleSyncSplitInput={() => {
+                hapticImpact()
+                setSyncSplitInput((current) => !current)
+              }}
+              onCloseSplitTerminal={() => {
+                hapticImpact()
+                closeSplitTerminal()
+                setTerminalToolbarOpen(false)
+              }}
             />
           ) : null}
 
@@ -2893,20 +3006,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
             />
           ) : null}
 
-          {showConnectionRecoveryBanner ? (
-            <MachineConnectionBanner
-              failure={connectionRecoveryFailure ?? connectionFailure}
-              hasContent
-              label={displayedConnectionStatus}
-              phase={connectionPhase}
-              phoneOnline={phoneOnline}
-              recovered={connectionRecovered}
-              onPairAgain={(connectionRecoveryFailure ?? connectionFailure)?.requiresPairing ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
-              onRetry={connectionRecoveryFailed && onRetryConnectionRecovery ? () => { void onRetryConnectionRecovery() } : retryAfterFailure}
-              retryPending={connectionRetryPending}
-              onDetails={openConnectionInfo}
-            />
-          ) : error ? (
+          {error && !connectionFailure ? (
             <div className="absolute inset-x-0 top-0 z-40 border-y border-red-500/30 bg-red-950/90 px-3 py-2 text-[12px] font-medium text-red-100 backdrop-blur" role="alert">{error}</div>
           ) : null}
 
@@ -2930,10 +3030,10 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                   className="absolute inset-0 outline-none"
                   modifierState={modifierState}
                   onModifierStateChange={setModifierState}
-                  onCursorMove={handleCursorMove}
                   onInput={sendTerminalInput}
                   onBufferChange={(isAlternate) => handleTerminalBufferChange(0, isAlternate)}
-                  onResizeControl={setTerminalResizeControl}
+                  onCursorMove={handleCursorMove}
+                  onResizeControl={(control) => setTerminalResizeControlBySlot((current) => ({ ...current, 0: control }))}
                   onTerminalInfoChange={applyTerminalInfo}
                   selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 0}
                   settings={effectiveTerminalSettings}
@@ -2943,21 +3043,11 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-[var(--anytty-muted)]">
-                  {activeTerminalId && connectingTerminalId === activeTerminalId ? (displayedConnectionStatus ?? t('workspace.connectingTerminal')) : t('terminal.noActive')}
+                  {activeTerminalId && connectingTerminalId === activeTerminalId
+                    ? connectionSessionUnavailable ? null : t('workspace.connectingTerminal')
+                    : t('terminal.noActive')}
                 </div>
               )}
-              {activeTerminal?.state !== 'exited' && activeTerminalId && renderSession && connectedTerminalId === activeTerminalId && activeTerminalResizeLocked ? (
-                <Button variant="ghost"
-                  type="button"
-                  aria-label={t('workspace.unlockResize')}
-                  className={`absolute right-2 z-20 flex min-h-8 items-center gap-1.5 border border-[var(--anytty-border-subtle)] bg-[var(--anytty-overlay)] px-2 text-[11px] font-semibold text-[var(--anytty-text)] backdrop-blur active:opacity-85 disabled:opacity-60 ${splitTerminalId ? 'top-16' : 'top-2'}`}
-                  disabled={unlockingResize || connectionInputBlocked}
-                  onClick={() => { hapticImpact(); void unlockTerminalResize() }}
-                >
-                  <Unlock className="h-3.5 w-3.5" />
-                  {unlockingResize ? t('workspace.unlocking') : t('workspace.unlockResize')}
-                </Button>
-              ) : null}
             </div>
 
             {splitTerminalId ? (
@@ -2980,9 +3070,10 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                     className="absolute inset-0 outline-none"
                     modifierState={modifierState}
                     onModifierStateChange={setModifierState}
-                    onCursorMove={handleCursorMove}
                     onInput={sendTerminalInput}
                     onBufferChange={(isAlternate) => handleTerminalBufferChange(1, isAlternate)}
+                    onCursorMove={handleCursorMove}
+                    onResizeControl={(control) => setTerminalResizeControlBySlot((current) => ({ ...current, 1: control }))}
                     onTerminalInfoChange={applyTerminalInfo}
                     selectionMode={terminalToolbarOpen && terminalToolbarMode === 'selection' && activeTerminalSlot === 1}
                     settings={effectiveTerminalSettings}
@@ -2992,7 +3083,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-[var(--anytty-muted)]">
-                    {displayedConnectionStatus ?? t('workspace.connectingTerminal')}
+                    {connectionSessionUnavailable ? null : t('workspace.connectingTerminal')}
                   </div>
                 )}
               </div>
@@ -3033,49 +3124,79 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
 
         {mobileSheet === 'terminals' ? (
           <MobileSheetPanel expandable title={t('terminal.list')} testId="anytty-terminal-switcher-sheet" onClose={() => setMobileSheet(null)}>
-            <TerminalList
-              machineId={machine.machineId}
-              terminals={orderedTerminals}
-              onOpenTerminal={openTerminal}
-              activeTerminalId={activeTerminalId ?? undefined}
-              interactive={!connectionSessionUnavailable}
-            />
+            <div className="flex flex-col divide-y divide-[var(--anytty-app-line)]" data-testid="anytty-terminal-machine-groups">
+              {switcherMachines.map((switcherMachine) => {
+                const currentMachine = switcherMachine.machineId === machine.machineId
+                const inventory = currentMachine
+                  ? { status: 'ready' as const, terminals: orderedTerminals }
+                  : terminalSwitcherInventoryByMachine[switcherMachine.machineId]
+                const expanded = expandedTerminalSwitcherMachineId === switcherMachine.machineId
+                const count = inventory?.status === 'ready' ? inventory.terminals.length : switcherMachine.terminalCount
+                return (
+                  <section key={switcherMachine.machineId} data-switcher-machine-id={switcherMachine.machineId}>
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      className="flex h-12 w-full items-center gap-3 rounded-none px-1 text-left hover:bg-[var(--anytty-app-surface-soft)]"
+                      aria-expanded={expanded}
+                      aria-controls={`terminal-switcher-${encodeURIComponent(switcherMachine.machineId)}`}
+                      onClick={() => {
+                        hapticSelection()
+                        toggleTerminalSwitcherMachine(switcherMachine.machineId)
+                      }}
+                    >
+                      <Monitor className="h-4 w-4 shrink-0 text-[var(--anytty-app-muted)]" />
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--anytty-app-text)]">{switcherMachine.name}</span>
+                      {currentMachine ? (
+                        <span className="shrink-0 text-[10px] font-semibold text-[var(--anytty-app-accent)]">{t('terminal.currentMachine')}</span>
+                      ) : count !== undefined ? (
+                        <span className="shrink-0 text-[10px] font-medium tabular-nums text-[var(--anytty-app-muted)]">{t('terminal.terminalCount', { count })}</span>
+                      ) : null}
+                      <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--anytty-app-muted)] transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                    </Button>
+                    {expanded ? (
+                      <div id={`terminal-switcher-${encodeURIComponent(switcherMachine.machineId)}`} className="pb-3 pl-7 pt-1">
+                        {inventory?.status === 'error' ? (
+                          <div className="flex min-h-16 items-center justify-between gap-3 px-2 text-xs text-[var(--anytty-app-muted)]" role="alert">
+                            <span>{t('terminal.loadFailed')}</span>
+                            <Button
+                              variant="secondary"
+                              type="button"
+                              className="h-11 px-3 text-xs font-semibold"
+                              onClick={() => {
+                                loadTerminalSwitcherMachine(switcherMachine.machineId)
+                              }}
+                            >
+                              {t('common.retry')}
+                            </Button>
+                          </div>
+                        ) : (
+                          <TerminalList
+                            compact
+                            machineId={switcherMachine.machineId}
+                            terminals={inventory?.terminals ?? []}
+                            loading={inventory?.status === 'loading'}
+                            onOpenTerminal={(intent) => {
+                              if (currentMachine) {
+                                openTerminal(intent)
+                                return
+                              }
+                              setMobileSheet(null)
+                              onSwitchTerminal?.(intent)
+                            }}
+                            activeTerminalId={currentMachine ? activeTerminalId ?? undefined : undefined}
+                            interactive={currentMachine
+                              ? !connectionSessionUnavailable
+                              : phoneOnline && connectionReady && Boolean(onSwitchTerminal)}
+                          />
+                        )}
+                      </div>
+                    ) : null}
+                  </section>
+                )
+              })}
+            </div>
           </MobileSheetPanel>
-        ) : null}
-
-        {mobileSheet === 'terminal-menu' ? (
-          <div className="absolute inset-0 z-40" onClick={() => { hapticSelection(); setMobileSheet(null) }}>
-            <ModalSurface
-              aria-label={t('workspace.terminalTools')}
-              className="absolute right-1.5 top-[calc(env(safe-area-inset-top)+2.25rem)] w-60 origin-top-right overflow-hidden rounded-md border border-[var(--anytty-border)] bg-[var(--anytty-surface)] text-[var(--anytty-text)] shadow-xl animate-in fade-in zoom-in-95 duration-150"
-              data-testid="anytty-terminal-menu-sheet"
-              onClick={(event) => event.stopPropagation()}
-              onRequestClose={() => setMobileSheet(null)}
-            >
-              <div className="py-1">
-                <Button variant="ghost" type="button" className="flex min-h-11 w-full items-center gap-3 px-3 text-left text-sm font-medium text-[var(--anytty-text)] transition-colors hover:bg-[var(--anytty-surface-raised)] disabled:cursor-not-allowed disabled:opacity-40" disabled={connectionInputBlocked} onClick={() => { hapticSelection(); setMobileSheet(null); void (activeTerminalOwnsResize ? releaseActiveResizeOwner() : acquireActiveResizeOwner()) }}>
-                  <Scaling className="h-4 w-4 text-[var(--anytty-muted)]" />
-                  {t(activeTerminalOwnsResize ? 'workspace.releaseResize' : 'workspace.controlResize')}
-                </Button>
-                <Button variant="ghost" type="button" className="flex min-h-11 w-full items-center gap-3 px-3 text-left text-sm font-medium text-[var(--anytty-text)] transition-colors hover:bg-[var(--anytty-surface-raised)]" onClick={() => { hapticSelection(); setMobileSheet(null); openConnectionInfo() }}>
-                  <Info className="h-4 w-4 text-[var(--anytty-muted)]" />
-                  {t('workspace.connection.label')}
-                </Button>
-                {splitTerminalId ? (
-                  <>
-                  <Button variant="ghost" type="button" className="flex min-h-11 w-full items-center gap-3 px-3 text-left text-sm font-medium text-[var(--anytty-text)] transition-colors hover:bg-[var(--anytty-surface-raised)]" onClick={() => { hapticImpact(); setSyncSplitInput((current) => !current); setMobileSheet(null) }}>
-                    {syncSplitInput ? <Link2 className="h-4 w-4 text-[var(--anytty-text)]" /> : <Link2Off className="h-4 w-4 text-[var(--anytty-muted)]" />}
-                    {t('workspace.syncInput')}
-                  </Button>
-                  <Button variant="ghost" type="button" className="flex min-h-11 w-full items-center gap-3 px-3 text-left text-sm font-medium text-[var(--anytty-text)] transition-colors hover:bg-[var(--anytty-surface-raised)]" onClick={() => { hapticImpact(); closeSplitTerminal(); setMobileSheet(null) }}>
-                    <PanelBottomClose className="h-4 w-4 text-[var(--anytty-muted)]" />
-                    {t('workspace.closeSplit')}
-                  </Button>
-                  </>
-                ) : null}
-              </div>
-            </ModalSurface>
-          </div>
         ) : null}
 
         {mobileSheet === 'split-terminal' ? (
@@ -3099,6 +3220,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
         {renderClipboardHistorySheet()}
           </>
         )}
+        {page === 'terminal' && !filesOpen ? <ConnectionRecoveryOverlayHost /> : null}
       </main>
 
       {hasOpenedFiles ? (
@@ -3106,7 +3228,7 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
           className={`absolute inset-0 z-30 flex flex-col bg-[var(--background)] transition-transform duration-200 ${singlePane ? '' : 'md:left-auto md:right-0 md:w-[450px] md:border-l md:border-[var(--anytty-app-line)]'} ${filesOpen ? (singlePane ? 'translate-y-0 visible' : 'translate-y-0 md:translate-x-0 visible') : (singlePane ? 'translate-y-full invisible' : 'translate-y-full md:translate-y-0 md:translate-x-full invisible')}`}
           data-testid="anytty-machine-files-overlay"
         >
-          <div className={`border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex shrink-0 items-center justify-between border-b px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] ${singlePane ? '' : 'md:h-14 md:pb-0 md:pt-0'}`}>
+          <div className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex shrink-0 items-center justify-between border-b px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] ${singlePane ? '' : 'md:h-14 md:pb-0 md:pt-0'}`}>
             <div className="flex items-center gap-2">
               <Folder className="h-5 w-5 text-zinc-500" />
               <span className="text-[17px] font-bold tracking-tight text-zinc-900">{t('files.list')}</span>
@@ -3118,20 +3240,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               <X className="h-5 w-5" />
             </Button>
           </div>
-          {showConnectionRecoveryBanner ? (
-            <MachineConnectionBanner
-              failure={connectionRecoveryFailure ?? connectionFailure}
-              hasContent
-              label={displayedConnectionStatus}
-              phase={connectionPhase}
-              phoneOnline={phoneOnline}
-              recovered={connectionRecovered}
-              onPairAgain={(connectionRecoveryFailure ?? connectionFailure)?.requiresPairing ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
-              onRetry={connectionRecoveryFailed && onRetryConnectionRecovery ? () => { void onRetryConnectionRecovery() } : retryAfterFailure}
-              retryPending={connectionRetryPending}
-              onDetails={openConnectionInfo}
-            />
-          ) : null}
           {renderSession ? LoadedFileManager ? (
             <LoadedFileManager
               key={fileContextKey}
@@ -3141,7 +3249,6 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               initialPath={fileInitialPath}
               className="flex h-full min-h-0 flex-col relative"
               active={filesOpen && !connectionSessionUnavailable}
-              unavailableLabel={displayedConnectionStatus ?? undefined}
               fileTransfer={fileTransfer}
               storage={storage}
               onOpenTransferCenter={() => setTransferCenterOpen(true)}
@@ -3164,14 +3271,15 @@ export function MachineWorkspace({ api, connector, className, initialMachine, in
               </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-              {filesOpen ? (
+              {filesOpen && !connectionSessionUnavailable ? (
                 <div className="flex items-center gap-2" role="status" aria-live="polite">
-                  {!connectionSessionUnavailable ? <Spinner aria-hidden="true" /> : <WifiOff className="h-4 w-4" aria-hidden="true" />}
-                  <span>{displayedConnectionStatus ?? t('workspace.connecting')}</span>
+                  <Spinner aria-hidden="true" />
+                  <span>{t('workspace.connecting')}</span>
                 </div>
-              ) : t('workspace.fileAccessNotReady')}
+              ) : filesOpen ? null : t('workspace.fileAccessNotReady')}
             </div>
           )}
+          {filesOpen ? <ConnectionRecoveryOverlayHost /> : null}
         </div>
       ) : null}
 
@@ -3257,69 +3365,6 @@ function MachineConnectionFailureState({
       variant="gate"
       primaryAction={primaryAction}
       secondaryAction={onBack ? { label: t('common.backToMachines'), onClick: onBack } : undefined}
-    />
-  )
-}
-
-function MachineConnectionBanner({
-  failure,
-  hasContent,
-  label,
-  phase,
-  phoneOnline,
-  recovered,
-  onDetails,
-  onPairAgain,
-  onRetry,
-  retryPending,
-}: {
-  failure: ConnectionFailurePresentation | null
-  hasContent: boolean
-  label: string | null
-  phase: RtcConnectionStateSnapshot['phase'] | null
-  phoneOnline: boolean
-  recovered: boolean
-  onDetails: () => void
-  onPairAgain?: (() => void) | undefined
-  onRetry: () => void
-  retryPending: boolean
-}) {
-  const { t } = useTranslation()
-  const offlineFailure = !phoneOnline ? connectionFailurePresentation('phone offline', t, { phoneOnline: false }) : null
-  const activeFailure = offlineFailure ?? failure
-  const showingRecovered = recovered && !activeFailure
-  const title = showingRecovered
-    ? t('connectionStatus.restored')
-    : activeFailure?.title ?? t('connectionStatus.recovering')
-  const message = showingRecovered
-    ? t('connectionStatus.restoredCopy')
-    : activeFailure?.message ?? `${label || t('workspace.connection.phase.reconnecting')} ${t('connectionStatus.inputPaused')}`
-  const showPairAgain = !showingRecovered && onPairAgain !== undefined
-  const showRetry = !showingRecovered && phoneOnline && (
-    activeFailure?.retryable === true || activeFailure?.reason === 'daemon_deleted'
-  )
-  const presentation = workspaceConnectionPresentation({
-    phoneOnline,
-    phase: showingRecovered ? 'connected' : activeFailure ? 'failed' : phase ?? 'reconnecting',
-    authAvailable: !activeFailure?.requiresPairing,
-  })
-  return (
-    <ConnectionNotice
-      className="relative z-40"
-      presentation={presentation}
-      title={title}
-      description={message}
-      hasContent={hasContent}
-      variant="gate"
-      primaryAction={showPairAgain ? { label: t('machines.scan'), onClick: onPairAgain } : undefined}
-      secondaryAction={showRetry
-        ? {
-            label: t(activeFailure.reason === 'daemon_deleted' ? 'workspace.retryOtherRoutes' : 'workspace.connection.retry'),
-            onClick: onRetry,
-            pending: retryPending,
-          }
-        : undefined}
-      detailsAction={{ label: t('workspace.connection.title'), onClick: onDetails }}
     />
   )
 }
@@ -3935,35 +3980,6 @@ function normalizeRuntimeTerminalEvent(payload: Record<string, unknown>): Remote
   }
 }
 
-function resizeControlFromRuntimeTerminal(terminal: RemoteTerminal, surfaceId: string): TerminalResizeControl {
-  if (terminal.sizeLocked) {
-    return { canResize: false, reason: 'size_locked', sizeLocked: true }
-  }
-  if (terminal.resizeOwnerSurfaceId && terminal.resizeOwnerSurfaceId === surfaceId) {
-    return {
-      canResize: true,
-      reason: 'owner',
-      surfaceId,
-      ownerSurfaceId: terminal.resizeOwnerSurfaceId,
-      ...(terminal.resizeOwnerViewId ? { ownerViewId: terminal.resizeOwnerViewId } : {}),
-    }
-  }
-  if (terminal.resizeOwnerSurfaceId) {
-    return {
-      canResize: false,
-      reason: 'follower',
-      surfaceId,
-      ownerSurfaceId: terminal.resizeOwnerSurfaceId,
-      ...(terminal.resizeOwnerViewId ? { ownerViewId: terminal.resizeOwnerViewId } : {}),
-    }
-  }
-  return {
-    canResize: false,
-    reason: 'unknown',
-    surfaceId,
-  }
-}
-
 function resizeOwnershipString(record: Record<string, unknown>, key: 'owner_surface_id' | 'owner_view_id'): string | undefined {
   const direct = record[key]
   if (typeof direct === 'string' && direct.trim()) return direct.trim()
@@ -3971,8 +3987,4 @@ function resizeOwnershipString(record: Record<string, unknown>, key: 'owner_surf
   if (typeof ownership !== 'object' || ownership === null || Array.isArray(ownership)) return undefined
   const nested = (ownership as Record<string, unknown>)[key]
   return typeof nested === 'string' && nested.trim() ? nested.trim() : undefined
-}
-
-function appTerminalSurfaceId(machineId: string, terminalId: string): string {
-  return `app:${machineId}:terminal:${terminalId}`
 }

@@ -5,6 +5,11 @@ apply plugin: 'com.google.protobuf'
 def anyttyCloudControllerAddress = project.findProperty('anyttyCloudControllerAddress') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_ADDRESS') ?: 'cloud.anytty.com:443'
 def anyttyCloudControllerServerName = project.findProperty('anyttyCloudControllerServerName') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_SERVER_NAME') ?: 'cloud.anytty.com'
 def anyttyCloudControllerCAPEMBase64 = project.findProperty('anyttyCloudControllerCAPEMBase64') ?: System.getenv('ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64') ?: ''
+def anyttyEndpointSupervisorPercentValue = project.findProperty('anyttyEndpointSupervisorPercent') ?: System.getenv('ANYTTY_ENDPOINT_SUPERVISOR_PERCENT') ?: '100'
+def anyttyEndpointSupervisorPercent = Integer.parseInt(anyttyEndpointSupervisorPercentValue.toString())
+if (anyttyEndpointSupervisorPercent < 0 || anyttyEndpointSupervisorPercent > 100) {
+    throw new GradleException('ANYTTY_ENDPOINT_SUPERVISOR_PERCENT must be between 0 and 100.')
+}
 def anyttyUploadStoreFile = project.findProperty('anyttyUploadStoreFile') ?: System.getenv('ANYTTY_ANDROID_UPLOAD_STORE_FILE')
 def anyttyUploadStorePassword = project.findProperty('anyttyUploadStorePassword') ?: System.getenv('ANYTTY_ANDROID_UPLOAD_STORE_PASSWORD')
 def anyttyUploadKeyAlias = project.findProperty('anyttyUploadKeyAlias') ?: System.getenv('ANYTTY_ANDROID_UPLOAD_KEY_ALIAS')
@@ -34,6 +39,7 @@ android {
         versionCode 3
         versionName "0.0.1-beta.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "int", "ENDPOINT_SUPERVISOR_PERCENT", anyttyEndpointSupervisorPercent.toString()
     }
     buildFeatures {
         buildConfig = true
@@ -113,6 +119,7 @@ dependencies {
     implementation 'com.google.protobuf:protobuf-java:3.25.5'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.79'
     implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
+    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"

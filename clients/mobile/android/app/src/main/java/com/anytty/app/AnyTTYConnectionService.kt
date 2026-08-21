@@ -10,8 +10,16 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AnyTTYConnectionService : Service() {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     companion object {
         private const val CHANNEL_ID = "anytty_connection"
         private const val NOTIFICATION_ID = 1001
@@ -43,9 +51,13 @@ class AnyTTYConnectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT_ALL) {
-            NativeConnectionRuntimeOwner.requestDisconnectAll()
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            serviceScope.launch {
+                NativeConnectionRuntimeOwner.requestDisconnectAll()
+                withContext(Dispatchers.Main.immediate) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                }
+            }
             return START_NOT_STICKY
         }
         val launchIntent = Intent(this, MainActivity::class.java).apply {
@@ -79,6 +91,11 @@ class AnyTTYConnectionService : Service() {
             stopSelf(startId)
         }
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -89,6 +89,54 @@ Java_com_anytty_app_goclient_GoClientNative_localProbe(JNIEnv *env, jobject self
   return throw_status(env, status) == 0 && reachable != 0 ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT void JNICALL
+Java_com_anytty_app_goclient_GoClientNative_replaceSupervisorDemand(JNIEnv *env, jobject self, jlong engine, jbyteArray payload) {
+  (void)self;
+  jsize length = 0;
+  jbyte *bytes = borrow_payload(env, payload, &length);
+  if (bytes == NULL) return;
+  anytty_status_v1 status = anytty_supervisor_replace_demand(
+      (anytty_handle_t)engine, (const uint8_t *)bytes, (size_t)length);
+  (*env)->ReleaseByteArrayElements(env, payload, bytes, JNI_ABORT);
+  throw_status(env, status);
+}
+
+JNIEXPORT void JNICALL
+Java_com_anytty_app_goclient_GoClientNative_signalSupervisor(JNIEnv *env, jobject self, jlong engine, jbyteArray payload) {
+  (void)self;
+  jsize length = 0;
+  jbyte *bytes = borrow_payload(env, payload, &length);
+  if (bytes == NULL) return;
+  anytty_status_v1 status = anytty_supervisor_signal(
+      (anytty_handle_t)engine, (const uint8_t *)bytes, (size_t)length);
+  (*env)->ReleaseByteArrayElements(env, payload, bytes, JNI_ABORT);
+  throw_status(env, status);
+}
+
+JNIEXPORT void JNICALL
+Java_com_anytty_app_goclient_GoClientNative_awaitSupervisorReady(JNIEnv *env, jobject self, jlong engine, jint timeout_millis) {
+  (void)self;
+  throw_status(env, anytty_supervisor_wait_ready((anytty_handle_t)engine, (uint32_t)timeout_millis));
+}
+
+JNIEXPORT jbyteArray JNICALL
+Java_com_anytty_app_goclient_GoClientNative_supervisorSnapshot(JNIEnv *env, jobject self, jlong engine) {
+  (void)self;
+  anytty_buffer_v1 snapshot = {0};
+  if (throw_status(env, anytty_supervisor_snapshot((anytty_handle_t)engine, &snapshot)) != 0) {
+    return NULL;
+  }
+  jbyteArray result = (*env)->NewByteArray(env, (jsize)snapshot.length);
+  if (result != NULL && snapshot.length > 0) {
+    (*env)->SetByteArrayRegion(env, result, 0, (jsize)snapshot.length, (const jbyte *)snapshot.data);
+  }
+  anytty_status_v1 free_status = anytty_buffer_free(snapshot.buffer_handle);
+  if (result != NULL && throw_status(env, free_status) != 0) {
+    return NULL;
+  }
+  return result;
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_anytty_app_goclient_GoClientNative_openSession(JNIEnv *env, jobject self, jlong engine, jbyteArray payload) {
   (void)self;

@@ -17,6 +17,10 @@ export interface NativeLocalDiscoveryChangedEvent {}
 
 export interface NativeDisconnectAllRequestedEvent {}
 
+export interface NativeSessionDemandResult {
+  goManagedEndpointIds: string[]
+}
+
 export interface NativeConnectionPlugin extends Plugin {
   addListener(eventName: 'networkChanged', listener: (event: NativeNetworkChangedEvent) => void): Promise<PluginListenerHandle>
   addListener(eventName: 'localDiscoveryChanged', listener: (event: NativeLocalDiscoveryChangedEvent) => void): Promise<PluginListenerHandle>
@@ -25,7 +29,7 @@ export interface NativeConnectionPlugin extends Plugin {
   getNetworkSnapshot(): Promise<NativeNetworkChangedEvent>
   resetLocalPairings(): Promise<void>
   getBridgeEndpoint(): Promise<NativeBridgeEndpoint>
-  setSessionActive(input: { machineId: string; active: boolean }): Promise<void>
+  replaceSessionDemand(input: { endpointIds: string[] }): Promise<NativeSessionDemandResult>
   isLocalEndpointDiscovered(input: { deviceId: string; fingerprint: string }): Promise<{ discovered: boolean }>
 }
 

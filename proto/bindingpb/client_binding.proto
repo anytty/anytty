@@ -629,3 +629,50 @@ message PlatformResponse {
 message PTYStreamSyncLost { uint64 dropped_bytes = 1; }
 
 message PTYStreamClosed { int32 exit_code = 1; }
+
+// EndpointSupervisorMode is selected by the Android rollout policy for each
+// demanded endpoint. Shadow records decisions while TS remains authoritative;
+// takeover moves probe/dial/backoff ownership into Go.
+enum EndpointSupervisorMode {
+  ENDPOINT_SUPERVISOR_MODE_UNSPECIFIED = 0;
+  ENDPOINT_SUPERVISOR_MODE_SHADOW = 1;
+  ENDPOINT_SUPERVISOR_MODE_TAKEOVER = 2;
+}
+
+message EndpointSupervisorDemand {
+  string endpoint_id = 1;
+  EndpointSupervisorMode mode = 2;
+}
+
+message EndpointSupervisorDemandSnapshot {
+  string attachment_id = 1;
+  uint64 demand_revision = 2;
+  repeated EndpointSupervisorDemand endpoints = 3;
+}
+
+// Network metadata is only a wake-up hint. connected=false pauses dialing but
+// does not itself invalidate a retained physical winner.
+message EndpointSupervisorHostSignal {
+  uint64 revision = 1;
+  bool connected = 2;
+  string reason = 3;
+  bool foreground = 4;
+}
+
+message EndpointSupervisorProjection {
+  string endpoint_id = 1;
+  EndpointSupervisorMode mode = 2;
+  string phase = 3;
+  uint64 control_revision = 4;
+  uint64 attempt_id = 5;
+  anytty.api.v1.EndpointSessionStamp session = 6;
+  string error_code = 7;
+  string message = 8;
+  uint64 probe_count = 9;
+  uint64 dial_count = 10;
+  uint64 backoff_count = 11;
+}
+
+message EndpointSupervisorSnapshot {
+  repeated EndpointSupervisorProjection endpoints = 1;
+}

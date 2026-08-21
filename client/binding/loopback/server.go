@@ -55,6 +55,8 @@ var allowedOrigins = map[string]struct{}{
 // Engine is the small binding surface consumed by the loopback transport.
 // Implementations must keep handles opaque and must not interpret protobufs.
 type Engine interface {
+	AttachRenderer() (uint64, error)
+	DetachRenderer(uint64) error
 	OpenSession([]byte) (uint64, error)
 	Execute(uint64, []byte) (uint64, error)
 	OpenResourceStream(uint64, []byte) (uint64, error)
@@ -64,13 +66,20 @@ type Engine interface {
 	Cancel(uint64) error
 	CloseSession(uint64) error
 	Release(uint64) error
-	NextEvent(context.Context) ([]byte, error)
+	NextEvent(context.Context, uint64) ([]byte, error)
 }
 
 // RegistryEngine binds one opaque engine handle to the shared registry.
 type RegistryEngine struct {
 	Registry *binding.Registry
 	Handle   uint64
+}
+
+func (engine RegistryEngine) AttachRenderer() (uint64, error) {
+	return engine.Registry.AttachRenderer(engine.Handle)
+}
+func (engine RegistryEngine) DetachRenderer(rendererHandle uint64) error {
+	return engine.Registry.DetachRenderer(engine.Handle, rendererHandle)
 }
 
 func (engine RegistryEngine) OpenSession(payload []byte) (uint64, error) {
@@ -100,8 +109,8 @@ func (engine RegistryEngine) CloseSession(handle uint64) error {
 func (engine RegistryEngine) Release(handle uint64) error {
 	return engine.Registry.Release(engine.Handle, handle)
 }
-func (engine RegistryEngine) NextEvent(ctx context.Context) ([]byte, error) {
-	return engine.Registry.NextEvent(ctx, engine.Handle)
+func (engine RegistryEngine) NextEvent(ctx context.Context, rendererHandle uint64) ([]byte, error) {
+	return engine.Registry.NextRendererEvent(ctx, engine.Handle, rendererHandle)
 }
 
 // Server is one engine's loopback transport. Stop is idempotent and waits for
@@ -121,13 +130,16 @@ type Server struct {
 	active      *client
 	clients     map[*client]struct{}
 	stateChange chan struct{}
+	dispatchMu  sync.Mutex
 	stopOnce    sync.Once
 	wg          sync.WaitGroup
 }
 
 type client struct {
-	ws      *websocket.Conn
-	writeMu sync.Mutex
+	ws           *websocket.Conn
+	renderer     uint64
+	writeMu      sync.Mutex
+	rendererOnce sync.Once
 }
 
 // Start listens only on an ephemeral IPv4 loopback port.
@@ -253,19 +265,30 @@ func (server *Server) handleClient(ws *websocket.Conn) {
 		return
 	}
 	_ = ws.SetReadDeadline(time.Time{})
+	server.dispatchMu.Lock()
 	if err := server.send(current, opACK, 0, 0, nil); err != nil {
+		server.dispatchMu.Unlock()
 		return
 	}
+	renderer, err := server.engine.AttachRenderer()
+	if err != nil {
+		server.dispatchMu.Unlock()
+		return
+	}
+	current.renderer = renderer
 
 	server.mu.Lock()
 	if server.stopping {
 		server.mu.Unlock()
+		_ = server.engine.DetachRenderer(renderer)
+		server.dispatchMu.Unlock()
 		return
 	}
 	replaced := server.active
 	server.active = current
 	server.signalLocked()
 	server.mu.Unlock()
+	server.dispatchMu.Unlock()
 	if replaced != nil && replaced != current {
 		_ = replaced.ws.Close()
 	}
@@ -289,6 +312,14 @@ func (server *Server) handleClient(ws *websocket.Conn) {
 }
 
 func (server *Server) handleRequest(current *client, frame []byte) {
+	server.dispatchMu.Lock()
+	defer server.dispatchMu.Unlock()
+	server.mu.Lock()
+	admitted := !server.stopping && server.active == current && current.renderer != 0
+	server.mu.Unlock()
+	if !admitted {
+		return
+	}
 	requestID := uint64(0)
 	if len(frame) >= 9 {
 		requestID = binary.BigEndian.Uint64(frame[1:9])
@@ -356,26 +387,25 @@ func decodeRequest(frame []byte) (operation byte, handle uint64, payload []byte,
 }
 
 func (server *Server) pumpEvents() {
-	var pending []byte
 	for {
 		current, err := server.waitForClient()
 		if err != nil {
 			return
 		}
-		if pending == nil {
-			pending, err = server.engine.NextEvent(server.ctx)
-			if err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, binding.ErrClosed) || errors.Is(err, binding.ErrInvalidHandle) {
-					return
-				}
-				continue
+		payload, err := server.engine.NextEvent(server.ctx, current.renderer)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, binding.ErrClosed) {
+				return
 			}
+			if errors.Is(err, binding.ErrInvalidHandle) {
+				server.retire(current)
+			}
+			continue
 		}
-		if err := server.send(current, opEvent, 0, 0, pending); err != nil {
+		if err := server.send(current, opEvent, 0, 0, payload); err != nil {
 			server.retire(current)
 			continue
 		}
-		pending = nil
 	}
 }
 
@@ -439,6 +469,13 @@ func (server *Server) retire(current *client) {
 		server.signalLocked()
 	}
 	server.mu.Unlock()
+	current.rendererOnce.Do(func() {
+		server.dispatchMu.Lock()
+		defer server.dispatchMu.Unlock()
+		if current.renderer != 0 {
+			_ = server.engine.DetachRenderer(current.renderer)
+		}
+	})
 	_ = current.ws.Close()
 }
 

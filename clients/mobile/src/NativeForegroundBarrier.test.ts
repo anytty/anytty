@@ -26,4 +26,44 @@ describe('NativeForegroundBarrier', () => {
 
     await expect(result).rejects.toThrow('Go client engine could not resume')
   })
+
+  it('releases a picker-owned barrier when launching the picker fails', async () => {
+    const barrier = new NativeForegroundBarrier()
+
+    await expect(runAcrossNativePicker(barrier, async () => {
+      throw new Error('picker unavailable')
+    })).rejects.toThrow('picker unavailable')
+
+    await expect(barrier.wait()).resolves.toBeUndefined()
+  })
+
+  it('does not release a barrier reinforced by a later lifecycle event', async () => {
+    const barrier = new NativeForegroundBarrier()
+    const result = runAcrossNativePicker(barrier, async () => {
+      barrier.markBackground()
+      throw new Error('picker interrupted')
+    })
+
+    await expect(result).rejects.toThrow('picker interrupted')
+    const settled = vi.fn()
+    void barrier.wait().then(settled)
+    await Promise.resolve()
+    expect(settled).not.toHaveBeenCalled()
+
+    barrier.finishForeground()
+    await barrier.wait()
+  })
+
+  it('lets an abandoned business operation cancel its foreground wait', async () => {
+    const barrier = new NativeForegroundBarrier()
+    const controller = new AbortController()
+    barrier.markBackground()
+
+    const waiting = barrier.wait(controller.signal)
+    controller.abort(new Error('consumer disposed'))
+
+    await expect(waiting).rejects.toThrow('consumer disposed')
+    barrier.finishForeground()
+    await expect(barrier.wait()).resolves.toBeUndefined()
+  })
 })

@@ -864,6 +864,40 @@ describe('NativeFileTransferStore', () => {
     expect(sentChunks).toEqual([{ offset: 0, size: 4 }, { offset: 4, size: 4 }])
   })
 
+  it('keeps Android bridge upload messages below the 64 KiB fragmentation boundary', async () => {
+    vi.stubGlobal('self', globalThis)
+    const subscribers: Array<(type: number, payload: Uint8Array) => void> = []
+    const sentChunkSizes: number[] = []
+    const totalSize = 64 * 1024
+    const stream: ProtoResourceStream = {
+      handle: 1n,
+      send: async (type, payload) => {
+        if (type === AnyTTYClientBinding.ResourceStreamFrameType.FILE_DATA) {
+          sentChunkSizes.push(decodeFileTransferDataPayload(payload).data.byteLength)
+          return
+        }
+        if (type === AnyTTYClientBinding.ResourceStreamFrameType.FILE_FINISH) {
+          const result = toBinary(FileTransferResultSchema, create(FileTransferResultSchema, { size: BigInt(totalSize) }))
+          for (const subscriber of subscribers) subscriber(AnyTTYClientBinding.ResourceStreamFrameType.FILE_RESULT, result)
+        }
+      },
+      subscribe: (listener) => {
+        subscribers.push(listener)
+        return { close() {} }
+      },
+      subscribeClosed: () => ({ close() {} }),
+      close: async () => undefined,
+    }
+    const store = new NativeFileTransferStore()
+    store.setSessionResolver(async () => uploadSession(stream, totalSize, totalSize, totalSize))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Blob([new Uint8Array(totalSize)]))))
+
+    store.startUpload('studio', 'content://upload', 'boundary.bin', totalSize, '/tmp')
+
+    await waitFor(() => store.getSnapshot().transfers[0]?.status === 'completed')
+    expect(sentChunkSizes).toEqual([60 * 1024, 4 * 1024])
+  })
+
   it('fails a window-blocked upload when the daemon sends FILE_ERROR without closing the stream', async () => {
     vi.stubGlobal('self', globalThis)
     const subscribers: Array<(type: number, payload: Uint8Array) => void> = []

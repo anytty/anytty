@@ -1,10 +1,18 @@
+export type NativeRecoveryTrigger = 'app_resume' | 'page_visible' | 'renderer_stall' | 'binding_closed' | 'manual_retry'
+export type NativeRecoveryIntent = 'ensure_ready' | 'repair'
+
 export interface NativeRecoveryRequest {
-  replaceBinding: boolean
-  reloadRegistry: boolean
+  intent: NativeRecoveryIntent
+  trigger: NativeRecoveryTrigger
 }
 
 export interface NativeRecoveryWork extends NativeRecoveryRequest {
   attempt: number
+}
+
+export interface NativeForegroundResumeTarget {
+  endpointId: string
+  resume: () => Promise<void>
 }
 
 interface NativeRecoverySchedule {
@@ -88,14 +96,39 @@ export class NativeRecoveryCoordinator {
   }
 }
 
+/** Waits for every demanded endpoint to settle, but never converts endpoint failures into APP ready. */
+export async function resumeNativeForegroundTargets(
+  targets: Iterable<NativeForegroundResumeTarget>,
+): Promise<void> {
+  const pending = [...targets]
+  const results = await Promise.allSettled(pending.map((target) => target.resume()))
+  const failures = results.flatMap((result, index) => result.status === 'rejected'
+    ? [{ endpointId: pending[index]?.endpointId ?? 'unknown', reason: result.reason }]
+    : [])
+  if (failures.length === 0) return
+  if (failures.length === 1) throw failures[0]?.reason
+  throw new AggregateError(
+    failures.map((failure) => failure.reason),
+    `Native foreground resume failed for endpoints: ${failures.map((failure) => failure.endpointId).join(', ')}`,
+  )
+}
+
 function covers(current: NativeRecoveryRequest, requested: NativeRecoveryRequest): boolean {
-  return (!requested.replaceBinding || current.replaceBinding) &&
-    (!requested.reloadRegistry || current.reloadRegistry)
+  return recoveryIntentPriority(current.intent) >= recoveryIntentPriority(requested.intent)
 }
 
 function mergeRequests(...requests: Array<NativeRecoveryRequest | null | undefined>): NativeRecoveryRequest {
-  return requests.reduce<NativeRecoveryRequest>((merged, request) => ({
-    replaceBinding: merged.replaceBinding || request?.replaceBinding === true,
-    reloadRegistry: merged.reloadRegistry || request?.reloadRegistry === true,
-  }), { replaceBinding: false, reloadRegistry: false })
+  return requests.reduce<NativeRecoveryRequest>((merged, request) => {
+    if (!request) return merged
+    return recoveryIntentPriority(request.intent) >= recoveryIntentPriority(merged.intent)
+      ? request
+      : merged
+  }, {
+    intent: 'ensure_ready',
+    trigger: 'app_resume',
+  })
+}
+
+function recoveryIntentPriority(intent: NativeRecoveryIntent): number {
+  return intent === 'repair' ? 1 : 0
 }

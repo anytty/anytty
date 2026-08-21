@@ -96,6 +96,7 @@ export function connectionSnapshotFromStatus(input: {
 
 export function inferConnectionPhase(statusText: string): RtcConnectionPhase {
   const text = statusText.toLowerCase()
+  if (text.includes('disconnected') || text.includes('not connected')) return 'failed'
   if (text.includes('connected')) return 'connected'
   if (text.includes('verify') || text.includes('verifying')) return 'verifying'
   if (text.includes('reconnect') || text.includes('switching') || text.includes('trying p2p')) return 'reconnecting'

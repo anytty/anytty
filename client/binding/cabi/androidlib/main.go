@@ -112,6 +112,74 @@ func anytty_local_probe(data *C.uint8_t, length C.size_t, outReachable *C.uint8_
 	return C.ANYTTY_STATUS_OK
 }
 
+//export anytty_supervisor_replace_demand
+func anytty_supervisor_replace_demand(engine C.anytty_handle_t, data *C.uint8_t, length C.size_t) C.anytty_status_v1 {
+	if data == nil || length == 0 || uint64(length) > uint64(binding.MaxPayloadBytes) {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	host := androidSupervisorHost(uint64(engine))
+	if host == nil {
+		return C.ANYTTY_STATUS_INVALID_HANDLE
+	}
+	return status(binding.ReplaceEndpointSupervisorDemand(host, C.GoBytes(unsafe.Pointer(data), C.int(length))))
+}
+
+//export anytty_supervisor_signal
+func anytty_supervisor_signal(engine C.anytty_handle_t, data *C.uint8_t, length C.size_t) C.anytty_status_v1 {
+	if data == nil || length == 0 || uint64(length) > uint64(binding.MaxPayloadBytes) {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	host := androidSupervisorHost(uint64(engine))
+	if host == nil {
+		return C.ANYTTY_STATUS_INVALID_HANDLE
+	}
+	return status(binding.SignalEndpointSupervisor(host, C.GoBytes(unsafe.Pointer(data), C.int(length))))
+}
+
+//export anytty_supervisor_wait_ready
+func anytty_supervisor_wait_ready(engine C.anytty_handle_t, timeoutMillis C.uint32_t) C.anytty_status_v1 {
+	host := androidSupervisorHost(uint64(engine))
+	if host == nil {
+		return C.ANYTTY_STATUS_INVALID_HANDLE
+	}
+	ctx := context.Background()
+	cancel := func() {}
+	if timeoutMillis > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeoutMillis)*time.Millisecond)
+	}
+	defer cancel()
+	err := host.WaitEndpointDemandReady(ctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		// The supervisor keeps recovering after the native foreground budget.
+		// Renderer OpenSession waiters reattach without owning a second dial loop.
+		return C.ANYTTY_STATUS_OK
+	}
+	return status(err)
+}
+
+//export anytty_supervisor_snapshot
+func anytty_supervisor_snapshot(engine C.anytty_handle_t, out *C.anytty_buffer_v1) C.anytty_status_v1 {
+	if out == nil {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	host := androidSupervisorHost(uint64(engine))
+	if host == nil {
+		return C.ANYTTY_STATUS_INVALID_HANDLE
+	}
+	payload, err := binding.EncodeEndpointSupervisorSnapshot(host)
+	if err != nil {
+		return status(err)
+	}
+	return allocateBuffer(payload, out)
+}
+
+func androidSupervisorHost(handle uint64) binding.EndpointSupervisorHost {
+	androidLibrary.Lock()
+	host, _ := androidLibrary.hosts[handle].(binding.EndpointSupervisorHost)
+	androidLibrary.Unlock()
+	return host
+}
+
 func createAndroidEngine(host androidHost, broker *binding.PlatformBroker, out *C.anytty_handle_t) C.anytty_status_v1 {
 	handle, err := androidLibrary.registry.CreateEngine(host)
 	if err != nil {
@@ -233,11 +301,17 @@ func anytty_platform_complete(engine C.anytty_handle_t, data *C.uint8_t, length 
 }
 
 func allocateBuffer(payload []byte, out *C.anytty_buffer_v1) C.anytty_status_v1 {
-	pointer := C.malloc(C.size_t(len(payload)))
+	allocationLength := len(payload)
+	if allocationLength == 0 {
+		allocationLength = 1
+	}
+	pointer := C.malloc(C.size_t(allocationLength))
 	if pointer == nil {
 		return C.ANYTTY_STATUS_CAPACITY
 	}
-	copy(unsafe.Slice((*byte)(pointer), len(payload)), payload)
+	if len(payload) > 0 {
+		copy(unsafe.Slice((*byte)(pointer), len(payload)), payload)
+	}
 	androidLibrary.Lock()
 	androidLibrary.nextBuffer++
 	handle := androidLibrary.nextBuffer

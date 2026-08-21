@@ -49,7 +49,7 @@ export function MachineAvailabilitySummary({
     : presentation
   const lifecycle = lifecycleStatus(connection, lifecyclePresentation, t)
   return (
-    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5" aria-live="polite">
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
       {paths.map(({ kind, state, icon }) => {
         const detail = reachabilityLabel(kind, state, t)
         const pathPresentation = projectConnectionPresentation({

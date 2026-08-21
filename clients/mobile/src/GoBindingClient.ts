@@ -182,20 +182,21 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
           return
         }
         socket.onmessage = (message) => this.handleMessage(socket, new Uint8Array(message.data as ArrayBuffer))
-        socket.onclose = () => this.handleClosed(new Error('Go binding bridge disconnected'))
+        socket.onclose = () => this.handleClosed(socket, new Error('Go binding bridge disconnected'))
         finish()
       }
     })
   }
 
   private handleMessage(socket: WebSocket, bytes: Uint8Array): void {
+    if (this.socket !== socket) return
     let frame: ReturnType<typeof decodeBridgeFrame>
     try {
       frame = decodeBridgeFrame(bytes)
     } catch (error) {
       socket.onclose = null
       socket.close()
-      this.handleClosed(error instanceof Error ? error : new Error('invalid Go binding bridge frame'))
+      this.handleClosed(socket, error instanceof Error ? error : new Error('invalid Go binding bridge frame'))
       return
     }
     if (frame.operation === OP_EVENT) {
@@ -227,7 +228,8 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
     pending.resolve(frame.handle)
   }
 
-  private handleClosed(error: Error): void {
+  private handleClosed(socket: WebSocket, error: Error): void {
+    if (this.socket !== socket) return
     this.socket = null
     this.rejectAll(error)
     if (!this.intentionalClose) this.onClosed?.(error)

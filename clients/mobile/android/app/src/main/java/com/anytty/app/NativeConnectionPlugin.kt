@@ -20,11 +20,13 @@ import kotlinx.coroutines.launch
 @CapacitorPlugin(name = "NativeConnection")
 class NativeConnectionPlugin : Plugin() {
     companion object {
+        private const val FOREGROUND_SUPERVISOR_TIMEOUT_MILLIS = 18_000
         @Volatile private var loadedPlugin = WeakReference<NativeConnectionPlugin>(null)
 
-        internal fun notifyDisconnectAllRequested() {
+        internal fun notifyDisconnectAllRequested(snapshot: NativeRendererDemandSnapshot?) {
             val plugin = loadedPlugin.get() ?: return
             plugin.activity.runOnUiThread {
+                if (snapshot != null) plugin.adoptDemandSnapshot(snapshot, emptySet())
                 plugin.notifyListeners("disconnectAllRequested", JSObject(), true)
             }
         }
@@ -33,6 +35,8 @@ class NativeConnectionPlugin : Plugin() {
     private val runtimeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var networkMonitor: NativeNetworkMonitor? = null
     private var localDiscovery: NativeLocalDiscovery? = null
+    private var rendererDemand: NativeRendererDemandSnapshot? = null
+    private var goManagedEndpointIds: Set<String> = emptySet()
     @Volatile private var latestNetworkSnapshot = NativeNetworkSnapshot(
         epoch = 0L,
         connected = true,
@@ -45,33 +49,51 @@ class NativeConnectionPlugin : Plugin() {
     )
 
     override fun load() {
-        loadedPlugin = WeakReference(this)
-        runtimeCoordinator.load()
-        val connectivity = context.applicationContext
-            .getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        latestNetworkSnapshot = NativeNetworkSnapshot(
-            epoch = 0L,
-            connected = connectivity.activeNetwork != null,
-            reason = if (connectivity.activeNetwork == null) "offline" else "path_changed",
-        )
-        localDiscovery = NativeLocalDiscovery(context.applicationContext) {
-            notifyListeners("localDiscoveryChanged", JSObject(), true)
-        }.also {
-            it.restart(latestNetworkSnapshot.connected)
-        }
-        networkMonitor = NativeNetworkMonitor(context.applicationContext) { epoch, connected, reason ->
-            latestNetworkSnapshot = NativeNetworkSnapshot(epoch, connected, reason)
-            if (!connected || reason == "available" || reason == "network_replaced") {
-                localDiscovery?.restart(connected)
-            }
-            AnyTTYDebugLog.event(AnyTTYDebugEvent.NETWORK_CHANGED, epoch)
-            notifyListeners(
-                "networkChanged",
-                nativeNetworkChangedPayload(epoch, connected, reason),
-                true,
+        try {
+            runtimeCoordinator.load()
+            adoptDemandResult(NativeConnectionRuntimeOwner.attachRenderer())
+            val connectivity = context.applicationContext
+                .getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            latestNetworkSnapshot = NativeNetworkSnapshot(
+                epoch = 0L,
+                connected = connectivity.activeNetwork != null,
+                reason = if (connectivity.activeNetwork == null) "offline" else "path_changed",
             )
-        }.also { it.start() }
-        AnyTTYDebugLog.event(AnyTTYDebugEvent.CONNECTION_PLUGIN_LOADED)
+            NativeConnectionRuntimeOwner.signalNetworkChanged(
+                latestNetworkSnapshot.connected,
+                latestNetworkSnapshot.reason,
+            )
+            localDiscovery = NativeLocalDiscovery(context.applicationContext) {
+                notifyListeners("localDiscoveryChanged", JSObject(), false)
+            }.also {
+                it.restart(latestNetworkSnapshot.connected)
+            }
+            networkMonitor = NativeNetworkMonitor(context.applicationContext) { epoch, connected, reason ->
+                latestNetworkSnapshot = NativeNetworkSnapshot(epoch, connected, reason)
+                runCatching { NativeConnectionRuntimeOwner.signalNetworkChanged(connected, reason) }
+                    .onFailure { AnyTTYDebugLog.event(AnyTTYDebugEvent.GENERATION_CHANGE_FAILED) }
+                if (!connected || reason == "available" || reason == "network_replaced") {
+                    localDiscovery?.restart(connected)
+                }
+                AnyTTYDebugLog.event(AnyTTYDebugEvent.NETWORK_CHANGED, epoch)
+                notifyListeners(
+                    "networkChanged",
+                    nativeNetworkChangedPayload(epoch, connected, reason),
+                    false,
+                )
+            }.also { it.start() }
+            loadedPlugin = WeakReference(this)
+            AnyTTYDebugLog.event(AnyTTYDebugEvent.CONNECTION_PLUGIN_LOADED)
+        } catch (failure: Exception) {
+            networkMonitor?.close()
+            networkMonitor = null
+            localDiscovery?.close()
+            localDiscovery = null
+            detachRendererDemand()
+            runtimeCoordinator.destroy()
+            if (loadedPlugin.get() === this) loadedPlugin.clear()
+            throw failure
+        }
     }
 
     override fun handleOnDestroy() {
@@ -80,6 +102,7 @@ class NativeConnectionPlugin : Plugin() {
         networkMonitor = null
         localDiscovery?.close()
         localDiscovery = null
+        detachRendererDemand()
         runtimeCoordinator.destroy()
         runtimeScope.cancel("NativeConnectionPlugin destroyed")
         if (loadedPlugin.get() === this) loadedPlugin.clear()
@@ -88,11 +111,27 @@ class NativeConnectionPlugin : Plugin() {
 
     @PluginMethod
     fun handleForegroundResume(call: PluginCall) {
-        try {
-            runtimeCoordinator.ensureForForeground()
-            call.resolve()
-        } catch (failure: Exception) {
-            call.reject("Go client engine could not resume", failure)
+        if (!runtimeCoordinator.isReady()) {
+            call.reject("native runtime is not available")
+            return
+        }
+        val settled = AtomicBoolean(false)
+        val recovery = runtimeScope.launch {
+            try {
+                runtimeCoordinator.ensureForForeground()
+                NativeConnectionRuntimeOwner.handleForegroundResume(
+                    context.applicationContext,
+                    FOREGROUND_SUPERVISOR_TIMEOUT_MILLIS,
+                )
+                if (settled.compareAndSet(false, true)) call.resolve()
+            } catch (failure: Exception) {
+                if (settled.compareAndSet(false, true)) call.reject("Go client engine could not resume", failure)
+            }
+        }
+        recovery.invokeOnCompletion { failure ->
+            if (failure is CancellationException && settled.compareAndSet(false, true)) {
+                call.reject("native runtime was destroyed during foreground recovery", failure)
+            }
         }
     }
 
@@ -137,15 +176,38 @@ class NativeConnectionPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun setSessionActive(call: PluginCall) {
-        val endpointId = call.getString("machineId").orEmpty().trim()
-        if (endpointId.isEmpty()) {
-            call.reject("machineId is required")
+    @Synchronized
+    fun replaceSessionDemand(call: PluginCall) {
+        val values = call.getArray("endpointIds")
+        if (values == null) {
+            call.reject("endpointIds is required")
             return
         }
-        val active = call.getBoolean("active", false) ?: false
-        NativeConnectionRuntimeOwner.setEndpointActive(context.applicationContext, endpointId, active)
-        call.resolve()
+        val endpointIds = linkedSetOf<String>()
+        try {
+            for (index in 0 until values.length()) {
+                val endpointId = (values.get(index) as? String)?.trim().orEmpty()
+                if (endpointId.isEmpty()) throw IllegalArgumentException("endpointIds contains an invalid value")
+                endpointIds += endpointId
+            }
+            val current = rendererDemand
+                ?: throw IllegalStateException("renderer demand attachment is unavailable")
+            val next = NativeConnectionRuntimeOwner.replaceRendererDemand(
+                context.applicationContext,
+                current.attachmentId,
+                current.demandRevision,
+                endpointIds,
+            )
+            adoptDemandResult(next)
+            call.resolve(JSObject().put("goManagedEndpointIds", next.goManagedEndpointIds.toList()))
+        } catch (failure: Exception) {
+            rendererDemand?.let { current ->
+                runCatching { NativeConnectionRuntimeOwner.rendererDemandSnapshot(current.attachmentId) }
+                    .getOrNull()
+                    ?.let(::adoptDemandResult)
+            }
+            call.reject("failed to replace renderer connection demand", failure)
+        }
     }
 
     @PluginMethod
@@ -163,13 +225,19 @@ class NativeConnectionPlugin : Plugin() {
         }
         val settled = AtomicBoolean(false)
         val probe = runtimeScope.launch {
-            val startedAt = SystemClock.elapsedRealtime()
-            val reachable = GoClientNative.localProbe(nativeLocalDiscoveryResult(candidates).toByteArray())
-            AnyTTYDebugLog.connection(
-                "local_discovery probe candidates=${candidates.size} reachable=$reachable probe_ms=${SystemClock.elapsedRealtime() - startedAt}",
-            )
-            if (settled.compareAndSet(false, true)) {
-                call.resolve(JSObject().put("discovered", reachable))
+            try {
+                val startedAt = SystemClock.elapsedRealtime()
+                val reachable = GoClientNative.localProbe(nativeLocalDiscoveryResult(candidates).toByteArray())
+                AnyTTYDebugLog.connection(
+                    "local_discovery probe candidates=${candidates.size} reachable=$reachable probe_ms=${SystemClock.elapsedRealtime() - startedAt}",
+                )
+                if (settled.compareAndSet(false, true)) {
+                    call.resolve(JSObject().put("discovered", reachable))
+                }
+            } catch (failure: Exception) {
+                if (settled.compareAndSet(false, true)) {
+                    call.reject("local discovery probe failed", failure)
+                }
             }
         }
         probe.invokeOnCompletion { failure ->
@@ -177,6 +245,28 @@ class NativeConnectionPlugin : Plugin() {
                 call.reject("local discovery probe was cancelled", failure)
             }
         }
+    }
+
+    @Synchronized
+    private fun adoptDemandResult(result: NativeSupervisorDemandResult) {
+        adoptDemandSnapshot(result.snapshot, result.goManagedEndpointIds)
+    }
+
+    @Synchronized
+    private fun adoptDemandSnapshot(snapshot: NativeRendererDemandSnapshot, managedEndpointIds: Set<String>) {
+        val current = rendererDemand
+        if (current == null || current.attachmentId == snapshot.attachmentId) {
+            rendererDemand = snapshot
+            goManagedEndpointIds = managedEndpointIds.toSet()
+        }
+    }
+
+    @Synchronized
+    private fun detachRendererDemand() {
+        val current = rendererDemand ?: return
+        rendererDemand = null
+        goManagedEndpointIds = emptySet()
+        NativeConnectionRuntimeOwner.detachRenderer(current.attachmentId)
     }
 }
 

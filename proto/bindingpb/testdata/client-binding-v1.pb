@@ -1,5 +1,5 @@
 
-Å£
+ß¨
 bindingpb/client_binding.protoanytty.client.binding.v1apipb/application.protoapipb/common.protoremoteauthpb/remote_auth.proto"—
 
 ConnectionSnapshot
@@ -451,7 +451,42 @@ credential[
 PTYStreamSyncLost#
 dropped_bytes (RdroppedBytes".
 PTYStreamClosed
-	exit_code (RexitCode*à
+	exit_code (RexitCode"Å
+EndpointSupervisorDemand
+endpoint_id (	R
+endpointIdD
+mode (20.anytty.client.binding.v1.EndpointSupervisorModeRmode"¬
+ EndpointSupervisorDemandSnapshot#
+attachment_id (	RattachmentId'
+demand_revision (RdemandRevisionP
+	endpoints (22.anytty.client.binding.v1.EndpointSupervisorDemandR	endpoints"ê
+EndpointSupervisorHostSignal
+revision (Rrevision
+	connected (R	connected
+reason (	Rreason
+
+foreground (R
+foreground"¬
+EndpointSupervisorProjection
+endpoint_id (	R
+endpointIdD
+mode (20.anytty.client.binding.v1.EndpointSupervisorModeRmode
+phase (	Rphase)
+control_revision (RcontrolRevision
+
+attempt_id (R	attemptId=
+session (2#.anytty.api.v1.EndpointSessionStampRsession
+
+error_code (	R	errorCode
+message (	Rmessage
+probe_count	 (R
+probeCount
+
+dial_count
+ (R	dialCount#
+backoff_count (RbackoffCount"r
+EndpointSupervisorSnapshotT
+	endpoints (26.anytty.client.binding.v1.EndpointSupervisorProjectionR	endpoints*à
 ConnectIntent
 CONNECT_INTENT_UNSPECIFIED 
 CONNECT_INTENT_INTERACTIVE
@@ -505,4 +540,8 @@ $CONNECTION_OBSERVED_PATH_UNSPECIFIED #
 $ENDPOINT_CONNECTION_PHASE_CONNECTING)
 %ENDPOINT_CONNECTION_PHASE_AUTHORIZING#
 ENDPOINT_CONNECTION_PHASE_READY%
-!ENDPOINT_CONNECTION_PHASE_OFFLINEB*Z(github.com/anytty/anytty/proto/bindingpbbproto3
+!ENDPOINT_CONNECTION_PHASE_OFFLINE*é
+EndpointSupervisorMode(
+$ENDPOINT_SUPERVISOR_MODE_UNSPECIFIED #
+ENDPOINT_SUPERVISOR_MODE_SHADOW%
+!ENDPOINT_SUPERVISOR_MODE_TAKEOVERB*Z(github.com/anytty/anytty/proto/bindingpbbproto3

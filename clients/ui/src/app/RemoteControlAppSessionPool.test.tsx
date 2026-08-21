@@ -176,7 +176,7 @@ describe('RemoteControlApp native session pool', () => {
     expect(localStatus.textContent).toBe('LAN')
   })
 
-  it('keeps route status visible while showing a separate connection progress state', async () => {
+  it('shows connection progress only inside the affected device row', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
       machineId: 'device-1',
@@ -204,9 +204,8 @@ describe('RemoteControlApp native session pool', () => {
 
     expect((await screen.findByLabelText('Direct access available')).textContent).toBe('LAN')
     expect((await screen.findByLabelText('Daemon online on Edge')).textContent).toBe('Cloud')
-    const progress = screen.getByRole('status')
-    expect(progress.textContent).toBe('Connecting to the device...')
-    expect(progress.getAttribute('data-tone')).toBe('info')
+    expect(await screen.findByText('Connecting to the device...')).toBeTruthy()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
     expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(false)
   })
 
@@ -279,10 +278,10 @@ describe('RemoteControlApp native session pool', () => {
     expect(fetch).not.toHaveBeenCalled()
     expect(screen.queryByText('Not connected')).toBeNull()
     expect(screen.queryByText('Cloud offline')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(false)
   })
 
-  it('blocks the device entry when all routes go offline during a reconnect', async () => {
+  it('keeps the device entry available when stale reachability says all routes are offline', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
       machineId: 'device-1',
@@ -310,12 +309,14 @@ describe('RemoteControlApp native session pool', () => {
     )
 
     expect((await screen.findByLabelText('Daemon offline on Edge')).getAttribute('data-tone')).toBe('warning')
-    expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(true)
-    const status = screen.getByRole('status')
+    expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(false)
+    const status = screen.getByText('Not currently reachable').closest<HTMLElement>('[role="status"]')
+    expect(status).toBeTruthy()
     expect(status.textContent).toBe('Not currently reachable')
     expect(status.hasAttribute('aria-busy')).toBe(false)
     expect(status.querySelector('.lucide-wifi-off')).toBeTruthy()
     expect(status.querySelector('.lucide-loader-circle')).toBeNull()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
   })
 
   it('keeps a relay runtime across back navigation and disconnects it explicitly from the device menu', async () => {
@@ -392,7 +393,7 @@ describe('RemoteControlApp native session pool', () => {
     expect(screen.queryByRole('menuitem', { name: 'Disconnect from Build host' })).toBeNull()
   })
 
-  it('does not expose a stale connected device while the native generation is restoring', async () => {
+  it('keeps device truth visible while app recovery pauses remote actions', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
       machineId: 'device-1',
@@ -410,23 +411,24 @@ describe('RemoteControlApp native session pool', () => {
     render(
       <RemoteControlApp
         cloudPresenceByMachineId={new Map([['device-1', 'online']])}
-        connectionReady={false}
+        connectionState="recovering"
         externalPairingAdapter={authorizedAdapter()}
         machineRuntimeFactory={() => runtimeWithSnapshot(connectedRelaySnapshot())}
         networkRuntime={networkRuntime(storage)}
       />,
     )
 
-    expect(await screen.findByText('Network is back. Restoring secure connections...')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Open Build host' }) as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.queryByLabelText('Daemon online on Edge')).toBeNull()
+    expect(screen.queryByText('Restoring the app connection...')).toBeNull()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect((screen.getByRole('button', { name: 'Open Build host' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText('Daemon online on Edge')).toBeTruthy()
 
     await userEvent.click(screen.getByRole('button', { name: 'More actions for Build host' }))
     expect(screen.queryByRole('menuitem', { name: 'Disconnect from Build host' })).toBeNull()
     await userEvent.click(screen.getByRole('menuitem', { name: 'Device details' }))
     const dialog = screen.getByRole('dialog', { name: 'Build host' })
-    expect(dialog.textContent).toContain('Reconnecting')
-    expect(dialog.textContent).not.toContain('Single relay')
+    expect(dialog.textContent).toContain('Connected')
+    expect(dialog.textContent).toContain('Single relay')
   })
 
   it('edits and reconnects a device policy from the list while connection recovery is unavailable', async () => {
@@ -469,7 +471,7 @@ describe('RemoteControlApp native session pool', () => {
     render(
       <RemoteControlApp
         cloudPresenceByMachineId={new Map([['device-1', 'online']])}
-        connectionReady={false}
+        connectionState="recovering"
         externalPairingAdapter={authorizedAdapter()}
         machineRuntimeFactory={() => runtime}
         networkRuntime={networkRuntime(storage)}
@@ -572,7 +574,7 @@ describe('RemoteControlApp native session pool', () => {
 
     const view = render(
       <RemoteControlApp
-        connectionReady={false}
+        connectionState="recovering"
         externalPairingAdapter={authorizedAdapter()}
         networkRuntime={networkRuntime(storage)}
         onRefreshMachines={onRefreshMachines}
@@ -580,7 +582,8 @@ describe('RemoteControlApp native session pool', () => {
     )
 
     const scroller = await screen.findByTestId('anytty-machine-list-scroller')
-    expect(screen.getByText('Network is back. Restoring secure connections...')).toBeTruthy()
+    expect(screen.queryByText('Restoring the app connection...')).toBeNull()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
     expect((screen.getByRole('button', { name: 'Refresh devices' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.touchStart(scroller, { touches: [{ clientY: 10 }] })
     fireEvent.touchMove(scroller, { touches: [{ clientY: 150 }] })
@@ -589,7 +592,6 @@ describe('RemoteControlApp native session pool', () => {
 
     view.rerender(
       <RemoteControlApp
-        connectionReady
         externalPairingAdapter={authorizedAdapter()}
         networkRuntime={networkRuntime(storage)}
         onRefreshMachines={onRefreshMachines}

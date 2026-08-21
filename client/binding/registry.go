@@ -48,6 +48,24 @@ func (registry *Registry) CreateEngine(host Host) (uint64, error) {
 	return registry.nextHandle, nil
 }
 
+// AttachRenderer allocates an isolated handle/event arena for one WebView binding client.
+func (registry *Registry) AttachRenderer(engineHandle uint64) (uint64, error) {
+	engine, err := registry.engine(engineHandle)
+	if err != nil {
+		return 0, err
+	}
+	return engine.AttachRenderer()
+}
+
+// DetachRenderer revokes every resource owned by rendererHandle without closing the process engine.
+func (registry *Registry) DetachRenderer(engineHandle, rendererHandle uint64) error {
+	engine, err := registry.engine(engineHandle)
+	if err != nil {
+		return err
+	}
+	return engine.DetachRenderer(rendererHandle)
+}
+
 // OpenSession 把 serialized bindingpb.OpenSessionRequest 路由到指定 engine。
 func (registry *Registry) OpenSession(engineHandle uint64, payload []byte) (uint64, error) {
 	engine, err := registry.engine(engineHandle)
@@ -110,6 +128,15 @@ func (registry *Registry) NextEvent(ctx context.Context, engineHandle uint64) ([
 		return nil, err
 	}
 	return engine.NextEvent(ctx)
+}
+
+// NextRendererEvent reads only events owned by rendererHandle.
+func (registry *Registry) NextRendererEvent(ctx context.Context, engineHandle, rendererHandle uint64) ([]byte, error) {
+	engine, err := registry.engine(engineHandle)
+	if err != nil {
+		return nil, err
+	}
+	return engine.NextEventForRenderer(ctx, rendererHandle)
 }
 
 // Cancel 取消指定 engine 内的 operation handle。

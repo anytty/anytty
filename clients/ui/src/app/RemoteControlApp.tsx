@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useS
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Apple, ArrowLeft, Camera, Check, ChevronDown, ChevronRight, ClipboardPaste, Cloud, Copy, Cpu, Download, ExternalLink, FileText, HardDrive, ImagePlus, Laptop, LoaderCircle, Monitor, Moon, MoreHorizontal, PanelsTopLeft, Pencil, QrCode, RefreshCw, Router, Save, Server, Settings, Smartphone, SquareTerminal, Sun, Tablet, Undo2, Upload, WifiOff, X, type LucideIcon } from 'lucide-react'
-import type { MachineWorkspaceInventoryApi, MachineWorkspaceConnector } from './MachineWorkspace'
+import type { MachineWorkspaceInventoryApi, MachineWorkspaceConnector, MachineWorkspaceSwitcherMachine, SystemClipboard } from './MachineWorkspace'
 import { createMachineStore, type StoredMachineRecord } from '../state/machineStore'
 import type { MachineConnectionSnapshot } from '../connection/machineConnectionSnapshot'
 import { FileTransferPanel } from '../files/FileTransferPanel'
@@ -15,7 +15,8 @@ import { normalizeHubBaseUrlCandidate } from '../api/hubUrl'
 import type { RemoteMachine } from '../core/remoteMachine'
 import {
   TERMINAL_FONT_OPTIONS,
-  TERMINAL_SCROLL_INERTIA_OPTIONS,
+  TERMINAL_SCROLL_INERTIA_MAX,
+  TERMINAL_SCROLL_INERTIA_MIN,
   TERMINAL_THEME_OPTIONS,
   readTerminalSettings,
   resolveTerminalThemeOption,
@@ -36,8 +37,9 @@ import { anyttyIntlLocale, anyttyLanguages, normalizeAnyTTYLanguage } from '../i
 import { connectionErrorDisplayMessage } from '../connection/connectionErrorPresentation'
 import { connectionPhaseLabel } from '../connection/connectionState'
 import { ConnectionSummary } from '../connection/ConnectionSummary'
-import { ConnectionNotice } from '../connection/ConnectionNotice'
 import { projectConnectionPresentation, type ConnectionPresentation, type ConnectionReachability } from '../connection/connectionPresentation'
+import { appConnectionIsReady, type AppConnectionState } from '../connection/appConnectionState'
+import { ConnectionRecoveryOverlayHost, ConnectionRecoveryOverlayProvider, type ConnectionRecoveryOverlayIntent } from '../connection/ConnectionRecoveryOverlay'
 import { cloudPresenceEdgeLabel, cloudPresenceReachability, type CloudPresenceInput, type CloudPresenceReachability, type CloudPresenceSnapshot } from '../connection/cloudPresence'
 import { RemoteNetworkStateManager, type NativeNetworkStatusPlugin } from '../connection/remoteNetworkState'
 import { ModalSurface } from '../ui/ModalSurface'
@@ -226,13 +228,13 @@ export interface RemoteControlAppProps {
   locallyDiscoveredMachineIds?: ReadonlySet<string> | undefined
   locallyDiscoveringMachineIds?: ReadonlySet<string> | undefined
   cloudPresenceByMachineId?: ReadonlyMap<string, CloudPresenceInput> | undefined
-  connectionReady?: boolean | undefined
-  connectionRecoveryFailed?: boolean | undefined
+  connectionState?: AppConnectionState | undefined
   onRetryConnectionRecovery?: (() => void | Promise<void>) | undefined
   singlePaneWorkspace?: boolean | undefined
   pickMachineIconImage?: (() => Promise<File | null>) | undefined
   privacyPolicyUrl?: string | undefined
   onOpenPrivacyPolicy?: (() => void | Promise<void>) | undefined
+  systemClipboard?: SystemClipboard | undefined
 }
 
 export function RemoteControlApp({
@@ -249,13 +251,13 @@ export function RemoteControlApp({
   locallyDiscoveredMachineIds,
   locallyDiscoveringMachineIds,
   cloudPresenceByMachineId,
-  connectionReady = true,
-  connectionRecoveryFailed = false,
+  connectionState = 'ready',
   onRetryConnectionRecovery,
   singlePaneWorkspace = false,
   pickMachineIconImage,
   privacyPolicyUrl,
   onOpenPrivacyPolicy,
+  systemClipboard,
 }: RemoteControlAppProps) {
   const { t } = useTranslation()
   const networkRuntime = networkRuntimeProp ?? unavailableNetworkRuntime
@@ -270,6 +272,7 @@ export function RemoteControlApp({
   })
   const [localHubReachability, setLocalHubReachability] = useState<Map<string, LocalHubReachabilitySnapshot>>(() => new Map())
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null)
+  const [pendingTerminalIntent, setPendingTerminalIntent] = useState<{ machineId: string; terminalId: string } | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [pairIntent, setPairIntent] = useState<PairIntent>('add-local')
   const [transferCenterOpen, setTransferCenterOpen] = useState(false)
@@ -294,7 +297,42 @@ export function RemoteControlApp({
     () => remoteNetworkStateManager.state,
   )
   const phoneOnline = phoneOnlineProp ?? remoteNetworkState.phoneOnline
-  const effectiveConnectionReady = connectionReady && (phoneOnlineProp !== undefined ? phoneOnline : remoteNetworkState.networkReady)
+  const effectiveConnectionState = connectionState === 'ready' && phoneOnlineProp === undefined && !remoteNetworkState.networkReady
+    ? 'checking'
+    : connectionState
+  const effectiveConnectionReady = appConnectionIsReady(effectiveConnectionState)
+  const appConnectionOverlayIntent = useMemo<ConnectionRecoveryOverlayIntent | null>(() => {
+    if (!phoneOnline) {
+      return {
+        kind: 'offline',
+        title: t('errors.phoneOfflineTitle'),
+        description: t('errors.phoneOffline'),
+      }
+    }
+    if (effectiveConnectionState === 'failed') {
+      return {
+        kind: 'failed',
+        title: t('machines.appRecoveryFailed'),
+        description: t('machines.appRecoveryFailedCopy'),
+        ...(onRetryConnectionRecovery ? {
+          action: {
+            label: t('workspace.connection.retry'),
+            onClick: () => {
+              hapticSelection()
+              void onRetryConnectionRecovery()
+            },
+          },
+        } : {}),
+      }
+    }
+    if (effectiveConnectionState === 'recovering') {
+      return {
+        kind: 'recovering',
+        title: t('machines.restoringApp'),
+      }
+    }
+    return null
+  }, [effectiveConnectionState, onRetryConnectionRecovery, phoneOnline, t])
   const appThemeStyle = useMemo(() => appThemeCssVariables(appTheme) as CSSProperties, [appTheme])
   const cameraScanInFlightRef = useRef(false)
   const cameraScanAbortRef = useRef<AbortController | null>(null)
@@ -454,6 +492,32 @@ export function RemoteControlApp({
   }, [cloudPresenceByMachineId, localHubReachability, localHubReachabilityTargets, localMachines, locallyDiscoveredMachineIds, locallyDiscoveringMachineIds, t])
 
   const selectedMachine = displayMachines.find((machine) => machine.id === selectedMachineId) ?? null
+  const terminalSwitcherMachines = useMemo<MachineWorkspaceSwitcherMachine[]>(() => displayMachines
+    .filter((machine) => authorizedMachineIds.has(machine.id))
+    .map((machine) => ({
+      machineId: machine.id,
+      name: machine.name,
+      state: machine.online ? 'online' : 'offline',
+      ...(machine.terminalCount !== undefined ? { terminalCount: machine.terminalCount } : {}),
+    })), [authorizedMachineIds, displayMachines])
+  const loadMachineTerminals = useCallback(async (machineId: string) => {
+    if (!authorizedMachineIds.has(machineId)) throw new Error('machine authorization is required')
+    const target = displayMachines.find((machine) => machine.id === machineId)
+    if (!target) throw new Error('machine is unavailable')
+    const runtime = getMachineRuntime(target)
+    if (!runtime) throw new Error('machine runtime is unavailable')
+    return await runtime.api.listTerminals()
+  }, [authorizedMachineIds, displayMachines, getMachineRuntime])
+  const switchWorkspaceTerminal = useCallback((intent: { machineId: string; terminalId: string }) => {
+    if (!authorizedMachineIds.has(intent.machineId)) return
+    setPendingTerminalIntent(intent)
+    setSelectedMachineId(intent.machineId)
+    setView('machine')
+    setError(null)
+  }, [authorizedMachineIds])
+  const clearOpenedTerminalIntent = useCallback((machineId: string, terminalId: string) => {
+    setPendingTerminalIntent((current) => current?.machineId === machineId && current.terminalId === terminalId ? null : current)
+  }, [])
   const emptyTransferSnapshot = useMemo(() => ({ transfers: [], hasActiveTransfers: false }), [])
   const globalTransferState = useSyncExternalStore(
     globalFileTransfer?.subscribe ?? noopSubscribe,
@@ -588,6 +652,7 @@ export function RemoteControlApp({
 
   const selectMachine = useCallback((machine: DisplayMachine) => {
     hapticImpact()
+    setPendingTerminalIntent(null)
     setSelectedMachineId(machine.id)
     if (!authorizedMachineIds.has(machine.id)) {
       openMachinePairSheet(machine)
@@ -787,6 +852,7 @@ export function RemoteControlApp({
       data-testid="anytty-web-control-remote"
       style={appThemeStyle}
     >
+      <ConnectionRecoveryOverlayProvider appIntent={appConnectionOverlayIntent}>
       {view === 'settings' ? (
         <SettingsView
           appTheme={appTheme}
@@ -801,22 +867,28 @@ export function RemoteControlApp({
         />
       ) : view === 'machine' && selectedMachine ? (
         <MachineTerminalListView
+          key={`${selectedMachine.id}:${pairVersion}`}
           machine={selectedMachine}
           storage={storage}
           terminalSettings={terminalSettings}
           runtime={getMachineRuntime(selectedMachine)}
           phoneOnline={phoneOnline}
-          connectionReady={effectiveConnectionReady}
-          connectionRecoveryFailed={connectionRecoveryFailed}
-          onRetryConnectionRecovery={onRetryConnectionRecovery}
+          connectionState={effectiveConnectionState}
           singlePaneWorkspace={singlePaneWorkspace}
+          initialTerminalId={pendingTerminalIntent?.machineId === selectedMachine.id ? pendingTerminalIntent.terminalId : undefined}
+          terminalSwitcherMachines={terminalSwitcherMachines}
+          loadMachineTerminals={loadMachineTerminals}
+          onSwitchTerminal={switchWorkspaceTerminal}
+          onInitialTerminalOpened={clearOpenedTerminalIntent}
           onBack={() => {
             hapticSelection()
+            setPendingTerminalIntent(null)
             setView('home')
             setError(null)
           }}
           onNeedsReauthorization={handleMachineNeedsReauthorization}
           onTerminalSettingsChange={updateTerminalSettings}
+          systemClipboard={systemClipboard}
         />
       ) : (
         <HomeView
@@ -828,9 +900,7 @@ export function RemoteControlApp({
           authorizedMachineIds={authorizedMachineIds}
           authorizationExpiries={authorizationExpiries}
           phoneOnline={phoneOnline}
-          connectionReady={effectiveConnectionReady}
-          connectionRecoveryFailed={connectionRecoveryFailed}
-          onRetryConnectionRecovery={onRetryConnectionRecovery}
+          connectionState={effectiveConnectionState}
           onRefresh={performMachineRefresh}
           onAddLocalDevice={openAddLocalSheet}
           onOpenSettings={() => { hapticSelection(); setView('settings') }}
@@ -873,6 +943,7 @@ export function RemoteControlApp({
           remoteActionsDisabled={!phoneOnline || !effectiveConnectionReady}
         />
       ) : null}
+      </ConnectionRecoveryOverlayProvider>
     </main>
   )
 }
@@ -926,26 +997,34 @@ function MachineTerminalListView({
   terminalSettings,
   runtime,
   phoneOnline,
-  connectionReady,
-  connectionRecoveryFailed,
-  onRetryConnectionRecovery,
+  connectionState,
   singlePaneWorkspace,
+  initialTerminalId,
+  terminalSwitcherMachines,
+  loadMachineTerminals,
+  onSwitchTerminal,
+  onInitialTerminalOpened,
   onBack,
   onNeedsReauthorization,
   onTerminalSettingsChange,
+  systemClipboard,
 }: {
   machine: DisplayMachine
   storage: RemoteRuntimeStorage | undefined
   terminalSettings: TerminalSettings
   runtime: MachineRuntime | null
   phoneOnline: boolean
-  connectionReady: boolean
-  connectionRecoveryFailed: boolean
-  onRetryConnectionRecovery?: (() => void | Promise<void>) | undefined
+  connectionState: AppConnectionState
   singlePaneWorkspace: boolean
+  initialTerminalId?: string | undefined
+  terminalSwitcherMachines: readonly MachineWorkspaceSwitcherMachine[]
+  loadMachineTerminals: (machineId: string) => Promise<import('../core/model').Terminal[]>
+  onSwitchTerminal: (intent: { machineId: string; terminalId: string }) => void
+  onInitialTerminalOpened: (machineId: string, terminalId: string) => void
   onBack: () => void
   onNeedsReauthorization: (machineId: string) => void
   onTerminalSettingsChange: (patch: Partial<TerminalSettings>) => void
+  systemClipboard?: SystemClipboard | undefined
 }) {
   if (!storage || !runtime) {
     return (
@@ -959,6 +1038,7 @@ function MachineTerminalListView({
     <section className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex min-h-0 flex-1 flex-col animate-in slide-in-from-right-4 duration-200" data-testid="anytty-machine-terminal-list">
       <Suspense fallback={<MachineWorkspaceLoadingShell machine={machine} onBack={onBack} />}>
         <LazyMachineWorkspace
+          key={machine.id}
           api={runtime.api}
           connector={runtime.connector}
           className="min-h-0 flex-1"
@@ -975,12 +1055,16 @@ function MachineTerminalListView({
           storage={storage}
           terminalSettings={terminalSettings}
           phoneOnline={phoneOnline}
-          connectionReady={connectionReady}
-          connectionRecoveryFailed={connectionRecoveryFailed}
-          onRetryConnectionRecovery={onRetryConnectionRecovery}
+          connectionState={connectionState}
           singlePane={singlePaneWorkspace}
+          initialTerminalId={initialTerminalId}
+          terminalSwitcherMachines={terminalSwitcherMachines}
+          loadMachineTerminals={loadMachineTerminals}
+          onSwitchTerminal={onSwitchTerminal}
+          onInitialTerminalOpened={onInitialTerminalOpened}
           onNeedsReauthorization={onNeedsReauthorization}
           onTerminalSettingsChange={onTerminalSettingsChange}
+          systemClipboard={systemClipboard}
           onBack={onBack}
         />
       </Suspense>
@@ -991,7 +1075,7 @@ function MachineTerminalListView({
 function MachineRuntimeHeader({ machine, onBack }: { machine: DisplayMachine; onBack: () => void }) {
   const { t } = useTranslation()
   return (
-    <header className="border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center gap-2 border-b px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+    <header className="relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center gap-2 border-b px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
       <Button
         aria-label={t('common.backToMachines')}
         size="icon"
@@ -1024,13 +1108,13 @@ function MachineWorkspaceLoadingShell({ machine, onBack }: { machine: DisplayMac
   }, [])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="anytty-machine-workspace-loading">
+    <div className="relative flex min-h-0 flex-1 flex-col" data-testid="anytty-machine-workspace-loading">
       <MachineRuntimeHeader machine={machine} onBack={onBack} />
       <div className={`flex min-h-9 shrink-0 items-center gap-2 px-4 text-xs font-medium text-zinc-500 ${showStatus ? 'border-b border-[var(--anytty-app-line)]' : ''}`} role={showStatus ? 'status' : undefined}>
         {showStatus ? (
           <>
             <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-            <span>{t('workspace.connecting')}</span>
+            <span>{t('common.loading')}</span>
           </>
         ) : null}
       </div>
@@ -1038,6 +1122,7 @@ function MachineWorkspaceLoadingShell({ machine, onBack }: { machine: DisplayMac
         <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
         <div aria-hidden="true" className="h-28 rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)]" />
       </div>
+      <ConnectionRecoveryOverlayHost />
     </div>
   )
 }
@@ -1051,7 +1136,7 @@ function MachineRuntimeErrorShell({
 }) {
   const { t } = useTranslation()
   return (
-    <section className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex min-h-0 flex-1 flex-col animate-in slide-in-from-right-4 duration-200" data-testid="anytty-machine-terminal-list">
+    <section className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative flex min-h-0 flex-1 flex-col animate-in slide-in-from-right-4 duration-200" data-testid="anytty-machine-terminal-list">
       <MachineRuntimeHeader machine={machine} onBack={onBack} />
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm text-center">
@@ -1066,6 +1151,7 @@ function MachineRuntimeErrorShell({
           </Button>
         </div>
       </div>
+      <ConnectionRecoveryOverlayHost />
     </section>
   )
 }
@@ -1079,15 +1165,13 @@ function HomeView({
   authorizedMachineIds,
   authorizationExpiries,
   phoneOnline,
-  connectionReady,
-  connectionRecoveryFailed,
+  connectionState,
   onAddLocalDevice,
   onDisconnectMachine,
   onForgetMachineAuthorization,
   onOpenSettings,
   onOpenTransferCenter,
   onRefresh,
-  onRetryConnectionRecovery,
   onSelectMachine,
   onUpdateMachineAlias,
   onUpdateMachineAppearance,
@@ -1101,21 +1185,20 @@ function HomeView({
   authorizedMachineIds: Set<string>
   authorizationExpiries: Map<string, string>
   phoneOnline: boolean
-  connectionReady: boolean
-  connectionRecoveryFailed: boolean
+  connectionState: AppConnectionState
   onAddLocalDevice: () => void
   onDisconnectMachine: (machine: DisplayMachine) => void | Promise<void>
   onForgetMachineAuthorization: (machine: DisplayMachine) => Promise<void>
   onOpenSettings: () => void
   onOpenTransferCenter: () => void
   onRefresh: () => Promise<void>
-  onRetryConnectionRecovery?: (() => void | Promise<void>) | undefined
   onSelectMachine: (machine: DisplayMachine) => void
   onUpdateMachineAlias: (machineId: string, alias: string) => void
   onUpdateMachineAppearance: (machineId: string, appearance: { icon?: MachineIconName | undefined; iconImage?: string | undefined }) => void
   pickMachineIconImage?: (() => Promise<File | null>) | undefined
 }) {
   const { t } = useTranslation()
+  const connectionReady = appConnectionIsReady(connectionState)
   const [detailMachineId, setDetailMachineId] = useState<string | null>(null)
   const detailMachine = machines.find((machine) => machine.id === detailMachineId) ?? null
   const [connectionSettingsMachineId, setConnectionSettingsMachineId] = useState<string | null>(null)
@@ -1250,96 +1333,72 @@ function HomeView({
         </div>
       </header>
 
-      {!phoneOnline ? (
-        <ConnectionNotice
-          presentation={appConnectionPresentation({ phoneOnline: false, phase: 'waiting_network' })}
-          title={t('workspace.connection.phase.waiting_network')}
-          description={t('machines.offlineNotice')}
-        />
-      ) : connectionRecoveryFailed ? (
-        <ConnectionNotice
-          presentation={appConnectionPresentation({ phoneOnline: true, phase: 'failed' })}
-          title={t('machines.networkRecoveryFailed')}
-          primaryAction={onRetryConnectionRecovery ? {
-            label: t('workspace.connection.retry'),
-            onClick: () => { hapticSelection(); void onRetryConnectionRecovery() },
-          } : undefined}
-        />
-      ) : !connectionReady ? (
-        <ConnectionNotice
-          presentation={appConnectionPresentation({ phoneOnline: true, phase: 'reconnecting' })}
-          title={t('machines.restoringNetwork')}
-        />
-      ) : null}
-      {phoneOnline && machines.length === 0 && (refreshing || refreshFeedback) ? (
-        <div className={`flex min-h-10 shrink-0 items-center gap-2 border-b px-4 py-2 text-xs font-medium ${refreshFeedback === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-zinc-200 bg-[var(--card)] text-zinc-700'}`} role="status" aria-live="polite">
-          {refreshFeedback === 'success' ? <Check className="h-4 w-4 text-emerald-700" /> : <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />}
-          <span>{refreshStatus}</span>
-        </div>
-      ) : null}
-
-      {machines.length === 0 ? (
-        <FirstUseState
-          onAddLocalDevice={onAddLocalDevice}
-        />
-      ) : (
-        <div
-          className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-4 lg:px-8 lg:py-7"
-          data-testid="anytty-machine-list-scroller"
-          onTouchStart={handlePullStart}
-          onTouchMove={handlePullMove}
-          onTouchEnd={handlePullEnd}
-          onTouchCancel={handlePullCancel}
-        >
-          {refreshIndicatorVisible ? (
-            <div
-              className="flex items-center justify-center overflow-hidden text-xs font-semibold text-zinc-600 transition-[height,opacity] duration-200 motion-reduce:transition-none"
-              style={{ height: Math.max(40, pullDistance) }}
-              role="status"
-              aria-live="polite"
-            >
-              {refreshFeedback === 'success' ? <Check className="mr-2 h-4 w-4 text-emerald-700" /> : <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />}
-              {refreshStatus}
-            </div>
-          ) : null}
-          <div className="relative mx-3 w-auto max-w-7xl rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm lg:mx-auto lg:w-full lg:overflow-visible" data-testid="anytty-machine-list-panel">
-            <div className="hidden grid-cols-[40px_minmax(180px,1.3fr)_minmax(220px,1fr)_32px] items-center gap-4 rounded-t-[var(--radius-lg)] border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-[11px] font-semibold uppercase text-zinc-500 lg:grid">
-              <span aria-hidden="true" />
-              <span>{t('machines.columns.machine')}</span>
-              <span>{t('machines.columns.connection')}</span>
-              <span aria-hidden="true" />
-            </div>
-            <ul aria-label={t('machines.title')} className="divide-y divide-[var(--anytty-app-line)]">
-          {machines.map((machine) => (
-            <li key={machine.id}>
-              <MachineRow
-                authorizationExpiresAt={authorizationExpiries.get(machine.id)}
-                authorizationState={machineAuthorizationState(machine, authorizedMachineIds, authorizationExpiries)}
-                machine={machine}
-                connectionStateSource={getConnectionStateSource(machine)}
-                phoneOnline={phoneOnline}
-                connectionReady={connectionReady}
-                connectionRecoveryFailed={connectionRecoveryFailed}
-                onDisconnectMachine={onDisconnectMachine}
-                onForgetMachineAuthorization={onForgetMachineAuthorization}
-                onSelectMachine={onSelectMachine}
-                onShowDetails={(machine) => setDetailMachineId(machine.id)}
-                onConfigureConnection={(machine) => setConnectionSettingsMachineId(machine.id)}
-              />
-            </li>
-          ))}
-            </ul>
+      <div className="relative flex min-h-0 flex-1 flex-col" data-testid="anytty-machine-list-content">
+        {phoneOnline && machines.length === 0 && (refreshing || refreshFeedback) ? (
+          <div className={`flex min-h-10 shrink-0 items-center gap-2 border-b px-4 py-2 text-xs font-medium ${refreshFeedback === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-zinc-200 bg-[var(--card)] text-zinc-700'}`} role="status" aria-live="polite">
+            {refreshFeedback === 'success' ? <Check className="h-4 w-4 text-emerald-700" /> : <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />}
+            <span>{refreshStatus}</span>
           </div>
-        </div>
-      )}
+        ) : null}
+
+        {machines.length === 0 ? (
+          <FirstUseState
+            onAddLocalDevice={onAddLocalDevice}
+          />
+        ) : (
+          <div
+            className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-4 lg:px-8 lg:py-7"
+            data-testid="anytty-machine-list-scroller"
+            onTouchStart={handlePullStart}
+            onTouchMove={handlePullMove}
+            onTouchEnd={handlePullEnd}
+            onTouchCancel={handlePullCancel}
+          >
+            {refreshIndicatorVisible ? (
+              <div
+                className="flex items-center justify-center overflow-hidden text-xs font-semibold text-zinc-600 transition-[height,opacity] duration-200 motion-reduce:transition-none"
+                style={{ height: Math.max(40, pullDistance) }}
+                role="status"
+                aria-live="polite"
+              >
+                {refreshFeedback === 'success' ? <Check className="mr-2 h-4 w-4 text-emerald-700" /> : <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />}
+                {refreshStatus}
+              </div>
+            ) : null}
+            <div className="relative mx-3 w-auto max-w-7xl rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm lg:mx-auto lg:w-full lg:overflow-visible" data-testid="anytty-machine-list-panel">
+              <div className="hidden grid-cols-[40px_minmax(180px,1.3fr)_minmax(220px,1fr)_32px] items-center gap-4 rounded-t-[var(--radius-lg)] border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-[11px] font-semibold uppercase text-zinc-500 lg:grid">
+                <span aria-hidden="true" />
+                <span>{t('machines.columns.machine')}</span>
+                <span>{t('machines.columns.connection')}</span>
+                <span aria-hidden="true" />
+              </div>
+              <ul aria-label={t('machines.title')} className="divide-y divide-[var(--anytty-app-line)]">
+                {machines.map((machine) => (
+                  <li key={machine.id}>
+                    <MachineRow
+                      authorizationExpiresAt={authorizationExpiries.get(machine.id)}
+                      authorizationState={machineAuthorizationState(machine, authorizedMachineIds, authorizationExpiries)}
+                      machine={machine}
+                      connectionStateSource={getConnectionStateSource(machine)}
+                      remoteActionsDisabled={!phoneOnline || !connectionReady}
+                      onDisconnectMachine={onDisconnectMachine}
+                      onForgetMachineAuthorization={onForgetMachineAuthorization}
+                      onSelectMachine={onSelectMachine}
+                      onShowDetails={(machine) => setDetailMachineId(machine.id)}
+                      onConfigureConnection={(machine) => setConnectionSettingsMachineId(machine.id)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
       {detailMachine ? (
         <DisplayMachineDetailSheet
           authorizationState={machineAuthorizationState(detailMachine, authorizedMachineIds, authorizationExpiries)}
           machine={detailMachine}
           connectionStateSource={getConnectionStateSource(detailMachine)}
-          phoneOnline={phoneOnline}
-          connectionReady={connectionReady}
-          connectionRecoveryFailed={connectionRecoveryFailed}
           onClose={() => setDetailMachineId(null)}
           onUpdateAlias={(alias) => onUpdateMachineAlias(detailMachine.id, alias)}
           onUpdateAppearance={(appearance) => onUpdateMachineAppearance(detailMachine.id, appearance)}
@@ -1536,9 +1595,9 @@ function SettingsView({
               <SettingsSelect
                 ariaLabel={t('settings.keyboard')}
                 options={[
-                  { value: 'auto', label: t('settings.auto') },
-                  { value: 'resize', label: t('settings.resize') },
-                  { value: 'shift', label: t('settings.shiftUp') },
+                  { value: 'auto', label: t('settings.keyboardAuto') },
+                  { value: 'resize', label: t('settings.keyboardResize') },
+                  { value: 'shift', label: t('settings.keyboardShift') },
                 ]}
                 value={terminalSettings.keyboardMode}
                 onChange={(value) => { hapticSelection(); onTerminalSettingsChange({ keyboardMode: value as TerminalKeyboardMode }) }}
@@ -1562,19 +1621,11 @@ function SettingsView({
                 />
               </Suspense>
             </SettingsRow>
-            <SettingsRow label={t('settings.scrollInertia')} stacked>
-              <div className="flex w-full flex-col gap-3">
-                <ScrollInertiaSlider
-                  value={terminalSettings.scrollInertia}
-                  onChange={(value) => onTerminalSettingsChange({ scrollInertia: value })}
-                />
-                <ScrollInertiaPreviewSheet
-                  inertia={terminalSettings.scrollInertia}
-                  onChange={(value) => onTerminalSettingsChange({ scrollInertia: value })}
-                  themeId={terminalSettings.themeId}
-                />
-              </div>
-            </SettingsRow>
+            <ScrollInertiaSettingsSheet
+              inertia={terminalSettings.scrollInertia}
+              onChange={(value) => onTerminalSettingsChange({ scrollInertia: value })}
+              themeId={terminalSettings.themeId}
+            />
           </SettingsSection>
 
           {privacyPolicyUrl ? (
@@ -1706,38 +1757,35 @@ function ScrollInertiaSlider({
   value: TerminalScrollInertia
 }) {
   const { t } = useTranslation()
-  const index = Math.max(0, TERMINAL_SCROLL_INERTIA_OPTIONS.indexOf(value))
-  const labels = TERMINAL_SCROLL_INERTIA_OPTIONS.map((option) => {
-    const key = `settings.inertia${option[0]!.toUpperCase()}${option.slice(1)}`
-    return t(key)
-  })
+  const valueLabel = value === TERMINAL_SCROLL_INERTIA_MIN ? t('settings.inertiaOff') : String(value)
   return (
     <div className="w-full">
       <input
         aria-label={t('settings.scrollInertia')}
-        className="h-2 w-full accent-[var(--anytty-app-accent)]"
-        max={TERMINAL_SCROLL_INERTIA_OPTIONS.length - 1}
-        min={0}
+        aria-valuetext={valueLabel}
+        className="h-8 w-full accent-[var(--anytty-app-accent)]"
+        max={TERMINAL_SCROLL_INERTIA_MAX}
+        min={TERMINAL_SCROLL_INERTIA_MIN}
         step={1}
         type="range"
-        value={index}
+        value={value}
         onChange={(event) => {
-          const nextIndex = Number(event.currentTarget.value)
-          onChange(TERMINAL_SCROLL_INERTIA_OPTIONS[nextIndex] ?? TERMINAL_SCROLL_INERTIA_OPTIONS[1]!)
+          const nextValue = Number(event.currentTarget.value)
+          if (nextValue === value) return
+          onChange(nextValue)
         }}
+        onPointerUp={() => hapticSelection()}
       />
-      <div className="mt-2 flex w-full justify-between text-[11px] font-medium text-[var(--anytty-app-muted)]">
-        {labels.map((label, optionIndex) => (
-          <span className={optionIndex === index ? 'font-semibold text-[var(--anytty-app-text)]' : undefined} key={TERMINAL_SCROLL_INERTIA_OPTIONS[optionIndex]}>
-            {label}
-          </span>
-        ))}
+      <div className="mt-1 flex w-full justify-between text-[11px] font-medium text-[var(--anytty-app-muted)]">
+        <span>{t('settings.inertiaOff')}</span>
+        <span>50</span>
+        <span>{TERMINAL_SCROLL_INERTIA_MAX}</span>
       </div>
     </div>
   )
 }
 
-function ScrollInertiaPreviewSheet({
+function ScrollInertiaSettingsSheet({
   inertia,
   onChange,
   themeId,
@@ -1747,22 +1795,33 @@ function ScrollInertiaPreviewSheet({
   themeId: TerminalSettings['themeId']
 }) {
   const { t } = useTranslation()
+  const selectedLabel = inertia === TERMINAL_SCROLL_INERTIA_MIN ? t('settings.inertiaOff') : String(inertia)
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="h-11 w-full gap-2" variant="outline">
-          <SquareTerminal className="h-4 w-4" />
-          {t('settings.scrollInertiaPreview')}
+        <Button className="h-12 w-full justify-start rounded-none px-4" variant="ghost">
+          <SquareTerminal aria-hidden="true" className="h-4 w-4" />
+          <span className="flex-1 text-left font-medium">{t('settings.scrollInertiaSettings')}</span>
+          <span className="text-sm font-medium text-[var(--anytty-app-muted)]">{selectedLabel}</span>
+          <ChevronRight aria-hidden="true" className="h-4 w-4 text-[var(--anytty-app-muted)]" />
         </Button>
       </DialogTrigger>
       <DialogContent className="bottom-0 left-0 right-0 top-auto flex h-[88dvh] max-h-[88dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:h-[min(88dvh,48rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg">
         <DialogHeader className="shrink-0 border-b border-[var(--anytty-app-line)] px-4 pb-3 pt-4 pr-14">
-          <DialogTitle>{t('settings.scrollInertia')}</DialogTitle>
-          <DialogDescription>{t('settings.scrollInertiaPreview')}</DialogDescription>
+          <DialogTitle>{t('settings.scrollInertiaSettings')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('settings.scrollInertiaSettings')}</DialogDescription>
         </DialogHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-          <ScrollInertiaSlider value={inertia} onChange={onChange} />
-          <ScrollInertiaPreview inertia={inertia} themeId={themeId} className="h-[42dvh] min-h-56 flex-1 sm:h-[36dvh]" />
+        <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)]">
+          <div className="shrink-0 border-b border-[var(--anytty-app-line)] px-5 py-5">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <span className="text-sm font-medium text-[var(--anytty-app-text)]">{t('settings.scrollInertia')}</span>
+              <span className="text-sm font-semibold text-[var(--anytty-app-accent)]">{selectedLabel}</span>
+            </div>
+            <ScrollInertiaSlider value={inertia} onChange={onChange} />
+          </div>
+          <div className="min-h-0 flex-1 p-4">
+            <ScrollInertiaPreview inertia={inertia} themeId={themeId} className="h-full min-h-56" />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -2281,9 +2340,7 @@ function MachineRow({
   authorizationState,
   machine,
   connectionStateSource,
-  phoneOnline,
-  connectionReady,
-  connectionRecoveryFailed,
+  remoteActionsDisabled,
   onDisconnectMachine,
   onForgetMachineAuthorization,
   onSelectMachine,
@@ -2294,9 +2351,7 @@ function MachineRow({
   authorizationState: MachineAuthorizationState
   machine: DisplayMachine
   connectionStateSource?: MachineRuntime['listConnectionState']
-  phoneOnline: boolean
-  connectionReady: boolean
-  connectionRecoveryFailed: boolean
+  remoteActionsDisabled: boolean
   onDisconnectMachine: (machine: DisplayMachine) => void | Promise<void>
   onForgetMachineAuthorization: (machine: DisplayMachine) => Promise<void>
   onSelectMachine: (machine: DisplayMachine) => void
@@ -2311,25 +2366,18 @@ function MachineRow({
     connectionStateSource?.getSnapshot ?? getEmptyMachineConnectionSnapshot,
   )
   const actionLabel = authorizationState === 'ready' ? t('machines.open') : t('machines.pair')
-  const reachability = effectiveMachineReachability(
-    machine,
-    connectionReady ? connection : { ...connection, phase: 'idle' },
-  )
+  const reachability = effectiveMachineReachability(machine, connection)
   const combinedReachabilityState = combinedMachineReachability(machine, reachability)
-  const lifecycleSnapshot = !connectionReady
-    ? { ...connection, phase: connectionRecoveryFailed ? 'failed' as const : 'reconnecting' as const, connectionInfo: null }
-    : connection
   const presentation = projectConnectionPresentation({
-    phoneOnline,
+    phoneOnline: true,
     authAvailable: authorizationState === 'ready',
     reachability: combinedReachabilityState,
-    snapshot: lifecycleSnapshot,
+    snapshot: connection,
   })
-  const summary = machineConnectionSummary(presentation, machine, reachability, authorizationState, lifecycleSnapshot, t)
+  const summary = machineConnectionSummary(presentation, machine, reachability, authorizationState, connection, t)
   const canForget = Boolean(authorizationExpiresAt || authorizationState === 'ready')
-  const canDisconnect = connectionReady && connection.phase === 'connected'
-  const cannotOpen = authorizationState === 'ready' && phoneOnline && connectionReady &&
-    combinedReachabilityState === 'unreachable'
+  const canDisconnect = !remoteActionsDisabled && connection.phase === 'connected'
+  const cannotOpen = authorizationState === 'ready' && remoteActionsDisabled
   return (
     <div className="relative">
       <Button
@@ -2344,7 +2392,7 @@ function MachineRow({
           <div className="truncate text-[15px] font-semibold leading-5 text-zinc-950">{machine.name}</div>
         </div>
         <div className="col-start-2 row-start-2 flex min-w-0 self-start pr-12 text-[12px] font-semibold text-zinc-600 lg:col-start-3 lg:row-start-1 lg:self-center lg:pr-0">
-          {authorizationState === 'ready' && phoneOnline && connectionReady ? (
+          {authorizationState === 'ready' ? (
             <MachineAvailabilitySummary
               accessClass={machine.accessClass}
               cloud={reachability.cloud}
@@ -2494,9 +2542,6 @@ function DisplayMachineDetailSheet({
   authorizationState,
   machine,
   connectionStateSource,
-  phoneOnline,
-  connectionReady,
-  connectionRecoveryFailed,
   onClose,
   onUpdateAlias,
   onUpdateAppearance,
@@ -2505,9 +2550,6 @@ function DisplayMachineDetailSheet({
   authorizationState: MachineAuthorizationState
   machine: DisplayMachine
   connectionStateSource?: MachineRuntime['listConnectionState']
-  phoneOnline: boolean
-  connectionReady: boolean
-  connectionRecoveryFailed: boolean
   onClose: () => void
   onUpdateAlias: (alias: string) => void
   onUpdateAppearance: (appearance: { icon?: MachineIconName | undefined; iconImage?: string | undefined }) => void
@@ -2550,34 +2592,26 @@ function DisplayMachineDetailSheet({
       : t('machines.source.local')
   const hasDirectAccess = machine.accessClass !== 'cloud'
   const hasCloudAccess = machine.accessClass !== 'local'
-  const reachability = effectiveMachineReachability(
-    machine,
-    connectionReady ? connection : { ...connection, phase: 'idle' },
-  )
+  const reachability = effectiveMachineReachability(machine, connection)
   const directStatus = !hasDirectAccess
     ? t('machines.reachability.notConfigured')
     : reachabilityStateLabel('local', reachability.local, t)
   const cloudStatus = !hasCloudAccess
     ? t('machines.reachability.notConfigured')
     : reachabilityStateLabel('cloud', reachability.cloud, t)
-  const currentConnection = !connectionReady
-    ? connectionPhaseLabel(connectionRecoveryFailed ? 'failed' : 'reconnecting', t)
-    : connection.phase === 'idle'
+  const currentConnection = connection.phase === 'idle'
     ? t('machines.notConnected')
     : connectionPhaseLabel(connection.phase, t)
-  const currentPath = connectionReady && connection.phase === 'connected'
+  const currentPath = connection.phase === 'connected'
     ? connectionPathDetail(connection, t)
     : t('machines.notConnected')
-  const lifecycleSnapshot = !connectionReady
-    ? { ...connection, phase: connectionRecoveryFailed ? 'failed' as const : 'reconnecting' as const, connectionInfo: null }
-    : connection
   const presentation = projectConnectionPresentation({
-    phoneOnline,
+    phoneOnline: true,
     authAvailable: authorizationState === 'ready',
     reachability: combinedMachineReachability(machine, reachability),
-    snapshot: lifecycleSnapshot,
+    snapshot: connection,
   })
-  const summary = machineConnectionSummary(presentation, machine, reachability, authorizationState, lifecycleSnapshot, t)
+  const summary = machineConnectionSummary(presentation, machine, reachability, authorizationState, connection, t)
   const fields = [
     { label: t('machines.fields.originalName'), value: machine.canonicalName },
     { label: t('machines.fields.endpointId'), value: machine.id, technical: true },
@@ -2803,15 +2837,6 @@ function combinedMachineReachability(
   if (states.includes('checking')) return 'checking'
   if (states.length > 0 && states.every((state) => state === 'offline')) return 'unreachable'
   return 'unknown'
-}
-
-function appConnectionPresentation(input: { phoneOnline: boolean; phase: MachineConnectionSnapshot['phase'] }) {
-  return projectConnectionPresentation({
-    phoneOnline: input.phoneOnline,
-    authAvailable: true,
-    reachability: 'unknown',
-    snapshot: { ...emptyMachineConnectionSnapshot, phase: input.phase },
-  })
 }
 
 function machineConnectionSummary(

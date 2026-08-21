@@ -5,6 +5,7 @@ import { anyttyI18n } from '../i18n'
 import type { RemoteNetworkRuntime, RemoteRuntimeStorage } from '../core/transport'
 import { createMachineStore } from '../state/machineStore'
 import { dispatchNativeBack } from '../platform/nativeBack'
+import type { AppConnectionState } from '../connection/appConnectionState'
 import { RemoteControlApp, type ExternalPairingAdapter, type ScanPairingCodeOptions } from './RemoteControlApp'
 
 describe('RemoteControlApp accountless product shell', () => {
@@ -115,18 +116,21 @@ describe('RemoteControlApp accountless product shell', () => {
     expect(screen.getByTestId('anytty-web-control-remote').getAttribute('style')).toContain('--anytty-app-bg: #fafafa')
   })
 
-  it('keeps the connection recovery retry target at least 44 pixels tall', async () => {
+  it('does not cover the device list with an app recovery overlay', async () => {
     const onRetryConnectionRecovery = vi.fn(async () => undefined)
     renderApp({
-      connectionReady: false,
-      connectionRecoveryFailed: true,
+      connectionState: 'failed',
       onRetryConnectionRecovery,
     })
 
-    const retry = await screen.findByRole('button', { name: 'Retry' })
-    expect(retry.className).toContain('min-h-11')
-    await userEvent.click(retry)
-    expect(onRetryConnectionRecovery).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect(screen.getByTestId('anytty-machine-list-content')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refresh devices' })).toBeTruthy()
+    expect(onRetryConnectionRecovery).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    expect(await screen.findByTestId('anytty-app-settings')).toBeTruthy()
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
   })
 
   it.each([
@@ -345,8 +349,7 @@ describe('RemoteControlApp accountless product shell', () => {
 })
 
 function renderApp({
-  connectionReady,
-  connectionRecoveryFailed,
+  connectionState,
   pairingImport,
   scanPairingCode,
   onRefreshMachines,
@@ -354,8 +357,7 @@ function renderApp({
   privacyPolicyUrl,
   onOpenPrivacyPolicy,
 }: {
-  connectionReady?: boolean | undefined
-  connectionRecoveryFailed?: boolean | undefined
+  connectionState?: AppConnectionState | undefined
   pairingImport?: ExternalPairingAdapter['import'] | undefined
   scanPairingCode?: ((options?: ScanPairingCodeOptions) => Promise<string | null>) | undefined
   onRefreshMachines?: (() => Promise<void>) | undefined
@@ -376,8 +378,7 @@ function renderApp({
   }
   render(
     <RemoteControlApp
-      connectionReady={connectionReady}
-      connectionRecoveryFailed={connectionRecoveryFailed}
+      connectionState={connectionState}
       externalPairingAdapter={externalPairingAdapter}
       networkRuntime={networkRuntime}
       onRefreshMachines={onRefreshMachines}

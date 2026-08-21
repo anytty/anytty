@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties } from 'react'
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Clipboard } from '@capacitor/clipboard'
 import { Keyboard } from '@capacitor/keyboard'
 import { Network } from '@capacitor/network'
 import { Browser } from '@capacitor/browser'
@@ -36,17 +37,25 @@ import type {
   RemoteControlAppProps,
   ExternalPairingAdapter,
   ProtoClientSession,
+  AppConnectionState,
 } from '@anytty/ui'
 import { NativeConnection, type NativeNetworkChangedEvent } from './plugins/nativeConnection'
 import { NativeFileTransferStore } from './NativeFileTransferStore'
 import { GoBindingClient, GoBindingConnector } from './GoBindingClient'
 import { settleBindingGeneration } from './BindingGeneration'
 import { NativeSessionManager, type NativeSessionConnector } from './NativeSessionManager'
+import { nativeSessionDemand } from './NativeSessionDemand'
 import NativeFilePicker from './plugins/nativeFilePicker'
 import { useNativeStatusBarSync } from './nativeStatusBar'
 import { NativeForegroundBarrier, runAcrossNativePicker } from './NativeForegroundBarrier'
 import { NativeGenerationRecoveryFence } from './NativeGenerationRecoveryFence'
-import { NativeRecoveryCoordinator, type NativeRecoveryWork } from './NativeRecoveryCoordinator'
+import {
+  NativeRecoveryCoordinator,
+  resumeNativeForegroundTargets,
+  type NativeRecoveryRequest,
+  type NativeRecoveryWork,
+} from './NativeRecoveryCoordinator'
+import { NATIVE_RECOVERY_NOTICE_DELAY_MS, reduceNativeRecoveryStatus, type NativeRecoveryStatusEvent } from './NativeRecoveryStatus'
 import { RegistryStartupScreen, UnsupportedWebPreview } from './RegistryStartupScreen'
 import { useAndroidBackButton } from './androidBack'
 import type { NativeQrScannerOptions } from './nativeQrScanner'
@@ -61,8 +70,18 @@ const localDiscoveryRefreshIntervalMs = 3_000
 const cloudPresenceFeedbackDelayMs = 300
 const cloudPresenceProbeTimeoutMs = 15_000
 const cloudPresenceRefreshIntervalMs = 20_000
+const nativeRecoveryStepTimeoutMs = 20_000
+const rendererStallReconcileMs = 10_000
 const privacyPolicyUrl = 'https://cloud.anytty.com/privacy'
 let goBindingClient = new GoBindingClient()
+const nativeSystemClipboard = {
+  async readText() {
+    return (await Clipboard.read()).value
+  },
+  async writeText(text: string) {
+    await Clipboard.write({ string: text })
+  },
+}
 
 type MachineRuntimeFactory = NonNullable<RemoteControlAppProps['machineRuntimeFactory']>
 type MachineRuntime = ReturnType<MachineRuntimeFactory>
@@ -115,6 +134,14 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
     }
   }, [endpointRegistry, networkRuntime])
   useEffect(() => { void refreshRegistry().catch(() => undefined) }, [refreshRegistry])
+  useEffect(() => {
+    if (!registryReady) return
+    let disposed = false
+    queueMicrotask(() => {
+      if (!disposed) void nativeSessionDemand.reconcileRenderer().catch(() => undefined)
+    })
+    return () => { disposed = true }
+  }, [registryReady])
   const nativeConnectionRecovery = useNativeNetworkRecovery(
     refreshRegistry,
     nativeAppRuntime.resetGeneration,
@@ -139,7 +166,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
     setRegistryError(null)
     try {
       await NativeConnection.handleForegroundResume()
-      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration, true)
+      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration)
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : String(failure)
       setRegistryError(message)
@@ -152,7 +179,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
       await NativeConnection.resetLocalPairings()
       networkRuntime.storage?.removeItem('anytty.app.machines.v2')
       endpointRegistry.replace(create(AnyTTYRemoteAuth.EndpointRegistryV1Schema, { schemaVersion: 1 }))
-      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration, true)
+      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration)
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : String(failure)
       setRegistryError(message)
@@ -184,14 +211,14 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
         locallyDiscoveredMachineIds={localDiscovery.discoveredMachineIds}
         locallyDiscoveringMachineIds={localDiscovery.checkingMachineIds}
         cloudPresenceByMachineId={cloudPresenceByMachineId}
-        connectionReady={nativeConnectionRecovery.connectionReady}
-        connectionRecoveryFailed={nativeConnectionRecovery.connectionRecoveryFailed}
+        connectionState={nativeConnectionRecovery.connectionState}
         onRetryConnectionRecovery={nativeConnectionRecovery.retryConnectionRecovery}
         onRefreshMachines={() => refreshRegistry()}
         pickMachineIconImage={pickNativeMachineIconImage}
         scanPairingCode={scanNativePairingCode}
         privacyPolicyUrl={privacyPolicyUrl}
         onOpenPrivacyPolicy={() => Browser.open({ url: privacyPolicyUrl })}
+        systemClipboard={nativeSystemClipboard}
       />
     </section>
   )
@@ -555,7 +582,6 @@ let nativeGenerationReplacement: Promise<void> = Promise.resolve()
 function replaceNativeGeneration(
   refreshRegistry: (client?: GoBindingClient) => Promise<void>,
   resetRuntime: () => Promise<void>,
-  reloadRegistry: boolean,
 ): Promise<void> {
   const replacement = nativeGenerationReplacement.catch(() => undefined).then(async () => {
     const staleClient = goBindingClient
@@ -565,109 +591,171 @@ function replaceNativeGeneration(
     // 通过动态 connector 进入 currentClient，而不是继续返回已失效的 generation。
     await resetRuntime()
     await staleClient.close()
-    // 网络切换不会修改 Endpoint registry；此时重读 registry 会让恢复依赖刚启动 engine 的
-    // 额外 operation。只有 WebView 前后台恢复才重新读取 Go-owned 持久投影。
-    if (reloadRegistry) await refreshRegistry(currentClient)
+    await refreshRegistry(currentClient)
   })
   nativeGenerationReplacement = replacement
   return replacement
+}
+
+async function withNativeRecoveryTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timeout = globalThis.setTimeout(() => reject(new Error(`${label} timed out`)), nativeRecoveryStepTimeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout !== undefined) globalThis.clearTimeout(timeout)
+  }
 }
 
 /** Keep the native generation across backgrounding; replace only a bridge that actually failed. */
 function useNativeNetworkRecovery(
   refreshRegistry: (client?: GoBindingClient) => Promise<void>,
   resetRuntime: () => Promise<void>,
-  foregroundResume: (options?: { forceReconnect?: boolean }) => Promise<void>,
+  foregroundResume: () => Promise<void>,
   resumeInterruptedTransfers: () => void,
   networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>,
   initializeNetworkState: (connected: boolean) => Promise<void>,
 ): {
   phoneOnline: boolean
-  connectionReady: boolean
-  connectionRecoveryFailed: boolean
+  connectionState: AppConnectionState
   retryConnectionRecovery: () => Promise<void>
 } {
   const [phoneOnline, setPhoneOnline] = useState(true)
-  const [status, setStatus] = useState<'ready' | 'restoring' | 'failed'>('ready')
+  const [connectionState, dispatchRecoveryStatus] = useReducer(reduceNativeRecoveryStatus, 'ready')
+  const [successfulRecoveryRevision, setSuccessfulRecoveryRevision] = useState(0)
   const [recoveryFence] = useState(() => new NativeGenerationRecoveryFence())
   const [recoveryCoordinator] = useState(() => new NativeRecoveryCoordinator())
-  const lastBackgroundAtRef = useRef<number | null>(null)
-  const lastHeartbeatRef = useRef(Date.now())
-  const forceReconnectRef = useRef(false)
-  const executeRecovery = useCallback(async ({ attempt, replaceBinding, reloadRegistry }: NativeRecoveryWork) => {
+  const lastHeartbeatRef = useRef(globalThis.performance.now())
+  const connectionStateRef = useRef<AppConnectionState>('ready')
+  const recoveryNoticeTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null)
+  const updateRecoveryStatus = useCallback((event: NativeRecoveryStatusEvent) => {
+    connectionStateRef.current = reduceNativeRecoveryStatus(connectionStateRef.current, event)
+    dispatchRecoveryStatus(event)
+  }, [])
+  const clearRecoveryNoticeTimer = useCallback(() => {
+    if (recoveryNoticeTimerRef.current === null) return
+    globalThis.clearTimeout(recoveryNoticeTimerRef.current)
+    recoveryNoticeTimerRef.current = null
+  }, [])
+  const beginRecoveryStatus = useCallback((request: NativeRecoveryRequest) => {
+    const previous = connectionStateRef.current
+    const visibleImmediately = request.trigger === 'manual_retry'
+    updateRecoveryStatus({ type: 'recovery.started', visibleImmediately })
+    if (visibleImmediately || previous === 'recovering' || previous === 'failed') {
+      clearRecoveryNoticeTimer()
+      return
+    }
+    if (previous !== 'ready' || recoveryNoticeTimerRef.current !== null) return
+    recoveryNoticeTimerRef.current = globalThis.setTimeout(() => {
+      recoveryNoticeTimerRef.current = null
+      updateRecoveryStatus({ type: 'recovery.noticeDelayElapsed' })
+    }, NATIVE_RECOVERY_NOTICE_DELAY_MS)
+  }, [clearRecoveryNoticeTimer, updateRecoveryStatus])
+  const finishRecoveryStatus = useCallback((event: Extract<NativeRecoveryStatusEvent, { type: 'recovery.succeeded' | 'recovery.failed' }>) => {
+    clearRecoveryNoticeTimer()
+    updateRecoveryStatus(event)
+  }, [clearRecoveryNoticeTimer, updateRecoveryStatus])
+  const dismissRecoveryStatus = useCallback(() => {
+    clearRecoveryNoticeTimer()
+    updateRecoveryStatus({ type: 'recovery.dismissed' })
+  }, [clearRecoveryNoticeTimer, updateRecoveryStatus])
+  useEffect(() => clearRecoveryNoticeTimer, [clearRecoveryNoticeTimer])
+  useEffect(() => {
+    if (successfulRecoveryRevision === 0 || connectionState !== 'ready') return
+    document.dispatchEvent(new CustomEvent('anytty:resume', {
+      detail: { revision: successfulRecoveryRevision },
+    }))
+  }, [connectionState, successfulRecoveryRevision])
+
+  const executeRecovery = useCallback(async ({ attempt, intent }: NativeRecoveryWork) => {
     if (!recoveryFence.isCurrent(attempt)) return
     markNativeBackground()
     try {
-      await NativeConnection.handleForegroundResume()
+      await withNativeRecoveryTimeout(NativeConnection.handleForegroundResume(), 'Native runtime recovery')
       if (!recoveryFence.isCurrent(attempt)) return
-      if (replaceBinding) {
-        await replaceNativeGeneration(refreshRegistry, resetRuntime, reloadRegistry)
-      } else if (reloadRegistry) {
+      if (intent === 'repair') {
+        await withNativeRecoveryTimeout(
+          replaceNativeGeneration(refreshRegistry, resetRuntime),
+          'Native binding replacement',
+        )
+      } else {
         try {
           // Resume only probes the existing bridge. Replacing an unchanged registry increments
           // its projection version and makes healthy machine runtimes look stale, which would
           // unnecessarily tear down their live sessions on every foreground transition.
-          await goBindingClient.getEndpointRegistry()
+          await withNativeRecoveryTimeout(goBindingClient.getEndpointRegistry(), 'Native binding health check')
         } catch {
           if (!recoveryFence.isCurrent(attempt)) return
-          setStatus('restoring')
-          await replaceNativeGeneration(refreshRegistry, resetRuntime, true)
+          await withNativeRecoveryTimeout(
+            replaceNativeGeneration(refreshRegistry, resetRuntime),
+            'Native binding replacement',
+          )
         }
       }
       if (!recoveryFence.isCurrent(attempt)) return
-      const forceReconnect = forceReconnectRef.current
-      forceReconnectRef.current = false
-      lastHeartbeatRef.current = Date.now()
-      await foregroundResume(forceReconnect ? { forceReconnect: true } : undefined)
+      lastHeartbeatRef.current = globalThis.performance.now()
+      await foregroundResume()
       if (!recoveryFence.isCurrent(attempt)) return
       resumeInterruptedTransfers()
-      setStatus('ready')
+      finishRecoveryStatus({ type: 'recovery.succeeded' })
       finishNativeForeground()
-      document.dispatchEvent(new Event('anytty:resume'))
+      setSuccessfulRecoveryRevision((revision) => revision + 1)
     } catch (failure) {
       if (!recoveryFence.isCurrent(attempt)) return
-      setStatus('failed')
+      finishRecoveryStatus({ type: 'recovery.failed' })
       reportNativeGenerationFailure(failure)
       finishNativeForeground(failure)
       throw failure
     }
-  }, [foregroundResume, recoveryFence, refreshRegistry, resetRuntime, resumeInterruptedTransfers])
-  const runRecovery = useCallback((replaceBinding: boolean, reloadRegistry: boolean) => {
-    setStatus('restoring')
-    return recoveryCoordinator.request({ replaceBinding, reloadRegistry }, {
+  }, [finishRecoveryStatus, foregroundResume, recoveryFence, refreshRegistry, resetRuntime, resumeInterruptedTransfers])
+  const runRecovery = useCallback((request: NativeRecoveryRequest) => {
+    beginRecoveryStatus(request)
+    return recoveryCoordinator.request(request, {
       beginAttempt: () => recoveryFence.beginAttempt(),
       isCurrent: (attempt) => recoveryFence.isCurrent(attempt),
       execute: executeRecovery,
     })
-  }, [executeRecovery, recoveryCoordinator, recoveryFence])
+  }, [beginRecoveryStatus, executeRecovery, recoveryCoordinator, recoveryFence])
 
   const retryConnectionRecovery = useCallback(async () => {
-    await runRecovery(true, false).catch(() => undefined)
+    await runRecovery({
+      intent: 'repair',
+      trigger: 'manual_retry',
+    }).catch(() => undefined)
   }, [runRecovery])
 
   useEffect(() => {
     const promise = CapApp.addListener('appStateChange', (state) => {
       if (!state.isActive) {
-        lastBackgroundAtRef.current = Date.now()
         recoveryFence.invalidate()
+        dismissRecoveryStatus()
         markNativeBackground()
         return
       }
-      const backgroundMs = lastBackgroundAtRef.current === null ? 0 : Date.now() - lastBackgroundAtRef.current
-      lastBackgroundAtRef.current = null
-      forceReconnectRef.current = backgroundMs >= 5_000
-      void runRecovery(false, true).catch(() => undefined)
+      void runRecovery({
+        intent: 'ensure_ready',
+        trigger: 'app_resume',
+      }).catch(() => undefined)
     })
-    const handleBindingClosed = () => { void runRecovery(true, false).catch(() => undefined) }
+    const handleBindingClosed = () => {
+      void runRecovery({
+        intent: 'repair',
+        trigger: 'binding_closed',
+      }).catch(() => undefined)
+    }
     document.addEventListener('anytty:binding-closed', handleBindingClosed)
     return () => {
       void promise.then((sub) => sub.remove())
       document.removeEventListener('anytty:binding-closed', handleBindingClosed)
     }
-  }, [recoveryFence, runRecovery])
+  }, [dismissRecoveryStatus, recoveryFence, runRecovery])
 
   useEffect(() => {
-    let latestEpoch = 0
+    let latestEpoch = -1
     let cancelled = false
     let receivedNativeEvent = false
     const applyNetworkEvent = (event: NativeNetworkChangedEvent) => {
@@ -703,19 +791,18 @@ function useNativeNetworkRecovery(
     void listener.then(() => synchronizeNetworkSnapshot(true)).catch(() => undefined)
     const recoverAfterFreeze = () => {
       if (document.visibilityState !== 'visible') return
-      const now = Date.now()
-      const heartbeatGap = now - lastHeartbeatRef.current
-      const backgroundMs = lastBackgroundAtRef.current === null ? 0 : now - lastBackgroundAtRef.current
-      lastBackgroundAtRef.current = null
-      forceReconnectRef.current = backgroundMs >= 5_000 || heartbeatGap >= 3_000
+      const now = globalThis.performance.now()
       lastHeartbeatRef.current = now
-      void runRecovery(false, true).catch(() => undefined)
+      void runRecovery({
+        intent: 'ensure_ready',
+        trigger: 'page_visible',
+      }).catch(() => undefined)
       void synchronizeNetworkSnapshot(false)
     }
     const synchronizeVisiblePage = () => {
       if (document.visibilityState === 'hidden') {
-        lastBackgroundAtRef.current = Date.now()
         recoveryFence.invalidate()
+        dismissRecoveryStatus()
         markNativeBackground()
         return
       }
@@ -723,12 +810,14 @@ function useNativeNetworkRecovery(
     }
     document.addEventListener('visibilitychange', synchronizeVisiblePage)
     const stallDetector = globalThis.setInterval(() => {
-      const now = Date.now()
+      const now = globalThis.performance.now()
       const heartbeatGap = now - lastHeartbeatRef.current
       lastHeartbeatRef.current = now
-      if (heartbeatGap >= 2_500 && document.visibilityState === 'visible') {
-        forceReconnectRef.current = true
-        void runRecovery(false, true).catch(() => undefined)
+      if (heartbeatGap >= rendererStallReconcileMs && document.visibilityState === 'visible') {
+        void runRecovery({
+          intent: 'ensure_ready',
+          trigger: 'renderer_stall',
+        }).catch(() => undefined)
         void synchronizeNetworkSnapshot(false)
       }
     }, 1_000)
@@ -738,12 +827,11 @@ function useNativeNetworkRecovery(
       document.removeEventListener('visibilitychange', synchronizeVisiblePage)
       void listener.then((subscription) => subscription.remove())
     }
-  }, [initializeNetworkState, networkChanged, recoveryFence, runRecovery])
+  }, [dismissRecoveryStatus, initializeNetworkState, networkChanged, recoveryFence, runRecovery])
 
   return {
     phoneOnline,
-    connectionReady: status === 'ready',
-    connectionRecoveryFailed: status === 'failed',
+    connectionState,
     retryConnectionRecovery,
   }
 }
@@ -822,7 +910,7 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
   fileTransfer: FileTransferContext
   discardLocalState: () => Promise<void>
   resetGeneration: () => Promise<void>
-  foregroundResume: (options?: { forceReconnect?: boolean }) => Promise<void>
+  foregroundResume: () => Promise<void>
   initializeNetworkState: (connected: boolean) => Promise<void>
   networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>
   disconnectAll: () => Promise<void>
@@ -852,12 +940,12 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
         await entry.connector.release?.(entry.manager.machineID())
       }))
     },
-    async foregroundResume(options) {
-      if (options?.forceReconnect) {
-        await Promise.allSettled([...sessionManagers.values()].map((entry) => entry.manager.networkChanged(true, 'network_replaced')))
-        return
-      }
-      await Promise.allSettled([...sessionManagers.values()].map((entry) => entry.manager.foregroundResume()))
+    async foregroundResume() {
+      await nativeSessionDemand.reconcileRenderer()
+      await resumeNativeForegroundTargets([...sessionManagers].map(([endpointId, entry]) => ({
+        endpointId,
+        resume: () => entry.manager.foregroundResume(),
+      })))
     },
     async initializeNetworkState(connected) {
       networkConnected = connected
@@ -886,6 +974,7 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
 function useNativeDisconnectAll(disconnectAll: () => Promise<void>): void {
   useEffect(() => {
     const listener = NativeConnection.addListener('disconnectAllRequested', () => {
+      void nativeSessionDemand.clearForUserStop().catch(() => undefined)
       void disconnectAll().catch(() => undefined)
     })
     return () => { void listener.then((subscription) => subscription.remove()) }
@@ -930,6 +1019,7 @@ function createNativeMachineRuntime(
         // native network event; verify it with one lightweight RPC before reuse.
         verifyOnFirstAcquire: true,
         initiallyConnected: shared.networkConnected(),
+        waitForForeground: (signal) => nativeForegroundBarrier.wait(signal),
       }),
     }
     shared.sessionManagers.set(machine.id, entry)
@@ -984,6 +1074,8 @@ function createNativeMachineRuntime(
             rows: terminal.size?.rows ?? 0,
             foreground_process: terminal.foregroundProcess || undefined,
             last_output_at: unixNanoISOString(terminal.lastOutputAtUnixNano),
+            size_locked: terminal.tags['anytty.size_lock'] === 'lock',
+            size_lock_mode: terminal.tags['anytty.size_lock'],
           })),
         }).terminals
       } finally {
@@ -1158,7 +1250,9 @@ function createNativeConnector(
       if (machineId !== machine.id) return Promise.reject(new Error('endpoint identity mismatch'))
       return goBindingClient.disconnectEndpoint(machine.id)
     },
-    setActive: (machineId, active) => NativeConnection.setSessionActive({ machineId, active }),
+    setActive: (machineId, active) => nativeSessionDemand.setActive(machineId, active),
+    isGoManaged: (machineId) => nativeSessionDemand.isGoManaged(machineId),
+    requestGoRecovery: () => NativeConnection.handleForegroundResume(),
   }
 }
 

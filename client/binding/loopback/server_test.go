@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anytty/anytty/client/binding"
 	"golang.org/x/net/websocket"
 )
 
@@ -17,13 +18,51 @@ const testToken = "abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE"
 type fakeEngine struct {
 	mu             sync.Mutex
 	nextEventCalls int
-	events         chan []byte
+	nextRenderer   uint64
+	activeRenderer uint64
+	renderers      map[uint64]*fakeRenderer
+	detached       []uint64
 	requestEntered chan struct{}
 	releaseRequest chan struct{}
 }
 
+type fakeRenderer struct {
+	events chan []byte
+	done   chan struct{}
+}
+
 func newFakeEngine() *fakeEngine {
-	return &fakeEngine{events: make(chan []byte), requestEntered: make(chan struct{}), releaseRequest: make(chan struct{})}
+	return &fakeEngine{renderers: make(map[uint64]*fakeRenderer), requestEntered: make(chan struct{}), releaseRequest: make(chan struct{})}
+}
+
+func (engine *fakeEngine) AttachRenderer() (uint64, error) {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if previous := engine.renderers[engine.activeRenderer]; previous != nil {
+		close(previous.done)
+		delete(engine.renderers, engine.activeRenderer)
+		engine.detached = append(engine.detached, engine.activeRenderer)
+	}
+	engine.nextRenderer++
+	engine.activeRenderer = engine.nextRenderer
+	engine.renderers[engine.activeRenderer] = &fakeRenderer{events: make(chan []byte), done: make(chan struct{})}
+	return engine.activeRenderer, nil
+}
+
+func (engine *fakeEngine) DetachRenderer(rendererID uint64) error {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	renderer := engine.renderers[rendererID]
+	if renderer == nil {
+		return nil
+	}
+	close(renderer.done)
+	delete(engine.renderers, rendererID)
+	engine.detached = append(engine.detached, rendererID)
+	if engine.activeRenderer == rendererID {
+		engine.activeRenderer = 0
+	}
+	return nil
 }
 
 func (engine *fakeEngine) OpenSession(payload []byte) (uint64, error) {
@@ -53,15 +92,30 @@ func (engine *fakeEngine) CloseSession(uint64) error {
 	return nil
 }
 func (engine *fakeEngine) Release(uint64) error { return nil }
-func (engine *fakeEngine) NextEvent(ctx context.Context) ([]byte, error) {
+func (engine *fakeEngine) NextEvent(ctx context.Context, rendererID uint64) ([]byte, error) {
 	engine.mu.Lock()
 	engine.nextEventCalls++
+	renderer := engine.renderers[rendererID]
 	engine.mu.Unlock()
+	if renderer == nil {
+		return nil, binding.ErrInvalidHandle
+	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case event := <-engine.events:
+	case <-renderer.done:
+		return nil, binding.ErrInvalidHandle
+	case event := <-renderer.events:
 		return event, nil
+	}
+}
+
+func (engine *fakeEngine) emit(payload []byte) {
+	engine.mu.Lock()
+	renderer := engine.renderers[engine.activeRenderer]
+	engine.mu.Unlock()
+	if renderer != nil {
+		renderer.events <- payload
 	}
 }
 
@@ -113,7 +167,7 @@ func TestEventsAreNotConsumedWithoutAuthenticatedClient(t *testing.T) {
 	}
 
 	client := authenticatedClient(t, server)
-	engine.events <- []byte("event")
+	engine.emit([]byte("event"))
 	operation, requestID, handle, payload := receiveResponse(t, client)
 	if operation != opEvent || requestID != 0 || handle != 0 || string(payload) != "event" {
 		t.Fatalf("event response = op=%x request=%d handle=%d payload=%q", operation, requestID, handle, payload)
@@ -121,7 +175,8 @@ func TestEventsAreNotConsumedWithoutAuthenticatedClient(t *testing.T) {
 }
 
 func TestNewAuthenticationReplacesPreviousClient(t *testing.T) {
-	server := startTestServer(t, newFakeEngine())
+	engine := newFakeEngine()
+	server := startTestServer(t, engine)
 	first := authenticatedClient(t, server)
 	second := authenticatedClient(t, server)
 
@@ -130,7 +185,18 @@ func TestNewAuthenticationReplacesPreviousClient(t *testing.T) {
 	if err := websocket.Message.Receive(first, &payload); err == nil {
 		t.Fatal("replaced client remained readable")
 	}
-	_ = second.SetReadDeadline(time.Now().Add(time.Second))
+	engine.emit([]byte("new-renderer"))
+	operation, _, _, payload := receiveResponse(t, second)
+	if operation != opEvent || string(payload) != "new-renderer" {
+		t.Fatalf("replacement event = op=%x payload=%q", operation, payload)
+	}
+	engine.mu.Lock()
+	detached := append([]uint64(nil), engine.detached...)
+	activeRenderer := engine.activeRenderer
+	engine.mu.Unlock()
+	if len(detached) == 0 || detached[0] != 1 || activeRenderer != 2 {
+		t.Fatalf("renderer lifecycle = detached %v active %d", detached, activeRenderer)
+	}
 }
 
 func TestServerLimitsUpgradedClients(t *testing.T) {

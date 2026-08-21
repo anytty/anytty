@@ -15,7 +15,7 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getNetworkSnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resetLocalPairings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getBridgeEndpoint", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setSessionActive", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "replaceSessionDemand", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isLocalEndpointDiscovered", returnType: CAPPluginReturnPromise),
     ]
 
@@ -128,14 +128,17 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func setSessionActive(_ call: CAPPluginCall) {
-        let machineID = call.getString("machineId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !machineID.isEmpty else {
-            call.reject("machineId is required")
+    @objc func replaceSessionDemand(_ call: CAPPluginCall) {
+        guard let endpointIDs = call.getArray("endpointIds", String.self) else {
+            call.reject("endpointIds is required")
+            return
+        }
+        guard endpointIDs.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            call.reject("endpointIds contains an invalid value")
             return
         }
         // iOS does not need Android's foreground-service ownership signal.
-        call.resolve()
+        call.resolve(["goManagedEndpointIds": []])
     }
 
     @objc func isLocalEndpointDiscovered(_ call: CAPPluginCall) {

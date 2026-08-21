@@ -28,6 +28,73 @@ describe('NativeSessionManager', () => {
     expect(session.close).not.toHaveBeenCalled()
   })
 
+  it('does not start the first business connection before foreground recovery is ready', async () => {
+    let finishForeground!: () => void
+    const foregroundReady = new Promise<void>((resolve) => { finishForeground = resolve })
+    const session = fakeSession()
+    const connect = vi.fn(async () => session)
+    const manager = new NativeSessionManager('daemon-a', { connect }, {
+      waitForForeground: async () => await foregroundReady,
+    })
+
+    const opening = manager.get()
+    await Promise.resolve()
+    expect(connect).not.toHaveBeenCalled()
+
+    finishForeground()
+    await expect(opening).resolves.toMatchObject({ stamp: { generation: 1n } })
+    expect(connect).toHaveBeenCalledOnce()
+  })
+
+  it('holds commands on a retained lease while a new foreground generation is recovering', async () => {
+    let foregroundReady = Promise.resolve()
+    const session = fakeSession()
+    const manager = new NativeSessionManager('daemon-a', { connect: vi.fn(async () => session) }, {
+      waitForForeground: async () => await foregroundReady,
+    })
+    const lease = await manager.get()
+    let finishForeground!: () => void
+    foregroundReady = new Promise<void>((resolve) => { finishForeground = resolve })
+
+    const executing = lease.execute(create(CommandEnvelopeSchema))
+    await Promise.resolve()
+    expect(session.execute).not.toHaveBeenCalled()
+
+    finishForeground()
+    await expect(executing).resolves.toBeDefined()
+    expect(session.execute).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the first consumer pending while a transient open failure reconnects', async () => {
+    vi.useFakeTimers()
+    const recovered = fakeSession(2n)
+    const transient = Object.assign(new Error('retained route is unavailable'), {
+      code: 'unavailable',
+      retryable: true,
+    })
+    const connect = vi.fn()
+      .mockRejectedValueOnce(transient)
+      .mockResolvedValueOnce(recovered)
+    const manager = new NativeSessionManager('daemon-a', { connect })
+
+    try {
+      const opening = manager.get()
+      for (let turn = 0; turn < 10 && manager.connectionState.getSnapshot().phase === 'connecting'; turn += 1) {
+        await Promise.resolve()
+      }
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting', error: null })
+
+      await vi.advanceTimersByTimeAsync(0)
+
+      await expect(opening).resolves.toMatchObject({ stamp: { generation: 2n } })
+      expect(connect).toHaveBeenCalledTimes(2)
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    } finally {
+      await manager.reset()
+      vi.useRealTimers()
+    }
+  })
+
   it('seeds cold-start offline state without refreshing the first online session', async () => {
     const session = fakeSession()
     const connect = vi.fn(async () => session)
@@ -239,10 +306,15 @@ describe('NativeSessionManager', () => {
 
     try {
       await manager.get()
+      const phases: string[] = []
+      manager.connectionState.subscribe(() => phases.push(manager.connectionState.getSnapshot().phase))
       first.fail(Object.assign(new Error('network handoff'), { retryable: true }))
+
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting', error: null })
       await vi.advanceTimersByTimeAsync(0)
 
       expect(connect).toHaveBeenCalledTimes(2)
+      expect(phases).not.toContain('failed')
       expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
     } finally {
       await manager.reset()
@@ -262,6 +334,8 @@ describe('NativeSessionManager', () => {
 
     try {
       await manager.get()
+      const phases: string[] = []
+      manager.connectionState.subscribe(() => phases.push(manager.connectionState.getSnapshot().phase))
       first.fail(Object.assign(new Error('transport unavailable'), { retryable: true }))
       await vi.advanceTimersByTimeAsync(0)
 
@@ -270,6 +344,7 @@ describe('NativeSessionManager', () => {
       expect(connect).toHaveBeenCalledTimes(2)
       await vi.advanceTimersByTimeAsync(1)
       expect(connect).toHaveBeenCalledTimes(3)
+      expect(phases).not.toContain('failed')
       expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
     } finally {
       await manager.reset()
@@ -512,6 +587,126 @@ describe('NativeSessionManager', () => {
     await manager.reset()
   })
 
+  it('leaves network probing and invalidation to Go for takeover endpoints', async () => {
+    const session = fakeSession()
+    const verify = vi.fn(async () => {})
+    const connect = vi.fn(async () => session)
+    const manager = new NativeSessionManager('daemon-a', {
+      connect,
+      verify,
+      setActive: vi.fn(async () => {}),
+      isGoManaged: () => true,
+    }, { verifyOnFirstAcquire: true })
+
+    await manager.get()
+    await manager.networkChanged(true, 'network_replaced')
+
+    expect(connect).toHaveBeenCalledOnce()
+    expect(verify).not.toHaveBeenCalled()
+    expect(session.invalidate).not.toHaveBeenCalled()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    await manager.reset()
+  })
+
+  it('does not publish Go transport READY before the supervisor probe resolves', async () => {
+    let finishOpen!: (session: ProtoClientSession) => void
+    const connect = vi.fn((_input, options) => {
+      options?.onConnectionState?.({
+        machineId: 'daemon-a',
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+      return new Promise<ProtoClientSession>((resolve) => { finishOpen = resolve })
+    })
+    const manager = new NativeSessionManager('daemon-a', {
+      connect,
+      setActive: vi.fn(async () => {}),
+      isGoManaged: () => true,
+    })
+
+    const opening = manager.get()
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting' })
+
+    finishOpen(fakeSession())
+    await opening
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    await manager.reset()
+  })
+
+  it('rehydrates only the renderer lease after Go foreground recovery', async () => {
+    const retained = fakeSession()
+    const current = fakeSession(1n)
+    const connect = vi.fn()
+      .mockResolvedValueOnce(retained)
+      .mockResolvedValueOnce(current)
+    const requestGoRecovery = vi.fn(async () => {})
+    const manager = new NativeSessionManager('daemon-a', {
+      connect,
+      requestGoRecovery,
+      setActive: vi.fn(async () => {}),
+      isGoManaged: () => true,
+    })
+
+    await manager.get()
+    await manager.foregroundResume()
+
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(retained.close).toHaveBeenCalledOnce()
+    expect(retained.invalidate).not.toHaveBeenCalled()
+    expect(requestGoRecovery).not.toHaveBeenCalled()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+    await manager.reset()
+  })
+
+  it('does not arm a TS network retry after a takeover session closes', async () => {
+    vi.useFakeTimers()
+    const session = fakeSession()
+    const connect = vi.fn(async () => session)
+    const manager = new NativeSessionManager('daemon-a', {
+      connect,
+      setActive: vi.fn(async () => {}),
+      isGoManaged: () => true,
+    })
+    try {
+      await manager.get()
+      session.fail(Object.assign(new Error('transport unavailable'), { code: 'unavailable', retryable: true }))
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(connect).toHaveBeenCalledOnce()
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting', error: null })
+    } finally {
+      await manager.reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('automatically renews a timed-out binding wait while Go keeps recovering', async () => {
+    vi.useFakeTimers()
+    const recovered = fakeSession(2n)
+    const connect = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('supervisor wait expired'), { code: 'cancelled', retryable: true }))
+      .mockResolvedValueOnce(recovered)
+    const manager = new NativeSessionManager('daemon-a', {
+      connect,
+      setActive: vi.fn(async () => {}),
+      isGoManaged: () => true,
+    })
+    try {
+      const opening = manager.get()
+      for (let turn = 0; turn < 10 && connect.mock.calls.length === 0; turn += 1) await Promise.resolve()
+      expect(connect).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(250)
+
+      await expect(opening).resolves.toMatchObject({ stamp: { generation: 2n } })
+      expect(connect).toHaveBeenCalledTimes(2)
+    } finally {
+      await manager.reset()
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a responsive session when the verification RPC returns a typed business error', async () => {
     const session = fakeSession()
     const verify = vi.fn(async () => {
@@ -688,6 +883,7 @@ describe('NativeSessionManager', () => {
     const replacement = manager.networkChanged(true, 'network_replaced')
     for (let turn = 0; turn < 10 && invalidate.mock.calls.length === 0; turn += 1) await Promise.resolve()
     expect(invalidate).toHaveBeenCalledOnce()
+    expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting' })
 
     const concurrent = manager.get()
     await Promise.resolve()
@@ -698,6 +894,33 @@ describe('NativeSessionManager', () => {
     await expect(concurrent).resolves.toMatchObject({ stamp: { generation: 2n } })
     expect(connect).toHaveBeenCalledTimes(2)
     await manager.reset()
+  })
+
+  it('continues recovery after a detached session invalidation exceeds its deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const first = fakeSession()
+      const recovered = fakeSession(2n)
+      first.invalidate = vi.fn(() => new Promise<void>(() => undefined))
+      const connect = vi.fn()
+        .mockResolvedValueOnce(first)
+        .mockResolvedValueOnce(recovered)
+      const manager = new NativeSessionManager('daemon-a', { connect })
+
+      await manager.get()
+      const replacement = manager.networkChanged(true, 'network_replaced')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'reconnecting' })
+
+      await vi.advanceTimersByTimeAsync(8_000)
+      await replacement
+      expect(connect).toHaveBeenCalledTimes(2)
+      expect(first.close).toHaveBeenCalled()
+      expect(manager.connectionState.getSnapshot()).toMatchObject({ phase: 'connected' })
+      await manager.reset()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not revive a replacement after reset wins during invalidation', async () => {

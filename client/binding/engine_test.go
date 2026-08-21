@@ -1163,7 +1163,7 @@ func TestEngineCloseUnblocksBackpressuredProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(time.Second)
-	for len(engine.events) != 1 && time.Now().Before(deadline) {
+	for activeRendererEventCount(engine) != 1 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
 	engine.mu.Lock()
@@ -1207,7 +1207,7 @@ func TestEngineAppliesBoundedBackpressureWithoutDroppingResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(time.Second)
-	for len(engine.events) != 1 && time.Now().Before(deadline) {
+	for activeRendererEventCount(engine) != 1 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
 	engine.mu.Lock()
@@ -1232,6 +1232,137 @@ func TestEngineAppliesBoundedBackpressureWithoutDroppingResults(t *testing.T) {
 	if result.GetExecute().GetResult().GetTerminalList() == nil {
 		t.Fatalf("backpressured result was lost: %#v", result)
 	}
+}
+
+func activeRendererEventCount(engine *Engine) int {
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	renderer := engine.renderers[engine.activeRenderer]
+	if renderer == nil {
+		return 0
+	}
+	return len(renderer.events)
+}
+
+func TestRendererReplacementRevokesHandlesAndIsolatesQueuedEvents(t *testing.T) {
+	var sessions []*bindingSession
+	host := &bindingHost{open: func(_ context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+		session := newBindingSession()
+		session.stamp.EndpointID = endpoint.EndpointID(request.GetEndpointId())
+		sessions = append(sessions, session)
+		return session, nil
+	}}
+	engine, err := NewEngine(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+
+	rendererA, err := engine.AttachRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	operationA, sessionA := openBindingSessionForRenderer(t, engine, rendererA, "renderer-a")
+	engine.emitForHandle(sessionA, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_Application{Application: &bindingpb.ApplicationEvent{
+		SessionHandle: sessionA,
+		Event:         &apipb.EventEnvelope{EventId: "stale-renderer-a"},
+	}}})
+
+	rendererB, err := engine.AttachRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-sessions[0].Done():
+	case <-time.After(time.Second):
+		t.Fatal("renderer replacement did not close its published session")
+	}
+	if _, err := engine.NextEventForRenderer(context.Background(), rendererA); !errors.Is(err, ErrInvalidHandle) {
+		t.Fatalf("old renderer event read error = %v, want ErrInvalidHandle", err)
+	}
+	command, _ := proto.Marshal(&apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}})
+	if _, err := engine.Execute(sessionA, command); !errors.Is(err, ErrInvalidHandle) {
+		t.Fatalf("old session execute error = %v, want ErrInvalidHandle", err)
+	}
+	if err := engine.Release(operationA); !errors.Is(err, ErrInvalidHandle) {
+		t.Fatalf("old operation release error = %v, want ErrInvalidHandle", err)
+	}
+
+	operationB, sessionB := openBindingSessionForRenderer(t, engine, rendererB, "renderer-b")
+	if operationB == operationA || sessionB == sessionA {
+		t.Fatalf("renderer handles were reused: operation %d/%d session %d/%d", operationA, operationB, sessionA, sessionB)
+	}
+	engine.mu.Lock()
+	for handle, operation := range engine.operations {
+		if operation.rendererID != rendererB {
+			engine.mu.Unlock()
+			t.Fatalf("operation %d retained renderer %d", handle, operation.rendererID)
+		}
+	}
+	for handle, session := range engine.sessions {
+		if session.rendererID != rendererB {
+			engine.mu.Unlock()
+			t.Fatalf("session %d retained renderer %d", handle, session.rendererID)
+		}
+	}
+	engine.mu.Unlock()
+}
+
+func TestRendererReplacementReturnsHandleRegistriesToBaselineAcross500Cycles(t *testing.T) {
+	var sessions []*bindingSession
+	host := &bindingHost{open: func(_ context.Context, _ *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+		session := newBindingSession()
+		sessions = append(sessions, session)
+		return session, nil
+	}}
+	engine, err := NewEngine(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	engine.mu.Lock()
+	rendererID := engine.activeRenderer
+	engine.mu.Unlock()
+
+	for cycle := 0; cycle < 500; cycle++ {
+		openBindingSessionForRenderer(t, engine, rendererID, fmt.Sprintf("renderer-cycle-%d", cycle))
+		rendererID, err = engine.AttachRenderer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		engine.mu.Lock()
+		operations, publishedSessions, streams, renderers := len(engine.operations), len(engine.sessions), len(engine.streams), len(engine.renderers)
+		engine.mu.Unlock()
+		if operations != 0 || publishedSessions != 0 || streams != 0 || renderers != 1 {
+			t.Fatalf("cycle %d registry counts = operations %d sessions %d streams %d renderers %d", cycle, operations, publishedSessions, streams, renderers)
+		}
+	}
+	for index, session := range sessions {
+		select {
+		case <-session.Done():
+		default:
+			t.Fatalf("cycle %d session remained open", index)
+		}
+	}
+}
+
+func openBindingSessionForRenderer(t *testing.T, engine *Engine, rendererID uint64, requestID string) (uint64, uint64) {
+	t.Helper()
+	payload, err := proto.Marshal(&bindingpb.OpenSessionRequest{
+		RequestId: requestID, EndpointId: requestID, Intent: bindingpb.ConnectIntent_CONNECT_INTENT_INTERACTIVE,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := engine.OpenSession(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := nextBindingEventForRenderer(t, engine, rendererID)
+	if event.GetSequence() != 1 || event.GetOpenSession().GetRequestId() != requestID || event.GetOpenSession().GetSessionHandle() == 0 {
+		t.Fatalf("renderer %d open event = %#v", rendererID, event)
+	}
+	return operation, event.GetOpenSession().GetSessionHandle()
 }
 
 func openBindingSession(t *testing.T, engine *Engine) uint64 {
@@ -1300,6 +1431,21 @@ func nextBindingEvent(t *testing.T, engine *Engine) *bindingpb.EventEnvelope {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	payload, err := engine.NextEvent(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := &bindingpb.EventEnvelope{}
+	if err := proto.Unmarshal(payload, event); err != nil {
+		t.Fatal(err)
+	}
+	return event
+}
+
+func nextBindingEventForRenderer(t *testing.T, engine *Engine, rendererID uint64) *bindingpb.EventEnvelope {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	payload, err := engine.NextEventForRenderer(ctx, rendererID)
 	if err != nil {
 		t.Fatal(err)
 	}

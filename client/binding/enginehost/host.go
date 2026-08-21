@@ -62,6 +62,7 @@ type Options struct {
 type Host struct {
 	options        Options
 	owner          *clientruntime.SessionOwner
+	supervisor     *clientruntime.EndpointSupervisor
 	cloudBootID    string
 	registryMu     sync.Mutex
 	registry       endpoint.Registry
@@ -96,7 +97,14 @@ func New(options Options) (*Host, error) {
 	if options.ShareReceive == nil {
 		options.ShareReceive = shareadapter.Receive
 	}
-	return &Host{options: options, owner: clientruntime.NewSessionOwnerWithAuthority(options.SessionAuthority), cloudBootID: uuid.NewString(), pendingShares: make(map[string]*remoteauthpb.ClientEndpointShareBundleV1)}, nil
+	host := &Host{options: options, owner: clientruntime.NewSessionOwnerWithAuthority(options.SessionAuthority), cloudBootID: uuid.NewString(), pendingShares: make(map[string]*remoteauthpb.ClientEndpointShareBundleV1)}
+	supervisor, err := clientruntime.NewEndpointSupervisor(endpointSupervisorController{host: host}, clientruntime.EndpointSupervisorOptions{})
+	if err != nil {
+		_ = host.owner.Close()
+		return nil, err
+	}
+	host.supervisor = supervisor
+	return host, nil
 }
 
 // OpenSession 从 generated EndpointConfigV1 建立 Go-owned generation；平台 UI 状态不能参与 endpoint、Route、auth 或协议判断。
@@ -104,15 +112,26 @@ func (host *Host) OpenSession(ctx context.Context, request *bindingpb.OpenSessio
 	if request == nil {
 		return nil, fmt.Errorf("open session request is required")
 	}
+	endpointID := endpoint.EndpointID(strings.TrimSpace(request.GetEndpointId()))
+	if endpointID == "" {
+		return nil, fmt.Errorf("open session endpoint_id is required")
+	}
+	if strings.TrimSpace(request.GetRouteOverride()) == "" && host.supervisor.Mode(endpointID) == clientruntime.EndpointSupervisorTakeover {
+		managed, err := host.supervisor.Acquire(ctx, endpointID)
+		if err == nil || !errors.Is(err, clientruntime.ErrEndpointNotManaged) {
+			return managed, err
+		}
+	}
+	return host.openSessionDirect(ctx, request)
+}
+
+func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
 	intent, err := connectIntent(request.GetIntent())
 	if err != nil {
 		return nil, err
 	}
-	endpointID := strings.TrimSpace(request.GetEndpointId())
-	if endpointID == "" {
-		return nil, fmt.Errorf("open session endpoint_id is required")
-	}
-	target, err := host.registryEndpoint(ctx, endpoint.EndpointID(endpointID))
+	endpointID := endpoint.EndpointID(strings.TrimSpace(request.GetEndpointId()))
+	target, err := host.registryEndpoint(ctx, endpointID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,10 +155,61 @@ func (host *Host) OpenSession(ctx context.Context, request *bindingpb.OpenSessio
 	return host.owner.AcquirePlanned(ctx, planningTarget, routeID, intent, config, environment, systemadapter.Clock{}, dialers)
 }
 
+type endpointSupervisorController struct{ host *Host }
+
+func (controller endpointSupervisorController) AcquireCurrent(endpointID endpoint.EndpointID) (clientruntime.ApplicationReadyPeerSession, error) {
+	return controller.host.owner.AcquireCurrent(endpointID)
+}
+
+func (controller endpointSupervisorController) Connect(ctx context.Context, endpointID endpoint.EndpointID) (clientruntime.ApplicationReadyPeerSession, error) {
+	return controller.host.openSessionDirect(ctx, &bindingpb.OpenSessionRequest{
+		EndpointId: string(endpointID),
+		Intent:     bindingpb.ConnectIntent_CONNECT_INTENT_BACKGROUND,
+	})
+}
+
+func (controller endpointSupervisorController) Probe(ctx context.Context, session clientruntime.ApplicationReadyPeerSession) error {
+	result, err := session.ExecuteApplication(ctx, &apipb.CommandEnvelope{
+		Command: &apipb.CommandEnvelope_TerminalDefaults{TerminalDefaults: &apipb.TerminalDefaultsCommand{}},
+	})
+	if err != nil {
+		return err
+	}
+	if result.GetTerminalDefaults() == nil {
+		return fmt.Errorf("endpoint supervisor probe returned no terminal defaults")
+	}
+	return nil
+}
+
+func (controller endpointSupervisorController) Invalidate(stamp clientruntime.EndpointSessionStamp, cause error) error {
+	return controller.host.owner.InvalidateSessionFast(stamp, cause)
+}
+
 // WatchEndpoint exposes the SessionOwner lifecycle to the cross-language
 // binding without giving the platform ownership of connection state.
 func (host *Host) WatchEndpoint(ctx context.Context, endpointID endpoint.EndpointID) (<-chan clientruntime.EndpointEvent, error) {
 	return host.owner.WatchEndpoint(ctx, endpointID)
+}
+
+// ReplaceEndpointDemand atomically reconciles the process-owned Android demand
+// projection. The supervisor never consumes renderer deltas.
+func (host *Host) ReplaceEndpointDemand(snapshot clientruntime.EndpointDemandSnapshot) error {
+	return host.supervisor.ReplaceDemand(snapshot)
+}
+
+// SignalEndpointHost wakes demanded endpoint workers after a foreground or
+// stable network revision. The signal is a hint; only the application probe can
+// invalidate a retained winner.
+func (host *Host) SignalEndpointHost(signal clientruntime.EndpointHostSignal) error {
+	return host.supervisor.Signal(signal)
+}
+
+func (host *Host) WaitEndpointDemandReady(ctx context.Context) error {
+	return host.supervisor.WaitReady(ctx)
+}
+
+func (host *Host) EndpointSupervisorSnapshot() []clientruntime.EndpointSupervisorProjection {
+	return host.supervisor.Snapshot()
 }
 
 // InvalidateSession removes the exact current generation before the next
@@ -529,6 +599,7 @@ func (host *Host) Close() error {
 		host.registryMu.Lock()
 		host.pendingShares = make(map[string]*remoteauthpb.ClientEndpointShareBundleV1)
 		host.registryMu.Unlock()
+		_ = host.supervisor.Close()
 		_ = host.owner.Close()
 		if closer, ok := host.options.DirectPeers.(interface{ Close() error }); ok {
 			_ = closer.Close()

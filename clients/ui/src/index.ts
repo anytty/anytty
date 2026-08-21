@@ -1,5 +1,17 @@
 export * from './connection/connectionMessageReducer'
 export * from './connection/connectionPresentation'
+export * from './connection/appConnectionState'
+export {
+  ConnectionRecoveryOverlay,
+  ConnectionRecoveryOverlayHost,
+  ConnectionRecoveryOverlayProvider,
+  useConnectionRecoveryOverlay,
+} from './connection/ConnectionRecoveryOverlay'
+export type {
+  ConnectionRecoveryOverlayAction,
+  ConnectionRecoveryOverlayIntent,
+  ConnectionRecoveryOverlayKind,
+} from './connection/ConnectionRecoveryOverlay'
 export { anyttyI18n, anyttyIntlLocale, anyttyLanguages, normalizeAnyTTYLanguage } from './i18n'
 export type { AnyTTYLanguage } from './i18n'
 export { PrivacyPolicyContent } from './legal/PrivacyPolicyContent'
@@ -85,7 +97,7 @@ export {
 } from './connection/connectionState'
 export type { ConnectionStatePublisher } from './connection/connectionState'
 export type { FileManagerProps } from './files/FileManager'
-export type { MachineWorkspaceProps, MachineWorkspaceConnector, MachineWorkspaceClientSession, MachineWorkspaceSessionInput, MachineWorkspaceInventoryApi } from './app/MachineWorkspace'
+export type { MachineWorkspaceProps, MachineWorkspaceConnector, MachineWorkspaceClientSession, MachineWorkspaceSessionInput, MachineWorkspaceInventoryApi, SystemClipboard } from './app/MachineWorkspace'
 export { ModalSurface } from './ui/ModalSurface'
 export type { ModalSurfaceProps } from './ui/ModalSurface'
 export {
@@ -224,7 +236,9 @@ export type { CoreV2HistorySource } from './terminal/coreV2HistorySource'
 export {
   DEFAULT_TERMINAL_SETTINGS,
   TERMINAL_FONT_OPTIONS,
-  TERMINAL_SCROLL_INERTIA_OPTIONS,
+  TERMINAL_SCROLL_INERTIA_DEFAULT,
+  TERMINAL_SCROLL_INERTIA_MAX,
+  TERMINAL_SCROLL_INERTIA_MIN,
   TERMINAL_SETTINGS_STORAGE_KEY,
   TERMINAL_THEME_OPTIONS,
   ANYTTY_DARK_TERMINAL_THEME,

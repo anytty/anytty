@@ -181,6 +181,7 @@ class AndroidGoClientEngine(context: Context) : AutoCloseable {
 				.resolve("anytty-native-connection.log").absolutePath
 		} else ""
 		GoClientNative.setDebugLogPath(logPath)
+		check(GoClientNative.abiVersion() == GoClientNative.ABI_VERSION) { "AnyTTY native client ABI mismatch" }
 		handle = GoClientNative.create()
 	}
     private val platform = AndroidClientPlatform(context, handle)
@@ -188,7 +189,10 @@ class AndroidGoClientEngine(context: Context) : AutoCloseable {
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        GoClientNative.close(handle)
-        platform.close()
+        try {
+            GoClientNative.close(handle)
+        } finally {
+            platform.close()
+        }
     }
 }
