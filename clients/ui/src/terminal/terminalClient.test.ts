@@ -1,7 +1,13 @@
 import { describe, expect, it, vi, type Mock } from 'vitest'
-import { TerminalClient, type TerminalClientCallbacks, type TerminalProtocolEvent, type TerminalProtocolSession } from './terminalClient'
+import { TerminalClient, terminalResizeControlOwnsResize, type TerminalClientCallbacks, type TerminalProtocolEvent, type TerminalProtocolSession } from './terminalClient'
 
 describe('TerminalClient', () => {
+  it('keeps owner identity while the owner has locked resize', () => {
+    expect(terminalResizeControlOwnsResize({ canResize: true, reason: 'owner' })).toBe(true)
+    expect(terminalResizeControlOwnsResize({ canResize: false, reason: 'size_locked', sizeLocked: true })).toBe(true)
+    expect(terminalResizeControlOwnsResize({ canResize: false, reason: 'follower', sizeLocked: true })).toBe(false)
+  })
+
   it('opens terminal channels by terminalId and emits terminal lifecycle messages', () => {
     const session = createMockTerminalProtocolSession()
     const callbacks = callbacksForTest()

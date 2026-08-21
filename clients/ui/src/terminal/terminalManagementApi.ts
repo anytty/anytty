@@ -11,6 +11,7 @@ import {
   TerminalRemoveCommandSchema,
   TerminalRestartCommandSchema,
   TerminalSetMetadataCommandSchema,
+  TerminalSetTagsCommandSchema,
   TerminalSizeSchema,
 } from '../generated/apipb/terminal_pb'
 
@@ -19,6 +20,7 @@ export interface TerminalManagementApi {
   getDefaults(): Promise<{ command: string[]; cwd: string }>
   createTerminal(input: LocalCreateTerminalInput): Promise<{ terminalId: string }>
   updateTerminal(input: LocalUpdateTerminalInput): Promise<void>
+  updateTerminalSizeLock(input: Pick<LocalUpdateTerminalInput, 'terminalId' | 'cwd' | 'sizeLockMode'>): Promise<void>
   restartTerminal(terminalId: string): Promise<void>
   deleteTerminal(terminalId: string): Promise<void>
   getTerminalDirectory(terminalId: string): Promise<{ path: string; source?: string | undefined }>
@@ -78,6 +80,13 @@ function createProtoTerminalManagementApi(session: ProtoClientSession, machineId
         tags: terminalTags(input),
       }))
       assertAcknowledge(result, 'terminal metadata update')
+    },
+    async updateTerminalSizeLock(input) {
+      const result = await execute('terminalSetTags', create(TerminalSetTagsCommandSchema, {
+        terminal: terminalRef(input.terminalId),
+        tags: terminalTags(input),
+      }))
+      assertAcknowledge(result, 'terminal size lock metadata update')
     },
     async restartTerminal(terminalId) {
       assertAcknowledge(await execute('terminalRestart', create(TerminalRestartCommandSchema, { terminal: terminalRef(terminalId) })), 'terminal restart')

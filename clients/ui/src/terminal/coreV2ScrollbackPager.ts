@@ -3,6 +3,7 @@ import { coreV2ReflowHistoryRows } from './coreV2HistoryANSI'
 import type {
   CoreV2HistoryCursor,
   CoreV2HistoryRow,
+  CoreV2HistorySearchMode,
   CoreV2HistorySearchResult,
   CoreV2HistoryWindow,
 } from './coreV2TerminalProtocol'
@@ -27,6 +28,7 @@ export interface CoreV2ScrollbackSearchPage {
   page?: CoreV2ScrollbackPage | undefined
   match?: { startLineId: string; startCol: number; endLineId: string; endCol: number } | undefined
   matchRow?: number | undefined
+  matchRanges?: Array<{ row: number; startCol: number; endCol: number }> | undefined
 }
 
 interface CoreV2ScrollbackState {
@@ -110,6 +112,7 @@ export class CoreV2ScrollbackPager {
     terminalId: string
     query: string
     direction: 'forward' | 'backward'
+    mode?: CoreV2HistorySearchMode | undefined
     cols: number
     limit: number
     start?: { lineId: string; col: number } | undefined
@@ -124,6 +127,7 @@ export class CoreV2ScrollbackPager {
         token: current.token,
         generation: current.generation,
         query: input.query,
+        mode: input.mode ?? 'text',
         direction: input.direction,
         cols: input.cols,
         limit: input.limit,
@@ -145,13 +149,15 @@ export class CoreV2ScrollbackPager {
     const visualRows = coreV2ReflowHistoryRows(result.window.renderRows, input.cols)
     const next = stateFromWindow(result.window, visualRows, input.cols, undefined)
     this.stateByTerminal.set(input.terminalId, next)
-    const matchRow = historyMatchVisualRow(visualRows, result.match.startLineId, result.match.startCol)
+    const matchRanges = historyMatchVisualRanges(visualRows, result.match)
+    const matchRow = matchRanges[0]?.row ?? 0
     return {
       found: true,
       wrapped: result.wrapped,
       page: pageFromWindow(result.window, visualRows, next),
       match: result.match,
-      matchRow: matchRow < 0 ? 0 : matchRow,
+      matchRow,
+      matchRanges,
     }
   }
 
@@ -197,18 +203,32 @@ export class CoreV2ScrollbackPager {
   }
 }
 
-function historyMatchVisualRow(rows: CoreV2HistoryRow[], lineId: string, column: number): number {
-  let remaining = Math.max(0, Math.trunc(column))
-  let fallback = -1
+function historyMatchVisualRanges(
+  rows: CoreV2HistoryRow[],
+  match: { startLineId: string; startCol: number; endLineId: string; endCol: number },
+): Array<{ row: number; startCol: number; endCol: number }> {
+  const ranges: Array<{ row: number; startCol: number; endCol: number }> = []
+  let started = false
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index]!
-    if (row.logicalLineId !== lineId) continue
-    fallback = index
-    const width = row.cells.reduce((total, cell) => total + Math.max(1, cell.width), 0)
-    if (remaining < width || !row.wrapped) return index
-    remaining -= width
+    const lineId = row.logicalLineId
+    if (!lineId) continue
+    if (!started) {
+      if (lineId !== match.startLineId) continue
+      started = true
+    }
+    if (lineId !== match.startLineId && lineId !== match.endLineId && match.startLineId === match.endLineId) break
+    const rowStart = Math.max(0, row.logicalStartCol ?? 0)
+    const rowWidth = row.cells.reduce((total, cell) => total + Math.max(1, cell.width), 0)
+    const rowEnd = rowStart + rowWidth
+    const matchStart = lineId === match.startLineId ? Math.max(0, match.startCol) : rowStart
+    const matchEnd = lineId === match.endLineId ? Math.max(matchStart, match.endCol) : rowEnd
+    const startCol = Math.max(rowStart, matchStart) - rowStart
+    const endCol = Math.min(rowEnd, matchEnd) - rowStart
+    if (endCol > startCol) ranges.push({ row: index, startCol, endCol })
+    if (lineId === match.endLineId && rowEnd >= matchEnd) break
   }
-  return fallback < 0 ? 0 : fallback
+  return ranges
 }
 
 function isTerminalHistoryControlError(error: unknown): boolean {

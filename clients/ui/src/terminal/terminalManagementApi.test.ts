@@ -43,18 +43,23 @@ describe('terminal management generated Proto API', () => {
       name: 'ops shell', command: ['/bin/zsh', '-l'], cwd: '/srv/app', environment: ['MODE=prod', 'TOKEN=a=b'], sizeLockMode: 'lock',
     })).resolves.toEqual({ terminalId: 'terminal-3' })
     await api.updateTerminal({ terminalId: 'terminal-1', name: 'renamed', sizeLockMode: 'off' })
+    await api.updateTerminalSizeLock({ terminalId: 'terminal-1', cwd: '/srv/configured', sizeLockMode: 'lock' })
     await api.restartTerminal('terminal-1')
     await api.deleteTerminal('terminal-1')
     await expect(api.getTerminalDirectory('terminal-1')).resolves.toEqual({ path: '/srv/live', source: 'live' })
 
     expect(session.commands.map((command) => command.command.case)).toEqual([
-      'terminalDefaults', 'terminalCreate', 'terminalSetMetadata', 'terminalRestart', 'terminalRemove', 'terminalGet',
+      'terminalDefaults', 'terminalCreate', 'terminalSetMetadata', 'terminalSetTags', 'terminalRestart', 'terminalRemove', 'terminalGet',
     ])
     expect(session.commands[1]?.command.value).toMatchObject({
       terminal: { command: ['/bin/zsh', '-l'], cwd: '/srv/app', env: ['MODE=prod', 'TOKEN=a=b'], size: { cols: 80, rows: 24 }, tags: { 'anytty.size_lock': 'lock', cwd: '/srv/app' } },
     })
     expect((session.commands[1]?.command.value as { terminal?: { terminalId?: string } }).terminal?.terminalId).toMatch(/^term-/)
     expect(session.commands[2]?.command.value).toMatchObject({ tags: { 'anytty.size_lock': 'off' } })
+    expect(session.commands[3]?.command.value).toMatchObject({
+      terminal: { terminalId: 'terminal-1' },
+      tags: { 'anytty.size_lock': 'lock', cwd: '/srv/configured' },
+    })
   })
 
   it('rejects endpoint mismatches before dispatch', () => {

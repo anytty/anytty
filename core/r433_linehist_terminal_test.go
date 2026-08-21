@@ -167,6 +167,48 @@ func TestR433LinehistFreezeAndCopyAcrossColdAndHot(t *testing.T) {
 	}
 }
 
+func TestR433LinehistInitialSearchPrioritizesCurrentScreenThenWrapsColdHistory(t *testing.T) {
+	server := newR433LinehistServer(t)
+	r433RegisterTerminal(t, server, "term-r433-search-frontier", 24, 3)
+	for i := 1; i <= 20; i++ {
+		r433Ingest(t, server, "term-r433-search-frontier", fmt.Sprintf("cold-line-%02d\r\n", i))
+	}
+	r433Ingest(t, server, "term-r433-search-frontier", "current-screen-needle")
+
+	snapshot, err := server.TerminalHistoryFreeze(context.Background(), "term-r433-search-frontier", history.FreezeHistoryRequest{
+		Cols:  24,
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("freeze: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = server.TerminalHistoryRelease(context.Background(), "term-r433-search-frontier", snapshot.Token)
+	})
+
+	current, err := server.TerminalHistorySearch(context.Background(), "term-r433-search-frontier", history.HistorySearchRequest{
+		Token: snapshot.Token, Cols: 24, Limit: 10,
+		Query: "current-screen-needle", Direction: history.HistorySearchForward,
+	})
+	if err != nil {
+		t.Fatalf("search current screen: %v", err)
+	}
+	if !current.Found || current.Wrapped {
+		t.Fatalf("initial search must inspect the frozen current screen before cold history: %#v", current)
+	}
+
+	cold, err := server.TerminalHistorySearch(context.Background(), "term-r433-search-frontier", history.HistorySearchRequest{
+		Token: snapshot.Token, Cols: 24, Limit: 10,
+		Query: "cold-line-01", Direction: history.HistorySearchForward,
+	})
+	if err != nil {
+		t.Fatalf("search cold history: %v", err)
+	}
+	if !cold.Found || !cold.Wrapped {
+		t.Fatalf("initial search must wrap from the in-memory frontier into cold history: %#v", cold)
+	}
+}
+
 func TestR433LinehistProcessExitSealsCurrentScreenBeforeRestart(t *testing.T) {
 	factory := newRecordingProcessFactory()
 	server := NewServer(

@@ -76,7 +76,7 @@ describe('useTerminalSession input recovery owner', () => {
 
   afterEach(() => cleanup())
 
-  it('owns rapid follow-up input and replays every message once in order after recovery', async () => {
+  it('never replays uncertain input or accepts follow-up input while the channel recovers', async () => {
     const session = new MockProtoSession('session-a')
     let current: UseTerminalSessionResult | undefined
     const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
@@ -84,23 +84,26 @@ describe('useTerminalSession input recovery owner', () => {
 
     recoveryHarness.failNextSend.add('session-a')
     act(() => {
-      expect(current!.sendInput('first', { cols: 80, rows: 24 })).toBe(true)
-      expect(current!.sendInput('second', { cols: 81, rows: 25 })).toBe(true)
-      expect(current!.sendInput('third')).toBe(true)
+      expect(current!.sendInput('first', { cols: 80, rows: 24 })).toBe(false)
+      expect(current!.sendInput('second', { cols: 81, rows: 25 })).toBe(false)
+      expect(current!.sendInput('third')).toBe(false)
     })
     await waitForRecoveryOpen('session-a')
+    await waitFor(() => {
+      expect(current?.inputRecoveryFailure).toBe('Terminal input delivery is uncertain. It was not resent.')
+    })
     expect(recoveryHarness.sent).toEqual([])
 
     await resolveRecoveryOpen('session-a')
-    await waitFor(() => expect(recoveryHarness.sent).toEqual([
-      { sessionId: 'session-a', data: 'first', size: { cols: 80, rows: 24 } },
-      { sessionId: 'session-a', data: 'second', size: { cols: 81, rows: 25 } },
-      { sessionId: 'session-a', data: 'third' },
-    ]))
+    await waitFor(() => expect(current?.inputRecoveryFailure).toBeNull())
+    expect(recoveryHarness.sent).toEqual([])
+
+    act(() => { expect(current!.sendInput('typed-again')).toBe(true) })
+    expect(recoveryHarness.sent).toEqual([{ sessionId: 'session-a', data: 'typed-again' }])
     view.unmount()
   })
 
-  it('keeps B owner and its failure intact when A completes after session replacement', async () => {
+  it('does not let an old recovery replay into a replacement session', async () => {
     const sessionA = new MockProtoSession('session-a')
     const sessionB = new MockProtoSession('session-b')
     let current: UseTerminalSessionResult | undefined
@@ -109,81 +112,21 @@ describe('useTerminalSession input recovery owner', () => {
     await waitForInitialOpen('session-a')
 
     recoveryHarness.failNextSend.add('session-a')
-    act(() => { expect(current!.sendInput('A')).toBe(true) })
+    act(() => { expect(current!.sendInput('A')).toBe(false) })
     await waitForRecoveryOpen('session-a')
 
     view.rerender(<Harness session={sessionB} onChange={onChange} />)
     await waitForInitialOpen('session-b')
-    recoveryHarness.failNextSend.add('session-b')
-    act(() => {
-      expect(current!.sendInput('B')).toBe(true)
-      expect(current!.sendInput('x'.repeat(64 * 1024))).toBe(false)
-    })
-    await waitForRecoveryOpen('session-b')
-    await waitFor(() => {
-      expect(current?.inputRecoveryFailure).toBe('Terminal input is blocked because the recovery buffer is full')
-    })
+    act(() => { expect(current!.sendInput('B')).toBe(true) })
+    expect(recoveryHarness.sent).toEqual([{ sessionId: 'session-b', data: 'B' }])
 
     await resolveRecoveryOpen('session-a')
-    expect(current?.inputRecoveryFailure).toBe('Terminal input is blocked because the recovery buffer is full')
-    act(() => { expect(current!.sendInput('C')).toBe(true) })
-    await waitFor(() => expect(current?.inputRecoveryFailure).toBeNull())
-    expect(recoveryHarness.openCalls.get('session-b')).toBe(2)
-
-    await resolveRecoveryOpen('session-b')
-    await waitFor(() => expect(recoveryHarness.sent).toEqual([
-      { sessionId: 'session-b', data: 'B' },
-      { sessionId: 'session-b', data: 'C' },
-    ]))
+    expect(current?.inputRecoveryFailure).toBeNull()
+    expect(recoveryHarness.sent).toEqual([{ sessionId: 'session-b', data: 'B' }])
     view.unmount()
   })
 
-  it('keeps overflow visible while recovery is blocked and clears it after a successful drain', async () => {
-    const session = new MockProtoSession('session-bounded')
-    let current: UseTerminalSessionResult | undefined
-    const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
-    await waitForInitialOpen('session-bounded')
-
-    recoveryHarness.failNextSend.add('session-bounded')
-    act(() => {
-      expect(current!.sendInput('first')).toBe(true)
-      for (let index = 1; index < 64; index += 1) {
-        expect(current!.sendInput(`queued-${index}`)).toBe(true)
-      }
-      expect(current!.sendInput('entry-overflow')).toBe(false)
-    })
-
-    await waitFor(() => {
-      expect(current?.inputRecoveryFailure).toBe('Terminal input is blocked because the recovery buffer is full')
-    })
-    await waitForRecoveryOpen('session-bounded')
-    expect(current?.inputRecoveryFailure).toBe('Terminal input is blocked because the recovery buffer is full')
-    await resolveRecoveryOpen('session-bounded')
-    await waitFor(() => expect(recoveryHarness.sent).toHaveLength(64))
-    expect(recoveryHarness.sent.some(({ data }) => data === 'entry-overflow')).toBe(false)
-    await waitFor(() => expect(current?.inputRecoveryFailure).toBeNull())
-    view.unmount()
-  })
-
-  it('enforces the byte bound independently of the entry limit', async () => {
-    const session = new MockProtoSession('session-byte-bound')
-    let current: UseTerminalSessionResult | undefined
-    const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
-    await waitForInitialOpen('session-byte-bound')
-
-    recoveryHarness.failNextSend.add('session-byte-bound')
-    act(() => {
-      expect(current!.sendInput('first')).toBe(true)
-      expect(current!.sendInput('x'.repeat(64 * 1024))).toBe(false)
-    })
-
-    await waitFor(() => {
-      expect(current?.inputRecoveryFailure).toBe('Terminal input is blocked because the recovery buffer is full')
-    })
-    view.unmount()
-  })
-
-  it('surfaces recovery failure and clears it on the next locally accepted input', async () => {
+  it('surfaces channel recovery failure without replaying the rejected input', async () => {
     const session = new MockProtoSession('session-failure')
     let current: UseTerminalSessionResult | undefined
     const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
@@ -191,45 +134,12 @@ describe('useTerminalSession input recovery owner', () => {
 
     recoveryHarness.failNextSend.add('session-failure')
     recoveryHarness.failNextConnectionInfo.add('session-failure')
-    act(() => { expect(current!.sendInput('not-acked')).toBe(true) })
+    act(() => { expect(current!.sendInput('not-acked')).toBe(false) })
 
     await waitFor(() => {
       expect(current?.inputRecoveryFailure).toBe('Terminal input recovery failed')
     })
     expect(recoveryHarness.sent).toEqual([])
-
-    act(() => { expect(current!.sendInput('accepted-after-recovery-failure')).toBe(true) })
-    await waitFor(() => expect(current?.inputRecoveryFailure).toBeNull())
-    expect(recoveryHarness.sent).toEqual([{
-      sessionId: 'session-failure',
-      data: 'accepted-after-recovery-failure',
-    }])
-    view.unmount()
-  })
-
-  it('surfaces replay failure and clears it on the next locally accepted input', async () => {
-    const session = new MockProtoSession('session-replay-failure')
-    let current: UseTerminalSessionResult | undefined
-    const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
-    await waitForInitialOpen('session-replay-failure')
-
-    recoveryHarness.failNextSend.add('session-replay-failure')
-    act(() => { expect(current!.sendInput('failed-replay')).toBe(true) })
-    await waitForRecoveryOpen('session-replay-failure')
-    recoveryHarness.failNextSend.add('session-replay-failure')
-    await resolveRecoveryOpen('session-replay-failure')
-
-    await waitFor(() => {
-      expect(current?.inputRecoveryFailure).toBe('Terminal input recovery failed while replaying queued input')
-    })
-    expect(recoveryHarness.sent).toEqual([])
-
-    act(() => { expect(current!.sendInput('accepted-after-replay-failure')).toBe(true) })
-    await waitFor(() => expect(current?.inputRecoveryFailure).toBeNull())
-    expect(recoveryHarness.sent).toEqual([{
-      sessionId: 'session-replay-failure',
-      data: 'accepted-after-replay-failure',
-    }])
     view.unmount()
   })
 
@@ -242,10 +152,7 @@ describe('useTerminalSession input recovery owner', () => {
     await waitForInitialOpen('session-replace-a')
 
     recoveryHarness.failNextSend.add('session-replace-a')
-    act(() => {
-      expect(current!.sendInput('first')).toBe(true)
-      expect(current!.sendInput('x'.repeat(64 * 1024))).toBe(false)
-    })
+    act(() => { expect(current!.sendInput('first')).toBe(false) })
     await waitFor(() => expect(current?.inputRecoveryFailure).not.toBeNull())
 
     view.rerender(<Harness session={sessionB} onChange={onChange} />)
@@ -257,17 +164,14 @@ describe('useTerminalSession input recovery owner', () => {
     view.unmount()
   })
 
-  it('atomically clears failure ownership on unmount so queued input cannot replay', async () => {
+  it('atomically clears recovery ownership on unmount so input cannot replay', async () => {
     const session = new MockProtoSession('session-unmount')
     let current: UseTerminalSessionResult | undefined
     const view = render(<Harness session={session} onChange={(value) => { current = value }} />)
     await waitForInitialOpen('session-unmount')
 
     recoveryHarness.failNextSend.add('session-unmount')
-    act(() => {
-      expect(current!.sendInput('first')).toBe(true)
-      expect(current!.sendInput('x'.repeat(64 * 1024))).toBe(false)
-    })
+    act(() => { expect(current!.sendInput('first')).toBe(false) })
     await waitForRecoveryOpen('session-unmount')
     await waitFor(() => expect(current?.inputRecoveryFailure).not.toBeNull())
     view.unmount()

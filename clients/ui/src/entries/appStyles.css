@@ -4,6 +4,45 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes anytty-connection-signal {
+  0%, 100% {
+    opacity: 0.28;
+    transform: scaleY(0.28);
+  }
+  45% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.anytty-connection-signal-bar {
+  animation: anytty-connection-signal 1.1s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+  transform-origin: center;
+}
+
+.anytty-connection-signal-bar:nth-child(1),
+.anytty-connection-signal-bar:nth-child(5) {
+  animation-delay: -440ms;
+}
+
+.anytty-connection-signal-bar:nth-child(2),
+.anytty-connection-signal-bar:nth-child(4) {
+  animation-delay: -220ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anytty-connection-signal-bar {
+    animation: none;
+    opacity: 0.72;
+    transform: scaleY(0.56);
+  }
+
+  .anytty-connection-signal-bar:nth-child(3) {
+    opacity: 1;
+    transform: scaleY(0.9);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-in,
   .animate-slide-up {

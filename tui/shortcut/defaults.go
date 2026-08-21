@@ -180,6 +180,7 @@ var defaultBindings = []DefaultBinding{
 	{Scene: "copy", Key: "space", Action: "copy.mark"},
 	{Scene: "copy", Key: "y", Action: "copy.copy_selection"},
 	{Scene: "copy", Key: "/", Action: "copy.search_start"},
+	{Scene: "copy", Key: "tab", Action: "copy.search_mode"},
 	{Scene: "copy", Key: "n", Action: "copy.search_next"},
 	{Scene: "copy", Key: "N", Action: "copy.search_previous"},
 	{Scene: "copy", Key: "H", Action: "menu.clipboard_history"},

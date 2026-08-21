@@ -121,6 +121,7 @@ export interface CoreV2HistoryCopyRequest {
 }
 
 export type CoreV2HistorySearchDirection = 'forward' | 'backward'
+export type CoreV2HistorySearchMode = 'text' | 'glob' | 'regex'
 
 export interface CoreV2HistoryTextPosition {
   lineId: string
@@ -132,6 +133,7 @@ export interface CoreV2HistorySearchRequest {
   token: string
   generation?: string | number | bigint | undefined
   query: string
+  mode?: CoreV2HistorySearchMode | undefined
   direction: CoreV2HistorySearchDirection
   cols: number
   limit: number

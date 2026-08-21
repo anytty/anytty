@@ -12,9 +12,11 @@ export interface UseTerminalKeyboardOptions {
   mainRef: React.RefObject<HTMLDivElement | null>
   termWrapperRef: React.RefObject<HTMLDivElement | null>
   getTermRef: () => TerminalHandle | null
-  shouldResize: () => boolean
+  getLayoutMode: () => TerminalKeyboardLayoutMode
   onKeyboardHide?: () => void
 }
+
+export type TerminalKeyboardLayoutMode = 'resize' | 'shift'
 
 export interface UseTerminalKeyboardReturn {
   keyboardVisible: boolean
@@ -34,7 +36,7 @@ interface KeyboardMeasurement {
 }
 
 export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTerminalKeyboardReturn {
-  const { containerRef, mainRef, termWrapperRef, getTermRef, shouldResize, onKeyboardHide } = opts
+  const { containerRef, mainRef, termWrapperRef, getTermRef, getLayoutMode, onKeyboardHide } = opts
   const [keyboardVisible, setKeyboardVisible] = useState(false)
   const fullMainHeightRef = useRef(0)
   const fullWindowHeightRef = useRef(typeof window === 'undefined' ? 0 : window.innerHeight)
@@ -42,10 +44,10 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
   const keyboardRequestedRef = useRef(false)
   const shiftRafRef = useRef(0)
   const onKeyboardHideRef = useRef(onKeyboardHide)
-  const shouldResizeRef = useRef(shouldResize)
+  const getLayoutModeRef = useRef(getLayoutMode)
 
   onKeyboardHideRef.current = onKeyboardHide
-  shouldResizeRef.current = shouldResize
+  getLayoutModeRef.current = getLayoutMode
 
   const measureKeyboard = useCallback((): KeyboardMeasurement => {
     const vv = window.visualViewport
@@ -104,15 +106,16 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
   }, [resetKeyboardLayout])
 
   const adjustShift = useCallback(() => {
-    if (shouldResizeRef.current()) return
-    if (!termWrapperRef.current || fullMainHeightRef.current <= 0) return
+    if (getLayoutModeRef.current() === 'resize') return
+    const wrapper = termWrapperRef.current
+    if (!wrapper || fullMainHeightRef.current <= 0) return
+
     const { keyboardHeight } = measureKeyboard()
     if (keyboardHeight <= keyboardClosedThresholdPx) return
 
-    const termRef = getTermRef()
-    const cursorInfo = termRef?.getCursorInfo()
+    const term = getTermRef()
+    const cursorInfo = term?.getCursorInfo()
     let shift = 0
-
     if (cursorInfo) {
       const cursorPxFromTop = cursorInfo.cursorY * cursorInfo.lineHeight
       const visibleMainHeight = fullMainHeightRef.current - keyboardHeight
@@ -124,8 +127,8 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
       }
     }
 
-    termWrapperRef.current.style.transform = `translateY(${-shift}px)`
-    termRef?.adjustInputPosition(keyboardHeight - shift)
+    wrapper.style.transform = `translateY(${-shift}px)`
+    term?.adjustInputPosition(keyboardHeight - shift)
   }, [getTermRef, measureKeyboard, termWrapperRef])
 
   const applyKeyboardLayout = useCallback(() => {
@@ -149,16 +152,14 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
       container.style.height = ''
     }
 
-    if (shouldResizeRef.current()) {
+    if (getLayoutModeRef.current() === 'resize') {
       wrapper.style.height = ''
       wrapper.style.transform = ''
       getTermRef()?.adjustInputPosition(0)
-      return
+    } else {
+      wrapper.style.height = `${fullMainHeightRef.current}px`
+      adjustShift()
     }
-
-    if (fullMainHeightRef.current <= 0) return
-    wrapper.style.height = `${fullMainHeightRef.current}px`
-    adjustShift()
   }, [
     adjustShift,
     clearKeyboardLayout,

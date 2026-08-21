@@ -148,6 +148,26 @@ describe('FileTransferPanel', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('portals the transfer center above page stacking contexts', () => {
+    render(
+      <div data-testid="animated-page" className="relative z-40">
+        <FileTransferPanel
+          transfers={[transfer({ status: 'completed', transferredSize: 1 })]}
+          hasActiveTransfers={false}
+          onCancel={vi.fn()}
+          onDismiss={vi.fn()}
+          open
+        />
+      </div>,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Data Transfer Center' })
+    const root = dialog.closest<HTMLElement>('[data-anytty-transfer-center-root]')
+    expect(root?.parentElement).toBe(document.body)
+    expect(root?.className).toContain('z-[100]')
+    expect(screen.getByTestId('animated-page').contains(dialog)).toBe(false)
+  })
+
   it('keeps title and summary associations unique across two transfer centers', () => {
     render(
       <>

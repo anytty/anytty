@@ -41,6 +41,7 @@ type Event struct {
 // and resize-owner snapshot published when the attachment registry changes.
 type TerminalAttachmentProjection struct {
 	AttachmentCount int
+	ResizeEpoch     uint64
 	ResizeControl   *TerminalResizeControl
 }
 
@@ -56,14 +57,21 @@ type EventFilter struct {
 type eventBroker struct {
 	mu          sync.RWMutex
 	buffer      int
-	subscribers map[uint64]eventSubscription
+	subscribers map[uint64]*eventSubscription
 	nextID      uint64
 	closed      bool
 }
 
 type eventSubscription struct {
-	filter EventFilter
-	ch     chan Event
+	filter   EventFilter
+	ch       chan Event
+	wake     chan struct{}
+	done     chan struct{}
+	mu       sync.Mutex
+	closed   bool
+	inFlight bool
+	pending  map[string]Event
+	order    []string
 }
 
 func newEventBroker(buffer int) *eventBroker {
@@ -72,26 +80,37 @@ func newEventBroker(buffer int) *eventBroker {
 	}
 	return &eventBroker{
 		buffer:      buffer,
-		subscribers: make(map[uint64]eventSubscription),
+		subscribers: make(map[uint64]*eventSubscription),
 	}
 }
 
 func (broker *eventBroker) subscribe(ctx context.Context, filter EventFilter) <-chan Event {
 	broker.mu.Lock()
 	defer broker.mu.Unlock()
-	ch := make(chan Event, broker.buffer)
 	if broker.closed {
+		ch := make(chan Event)
 		close(ch)
 		return ch
 	}
 	broker.nextID++
 	id := broker.nextID
-	broker.subscribers[id] = eventSubscription{filter: filter, ch: ch}
+	sub := &eventSubscription{
+		filter:  filter,
+		ch:      make(chan Event, broker.buffer),
+		wake:    make(chan struct{}, 1),
+		done:    make(chan struct{}),
+		pending: make(map[string]Event),
+	}
+	broker.subscribers[id] = sub
+	go sub.run()
 	go func() {
-		<-ctx.Done()
-		broker.unsubscribe(id)
+		select {
+		case <-ctx.Done():
+			broker.unsubscribe(id)
+		case <-sub.done:
+		}
 	}()
-	return ch
+	return sub.ch
 }
 
 func (broker *eventBroker) publish(event Event) {
@@ -107,11 +126,7 @@ func (broker *eventBroker) publish(event Event) {
 		if !eventMatchesFilter(event, sub.filter) {
 			continue
 		}
-		select {
-		case sub.ch <- cloneEvent(event):
-		default:
-			// 事件流是通知边界，满队列不阻塞 daemon 主路径。
-		}
+		sub.enqueue(cloneEvent(event))
 	}
 }
 
@@ -123,20 +138,116 @@ func (broker *eventBroker) unsubscribe(id uint64) {
 		return
 	}
 	delete(broker.subscribers, id)
-	close(sub.ch)
+	sub.stop()
 }
 
 func (broker *eventBroker) close() {
 	broker.mu.Lock()
-	defer broker.mu.Unlock()
 	if broker.closed {
+		broker.mu.Unlock()
 		return
 	}
 	broker.closed = true
+	subs := make([]*eventSubscription, 0, len(broker.subscribers))
 	for id, sub := range broker.subscribers {
 		delete(broker.subscribers, id)
-		close(sub.ch)
+		subs = append(subs, sub)
 	}
+	broker.mu.Unlock()
+	for _, sub := range subs {
+		sub.stop()
+	}
+}
+
+func (sub *eventSubscription) enqueue(event Event) {
+	key := eventDeliveryKey(event)
+	sub.mu.Lock()
+	if sub.closed {
+		sub.mu.Unlock()
+		return
+	}
+	if !sub.inFlight && len(sub.order) == 0 {
+		select {
+		case sub.ch <- event:
+			sub.mu.Unlock()
+			return
+		default:
+		}
+	}
+	if key == "" {
+		sub.mu.Unlock()
+		return
+	}
+	if _, exists := sub.pending[key]; !exists {
+		sub.order = append(sub.order, key)
+	}
+	sub.pending[key] = event
+	sub.mu.Unlock()
+	select {
+	case sub.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (sub *eventSubscription) run() {
+	defer close(sub.ch)
+	for {
+		event, ok := sub.pop()
+		if !ok {
+			select {
+			case <-sub.wake:
+				continue
+			case <-sub.done:
+				return
+			}
+		}
+		select {
+		case sub.ch <- event:
+			sub.deliveryComplete()
+		case <-sub.done:
+			return
+		}
+	}
+}
+
+func (sub *eventSubscription) pop() (Event, bool) {
+	sub.mu.Lock()
+	defer sub.mu.Unlock()
+	if len(sub.order) == 0 {
+		return Event{}, false
+	}
+	key := sub.order[0]
+	sub.order = sub.order[1:]
+	event := sub.pending[key]
+	delete(sub.pending, key)
+	sub.inFlight = true
+	return event, true
+}
+
+func (sub *eventSubscription) deliveryComplete() {
+	sub.mu.Lock()
+	sub.inFlight = false
+	sub.mu.Unlock()
+}
+
+func (sub *eventSubscription) stop() {
+	sub.mu.Lock()
+	if sub.closed {
+		sub.mu.Unlock()
+		return
+	}
+	sub.closed = true
+	sub.pending = nil
+	sub.order = nil
+	close(sub.done)
+	sub.mu.Unlock()
+}
+
+func eventDeliveryKey(event Event) string {
+	if event.Attachment != nil {
+		return "terminal.attachment\x00" + event.TerminalID
+	}
+	return ""
 }
 
 func eventMatchesFilter(event Event, filter EventFilter) bool {

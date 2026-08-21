@@ -7,12 +7,10 @@ import (
 	"github.com/anytty/anytty/tui/state"
 )
 
-// terminalDefaultResizePolicy 返回 TUI 本地配置决定的 attach resize 策略。
-// 默认跟随 daemon 仲裁；开启 auto_take_owner 后，TUI 会主动请求 owner。
-func terminalDefaultResizePolicy(root state.Root) string {
-	if root.Config.Terminal.AutoTakeOwner {
-		return state.TerminalResizeRoleOwner
-	}
+// terminalDefaultResizePolicy keeps passive attaches from taking ownership away
+// from another client. The daemon promotes the first follower atomically when
+// the terminal has no owner; explicit take-owner remains a separate operation.
+func terminalDefaultResizePolicy(_ state.Root) string {
 	return state.TerminalResizeRoleFollower
 }
 
@@ -96,6 +94,11 @@ func NewTerminalLayoutResizeReducer() Reducer {
 func autoTakeOwnerEffects(root state.Root) ([]Effect, bool) {
 	binding, ok := activeTerminalViewBinding(root)
 	if !ok || binding.TerminalID == "" || !binding.Attached || binding.Channel == 0 || binding.HasResizeOwner() || binding.OwnerAcquirePending {
+		return nil, false
+	}
+	// Fail closed on a partial projection as well: auto-take is only valid when
+	// the daemon explicitly projects no current owner.
+	if binding.OwnerSurfaceID != "" || binding.OwnerViewID != "" {
 		return nil, false
 	}
 	rect, ok := terminalViewContentRect(root, render.Rect{}, binding)

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/anytty/anytty/tui/testkit"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +15,7 @@ import (
 	"github.com/anytty/anytty/tui/port"
 	"github.com/anytty/anytty/tui/render"
 	"github.com/anytty/anytty/tui/state"
+	"github.com/anytty/anytty/tui/testkit"
 )
 
 func TestCopyModePageUpLatestAndOlderE2E(t *testing.T) {
@@ -6490,10 +6491,10 @@ func TestCopyModeSearchReturnsToLiveAtFrozenBottom(t *testing.T) {
 	if status := activeCopyContentStatus(runtime); !strings.Contains(status, `search:"beta"`) || !strings.Contains(status, "older:top") {
 		t.Fatalf("expected search status outside history body, got %q", status)
 	}
-	for _, line := range activeCopyContentLines(runtime) {
-		if strings.Contains(line, "⌕ search beta") || strings.Contains(line, "SCROLL") {
-			t.Fatalf("copy history body should not render search/status rows, got %#v", activeCopyContentLines(runtime))
-		}
+	if lines := activeCopyContentLines(runtime); !slices.ContainsFunc(lines, func(line string) bool {
+		return strings.Contains(line, "⌕ [TEXT] beta")
+	}) {
+		t.Fatalf("copy history must render a visible search bar, got %#v", lines)
 	}
 	assertPaneVisualState(t, queryFrame, "beta", render.StyleWarning)
 

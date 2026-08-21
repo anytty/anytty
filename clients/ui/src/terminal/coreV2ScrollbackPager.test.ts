@@ -209,11 +209,18 @@ describe('CoreV2ScrollbackPager', () => {
     const pager = new CoreV2ScrollbackPager(source)
     await pager.load({ terminalId: 'terminal-1', offset: 0, limit: 1, cols: 5 })
 
-    const result = await pager.search({ terminalId: 'terminal-1', query: 'hij', direction: 'backward', cols: 5, limit: 100 })
+    const result = await pager.search({ terminalId: 'terminal-1', query: '*hij*', mode: 'glob', direction: 'backward', cols: 5, limit: 100 })
 
-    expect(result).toMatchObject({ found: true, wrapped: false, matchRow: 1 })
+    expect(result).toMatchObject({
+      found: true,
+      wrapped: false,
+      matchRow: 1,
+      matchRanges: [
+        { row: 1, startCol: 2, endCol: 5 },
+      ],
+    })
     expect(result.page?.rows[0]?.logicalLineId).toBe('20')
-    expect(source.searchRequests[0]).toMatchObject({ token: 'token-1', generation: '7', query: 'hij', direction: 'backward' })
+    expect(source.searchRequests[0]).toMatchObject({ token: 'token-1', generation: '7', query: '*hij*', mode: 'glob', direction: 'backward' })
   })
 
   it('releases an expired frozen token after search fails', async () => {

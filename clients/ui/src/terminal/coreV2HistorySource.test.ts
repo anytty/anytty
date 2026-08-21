@@ -8,6 +8,7 @@ import {
   HistoryRangeSchema,
   HistoryRowSchema,
   HistorySearchDirection,
+  HistorySearchMode,
   HistorySearchResultSchema,
   HistoryTextPositionSchema,
   HistoryViewportAnchorSchema,
@@ -121,7 +122,7 @@ describe('CoreV2HistorySource generated Proto API', () => {
       }))
     })
     const source = createCoreV2HistorySource(session, 'machine-local')
-    const common = { terminalId: 'terminal-1', token: 'hist-token', generation: 7n, query: 'needle', cols: 80, limit: 24 }
+    const common = { terminalId: 'terminal-1', token: 'hist-token', generation: 7n, query: 'needle.*', mode: 'regex' as const, cols: 80, limit: 24 }
 
     const forward = await source.search({ ...common, direction: 'forward', start: { lineId: '5', col: 0 } })
     const backward = await source.search({ ...common, direction: 'backward', start: { lineId: '18', col: 8 } })
@@ -129,8 +130,8 @@ describe('CoreV2HistorySource generated Proto API', () => {
     expect(forward).toMatchObject({ found: true, match: { startLineId: '18' }, window: { token: 'hist-token' }, wrapped: false })
     expect(backward).toMatchObject({ found: true, match: { startLineId: '4' }, window: { token: 'hist-token' }, wrapped: true })
     expect(session.commands.map((entry) => entry.command)).toMatchObject([
-      { case: 'historySearch', value: { historyGeneration: 7n, direction: HistorySearchDirection.FORWARD, start: { lineId: 5n, col: 0 } } },
-      { case: 'historySearch', value: { historyGeneration: 7n, direction: HistorySearchDirection.BACKWARD, start: { lineId: 18n, col: 8 } } },
+      { case: 'historySearch', value: { historyGeneration: 7n, mode: HistorySearchMode.REGEX, direction: HistorySearchDirection.FORWARD, start: { lineId: 5n, col: 0 } } },
+      { case: 'historySearch', value: { historyGeneration: 7n, mode: HistorySearchMode.REGEX, direction: HistorySearchDirection.BACKWARD, start: { lineId: 18n, col: 8 } } },
     ])
   })
 

@@ -28,6 +28,16 @@ func NewBackNavigationReducer(copyMode CopyModeDeps) Reducer {
 			root.Shell = root.Shell.CloseOverlay()
 			return root.Advance(), []Effect{handledEffect{}}
 		case state.BackNavigationCopy:
+			if root.CopyMode.SearchBarVisible() {
+				pending := root.CopyMode.SearchPending
+				viewID := root.CopyMode.ViewID
+				root.CopyMode = root.CopyMode.CloseSearch()
+				effects := []Effect{handledEffect{}}
+				if pending {
+					effects = append(effects, CancelEffect{Token: copyModeSearchRequestToken(viewID)})
+				}
+				return root.Advance(), effects
+			}
 			next, effects := exitCopyModeWithRelease(root, copyMode)
 			return next.Advance(), append([]Effect{handledEffect{}}, effects...)
 		case state.BackNavigationInteraction:

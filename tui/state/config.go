@@ -195,7 +195,7 @@ type TUIPickerConfig struct {
 }
 
 // TUITerminalConfig 描述 TUI 对 terminal resize ownership 的本地策略。
-// AutoTakeOwner 只影响 TUI 是否在 attach/布局变化时主动请求 owner；daemon 仍是最终仲裁者。
+// AutoTakeOwner 只在 daemon 明确投影 owner 为空时主动请求 owner；daemon 仍是最终仲裁者。
 type TUITerminalConfig struct {
 	AutoTakeOwner bool
 }

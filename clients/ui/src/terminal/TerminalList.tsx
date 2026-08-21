@@ -64,6 +64,7 @@ export interface TerminalListProps {
   loading?: boolean
   loadingLabel?: string | undefined
   interactive?: boolean | undefined
+  compact?: boolean | undefined
   pinnedTerminalIds?: readonly string[] | undefined
   onReorderPinnedTerminal?: ((terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => void) | undefined
 }
@@ -78,6 +79,7 @@ export function TerminalList({
   loading,
   loadingLabel,
   interactive = true,
+  compact = false,
   pinnedTerminalIds = [],
   onReorderPinnedTerminal,
 }: TerminalListProps) {
@@ -116,7 +118,7 @@ export function TerminalList({
       {terminals.length === 0 ? (
         loading ? (
           <div
-            className="flex min-h-24 items-center justify-center gap-2 rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] px-4 text-sm font-medium text-[var(--anytty-app-muted)]"
+            className={`flex items-center justify-center gap-2 rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] px-4 text-sm font-medium text-[var(--anytty-app-muted)] ${compact ? 'min-h-16' : 'min-h-24'}`}
             role="status"
             aria-live="polite"
             aria-busy="true"
@@ -125,7 +127,7 @@ export function TerminalList({
             <span>{loadingLabel ?? t('common.loading')}</span>
           </div>
         ) : (
-          <div className="flex h-32 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-[var(--anytty-app-line-strong)] bg-[var(--anytty-app-surface-soft)] text-sm text-[var(--anytty-app-muted)] animate-in fade-in duration-300">
+          <div className={`flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--anytty-app-line-strong)] bg-[var(--anytty-app-surface-soft)] text-sm text-[var(--anytty-app-muted)] animate-in fade-in duration-300 ${compact ? 'h-20 gap-1.5' : 'h-32 gap-3'}`}>
             <TerminalIcon className="h-8 w-8 text-zinc-300" />
             <p>{t('terminal.noActive')}</p>
           </div>
@@ -134,7 +136,7 @@ export function TerminalList({
         <ul
           aria-label={t('terminal.list')}
           aria-disabled={!interactive || undefined}
-          className="flex flex-col gap-2"
+          className={`flex flex-col ${compact ? 'gap-1' : 'gap-2'}`}
         >
           {terminals.map((terminal) => {
             const isActive = activeTerminalId === terminal.terminalId
@@ -150,7 +152,7 @@ export function TerminalList({
                 key={itemKey}
                 data-terminal-id={terminal.terminalId}
                 aria-grabbed={dragging || undefined}
-                className={`overflow-hidden rounded-lg border bg-[var(--anytty-app-surface)] transition-[transform,box-shadow,border-color] duration-150 ${dragging ? 'relative z-20 rotate-1 scale-[1.02] border-[var(--anytty-app-accent)] shadow-xl' : dragTarget ? 'border-[var(--anytty-app-accent)] shadow-md' : 'border-[var(--anytty-app-line)]'}`}
+                className={`overflow-hidden border bg-[var(--anytty-app-surface)] transition-[transform,box-shadow,border-color] duration-150 ${compact ? 'rounded-md' : 'rounded-lg'} ${dragging ? 'relative z-20 rotate-1 scale-[1.02] border-[var(--anytty-app-accent)] shadow-xl' : dragTarget ? 'border-[var(--anytty-app-accent)] shadow-md' : 'border-[var(--anytty-app-line)]'}`}
               >
                 <div
                   className={`group relative flex w-full items-center py-2 pl-2 pr-1 text-left transition-colors duration-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-[var(--anytty-app-accent)] ${pinned && onReorderPinnedTerminal ? 'touch-none' : ''} ${!interactive ? 'cursor-not-allowed' : ''} ${
@@ -204,7 +206,7 @@ export function TerminalList({
                   }}
                 >
                   <Button variant="ghost"
-                    className="flex h-auto min-h-[72px] min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal rounded-md px-1 py-1.5 text-left active:scale-[0.98] focus:outline-none"
+                    className={`flex h-auto min-w-0 flex-1 items-center justify-start whitespace-normal rounded-md px-1 text-left active:scale-[0.98] focus:outline-none ${compact ? 'min-h-14 gap-2 py-1' : 'min-h-[72px] gap-2.5 py-1.5'}`}
                     type="button"
                     disabled={!interactive}
                     aria-label={t('terminal.open', { name: terminal.title || terminal.command || t('terminal.defaultTitle') })}
@@ -218,7 +220,7 @@ export function TerminalList({
                   >
                     <ProgramGlyph active={isActive} presentation={program} />
 
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+                    <div className={`flex min-w-0 flex-1 flex-col justify-center ${compact ? 'gap-0.5' : 'gap-1'}`}>
                       <div className="flex min-w-0 items-center justify-between gap-2">
                         <span className={`truncate text-[15px] font-semibold leading-5 ${isActive ? 'text-[var(--primary-foreground)]' : 'text-zinc-900'}`}>
                           {terminal.title || terminal.command || t('terminal.defaultTitle')}
@@ -239,7 +241,7 @@ export function TerminalList({
                         {program.label ? (
                           <span>{program.label}</span>
                         ) : null}
-                        {outputActivity ? (
+                        {!compact && outputActivity ? (
                           <span className="inline-flex items-center gap-1 tabular-nums">
                             <Clock3 className={`size-3 ${terminalOutputActivityIconClass(outputActivityTone)}`} />
                             {outputActivity}

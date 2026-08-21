@@ -60,8 +60,8 @@ func TestDefaultShortcutActionsReachObservableOwnerBoundary(t *testing.T) {
 			assertDefaultActionServiceOwner(t, invocation, execution)
 		})
 	}
-	if len(seen) != 158 {
-		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=158", len(seen))
+	if len(seen) != 159 {
+		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=159", len(seen))
 	}
 }
 
@@ -693,6 +693,8 @@ func defaultActionExecutionRoot(t *testing.T, id actiondomain.ID) state.Root {
 			root.CopyMode.Cursor = state.CopyPosition{Row: 2, Col: 2}
 		case "copy.search_next", "copy.search_previous":
 			root.CopyMode.Query = "bravo"
+		case "copy.search_mode":
+			root.CopyMode.SearchEditing = true
 		}
 		if id == "menu.copy" {
 			root.CopyMode = state.CopyModeStore{}

@@ -1021,39 +1021,27 @@ func (store TerminalViewStore) ApplyTerminalRefResizeControl(ref TerminalRef, pr
 func (store TerminalViewStore) terminalResizeControlProjectionStale(ref TerminalRef, projection TerminalResizeControlProjection) bool {
 	ref = ref.Normalize()
 	var maxEpoch uint64
-	var localOwner TerminalViewBinding
-	var hasLocalOwner bool
-	var projectedLocalOwner TerminalViewBinding
-	var hasProjectedLocalOwner bool
+	ownerAcquirePending := false
 	for _, binding := range store.Views {
 		if !binding.TerminalRef().Equal(ref) {
 			continue
 		}
-		if binding.HasResizeOwner() {
-			localOwner = binding
-			hasLocalOwner = true
-		}
-		if projection.OwnerViewID != "" && projection.OwnerSurfaceID != "" &&
-			binding.ViewID == projection.OwnerViewID && binding.SurfaceID == projection.OwnerSurfaceID {
-			projectedLocalOwner = binding
-			hasProjectedLocalOwner = true
-		}
 		if binding.ResizeEpoch > maxEpoch {
 			maxEpoch = binding.ResizeEpoch
 		}
-		if binding.ResizeRole == TerminalResizeRoleOwner && binding.ResizePending && projection.OwnerViewID != "" {
-			if projection.OwnerViewID != binding.ViewID || projection.OwnerSurfaceID != binding.SurfaceID {
-				return true
-			}
+		if binding.OwnerAcquirePending {
+			ownerAcquirePending = true
 		}
 	}
-	if hasLocalOwner && hasProjectedLocalOwner && !projectedLocalOwner.HasResizeOwner() &&
-		(localOwner.ViewID != projectedLocalOwner.ViewID || localOwner.SurfaceID != projectedLocalOwner.SurfaceID) {
-		// 中文说明：本 TUI 刚把 owner 转到另一个 view 后，旧 owner 的异步 resize/metadata
-		// 可能带着更晚的 epoch 回来；它不能把本地 follower 再提升回 owner。
+	if projection.ResizeEpoch == 0 {
+		return maxEpoch > 0
+	}
+	if projection.ResizeEpoch < maxEpoch {
 		return true
 	}
-	return projection.ResizeEpoch != 0 && maxEpoch > projection.ResizeEpoch
+	// A repeated projection at the request's expected epoch predates the
+	// take-owner decision. Only a newer daemon epoch may resolve that request.
+	return projection.ResizeEpoch == maxEpoch && ownerAcquirePending
 }
 
 func (store TerminalViewStore) ApplyTerminalSizeLock(terminalID string, locked bool) TerminalViewStore {

@@ -77,6 +77,7 @@ func EncodeEventEnvelope(endpointID string, session *apipb.EndpointSessionStamp,
 		if event.Attachment != nil {
 			lifecycle.AttachmentProjection = true
 			lifecycle.ResizeControl = resizeControlToProto(event.Attachment.ResizeControl)
+			lifecycle.ResizeEpoch = event.Attachment.ResizeEpoch
 		}
 		envelope.Event = &apipb.EventEnvelope_TerminalLifecycle{TerminalLifecycle: lifecycle}
 	default:

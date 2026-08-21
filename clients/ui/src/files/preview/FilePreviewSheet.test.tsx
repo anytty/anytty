@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FilePreviewSheet } from './FilePreviewSheet'
+import { ConnectionRecoveryOverlayProvider } from '../../connection/ConnectionRecoveryOverlay'
 
 describe('FilePreviewSheet', () => {
   afterEach(cleanup)
@@ -82,22 +83,31 @@ describe('FilePreviewSheet', () => {
   it('replaces remote preview loading with an offline state while keeping Close available', async () => {
     const onClose = vi.fn()
     render(
-      <FilePreviewSheet
-        path="/docs/remote.pdf"
-        preview={null}
-        loading
-        error={null}
-        remoteAvailable={false}
-        unavailableLabel="Connection interrupted. Reconnecting"
-        streamPreview={vi.fn()}
-        onClose={onClose}
-      />,
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <FilePreviewSheet
+          path="/docs/remote.pdf"
+          preview={null}
+          loading
+          error={null}
+          remoteAvailable={false}
+          unavailableLabel="Connection interrupted. Reconnecting"
+          streamPreview={vi.fn()}
+          onClose={onClose}
+        />
+      </ConnectionRecoveryOverlayProvider>,
     )
 
-    expect(screen.getByRole('status').textContent).toContain('Connection interrupted. Reconnecting')
+    expect((await screen.findByRole('status')).textContent).toContain('Connection interrupted. Reconnecting')
+    const overlay = screen.getByTestId('anytty-connection-recovery-overlay')
+    const root = overlay.closest<HTMLElement>('[data-anytty-connection-overlay-root]')
+    const preview = screen.getByTestId('anytty-file-preview')
+    const close = screen.getByRole('button', { name: 'Close preview' })
+    expect(screen.getAllByTestId('anytty-connection-recovery-overlay')).toHaveLength(1)
+    expect(preview.contains(root)).toBe(true)
+    expect(close.closest('header')?.contains(root)).toBe(false)
     expect(screen.getByRole('status').textContent).not.toContain('Your phone is offline')
     expect(screen.queryByText('Loading preview...')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Close preview' }))
+    await userEvent.click(close)
     expect(onClose).toHaveBeenCalledOnce()
   })
 })

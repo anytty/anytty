@@ -827,6 +827,18 @@ func reduceCopyModeCommand(root state.Root, command string, deps CopyModeDeps) (
 			return root.Advance(), []Effect{CancelEffect{Token: copyModeSearchRequestToken(root.CopyMode.ViewID)}}
 		}
 		return root.Advance(), nil
+	case "copy.search_mode":
+		if !root.CopyMode.CanSearch() || !root.CopyMode.SearchBarVisible() {
+			return root, nil
+		}
+		wasPending := root.CopyMode.SearchPending
+		root.CopyMode = root.CopyMode.CycleSearchMode()
+		root.CopyMode.SearchEditing = true
+		root.CopyMode.SearchPending = false
+		if wasPending {
+			return root.Advance(), []Effect{CancelEffect{Token: copyModeSearchRequestToken(root.CopyMode.ViewID)}}
+		}
+		return root.Advance(), nil
 	case "copy.search_next":
 		return beginCopyModeSearch(root, deps, port.HistorySearchForward)
 	case "copy.search_previous":
@@ -882,10 +894,12 @@ func beginCopyModeSearch(root state.Root, deps CopyModeDeps, direction port.Hist
 		Token:      root.CopyMode.BoundToken,
 		Generation: root.History.Generation,
 		Query:      root.CopyMode.Query,
+		Mode:       root.CopyMode.NormalizedSearchMode(),
 		Direction:  direction,
 		Start:      start,
 	}
 	root.CopyMode.SearchPending = true
+	root.CopyMode.SearchError = ""
 	root.CopyMode.SearchRequestID = state.RequestID(requestID)
 	root.CopyMode.SearchEditing = false
 	viewID := root.CopyMode.ViewID
@@ -923,6 +937,7 @@ func reduceCopyModeSearchResult(root state.Root, msg CopyModeSearchResultMsg, de
 	}
 	root.CopyMode.SearchPending = false
 	if msg.Err != nil {
+		root.CopyMode.SearchError = msg.Err.Error()
 		root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "Search failed", Body: msg.Err.Error(), DismissAfterTicks: 5})
 		return root.Advance(), nil
 	}

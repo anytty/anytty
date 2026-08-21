@@ -550,8 +550,21 @@ func (session *protocolSession) ApplicationEventSubscribe(ctx context.Context, f
 	session.mu.Unlock()
 	token := applicationEventSubscriptionToken(subscriptionID)
 	events := session.server.Events(eventCtx, filter)
+	initial := session.protocolAttachmentSnapshotEvents(filter)
 	go func() {
 		defer session.clearEventSubscription(subscriptionID)
+		send := func(event Event) bool {
+			payload, err := encoder(event, token)
+			if err != nil {
+				return true
+			}
+			return session.sendFrame(0, wire.TypeEvent, payload) == nil
+		}
+		for _, event := range initial {
+			if !send(event) {
+				return
+			}
+		}
 		for {
 			select {
 			case <-eventCtx.Done():
@@ -560,9 +573,8 @@ func (session *protocolSession) ApplicationEventSubscribe(ctx context.Context, f
 				if !ok {
 					return
 				}
-				payload, err := encoder(event, token)
-				if err == nil {
-					_ = session.sendFrame(0, wire.TypeEvent, payload)
+				if !send(event) {
+					return
 				}
 			}
 		}

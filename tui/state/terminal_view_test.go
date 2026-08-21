@@ -328,24 +328,36 @@ func TestTerminalViewStoreAppliesTerminalResizeControlBySurfaceAndView(t *testin
 	}
 }
 
-func TestTerminalViewStoreIgnoresStaleTerminalResizeControlDuringPendingOwner(t *testing.T) {
+func TestTerminalViewStoreIgnoresSameEpochProjectionDuringPendingOwnerAcquire(t *testing.T) {
 	store := TerminalViewStore{}
-	store = store.BindPane(NewPaneTerminalView("pane-1", "term-1", 7, 80, 24, TerminalResizeRoleOwner, "surface-a", "view-owner", true))
-	store = store.BindPane(NewPaneTerminalView("pane-2", "term-1", 8, 80, 24, TerminalResizeRoleFollower, "surface-a", "view-next", false))
-	store = store.TransferPaneResizeOwner("pane-2")
+	owner := NewPaneTerminalView("pane-1", "term-1", 7, 80, 24, TerminalResizeRoleOwner, "surface-a", "view-owner", true)
+	owner.OwnerSurfaceID = owner.SurfaceID
+	owner.OwnerViewID = owner.ViewID
+	owner.ResizeEpoch = 4
+	follower := NewPaneTerminalView("pane-2", "term-1", 8, 80, 24, TerminalResizeRoleFollower, "surface-a", "view-next", false)
+	follower.OwnerSurfaceID = owner.SurfaceID
+	follower.OwnerViewID = owner.ViewID
+	follower.ResizeEpoch = 4
+	store = store.BindPane(owner)
+	store = store.BindPane(follower)
+	store, decision := store.RequestViewResizeOwner("view-next", 80, 24)
+	if !decision.Allowed {
+		t.Fatalf("owner request was not armed: %#v", decision)
+	}
 
 	store = store.ApplyTerminalResizeControl("term-1", TerminalResizeControlProjection{
 		OwnerSurfaceID: "surface-a",
 		OwnerViewID:    "view-owner",
-		ResizeEpoch:    1,
+		ResizeEpoch:    4,
 	})
+	current, _ := store.PaneBinding("pane-1")
 	next, _ := store.PaneBinding("pane-2")
-	if !next.HasResizeOwner() || !next.ResizePending || !next.CanResize {
-		t.Fatalf("stale old-owner projection must not clear pending local owner, got %#v", next)
+	if !current.HasResizeOwner() || !next.OwnerAcquirePending {
+		t.Fatalf("same-epoch projection must not resolve pending owner request, current=%#v next=%#v", current, next)
 	}
 }
 
-func TestTerminalViewStoreIgnoresLocalOldOwnerProjectionAfterTransfer(t *testing.T) {
+func TestTerminalViewStoreAppliesNewerDaemonProjectionAfterLocalTransfer(t *testing.T) {
 	store := TerminalViewStore{}
 	store = store.BindPane(NewPaneTerminalView("pane-1", "term-1", 7, 80, 24, TerminalResizeRoleOwner, "surface-a", "view-owner", true))
 	store = store.BindPane(NewPaneTerminalView("pane-2", "term-1", 8, 80, 24, TerminalResizeRoleFollower, "surface-a", "view-next", false))
@@ -359,11 +371,30 @@ func TestTerminalViewStoreIgnoresLocalOldOwnerProjectionAfterTransfer(t *testing
 	})
 	first, _ := store.PaneBinding("pane-1")
 	second, _ := store.PaneBinding("pane-2")
-	if first.HasResizeOwner() || first.CanResize {
-		t.Fatalf("old local owner projection must not re-promote previous owner, got %#v", first)
+	if !first.HasResizeOwner() || !first.CanResize || first.ResizeEpoch != 99 {
+		t.Fatalf("newer daemon projection must restore its authoritative owner, got %#v", first)
 	}
-	if !second.HasResizeOwner() || !second.CanResize {
-		t.Fatalf("current local owner must survive old-owner projection, got %#v", second)
+	if second.HasResizeOwner() || second.CanResize || second.ResizePending {
+		t.Fatalf("newer daemon projection must demote the optimistic local owner, got %#v", second)
+	}
+}
+
+func TestTerminalViewStoreNewerExternalOwnerDemotesResizePendingLocalOwner(t *testing.T) {
+	owner := NewPaneTerminalView("pane-1", "term-1", 7, 80, 24, TerminalResizeRoleOwner, "tui-surface", "tui-view", true)
+	owner.OwnerSurfaceID = owner.SurfaceID
+	owner.OwnerViewID = owner.ViewID
+	owner.ResizeEpoch = 4
+	owner.ResizePending = true
+	store := TerminalViewStore{}.BindPane(owner)
+
+	store = store.ApplyTerminalResizeControl("term-1", TerminalResizeControlProjection{
+		OwnerSurfaceID: "mobile-surface",
+		OwnerViewID:    "mobile-view",
+		ResizeEpoch:    5,
+	})
+	got, _ := store.PaneBinding("pane-1")
+	if got.HasResizeOwner() || got.CanResize || got.ResizePending || got.OwnerSurfaceID != "mobile-surface" || got.OwnerViewID != "mobile-view" || got.ResizeEpoch != 5 {
+		t.Fatalf("newer mobile owner projection was not applied: %#v", got)
 	}
 }
 

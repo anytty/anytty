@@ -100,7 +100,11 @@ function collectOutsideElements(surface: HTMLElement): HTMLElement[] {
   let current: HTMLElement | null = surface
   while (current?.parentElement) {
     for (const sibling of current.parentElement.children) {
-      if (sibling !== current && sibling instanceof HTMLElement && sibling.tagName !== 'SCRIPT') outside.push(sibling)
+      if (
+        sibling !== current
+        && sibling instanceof HTMLElement
+        && sibling.tagName !== 'SCRIPT'
+      ) outside.push(sibling)
     }
     current = current.parentElement
     if (current === document.body) break

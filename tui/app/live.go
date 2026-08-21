@@ -497,7 +497,8 @@ func NewLiveReducer(deps LiveDeps) Reducer {
 						root.Shell = root.Shell.EnsureDefaults().AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "terminal.owner", Body: "owner changed; try again"})
 					}
 				}
-				if msg.Result.Resized || !hasResizeControlResult(msg.Result) {
+				hasAuthoritativeSize := msg.Result.Cols > 0 && msg.Result.Rows > 0
+				if msg.Result.Resized || hasAuthoritativeSize || !hasResizeControlResult(msg.Result) {
 					root.Surface = root.Surface.ResizeRef(resizeRef, cols, rows)
 					if root.Session.TerminalRef().Equal(resizeRef) {
 						root.Session = root.Session.Resize(cols, rows)

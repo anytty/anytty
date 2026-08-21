@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowDownToLine, ArrowUpFromLine, CheckSquare, Download, ExternalLink, Pause, Play, RotateCw, Square, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import '../i18n'
@@ -292,8 +293,11 @@ function TransferCenterDialog({
     for (const transfer of failed) onDismiss(transfer.id)
   }
 
-  return (
-    <div className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] fixed inset-0 z-50 flex">
+  const dialog = (
+    <div
+      className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] fixed inset-0 z-[100] flex"
+      data-anytty-transfer-center-root=""
+    >
       <ModalSurface
         aria-labelledby={titleId}
         aria-describedby={summaryId}
@@ -536,6 +540,7 @@ function TransferCenterDialog({
       </ModalSurface>
     </div>
   )
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body)
 }
 
 function sortTransfersByNewestFirst(transfers: TransferInfo[]): TransferInfo[] {

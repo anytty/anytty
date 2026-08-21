@@ -470,6 +470,7 @@ func terminalAttachmentEventFromProto(endpointID state.EndpointID, envelope *api
 		Metadata:             true,
 		AttachmentProjection: true,
 		AttachmentCount:      int(terminal.GetAttachmentCount()),
+		ResizeEpoch:          lifecycle.GetResizeEpoch(),
 	}
 	if control := lifecycle.GetResizeControl(); control != nil {
 		out.OwnerSurfaceID = control.GetOwnerSurfaceId()
@@ -478,7 +479,9 @@ func terminalAttachmentEventFromProto(endpointID state.EndpointID, envelope *api
 		if ownership := control.GetOwnership(); ownership != nil {
 			out.OwnerSurfaceID = ownership.GetOwnerSurfaceId()
 			out.OwnerViewID = ownership.GetOwnerViewId()
-			out.ResizeEpoch = ownership.GetEpoch()
+			if ownership.GetEpoch() > out.ResizeEpoch {
+				out.ResizeEpoch = ownership.GetEpoch()
+			}
 			out.SizeLocked = ownership.GetSizeLocked()
 			if ownership.GetSize() != nil {
 				out.Cols = int(ownership.GetSize().GetCols())

@@ -8,6 +8,7 @@ import {
   HistoryRangeSchema,
   HistorySearchCommandSchema,
   HistorySearchDirection,
+  HistorySearchMode,
   HistoryTextPositionSchema,
   HistoryWindowCommandSchema,
   HistoryWindowMode,
@@ -107,6 +108,11 @@ function createProtoHistorySource(session: ProtoClientSession, machineId: string
         token: request.token,
         historyGeneration: BigInt(request.generation ?? 0),
         query: request.query,
+        mode: request.mode === 'glob'
+          ? HistorySearchMode.GLOB
+          : request.mode === 'regex'
+            ? HistorySearchMode.REGEX
+            : HistorySearchMode.TEXT,
         direction: request.direction === 'backward' ? HistorySearchDirection.BACKWARD : HistorySearchDirection.FORWARD,
         cols: request.cols,
         limit: request.limit,

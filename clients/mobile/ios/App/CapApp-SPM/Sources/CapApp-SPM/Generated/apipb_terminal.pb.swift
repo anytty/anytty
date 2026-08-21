@@ -1102,6 +1102,9 @@ public nonisolated struct Anytty_Api_V1_TerminalLifecycleEvent: Sendable {
   /// Clears the value of `resizeControl`. Subsequent reads from it will return its default value.
   public mutating func clearResizeControl() {self._resizeControl = nil}
 
+  /// resize_epoch versions the complete owner projection, including no-owner state.
+  public var resizeEpoch: UInt64 = 0
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2674,7 +2677,7 @@ nonisolated extension Anytty_Api_V1_PathListDirectoriesResult: SwiftProtobuf.Mes
 
 nonisolated extension Anytty_Api_V1_TerminalLifecycleEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".TerminalLifecycleEvent"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}terminal\0\u{3}attachment_projection\0\u{3}resize_control\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}terminal\0\u{3}attachment_projection\0\u{3}resize_control\0\u{3}resize_epoch\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2685,6 +2688,7 @@ nonisolated extension Anytty_Api_V1_TerminalLifecycleEvent: SwiftProtobuf.Messag
       case 1: try { try decoder.decodeSingularMessageField(value: &self._terminal) }()
       case 2: try { try decoder.decodeSingularBoolField(value: &self.attachmentProjection) }()
       case 3: try { try decoder.decodeSingularMessageField(value: &self._resizeControl) }()
+      case 4: try { try decoder.decodeSingularUInt64Field(value: &self.resizeEpoch) }()
       default: break
       }
     }
@@ -2704,6 +2708,9 @@ nonisolated extension Anytty_Api_V1_TerminalLifecycleEvent: SwiftProtobuf.Messag
     try { if let v = self._resizeControl {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
     } }()
+    if self.resizeEpoch != 0 {
+      try visitor.visitSingularUInt64Field(value: self.resizeEpoch, fieldNumber: 4)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2711,6 +2718,7 @@ nonisolated extension Anytty_Api_V1_TerminalLifecycleEvent: SwiftProtobuf.Messag
     if lhs._terminal != rhs._terminal {return false}
     if lhs.attachmentProjection != rhs.attachmentProjection {return false}
     if lhs._resizeControl != rhs._resizeControl {return false}
+    if lhs.resizeEpoch != rhs.resizeEpoch {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

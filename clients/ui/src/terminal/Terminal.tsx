@@ -3,7 +3,7 @@ import { CanvasAddon } from '@xterm/addon-canvas'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Search, X } from 'lucide-react'
 import { hapticSelection } from '../platform/haptics'
 import { addNativeKeyboardListener } from '../platform/nativeKeyboard'
@@ -11,8 +11,15 @@ import {
   applyTerminalModifiers,
   type TerminalModifierState,
 } from './mobileTerminalInput'
-import type { TerminalResizeControl, TerminalScrollbackLoadResult, TerminalSnapshotPayload } from './terminalClient'
+import type {
+  TerminalHistoryMatchRange,
+  TerminalHistorySearchMode,
+  TerminalResizeControl,
+  TerminalScrollbackLoadResult,
+  TerminalSnapshotPayload,
+} from './terminalClient'
 import { logTerminalDiagnostic, terminalNow } from './terminalDiagnostics'
+import { describeTerminalMouseInput, traceTerminalScroll } from './terminalScrollTrace'
 import { holdTerminalFrame, type TerminalFrameHold } from './terminalFrameHold'
 import { historyReplayWithViewportTail, historyRequestAwaitingApply, historyViewportAfterApply, terminalScrollLineDelta, terminalViewportAtBottom, TerminalHistoryViewportController } from './terminalHistoryViewport'
 import { appendTerminalText } from './terminalTextWindow'
@@ -25,6 +32,7 @@ import '../i18n'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
+import { useConnectionRecoveryOverlay, type ConnectionRecoveryOverlayIntent } from '../connection/ConnectionRecoveryOverlay'
 
 // Keep history responses comfortably below WebRTC DataChannel's 64 KiB message limit.
 const historyScrollbackPageRows = 100
@@ -61,6 +69,18 @@ function trustedTerminalDimensions(dimensions: TerminalDimensions | undefined): 
   // 这个瞬时值不能写回 core PTY，否则 latest screen 会被真实压扁。
   if (cols < minimumTrustedTerminalCols || rows < minimumTrustedTerminalRows) return undefined
   return { cols, rows }
+}
+
+async function waitForTerminalLayout(): Promise<void> {
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+    await Promise.resolve()
+    return
+  }
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve())
+    })
+  })
 }
 
 function terminalHistoryLoadedRowsLimit(settings: TerminalSettings): number {
@@ -111,6 +131,7 @@ interface PendingHistoryApply {
   restoreViewportY: number | null
   viewportTop?: number | undefined
   absoluteViewportY?: number | undefined
+  searchMatchRanges?: TerminalHistoryMatchRange[] | undefined
   text: string
 }
 
@@ -142,10 +163,12 @@ export interface TerminalHandle {
   sendResize(cols: number, rows: number): void
   requestResizeOwner(): Promise<TerminalResizeControl>
   releaseResizeOwner(): Promise<TerminalResizeControl>
+  setResizeLock(locked: boolean): Promise<TerminalResizeControl>
   reattach(session: ProtoClientSession, options?: { forceTerminalChannel?: boolean }): void
   focus(): void
   blur(): void
   fit(): void
+  openHistorySearch(): void
   pasteText(text: string): boolean
   selectAll(): void
   selectVisible(): void
@@ -231,6 +254,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const recoveryRevisionAppliedRef = useRef(0)
   const pendingHistoryViewportRef = useRef<number | null>(null)
   const pendingHistoryApplyRef = useRef<PendingHistoryApply | null>(null)
+  const historySearchDecorationsRef = useRef<Array<{ dispose(): void }>>([])
   const historyApplyQueuedAtRef = useRef(0)
   const historyApplyTimerRef = useRef<number | null>(null)
   const historyLoadArmedByUserRef = useRef(false)
@@ -293,15 +317,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const [historyLoadFailure, setHistoryLoadFailure] = useState<'none' | 'reloadable' | 'line-too-large'>('none')
   const [historySearchOpen, setHistorySearchOpen] = useState(false)
   const [historySearchQuery, setHistorySearchQuery] = useState('')
+  const [historySearchMode, setHistorySearchMode] = useState<TerminalHistorySearchMode>('text')
   const [historySearchBusy, setHistorySearchBusy] = useState(false)
   const [historySearchMessage, setHistorySearchMessage] = useState('')
   const historySearchLastMatchRef = useRef<{
     query: string
+    mode: TerminalHistorySearchMode
     startLineId: string
     startCol: number
     endLineId: string
     endCol: number
   } | null>(null)
+
+  const clearHistorySearchHighlight = useCallback(() => {
+    for (const disposable of historySearchDecorationsRef.current.splice(0)) disposable.dispose()
+  }, [])
 
   const showHistoryLoading = useCallback(() => {
     if (historyLoadingHideTimerRef.current !== null) {
@@ -584,8 +614,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       setHistorySearchOpen(false)
       setHistorySearchMessage('')
       historySearchLastMatchRef.current = null
+      clearHistorySearchHighlight()
     }
-  }, [terminalSession.terminalSnapshot?.history?.revision])
+  }, [clearHistorySearchHighlight, terminalSession.terminalSnapshot?.history?.revision])
 
   const runHistorySearch = useCallback(async (direction: 'forward' | 'backward') => {
     const query = historySearchQuery
@@ -597,7 +628,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       if (!historyMetadataRef.current) {
         await loadScrollbackRef.current(historyScrollbackPageRows, false, term.cols)
       }
-      const previous = historySearchLastMatchRef.current?.query === query
+      const previous = historySearchLastMatchRef.current?.query === query &&
+        historySearchLastMatchRef.current?.mode === historySearchMode
         ? historySearchLastMatchRef.current
         : null
       const start = previous
@@ -605,24 +637,28 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           ? { lineId: previous.endLineId, col: previous.endCol }
           : { lineId: previous.startLineId, col: previous.startCol }
         : undefined
-      const result = await terminalSession.searchScrollback(query, direction, term.cols, start)
+      const result = await terminalSession.searchScrollback(query, direction, term.cols, start, historySearchMode)
       if (!result.found || !result.match) {
         historySearchLastMatchRef.current = null
+        clearHistorySearchHighlight()
         setHistorySearchMessage(t('terminal.tools.searchNoResults'))
         return
       }
-      historySearchLastMatchRef.current = { query, ...result.match }
+      historySearchLastMatchRef.current = { query, mode: historySearchMode, ...result.match }
       setHistorySearchMessage(result.wrapped
         ? t('terminal.tools.searchWrapped')
         : t('terminal.tools.searchMatch', { line: result.match.startLineId }))
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setHistorySearchMessage(t('terminal.tools.searchUnavailable'))
+        clearHistorySearchHighlight()
+        setHistorySearchMessage(error instanceof Error && error.message.trim()
+          ? error.message
+          : t('terminal.tools.searchUnavailable'))
       }
     } finally {
       setHistorySearchBusy(false)
     }
-  }, [historySearchBusy, historySearchQuery, t, terminalSession.searchScrollback])
+  }, [clearHistorySearchHighlight, historySearchBusy, historySearchMode, historySearchQuery, t, terminalSession.searchScrollback])
 
   useEffect(() => {
     surfaceReadyRef.current = false
@@ -634,8 +670,48 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     ? terminalSession.historyReady
     : terminalSession.snapshot.terminalChannels[terminalId]?.state === 'open'
   const showConnectingOverlay = !suppressConnectingOverlay && (!isOpen || !surfaceReady)
+  const [showDelayedConnectingOverlay, setShowDelayedConnectingOverlay] = useState(false)
   const inputFailureVisible = Boolean(terminalSession.inputRecoveryFailure)
   const channelFailure = terminalSession.snapshot.visibleError
+  const reattachTerminal = terminalSession.reattach
+  useEffect(() => {
+    if (!showConnectingOverlay) {
+      setShowDelayedConnectingOverlay(false)
+      return
+    }
+    const timer = window.setTimeout(() => setShowDelayedConnectingOverlay(true), 300)
+    return () => window.clearTimeout(timer)
+  }, [showConnectingOverlay])
+  const terminalConnectionOverlayIntent = useMemo<ConnectionRecoveryOverlayIntent | null>(() => {
+    if (channelFailure) {
+      return {
+        kind: 'failed',
+        title: t('errors.connectionProblemTitle'),
+        description: channelFailure.message,
+        ...(channelFailure.recoverable ? {
+          action: {
+            label: t('workspace.connection.retry'),
+            onClick: () => reattachTerminal(session, { forceTerminalChannel: true }),
+          },
+        } : {}),
+      }
+    }
+    if (inputFailureVisible) {
+      return {
+        kind: 'recovering',
+        title: t('connectionStatus.recovering'),
+        description: t('connectionStatus.inputPaused'),
+      }
+    }
+    if (showDelayedConnectingOverlay) {
+      return {
+        kind: 'recovering',
+        title: t('workspace.connectingTerminal'),
+      }
+    }
+    return null
+  }, [channelFailure, inputFailureVisible, reattachTerminal, session, showDelayedConnectingOverlay, t])
+  useConnectionRecoveryOverlay(terminalConnectionOverlayIntent)
 
   useEffect(() => {
     if (!isOpen || !surfaceReady) return
@@ -863,21 +939,37 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   }, [clearLiveOutputWatchdog, isScrolledToBottom, keepBottomAnchored, logTerminal, markSurfaceReady, writeToXterm])
   resumeFrozenHistoryAtBottomRef.current = resumeFrozenHistoryAtBottom
 
-  const currentTerminalSize = useCallback(() => {
+  const proposedTerminalSize = useCallback(() => {
     if (terminalDisposedRef.current) return undefined
     const term = xtermRef.current
     const fitAddon = fitAddonRef.current
     if (!term || !fitAddon) return undefined
     try {
       const dimensions = trustedTerminalDimensions(fitAddon.proposeDimensions())
-      if (!dimensions) return undefined
-      if (terminalDisposedRef.current || xtermRef.current !== term) return undefined
+      if (!dimensions || terminalDisposedRef.current || xtermRef.current !== term) return undefined
       term.resize(dimensions.cols, dimensions.rows)
       return dimensions
     } catch {
       return undefined
     }
   }, [])
+
+  const currentTerminalSize = useCallback(() => {
+    return proposedTerminalSize() ?? trustedTerminalDimensions({
+      cols: xtermRef.current?.cols ?? 0,
+      rows: xtermRef.current?.rows ?? 0,
+    })
+  }, [proposedTerminalSize])
+
+  const requestResizeOwnerAtLocalSize = useCallback(async () => {
+    let size = proposedTerminalSize()
+    if (!size) {
+      await waitForTerminalLayout()
+      size = proposedTerminalSize()
+    }
+    if (!size) throw new Error('terminal viewport size is unavailable')
+    return await terminalSession.requestResizeOwner(size)
+  }, [proposedTerminalSize, terminalSession.requestResizeOwner])
 
   const sendInputAtCurrentSize = useCallback((data: string): boolean => {
     return terminalSession.sendInput(data, currentTerminalSize())
@@ -889,8 +981,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     if (delegateInput) {
       return delegateInput(data)
     }
+    // Mouse reports are already tied to the current xterm grid. ResizeObserver
+    // owns size synchronization; attaching a resize RPC to every wheel report
+    // serializes scrolling behind two remote acknowledgements per event.
+    if (describeTerminalMouseInput(data)) return terminalSession.sendInput(data)
     return sendInputAtCurrentSize(data)
-  }, [historyOnly, sendInputAtCurrentSize])
+  }, [historyOnly, sendInputAtCurrentSize, terminalSession.sendInput])
 
   const scheduleFit = useCallback(() => {
     if (terminalDisposedRef.current) return
@@ -919,8 +1015,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   useImperativeHandle(ref, () => ({
     sendInput: sendInputAtCurrentSize,
     sendResize: terminalSession.sendResize,
-    requestResizeOwner: () => terminalSession.requestResizeOwner(currentTerminalSize()),
+    requestResizeOwner: requestResizeOwnerAtLocalSize,
     releaseResizeOwner: terminalSession.releaseResizeOwner,
+    setResizeLock: terminalSession.setResizeLock,
     reattach: terminalSession.reattach,
     focus: () => {
       if (terminalDisposedRef.current || preventFocusRef.current) return
@@ -942,6 +1039,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     fit: () => {
       fitAndMaybeSendResize()
       scheduleFit()
+    },
+    openHistorySearch: () => {
+      if (terminalDisposedRef.current) return
+      setHistorySearchMessage('')
+      setHistorySearchOpen(true)
     },
     pasteText: (text: string) => {
       const isMultiline = text.includes('\n') || text.includes('\r')
@@ -1029,7 +1131,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       }
       fitAndMaybeSendResize()
     },
-  }), [currentTerminalSize, fitAndMaybeSendResize, scheduleFit, sendInputAtCurrentSize, terminalSession.copyScrollback, terminalSession.reattach, terminalSession.releaseResizeOwner, terminalSession.requestResizeOwner, terminalSession.sendResize])
+  }), [fitAndMaybeSendResize, requestResizeOwnerAtLocalSize, scheduleFit, sendInputAtCurrentSize, terminalSession.copyScrollback, terminalSession.reattach, terminalSession.releaseResizeOwner, terminalSession.sendResize, terminalSession.setResizeLock])
 
   useEffect(() => {
     modifierStateRef.current = modifierState
@@ -1227,6 +1329,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
     const dataDisposable = term.onData((data) => {
       if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) return
+      const mouseInput = describeTerminalMouseInput(data)
+      if (mouseInput) {
+        traceTerminalScroll('xterm.data', {
+          machineId,
+          terminalId,
+          details: { ...mouseInput, chars: data.length },
+        })
+      }
       const currentModifiers = modifierStateRef.current
       if (currentModifiers && (currentModifiers.ctrl !== 'off' || currentModifiers.alt !== 'off')) {
         // Android IMEs often emit xterm data without a usable keydown event.
@@ -1272,11 +1382,30 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     })
     const coreTerminal = term as XTerm & {
       _core?: {
-        coreMouseService?: { areMouseEventsActive?: boolean }
+        coreMouseService?: {
+          areMouseEventsActive?: boolean
+          triggerMouseEvent?: (event: {
+            col: number
+            row: number
+            x: number
+            y: number
+            button: number
+            action: number
+            ctrl: boolean
+            alt: boolean
+            shift: boolean
+          }) => boolean
+        }
         coreService?: { decPrivateModes?: { applicationCursorKeys?: boolean } }
       }
     }
-    const screenElement = container.querySelector('.xterm-screen') as HTMLElement | null
+    let screenElement = container.querySelector('.xterm-screen') as HTMLElement | null
+    const resolveScreenElement = () => {
+      if (!screenElement?.isConnected) {
+        screenElement = term.element?.querySelector('.xterm-screen') as HTMLElement | null
+      }
+      return screenElement
+    }
     const getLineHeight = () => Math.ceil((term.element?.clientHeight ?? 0) / term.rows) || 20
     let lineHeightPx = getLineHeight()
     let touchAccum = 0
@@ -1285,8 +1414,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     let touchStartY = Number.NaN
     let touchStartTime = 0
     let touchMoved = false
+    let touchActive = false
     let velocityY = 0
     let lastTouchTime = 0
+    let touchScrollRoute: 'viewport' | 'tui' = 'viewport'
+    let touchTuiEvents = 0
     let momentumFrame = 0
     let smoothActive = false
     let pendingScrollPx = 0
@@ -1690,7 +1822,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           ? term.getSelectionPosition()
           : undefined
         const bufferLengthBeforeApply = term.buffer.active.length
-        if (screenElement) heldFrame = holdTerminalFrame(container, screenElement)
+        const currentScreenElement = resolveScreenElement()
+        if (currentScreenElement) heldFrame = holdTerminalFrame(container, currentScreenElement)
+        clearHistorySearchHighlight()
         term.reset()
         writeToXterm(term, textToApply, 'history_apply', () => {
           markSurfaceReady()
@@ -1714,6 +1848,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           } else {
             cancelBottomAnchor()
             term.scrollToLine(currentViewportY + viewportOffsetRows)
+          }
+          if (pending.searchMatchRanges?.length) {
+            const cursorLine = term.buffer.active.baseY + term.buffer.active.cursorY
+            for (const range of pending.searchMatchRanges) {
+              const startCol = Math.max(0, Math.min(term.cols - 1, Math.trunc(range.startCol)))
+              const endCol = Math.max(startCol + 1, Math.min(term.cols, Math.trunc(range.endCol)))
+              const marker = term.registerMarker(Math.trunc(range.row) - cursorLine)
+              const decoration = term.registerDecoration({
+                marker,
+                x: startCol,
+                width: endCol - startCol,
+                height: 1,
+                backgroundColor: '#F59E0B',
+                foregroundColor: '#111827',
+                layer: 'top',
+              })
+              if (decoration) historySearchDecorationsRef.current.push(decoration)
+              historySearchDecorationsRef.current.push(marker)
+            }
           }
           if (selectionModeRef.current) {
             if (selectionPhase !== 'idle' && viewportOffsetRows > 0) {
@@ -1776,7 +1929,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
     const isMouseModeActive = () => {
       try {
-        return Boolean(coreTerminal._core?.coreMouseService?.areMouseEventsActive)
+        return term.element?.classList.contains('enable-mouse-events') === true ||
+          Boolean(coreTerminal._core?.coreMouseService?.areMouseEventsActive)
       } catch {
         return false
       }
@@ -1791,11 +1945,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     }
 
     const syncTransform = () => {
-      if (!screenElement || !smoothActive) return
+      const currentScreenElement = resolveScreenElement()
+      if (!currentScreenElement || !smoothActive) return
       const renderedPx = (renderedViewportY - baseViewportY) * lineHeightPx
       const subLinePx = totalPxOffset - renderedPx
       const transform = `translateY(${-subLinePx}px)`
-      screenElement.style.transform = transform
+      currentScreenElement.style.transform = transform
       primedHistoryFrameRef.current?.setTransform(transform)
     }
 
@@ -1806,24 +1961,40 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       baseViewportY = term.buffer.active.viewportY
       renderedViewportY = baseViewportY
       totalPxOffset = 0
-      if (screenElement) screenElement.style.willChange = 'transform'
+      const currentScreenElement = resolveScreenElement()
+      if (currentScreenElement) currentScreenElement.style.willChange = 'transform'
     }
 
     const smoothEnd = () => {
       if (!smoothActive) return
-      if (screenElement) {
-        screenElement.style.transform = ''
-        screenElement.style.willChange = ''
+      const currentScreenElement = resolveScreenElement()
+      if (currentScreenElement) {
+        currentScreenElement.style.transform = ''
+        currentScreenElement.style.willChange = ''
       }
       primedHistoryFrameRef.current?.setTransform('')
       smoothActive = false
     }
 
     const resetTransientViewportOffset = () => {
+      const preserveTuiGesture = (touchActive || momentumFrame !== 0) && (isMouseModeActive() || isAlternateScreen())
+      traceTerminalScroll('xterm.transient_reset', {
+        machineId,
+        terminalId,
+        details: {
+          alternateScreen: isAlternateScreen(),
+          momentumActive: momentumFrame !== 0,
+          mouseMode: isMouseModeActive(),
+          preserveTuiGesture,
+          touchActive,
+        },
+      })
+      if (preserveTuiGesture) return
       clearMomentum()
-      if (screenElement) {
-        screenElement.style.transform = ''
-        screenElement.style.willChange = ''
+      const currentScreenElement = resolveScreenElement()
+      if (currentScreenElement) {
+        currentScreenElement.style.transform = ''
+        currentScreenElement.style.willChange = ''
       }
       primedHistoryFrameRef.current?.setTransform('')
       smoothActive = false
@@ -1892,9 +2063,41 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
     const sendScrollInput = (down: boolean) => {
       if (isMouseModeActive()) {
-        if (!screenElement) return
-        const rect = screenElement.getBoundingClientRect()
-        screenElement.dispatchEvent(new WheelEvent('wheel', {
+        const targetElement = resolveScreenElement() ?? term.element
+        if (!targetElement) return
+        const rect = targetElement.getBoundingClientRect()
+        const mouseService = coreTerminal._core?.coreMouseService
+        if (mouseService?.triggerMouseEvent) {
+          const width = Math.max(1, rect.width)
+          const height = Math.max(1, rect.height)
+          const x = Math.floor(width / 2)
+          const y = Math.floor(height / 2)
+          const col = Math.min(term.cols - 1, Math.max(0, Math.floor(x / (width / Math.max(1, term.cols)))))
+          const row = Math.min(term.rows - 1, Math.max(0, Math.floor(y / (height / Math.max(1, term.rows)))))
+          const accepted = mouseService.triggerMouseEvent({
+            col,
+            row,
+            x,
+            y,
+            button: 4,
+            action: down ? 1 : 0,
+            ctrl: false,
+            alt: false,
+            shift: false,
+          })
+          traceTerminalScroll('xterm.mouse.dispatch', {
+            machineId,
+            terminalId,
+            details: { accepted, direction: down ? 'down' : 'up', path: 'coreMouseService', col, row },
+          })
+          if (accepted) return
+        }
+        traceTerminalScroll('xterm.mouse.dispatch', {
+          machineId,
+          terminalId,
+          details: { direction: down ? 'down' : 'up', path: 'wheelEventFallback' },
+        })
+        targetElement.dispatchEvent(new WheelEvent('wheel', {
           bubbles: true,
           cancelable: true,
           clientX: rect.left + rect.width / 2,
@@ -1905,13 +2108,48 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         return
       }
       const applicationCursor = isApplicationCursor()
+      traceTerminalScroll('xterm.cursor.dispatch', {
+        machineId,
+        terminalId,
+        details: { applicationCursor, direction: down ? 'down' : 'up' },
+      })
       sendInputAtCurrentSize(down
         ? (applicationCursor ? '\x1bOB' : '\x1b[B')
         : (applicationCursor ? '\x1bOA' : '\x1b[A'))
     }
 
+    const sendTuiScrollPixels = (pixelDelta: number, maxEvents = Number.POSITIVE_INFINITY) => {
+      const accumulatedBefore = touchAccum
+      touchAccum += pixelDelta
+      const pendingLines = Math.trunc(touchAccum / lineHeightPx)
+      if (pendingLines === 0) {
+        traceTerminalScroll('tui.quantize', {
+          machineId,
+          terminalId,
+          details: { accumulatedBefore, accumulatedAfter: touchAccum, lineHeightPx, maxEvents, pendingLines, pixelDelta },
+        })
+        return
+      }
+      const eventCount = Math.min(Math.abs(pendingLines), maxEvents)
+      if (eventCount < Math.abs(pendingLines)) {
+        touchAccum %= lineHeightPx
+      } else {
+        touchAccum -= pendingLines * lineHeightPx
+      }
+      traceTerminalScroll('tui.quantize', {
+        machineId,
+        terminalId,
+        details: { accumulatedBefore, accumulatedAfter: touchAccum, eventCount, lineHeightPx, maxEvents, pendingLines, pixelDelta },
+      })
+      for (let index = 0; index < eventCount; index += 1) {
+        sendScrollInput(pendingLines > 0)
+        touchTuiEvents += 1
+      }
+    }
+
     const initTouchScroll = (event: TouchEvent) => {
       clearMomentum()
+      terminalSession.cancelPendingMouseInput()
       smoothEnd()
       historyEntryGestureReady = historyViewportControllerRef.current.isPrimed &&
         historyLoadedRowsAppliedRef.current > 0
@@ -1930,8 +2168,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       touchStartY = y
       touchStartTime = Date.now()
       touchMoved = false
+      touchActive = true
       velocityY = 0
       lastTouchTime = Date.now()
+      touchScrollRoute = 'viewport'
+      touchTuiEvents = 0
+      traceTerminalScroll('touch.start', {
+        machineId,
+        terminalId,
+        details: {
+          alternateScreen: isAlternateScreen(),
+          mouseMode: isMouseModeActive(),
+          touches: event.touches.length,
+          x,
+          y,
+        },
+      })
     }
 
     const stopSelectionAutoScroll = () => {
@@ -1955,7 +2207,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     selectionResetHandlersRef.current.add(resetSelectionTouchState)
 
     const touchToBufferPosition = (clientX: number, clientY: number) => {
-      const targetElement = screenElement || container
+      const targetElement = resolveScreenElement() || container
       const rect = targetElement.getBoundingClientRect()
       const cellWidth = rect.width / term.cols
       const col = Math.max(0, Math.min(term.cols - 1, Math.floor((clientX - rect.left) / cellWidth)))
@@ -1981,7 +2233,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         hideSelectionAnchor()
         return
       }
-      const targetElement = screenElement || container
+      const targetElement = resolveScreenElement() || container
       const rect = targetElement.getBoundingClientRect()
       const containerRect = container.getBoundingClientRect()
       const cellWidth = rect.width / term.cols
@@ -2008,7 +2260,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       const viewRow = bufferRow - term.buffer.active.viewportY
       const centerX = ((col + 0.5) / term.cols) * referenceCanvas.width
       const centerY = ((viewRow + 0.5) / term.rows) * referenceCanvas.height
-      const rect = (screenElement || container).getBoundingClientRect()
+      const rect = (resolveScreenElement() || container).getBoundingClientRect()
       const scaleX = referenceCanvas.width / Math.max(1, rect.width)
       const scaleY = referenceCanvas.height / Math.max(1, rect.height)
       const sampleWidth = (magnifierWidth * scaleX) / 2
@@ -2058,7 +2310,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     }
 
     const checkSelectionAutoScroll = (clientY: number) => {
-      const targetElement = screenElement || container
+      const targetElement = resolveScreenElement() || container
       const rect = targetElement.getBoundingClientRect()
       const zone = 40
       const atTop = clientY < rect.top + zone
@@ -2254,25 +2506,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       lastTouchTime = now
       touchLastY = y
 
+      traceTerminalScroll('touch.move', {
+        machineId,
+        terminalId,
+        details: {
+          alternateScreen: isAlternateScreen(),
+          dt,
+          dy,
+          mouseMode: isMouseModeActive(),
+          velocityY,
+          y,
+        },
+      })
+
       if (isMouseModeActive() || isAlternateScreen()) {
+        touchScrollRoute = 'tui'
         if (smoothActive) smoothEnd()
-        touchAccum += dy
-        const lines = Math.trunc(touchAccum / lineHeightPx)
-        if (lines !== 0) {
-          touchAccum -= lines * lineHeightPx
-          for (let index = 0; index < Math.abs(lines); index += 1) {
-            sendScrollInput(lines > 0)
-          }
-        }
+        sendTuiScrollPixels(dy)
         return
       }
 
+      touchScrollRoute = 'viewport'
       smoothBegin()
       queueScrollPixels(dy)
     }
 
     const handleTouchEnd = () => {
       flushScrollFrame()
+      touchActive = false
       if (selectionModeRef.current) {
         if (selectionTouchActive) {
           selectionTouchActive = false
@@ -2297,8 +2558,38 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       if (Number.isFinite(gestureVelocity) && Math.abs(gestureVelocity) > Math.abs(velocityY)) {
         velocityY = gestureVelocity
       }
+      traceTerminalScroll('touch.end', {
+        machineId,
+        terminalId,
+        details: {
+          ageSinceMove: touchEndNow - lastTouchTime,
+          alternateScreen: isAlternateScreen(),
+          gestureDuration: gestureDt,
+          gestureVelocity,
+          inertia: settingsRef.current.scrollInertia,
+          mouseMode: isMouseModeActive(),
+          moved: touchMoved,
+          route: touchScrollRoute,
+          tuiEvents: touchTuiEvents,
+          velocityY,
+        },
+      })
+      if (touchMoved) {
+        logTerminal('touch_scroll_end', {
+          details: {
+            inertia: settingsRef.current.scrollInertia,
+            lineHeightPx,
+            mouseMode: isMouseModeActive(),
+            alternateScreen: isAlternateScreen(),
+            route: touchScrollRoute,
+            tuiEvents: touchTuiEvents,
+            velocityY: Math.round(velocityY),
+          },
+        })
+      }
       if (!touchMoved && touchEndNow - touchStartTime < 500) {
-        if (isMouseModeActive() && screenElement) {
+        const currentScreenElement = resolveScreenElement()
+        if (isMouseModeActive() && currentScreenElement) {
           const mouseOptions: MouseEventInit = {
             bubbles: true,
             button: 0,
@@ -2306,8 +2597,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             clientX: touchStartX,
             clientY: touchStartY,
           }
-          screenElement.dispatchEvent(new MouseEvent('mousedown', { ...mouseOptions, buttons: 1 }))
-          screenElement.dispatchEvent(new MouseEvent('mouseup', { ...mouseOptions, buttons: 0 }))
+          currentScreenElement.dispatchEvent(new MouseEvent('mousedown', { ...mouseOptions, buttons: 1 }))
+          currentScreenElement.dispatchEvent(new MouseEvent('mouseup', { ...mouseOptions, buttons: 0 }))
         }
         try {
           if (!preventFocusRef.current) xtermRef.current?.focus()
@@ -2318,38 +2609,57 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         smoothEnd()
       } else if (!prefersReducedTerminalMotion() && resolveTerminalMomentumProfile(settingsRef.current.scrollInertia).enabled && Math.abs(velocityY) > 60) {
         if (touchEndNow - lastTouchTime > 80) {
+          traceTerminalScroll('momentum.stop', {
+            machineId,
+            terminalId,
+            details: { reason: 'stale_touch', ageSinceMove: touchEndNow - lastTouchTime },
+          })
           velocityY = 0
           smoothEnd()
         } else {
-          const momentumProfile = resolveTerminalMomentumProfile(settingsRef.current.scrollInertia)
           let lastFrameTime = performance.now()
-          const deceleration = momentumProfile.deceleration
-          const minimumVelocity = momentumProfile.minimumVelocity
           const step = (now: number) => {
             if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) {
+              traceTerminalScroll('momentum.stop', { machineId, terminalId, details: { reason: 'terminal_disposed' } })
               momentumFrame = 0
               smoothEnd()
               return
             }
-            const frameDt = (now - lastFrameTime) / 1000
+            const currentProfile = resolveTerminalMomentumProfile(settingsRef.current.scrollInertia)
+            if (!currentProfile.enabled) {
+              traceTerminalScroll('momentum.stop', { machineId, terminalId, details: { reason: 'disabled' } })
+              momentumFrame = 0
+              smoothEnd()
+              return
+            }
+            const frameDt = Math.min(0.032, Math.max(0, (now - lastFrameTime) / 1000))
             lastFrameTime = now
-            velocityY *= Math.pow(deceleration, frameDt * 60)
-            if (Math.abs(velocityY) < minimumVelocity) {
+            velocityY *= Math.pow(currentProfile.deceleration, frameDt * 60)
+            if (Math.abs(velocityY) < currentProfile.minimumVelocity) {
+              traceTerminalScroll('momentum.stop', {
+                machineId,
+                terminalId,
+                details: { reason: 'minimum_velocity', velocityY },
+              })
               momentumFrame = 0
               smoothEnd()
               return
             }
             const pixelDelta = velocityY * frameDt
+            traceTerminalScroll('momentum.frame', {
+              machineId,
+              terminalId,
+              details: {
+                alternateScreen: isAlternateScreen(),
+                frameDt,
+                mouseMode: isMouseModeActive(),
+                pixelDelta,
+                velocityY,
+              },
+            })
             if (isMouseModeActive() || isAlternateScreen()) {
               if (smoothActive) smoothEnd()
-              touchAccum += pixelDelta
-              const lines = Math.trunc(touchAccum / lineHeightPx)
-              if (lines !== 0) {
-                touchAccum -= lines * lineHeightPx
-                for (let index = 0; index < Math.abs(lines); index += 1) {
-                  sendScrollInput(lines > 0)
-                }
-              }
+              sendTuiScrollPixels(pixelDelta, 1)
             } else if (scrollPixels(pixelDelta)) {
               momentumFrame = 0
               smoothEnd()
@@ -2358,6 +2668,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             momentumFrame = window.requestAnimationFrame(step)
           }
           touchAccum = 0
+          traceTerminalScroll('momentum.start', {
+            machineId,
+            terminalId,
+            details: { route: touchScrollRoute, velocityY },
+          })
           momentumFrame = window.requestAnimationFrame(step)
         }
       } else {
@@ -2408,17 +2723,47 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       : { dispose() {} }
     const bufferDisposable = term.buffer.onBufferChange?.(() => {
       if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) return
-      clearMomentum()
-      smoothEnd()
+      const preserveTuiMomentum = momentumFrame !== 0 && (isMouseModeActive() || isAlternateScreen())
+      traceTerminalScroll('xterm.buffer_change', {
+        machineId,
+        terminalId,
+        details: {
+          alternateScreen: isAlternateScreen(),
+          bufferType: term.buffer.active.type,
+          momentumActive: momentumFrame !== 0,
+          mouseMode: isMouseModeActive(),
+          preserveTuiMomentum,
+        },
+      })
+      if (!preserveTuiMomentum) {
+        clearMomentum()
+        smoothEnd()
+      }
       updateScrollbar()
       onBufferChangeRef.current?.(term.buffer.active.type === 'alternate')
     }) ?? { dispose() {} }
 
-    const scrollTouchTarget = screenElement || container
-    scrollTouchTarget.addEventListener('touchstart', handleTouchStart, { passive: false })
-    scrollTouchTarget.addEventListener('touchmove', handleTouchMove, { passive: false })
-    scrollTouchTarget.addEventListener('touchend', handleTouchEnd, { passive: true })
-    scrollTouchTarget.addEventListener('touchcancel', handleTouchEnd, { passive: true })
+    const scrollTouchTarget = term.element || container
+    scrollTouchTarget.addEventListener('touchstart', handleTouchStart, { capture: true, passive: false })
+    scrollTouchTarget.addEventListener('touchmove', handleTouchMove, { capture: true, passive: false })
+    scrollTouchTarget.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true })
+    scrollTouchTarget.addEventListener('touchcancel', handleTouchEnd, { capture: true, passive: true })
+
+    const handleWheelTrace = (event: WheelEvent) => {
+      traceTerminalScroll('wheel.raw', {
+        machineId,
+        terminalId,
+        details: {
+          alternateScreen: isAlternateScreen(),
+          deltaMode: event.deltaMode,
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          mouseMode: isMouseModeActive(),
+          timeStamp: event.timeStamp,
+        },
+      })
+    }
+    scrollTouchTarget.addEventListener('wheel', handleWheelTrace, { capture: true, passive: true })
 
     const handleWheel = (event: WheelEvent) => {
       if (isMouseModeActive() || isAlternateScreen()) return
@@ -2604,6 +2949,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         historyApplyTimerRef.current = null
       }
       pendingHistoryApplyRef.current = null
+      clearHistorySearchHighlight()
       historyLoadArmedByUserRef.current = false
       primedHistoryFrameRef.current?.remove()
       primedHistoryFrameRef.current = null
@@ -2637,10 +2983,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       selectionResetHandlersRef.current.delete(resetSelectionTouchState)
       resetSelectionTouchState()
       window.clearTimeout(scrollbarHideTimer)
-      scrollTouchTarget.removeEventListener('touchstart', handleTouchStart)
-      scrollTouchTarget.removeEventListener('touchmove', handleTouchMove)
-      scrollTouchTarget.removeEventListener('touchend', handleTouchEnd)
-      scrollTouchTarget.removeEventListener('touchcancel', handleTouchEnd)
+      scrollTouchTarget.removeEventListener('touchstart', handleTouchStart, true)
+      scrollTouchTarget.removeEventListener('touchmove', handleTouchMove, true)
+      scrollTouchTarget.removeEventListener('touchend', handleTouchEnd, true)
+      scrollTouchTarget.removeEventListener('touchcancel', handleTouchEnd, true)
+      scrollTouchTarget.removeEventListener('wheel', handleWheelTrace, true)
       scrollTouchTarget.removeEventListener('wheel', handleWheel)
       scrollbarThumb.removeEventListener('touchstart', handleScrollbarTouchStart)
       scrollbarTrack.removeEventListener('touchstart', handleScrollbarTrackTouchStart)
@@ -2667,7 +3014,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       }
       setHistoryStatusVisible(false)
     }
-  }, [cancelBottomAnchor, clearLiveOutputWatchdog, fitAndMaybeSendResize, historyOnly, isScrolledToBottom, keepBottomAnchored, logTerminal, markSurfaceReady, reloadHistoryProjectionWhenIdle, renderer, scheduleFit, sendInputAtCurrentSize, sendUserInput, settings.renderer, writeToXterm])
+  }, [cancelBottomAnchor, clearHistorySearchHighlight, clearLiveOutputWatchdog, fitAndMaybeSendResize, historyOnly, isScrolledToBottom, keepBottomAnchored, logTerminal, markSurfaceReady, reloadHistoryProjectionWhenIdle, renderer, scheduleFit, sendInputAtCurrentSize, sendUserInput, settings.renderer, writeToXterm])
 
   useEffect(() => {
     isOpenRef.current = isOpen
@@ -2813,6 +3160,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         restoreViewportY: restoreViewportY ?? previousPending?.restoreViewportY ?? null,
         viewportTop: historyOnly ? undefined : history.viewportTop ?? previousPending?.viewportTop,
         absoluteViewportY: history.searchMatchRow ?? previousPending?.absoluteViewportY,
+        searchMatchRanges: history.searchMatchRanges ??
+          (history.searchMatchRow !== undefined ? previousPending?.searchMatchRanges : undefined),
         text: terminalSession.terminalText,
       }
       if (history.searchMatchRow !== undefined) {
@@ -2861,39 +3210,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
         role="application"
         tabIndex={showConnectingOverlay ? -1 : 0}
       />
-      {showConnectingOverlay ? (
-        <div aria-live="polite" className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[var(--anytty-bg)]/80 backdrop-blur-sm text-sm font-medium text-[var(--anytty-muted)]" role="status">
-          <div className="flex items-center gap-2">
-            <Spinner className="text-[var(--anytty-text)]" aria-hidden="true" />
-            {t('workspace.connectingTerminal')}
-          </div>
-        </div>
-      ) : null}
-      {inputFailureVisible ? (
-        <div
-          className="pointer-events-none absolute inset-x-2 top-2 z-50 rounded-md border border-red-500/40 bg-red-950/95 px-3 py-2 text-sm text-red-100"
-          role="alert"
-        >
-          {t('connectionStatus.inputPaused')}
-        </div>
-      ) : null}
-      {!inputFailureVisible && channelFailure ? (
-        <div
-          className="absolute inset-x-2 top-2 z-50 flex min-h-11 items-center justify-between gap-3 rounded-md border border-[var(--destructive)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
-          role="alert"
-        >
-          <span className="min-w-0 break-words">{channelFailure.message}</span>
-          {channelFailure.recoverable ? (
-            <Button
-              className="min-h-11 shrink-0 px-3 text-xs"
-              onClick={() => terminalSession.reattach(session, { forceTerminalChannel: true })}
-              variant="secondary"
-            >
-              {t('workspace.connection.retry')}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
       {historyLoadingVisible && !showConnectingOverlay ? (
         <div
           aria-live="polite"
@@ -2936,6 +3252,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             right: 'max(0.5rem, env(safe-area-inset-right))',
           }}
         >
+          <div className="mb-2 grid grid-cols-3 overflow-hidden rounded-md border border-[var(--anytty-border-subtle)]" role="group" aria-label={t('terminal.searchModes.label')}>
+            {(['text', 'glob', 'regex'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={historySearchMode === mode}
+                className={`min-h-9 border-r border-[var(--anytty-border-subtle)] px-2 text-xs font-semibold last:border-r-0 ${historySearchMode === mode ? 'bg-[var(--anytty-accent)] text-white' : 'bg-[var(--anytty-bg)] text-[var(--anytty-muted)]'}`}
+                onClick={() => {
+                  terminalSession.cancelHistorySearch()
+                  historySearchLastMatchRef.current = null
+                  clearHistorySearchHighlight()
+                  setHistorySearchMode(mode)
+                  setHistorySearchMessage('')
+                }}
+              >
+                {t(`terminal.searchModes.${mode}`)}
+              </button>
+            ))}
+          </div>
           <div className="flex items-center gap-2">
             <Search className="ml-1 h-4 w-4 shrink-0 text-[var(--anytty-muted)]" aria-hidden="true" />
             <Input
@@ -2943,7 +3278,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
               aria-label={t('terminal.tools.searchHistory')}
               className="h-11 min-w-0 flex-1 border-[var(--anytty-border-subtle)] bg-[var(--anytty-bg)] focus-visible:border-[var(--anytty-accent)]"
               value={historySearchQuery}
-              onChange={(event) => { setHistorySearchQuery(event.target.value); setHistorySearchMessage('') }}
+              onChange={(event) => {
+                terminalSession.cancelHistorySearch()
+                historySearchLastMatchRef.current = null
+                clearHistorySearchHighlight()
+                setHistorySearchQuery(event.target.value)
+                setHistorySearchMessage('')
+              }}
             />
             <Button variant="ghost" type="button" aria-label={t('terminal.tools.searchPrevious')} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-[var(--anytty-border-subtle)]" disabled={historySearchBusy || !historySearchQuery.trim()} onClick={() => { void runHistorySearch('backward') }}>
               <ArrowUp className="h-4 w-4" />
@@ -2953,6 +3294,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
             </Button>
             <Button variant="ghost" type="button" aria-label={t('common.close')} className="grid h-11 w-11 shrink-0 place-items-center" onClick={() => {
               terminalSession.cancelHistorySearch()
+              historySearchLastMatchRef.current = null
+              clearHistorySearchHighlight()
               setHistorySearchOpen(false)
             }}>
               <X className="h-4 w-4" />

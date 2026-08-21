@@ -1425,7 +1425,7 @@ func TestInteractiveRuntimeCreateTerminalFormSubmitsTerminalCreate(t *testing.T)
 		t.Fatalf("unexpected create request %#v", create)
 	}
 	attach := terminal.Attaches[0]
-	if attach.TerminalID != "term-created" || attach.ViewID != state.TerminalPaneViewID(state.DefaultPaneID) || attach.ResizePolicy != "owner" {
+	if attach.TerminalID != "term-created" || attach.ViewID != state.TerminalPaneViewID(state.DefaultPaneID) || attach.ResizePolicy != "follower" {
 		t.Fatalf("create should attach created terminal to current pane, got %#v", attach)
 	}
 	if runtime.State().Session.TerminalID != "term-created" || runtime.State().Shell.EnsureDefaults().Workspace.Tabs[0].Panes[0].TerminalID != "term-created" {

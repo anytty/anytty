@@ -2232,8 +2232,10 @@ type TerminalLifecycleEvent struct {
 	Terminal             *TerminalInfo          `protobuf:"bytes,1,opt,name=terminal,proto3" json:"terminal,omitempty"`
 	AttachmentProjection bool                   `protobuf:"varint,2,opt,name=attachment_projection,json=attachmentProjection,proto3" json:"attachment_projection,omitempty"`
 	ResizeControl        *ResizeControl         `protobuf:"bytes,3,opt,name=resize_control,json=resizeControl,proto3" json:"resize_control,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// resize_epoch versions the complete owner projection, including no-owner state.
+	ResizeEpoch   uint64 `protobuf:"varint,4,opt,name=resize_epoch,json=resizeEpoch,proto3" json:"resize_epoch,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TerminalLifecycleEvent) Reset() {
@@ -2285,6 +2287,13 @@ func (x *TerminalLifecycleEvent) GetResizeControl() *ResizeControl {
 		return x.ResizeControl
 	}
 	return nil
+}
+
+func (x *TerminalLifecycleEvent) GetResizeEpoch() uint64 {
+	if x != nil {
+		return x.ResizeEpoch
+	}
+	return 0
 }
 
 type TerminalResizeControlEvent struct {
@@ -2516,11 +2525,12 @@ const file_apipb_terminal_proto_rawDesc = "" +
 	"\tbase_path\x18\x01 \x01(\tR\bbasePath\x12;\n" +
 	"\aentries\x18\x02 \x03(\v2!.anytty.api.v1.PathDirectoryEntryR\aentries\x12\x18\n" +
 	"\amissing\x18\x03 \x01(\bR\amissing\x12\x1c\n" +
-	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"\xcb\x01\n" +
+	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"\xee\x01\n" +
 	"\x16TerminalLifecycleEvent\x127\n" +
 	"\bterminal\x18\x01 \x01(\v2\x1b.anytty.api.v1.TerminalInfoR\bterminal\x123\n" +
 	"\x15attachment_projection\x18\x02 \x01(\bR\x14attachmentProjection\x12C\n" +
-	"\x0eresize_control\x18\x03 \x01(\v2\x1c.anytty.api.v1.ResizeControlR\rresizeControl\"\x99\x01\n" +
+	"\x0eresize_control\x18\x03 \x01(\v2\x1c.anytty.api.v1.ResizeControlR\rresizeControl\x12!\n" +
+	"\fresize_epoch\x18\x04 \x01(\x04R\vresizeEpoch\"\x99\x01\n" +
 	"\x1aTerminalResizeControlEvent\x126\n" +
 	"\bterminal\x18\x01 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x12C\n" +
 	"\x0eresize_control\x18\x02 \x01(\v2\x1c.anytty.api.v1.ResizeControlR\rresizeControl*\x9e\x01\n" +

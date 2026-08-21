@@ -3,6 +3,8 @@ import { createRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProtoClientSession } from '../core/protoClientSession'
 import { Terminal, type TerminalHandle } from './Terminal'
+import { DEFAULT_TERMINAL_SETTINGS } from './terminalSettings'
+import { ConnectionRecoveryOverlayHost, ConnectionRecoveryOverlayProvider } from '../connection/ConnectionRecoveryOverlay'
 
 interface FakeXTermInstance {
   element: HTMLElement | null
@@ -12,6 +14,7 @@ interface FakeXTermInstance {
   emitData(data: string): void
   emitKey(event: KeyboardEvent): boolean
   emitRender(): void
+  setMouseModeActive(active: boolean): void
 }
 
 const terminalHarness = vi.hoisted(() => ({
@@ -20,6 +23,8 @@ const terminalHarness = vi.hoisted(() => ({
   unrelatedBanner: false,
   sessionSendInput: vi.fn(),
   sessionSendResize: vi.fn(),
+  resizeOwnerRequest: vi.fn(),
+  cancelPendingMouseInput: vi.fn(),
   historySnapshot: false,
   historyMetadata: null as null | {
     revision: number
@@ -33,6 +38,7 @@ const terminalHarness = vi.hoisted(() => ({
     rowTimestampsUnixMs: Array<number | undefined>
     operation?: 'replace' | 'prepend'
     searchMatchRow?: number
+    searchMatchRanges?: Array<{ row: number; startCol: number; endCol: number }>
     hasMore: boolean
   },
   historySelection: '',
@@ -60,6 +66,7 @@ const terminalHarness = vi.hoisted(() => ({
   liveCompleted: vi.fn(),
   xtermWrites: [] as string[],
   xtermSelections: [] as Array<[number, number, number]>,
+  xtermDecorations: [] as Array<{ x?: number; width?: number; height?: number; backgroundColor?: string; foregroundColor?: string; layer?: string }>,
   xtermResets: 0,
   scrollToBottomCalls: 0,
   pendingWriteCallbacks: [] as Array<() => void>,
@@ -84,16 +91,33 @@ vi.mock('@xterm/xterm', () => ({
     rows = 24
     element: HTMLElement | null = null
     options: Record<string, unknown>
+    bufferChangeHandler: (() => void) | null = null
     bufferLine = { type: 'normal', cursorY: 0, viewportY: 0, baseY: 0, length: 24 }
     buffer = {
       active: this.bufferLine,
       normal: this.bufferLine,
       alternate: { ...this.bufferLine, type: 'alternate' },
-      onBufferChange: () => ({ dispose() {} }),
+      onBufferChange: (handler: () => void) => {
+        this.bufferChangeHandler = handler
+        return { dispose: () => { this.bufferChangeHandler = null } }
+      },
     }
     _core = {
       viewport: { scrollBarWidth: 0 },
-      coreMouseService: { areMouseEventsActive: false },
+      coreMouseService: {
+        areMouseEventsActive: false,
+        triggerMouseEvent: undefined as ((event: {
+          col: number
+          row: number
+          x: number
+          y: number
+          button: number
+          action: number
+          ctrl: boolean
+          alt: boolean
+          shift: boolean
+        }) => boolean) | undefined,
+      },
       coreService: { decPrivateModes: { applicationCursorKeys: false } },
     }
     dataHandler: ((data: string) => void) | null = null
@@ -116,6 +140,10 @@ vi.mock('@xterm/xterm', () => ({
       const textarea = document.createElement('textarea')
       textarea.className = 'xterm-helper-textarea'
       element.append(screen, textarea)
+      element.addEventListener('wheel', (event) => {
+        if (!this._core.coreMouseService.areMouseEventsActive) return
+        this.dataHandler?.(event.deltaY > 0 ? '\x1b[<65;1;1M' : '\x1b[<64;1;1M')
+      })
       container.append(element)
       this.element = element
       this.textarea = textarea
@@ -136,8 +164,13 @@ vi.mock('@xterm/xterm', () => ({
     attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean) { this.keyHandler = handler }
     emitBinary(data: string) { this.binaryHandler?.(data) }
     emitData(data: string) { this.dataHandler?.(data) }
+    emitBufferChange() { this.bufferChangeHandler?.() }
     emitKey(event: KeyboardEvent) { return this.keyHandler?.(event) ?? true }
     emitRender() { this.renderHandler?.() }
+    setMouseModeActive(active: boolean) {
+      this._core.coreMouseService.areMouseEventsActive = active
+      this.element?.classList.toggle('enable-mouse-events', active)
+    }
     resize(cols: number, rows: number) { this.cols = cols; this.rows = rows }
     write(text: string, callback?: () => void) {
       terminalHarness.xtermWrites.push(text)
@@ -153,6 +186,13 @@ vi.mock('@xterm/xterm', () => ({
     }
     scrollToLine(line: number) { this.bufferLine.viewportY = line }
     scrollLines(lines: number) { this.bufferLine.viewportY += lines }
+    registerMarker(offset = 0) {
+      return { line: this.bufferLine.baseY + this.bufferLine.cursorY + offset, dispose() {} }
+    }
+    registerDecoration(options: { x?: number; width?: number; height?: number; backgroundColor?: string; foregroundColor?: string; layer?: string }) {
+      terminalHarness.xtermDecorations.push(options)
+      return { dispose() {} }
+    }
     select(column: number, row: number, length: number) {
       terminalHarness.xtermSelections.push([column, row, length])
     }
@@ -184,8 +224,9 @@ vi.mock('./useTerminalSession', () => ({
     terminalInfo: null,
     resizeControl: { canResize: false, reason: 'follower' },
     sendInput: terminalHarness.sessionSendInput,
+    cancelPendingMouseInput: terminalHarness.cancelPendingMouseInput,
     sendResize: terminalHarness.sessionSendResize,
-    requestResizeOwner: async () => ({ canResize: true, reason: 'owner' }),
+    requestResizeOwner: terminalHarness.resizeOwnerRequest,
     releaseResizeOwner: async () => ({ canResize: false, reason: 'follower' }),
     loadScrollback: terminalHarness.historyLoad,
     searchScrollback: terminalHarness.historySearch,
@@ -222,6 +263,7 @@ describe('Terminal input modifier boundary', () => {
     terminalHarness.channelState = 'open'
     terminalHarness.xtermWrites.length = 0
     terminalHarness.xtermSelections.length = 0
+    terminalHarness.xtermDecorations.length = 0
     terminalHarness.xtermResets = 0
     terminalHarness.scrollToBottomCalls = 0
     terminalHarness.pendingWriteCallbacks.length = 0
@@ -232,6 +274,8 @@ describe('Terminal input modifier boundary', () => {
     terminalHarness.liveCompleted.mockReset()
     terminalHarness.sessionSendInput.mockReset().mockReturnValue(true)
     terminalHarness.sessionSendResize.mockReset().mockReturnValue(false)
+    terminalHarness.resizeOwnerRequest.mockReset().mockResolvedValue({ canResize: true, reason: 'owner' })
+    terminalHarness.cancelPendingMouseInput.mockReset().mockReturnValue(true)
     terminalHarness.historyLoad.mockReset().mockResolvedValue({ loadedRows: 0, totalRows: 0, hasMore: false, alternate: false })
     terminalHarness.historyReset.mockReset()
     terminalHarness.reattach.mockReset()
@@ -445,15 +489,22 @@ describe('Terminal input modifier boundary', () => {
     const onInput = vi.fn(() => false)
     const onModifierStateChange = vi.fn()
     terminalHarness.inputRecoveryFailure = 'input blocked'
-    render(<Terminal
-      machineId="studio"
-      terminalId="term-shell"
-      session={session}
-      modifierState={{ ctrl: 'once', alt: 'off' }}
-      onModifierStateChange={onModifierStateChange}
-      onInput={onInput}
-      renderer="dom"
-    />)
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <div className="relative h-96">
+          <Terminal
+            machineId="studio"
+            terminalId="term-shell"
+            session={session}
+            modifierState={{ ctrl: 'once', alt: 'off' }}
+            onModifierStateChange={onModifierStateChange}
+            onInput={onInput}
+            renderer="dom"
+          />
+          <ConnectionRecoveryOverlayHost />
+        </div>
+      </ConnectionRecoveryOverlayProvider>,
+    )
     await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
     const xterm = terminalHarness.instances[0] as FakeXTermInstance
 
@@ -464,17 +515,26 @@ describe('Terminal input modifier boundary', () => {
 
     expect(onInput.mock.calls.map(([data]) => data)).toEqual(['paste', 'binary'])
     expect(onModifierStateChange).not.toHaveBeenCalled()
-    expect((await screen.findByRole('alert')).textContent).toBe('Input is paused until the connection recovers.')
+    const overlay = await screen.findByTestId('anytty-connection-recovery-overlay')
+    expect(overlay.getAttribute('role')).toBe('status')
+    expect(overlay.textContent).toContain('Input is paused until the connection recovers.')
   })
 
   it('shows a terminal channel failure without mislabeling it as paused input', async () => {
     terminalHarness.unrelatedBanner = true
-    render(<Terminal
-      machineId="studio"
-      terminalId="term-shell"
-      session={session}
-      renderer="dom"
-    />)
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <div className="relative h-96">
+          <Terminal
+            machineId="studio"
+            terminalId="term-shell"
+            session={session}
+            renderer="dom"
+          />
+          <ConnectionRecoveryOverlayHost />
+        </div>
+      </ConnectionRecoveryOverlayProvider>,
+    )
 
     await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
     const alert = screen.getByRole('alert')
@@ -486,9 +546,16 @@ describe('Terminal input modifier boundary', () => {
 
   it('isolates the terminal application from focus and assistive technology while connecting', async () => {
     terminalHarness.channelState = 'connecting'
-    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <div className="relative h-96">
+          <Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />
+          <ConnectionRecoveryOverlayHost />
+        </div>
+      </ConnectionRecoveryOverlayProvider>,
+    )
 
-    const status = await screen.findByRole('status')
+    const status = await screen.findByTestId('anytty-connection-recovery-overlay')
     const application = screen.getByRole('application', { hidden: true })
 
     expect(status.getAttribute('aria-live')).toBe('polite')
@@ -739,6 +806,218 @@ describe('Terminal input modifier boundary', () => {
     expect(terminalHarness.historyFreeze).not.toHaveBeenCalled()
   })
 
+  it('handles alternate-screen touch gestures that hit the xterm root instead of its screen', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    if (!xterm.element) throw new Error('missing terminal root')
+    xterm.bufferLine.type = 'alternate'
+
+    fireEvent.touchStart(xterm.element, { touches: [{ clientX: 20, clientY: 100 }] })
+    fireEvent.touchMove(xterm.element, { touches: [{ clientX: 20, clientY: 60 }] })
+    fireEvent.touchEnd(xterm.element)
+
+    expect(terminalHarness.sessionSendInput).toHaveBeenCalledWith('\x1b[B', { cols: 80, rows: 24 })
+  })
+
+  it('falls back to the xterm root when mouse mode starts before the screen element is available', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    if (!xterm.element) throw new Error('missing terminal root')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    xterm.element.querySelector('.xterm-screen')?.remove()
+
+    fireEvent.touchStart(xterm.element, { touches: [{ clientX: 20, clientY: 100 }] })
+    fireEvent.touchMove(xterm.element, { touches: [{ clientX: 20, clientY: 60 }] })
+    fireEvent.touchEnd(xterm.element)
+
+    expect(terminalHarness.sessionSendInput).toHaveBeenCalledWith('\x1b[<65;1;1M')
+  })
+
+  it('uses xterm mouse protocol encoding for TUI touch scrolling when available', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    if (!xterm.element) throw new Error('missing terminal root')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    const triggerMouseEvent = vi.fn((event: { action: number }) => {
+      xterm.emitData(event.action === 1 ? '\x1b[<65;1;1M' : '\x1b[<64;1;1M')
+      return true
+    })
+    xterm._core.coreMouseService.triggerMouseEvent = triggerMouseEvent
+
+    fireEvent.touchStart(xterm.element, { touches: [{ clientX: 20, clientY: 100 }] })
+    fireEvent.touchMove(xterm.element, { touches: [{ clientX: 20, clientY: 60 }] })
+    fireEvent.touchEnd(xterm.element)
+
+    expect(triggerMouseEvent).toHaveBeenCalledWith(expect.objectContaining({ button: 4, action: 1 }))
+    expect(terminalHarness.sessionSendInput).toHaveBeenCalledWith('\x1b[<65;1;1M')
+  })
+
+  it('stops alternate-screen scrolling at touch release when inertia is disabled', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal
+      machineId="studio"
+      terminalId="term-shell"
+      session={session}
+      renderer="dom"
+      settings={{ ...DEFAULT_TERMINAL_SETTINGS, scrollInertia: 0 }}
+    />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    const output = xterm.element?.querySelector('.xterm-screen')
+    if (!output) throw new Error('missing terminal screen')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 120 }] })
+    vi.setSystemTime(1_016)
+    fireEvent.touchMove(output, { touches: [{ clientX: 20, clientY: 60 }] })
+    vi.setSystemTime(1_020)
+    fireEvent.touchEnd(output)
+    const callsAtRelease = terminalHarness.sessionSendInput.mock.calls.length
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(callsAtRelease).toBeGreaterThan(0)
+    expect(terminalHarness.sessionSendInput).toHaveBeenCalledTimes(callsAtRelease)
+  })
+
+  it('paces alternate-screen momentum after touch release when inertia is enabled', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal
+      machineId="studio"
+      terminalId="term-shell"
+      session={session}
+      renderer="dom"
+      settings={{ ...DEFAULT_TERMINAL_SETTINGS, scrollInertia: 100 }}
+    />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    const output = xterm.element?.querySelector('.xterm-screen')
+    if (!output) throw new Error('missing terminal screen')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    vi.useFakeTimers()
+    vi.setSystemTime(2_000)
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 120 }] })
+    vi.setSystemTime(2_016)
+    fireEvent.touchMove(output, { touches: [{ clientX: 20, clientY: 60 }] })
+    vi.setSystemTime(2_020)
+    fireEvent.touchEnd(output)
+    const callsAtRelease = terminalHarness.sessionSendInput.mock.calls.length
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(callsAtRelease).toBeGreaterThan(0)
+    expect(terminalHarness.sessionSendInput.mock.calls.length).toBeGreaterThan(callsAtRelease)
+  })
+
+  it('keeps TUI momentum alive when the application redraws after a wheel report', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal
+      machineId="studio"
+      terminalId="term-shell"
+      session={session}
+      renderer="dom"
+      settings={{ ...DEFAULT_TERMINAL_SETTINGS, scrollInertia: 100 }}
+    />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    const output = xterm.element?.querySelector('.xterm-screen')
+    if (!output) throw new Error('missing terminal screen')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    vi.useFakeTimers()
+    vi.setSystemTime(3_000)
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 120 }] })
+    vi.setSystemTime(3_016)
+    fireEvent.touchMove(output, { touches: [{ clientX: 20, clientY: 60 }] })
+    vi.setSystemTime(3_020)
+    fireEvent.touchEnd(output)
+    const callsAtRelease = terminalHarness.sessionSendInput.mock.calls.length
+
+    xterm.emitBufferChange()
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(callsAtRelease).toBeGreaterThan(0)
+    expect(terminalHarness.sessionSendInput.mock.calls.length).toBeGreaterThan(callsAtRelease)
+  })
+
+  it('keeps TUI momentum alive when a live snapshot resets transient viewport state', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal
+      machineId="studio"
+      terminalId="term-shell"
+      session={session}
+      renderer="dom"
+      settings={{ ...DEFAULT_TERMINAL_SETTINGS, scrollInertia: 100 }}
+    />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    const output = xterm.element?.querySelector('.xterm-screen')
+    if (!output) throw new Error('missing terminal screen')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    vi.useFakeTimers()
+    vi.setSystemTime(4_000)
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 120 }] })
+    vi.setSystemTime(4_016)
+    fireEvent.touchMove(output, { touches: [{ clientX: 20, clientY: 60 }] })
+    vi.setSystemTime(4_020)
+    fireEvent.touchEnd(output)
+    const callsAtRelease = terminalHarness.sessionSendInput.mock.calls.length
+
+    act(() => terminalHarness.resizeObserverCallback?.([], {} as ResizeObserver))
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(callsAtRelease).toBeGreaterThan(0)
+    expect(terminalHarness.sessionSendInput.mock.calls.length).toBeGreaterThan(callsAtRelease)
+  })
+
+  it('stops TUI momentum and cancels queued wheel reports on a new touch', async () => {
+    terminalHarness.historySnapshot = true
+    render(<Terminal
+      machineId="studio"
+      terminalId="term-shell"
+      session={session}
+      renderer="dom"
+      settings={{ ...DEFAULT_TERMINAL_SETTINGS, scrollInertia: 100 }}
+    />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const xterm = terminalHarness.instances[0] as FakeXTermInstance
+    const output = xterm.element?.querySelector('.xterm-screen')
+    if (!output) throw new Error('missing terminal screen')
+    xterm.bufferLine.type = 'alternate'
+    xterm.setMouseModeActive(true)
+    vi.useFakeTimers()
+    vi.setSystemTime(5_000)
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 120 }] })
+    vi.setSystemTime(5_016)
+    fireEvent.touchMove(output, { touches: [{ clientX: 20, clientY: 60 }] })
+    vi.setSystemTime(5_020)
+    fireEvent.touchEnd(output)
+    act(() => vi.advanceTimersByTime(100))
+    const callsBeforeInterruption = terminalHarness.sessionSendInput.mock.calls.length
+
+    fireEvent.touchStart(output, { touches: [{ clientX: 20, clientY: 80 }] })
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(callsBeforeInterruption).toBeGreaterThan(0)
+    expect(terminalHarness.cancelPendingMouseInput).toHaveBeenCalledTimes(2)
+    expect(terminalHarness.sessionSendInput).toHaveBeenCalledTimes(callsBeforeInterruption)
+  })
+
   it('does not enter history from wheel input while the alternate screen is active', async () => {
     terminalHarness.historySnapshot = true
     render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
@@ -833,9 +1112,22 @@ describe('Terminal input modifier boundary', () => {
     xterm.bufferLine.viewportY = 1
     act(() => xterm.emitRender())
 
-    terminalHarness.historyMetadata = historyMetadata({ revision: 2, operation: 'replace', searchMatchRow: 0 })
+    terminalHarness.historyMetadata = historyMetadata({
+      revision: 2,
+      operation: 'replace',
+      searchMatchRow: 0,
+      searchMatchRanges: [{ row: 0, startCol: 2, endCol: 7 }],
+    })
     view.rerender(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
     await waitFor(() => expect(terminalHarness.xtermResets).toBeGreaterThan(1))
+    expect(terminalHarness.xtermDecorations).toContainEqual(expect.objectContaining({
+      x: 2,
+      width: 5,
+      height: 1,
+      backgroundColor: '#F59E0B',
+      foregroundColor: '#111827',
+      layer: 'top',
+    }))
     expect(terminalHarness.historyResume).not.toHaveBeenCalled()
     act(() => xterm.emitRender())
     expect(terminalHarness.historyResume).not.toHaveBeenCalled()
@@ -877,6 +1169,29 @@ describe('Terminal input modifier boundary', () => {
     expect(screen.queryByTestId('anytty-history-search')).toBeNull()
   })
 
+  it('opens history search from the imperative handle before history metadata is loaded', async () => {
+    const ref = createRef<TerminalHandle>()
+    render(<Terminal ref={ref} machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(ref.current).not.toBeNull())
+
+    act(() => ref.current?.openHistorySearch())
+    const input = await screen.findByRole('textbox', { name: 'Search history' })
+    expect(screen.getByRole('button', { name: 'Text' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Regex' }))
+    fireEvent.change(input, { target: { value: 'current prompt' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }))
+
+    await waitFor(() => expect(terminalHarness.historyLoad).toHaveBeenCalledOnce())
+    await waitFor(() => expect(terminalHarness.historySearch).toHaveBeenCalledWith(
+      'current prompt',
+      'forward',
+      80,
+      undefined,
+      'regex',
+    ))
+    expect(await screen.findByText('No matches')).toBeTruthy()
+  })
+
   it('returns the underlying acceptance result from imperative input and paste handles', async () => {
     terminalHarness.sessionSendInput.mockReturnValue(false)
     const ref = createRef<TerminalHandle>()
@@ -885,6 +1200,41 @@ describe('Terminal input modifier boundary', () => {
 
     expect(ref.current?.sendInput('key')).toBe(false)
     expect(ref.current?.pasteText('paste')).toBe(false)
+  })
+
+  it('waits for a trustworthy local viewport before acquiring resize ownership', async () => {
+    const ref = createRef<TerminalHandle>()
+    render(<Terminal ref={ref} machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(ref.current).not.toBeNull())
+
+    terminalHarness.fitDimensions = { cols: 1, rows: 1 }
+    let animationFrame = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrame += 1
+      if (animationFrame === 2) terminalHarness.fitDimensions = { cols: 91, rows: 31 }
+      callback(animationFrame)
+      return animationFrame
+    })
+
+    await act(async () => { await ref.current!.requestResizeOwner() })
+
+    expect(terminalHarness.resizeOwnerRequest).toHaveBeenCalledWith({ cols: 91, rows: 31 })
+  })
+
+  it('does not acquire resize ownership with a stale remote grid', async () => {
+    const ref = createRef<TerminalHandle>()
+    render(<Terminal ref={ref} machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(ref.current).not.toBeNull())
+
+    terminalHarness.fitDimensions = { cols: 1, rows: 1 }
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+
+    await expect(ref.current!.requestResizeOwner()).rejects.toThrow('terminal viewport size is unavailable')
+
+    expect(terminalHarness.resizeOwnerRequest).not.toHaveBeenCalled()
   })
 
   it('copies frozen history by logical range instead of reading the rendered text buffer', async () => {

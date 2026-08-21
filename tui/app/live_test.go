@@ -2544,11 +2544,11 @@ func TestLiveResizeResultUsesViewScopedStaleGuard(t *testing.T) {
 	}
 }
 
-func TestLiveResizeResultProjectsTerminalSizeLockWithoutResizingSurface(t *testing.T) {
+func TestLiveResizeResultProjectsTerminalSizeLockAndAuthoritativeSize(t *testing.T) {
 	reducer := newLiveReducerPrepared(LiveDeps{})
 	root := state.Root{
-		Session: state.TerminalSessionStore{TerminalID: "term-1", Attached: true, Cols: 80, Rows: 24, DesiredCols: 100, DesiredRows: 30},
-		Surface: state.TerminalSurfaceStore{TerminalID: "term-1", Cols: 80, Rows: 24},
+		Session: state.TerminalSessionStore{TerminalID: "term-1", Attached: true, Cols: 100, Rows: 30, DesiredCols: 100, DesiredRows: 30},
+		Surface: state.TerminalSurfaceStore{TerminalID: "term-1", Cols: 100, Rows: 30},
 	}
 	root.TerminalViews = root.TerminalViews.BindPane(state.NewPaneTerminalView(state.DefaultPaneID, "term-1", 7, 100, 30, state.TerminalResizeRoleOwner, "surface", "view-1", true))
 
@@ -2577,7 +2577,7 @@ func TestLiveResizeResultProjectsTerminalSizeLockWithoutResizingSurface(t *testi
 		t.Fatalf("locked resize result should not emit effects, got %#v", effects)
 	}
 	if next.Session.Cols != 80 || next.Surface.Cols != 80 {
-		t.Fatalf("locked resize result must not resize session/surface, got session=%#v surface=%#v", next.Session, next.Surface)
+		t.Fatalf("locked resize result must project the daemon's actual size, got session=%#v surface=%#v", next.Session, next.Surface)
 	}
 	binding, ok := next.TerminalViews.PaneBinding(state.DefaultPaneID)
 	if !ok || !binding.SizeLocked || binding.CanResize || binding.ControlReason != "size_locked" || binding.ResizeEpoch != 3 {

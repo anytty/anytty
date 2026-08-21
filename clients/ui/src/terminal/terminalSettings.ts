@@ -3,10 +3,26 @@ import type { TerminalRenderer } from './Terminal'
 import type { RemoteRuntimeStorage } from '../core/transport'
 
 export type TerminalKeyboardMode = 'auto' | 'resize' | 'shift'
-export type TerminalScrollInertia = 'off' | 'short' | 'medium' | 'long'
+export type TerminalScrollInertia = number
 export type TerminalThemeGroup = 'dark' | 'light'
 
-export const TERMINAL_SCROLL_INERTIA_OPTIONS = ['off', 'short', 'medium', 'long'] as const satisfies readonly TerminalScrollInertia[]
+export const TERMINAL_SCROLL_INERTIA_MIN = 0
+export const TERMINAL_SCROLL_INERTIA_MAX = 100
+export const TERMINAL_SCROLL_INERTIA_DEFAULT = 60
+
+const LEGACY_TERMINAL_SCROLL_INERTIA = new Map<string, TerminalScrollInertia>([
+  ['off', 0],
+  ['short', 25],
+  ['medium', 60],
+  ['long', 100],
+])
+
+const TERMINAL_MOMENTUM_ANCHORS = [
+  { value: 1, deceleration: 0.9, minimumVelocity: 80 },
+  { value: 25, deceleration: 0.95, minimumVelocity: 60 },
+  { value: 60, deceleration: 0.985, minimumVelocity: 20 },
+  { value: 100, deceleration: 0.99, minimumVelocity: 10 },
+] as const
 
 export interface TerminalMomentumProfile {
   enabled: boolean
@@ -15,15 +31,20 @@ export interface TerminalMomentumProfile {
 }
 
 export function resolveTerminalMomentumProfile(inertia: TerminalScrollInertia | undefined): TerminalMomentumProfile {
-  switch (inertia) {
-    case 'off':
-      return { enabled: false, deceleration: 0, minimumVelocity: 0 }
-    case 'short':
-      return { enabled: true, deceleration: 0.95, minimumVelocity: 60 }
-    case 'long':
-      return { enabled: true, deceleration: 0.99, minimumVelocity: 10 }
-    default:
-      return { enabled: true, deceleration: 0.985, minimumVelocity: 20 }
+  const value = normalizeTerminalScrollInertia(inertia)
+  if (value === TERMINAL_SCROLL_INERTIA_MIN) {
+    return { enabled: false, deceleration: 0, minimumVelocity: 0 }
+  }
+
+  const upperIndex = TERMINAL_MOMENTUM_ANCHORS.findIndex((anchor) => anchor.value >= value)
+  const upper = TERMINAL_MOMENTUM_ANCHORS[Math.max(0, upperIndex)] ?? TERMINAL_MOMENTUM_ANCHORS.at(-1)!
+  const lower = TERMINAL_MOMENTUM_ANCHORS[Math.max(0, upperIndex - 1)] ?? upper
+  const range = upper.value - lower.value
+  const ratio = range === 0 ? 0 : (value - lower.value) / range
+  return {
+    enabled: true,
+    deceleration: lower.deceleration + (upper.deceleration - lower.deceleration) * ratio,
+    minimumVelocity: lower.minimumVelocity + (upper.minimumVelocity - lower.minimumVelocity) * ratio,
   }
 }
 
@@ -65,6 +86,7 @@ export interface TerminalSettings {
 }
 
 export const TERMINAL_SETTINGS_STORAGE_KEY = 'anytty.terminal.settings.v1'
+export const TERMINAL_KEYBOARD_MODE_STORAGE_PREFIX = 'anytty.terminal.keyboard-mode.v1'
 
 export const ANYTTY_DARK_TERMINAL_THEME: ITheme = {
   background: '#0c0c0c',
@@ -767,7 +789,7 @@ export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
   themeId: 'anytty-dark',
   renderer: 'auto',
   keyboardMode: 'auto',
-  scrollInertia: 'medium',
+  scrollInertia: TERMINAL_SCROLL_INERTIA_DEFAULT,
   scrollback: 10000,
   scrollbackPrefetchThresholdRows: 30,
   cursorBlink: true,
@@ -797,6 +819,33 @@ export function writeTerminalSettings(
     storage?.setItem(TERMINAL_SETTINGS_STORAGE_KEY, JSON.stringify(normalized))
   } catch {}
   return normalized
+}
+
+export function readTerminalKeyboardMode(
+  machineId: string,
+  terminalId: string,
+  storage: Pick<Storage, 'getItem'> | RemoteRuntimeStorage | undefined = browserStorage(),
+): TerminalKeyboardMode | undefined {
+  const raw = readStorageValue(storage, terminalKeyboardModeStorageKey(machineId, terminalId))
+  if (raw === 'cover' || raw === 'overlay') return 'shift'
+  return isTerminalKeyboardMode(raw) ? raw : undefined
+}
+
+export function writeTerminalKeyboardMode(
+  machineId: string,
+  terminalId: string,
+  mode: TerminalKeyboardMode,
+  storage: Pick<Storage, 'setItem'> | RemoteRuntimeStorage | undefined = browserStorage(),
+): TerminalKeyboardMode {
+  const normalized = normalizeTerminalKeyboardMode(mode)
+  try {
+    storage?.setItem(terminalKeyboardModeStorageKey(machineId, terminalId), normalized)
+  } catch {}
+  return normalized
+}
+
+function terminalKeyboardModeStorageKey(machineId: string, terminalId: string): string {
+  return `${TERMINAL_KEYBOARD_MODE_STORAGE_PREFIX}:${encodeURIComponent(machineId)}:${encodeURIComponent(terminalId)}`
 }
 
 export function resolveTerminalTheme(themeId: TerminalThemeId | string | undefined): ITheme {
@@ -902,8 +951,8 @@ export function normalizeTerminalSettings(input: Partial<TerminalSettings> | Rec
       : DEFAULT_TERMINAL_SETTINGS.fontFamily,
     themeId: isTerminalThemeId(input.themeId) ? input.themeId : DEFAULT_TERMINAL_SETTINGS.themeId,
     renderer: isTerminalRenderer(input.renderer) ? input.renderer : DEFAULT_TERMINAL_SETTINGS.renderer,
-    keyboardMode: isTerminalKeyboardMode(input.keyboardMode) ? input.keyboardMode : DEFAULT_TERMINAL_SETTINGS.keyboardMode,
-    scrollInertia: isTerminalScrollInertia(input.scrollInertia) ? input.scrollInertia : DEFAULT_TERMINAL_SETTINGS.scrollInertia,
+    keyboardMode: normalizeTerminalKeyboardMode(input.keyboardMode),
+    scrollInertia: normalizeTerminalScrollInertia(input.scrollInertia),
     scrollback: clampNumber(input.scrollback, DEFAULT_TERMINAL_SETTINGS.scrollback, 500, 50000),
     scrollbackPrefetchThresholdRows: clampNumber(
       input.scrollbackPrefetchThresholdRows,
@@ -957,8 +1006,17 @@ function isTerminalKeyboardMode(value: unknown): value is TerminalKeyboardMode {
   return value === 'auto' || value === 'resize' || value === 'shift'
 }
 
-function isTerminalScrollInertia(value: unknown): value is TerminalScrollInertia {
-  return typeof value === 'string' && TERMINAL_SCROLL_INERTIA_OPTIONS.some((option) => option === value)
+function normalizeTerminalKeyboardMode(value: unknown): TerminalKeyboardMode {
+  // Preserve per-terminal choices saved by earlier overlay/cover implementations.
+  if (value === 'overlay' || value === 'cover') return 'shift'
+  return isTerminalKeyboardMode(value) ? value : DEFAULT_TERMINAL_SETTINGS.keyboardMode
+}
+
+function normalizeTerminalScrollInertia(value: unknown): TerminalScrollInertia {
+  if (typeof value === 'string') {
+    return LEGACY_TERMINAL_SCROLL_INERTIA.get(value) ?? TERMINAL_SCROLL_INERTIA_DEFAULT
+  }
+  return clampNumber(value, TERMINAL_SCROLL_INERTIA_DEFAULT, TERMINAL_SCROLL_INERTIA_MIN, TERMINAL_SCROLL_INERTIA_MAX)
 }
 
 function isTerminalThemeId(value: unknown): value is TerminalThemeId {

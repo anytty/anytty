@@ -206,7 +206,7 @@ func buildSpecs() map[string]Spec {
 			add(Spec{ID: ID(id)})
 		}
 	}
-	addFixed("copy.request_older", "copy.request_newer", "clipboard.paste_latest", "clipboard.paste_system", "copy.line_start", "copy.line_end", "copy.cursor_left", "copy.cursor_right", "copy.cursor_down", "copy.cursor_up", "copy.accept", "copy.oldest", "copy.newest", "copy.half_page_older", "copy.half_page_newer", "copy.mark", "copy.copy_selection", "copy.search_start", "copy.search_next", "copy.search_previous")
+	addFixed("copy.request_older", "copy.request_newer", "clipboard.paste_latest", "clipboard.paste_system", "copy.line_start", "copy.line_end", "copy.cursor_left", "copy.cursor_right", "copy.cursor_down", "copy.cursor_up", "copy.accept", "copy.oldest", "copy.newest", "copy.half_page_older", "copy.half_page_newer", "copy.mark", "copy.copy_selection", "copy.search_start", "copy.search_mode", "copy.search_next", "copy.search_previous")
 	panel := []string{"panel.close", "panel.detach", "panel.reconnect", "panel.restart", "panel.take_owner", "panel.size_lock", "panel.split_right", "panel.split_down", "panel.kill", "panel.kill_and_close", "panel.toggle_zoom", "panel.balance", "panel.presentation_card", "panel.presentation_split_line", "panel.focus_next", "panel.focus_prev"}
 	for _, id := range panel {
 		alias := "pane." + strings.TrimPrefix(id, "panel.")

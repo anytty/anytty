@@ -1,6 +1,6 @@
-import { lazy, Suspense, useId } from 'react'
+import { lazy, Suspense, useId, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { WifiOff, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { hapticSelection } from '../../platform/haptics'
 import { ModalSurface } from '../../ui/ModalSurface'
 import { Button } from '../../ui/button'
@@ -10,6 +10,7 @@ import { basename, formatBytes } from '../fileUtils'
 import { PreviewNotice } from './PreviewNotice'
 import { useTranslation } from 'react-i18next'
 import '../../i18n'
+import { ConnectionRecoveryOverlayHost, useConnectionRecoveryOverlay, type ConnectionRecoveryOverlayIntent } from '../../connection/ConnectionRecoveryOverlay'
 
 const FileViewerPreview = lazy(() => import('./FileViewerPreview').then((module) => ({ default: module.FileViewerPreview })))
 
@@ -30,6 +31,11 @@ export function FilePreviewSheet({ path, preview, loading, error, remoteAvailabl
   const subtitleId = useId()
   const title = preview?.name ?? basename(path)
   const subtitle = preview ? `${formatBytes(preview.size)} · ${preview.mimeType}` : path
+  const connectionOverlayIntent = useMemo<ConnectionRecoveryOverlayIntent | null>(() => remoteAvailable ? null : ({
+    kind: 'recovering',
+    title: unavailableLabel ?? t('workspace.connection.phase.waiting_network'),
+  }), [remoteAvailable, t, unavailableLabel])
+  useConnectionRecoveryOverlay(connectionOverlayIntent)
 
   const sheet = (
     <ModalSurface
@@ -39,7 +45,7 @@ export function FilePreviewSheet({ path, preview, loading, error, remoteAvailabl
       aria-describedby={subtitleId}
       onRequestClose={onClose}
     >
-      <header className="border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-11 shrink-0 items-center gap-2 border-b px-2.5 pb-1.5 pt-[calc(env(safe-area-inset-top)+0.375rem)] md:h-11 md:py-0">
+      <header className="relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-11 shrink-0 items-center gap-2 border-b px-2.5 pb-1.5 pt-[calc(env(safe-area-inset-top)+0.375rem)] md:h-11 md:py-0">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <h2 id={titleId} className="min-w-0 truncate text-[15px] font-semibold text-zinc-950">{title}</h2>
           <p id={subtitleId} className="min-w-0 truncate text-[11px] font-medium text-zinc-500">{subtitle}</p>
@@ -54,22 +60,18 @@ export function FilePreviewSheet({ path, preview, loading, error, remoteAvailabl
           <X className="h-4 w-4" />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-hidden bg-zinc-100 pb-[env(safe-area-inset-bottom)]">
-        {!remoteAvailable ? (
-          <div className="flex h-56 flex-col items-center justify-center gap-3 px-6 text-center text-[14px] font-medium text-zinc-500" role="status" aria-live="polite">
-            <WifiOff className="h-6 w-6" aria-hidden="true" />
-            {unavailableLabel ?? t('workspace.connection.phase.waiting_network')}
-          </div>
-        ) : loading ? (
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-zinc-100 pb-[env(safe-area-inset-bottom)]">
+        {preview ? (
+          <PreviewContent preview={preview} streamPreview={streamPreview} />
+        ) : remoteAvailable && loading ? (
           <div className="flex h-56 flex-col items-center justify-center gap-3 text-[14px] font-medium text-zinc-500">
             <Spinner className="h-6 w-6 text-zinc-500" aria-hidden="true" />
             {t('files.preview.loading')}
           </div>
-        ) : error ? (
+        ) : remoteAvailable && error ? (
           <PreviewNotice title={t('files.preview.error')} message={error} />
-        ) : preview ? (
-          <PreviewContent preview={preview} streamPreview={streamPreview} />
         ) : null}
+        <ConnectionRecoveryOverlayHost />
       </div>
     </ModalSurface>
   )

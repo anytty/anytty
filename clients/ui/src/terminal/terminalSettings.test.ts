@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_TERMINAL_SETTINGS, normalizeTerminalSettings, resolveTerminalTheme, resolveTerminalThemeUi, TERMINAL_FONT_OPTIONS, TERMINAL_SCROLL_INERTIA_OPTIONS, terminalThemeCssVariables } from './terminalSettings'
+import { DEFAULT_TERMINAL_SETTINGS, normalizeTerminalSettings, readTerminalKeyboardMode, resolveTerminalMomentumProfile, resolveTerminalTheme, resolveTerminalThemeUi, TERMINAL_FONT_OPTIONS, terminalThemeCssVariables, writeTerminalKeyboardMode } from './terminalSettings'
 
 describe('terminal theme UI variables', () => {
   it('exposes a complete local UI palette without changing app theme variables', () => {
@@ -44,11 +44,52 @@ describe('terminal theme UI variables', () => {
     expect(resolveTerminalThemeUi('github-light').accentText).toBe('#ffffff')
   })
 
-  it('normalizes scroll inertia to a supported preset', () => {
-    expect(DEFAULT_TERMINAL_SETTINGS.scrollInertia).toBe('medium')
-    expect(normalizeTerminalSettings({ scrollInertia: 'long' }).scrollInertia).toBe('long')
-    expect(normalizeTerminalSettings({ scrollInertia: 'missing' }).scrollInertia).toBe('medium')
-    expect(TERMINAL_SCROLL_INERTIA_OPTIONS).toEqual(['off', 'short', 'medium', 'long'])
+  it('normalizes scroll inertia to a 0-100 value and migrates presets', () => {
+    expect(DEFAULT_TERMINAL_SETTINGS.scrollInertia).toBe(60)
+    expect(normalizeTerminalSettings({ scrollInertia: 'off' }).scrollInertia).toBe(0)
+    expect(normalizeTerminalSettings({ scrollInertia: 'short' }).scrollInertia).toBe(25)
+    expect(normalizeTerminalSettings({ scrollInertia: 'medium' }).scrollInertia).toBe(60)
+    expect(normalizeTerminalSettings({ scrollInertia: 'long' }).scrollInertia).toBe(100)
+    expect(normalizeTerminalSettings({ scrollInertia: 48.6 }).scrollInertia).toBe(49)
+    expect(normalizeTerminalSettings({ scrollInertia: -1 }).scrollInertia).toBe(0)
+    expect(normalizeTerminalSettings({ scrollInertia: 101 }).scrollInertia).toBe(100)
+    expect(normalizeTerminalSettings({ scrollInertia: 'missing' }).scrollInertia).toBe(60)
+  })
+
+  it('supports resize, shift, and TUI-aware keyboard modes while migrating old names', () => {
+    expect(normalizeTerminalSettings({ keyboardMode: 'resize' }).keyboardMode).toBe('resize')
+    expect(normalizeTerminalSettings({ keyboardMode: 'overlay' }).keyboardMode).toBe('shift')
+    expect(normalizeTerminalSettings({ keyboardMode: 'cover' }).keyboardMode).toBe('shift')
+    expect(normalizeTerminalSettings({ keyboardMode: 'auto' }).keyboardMode).toBe('auto')
+    expect(normalizeTerminalSettings({ keyboardMode: 'shift' }).keyboardMode).toBe('shift')
+  })
+
+  it('persists keyboard mode independently for each terminal', () => {
+    const values = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value) },
+    }
+
+    writeTerminalKeyboardMode('studio', 'shell', 'shift', storage)
+    writeTerminalKeyboardMode('studio', 'editor', 'resize', storage)
+    writeTerminalKeyboardMode('server', 'shell', 'auto', storage)
+
+    expect(readTerminalKeyboardMode('studio', 'shell', storage)).toBe('shift')
+    expect(readTerminalKeyboardMode('studio', 'editor', storage)).toBe('resize')
+    expect(readTerminalKeyboardMode('server', 'shell', storage)).toBe('auto')
+    expect(readTerminalKeyboardMode('server', 'editor', storage)).toBeUndefined()
+
+    values.set('anytty.terminal.keyboard-mode.v1:legacy:shell', 'overlay')
+    expect(readTerminalKeyboardMode('legacy', 'shell', storage)).toBe('shift')
+  })
+
+  it('interpolates momentum continuously between migrated preset values', () => {
+    expect(resolveTerminalMomentumProfile(0)).toEqual({ enabled: false, deceleration: 0, minimumVelocity: 0 })
+    expect(resolveTerminalMomentumProfile(25)).toEqual({ enabled: true, deceleration: 0.95, minimumVelocity: 60 })
+    expect(resolveTerminalMomentumProfile(60)).toEqual({ enabled: true, deceleration: 0.985, minimumVelocity: 20 })
+    expect(resolveTerminalMomentumProfile(100)).toEqual({ enabled: true, deceleration: 0.99, minimumVelocity: 10 })
+    expect(resolveTerminalMomentumProfile(50).deceleration).toBeGreaterThan(resolveTerminalMomentumProfile(49).deceleration)
   })
 
   it('offers bundled and platform terminal fonts while dropping stale settings', () => {

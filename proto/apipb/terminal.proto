@@ -258,6 +258,8 @@ message TerminalLifecycleEvent {
   TerminalInfo terminal = 1;
   bool attachment_projection = 2;
   ResizeControl resize_control = 3;
+  // resize_epoch versions the complete owner projection, including no-owner state.
+  uint64 resize_epoch = 4;
 }
 
 message TerminalResizeControlEvent {

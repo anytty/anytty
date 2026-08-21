@@ -188,6 +188,7 @@ type Server struct {
 	protocolAttachments    map[string]protocolAttachment
 	protocolChannelIndex   map[protocolAttachmentKey]string
 	protocolResizeOwners   map[string]string
+	protocolResizeEpochs   map[string]uint64
 	protocolSizeLocks      map[string]bool
 	protocolOwnerEpoch     uint64
 	remoteServiceMu        sync.RWMutex
@@ -264,6 +265,7 @@ func NewServer(opts ...ServerOption) *Server {
 		protocolAttachments:  make(map[string]protocolAttachment),
 		protocolChannelIndex: make(map[protocolAttachmentKey]string),
 		protocolResizeOwners: make(map[string]string),
+		protocolResizeEpochs: make(map[string]uint64),
 		protocolSizeLocks:    make(map[string]bool),
 		remoteService:        cfg.remoteService,
 		clientAccessService:  cfg.clientAccessService,

@@ -94,7 +94,8 @@ describe('CoreV2 history interaction', () => {
     })).resolves.toEqual(result)
     expect(source.search).toHaveBeenCalledWith({
       terminalId: 'terminal-1', token: 'token-1', generation: '7', query: 'alpha',
-      direction: 'backward', cols: 80, limit: 12, start: { lineId: '41', col: 6 },
+      mode: 'text', direction: 'backward', cols: 80, limit: 12,
+      start: { lineId: '41', col: 6 },
     })
   })
 

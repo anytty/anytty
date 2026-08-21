@@ -21,6 +21,7 @@ import {
   TerminalInputCommandSchema,
   TerminalRefSchema,
   TerminalResizeCommandSchema,
+  TerminalResizeLockCommandSchema,
   TerminalSizeSchema,
   TerminalState,
   type AttachmentHandle,
@@ -29,6 +30,7 @@ import {
 } from '../generated/apipb/terminal_pb'
 import type {
   TerminalInputSize,
+  TerminalHistorySearchMode,
   TerminalHistorySearchResult,
   TerminalProtocolChannel,
   TerminalProtocolEvent,
@@ -40,6 +42,7 @@ import type {
 import { coreV2HistoryRowsANSI } from './coreV2HistoryANSI'
 import { createCoreV2HistorySource } from './coreV2HistorySource'
 import { CoreV2ScrollbackPager } from './coreV2ScrollbackPager'
+import { describeTerminalMouseInput, traceTerminalScroll } from './terminalScrollTrace'
 import {
   mergeLiveScreenResult,
   type CanonicalLiveScreen,
@@ -71,7 +74,9 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
   private readonly subscribers = new Map<string, Set<(event: TerminalProtocolEvent) => void>>()
   private readonly terminalSizes = new Map<string, TerminalInputSize>()
   private readonly inputTails = new Map<string, Promise<void>>()
+  private readonly mouseInputGenerations = new Map<string, number>()
   private readonly eventSubscriptions = new Map<string, Promise<ProtoClientSubscription>>()
+  private readonly resizeEpochs = new Map<string, bigint>()
   private readonly liveScreens = new Map<string, LiveScreenDeliveryState>()
   private readonly scrollbackPager: CoreV2ScrollbackPager
   private documentVisible = typeof document === 'undefined' || document.visibilityState !== 'hidden'
@@ -100,11 +105,23 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
       types: [ApplicationEventType.TERMINAL_LIFECYCLE],
     }), (event) => {
       if (event.event.case === 'terminalLifecycle') {
-        const terminal = event.event.value.terminal
+        const lifecycle = event.event.value
+        const terminal = lifecycle.terminal
         const terminalId = terminal?.ref?.terminalId
         if (terminal && terminalId) {
           this.rememberSize(terminalId, terminal.size)
           this.publish(terminalId, { type: 'info', info: terminalInfoView(terminal) })
+          const attachment = this.attachments.get(terminalId)?.handle
+          if (lifecycle.attachmentProjection && lifecycle.resizeControl && attachment) {
+            const eventEpoch = this.resizeEpoch(lifecycle.resizeControl, lifecycle.resizeEpoch)
+            const currentEpoch = this.resizeEpochs.get(terminalId) ?? 0n
+            if ((eventEpoch === 0n && currentEpoch > 0n) || (eventEpoch > 0n && eventEpoch < currentEpoch)) return
+            this.rememberResizeEpoch(terminalId, lifecycle.resizeControl, lifecycle.resizeEpoch)
+            this.publish(terminalId, {
+              type: 'resizeControl',
+              control: attachmentResizeControlView(lifecycle.resizeControl, attachment),
+            })
+          }
         }
       }
     })
@@ -120,6 +137,15 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
     if (!opening) return
     this.eventSubscriptions.delete(terminalId)
     void opening.then((subscription) => subscription.close()).catch(() => undefined)
+  }
+
+  private resizeEpoch(control: ResizeControl | undefined, explicit = 0n): bigint {
+    return explicit || control?.ownership?.epoch || 0n
+  }
+
+  private rememberResizeEpoch(terminalId: string, control: ResizeControl | undefined, explicit = 0n): void {
+    const epoch = this.resizeEpoch(control, explicit)
+    if (epoch > (this.resizeEpochs.get(terminalId) ?? 0n)) this.resizeEpochs.set(terminalId, epoch)
   }
 
   async openTerminal(terminalId: string): Promise<TerminalProtocolChannel> {
@@ -155,6 +181,7 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
       reason: 'open',
     }
     this.liveScreens.set(terminalId, liveState)
+    this.rememberResizeEpoch(terminalId, result.result.value.resizeControl)
     this.publish(terminalId, { type: 'resizeControl', control: resizeControlView(result.result.value.resizeControl) })
     await Promise.all([this.publishTerminalInfo(terminalId), this.startLiveScreenRequest(terminalId, liveState)])
     return channel
@@ -224,12 +251,13 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
     cols: number,
     limit: number,
     start?: { lineId: string; col: number } | undefined,
-    options?: { signal?: AbortSignal | undefined },
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
   ): Promise<TerminalHistorySearchResult> {
     const result = await this.scrollbackPager.search({
       terminalId,
       query,
       direction,
+      mode: options?.mode ?? 'text',
       cols,
       limit,
       ...(start ? { start } : {}),
@@ -241,6 +269,7 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
       wrapped: result.wrapped,
       match: result.match,
       matchRow: result.matchRow,
+      matchRanges: result.matchRanges,
       page: {
         beforeOffset: 0,
         limit,
@@ -288,6 +317,8 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
     const attachment = this.attachments.get(terminalId)
     if (!attachment) return
     this.attachments.delete(terminalId)
+    this.resizeEpochs.delete(terminalId)
+    this.mouseInputGenerations.delete(terminalId)
     attachment.channel.markClosed()
     void this.session.execute(command('terminalDetach', create(TerminalDetachCommandSchema, {
       attachment: attachment.handle.resource,
@@ -354,20 +385,50 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
   }
 
   requestResizeOwner(terminalId: string, size?: TerminalInputSize): Promise<TerminalResizeControl> {
-    return this.resize(terminalId, size ?? { cols: 80, rows: 24 }, ResizePolicy.OWNER)
+    return this.resize(terminalId, size ?? { cols: 80, rows: 24 }, ResizePolicy.OWNER, true)
   }
 
   releaseResizeOwner(terminalId: string): Promise<TerminalResizeControl> {
     return this.resize(terminalId, this.terminalSizes.get(terminalId) ?? { cols: 80, rows: 24 }, ResizePolicy.FOLLOWER)
   }
 
+  async setResizeLock(terminalId: string, locked: boolean): Promise<TerminalResizeControl> {
+    const resource = this.attachments.get(terminalId)?.handle.resource
+    if (!resource) throw new Error('terminal attachment is unavailable')
+    const result = await this.session.execute(command('terminalResizeLock', create(TerminalResizeLockCommandSchema, {
+      attachment: resource,
+      locked,
+    })))
+    if (result.result.case !== 'terminalResize') throw new Error('terminal resize lock returned no result')
+    this.rememberResizeEpoch(terminalId, result.result.value.resizeControl)
+    const control = resizeControlView(result.result.value.resizeControl)
+    this.publish(terminalId, { type: 'resizeControl', control })
+    return control
+  }
+
   sendInput(terminalId: string, data: string, size?: TerminalInputSize): void {
     const attachment = this.attachments.get(terminalId)
     const resource = attachment?.handle.resource
     if (!attachment || !resource) throw new Error('terminal attachment is unavailable')
+    const mouseInput = describeTerminalMouseInput(data)
+    const mouseInputGeneration = mouseInput ? (this.mouseInputGenerations.get(terminalId) ?? 0) : undefined
+    if (mouseInput) {
+      traceTerminalScroll('pty.input.queue', {
+        terminalId,
+        details: { ...mouseInput, queuedBehindInput: this.inputTails.has(terminalId), size },
+      })
+    }
     // PTY input 的真值顺序是用户事件顺序；同一 terminal 必须串行等待 ACK，不能按并发 RPC 完成顺序写入。
     const send = async () => {
       if (this.attachments.get(terminalId) !== attachment) return
+      if (mouseInputGeneration !== undefined && (this.mouseInputGenerations.get(terminalId) ?? 0) !== mouseInputGeneration) {
+        traceTerminalScroll('pty.input.cancelled', {
+          terminalId,
+          details: { ...mouseInput, mouseInputGeneration },
+        })
+        return
+      }
+      if (mouseInput) traceTerminalScroll('pty.input.start', { terminalId, details: { ...mouseInput } })
       if (size) await this.resize(terminalId, size, ResizePolicy.OWNER)
       if (this.attachments.get(terminalId) !== attachment) return
       const result = await this.session.execute(command('terminalInput', create(TerminalInputCommandSchema, {
@@ -375,6 +436,7 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
         data: new TextEncoder().encode(data),
       })))
       if (result.result.case !== 'acknowledge') throw new Error('terminal input was not acknowledged')
+      if (mouseInput) traceTerminalScroll('pty.input.ack', { terminalId, details: { ...mouseInput } })
     }
     const previous = this.inputTails.get(terminalId) ?? Promise.resolve()
     const next = previous.then(send).catch((error) => {
@@ -388,22 +450,30 @@ class ProtoTerminalProtocolSession implements TerminalProtocolSession {
     })
   }
 
+  cancelPendingMouseInput(terminalId: string): void {
+    const generation = (this.mouseInputGenerations.get(terminalId) ?? 0) + 1
+    this.mouseInputGenerations.set(terminalId, generation)
+    traceTerminalScroll('pty.input.cancel', { terminalId, details: { generation } })
+  }
+
   sendResize(terminalId: string, cols: number, rows: number): void {
     void this.resize(terminalId, { cols, rows }, ResizePolicy.OWNER).catch((error) => {
       this.publish(terminalId, { type: 'closed', reason: errorMessage(error) })
     })
   }
 
-  private async resize(terminalId: string, size: TerminalInputSize, policy: ResizePolicy): Promise<TerminalResizeControl> {
+  private async resize(terminalId: string, size: TerminalInputSize, policy: ResizePolicy, takeOwnership = false): Promise<TerminalResizeControl> {
     const resource = this.attachments.get(terminalId)?.handle.resource
     if (!resource) throw new Error('terminal attachment is unavailable')
     const result = await this.session.execute(command('terminalResize', create(TerminalResizeCommandSchema, {
       attachment: resource,
       size: create(TerminalSizeSchema, { cols: size.cols, rows: size.rows }),
       resizePolicy: policy,
+      takeOwnership,
     })))
     if (result.result.case !== 'terminalResize') throw new Error('terminal resize returned no result')
     this.terminalSizes.set(terminalId, size)
+    this.rememberResizeEpoch(terminalId, result.result.value.resizeControl)
     const control = resizeControlView(result.result.value.resizeControl)
     this.publish(terminalId, { type: 'resizeControl', control })
     return control
@@ -505,6 +575,7 @@ class ProtoTerminalChannel implements TerminalProtocolChannel {
 
   send(_data: Uint8Array): void { throw new Error('Proto terminal channel accepts semantic input only') }
   sendInput(data: string, size?: TerminalInputSize): void { this.owner.sendInput(this.terminalId, data, size) }
+  cancelPendingMouseInput(): void { this.owner.cancelPendingMouseInput(this.terminalId) }
   sendResize(cols: number, rows: number): void { this.owner.sendResize(this.terminalId, cols, rows) }
   close(): void { this.owner.closeTerminalChannel(this.terminalId) }
   markClosed(): void { this.readyState = 'closed' }
@@ -670,6 +741,21 @@ function resizeControlView(control: ResizeControl | undefined): TerminalResizeCo
     ...(control.surfaceId ? { surfaceId: control.surfaceId } : {}),
     ...(control.ownerSurfaceId ? { ownerSurfaceId: control.ownerSurfaceId } : {}),
     ...(control.ownerViewId ? { ownerViewId: control.ownerViewId } : {}),
+  }
+}
+
+function attachmentResizeControlView(control: ResizeControl, attachment: AttachmentHandle): TerminalResizeControl {
+  const ownerSurfaceId = control.ownerSurfaceId || control.ownership?.ownerSurfaceId || ''
+  const ownerViewId = control.ownerViewId || control.ownership?.ownerViewId || ''
+  const ownsResize = ownerSurfaceId === attachment.surfaceId && (!ownerViewId || ownerViewId === attachment.viewId)
+  const sizeLocked = control.sizeLocked || control.ownership?.sizeLocked === true
+  return {
+    canResize: ownsResize && !sizeLocked,
+    reason: ownsResize ? sizeLocked ? 'size_locked' : 'owner' : 'follower',
+    sizeLocked,
+    ...(attachment.surfaceId ? { surfaceId: attachment.surfaceId } : {}),
+    ...(ownerSurfaceId ? { ownerSurfaceId } : {}),
+    ...(ownerViewId ? { ownerViewId } : {}),
   }
 }
 

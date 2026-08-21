@@ -10,6 +10,7 @@ import {
   TerminalClient,
   type TerminalClientCallbacks,
   type TerminalHistorySearchResult,
+  type TerminalHistorySearchMode,
   type TerminalProtocolSession,
   type TerminalResizeControl,
   type TerminalScrollbackLoadResult,
@@ -26,9 +27,7 @@ import type {
 } from '../core/transport'
 
 const recentInputRecoveryWindowMs = 1500
-const inputRecoveryMaxEntries = 64
-const inputRecoveryMaxBytes = 64 * 1024
-const inputRecoveryOverflowReason = 'Terminal input is blocked because the recovery buffer is full'
+const inputDeliveryUncertainReason = 'Terminal input delivery is uncertain. It was not resent.'
 const outputStatsIntervalMs = 1000
 const largeOutputChunkBytes = 64 * 1024
 const liveOutputPublishDelayMs = 120
@@ -57,17 +56,20 @@ export interface UseTerminalSessionResult {
   terminalInfo: Terminal | null
   resizeControl: TerminalResizeControl
   historyReady: boolean
-  /** True once the channel accepts locally or recovery owns replay; this is not a remote PTY acknowledgement. */
+  /** True only when the current channel accepts the input locally; uncertain input is never replayed. */
   sendInput(data: string, size?: { cols: number; rows: number }): boolean
+  cancelPendingMouseInput(): boolean
   sendResize(cols: number, rows: number): boolean
   requestResizeOwner(size?: { cols: number; rows: number }): Promise<TerminalResizeControl>
   releaseResizeOwner(): Promise<TerminalResizeControl>
+  setResizeLock(locked: boolean): Promise<TerminalResizeControl>
   loadScrollback(limit?: number, alternate?: boolean, cols?: number): Promise<TerminalScrollbackLoadResult>
   searchScrollback(
     query: string,
     direction: 'forward' | 'backward',
     cols: number,
     start?: { lineId: string; col: number } | undefined,
+    mode?: TerminalHistorySearchMode | undefined,
   ): Promise<TerminalHistorySearchResult>
   copyScrollback(
     range: { startLineId: string; startCol: number; endLineId: string; endCol: number },
@@ -88,20 +90,10 @@ export interface UseTerminalSessionResult {
 
 type TerminalSession = ProtoClientSession
 
-interface InputRecoveryMessage {
-  data: string
-  size?: { cols: number; rows: number } | undefined
-  byteLength: number
-}
-
 interface InputRecoveryOwner {
   readonly session: TerminalSession
   readonly sequence: number
-  phase: 'recent' | 'recovering' | 'draining'
-  messages: InputRecoveryMessage[]
-  nextIndex: number
-  queuedBytes: number
-  overflowed: boolean
+  phase: 'recent' | 'recovering'
   expiryTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -159,7 +151,6 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
   const inputRecoverySequenceRef = useRef(0)
   const terminalRecoveryPromiseRef = useRef<Promise<boolean> | null>(null)
   const terminalRecoverySeqRef = useRef(0)
-  const inputTextEncoderRef = useRef(new TextEncoder())
   const textDecoderRef = useRef(new TextDecoder())
   const onOutputRef = useRef<((text: string) => void) | undefined>(options.onOutput)
   const terminalTextRef = useRef('')
@@ -250,16 +241,6 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     setInputRecoveryFailure({ session: owner.session, sequence: owner.sequence, reason })
     return true
   }, [isCurrentInputRecoveryOwner])
-
-  const setCurrentInputRecoveryFailure = useCallback((
-    session: TerminalSession,
-    sequence: number,
-    reason: string,
-  ): boolean => {
-    if (sessionRef.current !== session || inputRecoverySequenceRef.current !== sequence) return false
-    setInputRecoveryFailure({ session, sequence, reason })
-    return true
-  }, [])
 
   const clearInputRecoveryFailureForOwner = useCallback((owner: InputRecoveryOwner) => {
     setInputRecoveryFailure((current) => (
@@ -418,6 +399,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     }
 
     owner.phase = 'recovering'
+    setInputRecoveryOwnerFailure(owner, inputDeliveryUncertainReason)
     if (owner.expiryTimer !== null) {
       clearTimeout(owner.expiryTimer)
       owner.expiryTimer = null
@@ -434,22 +416,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
           setInputRecoveryOwnerFailure(owner, 'Terminal input recovery failed')
           return
         }
-
-        owner.phase = 'draining'
-        while (isCurrentInputRecoveryOwner(owner) && owner.nextIndex < owner.messages.length) {
-          const message = owner.messages[owner.nextIndex]
-          if (!message) break
-          const accepted = client.sendInput(message.data, message.size)
-          if (!accepted) {
-            setInputRecoveryOwnerFailure(owner, 'Terminal input recovery failed while replaying queued input')
-            return
-          }
-          owner.nextIndex += 1
-          owner.queuedBytes -= message.byteLength
-        }
-        if (isCurrentInputRecoveryOwner(owner) && owner.nextIndex === owner.messages.length) {
-          clearInputRecoveryFailureForOwner(owner)
-        }
+        clearInputRecoveryFailureForOwner(owner)
       } catch (error) {
         setInputRecoveryOwnerFailure(owner, error instanceof Error ? error.message : String(error))
       } finally {
@@ -707,64 +674,29 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     const session = sessionRef.current
     if (!client || !session.isAlive()) return false
 
-    const message: InputRecoveryMessage = {
-      data,
-      ...(size ? { size } : {}),
-      byteLength: inputTextEncoderRef.current.encode(data).byteLength,
-    }
     const currentOwner = inputRecoveryOwnerRef.current
     if (currentOwner && isCurrentInputRecoveryOwner(currentOwner) && currentOwner.phase !== 'recent') {
-      const queuedEntries = currentOwner.messages.length - currentOwner.nextIndex
-      if (
-        queuedEntries >= inputRecoveryMaxEntries ||
-        currentOwner.queuedBytes + message.byteLength > inputRecoveryMaxBytes
-      ) {
-        currentOwner.overflowed = true
-        setInputRecoveryOwnerFailure(currentOwner, inputRecoveryOverflowReason)
-        return false
-      }
-      currentOwner.messages.push(message)
-      currentOwner.queuedBytes += message.byteLength
-      clearInputRecoveryFailureForAcceptedInput(session, currentOwner.sequence)
-      return true
+      return false
     }
     if (currentOwner) clearInputRecoveryOwner(currentOwner)
 
-    let owner: InputRecoveryOwner | null = null
-    if (message.byteLength <= inputRecoveryMaxBytes) {
-      const sequence = inputRecoverySequenceRef.current + 1
-      inputRecoverySequenceRef.current = sequence
-      const recentOwner: InputRecoveryOwner = {
-        session,
-        sequence,
-        phase: 'recent',
-        messages: [message],
-        nextIndex: 0,
-        queuedBytes: message.byteLength,
-        overflowed: false,
-        expiryTimer: null,
-      }
-      owner = recentOwner
-      inputRecoveryOwnerRef.current = recentOwner
-      recentOwner.expiryTimer = setTimeout(() => {
-        clearInputRecoveryOwner(recentOwner)
-      }, recentInputRecoveryWindowMs)
+    const sequence = inputRecoverySequenceRef.current + 1
+    inputRecoverySequenceRef.current = sequence
+    const owner: InputRecoveryOwner = {
+      session,
+      sequence,
+      phase: 'recent',
+      expiryTimer: null,
     }
+    inputRecoveryOwnerRef.current = owner
+    owner.expiryTimer = setTimeout(() => {
+      clearInputRecoveryOwner(owner)
+    }, recentInputRecoveryWindowMs)
 
     const sent = client.sendInput(data, size)
     if (sent) {
-      clearInputRecoveryFailureForAcceptedInput(session, owner?.sequence ?? inputRecoverySequenceRef.current)
+      clearInputRecoveryFailureForAcceptedInput(session, owner.sequence)
       return true
-    }
-    if (!owner) {
-      const sequence = inputRecoverySequenceRef.current + 1
-      inputRecoverySequenceRef.current = sequence
-      setCurrentInputRecoveryFailure(
-        session,
-        sequence,
-        'Terminal input was not accepted and exceeds the recovery buffer limit',
-      )
-      return false
     }
     if (!session.isAlive()) {
       clearInputRecoveryOwner(owner)
@@ -773,15 +705,18 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     if (owner.phase === 'recent') {
       startInputRecoveryOwner(owner, 'terminal input send failed')
     }
-    const accepted = isCurrentInputRecoveryOwner(owner) && owner.phase !== 'recent'
-    if (accepted) clearInputRecoveryFailureForAcceptedInput(session, owner.sequence)
-    return accepted
-  }, [clearInputRecoveryFailureForAcceptedInput, clearInputRecoveryOwner, isCurrentInputRecoveryOwner, options.historyOnly, setCurrentInputRecoveryFailure, setInputRecoveryOwnerFailure, startInputRecoveryOwner])
+    return false
+  }, [clearInputRecoveryFailureForAcceptedInput, clearInputRecoveryOwner, isCurrentInputRecoveryOwner, options.historyOnly, startInputRecoveryOwner])
 
   const sendResize = useCallback((cols: number, rows: number) => {
     if (options.historyOnly) return false
     return clientRef.current?.sendResize(cols, rows) ?? false
   }, [logSession, options.historyOnly])
+
+  const cancelPendingMouseInput = useCallback(() => {
+    if (options.historyOnly) return false
+    return clientRef.current?.cancelPendingMouseInput() ?? false
+  }, [options.historyOnly])
 
   const requestResizeOwner = useCallback((size?: { cols: number; rows: number }) => {
     return clientRef.current?.requestResizeOwner(size) ?? Promise.reject(new Error('terminal client is not connected'))
@@ -789,6 +724,10 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
 
   const releaseResizeOwner = useCallback(() => {
     return clientRef.current?.releaseResizeOwner() ?? Promise.reject(new Error('terminal client is not connected'))
+  }, [])
+
+  const setResizeLock = useCallback((locked: boolean) => {
+    return clientRef.current?.setResizeLock(locked) ?? Promise.reject(new Error('terminal client is not connected'))
   }, [])
 
   const markSyncLost = useCallback((reason?: string) => {
@@ -1189,6 +1128,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     direction: 'forward' | 'backward',
     cols: number,
     start?: { lineId: string; col: number } | undefined,
+    mode: TerminalHistorySearchMode = 'text',
   ): Promise<TerminalHistorySearchResult> => {
     const client = clientRef.current
     if (!client) throw new Error('terminal client is not connected')
@@ -1199,7 +1139,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     scrollbackAbortControllerRef.current = controller
     const timeout = setTimeout(() => controller.abort(new Error(`Terminal history search timed out after ${scrollbackLoadTimeoutMs}ms`)), scrollbackLoadTimeoutMs)
     try {
-      const result = await client.searchScrollback(query, direction, cols, 100, start, { signal: controller.signal })
+      const result = await client.searchScrollback(query, direction, cols, 100, start, { signal: controller.signal, mode })
       if (!result.found || !result.page) return result
       const page = result.page
       loadedScrollbackRowsRef.current = page.rows
@@ -1226,6 +1166,7 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
           rowInLogicalLines: scrollbackRowInLinesRef.current,
           rowLogicalStartCols: scrollbackRowStartColsRef.current,
           searchMatchRow: result.matchRow ?? 0,
+          ...(result.matchRanges ? { searchMatchRanges: result.matchRanges } : {}),
           hasMore: page.hasMore,
           alternate: false,
         },
@@ -1283,9 +1224,11 @@ export function useTerminalSession(options: UseTerminalSessionOptions): UseTermi
     resizeControl,
     historyReady,
     sendInput,
+    cancelPendingMouseInput,
     sendResize,
     requestResizeOwner,
     releaseResizeOwner,
+    setResizeLock,
     loadScrollback,
     searchScrollback,
     copyScrollback,

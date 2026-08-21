@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf'
 import { describe, expect, it, vi } from 'vitest'
+import { EventEnvelopeSchema } from '../generated/apipb/application_pb'
 import { ResourceHandleSchema, ResourceKind } from '../generated/apipb/common_pb'
 import { ApplicationEventType } from '../generated/apipb/events_pb'
 import {
@@ -15,9 +16,13 @@ import {
 } from '../generated/apipb/history_pb'
 import {
   AttachmentHandleSchema,
+  ResizeControlReason,
+  ResizePolicy,
+  TerminalResizeResultSchema,
   TerminalAttachResultSchema,
   TerminalGetResultSchema,
   TerminalInfoSchema,
+  TerminalLifecycleEventSchema,
   TerminalRefSchema,
   TerminalSizeSchema,
 } from '../generated/apipb/terminal_pb'
@@ -25,6 +30,57 @@ import { MockProtoSession, protoResult } from '../test/mockProtoSession'
 import { createProtoTerminalProtocolSession } from './protoTerminalProtocolSession'
 
 describe('ProtoTerminalProtocolSession input ordering', () => {
+  it('distinguishes explicit owner acquisition from owner release', async () => {
+    let session: MockProtoSession
+    session = new MockProtoSession('machine-resize-owner', (command) => {
+      switch (command.command.case) {
+        case 'eventSubscribe':
+          return protoResult('eventSubscription', { subscription: resource(ResourceKind.SUBSCRIPTION, 1, session) })
+        case 'terminalAttach':
+          return protoResult('terminalAttach', create(TerminalAttachResultSchema, {
+            attachment: create(AttachmentHandleSchema, {
+              resource: resource(ResourceKind.ATTACHMENT, 2, session),
+              terminal: terminalRef(session, 'terminal-1'),
+            }),
+          }))
+        case 'terminalGet':
+          return protoResult('terminalGet', create(TerminalGetResultSchema, {
+            terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-1') }),
+          }))
+        case 'terminalResize':
+          return protoResult('terminalResize', create(TerminalResizeResultSchema, {
+            resizeControl: { canResize: command.command.value.takeOwnership, reason: command.command.value.takeOwnership ? ResizeControlReason.OWNER : ResizeControlReason.FOLLOWER },
+          }))
+        case 'terminalResizeLock':
+          return protoResult('terminalResize', create(TerminalResizeResultSchema, {
+            resizeControl: { canResize: false, reason: ResizeControlReason.SIZE_LOCKED, sizeLocked: command.command.value.locked },
+          }))
+        case 'liveScreenNext':
+          return protoResult('liveScreen', screenResult(session, 'terminal-1'))
+        default:
+          return protoResult('acknowledge', {})
+      }
+    })
+    const protocol = createProtoTerminalProtocolSession(session)
+    await protocol.openTerminal('terminal-1')
+
+    expect(session.commands.find((entry) => entry.command.case === 'terminalAttach')?.command).toMatchObject({
+      case: 'terminalAttach',
+      value: { resizePolicy: ResizePolicy.OWNER },
+    })
+
+    await protocol.requestResizeOwner?.('terminal-1', { cols: 90, rows: 25 })
+    await protocol.releaseResizeOwner?.('terminal-1')
+    await protocol.setResizeLock?.('terminal-1', true)
+
+    const resizeCommands = session.commands.filter((entry) => entry.command.case === 'terminalResize')
+    expect(resizeCommands.map((entry) => entry.command.case === 'terminalResize' ? entry.command.value.takeOwnership : null)).toEqual([true, false])
+    expect(session.commands.find((entry) => entry.command.case === 'terminalResizeLock')?.command).toMatchObject({
+      case: 'terminalResizeLock',
+      value: { locked: true },
+    })
+  })
+
   it('filters terminal events to the terminal being opened', async () => {
     let session: MockProtoSession
     session = new MockProtoSession('machine-scoped-events', (command) => {
@@ -60,6 +116,102 @@ describe('ProtoTerminalProtocolSession input ordering', () => {
         types: [ApplicationEventType.TERMINAL_LIFECYCLE],
       },
     })
+  })
+
+  it('projects lifecycle resize ownership onto the local attachment identity', async () => {
+    let session: MockProtoSession
+    session = new MockProtoSession('machine-owner-events', (command) => {
+      switch (command.command.case) {
+        case 'eventSubscribe':
+          return protoResult('eventSubscription', { subscription: resource(ResourceKind.SUBSCRIPTION, 1, session) })
+        case 'terminalAttach':
+          return protoResult('terminalAttach', create(TerminalAttachResultSchema, {
+            attachment: create(AttachmentHandleSchema, {
+              resource: resource(ResourceKind.ATTACHMENT, 2, session),
+              terminal: terminalRef(session, 'terminal-owner-events'),
+              surfaceId: 'mobile-terminal-owner-events',
+              viewId: 'mobile-view',
+            }),
+          }))
+        case 'terminalGet':
+          return protoResult('terminalGet', create(TerminalGetResultSchema, {
+            terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-owner-events') }),
+          }))
+        case 'liveScreenNext':
+          return protoResult('liveScreen', screenResult(session, 'terminal-owner-events'))
+        default:
+          return protoResult('acknowledge', {})
+      }
+    })
+    const protocol = createProtoTerminalProtocolSession(session)
+    const controls: Array<{ reason: string; canResize: boolean; sizeLocked?: boolean }> = []
+    protocol.subscribeTerminal('terminal-owner-events', (event) => {
+      if (event.type === 'resizeControl') controls.push(event.control)
+    })
+    await protocol.openTerminal('terminal-owner-events')
+    controls.length = 0
+
+    session.emit(create(EventEnvelopeSchema, {
+      subscription: resource(ResourceKind.SUBSCRIPTION, 1, session),
+      event: { case: 'terminalLifecycle', value: create(TerminalLifecycleEventSchema, {
+        terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-owner-events') }),
+        attachmentProjection: true,
+        resizeEpoch: 5n,
+        resizeControl: {
+          canResize: true,
+          reason: ResizeControlReason.OWNER,
+          ownerSurfaceId: 'desktop-terminal-owner-events',
+          ownerViewId: 'desktop-view',
+        },
+      }) },
+    }))
+    expect(controls.at(-1)).toMatchObject({ reason: 'follower', canResize: false, sizeLocked: false })
+
+    session.emit(create(EventEnvelopeSchema, {
+      subscription: resource(ResourceKind.SUBSCRIPTION, 1, session),
+      event: { case: 'terminalLifecycle', value: create(TerminalLifecycleEventSchema, {
+        terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-owner-events') }),
+        attachmentProjection: true,
+        resizeEpoch: 6n,
+        resizeControl: {
+          canResize: false,
+          reason: ResizeControlReason.SIZE_LOCKED,
+          sizeLocked: true,
+          ownerSurfaceId: 'mobile-terminal-owner-events',
+          ownerViewId: 'mobile-view',
+        },
+      }) },
+    }))
+    expect(controls.at(-1)).toMatchObject({ reason: 'size_locked', canResize: false, sizeLocked: true })
+
+    const controlCount = controls.length
+    session.emit(create(EventEnvelopeSchema, {
+      subscription: resource(ResourceKind.SUBSCRIPTION, 1, session),
+      event: { case: 'terminalLifecycle', value: create(TerminalLifecycleEventSchema, {
+        terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-owner-events') }),
+        attachmentProjection: true,
+        resizeEpoch: 5n,
+        resizeControl: {
+          canResize: true,
+          reason: ResizeControlReason.OWNER,
+          ownerSurfaceId: 'desktop-terminal-owner-events',
+          ownerViewId: 'desktop-view',
+        },
+      }) },
+    }))
+    expect(controls).toHaveLength(controlCount)
+    expect(controls.at(-1)).toMatchObject({ reason: 'size_locked', canResize: false, sizeLocked: true })
+
+    session.emit(create(EventEnvelopeSchema, {
+      subscription: resource(ResourceKind.SUBSCRIPTION, 1, session),
+      event: { case: 'terminalLifecycle', value: create(TerminalLifecycleEventSchema, {
+        terminal: create(TerminalInfoSchema, { ref: terminalRef(session, 'terminal-owner-events') }),
+        attachmentProjection: true,
+        resizeEpoch: 7n,
+        resizeControl: { reason: ResizeControlReason.FOLLOWER },
+      }) },
+    }))
+    expect(controls.at(-1)).toMatchObject({ reason: 'follower', canResize: false, sizeLocked: false })
   })
 
   it('publishes endpoint identity with terminal metadata', async () => {
@@ -558,6 +710,53 @@ describe('ProtoTerminalProtocolSession input ordering', () => {
     acknowledge.shift()?.()
     await vi.waitFor(() => expect(sent).toEqual(['a', 'b', 'c']))
     acknowledge.shift()?.()
+  })
+
+  it('drops queued mouse input from an older gesture after cancellation', async () => {
+    const sent: string[] = []
+    const acknowledge: Array<() => void> = []
+    let session: MockProtoSession
+    session = new MockProtoSession('machine-input-cancel', (command) => {
+      switch (command.command.case) {
+        case 'eventSubscribe':
+          return protoResult('eventSubscription', { subscription: resource(ResourceKind.SUBSCRIPTION, 1, session) })
+        case 'terminalAttach':
+          return protoResult('terminalAttach', create(TerminalAttachResultSchema, {
+            attachment: create(AttachmentHandleSchema, {
+              resource: resource(ResourceKind.ATTACHMENT, 2, session),
+              terminal: create(TerminalRefSchema, { endpointId: session.stamp.endpointId, terminalId: 'terminal-1' }),
+            }),
+          }))
+        case 'terminalGet':
+          return protoResult('terminalGet', create(TerminalGetResultSchema, {
+            terminal: create(TerminalInfoSchema, {
+              ref: create(TerminalRefSchema, { endpointId: session.stamp.endpointId, terminalId: 'terminal-1' }),
+            }),
+          }))
+        case 'liveScreenNext':
+          return protoResult('liveScreen', screenResult(session, 'terminal-1'))
+        case 'terminalInput':
+          sent.push(new TextDecoder().decode(command.command.value.data))
+          return new Promise((resolve) => acknowledge.push(() => resolve(protoResult('acknowledge', {}))))
+        default:
+          return protoResult('acknowledge', {})
+      }
+    })
+    const protocol = createProtoTerminalProtocolSession(session)
+    const channel = await protocol.openTerminal('terminal-1')
+    const down = '\x1b[<65;1;1M'
+
+    channel.sendInput?.(down)
+    channel.sendInput?.(down)
+    await vi.waitFor(() => expect(sent).toEqual([down]))
+    channel.cancelPendingMouseInput?.()
+    channel.sendInput?.(down)
+
+    acknowledge.shift()?.()
+    await vi.waitFor(() => expect(sent).toEqual([down, down]))
+    acknowledge.shift()?.()
+    await Promise.resolve()
+    expect(sent).toEqual([down, down])
   })
 })
 

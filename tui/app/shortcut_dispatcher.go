@@ -79,7 +79,7 @@ func buildActionHandlerRegistry() map[actiondomain.ID]actionHandler {
 			return input.Intent{Kind: kind, Event: event, Invocation: invocation}, true
 		})
 	}
-	for _, id := range []string{"copy.line_start", "copy.line_end", "copy.cursor_left", "copy.cursor_right", "copy.cursor_down", "copy.cursor_up", "copy.accept", "copy.oldest", "copy.newest", "copy.half_page_older", "copy.half_page_newer", "copy.mark", "copy.copy_selection", "copy.search_start", "copy.search_next", "copy.search_previous"} {
+	for _, id := range []string{"copy.line_start", "copy.line_end", "copy.cursor_left", "copy.cursor_right", "copy.cursor_down", "copy.cursor_up", "copy.accept", "copy.oldest", "copy.newest", "copy.half_page_older", "copy.half_page_newer", "copy.mark", "copy.copy_selection", "copy.search_start", "copy.search_mode", "copy.search_next", "copy.search_previous"} {
 		id := id
 		register(actiondomain.ID(id), func(invocation actiondomain.Invocation, event input.InputEvent) (input.Intent, bool) {
 			return input.Intent{Kind: input.IntentCopyCommand, Command: id, Event: event, Invocation: invocation}, true

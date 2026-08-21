@@ -4,6 +4,7 @@ import type {
   CoreV2HistoryCursor,
   CoreV2HistoryRange,
   CoreV2HistorySearchDirection,
+  CoreV2HistorySearchMode,
   CoreV2HistorySearchResult,
   CoreV2HistoryTextPosition,
 } from './coreV2TerminalProtocol'
@@ -81,6 +82,7 @@ export async function searchHistorySurface(
   query: string,
   options: {
     direction?: CoreV2HistorySearchDirection | undefined
+    mode?: CoreV2HistorySearchMode | undefined
     start?: CoreV2HistoryTextPosition | undefined
     limit?: number | undefined
     signal?: AbortSignal | undefined
@@ -94,6 +96,7 @@ export async function searchHistorySurface(
     token: snapshot.token,
     generation: snapshot.generation ?? undefined,
     query,
+    mode: options.mode ?? 'text',
     direction: options.direction ?? 'forward',
     cols: snapshot.cols,
     limit: options.limit ?? Math.max(1, snapshot.viewportRows),

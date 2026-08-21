@@ -45,6 +45,7 @@ export interface TerminalSnapshotPayload {
     rowInLogicalLines?: Array<number | undefined>
     rowLogicalStartCols?: Array<number | undefined>
     searchMatchRow?: number
+    searchMatchRanges?: TerminalHistoryMatchRange[]
     hasMore: boolean
     alternate?: boolean
     prefetched?: boolean
@@ -98,7 +99,16 @@ export interface TerminalHistorySearchResult {
   page?: TerminalScrollbackPage | undefined
   match?: { startLineId: string; startCol: number; endLineId: string; endCol: number } | undefined
   matchRow?: number | undefined
+  matchRanges?: TerminalHistoryMatchRange[] | undefined
 }
+
+export interface TerminalHistoryMatchRange {
+  row: number
+  startCol: number
+  endCol: number
+}
+
+export type TerminalHistorySearchMode = 'text' | 'glob' | 'regex'
 
 export type TerminalInfoPayload = Record<string, unknown>
 
@@ -119,6 +129,10 @@ export const defaultTerminalResizeControl: TerminalResizeControl = {
   reason: 'unknown',
 }
 
+export function terminalResizeControlOwnsResize(control: TerminalResizeControl | undefined): boolean {
+  return control?.canResize === true || control?.reason === 'size_locked'
+}
+
 export type TerminalProtocolEvent =
   | { type: 'output'; data: Uint8Array }
   | { type: 'snapshot'; snapshot: TerminalSnapshotPayload }
@@ -131,6 +145,7 @@ export interface TerminalProtocolChannel {
   readonly readyState: 'connecting' | 'open' | 'closing' | 'closed'
   send(data: Uint8Array): void
   sendInput?(data: string, size?: TerminalInputSize): void
+  cancelPendingMouseInput?(): void
   sendResize?(cols: number, rows: number): void
   close(): void
 }
@@ -158,7 +173,7 @@ export interface TerminalProtocolSession {
     cols: number,
     limit: number,
     start?: { lineId: string; col: number } | undefined,
-    options?: { signal?: AbortSignal | undefined },
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
   ): Promise<TerminalHistorySearchResult>
   copyScrollback?(
     terminalId: string,
@@ -174,6 +189,7 @@ export interface TerminalProtocolSession {
   markLiveScreenCompleted?(terminalId: string, revision: bigint): void
   requestResizeOwner?(terminalId: string, size?: TerminalInputSize): Promise<TerminalResizeControl>
   releaseResizeOwner?(terminalId: string): Promise<TerminalResizeControl>
+  setResizeLock?(terminalId: string, locked: boolean): Promise<TerminalResizeControl>
 }
 
 export interface TerminalClientCallbacks {
@@ -265,6 +281,13 @@ export class TerminalClient {
     return sent
   }
 
+  cancelPendingMouseInput(): boolean {
+    const channel = this.channel
+    if (!channel || channel.readyState !== 'open' || !channel.cancelPendingMouseInput) return false
+    channel.cancelPendingMouseInput()
+    return true
+  }
+
   sendResize(cols: number, rows: number): boolean {
     if (!this.resizeControl.canResize) {
       this.log('send_resize_skipped', {
@@ -301,6 +324,16 @@ export class TerminalClient {
     return control
   }
 
+  async setResizeLock(locked: boolean): Promise<TerminalResizeControl> {
+    if (!this.session || !this.terminalId || !this.session.setResizeLock) {
+      throw new Error('terminal resize lock is not available')
+    }
+    const control = await this.session.setResizeLock(this.terminalId, locked)
+    this.resizeControl = control
+    this.callbacks.onResizeControl?.(control)
+    return control
+  }
+
   loadScrollback(
     offset: number,
     limit: number,
@@ -319,7 +352,7 @@ export class TerminalClient {
     cols: number,
     limit: number,
     start?: { lineId: string; col: number } | undefined,
-    options?: { signal?: AbortSignal | undefined },
+    options?: { signal?: AbortSignal | undefined; mode?: TerminalHistorySearchMode | undefined },
   ): Promise<TerminalHistorySearchResult> {
     if (!this.session || !this.terminalId || !this.session.searchScrollback) {
       return Promise.reject(new Error('terminal history search is not available'))
