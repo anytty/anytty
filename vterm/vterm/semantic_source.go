@@ -148,6 +148,20 @@ func (source *SemanticSource) ApplyPTYWrite(raw []byte) (TerminalSemanticTransac
 	return source.transactionFromDamage(source.seq, string(raw), damage), err
 }
 
+// ApplyPTYWriteWithLiveDamage advances the emulator exactly once and returns
+// both the line-history transaction and the latest-screen damage produced by
+// that write. It is the single-emulator production path: history consumes the
+// immutable transaction while live projection consumes the row damage.
+func (source *SemanticSource) ApplyPTYWriteWithLiveDamage(raw []byte) (TerminalSemanticTransaction, WriteDamage, error) {
+	if source == nil {
+		return TerminalSemanticTransaction{}, WriteDamage{}, nil
+	}
+	source.ensureVTerm()
+	_, err, damage := source.vt.WriteForLineHistory(raw)
+	source.seq++
+	return source.transactionFromDamage(source.seq, string(raw), damage), damage, err
+}
+
 func (source *SemanticSource) Resize(size TerminalSemanticSize) (TerminalSemanticTransaction, error) {
 	if source == nil || size.Cols <= 0 || size.Rows <= 0 {
 		return TerminalSemanticTransaction{}, nil

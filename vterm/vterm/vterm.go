@@ -915,6 +915,18 @@ func (v *VTerm) write(data []byte, collectDamage bool, mode ...writeDamageMode) 
 					damage.AlternateAppend = altEvictedOps
 				}
 			}
+			// The line-history path is also the production live write path when a
+			// terminal owns a single emulator. Preserve the same incremental row
+			// contract as WriteForLatestFrame without collecting ordinary text ops.
+			damage.RequiresFullReplace = true
+			damage.IncrementalRowsReliable = dirtyReliable &&
+				beforeWidth == afterWidth &&
+				beforeHeight == afterHeight &&
+				beforeAltScreen == afterAltScreen
+			if damage.IncrementalRowsReliable {
+				damage.DirectDamageTouchedRows = cloneIntSlice(dirtyRows)
+				damage.RowCopies = rowCopiesFromReconcilePlan(beforeScreen, cachePlan)
+			}
 			damage.DiffCPUNanos = time.Since(diffStart).Nanoseconds()
 			traceCount("vterm.write.changed_rows", damageChangedRowCount(damage))
 			traceCount("vterm.write.changed_cells", damageChangedCellCount(damage))

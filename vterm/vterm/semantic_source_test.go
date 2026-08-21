@@ -1,12 +1,13 @@
 package vterm
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
-	uv "github.com/charmbracelet/ultraviolet"
 	charmvt "github.com/anytty/anytty/vterm/internal/vt"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 func TestSemanticSourceApplyPTYWriteEmitsOrderedTransaction(t *testing.T) {
@@ -125,6 +126,82 @@ func TestR450LineHistorySemanticSourceDropsOrdinaryTextOps(t *testing.T) {
 	}
 	if !clearTx.ClearScrollback {
 		t.Fatalf("linehist production source must keep ED3 clear-scrollback boundary: %#v", clearTx)
+	}
+}
+
+func TestLineHistorySemanticSourceSingleWriteMatchesSplitLiveAndHistory(t *testing.T) {
+	combined := NewLineHistorySemanticSource(12, 3, 0, nil)
+	referenceLive := New(12, 3, 0, nil)
+	referenceHistory := NewLineHistorySemanticSource(12, 3, 0, nil)
+	writes := [][]byte{
+		[]byte("one\r\ntwo\r\nthree\r\nfour"),
+		[]byte("\x1b[?2026h\r\nfive\x1b[?2026l"),
+		[]byte("\x1b[?1049h\x1b[2Jalternate\x1b[?1049l"),
+		[]byte("\x1b[3Jafter"),
+	}
+
+	for index, raw := range writes {
+		gotTx, gotDamage, err := combined.ApplyPTYWriteWithLiveDamage(raw)
+		if err != nil {
+			t.Fatalf("combined write %d: %v", index, err)
+		}
+		_, err, wantDamage := referenceLive.WriteForLatestFrame(raw)
+		if err != nil {
+			t.Fatalf("reference live write %d: %v", index, err)
+		}
+		wantTx, err := referenceHistory.ApplyPTYWrite(raw)
+		if err != nil {
+			t.Fatalf("reference history write %d: %v", index, err)
+		}
+
+		if gotDamage.IncrementalRowsReliable != wantDamage.IncrementalRowsReliable ||
+			!reflect.DeepEqual(gotDamage.DirectDamageTouchedRows, wantDamage.DirectDamageTouchedRows) ||
+			!reflect.DeepEqual(gotDamage.RowCopies, wantDamage.RowCopies) {
+			t.Fatalf("combined live damage %d differs: got=%#v want=%#v", index, gotDamage, wantDamage)
+		}
+		assertLineHistoryTransactionEquivalent(t, index, gotTx, wantTx)
+		if got, want := combined.VTerm().ScreenContent(), referenceLive.ScreenContent(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("combined screen %d differs: got=%#v want=%#v", index, got, want)
+		}
+		if got, want := combined.VTerm().CursorState(), referenceLive.CursorState(); got != want {
+			t.Fatalf("combined cursor %d differs: got=%#v want=%#v", index, got, want)
+		}
+		if got, want := combined.VTerm().Modes(), referenceLive.Modes(); got != want {
+			t.Fatalf("combined modes %d differs: got=%#v want=%#v", index, got, want)
+		}
+	}
+}
+
+func TestLineHistorySemanticSourceCombinedPathWritesEmulatorOnce(t *testing.T) {
+	previous := safeEmulatorWriteForLineHistoryDamage
+	writes := 0
+	safeEmulatorWriteForLineHistoryDamage = func(emu *charmvt.SafeEmulator, data []byte) (int, error, []charmvt.Damage, bool) {
+		writes++
+		return previous(emu, data)
+	}
+	t.Cleanup(func() { safeEmulatorWriteForLineHistoryDamage = previous })
+
+	source := NewLineHistorySemanticSource(12, 3, 0, nil)
+	if _, _, err := source.ApplyPTYWriteWithLiveDamage([]byte("one\r\ntwo\r\nthree")); err != nil {
+		t.Fatalf("combined write: %v", err)
+	}
+	if writes != 1 {
+		t.Fatalf("combined path wrote emulator %d times, want exactly once", writes)
+	}
+}
+
+func assertLineHistoryTransactionEquivalent(t *testing.T, index int, got TerminalSemanticTransaction, want TerminalSemanticTransaction) {
+	t.Helper()
+	if got.Seq != want.Seq || got.Size != want.Size || got.ClearScrollback != want.ClearScrollback ||
+		got.AltEntered != want.AltEntered || got.AltExited != want.AltExited ||
+		got.SynchronizedBegin != want.SynchronizedBegin || got.SynchronizedActive != want.SynchronizedActive ||
+		got.SynchronizedEnd != want.SynchronizedEnd || len(got.Ops) != len(want.Ops) {
+		t.Fatalf("combined transaction header %d differs: got=%#v want=%#v", index, got, want)
+	}
+	gotRows := evictedTextsForTest(got.EvictedRows)
+	wantRows := evictedTextsForTest(want.EvictedRows)
+	if !reflect.DeepEqual(gotRows, wantRows) {
+		t.Fatalf("combined evictions %d differ: got=%v want=%v", index, gotRows, wantRows)
 	}
 }
 
