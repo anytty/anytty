@@ -147,10 +147,10 @@ func Verify(grant string, expectedFingerprint string, now time.Time, revocations
 	} else {
 		now = now.UTC()
 	}
-	if now.Before(claims.NotBefore) {
+	if claims.NotBefore.After(now.Add(ClockSkewTolerance)) {
 		return Claims{}, ErrGrantNotActive
 	}
-	if !now.Before(claims.ExpiresAt) {
+	if !claims.ExpiresAt.After(now.Add(-ClockSkewTolerance)) {
 		return Claims{}, ErrGrantExpired
 	}
 	if revocations != nil && revocations.Revoked(claims.RevocationID) {

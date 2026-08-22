@@ -51,12 +51,31 @@ func TestGrantV2RejectsMissingSubjectExpiryAndRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Verify(grant, Fingerprint(daemonPublic), now.Add(2*time.Minute), nil); !errors.Is(err, ErrGrantExpired) {
+	if _, err := Verify(grant, Fingerprint(daemonPublic), now.Add(time.Minute+ClockSkewTolerance), nil); !errors.Is(err, ErrGrantExpired) {
 		t.Fatalf("expiry error = %v", err)
 	}
 	revocations := revocationCheckerFunc(func(revocationID string) bool { return revocationID == "grant-1" })
 	if _, err := Verify(grant, Fingerprint(daemonPublic), now, revocations); !errors.Is(err, ErrGrantRevoked) {
 		t.Fatalf("revocation error = %v", err)
+	}
+}
+
+func TestGrantV2AllowsTenMinuteClockDifference(t *testing.T) {
+	daemonPublic, daemonPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	client, _ := GenerateClientAccessIdentity("endpoint-clock-skew", rand.Reader)
+	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	grant, err := Issue(daemonPrivate, Claims{
+		GrantID: "grant-clock-skew", IssuerDeviceID: "device-1", SubjectKeyFingerprint: client.Fingerprint,
+		Scope: Scope{AllowDaemon: true}, IssuedAt: now.Add(-time.Hour), ExpiresAt: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Verify(grant, Fingerprint(daemonPublic), now.Add(ClockSkewTolerance-time.Nanosecond), nil); err != nil {
+		t.Fatalf("grant within clock tolerance failed: %v", err)
+	}
+	if _, err := Verify(grant, Fingerprint(daemonPublic), now.Add(ClockSkewTolerance), nil); !errors.Is(err, ErrGrantExpired) {
+		t.Fatalf("grant beyond clock tolerance error = %v", err)
 	}
 }
 

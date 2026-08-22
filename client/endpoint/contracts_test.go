@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/timepolicy"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -87,8 +88,8 @@ func TestPortableContractsUseDeterministicStrictProtobuf(t *testing.T) {
 		t.Fatalf("tampered ticket signature error = %v", err)
 	}
 	expired := proto.Clone(bundle).(*remoteauthpb.EndpointBootstrapBundleV2)
-	expired.IssuedAtUnixNano = now.Add(-2 * time.Minute).UnixNano()
-	expired.ExpiresAtUnixNano = now.Add(-time.Second).UnixNano()
+	expired.IssuedAtUnixNano = now.Add(-timepolicy.ClockSkewTolerance - 2*time.Minute).UnixNano()
+	expired.ExpiresAtUnixNano = now.Add(-timepolicy.ClockSkewTolerance).UnixNano()
 	expired.Authorization.GetPairingTicket().IssuedAtUnixNano = expired.IssuedAtUnixNano
 	expired.Authorization.GetPairingTicket().ExpiresAtUnixNano = expired.ExpiresAtUnixNano
 	expired.Authorization.GetPairingTicket().Signature = nil
@@ -227,7 +228,7 @@ func TestShareBundleAndOfferRejectNonPortableOrSecretBearingFields(t *testing.T)
 		t.Fatalf("parse share offer: offer=%v err=%v", parsedOffer, err)
 	}
 	expiredOffer := proto.Clone(offer).(*remoteauthpb.ShareSessionOffer)
-	expiredOffer.ExpiresAtUnixNano = now.Add(-time.Second).UnixNano()
+	expiredOffer.ExpiresAtUnixNano = time.Now().Add(-timepolicy.ClockSkewTolerance).UnixNano()
 	if _, err := MarshalShareSessionOffer(expiredOffer); !IsCode(err, ErrorConfig) {
 		t.Fatalf("expired share offer error = %v", err)
 	}

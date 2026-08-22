@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/timepolicy"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -31,7 +32,6 @@ const (
 	PairingTicketSignatureProtocol = "anytty.pairing-ticket.signature"
 	// PortableSignatureVersion 是 bootstrap 与 pairing ticket canonical 签名输入的当前版本。
 	PortableSignatureVersion uint32 = 1
-	portableClockSkew               = 5 * time.Minute
 )
 
 // PairingTicketDescriptor 是 generated protobuf 中 daemon-local 一次性授权票据的公开部分。
@@ -231,7 +231,7 @@ func validateEndpointBootstrapPayload(bundle *remoteauthpb.EndpointBootstrapBund
 		} else {
 			now = now.UTC()
 		}
-		if bundle.GetExpiresAtUnixNano() <= now.UnixNano() || bundle.GetIssuedAtUnixNano() > now.Add(portableClockSkew).UnixNano() {
+		if bundle.GetExpiresAtUnixNano() <= now.Add(-timepolicy.ClockSkewTolerance).UnixNano() || bundle.GetIssuedAtUnixNano() > now.Add(timepolicy.ClockSkewTolerance).UnixNano() {
 			return connectionError(ErrorConfig, "endpoint bootstrap timestamps or signature are invalid")
 		}
 	}
@@ -291,7 +291,7 @@ func validateClientEndpointShareBundle(bundle *remoteauthpb.ClientEndpointShareB
 	}
 	now := time.Now()
 	if bundle.GetIssuedAtUnixNano() <= 0 || bundle.GetExpiresAtUnixNano() <= bundle.GetIssuedAtUnixNano() ||
-		bundle.GetExpiresAtUnixNano() <= now.UnixNano() || bundle.GetIssuedAtUnixNano() > now.Add(portableClockSkew).UnixNano() {
+		bundle.GetExpiresAtUnixNano() <= now.Add(-timepolicy.ClockSkewTolerance).UnixNano() || bundle.GetIssuedAtUnixNano() > now.Add(timepolicy.ClockSkewTolerance).UnixNano() {
 		return connectionError(ErrorConfig, "client endpoint share timestamps are invalid")
 	}
 	switch bundle.GetConnectMode() {
@@ -357,7 +357,7 @@ func validateShareSessionOffer(offer *remoteauthpb.ShareSessionOffer) error {
 	}
 	pin := strings.TrimPrefix(offer.GetEphemeralCertificateSha256(), "sha256:")
 	pinBytes, pinErr := base64.RawURLEncoding.DecodeString(pin)
-	if len(offer.GetListenerAddresses()) == 0 || !strings.HasPrefix(offer.GetEphemeralCertificateSha256(), "sha256:") || pinErr != nil || len(pinBytes) != sha256.Size || len(offer.GetOneTimeSessionSecret()) < 32 || offer.GetExpiresAtUnixNano() <= time.Now().UnixNano() {
+	if len(offer.GetListenerAddresses()) == 0 || !strings.HasPrefix(offer.GetEphemeralCertificateSha256(), "sha256:") || pinErr != nil || len(pinBytes) != sha256.Size || len(offer.GetOneTimeSessionSecret()) < 32 || offer.GetExpiresAtUnixNano() <= time.Now().Add(-timepolicy.ClockSkewTolerance).UnixNano() {
 		return connectionError(ErrorConfig, "share session offer is incomplete")
 	}
 	seenAddresses := make(map[string]struct{}, len(offer.GetListenerAddresses()))
@@ -431,7 +431,7 @@ func validatePairingTicketFields(ticket *remoteauthpb.PairingTicketDescriptor, r
 		} else {
 			now = now.UTC()
 		}
-		if ticket.GetExpiresAtUnixNano() <= now.UnixNano() || ticket.GetIssuedAtUnixNano() > now.Add(portableClockSkew).UnixNano() {
+		if ticket.GetExpiresAtUnixNano() <= now.Add(-timepolicy.ClockSkewTolerance).UnixNano() || ticket.GetIssuedAtUnixNano() > now.Add(timepolicy.ClockSkewTolerance).UnixNano() {
 			return connectionError(ErrorConfig, "pairing ticket is invalid")
 		}
 	}

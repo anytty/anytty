@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/anytty/anytty/shared/timepolicy"
 	"github.com/anytty/anytty/shared/userdirs"
 )
 
@@ -409,7 +410,7 @@ func (candidate LocalDiscoveryCandidate) Validate(now time.Time) error {
 	if strings.TrimSpace(candidate.Address) == "" || strings.ContainsAny(candidate.Address, "\r\n") || candidate.Port == 0 || candidate.ProtocolVersion == 0 {
 		return connectionError(ErrorConfig, "local discovery candidate address or protocol is invalid")
 	}
-	if !candidate.AnnouncementExpiry.After(now) {
+	if !candidate.AnnouncementExpiry.After(now.Add(-timepolicy.ClockSkewTolerance)) {
 		return connectionError(ErrorConfig, "local discovery candidate is expired")
 	}
 	if len(candidate.Signature) != 0 && len(candidate.Signature) != ed25519.SignatureSize {

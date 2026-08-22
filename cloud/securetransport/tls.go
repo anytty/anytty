@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/anytty/anytty/shared/timepolicy"
 )
 
 const (
@@ -114,7 +116,7 @@ func ValidateServerPair(certificatePEM, privateKeyPEM []byte, publicEndpoint str
 	}
 	if !now.IsZero() {
 		now = now.UTC()
-		if now.Before(leaf.NotBefore) || !now.Before(leaf.NotAfter) {
+		if !leaf.NotAfter.After(leaf.NotBefore) || leaf.NotBefore.After(now.Add(timepolicy.ClockSkewTolerance)) || !leaf.NotAfter.After(now.Add(-timepolicy.ClockSkewTolerance)) {
 			return nil, errors.New("certificate is not currently valid")
 		}
 	}
@@ -234,14 +236,26 @@ func verifyPinnedEdgeConnection(state tls.ConnectionState, serverName string, pi
 			intermediates.AddCert(certificate)
 		}
 	}
-	_, err := state.PeerCertificates[0].Verify(x509.VerifyOptions{
-		DNSName: serverName, Roots: roots, Intermediates: intermediates, CurrentTime: now,
+	leaf := state.PeerCertificates[0]
+	verificationTime := certificateVerificationTime(leaf, now)
+	_, err := leaf.Verify(x509.VerifyOptions{
+		DNSName: serverName, Roots: roots, Intermediates: intermediates, CurrentTime: verificationTime,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	})
 	if err != nil {
 		return fmt.Errorf("verify pinned Edge TLS certificate: %w", err)
 	}
 	return nil
+}
+
+func certificateVerificationTime(certificate *x509.Certificate, now time.Time) time.Time {
+	if certificate.NotBefore.After(now) && !certificate.NotBefore.After(now.Add(timepolicy.ClockSkewTolerance)) {
+		return certificate.NotBefore
+	}
+	if !certificate.NotAfter.After(now) && certificate.NotAfter.After(now.Add(-timepolicy.ClockSkewTolerance)) {
+		return certificate.NotAfter.Add(-time.Nanosecond)
+	}
+	return now
 }
 
 // EdgeIdentityURI 返回 EdgeIdentity 证书唯一允许的 URI SAN。

@@ -296,7 +296,7 @@ func TestServerHandshakeValidatesCredentialAtOpenReceiptTime(t *testing.T) {
 				if calls == 1 {
 					return now
 				}
-				return now.Add(time.Second)
+				return now.Add(time.Second + ClockSkewTolerance)
 			}}).Accept(context.Background(), serverConn, binding)
 			serverDone <- err
 		}()
@@ -335,7 +335,7 @@ func TestServerHandshakeValidatesCredentialAtOpenReceiptTime(t *testing.T) {
 				if calls == 1 {
 					return now
 				}
-				return now.Add(time.Second)
+				return now.Add(time.Second + ClockSkewTolerance)
 			}}).Accept(context.Background(), serverConn, binding)
 			serverDone <- acceptErr
 		}()
@@ -378,7 +378,7 @@ func TestClientPairingRejectsGrantExpiredBeforeResponseValidation(t *testing.T) 
 		if clockCalls == 1 {
 			return now
 		}
-		return now.Add(time.Second)
+		return now.Add(time.Second + ClockSkewTolerance)
 	}}).Redeem(context.Background(), clientConn, ClientPairingRequest{
 		ExpectedDeviceID: identity.DeviceID, ExpectedDeviceFingerprint: identity.Fingerprint,
 		PairingClaimOffer: issued.OfferPayload, Identity: client, ClientLabel: "Phone", ChannelBinding: binding,

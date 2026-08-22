@@ -55,7 +55,8 @@ func VerifyDirectSignalingAnswer(answer *remoteauthpb.DirectSignalingAnswerV2, r
 	issuedAt := time.Unix(0, answer.GetIssuedAtUnixNano()).UTC()
 	expiresAt := time.Unix(0, answer.GetExpiresAtUnixNano()).UTC()
 	now = now.UTC()
-	if answer.GetIssuedAtUnixNano() <= 0 || answer.GetExpiresAtUnixNano() <= 0 || expiresAt.Before(now) || !expiresAt.After(issuedAt) || expiresAt.Sub(issuedAt) > DirectSignalingMaxTTL {
+	if answer.GetIssuedAtUnixNano() <= 0 || answer.GetExpiresAtUnixNano() <= 0 || issuedAt.After(now.Add(ClockSkewTolerance)) ||
+		!expiresAt.After(now.Add(-ClockSkewTolerance)) || !expiresAt.After(issuedAt) || expiresAt.Sub(issuedAt) > DirectSignalingMaxTTL {
 		return errors.New("direct signaling answer is expired or has invalid lifetime")
 	}
 	if strings.TrimSpace(answer.GetAnswerSdp()) == "" || len(answer.GetSignature()) != ed25519.SignatureSize {

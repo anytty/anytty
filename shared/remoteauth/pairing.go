@@ -251,7 +251,7 @@ func validatePairingTicketTime(claims PairingTicketClaims, now time.Time) error 
 	} else {
 		now = now.UTC()
 	}
-	if now.Before(claims.NotBefore) || !now.Before(claims.ExpiresAt) {
+	if claims.NotBefore.After(now.Add(ClockSkewTolerance)) || !claims.ExpiresAt.After(now.Add(-ClockSkewTolerance)) {
 		return ErrPairingTicketExpired
 	}
 	return nil

@@ -13,6 +13,7 @@ import (
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/bindingpb"
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/timepolicy"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -369,7 +370,7 @@ func (host *Host) ReceiveEndpointShare(ctx context.Context, request *bindingpb.E
 		return nil, err
 	}
 	for pendingToken, pending := range host.pendingShares {
-		if pending.GetExpiresAtUnixNano() <= host.options.Now().UnixNano() {
+		if pending.GetExpiresAtUnixNano() <= host.options.Now().Add(-timepolicy.ClockSkewTolerance).UnixNano() {
 			delete(host.pendingShares, pendingToken)
 		}
 	}
@@ -402,7 +403,7 @@ func (host *Host) CommitEndpointShare(ctx context.Context, request *bindingpb.En
 	if bundle == nil {
 		return nil, fmt.Errorf("endpoint share import token is invalid or expired")
 	}
-	if bundle.GetExpiresAtUnixNano() <= host.options.Now().UnixNano() {
+	if bundle.GetExpiresAtUnixNano() <= host.options.Now().Add(-timepolicy.ClockSkewTolerance).UnixNano() {
 		delete(host.pendingShares, token)
 		return nil, fmt.Errorf("endpoint share import token expired")
 	}

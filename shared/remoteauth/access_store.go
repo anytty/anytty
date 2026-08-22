@@ -442,7 +442,7 @@ func (store *AccessStore) redeemPairingBundle(payload []byte, clientPublicKey ed
 	grantClaims := normalizeClaims(Claims{
 		Version: 2, GrantID: grantID, IssuerDeviceID: store.identity.DeviceID, IssuerDeviceFingerprint: store.identity.Fingerprint,
 		SubjectKeyFingerprint: subjectFingerprint, Scope: claims.ScopeCeiling, IssuedAt: now,
-		NotBefore: now.Add(-defaultClockSkew), ExpiresAt: now.Add(time.Duration(claims.GrantLifetimeSeconds) * time.Second),
+		NotBefore: now.Add(-ClockSkewTolerance), ExpiresAt: now.Add(time.Duration(claims.GrantLifetimeSeconds) * time.Second),
 		RevocationID: grantID, Nonce: grantNonce,
 	})
 	boundGrant, err := Issue(store.identity.PrivateKey, grantClaims)
@@ -515,7 +515,7 @@ func (store *AccessStore) AllowsClientPublicKey(publicKey ed25519.PublicKey, now
 	}
 	for grantID := range store.clientGrants[fingerprint] {
 		record, ok := store.grants[grantID]
-		if ok && record.RevokedAt.IsZero() && record.Claims.NotBefore.Before(now.Add(defaultClockSkew)) && record.Claims.ExpiresAt.After(now.Add(-defaultClockSkew)) {
+		if ok && record.RevokedAt.IsZero() && record.Claims.NotBefore.Before(now.Add(ClockSkewTolerance)) && record.Claims.ExpiresAt.After(now.Add(-ClockSkewTolerance)) {
 			return true
 		}
 	}

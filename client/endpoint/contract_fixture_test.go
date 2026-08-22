@@ -8,6 +8,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/anytty/anytty/shared/timepolicy"
 )
 
 type endpointContractFixture struct {
@@ -110,7 +112,11 @@ func TestSharedEndpointContractFixture(t *testing.T) {
 	if err := discovery.Validate(now); err != nil {
 		t.Fatalf("local discovery candidate: %v", err)
 	}
-	discovery.AnnouncementExpiry = now
+	discovery.AnnouncementExpiry = now.Add(-timepolicy.ClockSkewTolerance + time.Nanosecond)
+	if err := discovery.Validate(now); err != nil {
+		t.Fatalf("local discovery within clock tolerance: %v", err)
+	}
+	discovery.AnnouncementExpiry = now.Add(-timepolicy.ClockSkewTolerance)
 	if err := discovery.Validate(now); !IsCode(err, ErrorConfig) {
 		t.Fatalf("expired local discovery error = %v", err)
 	}

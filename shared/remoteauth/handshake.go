@@ -18,7 +18,6 @@ import (
 const (
 	authSessionBytes = 18
 	authNonceBytes   = 32
-	defaultClockSkew = 2 * time.Minute
 )
 
 // ClientHandshakeRequest 是 client-bound capability 认证的本地输入。
@@ -426,7 +425,7 @@ func (handshake ServerHandshake) acceptPairing(ctx context.Context, connection t
 
 func verifyDeviceHello(authSessionID string, hello *remoteauthpb.DeviceHello, expectedDeviceID string, expectedFingerprint string, expectedBinding ChannelBinding, now time.Time) error {
 	issuedAt := time.Unix(0, hello.GetIssuedAtUnixNano()).UTC()
-	if hello.GetIssuedAtUnixNano() <= 0 || issuedAt.Before(now.Add(-defaultClockSkew)) || issuedAt.After(now.Add(defaultClockSkew)) {
+	if hello.GetIssuedAtUnixNano() <= 0 || issuedAt.Before(now.Add(-ClockSkewTolerance)) || issuedAt.After(now.Add(ClockSkewTolerance)) {
 		return newHandshakeError(remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_DEVICE_IDENTITY_MISMATCH, "DeviceHello is outside the accepted time window", nil)
 	}
 	publicKey := ed25519.PublicKey(hello.GetDevicePublicKey())

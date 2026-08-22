@@ -24,6 +24,7 @@ import (
 
 	"github.com/anytty/anytty/client/endpoint"
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/timepolicy"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -312,7 +313,7 @@ func ephemeralCertificate(now time.Time, ttl time.Duration) (tls.Certificate, st
 	}
 	template := &x509.Certificate{
 		SerialNumber: serial, Subject: pkix.Name{CommonName: "AnyTTY Endpoint Share"},
-		NotBefore: now.Add(-time.Minute), NotAfter: now.Add(ttl), KeyUsage: x509.KeyUsageDigitalSignature,
+		NotBefore: now.Add(-timepolicy.ClockSkewTolerance), NotAfter: now.Add(ttl), KeyUsage: x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true,
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)

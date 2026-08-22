@@ -26,7 +26,10 @@ const (
 
 	EdgeChallengeNonceSize = 32
 	EdgeChallengeLifetime  = 10 * time.Second
-	EdgeChallengeClockSkew = 5 * time.Second
+	// ClockSkewTolerance is the shared validity-window tolerance for Cloud protocol peers.
+	ClockSkewTolerance = remoteauth.ClockSkewTolerance
+	// EdgeChallengeClockSkew is retained for callers that name the challenge-specific boundary.
+	EdgeChallengeClockSkew = ClockSkewTolerance
 	// MaxKeyBundleTTL 限制 Edge 可离线信任 Controller binding keyset 的最长窗口。
 	MaxKeyBundleTTL = 24 * time.Hour
 )
@@ -49,7 +52,7 @@ func ValidateKeyBundle(bundle *cloudv1.KeyBundle) (KeySet, error) {
 	return parseVerificationKeys(bundle.GetKeys())
 }
 
-// KeyBundleUsableAt 要求 bundle 已生效且尚未到达严格 expires_at 边界。
+// KeyBundleUsableAt 要求 bundle 在统一跨设备时钟容差内已生效且尚未过期。
 func KeyBundleUsableAt(bundle *cloudv1.KeyBundle, now time.Time) bool {
 	if now.IsZero() {
 		return false
@@ -58,7 +61,8 @@ func KeyBundleUsableAt(bundle *cloudv1.KeyBundle, now time.Time) bool {
 		return false
 	}
 	now = now.UTC()
-	return !now.Before(bundle.GetIssuedAt().AsTime()) && now.Before(bundle.GetExpiresAt().AsTime())
+	return !bundle.GetIssuedAt().AsTime().After(now.Add(remoteauth.ClockSkewTolerance)) &&
+		bundle.GetExpiresAt().AsTime().After(now.Add(-remoteauth.ClockSkewTolerance))
 }
 
 // CanonicalKeyBundle 深拷贝并按 key ID 排序，确保持久 payload 和 keyset 比较稳定。
@@ -155,7 +159,7 @@ func VerifyDaemonBinding(envelope *cloudv1.SignedEnvelope, keys KeySet, edgeID s
 	return claims, nil
 }
 
-// ValidateEdgeChallenge 验证 Edge 单次 challenge 的目标、结构、固定 10 秒窗口和 5 秒时钟容差。
+// ValidateEdgeChallenge 验证 Edge 单次 challenge 的目标、结构、固定 10 秒窗口和统一时钟容差。
 func ValidateEdgeChallenge(challenge *cloudv1.EdgeChallenge, target cloudv1.EdgeChallengeTarget, now time.Time) error {
 	if challenge == nil || len(challenge.ProtoReflect().GetUnknown()) != 0 || len(challenge.GetNonce()) != EdgeChallengeNonceSize ||
 		strings.TrimSpace(challenge.GetEdgeId()) == "" || strings.TrimSpace(challenge.GetEdgeBootId()) == "" || strings.TrimSpace(challenge.GetStreamId()) == "" ||
@@ -403,7 +407,7 @@ func validateCloudRouteGrant(claims *cloudv1.CloudRouteGrantClaims, now time.Tim
 		!claims.GetExpiresAt().AsTime().After(claims.GetIssuedAt().AsTime()) || claims.GetExpiresAt().AsTime().Sub(claims.GetIssuedAt().AsTime()) > 365*24*time.Hour {
 		return errors.New("CloudRouteGrant claims are incomplete")
 	}
-	if !now.IsZero() && (claims.GetIssuedAt().AsTime().After(now.UTC().Add(30*time.Second)) || !claims.GetExpiresAt().AsTime().After(now.UTC().Add(-30*time.Second))) {
+	if !now.IsZero() && (claims.GetIssuedAt().AsTime().After(now.UTC().Add(remoteauth.ClockSkewTolerance)) || !claims.GetExpiresAt().AsTime().After(now.UTC().Add(-remoteauth.ClockSkewTolerance))) {
 		return errors.New("CloudRouteGrant is outside its validity window")
 	}
 	return nil

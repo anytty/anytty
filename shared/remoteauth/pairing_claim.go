@@ -394,7 +394,7 @@ func validatePairingClaimOffer(offer *remoteauthpb.PairingClaimOffer, now time.T
 			return ErrPairingClaimMalformed
 		}
 	}
-	if requireFresh && now.After(time.Unix(0, offer.GetExpiresAtUnixNano()).UTC()) {
+	if requireFresh && !time.Unix(0, offer.GetExpiresAtUnixNano()).UTC().After(now.UTC().Add(-ClockSkewTolerance)) {
 		return ErrPairingTicketExpired
 	}
 	return nil

@@ -210,7 +210,7 @@ func TestCredentialStoreChecksScopeBeforeCommitAndRecoversByClaimDigest(t *testi
 	}
 	short := issue(Scope{AllowDaemon: true}, time.Second)
 	_, err = credentialStore.PairAndBind(
-		context.Background(), "pair-ref", "endpoint-1", short.OfferPayload, fixedNow(now.Add(time.Second)), rand.Reader, BindGrantOptions{},
+		context.Background(), "pair-ref", "endpoint-1", short.OfferPayload, fixedNow(now.Add(time.Second+ClockSkewTolerance)), rand.Reader, BindGrantOptions{},
 		func(client ClientAccessIdentity) (PairingExchangeResult, error) {
 			return redeem(short, "short")(client)
 		},
@@ -495,7 +495,7 @@ func TestAccessStoreConcurrentRedeemIdempotencyRevokeAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	unusedClient, _ := GenerateClientAccessIdentity("endpoint-expired", rand.Reader)
-	if _, err := store.RedeemPairingBundle(expiredPayload, unusedClient.PublicKey, "expired", now.Add(2*time.Minute)); !errors.Is(err, ErrPairingTicketExpired) {
+	if _, err := store.RedeemPairingBundle(expiredPayload, unusedClient.PublicKey, "expired", now.Add(time.Minute+ClockSkewTolerance)); !errors.Is(err, ErrPairingTicketExpired) {
 		t.Fatalf("unconsumed expired ticket error = %v", err)
 	}
 	beforeRevokeRevision := store.AccessProjectionRevision()

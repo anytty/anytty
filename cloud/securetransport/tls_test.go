@@ -15,6 +15,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/anytty/anytty/shared/timepolicy"
 )
 
 func TestValidateServerPairRejectsMalformedTrailingCertificate(t *testing.T) {
@@ -31,6 +33,18 @@ func TestValidateServerPairAcceptsMatchingIPAddress(t *testing.T) {
 	certificatePEM, privateKeyPEM := testIPServerPair(t, now, "155.94.155.192")
 	if _, err := ValidateServerPair(certificatePEM, privateKeyPEM, "155.94.155.192:41102", now); err != nil {
 		t.Fatalf("matching IP certificate rejected: %v", err)
+	}
+}
+
+func TestValidateServerPairUsesSharedClockSkewTolerance(t *testing.T) {
+	now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+	certificatePEM, privateKeyPEM := testServerPair(t, now, "edge.example.com")
+	expiresAt := now.Add(time.Hour)
+	if _, err := ValidateServerPair(certificatePEM, privateKeyPEM, "edge.example.com:443", expiresAt.Add(timepolicy.ClockSkewTolerance-time.Nanosecond)); err != nil {
+		t.Fatalf("server pair within clock tolerance failed: %v", err)
+	}
+	if _, err := ValidateServerPair(certificatePEM, privateKeyPEM, "edge.example.com:443", expiresAt.Add(timepolicy.ClockSkewTolerance)); err == nil {
+		t.Fatal("server pair beyond clock tolerance was accepted")
 	}
 }
 
@@ -86,6 +100,12 @@ func TestPinnedEdgeTLSRequiresMatchingServerSentCA(t *testing.T) {
 	state := tls.ConnectionState{PeerCertificates: []*x509.Certificate{leaf, root}}
 	if err := verifyPinnedEdgeConnection(state, "edge.example.com", pin, now); err != nil {
 		t.Fatalf("matching pinned chain rejected: %v", err)
+	}
+	if err := verifyPinnedEdgeConnection(state, "edge.example.com", pin, leaf.NotAfter.Add(timepolicy.ClockSkewTolerance-time.Nanosecond)); err != nil {
+		t.Fatalf("pinned chain within clock tolerance failed: %v", err)
+	}
+	if err := verifyPinnedEdgeConnection(state, "edge.example.com", pin, leaf.NotAfter.Add(timepolicy.ClockSkewTolerance)); err == nil {
+		t.Fatal("pinned chain beyond clock tolerance was accepted")
 	}
 	wrongPin := append([]byte(nil), pin...)
 	wrongPin[0] ^= 0xff

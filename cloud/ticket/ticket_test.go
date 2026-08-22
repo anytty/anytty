@@ -27,14 +27,14 @@ func TestDaemonBindingBindsEdgeAndRejectsTamper(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := ticket.KeySet{"key": publicKey}
-	verified, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-a", now, 30*time.Second)
+	verified, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-a", now, ticket.ClockSkewTolerance)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if verified.GetBindingId() != claims.GetBindingId() {
 		t.Fatal("verified daemon binding changed identity")
 	}
-	if _, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-b", now, 30*time.Second); err == nil {
+	if _, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-b", now, ticket.ClockSkewTolerance); err == nil {
 		t.Fatal("binding accepted on another Edge")
 	}
 	withoutLocator := proto.Clone(claims).(*cloudv1.DaemonBindingClaims)
@@ -43,7 +43,7 @@ func TestDaemonBindingBindsEdgeAndRejectsTamper(t *testing.T) {
 		t.Fatal("binding without an Edge locator digest was signed")
 	}
 	envelope.Payload[0] ^= 0xff
-	if _, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-a", now, 30*time.Second); err == nil {
+	if _, err := ticket.VerifyDaemonBinding(envelope, keys, "edge-a", now, ticket.ClockSkewTolerance); err == nil {
 		t.Fatal("tampered binding accepted")
 	}
 }
@@ -102,6 +102,35 @@ func TestCloudRouteGrantBindsDaemonClientAndProduct(t *testing.T) {
 	tampered.KeyId = "another-device-fingerprint"
 	if _, err := ticket.VerifyCloudRouteGrant(tampered, daemonIdentity.PublicKey, "daemon-r5", now); err == nil {
 		t.Fatal("CloudRouteGrant accepted a mismatched DeviceIdentity key ID")
+	}
+}
+
+func TestCloudRouteGrantUsesSharedClockSkewTolerance(t *testing.T) {
+	_, daemonPrivateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	daemonIdentity, err := remoteauth.NewIdentity("device-route-clock-skew", daemonPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientPublicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	grant, err := ticket.SignCloudRouteGrant(daemonIdentity, &cloudv1.CloudRouteGrantClaims{
+		GrantId: "grant-clock-skew", DaemonId: "daemon-clock-skew", ClientPublicKey: clientPublicKey,
+		IssuedAt: timestamppb.New(now.Add(-time.Hour)), ExpiresAt: timestamppb.New(now),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ticket.VerifyCloudRouteGrant(grant, daemonIdentity.PublicKey, "daemon-clock-skew", now.Add(ticket.ClockSkewTolerance-time.Nanosecond)); err != nil {
+		t.Fatalf("CloudRouteGrant within clock tolerance failed: %v", err)
+	}
+	if _, err := ticket.VerifyCloudRouteGrant(grant, daemonIdentity.PublicKey, "daemon-clock-skew", now.Add(ticket.ClockSkewTolerance)); err == nil {
+		t.Fatal("CloudRouteGrant beyond clock tolerance was accepted")
 	}
 }
 

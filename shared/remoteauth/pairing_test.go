@@ -68,7 +68,7 @@ func TestPairingBundleRejectsUnknownFieldExpiryAndIdentityMismatch(t *testing.T)
 		t.Fatal(err)
 	}
 	validPayload, _ := EncodePairingBundle(validBundle)
-	if _, err := VerifyPairingTicket(validPayload, identity.Fingerprint, now.Add(2*time.Minute)); !errors.Is(err, ErrPairingTicketExpired) {
+	if _, err := VerifyPairingTicket(validPayload, identity.Fingerprint, now.Add(time.Minute+ClockSkewTolerance)); !errors.Is(err, ErrPairingTicketExpired) {
 		t.Fatalf("ticket expiry error = %v", err)
 	}
 }

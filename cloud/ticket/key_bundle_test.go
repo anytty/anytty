@@ -17,7 +17,10 @@ func TestKeyBundleValidationAndTTLBoundaries(t *testing.T) {
 	if _, err := ticket.ValidateKeyBundle(valid); err != nil {
 		t.Fatal(err)
 	}
-	if ticket.KeyBundleUsableAt(valid, now.Add(-time.Nanosecond)) || !ticket.KeyBundleUsableAt(valid, now) || !ticket.KeyBundleUsableAt(valid, valid.GetExpiresAt().AsTime().Add(-time.Nanosecond)) || ticket.KeyBundleUsableAt(valid, valid.GetExpiresAt().AsTime()) {
+	if !ticket.KeyBundleUsableAt(valid, now.Add(-ticket.ClockSkewTolerance)) ||
+		ticket.KeyBundleUsableAt(valid, now.Add(-ticket.ClockSkewTolerance-time.Nanosecond)) ||
+		!ticket.KeyBundleUsableAt(valid, valid.GetExpiresAt().AsTime().Add(ticket.ClockSkewTolerance-time.Nanosecond)) ||
+		ticket.KeyBundleUsableAt(valid, valid.GetExpiresAt().AsTime().Add(ticket.ClockSkewTolerance)) {
 		t.Fatal("KeyBundle effective/expiry boundary is incorrect")
 	}
 	tests := map[string]func(*cloudv1.KeyBundle){

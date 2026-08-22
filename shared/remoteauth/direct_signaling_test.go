@@ -44,7 +44,10 @@ func TestDirectSignalingAnswerSignatureBindsPinCorrelationAndLifetime(t *testing
 	if err := VerifyDirectSignalingAnswer(answer, answer.GetRequestId(), identity.DeviceID, "wrong-pin", now); err == nil {
 		t.Fatal("Direct signaling answer must not cross Endpoint pin")
 	}
-	if err := VerifyDirectSignalingAnswer(answer, answer.GetRequestId(), identity.DeviceID, identity.Fingerprint, now.Add(DirectSignalingMaxTTL+time.Nanosecond)); err == nil {
+	if err := VerifyDirectSignalingAnswer(answer, answer.GetRequestId(), identity.DeviceID, identity.Fingerprint, now.Add(DirectSignalingMaxTTL+ClockSkewTolerance-time.Nanosecond)); err != nil {
+		t.Fatalf("Direct signaling answer within clock tolerance failed: %v", err)
+	}
+	if err := VerifyDirectSignalingAnswer(answer, answer.GetRequestId(), identity.DeviceID, identity.Fingerprint, now.Add(DirectSignalingMaxTTL+ClockSkewTolerance)); err == nil {
 		t.Fatal("expired Direct signaling answer must fail closed")
 	}
 }

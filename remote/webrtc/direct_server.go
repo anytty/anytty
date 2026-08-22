@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	directSignalingClockSkew         = 5 * time.Second
 	directSignalingFirstRequestLimit = 5 * time.Second
 	directSignalingErrorWriteLimit   = 250 * time.Millisecond
 	directSignalingPreAuthLimit      = 64
@@ -439,7 +438,8 @@ func (server *DirectServer) admit(request *remoteauthpb.DirectSignalingRequestV2
 	now := server.currentTime()
 	issuedAt := time.Unix(0, request.GetIssuedAtUnixNano()).UTC()
 	expiresAt := time.Unix(0, request.GetExpiresAtUnixNano()).UTC()
-	if issuedAt.After(now.Add(directSignalingClockSkew)) || !expiresAt.After(now) || !expiresAt.After(issuedAt) || expiresAt.Sub(issuedAt) > remoteauth.DirectSignalingMaxTTL {
+	if issuedAt.After(now.Add(remoteauth.ClockSkewTolerance)) || !expiresAt.After(now.Add(-remoteauth.ClockSkewTolerance)) ||
+		!expiresAt.After(issuedAt) || expiresAt.Sub(issuedAt) > remoteauth.DirectSignalingMaxTTL {
 		return remoteauthpb.DirectSignalingErrorCode_DIRECT_SIGNALING_ERROR_CODE_EXPIRED
 	}
 	authorized := false
