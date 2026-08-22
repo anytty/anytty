@@ -1440,7 +1440,7 @@ func TestTerminalHistoryIngestFailureIsObservableAndReleasesOutputCapacity(t *te
 	}
 }
 
-func TestTerminalHistoryIngestFailurePersistsGapBeforeRestart(t *testing.T) {
+func TestTerminalHistoryIngestFailurePersistsGapAndContinuesWithoutRestart(t *testing.T) {
 	applyErr := errors.New("fail one history transaction")
 	file, err := linehist.OpenCompressedLineFile(t.TempDir(), "term-history-gap-restart", linehist.CompressedLineFileOptions{})
 	if err != nil {
@@ -1467,26 +1467,31 @@ func TestTerminalHistoryIngestFailurePersistsGapBeforeRestart(t *testing.T) {
 	storage.failNextAppend(applyErr)
 	factory.process("term-history-gap-restart").emitOutput("one\r\ntwo\r\nthree\r\nfour\r\n")
 	assertEventually(t, 2*time.Second, func() bool {
-		return errors.Is(terminal.FlushHistory(context.Background()), applyErr)
-	}, "history transaction failure was not observable")
+		if err := terminal.FlushHistory(context.Background()); err != nil {
+			return false
+		}
+		status := terminal.currentHistoryDeltaQueue().Status()
+		return !status.Unavailable && status.Epoch == 1 && status.GapCount == 1 && status.DroppedBytes > 0
+	}, "history transaction failure did not recover after persisting its gap")
 	if gaps := storage.GapOffsets(); len(gaps) != 1 {
 		t.Fatalf("history failure did not persist exactly one gap: %v", gaps)
 	}
 
-	if err := server.RestartTerminal(context.Background(), "term-history-gap-restart"); err != nil {
+	factory.process("term-history-gap-restart").emitOutput("after-one\r\nafter-two\r\nafter-three\r\n")
+	if err := terminal.FlushHistory(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	_, err = server.TerminalHistoryWindow(context.Background(), "term-history-gap-restart", history.HistoryWindowRequest{
 		Mode: history.HistoryWindowModeLatest, Cols: 20, Limit: 100,
 	})
 	if !errors.Is(err, history.ErrHistorySyncLost) {
-		t.Fatalf("restart allowed a history query to cross the persisted gap: %v", err)
+		t.Fatalf("history query crossed the persisted recovery gap: %v", err)
 	}
 	latest, err := server.TerminalHistoryWindow(context.Background(), "term-history-gap-restart", history.HistoryWindowRequest{
 		Mode: history.HistoryWindowModeLatest, Cols: 20, Limit: 1,
 	})
 	if err != nil || len(latest.Rows) != 1 {
-		t.Fatalf("one-sided post-gap history must remain readable: window=%#v err=%v", latest, err)
+		t.Fatalf("post-gap history must continue without restart: window=%#v err=%v", latest, err)
 	}
 }
 

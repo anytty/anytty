@@ -1,6 +1,7 @@
 package linehist
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -14,6 +15,48 @@ import (
 
 	"github.com/anytty/anytty/core/history"
 )
+
+type temporaryHistoryWriteError struct{}
+
+func (temporaryHistoryWriteError) Error() string   { return "temporary history write error" }
+func (temporaryHistoryWriteError) Temporary() bool { return true }
+
+type flakyHistoryWriter struct {
+	bytes.Buffer
+	failures int
+	writes   int
+	err      error
+}
+
+func (writer *flakyHistoryWriter) Write(payload []byte) (int, error) {
+	writer.writes++
+	if writer.failures > 0 {
+		writer.failures--
+		return 0, writer.err
+	}
+	return writer.Buffer.Write(payload)
+}
+
+func TestWriteAllWithRetryRecoversTemporaryErrors(t *testing.T) {
+	writer := &flakyHistoryWriter{failures: 2, err: temporaryHistoryWriteError{}}
+	if err := writeAllWithRetry(writer, []byte("durable history"), func(time.Duration) {}); err != nil {
+		t.Fatal(err)
+	}
+	if writer.writes != 3 || writer.String() != "durable history" {
+		t.Fatalf("temporary write recovery writes=%d payload=%q", writer.writes, writer.String())
+	}
+}
+
+func TestWriteAllWithRetryDoesNotRetryPermanentErrors(t *testing.T) {
+	wantErr := errors.New("permanent history write error")
+	writer := &flakyHistoryWriter{failures: 1, err: wantErr}
+	if err := writeAllWithRetry(writer, []byte("history"), func(time.Duration) {}); !errors.Is(err, wantErr) {
+		t.Fatalf("write error=%v, want %v", err, wantErr)
+	}
+	if writer.writes != 1 {
+		t.Fatalf("permanent error writes=%d, want 1", writer.writes)
+	}
+}
 
 func TestCompressedLineFileRoundTripReopenAndCompress(t *testing.T) {
 	dir := t.TempDir()

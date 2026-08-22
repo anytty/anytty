@@ -824,17 +824,52 @@ func (f *CompressedLineFile) rollbackPartialRecord(offset int64) {
 }
 
 func writeAllAtEnd(file *os.File, payload []byte) error {
+	return writeAllWithRetry(file, payload, time.Sleep)
+}
+
+const historyWriteMaxAttempts = 3
+
+// Retry only within one file record. Callers still roll the entire record back
+// when a permanent error or the bounded retry limit is reached.
+func writeAllWithRetry(writer io.Writer, payload []byte, sleep func(time.Duration)) error {
+	failures := 0
 	for len(payload) > 0 {
-		n, err := file.Write(payload)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
+		n, err := writer.Write(payload)
+		if n < 0 || n > len(payload) {
 			return io.ErrShortWrite
 		}
-		payload = payload[n:]
+		if n > 0 {
+			payload = payload[n:]
+		}
+		if err != nil {
+			failures++
+			if len(payload) == 0 || failures >= historyWriteMaxAttempts || !retryableHistoryWriteError(err) {
+				return err
+			}
+			if sleep != nil {
+				sleep(time.Duration(1<<(failures-1)) * time.Millisecond)
+			}
+			continue
+		}
+		if n == 0 {
+			failures++
+			if failures >= historyWriteMaxAttempts {
+				return io.ErrShortWrite
+			}
+			if sleep != nil {
+				sleep(time.Duration(1<<(failures-1)) * time.Millisecond)
+			}
+		}
 	}
 	return nil
+}
+
+func retryableHistoryWriteError(err error) bool {
+	type temporaryError interface {
+		Temporary() bool
+	}
+	var temporary temporaryError
+	return errors.As(err, &temporary) && temporary.Temporary()
 }
 
 func removeObsoleteTerminalHistory(currentPath string) error {

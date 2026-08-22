@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,14 @@ import (
 	"github.com/anytty/anytty/core/history/linehist"
 	vterm "github.com/anytty/anytty/vterm/vterm"
 )
+
+type recoveredHistoryDeltaTestError struct{ cause error }
+
+func (err *recoveredHistoryDeltaTestError) Error() string { return err.cause.Error() }
+func (err *recoveredHistoryDeltaTestError) Unwrap() error { return err.cause }
+func (err *recoveredHistoryDeltaTestError) HistoryDeltaRecovered() bool {
+	return true
+}
 
 func TestTerminalHistoryDeltaQueuePreservesOrderAndFlushFence(t *testing.T) {
 	queue := newTerminalHistoryDeltaQueue(TerminalOutputBufferConfig{})
@@ -22,7 +31,7 @@ func TestTerminalHistoryDeltaQueuePreservesOrderAndFlushFence(t *testing.T) {
 		applied = append(applied, tx.Seq)
 		mu.Unlock()
 		return nil
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	for _, seq := range []uint64{11, 12, 13} {
 		if !queue.Enqueue(vterm.TerminalSemanticTransaction{Seq: seq}, 1) {
@@ -59,7 +68,7 @@ func TestTerminalHistoryDeltaQueueOverflowIsNonBlockingAndPersistsGap(t *testing
 	}, func() error {
 		gapCount++
 		return nil
-	}, nil)
+	}, nil, nil)
 
 	if !queue.Enqueue(vterm.TerminalSemanticTransaction{Seq: 1}, 16) {
 		t.Fatal("enqueue first transaction")
@@ -95,6 +104,75 @@ func TestTerminalHistoryDeltaQueueOverflowIsNonBlockingAndPersistsGap(t *testing
 	status := queue.Status()
 	if status.GapCount != 1 || status.DroppedBytes != 64<<10 || status.ResidentBytes != 0 {
 		t.Fatalf("overflow status = %#v", status)
+	}
+}
+
+func TestTerminalHistoryDeltaQueueContinuesAfterPersistedApplyGap(t *testing.T) {
+	queue := newTerminalHistoryDeltaQueue(TerminalOutputBufferConfig{})
+	wantErr := errors.New("one history transaction failed")
+	var (
+		mu      sync.Mutex
+		applied []uint64
+	)
+	recovered := make(chan struct {
+		bytes uint64
+		epoch uint64
+	}, 1)
+	failed := make(chan error, 1)
+	go queue.Run(func(tx vterm.TerminalSemanticTransaction) error {
+		mu.Lock()
+		applied = append(applied, tx.Seq)
+		mu.Unlock()
+		if tx.Seq == 1 {
+			return &recoveredHistoryDeltaTestError{cause: wantErr}
+		}
+		return nil
+	}, nil, func(err error, droppedBytes uint64, epoch uint64) {
+		if !errors.Is(err, wantErr) {
+			failed <- err
+			return
+		}
+		recovered <- struct {
+			bytes uint64
+			epoch uint64
+		}{bytes: droppedBytes, epoch: epoch}
+	}, func(err error) {
+		failed <- err
+	})
+
+	if !queue.Enqueue(vterm.TerminalSemanticTransaction{Seq: 1}, 17) ||
+		!queue.Enqueue(vterm.TerminalSemanticTransaction{Seq: 2}, 19) {
+		t.Fatal("enqueue recovered history transactions")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := queue.Flush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	queue.Seal()
+	queue.Wait()
+
+	select {
+	case err := <-failed:
+		t.Fatalf("recovered failure stopped queue: %v", err)
+	default:
+	}
+	select {
+	case event := <-recovered:
+		if event.bytes != 17 || event.epoch != 1 {
+			t.Fatalf("recovery event = %#v", event)
+		}
+	default:
+		t.Fatal("missing recovery event")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(applied) != 2 || applied[0] != 1 || applied[1] != 2 {
+		t.Fatalf("queue did not continue after recovery: %v", applied)
+	}
+	status := queue.Status()
+	if status.Unavailable || status.DroppedBytes != 17 || status.GapCount != 1 || status.Epoch != 1 {
+		t.Fatalf("recovered status = %#v", status)
 	}
 }
 

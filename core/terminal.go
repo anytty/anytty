@@ -862,6 +862,10 @@ func (failure *terminalHistoryDeltaFailure) Unwrap() []error {
 	return []error{failure.applyErr, failure.gapErr}
 }
 
+func (failure *terminalHistoryDeltaFailure) HistoryDeltaRecovered() bool {
+	return failure != nil && failure.applyErr != nil && failure.gapErr == nil
+}
+
 func (terminal *Terminal) runHistoryDeltaQueue(queue *terminalHistoryDeltaQueue) {
 	if terminal == nil || queue == nil {
 		return
@@ -884,6 +888,8 @@ func (terminal *Terminal) runHistoryDeltaQueue(queue *terminalHistoryDeltaQueue)
 			return nil
 		}
 		return terminal.lineHistory.ApplyGapBoundary()
+	}, func(err error, droppedBytes uint64, epoch uint64) {
+		terminal.recordHistoryDeltaRecovery(err, droppedBytes, epoch)
 	}, func(err error) {
 		terminal.recordHistoryDeltaFailure(err)
 	})
@@ -960,7 +966,31 @@ func (terminal *Terminal) recordHistoryDeltaFailure(err error) {
 		terminal.historyStickyError = wrapped
 	}
 	terminal.queueMu.Unlock()
-	terminal.logger.Error("terminal history delta consumer unavailable", "terminal_id", id, "error", wrapped)
+	fields := []any{"terminal_id", id, "error", wrapped, "cause", err}
+	if failure != nil {
+		fields = append(fields, "apply_error", failure.applyErr, "gap_error", failure.gapErr)
+	}
+	terminal.logger.Error("terminal history delta consumer unavailable", fields...)
+}
+
+func (terminal *Terminal) recordHistoryDeltaRecovery(err error, droppedBytes uint64, epoch uint64) {
+	if err == nil {
+		return
+	}
+	terminal.mu.Lock()
+	id := terminal.info.ID
+	terminal.mu.Unlock()
+	fields := []any{
+		"terminal_id", id,
+		"epoch", epoch,
+		"dropped_bytes", droppedBytes,
+		"cause", err,
+	}
+	var failure *terminalHistoryDeltaFailure
+	if errors.As(err, &failure) {
+		fields = append(fields, "apply_error", failure.applyErr)
+	}
+	terminal.logger.Warn("terminal history delta recovered after persisted gap", fields...)
 }
 
 func (terminal *Terminal) abortOutputBuffer(process TerminalProcess) {

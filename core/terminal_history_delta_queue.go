@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	vterm "github.com/anytty/anytty/vterm/vterm"
@@ -126,7 +127,12 @@ func (queue *terminalHistoryDeltaQueue) Enqueue(tx vterm.TerminalSemanticTransac
 	return true
 }
 
-func (queue *terminalHistoryDeltaQueue) Run(apply func(vterm.TerminalSemanticTransaction) error, gap func() error, failed func(error)) {
+func (queue *terminalHistoryDeltaQueue) Run(
+	apply func(vterm.TerminalSemanticTransaction) error,
+	gap func() error,
+	recovered func(error, uint64, uint64),
+	failed func(error),
+) {
 	if queue == nil {
 		return
 	}
@@ -154,7 +160,13 @@ func (queue *terminalHistoryDeltaQueue) Run(apply func(vterm.TerminalSemanticTra
 			if apply != nil {
 				err = apply(node.tx)
 			}
-			queue.completeNode(node, err)
+			wasRecovered, droppedBytes, epoch := queue.completeNode(node, err)
+			if wasRecovered {
+				if recovered != nil {
+					recovered(err, droppedBytes, epoch)
+				}
+				continue
+			}
 		}
 		if err != nil {
 			if failed != nil {
@@ -197,23 +209,43 @@ func (queue *terminalHistoryDeltaQueue) next() (*terminalHistoryDeltaNode, uint6
 	return node, 0, 0, true
 }
 
-func (queue *terminalHistoryDeltaQueue) completeNode(node *terminalHistoryDeltaNode, err error) {
+func (queue *terminalHistoryDeltaQueue) completeNode(node *terminalHistoryDeltaNode, err error) (bool, uint64, uint64) {
 	queue.mu.Lock()
+	recovered := err != nil && historyDeltaErrorRecovered(err)
 	if queue.inFlight == node {
 		queue.inFlight = nil
 		queue.resident -= node.residentBytes
 		if queue.resident < 0 {
 			queue.resident = 0
 		}
-		if err == nil && node.seq > queue.completedSeq {
+		if (err == nil || recovered) && node.seq > queue.completedSeq {
 			queue.completedSeq = node.seq
 		}
 	}
-	if err != nil {
+	if recovered {
+		queue.droppedBytes += node.sourceBytes
+		queue.gapCount++
+		queue.epoch++
+	} else if err != nil {
 		queue.failLocked(err, node.seq, node.sourceBytes)
 	}
 	queue.notifyLocked()
+	droppedBytes := node.sourceBytes
+	epoch := queue.epoch
 	queue.mu.Unlock()
+	return recovered, droppedBytes, epoch
+}
+
+// terminalHistoryDeltaRecoveredError means the failed transaction has already
+// been isolated by a durable gap, so later queued deltas may still be applied.
+type terminalHistoryDeltaRecoveredError interface {
+	error
+	HistoryDeltaRecovered() bool
+}
+
+func historyDeltaErrorRecovered(err error) bool {
+	var recovered terminalHistoryDeltaRecoveredError
+	return errors.As(err, &recovered) && recovered.HistoryDeltaRecovered()
 }
 
 func (queue *terminalHistoryDeltaQueue) completeGap(through uint64, err error) {
