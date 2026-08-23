@@ -6,6 +6,15 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+### Added
+
+- Added `anytty update` to check and install verified archives from the public `anytty/anytty` GitHub Releases without restarting a running daemon.
+- Added tag-driven release automation in the public source repository for CLI archives, the unsigned Android APK, checksums, build metadata, and provenance attestations.
+
+### Changed
+
+- Made `anytty/anytty` the sole source for future installers and release assets; the former `anytty-site` release remains only as a legacy compatibility location.
+
 ## [0.0.1-beta.0] - 2026-08-17
 
 ### Added

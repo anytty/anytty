@@ -51,6 +51,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newHistoryCommand(&socket, &logFile, &configPath))
 	cmd.AddCommand(newEndpointCommand(&socket, &logFile))
 	cmd.AddCommand(newFileCommand(&socket, &logFile))
+	cmd.AddCommand(newUpdateCommand(defaultUpdateCommandRuntime()))
 	cmd.AddCommand(v3LicensesCommand())
 	addDevelopmentCommands(cmd, &socket, &logFile, &configPath)
 	wrapGlobalTimeout(cmd, &globalTimeout)

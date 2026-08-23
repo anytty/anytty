@@ -1,13 +1,11 @@
 # Release Checklist
 
-This checklist is for maintainers preparing an AnyTTY public release. The project currently has no published release; every item must be evaluated rather than assumed.
+This checklist is for maintainers preparing an AnyTTY public release from `anytty/anytty`.
 
 ## Source and boundary
 
-- [ ] Select a reviewed commit from the private authoritative monorepo.
-- [ ] Run `make check-public-source` in the private repository.
-- [ ] Sync with `make sync-public-source PUBLIC_DIR=../public` and review the complete public diff.
-- [ ] Confirm the export contains only reviewed user-device source and public documentation, with no private service implementation, production configuration, credentials, or private history.
+- [ ] Select a reviewed commit from the public `anytty/anytty` repository and confirm `VERSION` matches the intended tag.
+- [ ] Confirm the repository contains only reviewed user-device source and public documentation, with no private service implementation, production configuration, credentials, or private history.
 - [ ] Run `npm run public:check` in the public repository.
 - [ ] Review generated files, screenshots, fixtures, and notices for secrets and personal data.
 
@@ -32,5 +30,5 @@ This checklist is for maintainers preparing an AnyTTY public release. The projec
 - [ ] Configure GitHub Pages to use GitHub Actions and verify the published base path `/anytty/`.
 - [ ] Review branch protection, required checks, CODEOWNERS, Discussions, issue permissions, and Actions permissions.
 - [ ] Decide whether the existing public history is suitable; only then consider a reviewed clean-history initialization.
-- [ ] Create a signed tag and release notes without claiming unavailable packages, pricing, support, or stability.
+- [ ] Create a signed tag; verify the Release workflow publishes only to `anytty/anytty` and produces all expected checksums and attestations.
 - [ ] Publish only after a second maintainer or designated reviewer signs off on the boundary audit.

@@ -126,6 +126,19 @@ The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\
 
 You can also download CLI archives and the unsigned Android Beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
 
+### Update
+
+Release builds that include the updater can check for or install a newer version directly from `anytty/anytty` GitHub Releases:
+
+The original `v0.0.1-beta.0` build predates this command. Upgrade that build once by rerunning the installer; later upgrades can use `anytty update`.
+
+```sh
+anytty update --check
+anytty update
+```
+
+The update command verifies both the GitHub asset digest and `SHA256SUMS`. It replaces the on-disk executable but does not restart a running daemon, so existing terminals keep running on the old daemon process until you explicitly restart it.
+
 ## Quick start
 
 Start the daemon for your user and open the TUI:

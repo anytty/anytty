@@ -126,6 +126,19 @@ PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\b
 
 你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0) 下载各平台 CLI 压缩包和未签名 Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
 
+### 更新
+
+包含 updater 的 Release 版本可以直接从 `anytty/anytty` GitHub Releases 检查并安装后续更新：
+
+最初的 `v0.0.1-beta.0` 尚未包含该命令，需要先重新运行一次安装脚本；之后的升级即可使用 `anytty update`。
+
+```sh
+anytty update --check
+anytty update
+```
+
+更新命令会同时核验 GitHub asset digest 和 `SHA256SUMS`。它只替换磁盘上的可执行文件，不会重启正在运行的 daemon，因此已有终端会继续由旧 daemon 进程承载，直到你主动重启它。
+
 ## 快速开始
 
 启动当前用户的 daemon，然后打开 TUI：
