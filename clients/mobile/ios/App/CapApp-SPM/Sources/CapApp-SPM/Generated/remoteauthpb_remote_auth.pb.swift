@@ -864,6 +864,9 @@ public nonisolated struct Anytty_Remote_Auth_V1_ClientAccessTicketCreateRequest:
 
   public var routes: [Anytty_Remote_Auth_V1_EndpointRouteConfigV1] = []
 
+  /// access_label 由授权所有者命名，用于本地审计和撤销定位；它不同于客户端自报的 client_label。
+  public var accessLabel: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -928,6 +931,9 @@ public nonisolated struct Anytty_Remote_Auth_V1_ClientAccessRecord: Sendable {
   public var expiresAtUnixNano: Int64 = 0
 
   public var revokedAtUnixNano: Int64 = 0
+
+  /// access_label 由签发授权的所有者控制，客户端不能在兑换时修改。
+  public var accessLabel: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -2782,7 +2788,7 @@ nonisolated extension Anytty_Remote_Auth_V1_DeviceIdentityProofInput: SwiftProto
 
 nonisolated extension Anytty_Remote_Auth_V1_ClientAccessTicketCreateRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ClientAccessTicketCreateRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}label\0\u{1}scope\0\u{3}ticket_ttl_seconds\0\u{3}grant_lifetime_seconds\0\u{1}routes\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}label\0\u{1}scope\0\u{3}ticket_ttl_seconds\0\u{3}grant_lifetime_seconds\0\u{1}routes\0\u{3}access_label\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2795,6 +2801,7 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessTicketCreateRequest: Swi
       case 3: try { try decoder.decodeSingularInt64Field(value: &self.ticketTtlSeconds) }()
       case 4: try { try decoder.decodeSingularInt64Field(value: &self.grantLifetimeSeconds) }()
       case 5: try { try decoder.decodeRepeatedMessageField(value: &self.routes) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.accessLabel) }()
       default: break
       }
     }
@@ -2820,6 +2827,9 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessTicketCreateRequest: Swi
     if !self.routes.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.routes, fieldNumber: 5)
     }
+    if !self.accessLabel.isEmpty {
+      try visitor.visitSingularStringField(value: self.accessLabel, fieldNumber: 6)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2829,6 +2839,7 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessTicketCreateRequest: Swi
     if lhs.ticketTtlSeconds != rhs.ticketTtlSeconds {return false}
     if lhs.grantLifetimeSeconds != rhs.grantLifetimeSeconds {return false}
     if lhs.routes != rhs.routes {return false}
+    if lhs.accessLabel != rhs.accessLabel {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2911,7 +2922,7 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessRevokeRequest: SwiftProt
 
 nonisolated extension Anytty_Remote_Auth_V1_ClientAccessRecord: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ClientAccessRecord"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}grant_id\0\u{3}revocation_id\0\u{3}subject_key_fingerprint\0\u{3}client_label\0\u{1}scope\0\u{3}issued_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}revoked_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}grant_id\0\u{3}revocation_id\0\u{3}subject_key_fingerprint\0\u{3}client_label\0\u{1}scope\0\u{3}issued_at_unix_nano\0\u{3}expires_at_unix_nano\0\u{3}revoked_at_unix_nano\0\u{3}access_label\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2927,6 +2938,7 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessRecord: SwiftProtobuf.Me
       case 6: try { try decoder.decodeSingularInt64Field(value: &self.issuedAtUnixNano) }()
       case 7: try { try decoder.decodeSingularInt64Field(value: &self.expiresAtUnixNano) }()
       case 8: try { try decoder.decodeSingularInt64Field(value: &self.revokedAtUnixNano) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.accessLabel) }()
       default: break
       }
     }
@@ -2961,6 +2973,9 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessRecord: SwiftProtobuf.Me
     if self.revokedAtUnixNano != 0 {
       try visitor.visitSingularInt64Field(value: self.revokedAtUnixNano, fieldNumber: 8)
     }
+    if !self.accessLabel.isEmpty {
+      try visitor.visitSingularStringField(value: self.accessLabel, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2973,6 +2988,7 @@ nonisolated extension Anytty_Remote_Auth_V1_ClientAccessRecord: SwiftProtobuf.Me
     if lhs.issuedAtUnixNano != rhs.issuedAtUnixNano {return false}
     if lhs.expiresAtUnixNano != rhs.expiresAtUnixNano {return false}
     if lhs.revokedAtUnixNano != rhs.revokedAtUnixNano {return false}
+    if lhs.accessLabel != rhs.accessLabel {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

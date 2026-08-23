@@ -41,6 +41,7 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
   const fullMainHeightRef = useRef(0)
   const fullWindowHeightRef = useRef(typeof window === 'undefined' ? 0 : window.innerHeight)
   const nativeKeyboardHeightRef = useRef(0)
+  const nativeOccludedHeightRef = useRef<number | null>(null)
   const keyboardRequestedRef = useRef(false)
   const shiftRafRef = useRef(0)
   const onKeyboardHideRef = useRef(onKeyboardHide)
@@ -55,15 +56,18 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
       fullWindowHeightRef.current = window.innerHeight
     }
 
-    const visualViewportKeyboardHeight = vv ? Math.max(0, window.innerHeight - vv.height) : 0
+    const visualViewportBottom = vv
+      ? Math.min(window.innerHeight, Math.max(0, vv.offsetTop) + vv.height)
+      : window.innerHeight
+    const visualViewportKeyboardHeight = Math.max(0, window.innerHeight - visualViewportBottom)
     const windowShrinkKeyboardHeight = Math.max(0, fullWindowHeightRef.current - window.innerHeight)
-    const nativeKeyboardHeight = nativeKeyboardHeightRef.current
+    const nativeKeyboardHeight = nativeOccludedHeightRef.current ?? nativeKeyboardHeightRef.current
     const keyboardHeight = Math.max(visualViewportKeyboardHeight, windowShrinkKeyboardHeight, nativeKeyboardHeight)
     const hasNativeHeight = nativeKeyboardHeight > keyboardClosedThresholdPx
 
-    let visibleHeight = vv?.height ?? window.innerHeight
+    let visibleHeight = visualViewportBottom
     if (hasNativeHeight && windowShrinkKeyboardHeight <= keyboardClosedThresholdPx) {
-      visibleHeight = Math.max(0, window.innerHeight - nativeKeyboardHeight)
+      visibleHeight = Math.min(visibleHeight, Math.max(0, window.innerHeight - nativeKeyboardHeight))
     }
 
     return { keyboardHeight, visibleHeight, hasNativeHeight }
@@ -90,6 +94,7 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
 
   const resetKeyboardLayout = useCallback(() => {
     nativeKeyboardHeightRef.current = 0
+    nativeOccludedHeightRef.current = null
     keyboardRequestedRef.current = false
     clearKeyboardLayout()
     setKeyboardVisible(false)
@@ -256,6 +261,8 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
 
     const removeNativeKeyboardListener = addNativeKeyboardListener((event) => {
       nativeKeyboardHeightRef.current = event.visible ? event.keyboardHeight ?? measureKeyboard().keyboardHeight : 0
+      if (event.occludedHeight !== undefined) nativeOccludedHeightRef.current = event.occludedHeight
+      else if (!event.visible) nativeOccludedHeightRef.current = null
       keyboardRequestedRef.current = event.visible
       if (event.visible) {
         publishVisibility(true)

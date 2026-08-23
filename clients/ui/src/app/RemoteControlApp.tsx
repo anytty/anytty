@@ -1349,7 +1349,7 @@ function HomeView({
           />
         ) : (
           <div
-            className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-4 lg:px-8 lg:py-7"
+            className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 lg:px-8 lg:py-7"
             data-testid="anytty-machine-list-scroller"
             onTouchStart={handlePullStart}
             onTouchMove={handlePullMove}

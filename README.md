@@ -154,6 +154,14 @@ Run `anytty --help` for the complete command list, or continue with the [quick-s
 
 Install the Android Beta APK from the release page, then choose **Add device** in the app. On the machine running the daemon, use `anytty pair create` to generate a short-lived pairing QR code or text claim, then scan or paste it in the app. Once paired, the device page lists running terminals and opens the file browser from a terminal's working directory.
 
+Give each new authorization an owner-defined name so it remains identifiable later. Grants are permanent until revoked unless `--grant-ttl` is set explicitly:
+
+```sh
+anytty pair create --access-label "Review iPhone" --qr-file ./anytty-pair.png
+anytty access list
+anytty access revoke REPLACE_WITH_GRANT_ID
+```
+
 The mobile app supports Android and iOS. The Android Beta APK is currently available from the release page; iOS does not yet have a public install and is waiting for Apple App Store publication. Official Google Play and Apple App Store releases are both in progress.
 
 ## Connection options

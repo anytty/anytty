@@ -43,6 +43,24 @@
   }
 }
 
+/* Dynamic viewport units arrived after the minimum supported iOS 15.0. */
+@supports not (height: 1dvh) {
+  [class~="h-[100dvh]"] { height: 100vh; }
+  [class~="min-h-[100dvh]"] { min-height: 100vh; }
+  [class~="h-[60dvh]"] { height: 60vh; }
+  [class~="h-[85dvh]"] { height: 85vh; }
+  [class~="h-[88dvh]"] { height: 88vh; }
+  [class~="max-h-[85dvh]"] { max-height: 85vh; }
+  [class~="max-h-[88dvh]"] { max-height: 88vh; }
+  [class~="max-h-[96dvh]"] { max-height: 96vh; }
+  [class~="max-h-[calc(85dvh-4rem)]"] { max-height: calc(85vh - 4rem); }
+
+  @media (min-width: 640px) {
+    [class~="sm:h-[min(85dvh,44rem)]"] { height: min(85vh, 44rem); }
+    [class~="sm:h-[min(88dvh,48rem)]"] { height: min(88vh, 48rem); }
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-in,
   .animate-slide-up {

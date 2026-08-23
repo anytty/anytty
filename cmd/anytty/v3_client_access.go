@@ -165,7 +165,7 @@ func (service v3ClientAccessService) CreateTicket(_ context.Context, request cor
 		routes = append(routes, route)
 	}
 	issued, err := service.store.IssuePairingClaim(remoteauth.PairingIssueOptions{
-		Label: request.Label, Scope: remoteAuthScopeFromCore(request.Scope), TicketTTL: request.TicketTTL, GrantLifetime: request.GrantLifetime,
+		Label: request.Label, AccessLabel: request.AccessLabel, Scope: remoteAuthScopeFromCore(request.Scope), TicketTTL: request.TicketTTL, GrantLifetime: request.GrantLifetime,
 		Routes: routes, Platform: runtime.GOOS,
 	})
 	if err != nil {
@@ -211,5 +211,5 @@ func remoteAuthScopeFromCore(scope corev2.ClientAccessScope) remoteauth.Scope {
 }
 
 func clientAccessRecordFromRemoteAuth(record remoteauth.ClientAccessRecord) corev2.ClientAccessRecord {
-	return corev2.ClientAccessRecord{GrantID: record.GrantID, RevocationID: record.RevocationID, SubjectKeyFingerprint: record.SubjectKeyFingerprint, ClientLabel: record.ClientLabel, Scope: corev2.ClientAccessScope{AllowDaemon: record.Scope.AllowDaemon, TerminalID: record.Scope.TerminalID, MachineEventsOnly: record.Scope.MachineEventsOnly, FileReadMetadata: record.Scope.FileReadMetadata, FileReadContent: record.Scope.FileReadContent, FileWriteContent: record.Scope.FileWriteContent, FileMutate: record.Scope.FileMutate, ManageClientAccess: record.Scope.ManageClientAccess}, IssuedAt: record.IssuedAt, ExpiresAt: record.ExpiresAt, RevokedAt: record.RevokedAt}
+	return corev2.ClientAccessRecord{GrantID: record.GrantID, RevocationID: record.RevocationID, SubjectKeyFingerprint: record.SubjectKeyFingerprint, AccessLabel: record.AccessLabel, ClientLabel: record.ClientLabel, Scope: corev2.ClientAccessScope{AllowDaemon: record.Scope.AllowDaemon, TerminalID: record.Scope.TerminalID, MachineEventsOnly: record.Scope.MachineEventsOnly, FileReadMetadata: record.Scope.FileReadMetadata, FileReadContent: record.Scope.FileReadContent, FileWriteContent: record.Scope.FileWriteContent, FileMutate: record.Scope.FileMutate, ManageClientAccess: record.Scope.ManageClientAccess}, IssuedAt: record.IssuedAt, ExpiresAt: record.ExpiresAt, RevokedAt: record.RevokedAt}
 }

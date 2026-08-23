@@ -28,7 +28,8 @@ import (
 
 func TestPairCreateAndImportUsesClaimThenClientBoundCredential(t *testing.T) {
 	runtimeDir, stateHome, configHome := configurePairCommandTest(t)
-	created := executePairCommand(t, nil, "--socket", filepath.Join(runtimeDir, "daemon.sock"), "pair", "create", "--raw", "--route", "direct", "--label", "Lab daemon", "--ttl", "1h", "--grant-ttl", "24h")
+	socket := filepath.Join(runtimeDir, "daemon.sock")
+	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Lab daemon", "--access-label", "App Store review phone", "--ttl", "1h", "--grant-ttl", "24h")
 	offer, err := remoteauth.ParsePairingClaimOffer(created, time.Now().UTC())
 	if err != nil || offer.GetDeviceId() == "" {
 		t.Fatalf("created pairing claim = (%#v, %v)", offer, err)
@@ -40,7 +41,7 @@ func TestPairCreateAndImportUsesClaimThenClientBoundCredential(t *testing.T) {
 	identity := endpointdomain.DaemonIdentity{DeviceID: offer.GetDeviceId(), DeviceFingerprint: remoteauth.Fingerprint(ed25519.PublicKey(offer.GetDevicePublicKey()))}
 	savePairTestManagedEndpoint(t, registryPath, "lab", identity, endpointdomain.RelayDirect)
 	pairSocket := filepath.Join(runtimeDir, "daemon.sock.pair")
-	imported := executePairCommand(t, created, "pair", "import", "--id", "lab", "--registry", registryPath, "--pair-socket", pairSocket, "-")
+	imported := executePairCommand(t, created, "pair", "import", "--id", "lab", "--client-label", "iPhone Simulator", "--registry", registryPath, "--pair-socket", pairSocket, "-")
 	registryPayload, err := os.ReadFile(registryPath)
 	if err != nil {
 		t.Fatal(err)
@@ -67,6 +68,12 @@ func TestPairCreateAndImportUsesClaimThenClientBoundCredential(t *testing.T) {
 	}
 	if !strings.Contains(string(imported), "Paired endpoint lab") || strings.Contains(string(imported), credential.CapabilityGrant) {
 		t.Fatalf("pair output lost result or leaked grant: %q", imported)
+	}
+	accessList := executePairCommand(t, nil, "--socket", socket, "access", "list")
+	for _, expected := range []string{"NAME", "App Store review phone", "DEVICE", "iPhone Simulator", "GRANT", grantClaims.GrantID, "SCOPE", "daemon,file-meta,file-read,file-write,file-mutate", "ISSUED", "EXPIRES", "DEVICE KEY", credential.Identity.Fingerprint} {
+		if !strings.Contains(string(accessList), expected) {
+			t.Fatalf("access list missing %q: %s", expected, accessList)
+		}
 	}
 }
 

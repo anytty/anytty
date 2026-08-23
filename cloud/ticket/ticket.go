@@ -403,11 +403,12 @@ func validateDaemonBinding(claims *cloudv1.DaemonBindingClaims, now time.Time, s
 
 func validateCloudRouteGrant(claims *cloudv1.CloudRouteGrantClaims, now time.Time) error {
 	if claims == nil || strings.TrimSpace(claims.GetGrantId()) == "" || strings.TrimSpace(claims.GetDaemonId()) == "" || len(claims.GetClientPublicKey()) != ed25519.PublicKeySize ||
-		!validCloudRouteGrantProduct(claims.GetProduct()) || claims.GetIssuedAt() == nil || claims.GetExpiresAt() == nil || claims.GetIssuedAt().CheckValid() != nil || claims.GetExpiresAt().CheckValid() != nil ||
-		!claims.GetExpiresAt().AsTime().After(claims.GetIssuedAt().AsTime()) || claims.GetExpiresAt().AsTime().Sub(claims.GetIssuedAt().AsTime()) > 365*24*time.Hour {
+		!validCloudRouteGrantProduct(claims.GetProduct()) || claims.GetIssuedAt() == nil || claims.GetIssuedAt().CheckValid() != nil ||
+		(claims.GetExpiresAt() != nil && (claims.GetExpiresAt().CheckValid() != nil || !claims.GetExpiresAt().AsTime().After(claims.GetIssuedAt().AsTime()) || claims.GetExpiresAt().AsTime().Sub(claims.GetIssuedAt().AsTime()) > 365*24*time.Hour)) {
 		return errors.New("CloudRouteGrant claims are incomplete")
 	}
-	if !now.IsZero() && (claims.GetIssuedAt().AsTime().After(now.UTC().Add(remoteauth.ClockSkewTolerance)) || !claims.GetExpiresAt().AsTime().After(now.UTC().Add(-remoteauth.ClockSkewTolerance))) {
+	if !now.IsZero() && (claims.GetIssuedAt().AsTime().After(now.UTC().Add(remoteauth.ClockSkewTolerance)) ||
+		(claims.GetExpiresAt() != nil && !claims.GetExpiresAt().AsTime().After(now.UTC().Add(-remoteauth.ClockSkewTolerance)))) {
 		return errors.New("CloudRouteGrant is outside its validity window")
 	}
 	return nil

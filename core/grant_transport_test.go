@@ -13,6 +13,26 @@ import (
 	"github.com/anytty/anytty/shared/transport"
 )
 
+func TestPermanentGrantTransportHasNoExpiryTimerAndClosesOnRevoke(t *testing.T) {
+	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+	clock := newGrantTestClock(now)
+	service := newGrantAccessTestService(map[string]time.Time{"grant-permanent": {}})
+	timers := &grantManualTimerFactory{}
+	server := newGrantTransportTestServer(service, clock, timers.afterFunc)
+	raw, tracked := admitGrantTestTransport(t, server, "grant-permanent", time.Time{})
+	if timers.count() != 0 {
+		t.Fatalf("permanent grant created %d expiry timers", timers.count())
+	}
+	clock.Set(now.Add(20 * 365 * 24 * time.Hour))
+	if record, err := server.revokeClientAccess(context.Background(), "grant-permanent"); err != nil || record.GrantID != "grant-permanent" {
+		t.Fatalf("revoke permanent grant = %#v, error = %v", record, err)
+	}
+	assertGrantCloseCount(t, raw, 1)
+	assertGrantReverseIndexCleared(t, tracked)
+	closeGrantTestTransport(server, tracked)
+	assertGrantServerEmpty(t, server)
+}
+
 func TestGrantRevokePersistenceFailureLeavesEpochTransportsAndAdmissionUnchanged(t *testing.T) {
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	expiresAt := now.Add(time.Hour)
@@ -514,7 +534,7 @@ func (service *grantAccessTestService) GrantActive(_ context.Context, grantID st
 
 	service.mu.Lock()
 	stored, ok := service.grants[grantID]
-	active := ok && !service.revoked[grantID] && stored.Equal(expiresAt) && now.Before(stored)
+	active := ok && !service.revoked[grantID] && stored.Equal(expiresAt) && (stored.IsZero() || now.Before(stored))
 	returnGate := service.activeReturns[grantID]
 	service.mu.Unlock()
 	returnGate.wait()

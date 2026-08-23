@@ -11,7 +11,6 @@ info_plist="${ios_root}/App/App/Info.plist"
 source_capacitor_config="${repo_root}/clients/mobile/capacitor.config.ts"
 ios_capacitor_config="${ios_root}/App/App/capacitor.config.json"
 icon="${ios_root}/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png"
-android_gradle="${repo_root}/clients/mobile/android/app/build.gradle"
 app_path="${1:-}"
 
 fail() {
@@ -56,7 +55,7 @@ if /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLo
   arbitrary_loads="$(/usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoads' "${info_plist}")"
   [[ "${arbitrary_loads}" == "false" ]] || fail "NSAllowsArbitraryLoads must not be enabled"
 fi
-require_text "${source_capacitor_config}" "appStartPath: 'index.html'"
+require_text "${source_capacitor_config}" "appStartPath: '/index.html'"
 ios_start_path="$(node -e 'const fs = require("fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).server?.appStartPath ?? "")' "${ios_capacitor_config}")"
 [[ "${ios_start_path}" == "index.html" ]] || fail "generated Capacitor config must start at index.html"
 
@@ -88,14 +87,12 @@ minimum_ios="$(setting_value IPHONEOS_DEPLOYMENT_TARGET)"
 device_family="$(setting_value TARGETED_DEVICE_FAMILY)"
 [[ "${bundle_id}" == "com.anytty.app" ]] || fail "unexpected bundle ID: ${bundle_id}"
 [[ -n "${ios_version}" && -n "${ios_build}" ]] || fail "version and build number are required"
+[[ "${ios_version}" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || fail "iOS version must contain one to three numeric components: ${ios_version}"
+[[ "${ios_build}" =~ ^[1-9][0-9]*$ ]] || fail "iOS build number must be a positive integer: ${ios_build}"
 [[ "${minimum_ios}" == "15.0" ]] || fail "unexpected deployment target: ${minimum_ios}"
 [[ "${device_family}" == "1,2" ]] || fail "release must remain universal for iPhone and iPad"
 
-android_version="$(awk '/^[[:space:]]*versionName / { gsub(/"/, "", $2); print $2; exit }' "${android_gradle}")"
-android_build="$(awk '/^[[:space:]]*versionCode / { print $2; exit }' "${android_gradle}")"
-[[ "${ios_version}" == "${android_version}" ]] || fail "iOS ${ios_version} and Android ${android_version} versions differ"
-[[ "${ios_build}" == "${android_build}" ]] || fail "iOS ${ios_build} and Android ${android_build} build numbers differ"
-require_text "${repo_root}/clients/mobile/src/AnyTTYApp.tsx" "https://cloud.anytty.com/privacy"
+require_text "${repo_root}/clients/mobile/src/AnyTTYApp.tsx" "https://anytty.com/privacy/"
 
 if [[ -n "${app_path}" ]]; then
   [[ -d "${app_path}" ]] || fail "built app is unavailable: ${app_path}"

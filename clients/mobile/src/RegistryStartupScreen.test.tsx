@@ -110,7 +110,7 @@ describe('mobile registry startup recovery', () => {
 
     const panel = screen.getByTestId('registry-startup-error')
     const page = panel.closest('main')
-    expect(page?.className).toContain('h-[100dvh]')
+    expect(page?.className).toContain('h-full')
     expect(page?.className).toContain('overflow-y-auto')
     expect(page?.className).toContain('w-full')
     expect(page?.className).not.toContain('w-screen')

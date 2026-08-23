@@ -1,11 +1,12 @@
 import { Capacitor } from '@capacitor/core'
+import { Keyboard, KeyboardStyle } from '@capacitor/keyboard'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { useEffect, useRef } from 'react'
 
 type Rgba = { r: number; g: number; b: number; a: number }
 
 export function useNativeStatusBarSync(): void {
-  const lastAppliedRef = useRef<{ color: string; style: Style } | null>(null)
+  const lastAppliedRef = useRef<{ color: string; style: Style; keyboardStyle: KeyboardStyle } | null>(null)
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined
@@ -20,11 +21,14 @@ export function useNativeStatusBarSync(): void {
       const color = detectTopSurfaceColor()
       const colorHex = rgbaToHex(color)
       const style = isDarkColor(color) ? Style.Dark : Style.Light
+      const keyboardStyle = isDarkColor(color) ? KeyboardStyle.Dark : KeyboardStyle.Light
       const last = lastAppliedRef.current
-      if (last?.color === colorHex && last.style === style) return
-      lastAppliedRef.current = { color: colorHex, style }
-      void StatusBar.setStyle({ style }).catch(() => {})
-      void StatusBar.setBackgroundColor({ color: colorHex }).catch(() => {})
+      if (last?.style !== style) void StatusBar.setStyle({ style }).catch(() => {})
+      if (last?.color !== colorHex) void StatusBar.setBackgroundColor({ color: colorHex }).catch(() => {})
+      if (Capacitor.getPlatform() === 'ios' && last?.keyboardStyle !== keyboardStyle) {
+        void Keyboard.setStyle({ style: keyboardStyle }).catch(() => {})
+      }
+      lastAppliedRef.current = { color: colorHex, style, keyboardStyle }
     }
 
     const schedule = () => {

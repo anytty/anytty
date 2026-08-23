@@ -99,7 +99,7 @@ func (server *Server) admitTransport(ctx context.Context, tracked *trackedTransp
 
 	queryNow := server.grantNow().UTC()
 	service := server.ClientAccessService()
-	active := queryNow.Before(scope.GrantExpiresAt) && service != nil &&
+	active := grantTransportUnexpired(scope.GrantExpiresAt, queryNow) && service != nil &&
 		service.GrantActive(ctx, scope.GrantID, scope.GrantExpiresAt, queryNow)
 
 	var detached []*trackedTransport
@@ -109,7 +109,7 @@ func (server *Server) admitTransport(ctx context.Context, tracked *trackedTransp
 	switch {
 	case server.closed.Load():
 		closeReason = transportCloseShutdown
-	case !finalNow.Before(scope.GrantExpiresAt):
+	case !grantTransportUnexpired(scope.GrantExpiresAt, finalNow):
 		operation.epoch++
 		detached = detachGrantTransportsLocked(operation)
 		closeReason = transportCloseExpired
@@ -118,7 +118,9 @@ func (server *Server) admitTransport(ctx context.Context, tracked *trackedTransp
 	default:
 		tracked.grantOperation.Store(operation)
 		operation.transports[tracked] = struct{}{}
-		scheduleGrantExpiryLocked(server, operation, scope.GrantExpiresAt, finalNow)
+		if !scope.GrantExpiresAt.IsZero() {
+			scheduleGrantExpiryLocked(server, operation, scope.GrantExpiresAt, finalNow)
+		}
 		operation.mu.Unlock()
 		return nil
 	}
@@ -160,7 +162,7 @@ func (server *Server) finishTrackedTransport(tracked *trackedTransport) {
 }
 
 func scheduleGrantExpiryLocked(server *Server, operation *grantOperation, expiresAt, now time.Time) {
-	if operation.timer != nil {
+	if expiresAt.IsZero() || operation.timer != nil {
 		return
 	}
 	entry := &grantTimerEntry{expiresAt: expiresAt}
@@ -168,6 +170,10 @@ func scheduleGrantExpiryLocked(server *Server, operation *grantOperation, expire
 	entry.timer = server.grantAfterFunc(expiresAt.Sub(now), func() {
 		server.expireGrantOperation(operation, entry)
 	})
+}
+
+func grantTransportUnexpired(expiresAt, now time.Time) bool {
+	return expiresAt.IsZero() || now.Before(expiresAt)
 }
 
 func (server *Server) expireGrantOperation(operation *grantOperation, entry *grantTimerEntry) {

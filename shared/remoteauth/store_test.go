@@ -275,6 +275,48 @@ func TestAccessStoreCompactsDeliveredTicketsOnlyOnLaterMutation(t *testing.T) {
 	}
 }
 
+func TestAccessStoreKeepsOwnerAccessLabelSeparateFromClientDeviceLabel(t *testing.T) {
+	_, privateKey, _ := ed25519.GenerateKey(rand.Reader)
+	identity, _ := NewIdentity("device-access-label", privateKey)
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	store, err := LoadAccessStore(dir, identity, AccessStoreOptions{Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, _, err := store.IssuePairingBundle(PairingIssueOptions{
+		AccessLabel: "App Store review phone", Scope: FullDaemonScope(), TicketTTL: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := EncodePairingBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, _ := GenerateClientAccessIdentity("endpoint-access-label", rand.Reader)
+	result, err := store.RedeemPairingBundle(payload, client.PublicKey, "anytty-ios", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := store.ListClientAccess()
+	if len(records) != 1 || records[0].GrantID != result.GrantID || records[0].AccessLabel != "App Store review phone" || records[0].ClientLabel != "anytty-ios" || !records[0].ExpiresAt.IsZero() {
+		t.Fatalf("access projection = %#v", records)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := LoadAccessStore(dir, identity, AccessStoreOptions{Now: func() time.Time { return now.Add(time.Minute) }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reloaded.Close() })
+	records = reloaded.ListClientAccess()
+	if len(records) != 1 || records[0].AccessLabel != "App Store review phone" || records[0].ClientLabel != "anytty-ios" || !reloaded.GrantActive(result.GrantID, time.Time{}, now.Add(time.Minute)) {
+		t.Fatalf("reloaded access projection = %#v", records)
+	}
+}
+
 func TestAccessStoreKeepsPublishedStateInMemoryAfterDurabilityError(t *testing.T) {
 	_, privateKey, _ := ed25519.GenerateKey(rand.Reader)
 	identity, _ := NewIdentity("device-published-state", privateKey)

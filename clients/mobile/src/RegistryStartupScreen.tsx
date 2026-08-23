@@ -86,7 +86,7 @@ export function RegistryStartupScreen({
 
   if (!error) {
     return (
-      <section aria-live="polite" className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-[100dvh] w-screen items-center justify-center bg-[var(--anytty-app-bg)]">
+      <section aria-live="polite" className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-full w-full items-center justify-center bg-[var(--anytty-app-bg)]">
         <Spinner aria-label={anyttyI18n.t('common.loading')} className="h-7 w-7 text-[var(--anytty-app-accent)]" role="status" />
       </section>
     )
@@ -95,7 +95,7 @@ export function RegistryStartupScreen({
   const failureCode = classifyRegistryStartupFailure(error)
 
   return (
-    <main className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-[100dvh] w-full overflow-y-auto bg-[var(--anytty-app-bg)] pb-[calc(env(safe-area-inset-bottom)+1rem)] pl-[calc(env(safe-area-inset-left)+1rem)] pr-[calc(env(safe-area-inset-right)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:pt-[calc(env(safe-area-inset-top)+2rem)]">
+    <main className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-full w-full overflow-y-auto bg-[var(--anytty-app-bg)] pb-[calc(env(safe-area-inset-bottom)+1rem)] pl-[calc(env(safe-area-inset-left)+1rem)] pr-[calc(env(safe-area-inset-right)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:pt-[calc(env(safe-area-inset-top)+2rem)]">
       <section aria-labelledby="registry-startup-title" className="rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm my-auto min-w-0 w-full max-w-md p-5" data-testid="registry-startup-error">
         <h1 className="text-lg font-semibold text-zinc-950" id="registry-startup-title">{anyttyI18n.t('startup.registryTitle')}</h1>
         <p className="mt-2 text-sm leading-5 text-zinc-600" role="alert">{anyttyI18n.t('startup.registryCopy')}</p>
@@ -145,7 +145,7 @@ export function RegistryStartupScreen({
 
 export function UnsupportedWebPreview() {
   return (
-    <main className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex min-h-[100dvh] w-full items-center justify-center bg-[var(--anytty-app-bg)] px-4 py-8">
+    <main className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex min-h-full w-full items-center justify-center bg-[var(--anytty-app-bg)] px-4 py-8">
       <section aria-labelledby="unsupported-preview-title" className="rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm w-full max-w-md p-5" data-testid="unsupported-web-preview">
         <h1 className="text-lg font-semibold text-zinc-950" id="unsupported-preview-title">{anyttyI18n.t('startup.previewTitle')}</h1>
         <p className="mt-2 text-sm leading-5 text-zinc-600">{anyttyI18n.t('startup.previewCopy')}</p>

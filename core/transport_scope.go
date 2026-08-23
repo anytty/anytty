@@ -8,8 +8,8 @@ import (
 
 // TransportScope 只约束一条 protocol session 的可见能力，不保存 terminal truth。
 type TransportScope struct {
-	// GrantID 与 GrantExpiresAt 是远程 transport 已验证 CapabilityGrant 的规范身份和绝对期限。
-	// local owner 不携带二者；远程 transport 缺少任一字段都不能进入 protocol business。
+	// GrantID 与 GrantExpiresAt 是远程 transport 已验证 CapabilityGrant 的规范身份和可选绝对期限。
+	// GrantExpiresAt 为零表示授权持续到 daemon 主动撤销；local owner 不携带二者。
 	GrantID        string
 	GrantExpiresAt time.Time
 	// PrincipalID 标识当前已验证授权主体，仅用于绑定可恢复资源；不得作为 terminal 或账号 truth。
@@ -58,8 +58,8 @@ func (scope TransportScope) validate() error {
 		if scope.GrantID != "" || !scope.GrantExpiresAt.IsZero() {
 			return fmt.Errorf("local owner transport cannot carry remote grant")
 		}
-	} else if scope.GrantID == "" || scope.GrantExpiresAt.IsZero() {
-		return fmt.Errorf("remote transport requires grant identity and expiry")
+	} else if scope.GrantID == "" {
+		return fmt.Errorf("remote transport requires grant identity")
 	}
 	capabilities := 0
 	if scope.AllowDaemon {

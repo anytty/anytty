@@ -115,6 +115,7 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 	var textOutput bool
 	var commandOutput bool
 	var label string
+	var accessLabel string
 	var terminalID string
 	var ticketTTL time.Duration
 	var grantLifetime time.Duration
@@ -165,8 +166,8 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 				}
 				scope = remoteauth.Scope{TerminalID: terminalID}
 			}
-			if ticketTTL <= 0 || grantLifetime <= 0 {
-				return usageCLIError("pair create ticket and grant ttl must be positive")
+			if ticketTTL <= 0 || grantLifetime < 0 {
+				return usageCLIError("pair create ticket ttl must be positive and grant ttl cannot be negative")
 			}
 			application, err := newLocalApplicationSession(client)
 			if err != nil {
@@ -181,7 +182,7 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 				return usageCLIError(err.Error())
 			}
 			response, err := application.ClientAccessTicketCreate(cmd.Context(), &apipb.ClientAccessTicketCreateCommand{Request: &remoteauthpb.ClientAccessTicketCreateRequest{
-				Label: label, Scope: clientAccessScopeToProto(scope), TicketTtlSeconds: int64(ticketTTL / time.Second), GrantLifetimeSeconds: int64(grantLifetime / time.Second),
+				Label: label, AccessLabel: strings.TrimSpace(accessLabel), Scope: clientAccessScopeToProto(scope), TicketTtlSeconds: int64(ticketTTL / time.Second), GrantLifetimeSeconds: int64(grantLifetime / time.Second),
 				Routes: routes,
 			}})
 			if err != nil {
@@ -240,9 +241,10 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 	command.Flags().BoolVar(&textOutput, "text", false, "write the portable pairing URI to stdout for copying")
 	command.Flags().BoolVar(&commandOutput, "command", false, "write a copyable one-command pairing import")
 	command.Flags().StringVar(&label, "label", "", "daemon display label (defaults to this host name)")
+	command.Flags().StringVar(&accessLabel, "access-label", "", "owner-defined name for the resulting client authorization")
 	command.Flags().StringVar(&terminalID, "terminal", "", "limit the capability to one terminal instead of daemon-wide access")
-	command.Flags().DurationVar(&ticketTTL, "ttl", 10*time.Minute, "one-time ticket lifetime")
-	command.Flags().DurationVar(&grantLifetime, "grant-ttl", 90*24*time.Hour, "bound capability lifetime")
+	command.Flags().DurationVar(&ticketTTL, "ttl", 10*time.Minute, "one-time ticket lifetime (maximum 168h)")
+	command.Flags().DurationVar(&grantLifetime, "grant-ttl", 0, "bound capability lifetime (default 0: no expiration)")
 	command.Flags().StringArrayVar(&routeSpecs, "route", nil, "pairing Route: direct, ssh, or a strict Route URI (repeatable)")
 	command.Flags().StringVar(&directID, "direct-id", "", "stable ID suffix for the parameterized Direct Route")
 	command.Flags().StringVar(&directName, "direct-name", "", "display name for the parameterized Direct Route")

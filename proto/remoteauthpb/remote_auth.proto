@@ -143,6 +143,8 @@ message ClientAccessTicketCreateRequest {
   int64 ticket_ttl_seconds = 3;
   int64 grant_lifetime_seconds = 4;
   repeated EndpointRouteConfigV1 routes = 5;
+  // access_label 由授权所有者命名，用于本地审计和撤销定位；它不同于客户端自报的 client_label。
+  string access_label = 6;
 }
 
 message ClientAccessTicketCreateResult {
@@ -165,6 +167,8 @@ message ClientAccessRecord {
   int64 issued_at_unix_nano = 6;
   int64 expires_at_unix_nano = 7;
   int64 revoked_at_unix_nano = 8;
+  // access_label 由签发授权的所有者控制，客户端不能在兑换时修改。
+  string access_label = 9;
 }
 
 message ClientAccessListResult {

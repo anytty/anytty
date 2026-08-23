@@ -43,6 +43,19 @@ func TestAuthEnvelopeHasSinglePayloadOneof(t *testing.T) {
 	}
 }
 
+func TestClientAccessLabelsKeepOwnerAndClientNamesSeparate(t *testing.T) {
+	request := (&ClientAccessTicketCreateRequest{}).ProtoReflect().Descriptor()
+	if field := request.Fields().ByName("access_label"); field == nil || field.Number() != 6 {
+		t.Fatalf("ClientAccessTicketCreateRequest.access_label = %v, want field 6", field)
+	}
+	record := (&ClientAccessRecord{}).ProtoReflect().Descriptor()
+	for name, number := range map[protoreflect.Name]protoreflect.FieldNumber{"client_label": 4, "access_label": 9} {
+		if field := record.Fields().ByName(name); field == nil || field.Number() != number {
+			t.Fatalf("ClientAccessRecord.%s = %v, want field %d", name, field, number)
+		}
+	}
+}
+
 func TestDirectSignalingOverloadedErrorCodeIsStable(t *testing.T) {
 	descriptor := DirectSignalingErrorCode_DIRECT_SIGNALING_ERROR_CODE_OVERLOADED.Descriptor()
 	value := descriptor.Values().ByName("DIRECT_SIGNALING_ERROR_CODE_OVERLOADED")

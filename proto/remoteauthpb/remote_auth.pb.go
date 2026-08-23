@@ -1455,8 +1455,10 @@ type ClientAccessTicketCreateRequest struct {
 	TicketTtlSeconds     int64                    `protobuf:"varint,3,opt,name=ticket_ttl_seconds,json=ticketTtlSeconds,proto3" json:"ticket_ttl_seconds,omitempty"`
 	GrantLifetimeSeconds int64                    `protobuf:"varint,4,opt,name=grant_lifetime_seconds,json=grantLifetimeSeconds,proto3" json:"grant_lifetime_seconds,omitempty"`
 	Routes               []*EndpointRouteConfigV1 `protobuf:"bytes,5,rep,name=routes,proto3" json:"routes,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// access_label 由授权所有者命名，用于本地审计和撤销定位；它不同于客户端自报的 client_label。
+	AccessLabel   string `protobuf:"bytes,6,opt,name=access_label,json=accessLabel,proto3" json:"access_label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClientAccessTicketCreateRequest) Reset() {
@@ -1522,6 +1524,13 @@ func (x *ClientAccessTicketCreateRequest) GetRoutes() []*EndpointRouteConfigV1 {
 		return x.Routes
 	}
 	return nil
+}
+
+func (x *ClientAccessTicketCreateRequest) GetAccessLabel() string {
+	if x != nil {
+		return x.AccessLabel
+	}
+	return ""
 }
 
 type ClientAccessTicketCreateResult struct {
@@ -1646,8 +1655,10 @@ type ClientAccessRecord struct {
 	IssuedAtUnixNano      int64                  `protobuf:"varint,6,opt,name=issued_at_unix_nano,json=issuedAtUnixNano,proto3" json:"issued_at_unix_nano,omitempty"`
 	ExpiresAtUnixNano     int64                  `protobuf:"varint,7,opt,name=expires_at_unix_nano,json=expiresAtUnixNano,proto3" json:"expires_at_unix_nano,omitempty"`
 	RevokedAtUnixNano     int64                  `protobuf:"varint,8,opt,name=revoked_at_unix_nano,json=revokedAtUnixNano,proto3" json:"revoked_at_unix_nano,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// access_label 由签发授权的所有者控制，客户端不能在兑换时修改。
+	AccessLabel   string `protobuf:"bytes,9,opt,name=access_label,json=accessLabel,proto3" json:"access_label,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClientAccessRecord) Reset() {
@@ -1734,6 +1745,13 @@ func (x *ClientAccessRecord) GetRevokedAtUnixNano() int64 {
 		return x.RevokedAtUnixNano
 	}
 	return 0
+}
+
+func (x *ClientAccessRecord) GetAccessLabel() string {
+	if x != nil {
+		return x.AccessLabel
+	}
+	return ""
 }
 
 type ClientAccessListResult struct {
@@ -5278,13 +5296,14 @@ const file_remoteauthpb_remote_auth_proto_rawDesc = "" +
 	"\tchallenge\x18\x02 \x01(\fR\tchallenge\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\x12-\n" +
 	"\x12device_fingerprint\x18\x04 \x01(\tR\x11deviceFingerprint\x12*\n" +
-	"\x11device_public_key\x18\x05 \x01(\fR\x0fdevicePublicKey\"\xa1\x02\n" +
+	"\x11device_public_key\x18\x05 \x01(\fR\x0fdevicePublicKey\"\xc4\x02\n" +
 	"\x1fClientAccessTicketCreateRequest\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\x12>\n" +
 	"\x05scope\x18\x02 \x01(\v2(.anytty.remote.auth.v1.ClientAccessScopeR\x05scope\x12,\n" +
 	"\x12ticket_ttl_seconds\x18\x03 \x01(\x03R\x10ticketTtlSeconds\x124\n" +
 	"\x16grant_lifetime_seconds\x18\x04 \x01(\x03R\x14grantLifetimeSeconds\x12D\n" +
-	"\x06routes\x18\x05 \x03(\v2,.anytty.remote.auth.v1.EndpointRouteConfigV1R\x06routes\"\xae\x01\n" +
+	"\x06routes\x18\x05 \x03(\v2,.anytty.remote.auth.v1.EndpointRouteConfigV1R\x06routes\x12!\n" +
+	"\faccess_label\x18\x06 \x01(\tR\vaccessLabel\"\xae\x01\n" +
 	"\x1eClientAccessTicketCreateResult\x12\x1b\n" +
 	"\tticket_id\x18\x01 \x01(\tR\bticketId\x12/\n" +
 	"\x14expires_at_unix_nano\x18\x02 \x01(\x03R\x11expiresAtUnixNano\x12\x1f\n" +
@@ -5293,7 +5312,7 @@ const file_remoteauthpb_remote_auth_proto_rawDesc = "" +
 	"\n" +
 	"claim_code\x18\x04 \x01(\tR\tclaimCode\"6\n" +
 	"\x19ClientAccessRevokeRequest\x12\x19\n" +
-	"\bgrant_id\x18\x01 \x01(\tR\agrantId\"\x80\x03\n" +
+	"\bgrant_id\x18\x01 \x01(\tR\agrantId\"\xa3\x03\n" +
 	"\x12ClientAccessRecord\x12\x19\n" +
 	"\bgrant_id\x18\x01 \x01(\tR\agrantId\x12#\n" +
 	"\rrevocation_id\x18\x02 \x01(\tR\frevocationId\x126\n" +
@@ -5302,7 +5321,8 @@ const file_remoteauthpb_remote_auth_proto_rawDesc = "" +
 	"\x05scope\x18\x05 \x01(\v2(.anytty.remote.auth.v1.ClientAccessScopeR\x05scope\x12-\n" +
 	"\x13issued_at_unix_nano\x18\x06 \x01(\x03R\x10issuedAtUnixNano\x12/\n" +
 	"\x14expires_at_unix_nano\x18\a \x01(\x03R\x11expiresAtUnixNano\x12/\n" +
-	"\x14revoked_at_unix_nano\x18\b \x01(\x03R\x11revokedAtUnixNano\"]\n" +
+	"\x14revoked_at_unix_nano\x18\b \x01(\x03R\x11revokedAtUnixNano\x12!\n" +
+	"\faccess_label\x18\t \x01(\tR\vaccessLabel\"]\n" +
 	"\x16ClientAccessListResult\x12C\n" +
 	"\arecords\x18\x01 \x03(\v2).anytty.remote.auth.v1.ClientAccessRecordR\arecords\"\xa2\x01\n" +
 	"\x12CapabilityAccepted\x12\x19\n" +

@@ -421,7 +421,7 @@ func validatePortableRoute(route *remoteauthpb.EndpointRouteConfigV1, identity *
 func validatePairingTicketFields(ticket *remoteauthpb.PairingTicketDescriptor, requireSignature bool, now time.Time, requireFreshness bool) error {
 	if ticket == nil || validateIdentifier("pairing ticket", ticket.GetTicketId()) != nil ||
 		len(ticket.GetScopeCeiling()) == 0 || ticket.GetIssuedAtUnixNano() <= 0 || ticket.GetExpiresAtUnixNano() <= ticket.GetIssuedAtUnixNano() ||
-		len(ticket.GetNonce()) < 16 || ticket.GetMaxRedemptions() != 1 || ticket.GetGrantLifetimeSeconds() <= 0 ||
+		len(ticket.GetNonce()) < 16 || ticket.GetMaxRedemptions() != 1 || ticket.GetGrantLifetimeSeconds() < 0 ||
 		ticket.GetGrantLifetimeSeconds() > int64((365*24*time.Hour)/time.Second) {
 		return connectionError(ErrorConfig, "pairing ticket is invalid")
 	}

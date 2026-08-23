@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	maxClientAccessLifetimeSeconds = int64((365 * 24 * time.Hour) / time.Second)
-	deviceIdentityChallengeBytes   = 32
+	maxPairingTicketLifetimeSeconds = int64((7 * 24 * time.Hour) / time.Second)
+	maxClientGrantLifetimeSeconds   = int64((365 * 24 * time.Hour) / time.Second)
+	deviceIdentityChallengeBytes    = 32
 )
 
 // ValidateAccessRemoteCommand 校验 client access 与 remote daemon control 的 typed command。
@@ -38,8 +39,8 @@ func ValidateAccessRemoteCommand(command *apipb.CommandEnvelope) error {
 		if request == nil || request.GetLabel() == "" || request.GetScope() == nil {
 			return validation("client_access_ticket_create.request", "label and scope are required")
 		}
-		if request.GetTicketTtlSeconds() <= 0 || request.GetTicketTtlSeconds() > maxClientAccessLifetimeSeconds || request.GetGrantLifetimeSeconds() <= 0 || request.GetGrantLifetimeSeconds() > maxClientAccessLifetimeSeconds {
-			return validation("client_access_ticket_create.request", "ticket and grant lifetimes must be between one second and one year")
+		if request.GetTicketTtlSeconds() <= 0 || request.GetTicketTtlSeconds() > maxPairingTicketLifetimeSeconds || request.GetGrantLifetimeSeconds() < 0 || request.GetGrantLifetimeSeconds() > maxClientGrantLifetimeSeconds {
+			return validation("client_access_ticket_create.request", "ticket lifetime must be between one second and seven days; grant lifetime must be zero or at most one year")
 		}
 	case *apipb.CommandEnvelope_ClientAccessRevoke:
 		if value.ClientAccessRevoke.GetRequest().GetGrantId() == "" {
@@ -85,7 +86,7 @@ func ClientAccessTicketRequestFromProto(command *apipb.ClientAccessTicketCreateC
 			routes = append(routes, proto.Clone(route).(*remoteauthpb.EndpointRouteConfigV1))
 		}
 	}
-	return corev2.ClientAccessTicketRequest{Label: request.GetLabel(), Scope: clientAccessScopeFromProto(request.GetScope()), TicketTTL: time.Duration(request.GetTicketTtlSeconds()) * time.Second, GrantLifetime: time.Duration(request.GetGrantLifetimeSeconds()) * time.Second, Routes: routes}
+	return corev2.ClientAccessTicketRequest{Label: request.GetLabel(), AccessLabel: request.GetAccessLabel(), Scope: clientAccessScopeFromProto(request.GetScope()), TicketTTL: time.Duration(request.GetTicketTtlSeconds()) * time.Second, GrantLifetime: time.Duration(request.GetGrantLifetimeSeconds()) * time.Second, Routes: routes}
 }
 
 // ClientAccessIdentityToProto 转为公开 DeviceIdentity 投影，私钥不在输入模型中。
@@ -100,7 +101,7 @@ func ClientAccessTicketToProto(ticket corev2.ClientAccessTicket) *remoteauthpb.C
 
 // ClientAccessRecordToProto 转为不包含 grant body/public key 的脱敏记录。
 func ClientAccessRecordToProto(record corev2.ClientAccessRecord) *remoteauthpb.ClientAccessRecord {
-	return &remoteauthpb.ClientAccessRecord{GrantId: record.GrantID, RevocationId: record.RevocationID, SubjectKeyFingerprint: record.SubjectKeyFingerprint, ClientLabel: record.ClientLabel, Scope: clientAccessScopeToProto(record.Scope), IssuedAtUnixNano: unixNanoOrZero(record.IssuedAt), ExpiresAtUnixNano: unixNanoOrZero(record.ExpiresAt), RevokedAtUnixNano: unixNanoOrZero(record.RevokedAt)}
+	return &remoteauthpb.ClientAccessRecord{GrantId: record.GrantID, RevocationId: record.RevocationID, SubjectKeyFingerprint: record.SubjectKeyFingerprint, ClientLabel: record.ClientLabel, Scope: clientAccessScopeToProto(record.Scope), IssuedAtUnixNano: unixNanoOrZero(record.IssuedAt), ExpiresAtUnixNano: unixNanoOrZero(record.ExpiresAt), RevokedAtUnixNano: unixNanoOrZero(record.RevokedAt), AccessLabel: record.AccessLabel}
 }
 
 // ClientAccessIdentityResultToProto 包装公开 identity projection。

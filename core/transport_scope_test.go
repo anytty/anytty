@@ -42,7 +42,7 @@ func TestServeScopedTransportRejectsRemoteScopeWithoutGrantIdentity(t *testing.T
 	server := NewServer()
 	_, serverTransport := memory.NewPair()
 	defer serverTransport.Close()
-	if err := server.ServeScopedTransport(context.Background(), serverTransport, TransportScope{}); err == nil || !strings.Contains(err.Error(), "grant identity and expiry") {
+	if err := server.ServeScopedTransport(context.Background(), serverTransport, TransportScope{}); err == nil || !strings.Contains(err.Error(), "grant identity") {
 		t.Fatalf("zero scope error = %v", err)
 	}
 }

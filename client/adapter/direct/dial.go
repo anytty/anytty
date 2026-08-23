@@ -237,9 +237,11 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 		ExpectedDeviceId: request.DaemonIdentity().DeviceID, ExpectedDeviceFingerprint: request.DaemonIdentity().DeviceFingerprint,
 		OfferSdp: offer, IssuedAtUnixNano: now.UnixNano(), ExpiresAtUnixNano: now.Add(remoteauth.DirectSignalingMaxTTL).UnixNano(),
 	}
-	if options.GrantID != "" && !options.GrantExpiresAt.IsZero() {
+	if options.GrantID != "" {
 		signalingRequest.GrantId = options.GrantID
-		signalingRequest.GrantExpiresAtUnixNano = options.GrantExpiresAt.UnixNano()
+		if !options.GrantExpiresAt.IsZero() {
+			signalingRequest.GrantExpiresAtUnixNano = options.GrantExpiresAt.UnixNano()
+		}
 	} else if len(options.PairingDigest) > 0 && len(options.PairingPublicKey) > 0 && !options.PairingExpiresAt.IsZero() {
 		signalingRequest.PairingClaimDigest = append([]byte(nil), options.PairingDigest...)
 		signalingRequest.PairingClientPublicKey = append([]byte(nil), options.PairingPublicKey...)

@@ -409,6 +409,16 @@ func TestDirectServerAdmissionRejectionsReleasePreAuth(t *testing.T) {
 	}
 }
 
+func TestDirectServerAdmitsPermanentGrantWithZeroExpiry(t *testing.T) {
+	harness := newDirectServerHarness(t)
+	harness.start(t)
+	request := harness.request("permanent-grant")
+	request.GrantExpiresAtUnixNano = 0
+	if got := harness.server.admit(request); got != remoteauthpb.DirectSignalingErrorCode_DIRECT_SIGNALING_ERROR_CODE_UNSPECIFIED {
+		t.Fatalf("permanent grant admission = %s", got)
+	}
+}
+
 func TestDirectServerRequestIDRawByteLengthBoundary(t *testing.T) {
 	for _, test := range []struct {
 		name      string

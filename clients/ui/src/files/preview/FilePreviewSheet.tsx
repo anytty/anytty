@@ -39,7 +39,7 @@ export function FilePreviewSheet({ path, preview, loading, error, remoteAvailabl
 
   const sheet = (
     <ModalSurface
-      className="fixed inset-0 z-[80] flex h-[100dvh] flex-col bg-[var(--background)]"
+      className="fixed inset-0 z-[80] flex h-[100dvh] flex-col bg-[var(--background)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
       data-testid="anytty-file-preview"
       aria-labelledby={titleId}
       aria-describedby={subtitleId}

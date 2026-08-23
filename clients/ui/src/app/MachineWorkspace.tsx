@@ -2622,7 +2622,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         ) : null}
         {!hideTerminalListForUnavailableState && (hasLoadedTerminals || (!initialConnectionFailure && !requireVerification)) ? (
           <div
-            className="relative min-h-0 flex-1 overflow-y-auto p-3"
+            className="relative min-h-0 flex-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3"
             data-testid="anytty-terminal-list-scroll"
           >
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
@@ -2862,7 +2862,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             <Button variant="ghost"
               type="button"
               aria-label={t('workspace.showTerminalList')}
-              className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)]"
               onClick={() => { hapticSelection(); showTerminalListPage() }}
             >
               <ChevronLeft className="h-[18px] w-[18px]" />
@@ -2898,7 +2898,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               aria-label={t('workspace.openFiles')}
               title={t('workspace.openFiles')}
               data-testid="anytty-terminal-files-button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40"
               disabled={connectionSessionUnavailable}
               onClick={() => { hapticSelection(); openFiles() }}
             >
@@ -2909,7 +2909,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               aria-label={t(splitTerminalId ? 'workspace.changeSplit' : 'workspace.splitTerminal')}
               title={t(splitTerminalId ? 'workspace.changeSplit' : 'workspace.splitTerminal')}
               data-testid="anytty-terminal-split-button"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40 ${splitTerminalId ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40 ${splitTerminalId ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`}
               disabled={connectionInputBlocked}
               onClick={() => { hapticSelection(); openSplitTerminalSheet() }}
             >
@@ -2920,7 +2920,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               aria-label={t('workspace.terminalTools')}
               title={t('workspace.terminalTools')}
               data-testid="anytty-terminal-tools-button"
-              className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center text-[var(--anytty-muted)] transition-colors active:bg-[var(--anytty-surface-raised)] disabled:opacity-40"
               onClick={(event) => { hapticImpact(); terminalToolbarOpenerRef.current = event.currentTarget; setTerminalToolbarModeAndReset('default'); setTerminalToolbarVisibility(true) }}
             >
               <SlidersHorizontal className="h-[17px] w-[17px]" />

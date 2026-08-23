@@ -799,7 +799,10 @@ func (runtime *Runtime) issueCloudRouteGrant(clientPublicKey ed25519.PublicKey, 
 	if clientProduct == cloudv1.ClientProduct_CLIENT_PRODUCT_CLI {
 		grantProduct = cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED
 	}
-	claims := &cloudv1.CloudRouteGrantClaims{GrantId: uuid.NewString(), DaemonId: record.DaemonID, ClientPublicKey: append([]byte(nil), clientPublicKey...), Product: grantProduct, IssuedAt: timestamppb.New(issuedAt.UTC()), ExpiresAt: timestamppb.New(expiresAt.UTC())}
+	claims := &cloudv1.CloudRouteGrantClaims{GrantId: uuid.NewString(), DaemonId: record.DaemonID, ClientPublicKey: append([]byte(nil), clientPublicKey...), Product: grantProduct, IssuedAt: timestamppb.New(issuedAt.UTC())}
+	if !expiresAt.IsZero() {
+		claims.ExpiresAt = timestamppb.New(expiresAt.UTC())
+	}
 	envelope, err := ticket.SignCloudRouteGrant(runtime.config.Identity, claims)
 	if err != nil {
 		return nil, nil, err

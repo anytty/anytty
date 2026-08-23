@@ -129,7 +129,7 @@ func (store *AccessStore) IssuePairingClaim(options PairingIssueOptions) (Pairin
 	if err != nil {
 		return PairingClaimIssueResult{}, err
 	}
-	if err := store.persistPairingBundleLocked(bundlePayload, claims, options.Now.UTC()); err != nil {
+	if err := store.persistPairingBundleLocked(bundlePayload, claims, options.AccessLabel, options.Now.UTC()); err != nil {
 		return PairingClaimIssueResult{}, err
 	}
 	store.pairingClaimsMu.Lock()

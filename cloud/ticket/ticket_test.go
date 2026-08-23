@@ -134,6 +134,27 @@ func TestCloudRouteGrantUsesSharedClockSkewTolerance(t *testing.T) {
 	}
 }
 
+func TestCloudRouteGrantAllowsPermanentDaemonAuthorization(t *testing.T) {
+	_, daemonPrivateKey, _ := ed25519.GenerateKey(rand.Reader)
+	daemonIdentity, err := remoteauth.NewIdentity("device-route-permanent", daemonPrivateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientPublicKey, _, _ := ed25519.GenerateKey(rand.Reader)
+	now := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	grant, err := ticket.SignCloudRouteGrant(daemonIdentity, &cloudv1.CloudRouteGrantClaims{
+		GrantId: "grant-permanent", DaemonId: "daemon-permanent", ClientPublicKey: clientPublicKey,
+		IssuedAt: timestamppb.New(now),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := ticket.VerifyCloudRouteGrant(grant, daemonIdentity.PublicKey, "daemon-permanent", now.Add(20*365*24*time.Hour))
+	if err != nil || claims.GetExpiresAt() != nil {
+		t.Fatalf("permanent CloudRouteGrant = %#v, error = %v", claims, err)
+	}
+}
+
 func TestEdgeChallengeRejectsWrongGatewayTimeAndLength(t *testing.T) {
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	valid := testEdgeChallenge(cloudv1.EdgeChallengeTarget_EDGE_CHALLENGE_TARGET_CLIENT_GATEWAY, now)

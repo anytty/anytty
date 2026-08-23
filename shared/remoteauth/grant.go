@@ -150,7 +150,7 @@ func Verify(grant string, expectedFingerprint string, now time.Time, revocations
 	if claims.NotBefore.After(now.Add(ClockSkewTolerance)) {
 		return Claims{}, ErrGrantNotActive
 	}
-	if !claims.ExpiresAt.After(now.Add(-ClockSkewTolerance)) {
+	if !grantUnexpiredAt(claims.ExpiresAt, now.Add(-ClockSkewTolerance)) {
 		return Claims{}, ErrGrantExpired
 	}
 	if revocations != nil && revocations.Revoked(claims.RevocationID) {
@@ -238,11 +238,22 @@ func validateClaims(claims Claims) error {
 	if err := validateScope(claims.Scope); err != nil {
 		return err
 	}
-	if claims.IssuedAt.IsZero() || claims.NotBefore.IsZero() || claims.ExpiresAt.IsZero() ||
-		!claims.ExpiresAt.After(claims.NotBefore) || !claims.ExpiresAt.After(claims.IssuedAt) {
-		return fmt.Errorf("%w: requires valid issued_at, not_before and expires_at", ErrGrantMalformed)
+	if claims.IssuedAt.IsZero() || claims.NotBefore.IsZero() ||
+		(!claims.ExpiresAt.IsZero() && (!claims.ExpiresAt.After(claims.NotBefore) || !claims.ExpiresAt.After(claims.IssuedAt))) {
+		return fmt.Errorf("%w: requires valid issued_at, not_before and optional expires_at", ErrGrantMalformed)
 	}
 	return nil
+}
+
+func grantExpiryForLifetime(issuedAt time.Time, lifetime time.Duration) time.Time {
+	if lifetime == 0 {
+		return time.Time{}
+	}
+	return issuedAt.Add(lifetime).UTC()
+}
+
+func grantUnexpiredAt(expiresAt, now time.Time) bool {
+	return expiresAt.IsZero() || expiresAt.After(now)
 }
 
 func validateScope(scope Scope) error {

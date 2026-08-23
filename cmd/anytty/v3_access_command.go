@@ -87,18 +87,72 @@ func v3AccessListCommand(socket *string, logFile *string) *cobra.Command {
 				return nil
 			}
 			rows := make([][]string, 0, len(result.GetRecords()))
+			now := time.Now().UTC()
 			for _, record := range result.GetRecords() {
 				state := "active"
 				if record.GetRevokedAtUnixNano() != 0 {
 					state = "revoked"
+				} else if record.GetExpiresAtUnixNano() != 0 && !now.Before(time.Unix(0, record.GetExpiresAtUnixNano())) {
+					state = "expired"
 				}
-				rows = append(rows, []string{record.GetGrantId(), record.GetClientLabel(), state, formatTerminalTime(time.Unix(0, record.GetExpiresAtUnixNano()).UTC()), record.GetSubjectKeyFingerprint()})
+				expires := "never"
+				if record.GetExpiresAtUnixNano() != 0 {
+					expires = formatTerminalTime(time.Unix(0, record.GetExpiresAtUnixNano()).UTC())
+				}
+				name := strings.TrimSpace(record.GetAccessLabel())
+				if name == "" {
+					name = strings.TrimSpace(record.GetClientLabel())
+				}
+				if name == "" {
+					name = "(unnamed)"
+				}
+				device := strings.TrimSpace(record.GetClientLabel())
+				if device == "" {
+					device = "(unknown)"
+				}
+				rows = append(rows, []string{
+					name, device, record.GetGrantId(), state, formatClientAccessScope(record.GetScope()),
+					formatTerminalTime(time.Unix(0, record.GetIssuedAtUnixNano()).UTC()), expires, record.GetSubjectKeyFingerprint(),
+				})
 			}
-			return writeCLITable(cmd.OutOrStdout(), []string{"GRANT", "CLIENT", "STATE", "EXPIRES", "SUBJECT"}, rows)
+			return writeCLITable(cmd.OutOrStdout(), []string{"NAME", "DEVICE", "GRANT", "STATE", "SCOPE", "ISSUED", "EXPIRES", "DEVICE KEY"}, rows)
 		},
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	return command
+}
+
+func formatClientAccessScope(scope *remoteauthpb.ClientAccessScope) string {
+	if scope == nil {
+		return "unknown"
+	}
+	values := make([]string, 0, 6)
+	switch {
+	case scope.GetAllowDaemon():
+		values = append(values, "daemon")
+	case strings.TrimSpace(scope.GetTerminalId()) != "":
+		values = append(values, "terminal:"+strings.TrimSpace(scope.GetTerminalId()))
+	case scope.GetMachineEventsOnly():
+		values = append(values, "machine-events")
+	default:
+		values = append(values, "unknown")
+	}
+	if scope.GetFileReadMetadata() {
+		values = append(values, "file-meta")
+	}
+	if scope.GetFileReadContent() {
+		values = append(values, "file-read")
+	}
+	if scope.GetFileWriteContent() {
+		values = append(values, "file-write")
+	}
+	if scope.GetFileMutate() {
+		values = append(values, "file-mutate")
+	}
+	if scope.GetManageClientAccess() {
+		values = append(values, "access-admin")
+	}
+	return strings.Join(values, ",")
 }
 
 func v3AccessRevokeCommand(socket *string, logFile *string) *cobra.Command {

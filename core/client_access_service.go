@@ -27,7 +27,7 @@ type ClientAccessIdentity struct {
 
 // ClientAccessTicketRequest 是一次 pairing ticket 签发请求。
 type ClientAccessTicketRequest struct {
-	Label                    string
+	Label, AccessLabel       string
 	Scope                    ClientAccessScope
 	TicketTTL, GrantLifetime time.Duration
 	Routes                   []*remoteauthpb.EndpointRouteConfigV1
@@ -43,9 +43,9 @@ type ClientAccessTicket struct {
 
 // ClientAccessRecord 是 daemon 持久化 grant 的脱敏投影。
 type ClientAccessRecord struct {
-	GrantID, RevocationID, SubjectKeyFingerprint, ClientLabel string
-	Scope                                                     ClientAccessScope
-	IssuedAt, ExpiresAt, RevokedAt                            time.Time
+	GrantID, RevocationID, SubjectKeyFingerprint, AccessLabel, ClientLabel string
+	Scope                                                                  ClientAccessScope
+	IssuedAt, ExpiresAt, RevokedAt                                         time.Time
 }
 
 // ClientAccessService 是 core protocol session 调用 daemon-owned identity/pair/access runtime 的 typed hook。
@@ -57,7 +57,8 @@ type ClientAccessService interface {
 	CreateTicket(ctx context.Context, request ClientAccessTicketRequest) (ClientAccessTicket, error)
 	// List 返回不含 ticket、grant body 或 client public key bytes 的脱敏授权投影。
 	List(ctx context.Context) ([]ClientAccessRecord, error)
-	// GrantActive 在 core admission 线性化边界查询同一持久 store；未知、撤销、过期或期限不匹配都返回 false。
+	// GrantActive 在 core admission 线性化边界查询同一持久 store；零 expiresAt 表示永久。
+	// 未知、撤销、过期或期限不匹配都返回 false。
 	GrantActive(ctx context.Context, grantID string, expiresAt, now time.Time) bool
 	// Revoke 按 GrantID 持久化撤销；实现失败时不得只修改 core session 内存。
 	Revoke(ctx context.Context, grantID string) (ClientAccessRecord, error)

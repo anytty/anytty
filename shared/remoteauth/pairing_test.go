@@ -82,7 +82,13 @@ func TestPairingLabelsRejectControlCharactersAndOversizeValues(t *testing.T) {
 	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{Label: "bad\nlabel", Scope: Scope{AllowDaemon: true}}); err == nil {
 		t.Fatal("control character pairing label was accepted")
 	}
-	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{Scope: Scope{AllowDaemon: true}, TicketTTL: maxPairingTicketTTL + time.Second}); err == nil {
+	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{AccessLabel: "bad\taccess", Scope: Scope{AllowDaemon: true}}); err == nil {
+		t.Fatal("control character access label was accepted")
+	}
+	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{Scope: Scope{AllowDaemon: true}, TicketTTL: 7 * 24 * time.Hour}); err != nil {
+		t.Fatalf("seven-day pairing ticket was rejected: %v", err)
+	}
+	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{Scope: Scope{AllowDaemon: true}, TicketTTL: 7*24*time.Hour + time.Second}); err == nil {
 		t.Fatal("long-lived pairing ticket was accepted")
 	}
 	if _, _, err := store.IssuePairingBundle(PairingIssueOptions{Scope: Scope{AllowDaemon: true}, GrantLifetime: maxPairingGrantTTL + time.Second}); err == nil {

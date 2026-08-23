@@ -3,6 +3,7 @@ export const ANYTTY_NATIVE_KEYBOARD_EVENT = 'anytty:native-keyboard'
 export interface AnyTTYNativeKeyboardEventDetail {
   visible: boolean
   keyboardHeight?: number | undefined
+  occludedHeight?: number | undefined
 }
 
 export type AnyTTYNativeKeyboardHandler = (detail: AnyTTYNativeKeyboardEventDetail) => void
@@ -33,6 +34,7 @@ function nativeKeyboardDetailFromEvent(event: Event): AnyTTYNativeKeyboardEventD
   return normalizeNativeKeyboardDetail({
     visible: record.visible,
     keyboardHeight: typeof record.keyboardHeight === 'number' ? record.keyboardHeight : undefined,
+    occludedHeight: typeof record.occludedHeight === 'number' ? record.occludedHeight : undefined,
   })
 }
 
@@ -40,8 +42,12 @@ function normalizeNativeKeyboardDetail(detail: AnyTTYNativeKeyboardEventDetail):
   const keyboardHeight = typeof detail.keyboardHeight === 'number' && Number.isFinite(detail.keyboardHeight)
     ? Math.max(0, detail.keyboardHeight)
     : undefined
+  const occludedHeight = typeof detail.occludedHeight === 'number' && Number.isFinite(detail.occludedHeight)
+    ? Math.max(0, detail.occludedHeight)
+    : undefined
   return {
     visible: detail.visible,
     ...(keyboardHeight !== undefined ? { keyboardHeight } : {}),
+    ...(occludedHeight !== undefined ? { occludedHeight } : {}),
   }
 }

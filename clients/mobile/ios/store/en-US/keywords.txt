@@ -1,0 +1,1 @@
+terminal,ssh,remote access,server,shell,files,developer,devops,command line

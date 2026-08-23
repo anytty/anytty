@@ -3,6 +3,7 @@ import mobileAppSource from './AnyTTYApp.tsx?raw'
 import remoteControlSource from '../../ui/src/app/RemoteControlApp.tsx?raw'
 import nativeConnectionSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionPlugin.kt?raw'
 import iosNativeConnectionSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/NativeConnectionPlugin.swift?raw'
+import iosBridgeViewControllerSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/AnyTTYBridgeViewController.swift?raw'
 import nativeRuntimeCoordinatorSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionRuntimeCoordinator.kt?raw'
 import nativeRuntimeOwnerSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionRuntimeOwner.kt?raw'
 import webChromeClientSource from '../android/app/src/main/java/com/anytty/app/AnyTTYWebChromeClient.java?raw'
@@ -20,6 +21,11 @@ describe('mobile product shell', () => {
     expect(mobileAppSource).not.toContain('114.66.58.243')
     expect(mobileAppSource).not.toContain('VITE_CONTROL_URL')
     expect(remoteControlSource).not.toContain('workspace.connection.unavailableReason.cloud_unavailable')
+  })
+
+  it('links the App to the canonical public privacy policy', () => {
+    expect(mobileAppSource).toContain("const privacyPolicyUrl = 'https://anytty.com/privacy/'")
+    expect(mobileAppSource).not.toContain('https://cloud.anytty.com/privacy')
   })
 
   it('keeps the process runtime across backgrounding and replaces only a failed binding', () => {
@@ -67,6 +73,13 @@ describe('mobile product shell', () => {
     expect(iosNativeConnectionSource).toMatch(
       /@objc func replaceSessionDemand[\s\S]*getArray\("endpointIds", String\.self\)[\s\S]*call\.resolve\(\["goManagedEndpointIds": \[\]\]\)/,
     )
+  })
+
+  it('uses actual iOS keyboard occlusion instead of floating-keyboard height', () => {
+    expect(iosBridgeViewControllerSource).toContain('keyboardWillChangeFrameNotification')
+    expect(iosBridgeViewControllerSource).toContain('intersection.width >= webView.bounds.width * 0.9')
+    expect(iosBridgeViewControllerSource).toContain('occludedHeight')
+    expect(mobileAppSource).toContain("Capacitor.getPlatform() === 'ios'")
   })
 
   it('recovers a terminated or unresponsive Android WebView renderer natively', () => {

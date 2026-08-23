@@ -494,9 +494,13 @@ func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPa
 		}
 		return nil, err
 	}
+	expiresAtUnixNano := int64(0)
+	if !paired.ExpiresAt.IsZero() {
+		expiresAtUnixNano = paired.ExpiresAt.UnixNano()
+	}
 	return &bindingpb.ImportPairingResult{
 		Endpoint: committed, Registry: registry, TicketId: claims.TicketID, ClientKeyFingerprint: record.GetKeyFingerprint(),
-		ExpiresAtUnixNano: paired.ExpiresAt.UnixNano(), AuthorizationRequired: false,
+		ExpiresAtUnixNano: expiresAtUnixNano, AuthorizationRequired: false,
 	}, nil
 }
 

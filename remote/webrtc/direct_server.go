@@ -425,7 +425,7 @@ func (server *DirectServer) admit(request *remoteauthpb.DirectSignalingRequestV2
 		strings.TrimSpace(request.GetOfferSdp()) == "" || request.GetIssuedAtUnixNano() <= 0 || request.GetExpiresAtUnixNano() <= 0 {
 		return remoteauthpb.DirectSignalingErrorCode_DIRECT_SIGNALING_ERROR_CODE_PROTOCOL
 	}
-	grantMode := strings.TrimSpace(request.GetGrantId()) != "" && request.GetGrantExpiresAtUnixNano() > 0 &&
+	grantMode := strings.TrimSpace(request.GetGrantId()) != "" && request.GetGrantExpiresAtUnixNano() >= 0 &&
 		len(request.GetPairingClaimDigest()) == 0 && len(request.GetPairingClientPublicKey()) == 0 && request.GetPairingExpiresAtUnixNano() == 0
 	pairingMode := strings.TrimSpace(request.GetGrantId()) == "" && request.GetGrantExpiresAtUnixNano() == 0 &&
 		len(request.GetPairingClaimDigest()) > 0 && len(request.GetPairingClientPublicKey()) > 0 && request.GetPairingExpiresAtUnixNano() > 0
@@ -444,8 +444,11 @@ func (server *DirectServer) admit(request *remoteauthpb.DirectSignalingRequestV2
 	}
 	authorized := false
 	if grantMode {
-		grantExpiresAt := time.Unix(0, request.GetGrantExpiresAtUnixNano()).UTC()
-		authorized = grantExpiresAt.After(now) && server.admission != nil && server.admission.GrantActive(request.GetGrantId(), grantExpiresAt)
+		var grantExpiresAt time.Time
+		if request.GetGrantExpiresAtUnixNano() > 0 {
+			grantExpiresAt = time.Unix(0, request.GetGrantExpiresAtUnixNano()).UTC()
+		}
+		authorized = (grantExpiresAt.IsZero() || grantExpiresAt.After(now)) && server.admission != nil && server.admission.GrantActive(request.GetGrantId(), grantExpiresAt)
 	} else {
 		pairingExpiresAt := time.Unix(0, request.GetPairingExpiresAtUnixNano()).UTC()
 		authorized = server.admission != nil && server.admission.PairingClaimActive(request.GetPairingClaimDigest(), request.GetPairingClientPublicKey(), pairingExpiresAt)

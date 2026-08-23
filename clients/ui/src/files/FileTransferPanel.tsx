@@ -295,7 +295,7 @@ function TransferCenterDialog({
 
   const dialog = (
     <div
-      className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] fixed inset-0 z-[100] flex"
+      className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] fixed inset-0 z-[100] flex pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
       data-anytty-transfer-center-root=""
     >
       <ModalSurface

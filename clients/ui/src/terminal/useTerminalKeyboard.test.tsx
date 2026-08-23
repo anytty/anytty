@@ -6,6 +6,7 @@ import type { TerminalHandle } from './Terminal'
 import { useTerminalKeyboard, type TerminalKeyboardLayoutMode } from './useTerminalKeyboard'
 
 const originalInnerHeight = window.innerHeight
+const originalVisualViewport = Object.getOwnPropertyDescriptor(window, 'visualViewport')
 
 function KeyboardHarness({ mode, adjustInputPosition, cursorInfo = null }: {
   mode: TerminalKeyboardLayoutMode
@@ -37,6 +38,8 @@ describe('useTerminalKeyboard', () => {
     cleanup()
     vi.restoreAllMocks()
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalInnerHeight })
+    if (originalVisualViewport) Object.defineProperty(window, 'visualViewport', originalVisualViewport)
+    else Reflect.deleteProperty(window, 'visualViewport')
   })
 
   it('shrinks the app container and terminal in resize mode', () => {
@@ -67,4 +70,40 @@ describe('useTerminalKeyboard', () => {
     expect(screen.getByTestId('wrapper').style.transform).toBe('translateY(-240px)')
     expect(adjustInputPosition).toHaveBeenLastCalledWith(60)
   })
+
+  it('uses the visual viewport bottom when iOS pans the viewport above the keyboard', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    setVisualViewport({ height: 450, offsetTop: 50 })
+    render(<KeyboardHarness mode="resize" adjustInputPosition={vi.fn()} />)
+
+    act(() => dispatchNativeKeyboardEvent({ visible: true }))
+
+    expect(screen.getByTestId('container').style.height).toBe('500px')
+  })
+
+  it('does not shrink the workspace for an iPad floating keyboard', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    setVisualViewport({ height: 800, offsetTop: 0 })
+    render(<KeyboardHarness mode="resize" adjustInputPosition={vi.fn()} />)
+
+    act(() => dispatchNativeKeyboardEvent({
+      visible: true,
+      keyboardHeight: 300,
+      occludedHeight: 0,
+    }))
+
+    expect(screen.getByTestId('container').style.height).toBe('')
+  })
 })
+
+function setVisualViewport(input: { height: number; offsetTop: number }): void {
+  Object.defineProperty(window, 'visualViewport', {
+    configurable: true,
+    value: {
+      height: input.height,
+      offsetTop: input.offsetTop,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    },
+  })
+}

@@ -55,6 +55,7 @@ type ClientAccessRecord struct {
 	GrantID               string
 	RevocationID          string
 	SubjectKeyFingerprint string
+	AccessLabel           string
 	ClientLabel           string
 	Scope                 Scope
 	IssuedAt              time.Time
@@ -119,6 +120,7 @@ type storedPairingTicket struct {
 	DeliveryGraceUntil     time.Time           `json:"delivery_grace_until,omitempty"`
 	CloudRouteGrantDigest  string              `json:"cloud_route_grant_digest,omitempty"`
 	CloudEdgeLocatorDigest string              `json:"cloud_edge_locator_digest,omitempty"`
+	AccessLabel            string              `json:"access_label,omitempty"`
 }
 
 type storedAccessGrant struct {
@@ -127,6 +129,7 @@ type storedAccessGrant struct {
 	RevokedAt        time.Time `json:"revoked_at,omitempty"`
 	CloudRouteGrant  []byte    `json:"cloud_route_grant,omitempty"`
 	CloudEdgeLocator []byte    `json:"cloud_edge_locator,omitempty"`
+	AccessLabel      string    `json:"access_label,omitempty"`
 }
 
 // LoadAccessStore 加载或创建 daemon-local client access store，并取得该目录的唯一进程 owner lock。
@@ -337,13 +340,17 @@ func (store *AccessStore) IssuePairingBundle(options PairingIssueOptions) (*Pair
 	if err != nil {
 		return nil, PairingTicketClaims{}, err
 	}
-	if err := store.persistPairingBundleLocked(payload, claims, options.Now.UTC()); err != nil {
+	if err := store.persistPairingBundleLocked(payload, claims, options.AccessLabel, options.Now.UTC()); err != nil {
 		return nil, PairingTicketClaims{}, err
 	}
 	return bundle, claims, nil
 }
 
-func (store *AccessStore) persistPairingBundleLocked(payload []byte, claims PairingTicketClaims, now time.Time) error {
+func (store *AccessStore) persistPairingBundleLocked(payload []byte, claims PairingTicketClaims, accessLabel string, now time.Time) error {
+	accessLabel, err := normalizePairingLabel(accessLabel, "pairing access label")
+	if err != nil {
+		return err
+	}
 	if _, exists := store.tickets[claims.TicketID]; exists {
 		return fmt.Errorf("pairing ticket id collision")
 	}
@@ -352,7 +359,7 @@ func (store *AccessStore) persistPairingBundleLocked(payload []byte, claims Pair
 	if store.compactLocked(now.UTC()) {
 		store.accessProjectionRevision++
 	}
-	store.tickets[claims.TicketID] = storedPairingTicket{Claims: claims, TicketDigest: payloadDigest(payload)}
+	store.tickets[claims.TicketID] = storedPairingTicket{Claims: claims, TicketDigest: payloadDigest(payload), AccessLabel: accessLabel}
 	if err := store.persistLocked(); err != nil {
 		if !privateFileWritePublished(err) {
 			store.tickets, store.grants, store.accessProjectionRevision = oldTickets, oldGrants, oldRevision
@@ -442,7 +449,7 @@ func (store *AccessStore) redeemPairingBundle(payload []byte, clientPublicKey ed
 	grantClaims := normalizeClaims(Claims{
 		Version: 2, GrantID: grantID, IssuerDeviceID: store.identity.DeviceID, IssuerDeviceFingerprint: store.identity.Fingerprint,
 		SubjectKeyFingerprint: subjectFingerprint, Scope: claims.ScopeCeiling, IssuedAt: now,
-		NotBefore: now.Add(-ClockSkewTolerance), ExpiresAt: now.Add(time.Duration(claims.GrantLifetimeSeconds) * time.Second),
+		NotBefore: now.Add(-ClockSkewTolerance), ExpiresAt: grantExpiryForLifetime(now, time.Duration(claims.GrantLifetimeSeconds)*time.Second),
 		RevocationID: grantID, Nonce: grantNonce,
 	})
 	boundGrant, err := Issue(store.identity.PrivateKey, grantClaims)
@@ -476,7 +483,7 @@ func (store *AccessStore) redeemPairingBundle(payload []byte, clientPublicKey ed
 		updatedTicket.CloudRouteGrantDigest = payloadDigest(cloudRouteGrant)
 		updatedTicket.CloudEdgeLocatorDigest = payloadDigest(cloudEdgeLocator)
 	}
-	grantRecord := storedAccessGrant{Claims: grantClaims, ClientLabel: clientLabel, CloudRouteGrant: append([]byte(nil), cloudRouteGrant...), CloudEdgeLocator: append([]byte(nil), cloudEdgeLocator...)}
+	grantRecord := storedAccessGrant{Claims: grantClaims, ClientLabel: clientLabel, CloudRouteGrant: append([]byte(nil), cloudRouteGrant...), CloudEdgeLocator: append([]byte(nil), cloudEdgeLocator...), AccessLabel: record.AccessLabel}
 	oldTickets, oldGrants := cloneTicketRecords(store.tickets), cloneGrantRecords(store.grants)
 	oldRevision := store.accessProjectionRevision
 	store.compactLocked(now)
@@ -515,7 +522,7 @@ func (store *AccessStore) AllowsClientPublicKey(publicKey ed25519.PublicKey, now
 	}
 	for grantID := range store.clientGrants[fingerprint] {
 		record, ok := store.grants[grantID]
-		if ok && record.RevokedAt.IsZero() && record.Claims.NotBefore.Before(now.Add(ClockSkewTolerance)) && record.Claims.ExpiresAt.After(now.Add(-ClockSkewTolerance)) {
+		if ok && record.RevokedAt.IsZero() && record.Claims.NotBefore.Before(now.Add(ClockSkewTolerance)) && grantUnexpiredAt(record.Claims.ExpiresAt, now.Add(-ClockSkewTolerance)) {
 			return true
 		}
 	}
@@ -543,13 +550,14 @@ func (store *AccessStore) ListClientAccess() []ClientAccessRecord {
 }
 
 // GrantActive 是 core transport admission 与 Direct preauth 共用的窄只读查询。
-// 请求必须携带已验证 claims 的规范 GrantID 和绝对期限；未知、撤销、过期或期限不匹配都 fail closed。
+// 请求必须携带已验证 claims 的规范 GrantID 和可选绝对期限；零期限表示永久。
+// 未知、撤销、过期或期限不匹配都 fail closed。
 func (store *AccessStore) GrantActive(grantID string, expiresAt, now time.Time) bool {
 	if store == nil {
 		return false
 	}
 	grantID = strings.TrimSpace(grantID)
-	if grantID == "" || expiresAt.IsZero() {
+	if grantID == "" {
 		return false
 	}
 	if now.IsZero() {
@@ -558,7 +566,7 @@ func (store *AccessStore) GrantActive(grantID string, expiresAt, now time.Time) 
 	store.mu.RLock()
 	record, ok := store.grants[grantID]
 	active := !store.closed && ok && record.RevokedAt.IsZero() &&
-		record.Claims.GrantID == grantID && record.Claims.ExpiresAt.Equal(expiresAt.UTC()) && now.UTC().Before(record.Claims.ExpiresAt)
+		record.Claims.GrantID == grantID && record.Claims.ExpiresAt.Equal(expiresAt.UTC()) && grantUnexpiredAt(record.Claims.ExpiresAt, now.UTC())
 	store.mu.RUnlock()
 	return active
 }
@@ -727,7 +735,7 @@ func (store *AccessStore) validateLoadedState() error {
 		}
 		grant, ok := store.grants[record.GrantID]
 		if !ok || grant.Claims.GrantID != record.GrantID || grant.Claims.SubjectKeyFingerprint != record.SubjectKeyFingerprint ||
-			grant.ClientLabel != record.ClientLabel || !record.RedeemedAt.Equal(grant.Claims.IssuedAt) ||
+			grant.ClientLabel != record.ClientLabel || grant.AccessLabel != record.AccessLabel || !record.RedeemedAt.Equal(grant.Claims.IssuedAt) ||
 			!record.DeliveryGraceUntil.After(record.RedeemedAt) || !validPayloadDigest(record.ResultGrantDigest) || !validPayloadDigest(record.DeliveryReceiptDigest) {
 			return fmt.Errorf("client access store ticket %q grant link is invalid", ticketID)
 		}
@@ -814,7 +822,7 @@ func (store *AccessStore) compactLocked(now time.Time) bool {
 		}
 	}
 	for grantID, record := range store.grants {
-		if !now.Before(record.Claims.ExpiresAt.Add(expiredGrantRecordRetention)) {
+		if !record.Claims.ExpiresAt.IsZero() && !now.Before(record.Claims.ExpiresAt.Add(expiredGrantRecordRetention)) {
 			delete(store.grants, grantID)
 			changed = true
 		}
@@ -878,7 +886,7 @@ func cloneGrantRecords(source map[string]storedAccessGrant) map[string]storedAcc
 func clientAccessRecordFromStored(record storedAccessGrant) ClientAccessRecord {
 	return ClientAccessRecord{
 		GrantID: record.Claims.GrantID, RevocationID: record.Claims.RevocationID, SubjectKeyFingerprint: record.Claims.SubjectKeyFingerprint,
-		ClientLabel: record.ClientLabel, Scope: record.Claims.Scope, IssuedAt: record.Claims.IssuedAt.UTC(),
+		AccessLabel: record.AccessLabel, ClientLabel: record.ClientLabel, Scope: record.Claims.Scope, IssuedAt: record.Claims.IssuedAt.UTC(),
 		ExpiresAt: record.Claims.ExpiresAt.UTC(), RevokedAt: record.RevokedAt.UTC(),
 	}
 }

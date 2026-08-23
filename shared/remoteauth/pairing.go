@@ -25,8 +25,7 @@ const (
 	PairingBundleVersion     = endpointdomain.EndpointBootstrapBundleVersion
 	pairingTicketVersion     = endpointdomain.PortableSignatureVersion
 	defaultPairingTicketTTL  = 10 * time.Minute
-	defaultPairingGrantTTL   = 90 * 24 * time.Hour
-	maxPairingTicketTTL      = 24 * time.Hour
+	maxPairingTicketTTL      = 7 * 24 * time.Hour
 	maxPairingGrantTTL       = 365 * 24 * time.Hour
 	maxPairingLabelBytes     = 128
 	pairingScopeDaemon       = "base:daemon"
@@ -69,9 +68,11 @@ type PairingTicketClaims struct {
 type PairingBundle = remoteauthpb.EndpointBootstrapBundleV2
 
 // PairingIssueOptions 描述 local owner 或 ManageClientAccess 签发一次性 ticket 的输入。
-// TicketTTL 只控制兑换窗口；GrantLifetime 控制成功兑换后 client-bound grant 的有效期，两者都不能被 Cloud 账号扩大。
+// TicketTTL 只控制兑换窗口；GrantLifetime 控制成功兑换后 client-bound grant 的有效期，零值表示直到主动撤销。
+// 两者都不能被 Cloud 账号扩大。
 type PairingIssueOptions struct {
 	Label         string
+	AccessLabel   string
 	Platform      string
 	Scope         Scope
 	TicketTTL     time.Duration
@@ -92,6 +93,9 @@ func issuePairingBundle(identity Identity, options PairingIssueOptions) (*Pairin
 	if err != nil {
 		return nil, PairingTicketClaims{}, err
 	}
+	if _, err := normalizePairingLabel(options.AccessLabel, "pairing access label"); err != nil {
+		return nil, PairingTicketClaims{}, err
+	}
 	now := options.Now.UTC()
 	if options.Now.IsZero() {
 		now = time.Now().UTC()
@@ -101,11 +105,8 @@ func issuePairingBundle(identity Identity, options PairingIssueOptions) (*Pairin
 		ticketTTL = defaultPairingTicketTTL
 	}
 	grantLifetime := options.GrantLifetime
-	if grantLifetime == 0 {
-		grantLifetime = defaultPairingGrantTTL
-	}
-	if ticketTTL <= 0 || ticketTTL > maxPairingTicketTTL || grantLifetime <= 0 || grantLifetime > maxPairingGrantTTL {
-		return nil, PairingTicketClaims{}, fmt.Errorf("pairing ticket lifetime must be at most 24 hours and grant lifetime at most one year")
+	if ticketTTL <= 0 || ticketTTL > maxPairingTicketTTL || grantLifetime < 0 || grantLifetime > maxPairingGrantTTL {
+		return nil, PairingTicketClaims{}, fmt.Errorf("pairing ticket lifetime must be at most seven days and grant lifetime must be zero or at most one year")
 	}
 	randomSource := options.Random
 	if randomSource == nil {
@@ -273,7 +274,7 @@ func validatePairingTicketClaims(claims PairingTicketClaims) error {
 	if claims.Version != pairingTicketVersion || claims.TicketID == "" || claims.IssuerDeviceID == "" || claims.IssuerDeviceFingerprint == "" || claims.Nonce == "" {
 		return fmt.Errorf("%w: incomplete claims", ErrPairingTicketMalformed)
 	}
-	if claims.MaxRedemptions != 1 || claims.GrantLifetimeSeconds <= 0 || claims.GrantLifetimeSeconds > int64(maxPairingGrantTTL/time.Second) {
+	if claims.MaxRedemptions != 1 || claims.GrantLifetimeSeconds < 0 || claims.GrantLifetimeSeconds > int64(maxPairingGrantTTL/time.Second) {
 		return fmt.Errorf("%w: ticket must allow exactly one bounded redemption", ErrPairingTicketMalformed)
 	}
 	if err := validateScope(claims.ScopeCeiling); err != nil {

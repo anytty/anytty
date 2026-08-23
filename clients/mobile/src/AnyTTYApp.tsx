@@ -72,7 +72,7 @@ const cloudPresenceProbeTimeoutMs = 15_000
 const cloudPresenceRefreshIntervalMs = 20_000
 const nativeRecoveryStepTimeoutMs = 20_000
 const rendererStallReconcileMs = 10_000
-const privacyPolicyUrl = 'https://cloud.anytty.com/privacy'
+const privacyPolicyUrl = 'https://anytty.com/privacy/'
 let goBindingClient = new GoBindingClient()
 const nativeSystemClipboard = {
   async readText() {
@@ -98,7 +98,7 @@ export function AnyTTYApp() {
     [],
   )
   if (!Capacitor.isNativePlatform()) {
-    return <div style={initialAppThemeStyle}><UnsupportedWebPreview /></div>
+    return <div className="h-full" style={initialAppThemeStyle}><UnsupportedWebPreview /></div>
   }
   return <NativeAnyTTYApp initialAppThemeStyle={initialAppThemeStyle} />
 }
@@ -189,7 +189,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
 
   if (!registryReady) {
     return (
-      <div style={initialAppThemeStyle}>
+      <div className="h-full" style={initialAppThemeStyle}>
         <RegistryStartupScreen
           error={registryError}
           onResetLocalPairings={resetLocalPairings}
@@ -200,7 +200,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
   }
 
   return (
-    <section className="bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-[100dvh] w-screen flex-col overflow-hidden antialiased" style={initialAppThemeStyle}>
+    <section className="anytty-native-app-frame bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] flex h-full w-full flex-col overflow-hidden antialiased" style={initialAppThemeStyle}>
       <RemoteControlApp
         singlePaneWorkspace
         externalPairingAdapter={externalPairingAdapter}
@@ -254,13 +254,15 @@ function createNativeExternalPairingAdapter(registry: NativeEndpointRegistryProj
     }))
     const endpoint = imported.endpoint
     if (!endpoint?.endpointId || !endpoint.identity || endpoint.routes.length === 0) return null
-    const expiresAt = new Date(Number(imported.expiresAtUnixNano / 1_000_000n)).toISOString()
+    const expiresAt = imported.expiresAtUnixNano > 0n
+      ? new Date(Number(imported.expiresAtUnixNano / 1_000_000n)).toISOString()
+      : undefined
     registry.replace(imported.registry ?? await goBindingClient.getEndpointRegistry())
     registry.setAuthorizationExpiry(endpoint.endpointId, expiresAt)
-      return {
-    machine: { id: endpoint.endpointId, name: endpoint.label || endpoint.endpointId, osInfo: endpoint.platform || undefined, accessClass: endpointMachineAccessClass(endpoint) },
-    expiresAt,
-      }
+    return {
+      machine: { id: endpoint.endpointId, name: endpoint.label || endpoint.endpointId, osInfo: endpoint.platform || undefined, accessClass: endpointMachineAccessClass(endpoint) },
+      ...(expiresAt ? { expiresAt } : {}),
+    }
     },
   async inspectShare(rawValue) {
     const received = await goBindingClient.receiveEndpointShare(rawValue)
@@ -540,12 +542,19 @@ function syncRegistryMachineProjection(storage: RemoteRuntimeStorage, registry: 
 
 function useNativeKeyboardEvents(): void {
   useEffect(() => {
+    const reportsNativeOcclusion = Capacitor.getPlatform() === 'ios'
     const subscriptions = [
       Keyboard.addListener('keyboardWillShow', (info) => {
-        dispatchNativeKeyboardEvent({ visible: true, keyboardHeight: info.keyboardHeight })
+        dispatchNativeKeyboardEvent({
+          visible: true,
+          ...(reportsNativeOcclusion ? {} : { keyboardHeight: info.keyboardHeight }),
+        })
       }),
       Keyboard.addListener('keyboardDidShow', (info) => {
-        dispatchNativeKeyboardEvent({ visible: true, keyboardHeight: info.keyboardHeight })
+        dispatchNativeKeyboardEvent({
+          visible: true,
+          ...(reportsNativeOcclusion ? {} : { keyboardHeight: info.keyboardHeight }),
+        })
       }),
       Keyboard.addListener('keyboardWillHide', () => {
         dispatchNativeKeyboardEvent({ visible: false })

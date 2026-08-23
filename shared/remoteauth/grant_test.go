@@ -34,7 +34,7 @@ func TestGrantV2RoundTripBindsDaemonSubjectAndManageCapability(t *testing.T) {
 	}
 }
 
-func TestGrantV2RejectsMissingSubjectExpiryAndRevocation(t *testing.T) {
+func TestGrantV2RejectsMissingSubjectAndHonorsExpiryAndRevocation(t *testing.T) {
 	daemonPublic, daemonPrivate, _ := ed25519.GenerateKey(rand.Reader)
 	client, _ := GenerateClientAccessIdentity("endpoint-1", rand.Reader)
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
@@ -57,6 +57,27 @@ func TestGrantV2RejectsMissingSubjectExpiryAndRevocation(t *testing.T) {
 	revocations := revocationCheckerFunc(func(revocationID string) bool { return revocationID == "grant-1" })
 	if _, err := Verify(grant, Fingerprint(daemonPublic), now, revocations); !errors.Is(err, ErrGrantRevoked) {
 		t.Fatalf("revocation error = %v", err)
+	}
+}
+
+func TestGrantV2PermanentGrantStillHonorsRevocation(t *testing.T) {
+	daemonPublic, daemonPrivate, _ := ed25519.GenerateKey(rand.Reader)
+	client, _ := GenerateClientAccessIdentity("endpoint-permanent", rand.Reader)
+	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	grant, err := Issue(daemonPrivate, Claims{
+		GrantID: "grant-permanent", IssuerDeviceID: "device-1", SubjectKeyFingerprint: client.Fingerprint,
+		Scope: Scope{AllowDaemon: true}, IssuedAt: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := Verify(grant, Fingerprint(daemonPublic), now.Add(20*365*24*time.Hour), nil)
+	if err != nil || !claims.ExpiresAt.IsZero() {
+		t.Fatalf("permanent grant claims = %#v, error = %v", claims, err)
+	}
+	revocations := revocationCheckerFunc(func(revocationID string) bool { return revocationID == "grant-permanent" })
+	if _, err := Verify(grant, Fingerprint(daemonPublic), now, revocations); !errors.Is(err, ErrGrantRevoked) {
+		t.Fatalf("permanent grant revocation error = %v", err)
 	}
 }
 
