@@ -206,6 +206,7 @@ func TestServerLimitsUpgradedClients(t *testing.T) {
 		client := dialClient(t, server)
 		clients = append(clients, client)
 	}
+	waitForUpgradedClients(t, server, maxUpgradedClients)
 	for _, client := range clients {
 		defer client.Close()
 	}
@@ -217,6 +218,23 @@ func TestServerLimitsUpgradedClients(t *testing.T) {
 		if err := websocket.Message.Receive(overflow, &response); err == nil {
 			t.Fatal("client beyond the upgrade limit authenticated")
 		}
+	}
+}
+
+func waitForUpgradedClients(t *testing.T, server *Server, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		server.mu.Lock()
+		got := len(server.clients)
+		server.mu.Unlock()
+		if got >= want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("upgraded clients = %d, want %d", got, want)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
