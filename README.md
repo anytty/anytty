@@ -177,7 +177,7 @@ Local, SSH, and Direct work entirely from this repository. Cloud is optional: it
 
 ## Build from source
 
-CLI/TUI development requires Go 1.26.5. Shared UI and mobile builds use Node.js 24 and the checked-in npm lockfile.
+CLI/TUI development requires Go 1.26.7. Shared UI and mobile builds use Node.js 24 and the checked-in npm lockfile.
 
 ```sh
 git clone https://github.com/anytty/anytty.git

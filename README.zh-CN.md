@@ -169,7 +169,7 @@ Local、SSH 与 Direct 可以完全基于本仓库使用。Cloud 是可选能力
 
 ## 从源码构建
 
-CLI/TUI 开发需要 Go 1.26.5；共享 UI 与移动端使用 Node.js 24 及仓库中的 npm lockfile。
+CLI/TUI 开发需要 Go 1.26.7；共享 UI 与移动端使用 Node.js 24 及仓库中的 npm lockfile。
 
 ```sh
 git clone https://github.com/anytty/anytty.git
