@@ -12,7 +12,7 @@ require (
 	github.com/go-logr/stdr v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/grandcat/zeroconf v1.0.0
-	github.com/klauspost/compress v1.18.7
+	github.com/klauspost/compress v1.19.2
 	github.com/muesli/cancelreader v0.2.2
 	github.com/pion/ice/v4 v4.2.1
 	github.com/pion/logging v0.2.4
