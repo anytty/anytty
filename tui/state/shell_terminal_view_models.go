@@ -25,6 +25,7 @@ type TerminalPickerItem struct {
 	Selected            bool
 	FromPool            bool
 	PoolState           string
+	Tags                map[string]string
 	Cols                int
 	Rows                int
 	LastOutputAt        time.Time

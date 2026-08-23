@@ -792,6 +792,7 @@ func createTerminalPromptWithEndpoint(root state.Root, targetPaneID string, endp
 			{Key: "command", Label: "command", Value: commandValue, Cursor: len([]rune(commandValue)), Placeholder: commandPlaceholder},
 			{Key: "server", Label: "server", Value: endpointValue, Cursor: endpointCursor, Placeholder: "endpoint id or label", Required: true},
 			{Key: "workdir", Label: "workdir", Value: workdirValue, Cursor: len([]rune(workdirValue)), Placeholder: "endpoint cwd"},
+			{Key: "tags", Label: "tags", Placeholder: "kind=task, agent=codex"},
 		},
 	}
 }
@@ -869,7 +870,11 @@ func terminalCreateRequestFromPrompt(root state.Root, prompt state.PromptState) 
 		// 提交边界仍要防止把旧 endpoint 自动 cwd 发送到新的 owning daemon。
 		workdir = terminalCreateDefaultWorkdirForEndpoint(root, endpointID)
 	}
-	request := TerminalPoolCreateRequestMsg{EndpointID: endpointID, Title: name, Command: command, CWD: workdir}
+	tags, err := parseTerminalTagsInput(prompt.FieldRawValue("tags"))
+	if err != nil {
+		return TerminalPoolCreateRequestMsg{}, err
+	}
+	request := TerminalPoolCreateRequestMsg{EndpointID: endpointID, Title: name, Command: command, CWD: workdir, Tags: tags}
 	if prompt.Context == "floating" {
 		request.TargetFloatingID = prompt.TargetID
 	} else {
@@ -1065,23 +1070,30 @@ func syncCreatePromptDefaultsForEndpoint(root state.Root, shell state.ShellStore
 }
 
 func terminalEditPrompt(item state.TerminalPoolPageItem) state.PromptState {
-	// 中文说明：rename 输入归 Shell Prompt 管，提交后再生成 TerminalPoolEditRequestMsg；
+	// 中文说明：metadata 输入归 Shell Prompt 管，提交后再生成 TerminalPoolEditRequestMsg；
 	// 这里不直接修改 reducer-owned pool state，也不在 renderer/service 间绕过主消息链。
+	tags := state.TerminalTagsText(item.Tags)
 	return state.PromptState{
-		Title:            "Rename Terminal",
+		Title:            "Edit Terminal",
 		Purpose:          "terminal.rename",
 		TargetEndpointID: item.EndpointID,
 		TargetID:         item.TerminalID,
 		Value:            item.Title,
-		Placeholder:      "terminal name",
 		Tags:             cloneStringMap(item.Tags),
+		Fields: []state.PromptFieldState{
+			{Key: "name", Label: "name", Value: item.Title, Cursor: len([]rune(item.Title)), Placeholder: "terminal name", Required: true},
+			{Key: "tags", Label: "tags", Value: tags, Cursor: len([]rune(tags)), Placeholder: "kind=task, agent=codex"},
+		},
 	}
 }
 
 func terminalEditRequestFromPrompt(prompt state.PromptState) (TerminalPoolEditRequestMsg, error) {
-	name := strings.TrimSpace(prompt.LastResult)
+	name := strings.TrimSpace(prompt.FieldValue("name"))
 	if name == "" {
-		name = strings.TrimSpace(prompt.Value)
+		name = strings.TrimSpace(prompt.LastResult)
+		if name == "" {
+			name = strings.TrimSpace(prompt.Value)
+		}
 	}
 	if strings.TrimSpace(prompt.TargetID) == "" {
 		return TerminalPoolEditRequestMsg{}, fmt.Errorf("terminal id is required")
@@ -1089,7 +1101,32 @@ func terminalEditRequestFromPrompt(prompt state.PromptState) (TerminalPoolEditRe
 	if name == "" {
 		return TerminalPoolEditRequestMsg{}, fmt.Errorf("name is required")
 	}
-	return TerminalPoolEditRequestMsg{EndpointID: prompt.TargetEndpointID, TerminalID: prompt.TargetID, Title: name, Tags: cloneStringMap(prompt.Tags)}, nil
+	tags := cloneStringMap(prompt.Tags)
+	if len(prompt.Fields) > 0 {
+		var err error
+		tags, err = parseTerminalTagsInput(prompt.FieldRawValue("tags"))
+		if err != nil {
+			return TerminalPoolEditRequestMsg{}, err
+		}
+	}
+	return TerminalPoolEditRequestMsg{EndpointID: prompt.TargetEndpointID, TerminalID: prompt.TargetID, Title: name, Tags: tags}, nil
+}
+
+func parseTerminalTagsInput(value string) (map[string]string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	tags := make(map[string]string)
+	for _, entry := range strings.Split(value, ",") {
+		key, tagValue, found := strings.Cut(strings.TrimSpace(entry), "=")
+		key = strings.TrimSpace(key)
+		if !found || key == "" {
+			return nil, fmt.Errorf("tags must use comma-separated KEY=VALUE")
+		}
+		tags[key] = strings.TrimSpace(tagValue)
+	}
+	return tags, nil
 }
 
 func parsePromptCommand(value string) ([]string, error) {

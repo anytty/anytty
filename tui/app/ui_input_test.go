@@ -1668,6 +1668,52 @@ func TestCreateTerminalPromptSubmitUsesEditedFields(t *testing.T) {
 	}
 }
 
+func TestTerminalCreateAndEditPromptsManageTags(t *testing.T) {
+	prompt := createTerminalPrompt(state.DefaultPaneID)
+	for index := range prompt.Fields {
+		switch prompt.Fields[index].Key {
+		case "name":
+			prompt.Fields[index].Value = "tests"
+		case "command":
+			prompt.Fields[index].Value = "go test ./..."
+		case "tags":
+			prompt.Fields[index].Value = "kind=task, agent=codex, run=fix-login, task=unit-tests"
+		}
+	}
+	create, err := terminalCreateRequestFromPrompt(state.Root{}, prompt)
+	if err != nil {
+		t.Fatalf("parse create prompt tags: %v", err)
+	}
+	if create.Tags["kind"] != "task" || create.Tags["agent"] != "codex" || create.Tags["run"] != "fix-login" || create.Tags["task"] != "unit-tests" {
+		t.Fatalf("create prompt should project tag metadata, got %#v", create)
+	}
+
+	editPrompt := terminalEditPrompt(state.TerminalPoolPageItem{
+		TerminalID: "task-tests",
+		Title:      "tests",
+		Tags:       map[string]string{"task": "unit-tests", "kind": "task", "agent": "codex"},
+	})
+	if editPrompt.Title != "Edit Terminal" || editPrompt.FieldRawValue("tags") != "agent=codex, kind=task, task=unit-tests" {
+		t.Fatalf("edit prompt should expose sorted existing tags, got %#v", editPrompt)
+	}
+	for index := range editPrompt.Fields {
+		if editPrompt.Fields[index].Key == "tags" {
+			editPrompt.Fields[index].Value = "kind=task, agent=opencode, run=retry, task=unit-tests"
+		}
+	}
+	edit, err := terminalEditRequestFromPrompt(editPrompt)
+	if err != nil {
+		t.Fatalf("parse edit prompt tags: %v", err)
+	}
+	if edit.Title != "tests" || edit.Tags["agent"] != "opencode" || edit.Tags["run"] != "retry" {
+		t.Fatalf("edit prompt should replace tag metadata, got %#v", edit)
+	}
+
+	if _, err := parseTerminalTagsInput("kind=task, broken"); err == nil {
+		t.Fatal("invalid tag input should return an actionable validation error")
+	}
+}
+
 func TestCreateTerminalPromptServerFieldUsesEndpointDropdown(t *testing.T) {
 	reducer := NewUIInputReducer()
 	root := state.Root{

@@ -979,7 +979,7 @@ func TestRenderVMBuilderUsesStructuredFooterActionCatalog(t *testing.T) {
 				{Key: "^T", Label: "TAB", ActionID: "terminal_pool.attach_tab"},
 				{Key: "^O", Label: "FLOAT", ActionID: "terminal_pool.attach_float"},
 				{Key: "^R", Label: "RESTART", ActionID: "terminal_pool.restart"},
-				{Key: "^E", Label: "RENAME", ActionID: "terminal_pool.edit"},
+				{Key: "^E", Label: "EDIT", ActionID: "terminal_pool.edit"},
 				{Key: "^K", Label: "KILL", ActionID: "terminal_pool.kill"},
 				{Key: "^X", Label: "REMOVE", ActionID: "terminal_pool.delete"},
 			},
@@ -3092,14 +3092,14 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 		OpenTerminalPicker()
 	shell.Overlay.Query = "term"
 
-	root := state.Root{Shell: shell, TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{TerminalID: "term-main", Title: "shell", State: "running", Cols: 80, Rows: 24}, {TerminalID: "term-2", Title: "日志🚀", State: "running", Cols: 100, Rows: 30}}}}
+	root := state.Root{Shell: shell, TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{TerminalID: "term-main", Title: "shell", State: "running", Tags: map[string]string{"kind": "task", "task": "tests"}, Cols: 80, Rows: 24}, {TerminalID: "term-2", Title: "日志🚀", State: "running", Cols: 100, Rows: 30}}}}
 	vm := NewRenderVMBuilder().Build(root)
 	content := vm.Shell.Overlay.Content
 	if vm.Shell.Overlay.Kind != OverlayTerminalPicker || content.Kind != ContentTerminalPicker {
 		t.Fatalf("expected terminal picker content, got %#v", vm.Shell.Overlay)
 	}
 	plain := plainLines(content.Lines)
-	for _, want := range []string{"search: term", "▸ + new terminal", "● shell", "running", "80x24", "● 日志🚀", "100x30", "Create terminal"} {
+	for _, want := range []string{"search: term", "▸ + new terminal", "● shell · task=tests", "running", "80x24", "● 日志🚀", "100x30", "Create terminal"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("expected compact picker marker %q, got %#v", want, content.Lines)
 		}
@@ -3499,7 +3499,7 @@ func TestRenderVMBuilderProjectsTerminalPoolPage(t *testing.T) {
 					MemoryBytes:    64 * 1024 * 1024,
 					SampledAt:      time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC),
 				},
-				Tags: map[string]string{"role": "shell"},
+				Tags: map[string]string{"agent": "codex", "kind": "task", "role": "shell", "run": "fix-login", "task": "tests"},
 			}, {
 				TerminalID: "term-other",
 				Title:      "worker",
@@ -3554,11 +3554,12 @@ func TestRenderVMBuilderProjectsTerminalPoolPage(t *testing.T) {
 	}
 	previewHeader := content.Meta.WorkbenchSnapshots[0].PreviewHeader
 	previewHeaderText := plainLines(previewHeader)
-	if len(previewHeader) != terminalManagerTrendHeaderRows ||
+	if len(previewHeader) != terminalManagerTrendHeaderRows+1 ||
 		!strings.Contains(previewHeaderText, "CPU") ||
 		!strings.Contains(previewHeaderText, "12%") ||
 		!strings.Contains(previewHeaderText, "MEM") ||
-		!strings.Contains(previewHeaderText, "64M") {
+		!strings.Contains(previewHeaderText, "64M") ||
+		!strings.Contains(previewHeaderText, "TAGS agent=codex, kind=task") {
 		t.Fatalf("expected compact CPU and memory trend header, got %#v", previewHeader)
 	}
 	if strings.Contains(content.Lines[3].PlainString(), "worker") {

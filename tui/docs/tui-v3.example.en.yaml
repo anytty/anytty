@@ -1,0 +1,512 @@
+# Standard TUI configuration template
+#
+# Recommended location:
+#   $XDG_CONFIG_HOME/anytty/tui-v3.yaml
+#   or ~/.config/anytty/tui-v3.yaml
+#
+# Notes:
+# - This is a complete template that the current runtime can load directly.
+# - An empty string "" selects the built-in v3 default, a value derived from
+#   the host theme, or another derived value.
+# - Colors currently use only "#RRGGBB". Example: "#d65cff".
+# - The TUI theme does not remap ANSI colors emitted by terminal content.
+
+# Configuration schema version.
+# Default: 1.
+# The current implementation accepts only version 1. Future schema changes
+# will introduce a new version instead of migrating an older format silently.
+# Example: version: 1
+version: 1
+
+# daemon controls the local AnyTTY daemon runtime policy. These settings are
+# not TUI presentation preferences.
+# Legacy history formats are not migrated. The first daemon start after an
+# upgrade removes legacy history files.
+daemon:
+  output_buffer:
+    # In-memory output capacity for each terminal generation, in bytes.
+    # Default: 33554432 (32 MiB). Allowed: 65536 through 268435456.
+    capacity_bytes: 33554432
+
+    # Behavior when the output buffer is full.
+    # block slows PTY reads and preserves continuous output. drop discards old
+    # payloads and emits an explicit gap.
+    # Allowed: block, drop. Default: block.
+    overflow: block
+
+    # Shared resident-memory budget for all terminal output buffers owned by
+    # this daemon, in bytes.
+    # Default: 536870912 (512 MiB). Allowed: 65536 through 2147483648.
+    resident_budget_bytes: 536870912
+
+  history:
+    # Physical history-file limit for each terminal, in MiB. The oldest
+    # compressed blocks are evicted when the limit is exceeded.
+    # Default: 512. Set to 0 for no size limit.
+    max_size_mb: 512
+
+    # Automatically remove history blocks older than this many days.
+    # Default: 0, which disables age-based removal.
+    max_age_days: 0
+
+    # History-block encoding. s2 minimizes CPU use, zstd favors a higher
+    # compression ratio, and none uses only the compact encoding.
+    # Allowed: zstd, s2, none. Default: zstd.
+    compression: zstd
+
+    # Compression level. fast minimizes CPU use, balanced trades throughput
+    # for size, and best prioritizes compression ratio.
+    # Allowed: fast, balanced, best. Default: fast. Ignored when compression is none.
+    compression_level: fast
+
+# tui is the preference root for the current TUI client. It controls only this
+# client's visuals, interaction, and shortcuts. It does not store the
+# workspace/tab/pane layout or terminal lifecycle.
+tui:
+  # Reserved configuration profile name.
+  # Default: default.
+  # The current implementation reads the name but does not merge multiple
+  # profiles. A later version may use it for separate usage contexts.
+  # Example: profile: work
+  profile: default
+
+  # theme controls color tokens for TUI chrome. It affects the header, footer,
+  # pane borders, overlays, toasts, pickers, navigators, selection, and focus.
+  # It does not affect ANSI foreground or background colors from terminal output.
+  theme:
+    # Built-in light/dark baseline.
+    # Default: dark. Allowed: dark, light, system.
+    # system is currently equivalent to host-aware dark. A later version may
+    # connect it to the host operating-system theme.
+    # Example: mode: light
+    mode: dark
+
+    # Whether default theme values are derived from the host terminal palette.
+    # Default: host. Allowed: host, builtin.
+    # host reads the host foreground, background, and palette before applying
+    # explicit user colors. builtin starts from AnyTTY's built-in colors.
+    # Example: palette: builtin
+    palette: host
+
+    # Primary accent color.
+    # Default: "", which selects host palette 5 or the built-in primary
+    # color. The current built-in value is "#a970ff".
+    # Used by active pane borders, selected items, focus markers, primary
+    # shortcut tokens, and important calls to action.
+    # Example: primary: "#d65cff"
+    primary: ""
+
+    # Secondary accent color.
+    # Default: "", which selects host palette 4 or the built-in info color.
+    # The current built-in value is "#7ab8ff".
+    # Used by secondary emphasis, informational labels, preview accents, and
+    # non-destructive supporting actions.
+    # Example: secondary: "#66e3ff"
+    secondary: ""
+
+    # Default foreground for TUI chrome.
+    # Default: "", which selects the host foreground or built-in foreground.
+    # Used by normal UI text, panel titles, and overlay body text.
+    # Example: foreground: "#e7e2ef"
+    foreground: ""
+
+    # Default background for TUI chrome.
+    # Default: "", which selects the host background or built-in background.
+    # Used by the shell and derived chrome/status/overlay/toast backgrounds.
+    # Example: background: "#050507"
+    background: ""
+
+    # Muted color.
+    # Default: "", which selects host palette 8 or the built-in muted color.
+    # Used by inactive and disabled states, secondary text, unselected borders,
+    # and supporting dividers.
+    # Example: muted: "#77717f"
+    muted: ""
+
+    # Semantic success/running color.
+    # Default: "", which selects host palette 2 or the built-in success color.
+    # Used by running and attached states, success toasts, and availability dots.
+    # Example: success: "#8adf7a"
+    success: ""
+
+    # Semantic warning/search-match color.
+    # Default: "", which selects host palette 3 or the built-in warning color.
+    # Used by matched search characters and non-blocking warnings.
+    # Example: warning: "#f0c45c"
+    warning: ""
+
+    # Semantic danger/error color.
+    # Default: "", which selects host palette 1 or the built-in danger color.
+    # Used by errors, close/delete/kill actions, failure toasts, and abnormal exits.
+    # Example: danger: "#ff6b6b"
+    danger: ""
+
+    # Semantic informational color.
+    # Default: "", which selects secondary, host palette 4, or built-in info.
+    # Used by informational labels, non-focused hints, and supporting status.
+    # Example: info: "#7ab8ff"
+    info: ""
+
+    # Border tokens for panes, overlays, and navigators. Empty values are
+    # derived from primary, muted, and background to keep the theme coherent.
+    border:
+      # Normal panel border.
+      # Default: "", derived by mixing muted and primary.
+      # Used by normal panes, overlay frames, and split-line frames.
+      # Example: panel: "#9b93a6"
+      panel: ""
+
+      # Border for the active pane or focused item.
+      # Default: "", which uses primary.
+      # Example: active: "#d65cff"
+      active: ""
+
+      # Border and subdued state color for inactive panes.
+      # Default: "", which uses muted.
+      # Example: inactive: "#5b5663"
+      inactive: ""
+
+      # Weakest border color.
+      # Default: "", which uses muted.
+      # Used by internal dividers, secondary outlines, and disabled outlines.
+      # Example: muted: "#4b4754"
+      muted: ""
+
+    # Background tokens for chrome surfaces. Empty values are derived from
+    # background and foreground to avoid unrelated surface colors.
+    surface:
+      # Header, tab strip, and panel chrome background.
+      # Default: "", derived from background.
+      # Example: chrome_bg: "#111016"
+      chrome_bg: ""
+
+      # Footer/status bar background.
+      # Default: "", derived from background.
+      # Example: status_bg: "#08080d"
+      status_bg: ""
+
+      # Modal, picker, and navigator background.
+      # Default: "", derived from background.
+      # Example: overlay_bg: "#14121b"
+      overlay_bg: ""
+
+      # Toast/message background.
+      # Default: "", derived from background.
+      # Example: toast_bg: "#15131d"
+      toast_bg: ""
+
+  # chrome controls the outer TUI layout and presentation. It does not change
+  # workspace/tab/pane/floating structure.
+  chrome:
+    # Show the workspace/tab header.
+    # Default: true. false gives the body more space; critical status remains
+    # available through toasts and help.
+    # Example: header: false
+    header: true
+
+    # Show the mode/status/hints footer.
+    # Default: true. false hides shortcut hints, but modes remain discoverable
+    # through toasts and help.
+    # Example: footer: false
+    footer: true
+
+    # Visual layout for tiled panes.
+    # Default: split-line. Allowed: split-line, card.
+    # split-line shares thin dividers between neighboring panes, similar to
+    # tmux, and maximizes content space. card gives every pane a full border.
+    # This option never changes pane IDs, terminal bindings, the active pane,
+    # or copy-mode bindings.
+    # Example: panel_presentation: card
+    panel_presentation: split-line
+
+    # Icon for creating a tab from the tab strip.
+    # Default: "+". Any short text or glyph supported by the terminal is valid.
+    # Nerd Font opt-in, only after confirming font support:
+    # tab_create_icon: "󰐕"
+    tab_create_icon: "+"
+
+    # Complete template for the create-tab button.
+    # Default: empty, which uses the built-in button format.
+    # Available values/functions: {{create_icon}}, fg, bg, style, action, end_style.
+    # Example: tab_create_template: "[fg:#050507;bg:#8ffcff] {{create_icon}} [reset]"
+    tab_create_template: ""
+
+    # Workspace slot at the left side of the header.
+    # The default uses derived theme colors for a compact slot. Its click region
+    # still opens Workbench Navigator.
+    # Available variables/functions:
+    # - {{workspace}}, {{workspace_id}}, {{title}}: displayed workspace name.
+    # - {{workspace | truncate 18}} truncates by terminal-cell width.
+    # - The [style:...], [fg:#RRGGBB], and [reset] spans used by tab_template.
+    # This template changes presentation only; it does not store workspace state.
+    # Example: workspace_template: "[style:header-workspace] WS {{workspace | truncate 18}} [/style][style:header-spacer] [/style]"
+    workspace_template: "[style:header-workspace] WS {{workspace | truncate 18}} [/style][style:header-spacer] [/style]"
+
+    # Header tab template. The default highlights the active tab with derived
+    # theme colors. Active and inactive branches keep the same cell width to
+    # avoid layout movement when switching tabs.
+    # Expressions use Go text/template:
+    # - {{tab_id}}, {{index}}, {{title}}, {{marker}}, {{close_icon}} insert values.
+    # - {{if active}}▎{{else}}|{{end}} selects the active branch.
+    # - {{title | truncate 12}} truncates by terminal-cell width.
+    # - {{fg "#ffffff"}}, {{bg "#332244"}}, and
+    #   {{style "header-active-title"}} generate spans.
+    # AnyTTY parses span syntax after evaluating the template:
+    # - [fg:#ffffff;bg:#332244;font:bold] changes explicit SGR color/font state.
+    # - [style:header-active-title] selects a built-in style token; [/style]
+    #   restores the current tab's default style.
+    # - [action:tab.close]...[/action] binds a fragment to close. Unmarked
+    #   fragments switch tabs.
+    # Example: tab_template: "{{if active}}[style:header-active-edge] [/style][style:header-active-marker]{{marker}}[/style][style:header-active-index] {{index}}[/style][style:header-active-title] {{title | truncate 14}} [/style][action:tab.close][style:header-active-close]{{close_icon}}[/style][/action][style:header-active-edge] [/style]{{else}}[style:header-spacer] [/style][style:header-spacer]{{marker}}[/style][style:header-inactive-index] {{index}}[/style][style:header-inactive-title] {{title | truncate 14}} [/style][action:tab.close][style:header-inactive-close]{{close_icon}}[/style][/action][style:header-spacer] [/style]{{end}}"
+    tab_template: "{{if active}}[style:header-active-edge] [/style][style:header-active-marker]{{marker}}[/style][style:header-active-index] {{index}}[/style][style:header-active-title] {{title | truncate 14}} [/style][action:tab.close][style:header-active-close]{{close_icon}}[/style][/action][style:header-active-edge] [/style]{{else}}[style:header-spacer] [/style][style:header-spacer]{{marker}}[/style][style:header-inactive-index] {{index}}[/style][style:header-inactive-title] {{title | truncate 14}} [/style][action:tab.close][style:header-inactive-close]{{close_icon}}[/style][/action][style:header-spacer] [/style]{{end}}"
+
+    # Title shown at the top of panes and floating panels.
+    # Default: "", which uses the terminal-pool name first, then the pane
+    # title, and finally the terminal ID.
+    # Available variables/functions:
+    # - {{terminal}}, {{terminal_title}}: pool name or fallback title.
+    # - {{endpoint}}, {{endpoint_label}}: machine label from endpoints.yaml,
+    #   falling back to endpoint ID.
+    # - {{terminal_id}}, {{endpoint_id}}, {{pane}}, {{pane_title}}.
+    # - {{terminal | truncate 16}} truncates by terminal-cell width.
+    # Presentation only; this never changes EndpointID + TerminalID routing.
+    # Example: pane_title_template: "{{terminal}}@{{endpoint}}"
+    pane_title_template: ""
+
+    # Glyphs, status markers, and left/right decoration for pane and floating
+    # chrome actions. A glyph value of "" uses the built-in glyph.
+    # action_left/action_right/action_group_left/action_group_right are template
+    # fields. Omitted means built-in default; explicitly setting "" hides it.
+    # Templates support {{glyph}}, {{action_id}}, {{label}}, {{index}}, {{count}},
+    # {{first}}, {{last}}, {{active}}, {{not_active}}, {{is_zoom_mode}}, and
+    # {{not_zoom_mode}}, plus the same SGR/style spans as tab_template.
+    # Nerd Font opt-in example, only after confirming font support:
+    # action_left: " "
+    # action_right: " "
+    # action_separator: ""
+    # action_group_left: "[fg:{{if active}}#8ffcff{{else}}#ff6bff{{end}}][fg:#071112;bg:{{if active}}#8ffcff{{else}}#ff6bff{{end}};font:bold]"
+    # action_group_right: "[reset][fg:{{if active}}#8ffcff{{else}}#ff6bff{{end}}][reset]"
+    # owner_left: "[fg:#8ffcff][fg:#071112;bg:#8ffcff;font:bold] "
+    # owner_right: " [reset][fg:#8ffcff][reset]"
+    # owner: "owner"
+    # owner_pending: "owner?"
+    # take_owner: "follow"
+    # overflow_left/right/top/bottom set clipping markers on the four edges.
+    # overflow_style and extent_placeholder_style accept a built-in style token
+    # or #RRGGBB.
+    # overflow_left: "‹"
+    # overflow_right: "›"
+    # overflow_top: "˄"
+    # overflow_bottom: "˅"
+    # overflow_style: "#c7c7c7"
+    # extent_placeholder: "·"
+    # extent_placeholder_style: "#a8a8a8"
+    pane_glyphs:
+      zoom: ""
+      unzoom: ""
+      split_vertical: ""
+      split_horizontal: ""
+      close: ""
+      size_lock: ""
+      size_unlock: ""
+      center_floating: ""
+      collapse_floating: ""
+      running: ""
+      waiting: ""
+      exited: ""
+      killed: ""
+
+  # footer controls labels and presentation for the bottom mode badge, action
+  # tokens, and status summaries. It changes order, icons, labels, styles, and
+  # clickable action IDs only; it does not change keyboard routing.
+  # tui.chrome.footer still decides whether the footer is visible.
+  footer:
+    templates:
+      # Mode badge at the left.
+      # Available placeholders: {{mode}}, {{mode_icon}}, {{mode_label}}.
+      # Default: "{{mode_icon}} {{mode_label}}".
+      mode_badge: "{{mode_icon}} {{mode_label}}"
+
+      # Key block for every action.
+      # Available placeholder: {{key}}.
+      # Default: "{{key}}", rendered as a structured token such as
+      # [Ctrl] • [W]. Set to "" to hide the key block while retaining the
+      # action icon/label and click region.
+      key: "{{key}}"
+
+      # Content shown after each action key.
+      # The renderer still draws a stable [Ctrl] • [P] key structure. {{key}}
+      # remains as a compatibility placeholder in this template.
+      # Available: {{key}}, {{icon}}, {{label}}, {{action}}.
+      # Default: "{{key}} {{icon}} {{label}}".
+      action: "{{key}} {{icon}} {{label}}"
+
+      # Separator between action tokens. Empty selects the built-in separator.
+      # Default: " │ ".
+      separator: " │ "
+
+      # Workspace summary at the right.
+      # Available: {{workspace}}, {{value}}. Default: "ws:{{workspace}}".
+      workspace_summary: "ws:{{workspace}}"
+
+      # Floating and collapsed-floating count summaries.
+      # Available: {{count}}, {{value}}.
+      # Defaults: "float:{{count}}" and "collapsed:{{count}}".
+      floating_summary: "float:{{count}}"
+      floating_collapsed_summary: "collapsed:{{count}}"
+
+      # Terminal count summary.
+      # Available: {{count}}, {{value}}. Default: "terminals:{{count}}".
+      terminals_summary: "terminals:{{count}}"
+
+      # Compatibility templates for older handwritten FooterVM and diagnostic
+      # summaries. Available: {{count}}, {{value}}.
+      # Defaults: "tabs:{{count}}" and "panes:{{count}}".
+      tabs_summary: "tabs:{{count}}"
+      panes_summary: "panes:{{count}}"
+
+      # Text shown in the right summary while global shortcut lock is enabled.
+      # Default: "LOCK".
+      keylock_on: "LOCK"
+
+      # Reserved for the unlocked state. The footer hides this token by default.
+      # Default: "".
+      keylock_off: ""
+
+    # modes.<name> controls only the badge for one footer mode.
+    # name may be live, pane, resize, tab, workspace, floating, global, copy,
+    # or an overlay mode such as terminal-picker, terminal-pool, workbench-tree,
+    # or clipboard-history. Footer actions, shortcuts, and labels all come from
+    # tui.shortcuts.
+    # Nerd Font opt-in example, only after confirming font support:
+    # modes:
+    #   live:
+    #     icon: "󰆍"
+    #     label: "TERM"
+    #     style: footer-accent
+    #   resize:
+    #     icon: "󰙖"
+    #     label: "SIZE"
+    #     style: footer-key-resize
+    modes:
+
+  # interaction controls behavior of the current TUI client. These are user
+  # preferences; they are not stored in workbench storage and do not represent
+  # terminal state.
+  interaction:
+    # Enable host-terminal mouse mode and hit regions.
+    # Default: true. When false, clicks on headers, tabs, panes, and overlays do
+    # not trigger mouse actions; keyboard interaction remains available.
+    # Example: mouse: false
+    mouse: true
+
+    # Idle timeout for sticky shortcut modes, in milliseconds.
+    # Default: 3000.
+    # Applies to prefix modes such as pane, resize, tab, workspace, floating,
+    # and global. It does not apply to explicit overlay pages such as Terminal
+    # Picker, prompts, Clipboard History, or copy/history.
+    # Example: sticky_prefix_timeout_ms: 5000
+    sticky_prefix_timeout_ms: 3000
+
+    # Double-press passthrough window for shortcut entry keys, in milliseconds.
+    # Default: 1000. Must be greater than 0.
+    # Example: after ctrl-w enters workspace mode, pressing ctrl-w again within
+    # 1000 ms passes one ctrl-w through to the terminal. After ctrl-v enters
+    # copy/history, a second ctrl-v within the window exits copy/history and
+    # passes one ctrl-v through. Outside the window, the key follows normal TUI
+    # shortcut routing and is not passed to the terminal.
+    # Example: shortcut_passthrough_interval_ms: 700
+    shortcut_passthrough_interval_ms: 1000
+
+    # Require confirmation for destructive actions.
+    # Default: true. Affects actions such as close, delete, kill, and removing a
+    # workspace when they may discard state or stop a process.
+    # Example: confirm_destructive: false
+    confirm_destructive: true
+
+    # Clipboard History overlay display and local limits. Entry data itself is
+    # stored through core-owned storage, not in this configuration.
+    clipboard_history:
+      # Maximum number of entries retained/displayed.
+      # Default: 200. Future implementations may trim oldest entries to this
+      # value before writing core storage.
+      # Example: max_items: 500
+      max_items: 200
+
+      # Width of the name/abbreviation column, in terminal cells.
+      # Default: 34. The divider remains temporarily adjustable by mouse drag.
+      # Example: name_width: 42
+      name_width: 34
+
+      # Target width ratio for the preview pane.
+      # Default: 0.68. Recommended: 0.50 through 0.80.
+      # Actual layout remains constrained by terminal width, minimum column
+      # widths, and the draggable divider.
+      # Example: preview_width_ratio: 0.72
+      preview_width_ratio: 0.68
+
+    # Search behavior for picker-style overlays.
+    picker:
+      # Fuzzy matching algorithm.
+      # Default and only current value: subsequence.
+      # Characters must appear in order. For example, "gft" matches
+      # "git commit fix terminal".
+      # Example: fuzzy_match: subsequence
+      fuzzy_match: subsequence
+
+      # Highlight matching characters in search results.
+      # Default: true. true uses the warning token for matched characters;
+      # false filters the list without additional coloring.
+      # Example: highlight_matches: false
+      highlight_matches: true
+
+  # terminal controls local TUI behavior for attached terminal views. The
+  # owning daemon remains the final authority for ownership and resize rights.
+  terminal:
+    # Automatically request resize ownership only when the daemon explicitly
+    # reports that the terminal has no owner.
+    # Default: true. false keeps this client as a follower until the user
+    # explicitly requests ownership.
+    # Example: auto_take_owner: false
+    auto_take_owner: true
+
+  # shortcuts is the only shortcut-configuration entry point. Input routing,
+  # footer/help labels, and overlay hints are generated from this section.
+  # Omitting tui.shortcuts or writing shortcuts: {} uses the built-in catalog.
+  # Setting only shortcuts.actions inherits default bindings and overrides only
+  # action labels/styles. Declaring any scene, including global: {}, replaces
+  # the complete default scene catalog with the user catalog.
+  # Short form: key: action.
+  # Long form: key.action / key.label, for per-scene display overrides.
+  # Unmodified Esc is the reserved global Back key and cannot be bound.
+  # Example:
+  # shortcuts:
+  #   actions:
+  #     panel.close:
+  #       label: close
+  #       style: danger
+  #
+  #   global:
+  #     ctrl-p: menu.panel
+  #     ctrl-g: menu.system
+  #     ctrl-o: menu.floating
+  #     ctrl-t: menu.tab
+  #     ctrl-1: tab.jump.1
+  #
+  #   system:
+  #     h: system.toggle_header
+  #     f: system.toggle_footer
+  #     e: system.open_connections
+  #
+  #   panel:
+  #     x: panel.close
+  #
+  #   floating:
+  #     k:
+  #       action: panel.kill_and_close
+  #       label: kill+close
+  #
+  #   connections:
+  #     enter: connections.edit
+  #     space: connections.toggle
+  #     r: connections.refresh

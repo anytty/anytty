@@ -367,6 +367,7 @@ func knownSection(path string) bool {
 		"tui.interaction",
 		"tui.interaction.clipboard_history",
 		"tui.interaction.picker",
+		"tui.terminal",
 		"tui.shortcuts",
 		"tui.shortcuts.actions":
 		return true

@@ -138,7 +138,7 @@ var defaultLabels = map[string]string{
 	"terminal_pool.attach_float":     "FLOAT",
 	"terminal_pool.attach":           "ATTACH",
 	"terminal_pool.restart":          "RESTART",
-	"terminal_pool.edit":             "RENAME",
+	"terminal_pool.edit":             "EDIT",
 	"terminal_pool.kill":             "KILL",
 	"terminal_pool.delete":           "REMOVE",
 	"connections.edit":               "SETTINGS",

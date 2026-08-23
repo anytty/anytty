@@ -602,12 +602,16 @@ func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
 		activityLabel = "-"
 	}
 	endpointLabel := terminalPickerEndpointLabel(row)
+	title := row.Title
+	if taskLabel := terminalTaskLabel(row.Tags); taskLabel != "" {
+		title += " · " + taskLabel
+	}
 	cells := []Cell{
 		styledCell(marker, markerStyle),
 		styledCell("●", terminalPoolStateStyle(stateText)),
 		pickerSpace(" "),
 	}
-	cells = append(cells, terminalPickerColumnCells(row.Title, query, textStyle, terminalPickerTitleColumnWidth)...)
+	cells = append(cells, terminalPickerColumnCells(title, query, textStyle, terminalPickerTitleColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells(endpointLabel, query, StylePickerInfo, terminalPickerEndpointColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))

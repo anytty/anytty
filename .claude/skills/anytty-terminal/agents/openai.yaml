@@ -1,0 +1,4 @@
+interface:
+  display_name: "AnyTTY Terminal"
+  short_description: "Run durable tasks in the AnyTTY terminal pool"
+  default_prompt: "Use $anytty-terminal to run this long-lived task as a named AnyTTY terminal and return its result."

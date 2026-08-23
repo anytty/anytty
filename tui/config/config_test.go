@@ -11,24 +11,28 @@ import (
 	"github.com/anytty/anytty/tui/state"
 )
 
-func TestParseExampleConfigMatchesDefaults(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "docs", "tui-v3.example.yaml"))
-	if err != nil {
-		t.Fatalf("read example config: %v", err)
-	}
-	cfg, err := Parse(data)
-	if err != nil {
-		t.Fatalf("parse example config: %v", err)
-	}
+func TestParseLocalizedExampleConfigsMatchDefaults(t *testing.T) {
 	want := Default()
 	if want.Daemon.OutputBuffer.Overflow != "block" || want.Daemon.OutputBuffer.CapacityBytes != 32<<20 || want.Daemon.OutputBuffer.ResidentBudgetBytes != 512<<20 {
 		t.Fatalf("production output buffer defaults changed: %#v", want.Daemon.OutputBuffer)
 	}
-	if cfg.Theme.Primary != "" || cfg.Theme.Secondary != "" {
-		t.Fatalf("example config should keep primary/secondary host-aware by default, got %#v", cfg.Theme)
-	}
-	if !reflect.DeepEqual(cfg, want) {
-		t.Fatalf("example config should parse to defaults\n got=%#v\nwant=%#v", cfg, want)
+	for _, name := range []string{"tui-v3.example.yaml", "tui-v3.example.en.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join("..", "docs", name))
+			if err != nil {
+				t.Fatalf("read example config: %v", err)
+			}
+			cfg, err := Parse(data)
+			if err != nil {
+				t.Fatalf("parse example config: %v", err)
+			}
+			if cfg.Theme.Primary != "" || cfg.Theme.Secondary != "" {
+				t.Fatalf("example config should keep primary/secondary host-aware by default, got %#v", cfg.Theme)
+			}
+			if !reflect.DeepEqual(cfg, want) {
+				t.Fatalf("example config should parse to defaults\n got=%#v\nwant=%#v", cfg, want)
+			}
+		})
 	}
 }
 
@@ -119,6 +123,8 @@ tui:
     clipboard_history:
       max_items: 500
       preview_width_ratio: 0.72
+  terminal:
+    auto_take_owner: false
   shortcuts:
     actions:
       panel.close:
@@ -202,6 +208,9 @@ tui:
 		cfg.Interaction.ClipboardHistory.MaxItems != 500 ||
 		cfg.Interaction.ClipboardHistory.PreviewWidthRatio != 0.72 {
 		t.Fatalf("interaction overrides not applied: %#v", cfg.Interaction)
+	}
+	if cfg.Terminal.AutoTakeOwner {
+		t.Fatalf("terminal overrides not applied: %#v", cfg.Terminal)
 	}
 	if cfg.Shortcuts.Actions["panel.close"].Label != "close" ||
 		cfg.Shortcuts.Actions["panel.kill_and_close"].Label != "kill+close" ||

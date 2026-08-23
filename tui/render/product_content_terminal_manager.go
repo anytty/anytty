@@ -45,7 +45,7 @@ func buildTerminalPoolContent(root state.Root, shell state.ShellStore) ContentVM
 func terminalManagerLines(root state.Root, rows []state.TerminalPoolPageItem, query string, layout terminalManagerLayout, listStart int) []Line {
 	statusLine, hasStatus := terminalPoolPageStateLine(root.TerminalPool, len(rows))
 	lines := []Line{
-		terminalManagerFullLine(searchRowLine(query, "shell"), layout),
+		terminalManagerFullLine(searchRowLine(query, "name / tag"), layout),
 		terminalManagerDividerLine(layout),
 		terminalManagerBodyLine(terminalManagerListHeaderLine(layout.ListWidth), Line{}, layout),
 	}
@@ -96,7 +96,7 @@ func terminalManagerDisplayRows(root state.Root, rows []state.TerminalPoolPageIt
 func terminalManagerGroupedLines(root state.Root, rows []state.TerminalPoolPageItem, query string, layout terminalManagerLayout, displayRows []terminalManagerDisplayRow, listStart int) []Line {
 	statusLine, hasStatus := terminalPoolPageStateLine(root.TerminalPool, len(rows))
 	lines := []Line{
-		terminalManagerFullLine(searchRowLine(query, "shell"), layout),
+		terminalManagerFullLine(searchRowLine(query, "name / tag"), layout),
 		terminalManagerDividerLine(layout),
 		terminalManagerBodyLine(terminalManagerListHeaderLine(layout.ListWidth), Line{}, layout),
 	}
@@ -211,6 +211,9 @@ func terminalManagerSnapshotVM(root state.Root, selected state.TerminalPoolPageI
 	var previewHeader []Line
 	if rect.H >= terminalManagerTrendMinHeight {
 		previewHeader = terminalManagerResourceTrendLines(selected, innerWidth)
+	}
+	if tags := state.TerminalTagsText(selected.Tags); tags != "" && innerWidth > len("TAGS ") {
+		previewHeader = append(previewHeader, fitContentLine(terminalManagerDetailLine("tags", tags), innerWidth, StyleForeground))
 	}
 	headerRows := len(previewHeader)
 	contentY := rect.Y + 1
@@ -440,6 +443,9 @@ func terminalManagerRowLine(row state.TerminalPoolPageItem, width int) Line {
 		NewCell(" "),
 		styledCell(row.Title, titleStyle),
 	}}
+	if taskLabel := terminalTaskLabel(row.Tags); taskLabel != "" {
+		title.Cells = append(title.Cells, styledCell(" · ", StyleMuted), styledCell(taskLabel, StyleAccent))
+	}
 	cpu := "--"
 	memory := "--"
 	if !row.Resources.SampledAt.IsZero() {
@@ -702,6 +708,16 @@ func terminalManagerDetailLine(label string, value string) Line {
 		styledCell(strings.ToUpper(label)+" ", StyleAccent),
 		NewCell(value),
 	}}
+}
+
+func terminalTaskLabel(tags map[string]string) string {
+	if !strings.EqualFold(strings.TrimSpace(tags["kind"]), "task") {
+		return ""
+	}
+	if task := strings.TrimSpace(tags["task"]); task != "" {
+		return "task=" + task
+	}
+	return "kind=task"
 }
 
 func terminalManagerPreviewStatus(surface state.TerminalSurfaceStore) string {

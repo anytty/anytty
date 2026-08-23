@@ -483,6 +483,33 @@ func TestTerminalPickerItemsShowOnlyTerminalPoolInfo(t *testing.T) {
 	}
 }
 
+func TestTerminalPickerAndManagerFilterTerminalTags(t *testing.T) {
+	root := Root{
+		Shell: DefaultShell().OpenTerminalPicker(),
+		TerminalPool: TerminalPoolStore{Status: TerminalPoolReady, Items: []TerminalPoolItem{
+			{TerminalID: "task-tests", Title: "tests", State: "running", Tags: map[string]string{
+				"task": "unit-tests", "kind": "task", "run": "fix-login", "agent": "codex",
+			}},
+			{TerminalID: "shell", Title: "shell", State: "running", Tags: map[string]string{"kind": "shell"}},
+		}},
+	}
+
+	root.Shell = root.Shell.SetTerminalPickerQuery("kind=task")
+	picker := TerminalPickerItems(root)
+	if len(picker) != 1 || picker[0].TerminalID != "task-tests" || picker[0].Tags["run"] != "fix-login" {
+		t.Fatalf("picker should project and filter canonical key=value tags, got %#v", picker)
+	}
+
+	root.Shell = root.Shell.OpenTerminalPool().SetTerminalPoolQuery("run=fix-login")
+	manager := TerminalPoolPageItems(root)
+	if len(manager) != 1 || manager[0].TerminalID != "task-tests" {
+		t.Fatalf("manager should filter canonical key=value tags, got %#v", manager)
+	}
+	if got := TerminalTagsText(manager[0].Tags); got != "agent=codex, kind=task, run=fix-login, task=unit-tests" {
+		t.Fatalf("tag text should be stable and sorted, got %q", got)
+	}
+}
+
 func TestTerminalPickerItemsKeepSameTerminalIDAcrossEndpoints(t *testing.T) {
 	root := Root{
 		Shell: DefaultShell().OpenTerminalPicker(),

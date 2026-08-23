@@ -434,6 +434,15 @@ tui:
       # 示例：highlight_matches: false
       highlight_matches: true
 
+  # terminal 控制当前 TUI 客户端对已附加 terminal view 的本地行为。
+  # owning daemon 仍然是 ownership 和 resize 权限的最终仲裁者。
+  terminal:
+    # auto_take_owner 只在 daemon 明确报告 terminal 当前没有 owner 时，
+    # 自动请求 resize ownership。
+    # 默认值：true。设为 false 时，本客户端保持 follower，直到用户主动请求 owner。
+    # 示例：auto_take_owner: false
+    auto_take_owner: true
+
   # shortcuts 是快捷键配置的唯一入口。
   # 输入路由、footer/help/overlay 提示都从这里生成。
   # 省略 tui.shortcuts 或写 shortcuts: {} 时使用内置默认 catalog。

@@ -26,6 +26,7 @@ func TerminalPickerItems(root Root) []TerminalPickerItem {
 			Active:       active,
 			FromPool:     true,
 			PoolState:    terminalPickerPoolState(poolItem, active),
+			Tags:         cloneStringMap(poolItem.Tags),
 			Cols:         poolItem.Cols,
 			Rows:         poolItem.Rows,
 			LastOutputAt: poolItem.LastOutputAt,
@@ -192,6 +193,7 @@ func matchesTerminalPickerQuery(item TerminalPickerItem, query string) bool {
 	return TerminalPickerQueryMatchIndexes(item.Title, query) != nil ||
 		TerminalPickerQueryMatchIndexes(item.TerminalID, query) != nil ||
 		TerminalPickerQueryMatchIndexes(item.PoolState, query) != nil ||
+		TerminalPickerQueryMatchIndexes(TerminalTagsText(item.Tags), query) != nil ||
 		TerminalPickerQueryMatchIndexes(string(item.EndpointID), query) != nil ||
 		TerminalPickerQueryMatchIndexes(item.EndpointLabel, query) != nil ||
 		TerminalPickerQueryMatchIndexes(terminalPickerSizeText(item), query) != nil
@@ -202,6 +204,24 @@ func terminalPickerSizeText(item TerminalPickerItem) string {
 		return ""
 	}
 	return strconv.Itoa(item.Cols) + "x" + strconv.Itoa(item.Rows)
+}
+
+// TerminalTagsText returns a stable, human-readable tag list for TUI forms,
+// detail views, and key=value search.
+func TerminalTagsText(tags map[string]string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(tags))
+	for key := range tags {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+tags[key])
+	}
+	return strings.Join(parts, ", ")
 }
 
 func TerminalPickerQueryMatchIndexes(value string, query string) []int {
@@ -253,7 +273,9 @@ func matchesTerminalPoolPageQuery(item TerminalPoolPageItem, query string) bool 
 		return true
 	}
 	for key, value := range item.Tags {
-		if strings.Contains(strings.ToLower(key), query) || strings.Contains(strings.ToLower(value), query) {
+		if strings.Contains(strings.ToLower(key+"="+value), query) ||
+			strings.Contains(strings.ToLower(key), query) ||
+			strings.Contains(strings.ToLower(value), query) {
 			return true
 		}
 	}
