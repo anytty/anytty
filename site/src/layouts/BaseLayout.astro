@@ -29,14 +29,14 @@ const labels = locale === 'en'
       features: 'Features', screens: 'Apps', docs: 'Docs', download: 'Download', cloud: 'Cloud', language: '中文',
       skip: 'Skip to content', nav: 'Primary navigation', menuTitle: 'Explore AnyTTY',
       menuDescription: 'Open-source terminals that keep running across TUI, Web, and mobile.',
-      footer: 'Open-source terminals that keep running, so you can come back anytime.', support: 'Support', security: 'Security', close: 'Close menu',
+      footer: 'Open-source terminals that keep running, so you can come back anytime.', support: 'Support', privacy: 'Privacy', terms: 'Terms', security: 'Security', close: 'Close menu',
       theme: 'Toggle theme',
     }
   : {
       features: '功能', screens: '多端体验', docs: '文档', download: '下载', cloud: '云服务', language: 'English',
       skip: '跳到正文', nav: '主导航', menuTitle: '浏览 AnyTTY',
       menuDescription: '跨 TUI、Web 与手机一直运行的开源终端。',
-      footer: '终端一直跑着，随时回来接管的开源工具。', support: '支持', security: '安全', close: '关闭菜单',
+      footer: '终端一直跑着，随时回来接管的开源工具。', support: '支持', privacy: '隐私', terms: '条款', security: '安全', close: '关闭菜单',
       theme: '切换主题',
     }
 
@@ -135,7 +135,9 @@ const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1'
         <nav class="flex flex-wrap items-center gap-x-5 gap-y-3" aria-label="Footer">
           <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/blob/main/LICENSE">Apache-2.0</a>
           <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/security">{labels.security}</a>
-          <a class="transition-colors hover:text-zinc-100" href="https://github.com/anytty/anytty/blob/main/SUPPORT.md">{labels.support}</a>
+          <a class="transition-colors hover:text-zinc-100" href={sitePath(localizedPath(locale, '/support'))}>{labels.support}</a>
+          <a class="transition-colors hover:text-zinc-100" href={sitePath(localizedPath(locale, '/privacy'))}>{labels.privacy}</a>
+          <a class="transition-colors hover:text-zinc-100" href={sitePath(localizedPath(locale, '/terms'))}>{labels.terms}</a>
         </nav>
       </div>
     </footer>

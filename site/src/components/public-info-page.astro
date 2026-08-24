@@ -1,0 +1,413 @@
+---
+import { ArrowUpRight, BookOpen, FileText, Mail, ShieldCheck } from 'lucide-react'
+
+import BaseLayout from '@/layouts/BaseLayout.astro'
+import { localizedPath, sitePath, type Locale } from '@/lib/site'
+
+type PageKind = 'privacy' | 'terms' | 'support'
+
+interface LinkItem {
+  label: string
+  href: string
+  external?: boolean
+}
+
+interface Section {
+  id: string
+  title: string
+  paragraphs: string[]
+  bullets?: string[]
+  links?: LinkItem[]
+}
+
+interface PageCopy {
+  title: string
+  description: string
+  eyebrow: string
+  updated: string
+  contactTitle: string
+  contactBody: string
+  email: string
+  sections: Section[]
+}
+
+interface Props {
+  locale: Locale
+  kind: PageKind
+}
+
+const { locale, kind } = Astro.props
+const isEnglish = locale === 'en'
+const localized = (path: string) => sitePath(localizedPath(locale, path))
+
+const copies: Record<Locale, Record<PageKind, PageCopy>> = {
+  en: {
+    privacy: {
+      title: 'Privacy Policy',
+      description: 'How AnyTTY handles information across its website, apps, open-source software, and optional managed services.',
+      eyebrow: 'AnyTTY / Legal',
+      updated: 'Last updated: August 24, 2026',
+      contactTitle: 'Privacy questions',
+      contactBody: 'Contact us to ask about this policy or exercise an applicable privacy right.',
+      email: 'privacy@anytty.com',
+      sections: [
+        {
+          id: 'scope',
+          title: '1. Scope',
+          paragraphs: [
+            'This policy applies to the AnyTTY website, official apps, open-source software, and optional managed services. It does not govern third-party services or independently operated deployments.',
+            'AnyTTY can run locally or through connections you control. Information that remains on your own devices is not collected by AnyTTY.',
+          ],
+        },
+        {
+          id: 'information',
+          title: '2. Information we process',
+          paragraphs: ['The information involved depends on which AnyTTY features you use. It may include:'],
+          bullets: [
+            'Website and diagnostics data, such as IP address, browser or device type, requested pages, timestamps, crash information, and similar technical logs.',
+            'Cloud account and service data, such as email address, account identifiers, authentication records, settings, subscription status, and transaction references.',
+            'Device and connection metadata, such as device identifiers and labels, authorization records, connection timestamps, route diagnostics, and network information needed to establish or troubleshoot a connection.',
+            'Support communications, including the messages, attachments, and contact details you choose to send us.',
+            'Limited purchase status supplied by Apple, Google, or another payment provider. AnyTTY does not receive complete payment-card numbers from those providers.',
+          ],
+        },
+        {
+          id: 'device-data',
+          title: '3. Terminal, file, and device data',
+          paragraphs: [
+            'Local, SSH, and Direct connections do not route terminal or file content through the AnyTTY managed service. A managed Relay forwards encrypted traffic and does not receive terminal or file permissions.',
+            'The mobile apps may request local-network access for device discovery, camera access for QR pairing, photo access when you choose an image, and clipboard access when you invoke copy or paste. These capabilities are used only to perform the action you request.',
+          ],
+        },
+        {
+          id: 'use',
+          title: '4. How we use information',
+          paragraphs: [
+            'We use information to provide and secure the services, authenticate accounts and devices, establish requested connections, process subscriptions, maintain reliability, respond to support and abuse reports, communicate material changes, comply with law, and enforce our agreements.',
+          ],
+        },
+        {
+          id: 'sharing',
+          title: '5. Sharing and service providers',
+          paragraphs: [
+            'We may share information with vendors that provide infrastructure, authentication, analytics, communications, customer support, fraud prevention, and payment processing; with professional advisers; when required by law; or in connection with a corporate transaction.',
+            'We do not sell personal information or share it for cross-context behavioral advertising.',
+          ],
+        },
+        {
+          id: 'retention',
+          title: '6. Retention and international processing',
+          paragraphs: [
+            'We keep information only as long as reasonably necessary to provide and secure the services, maintain required records, resolve disputes, and meet legal obligations. Retention depends on the information and its purpose.',
+            'AnyTTY and its providers may process information outside your country or region. Where required, we use recognized safeguards for international transfers.',
+          ],
+        },
+        {
+          id: 'rights',
+          title: '7. Your choices and rights',
+          paragraphs: [
+            'Depending on where you live, you may have rights to access, correct, delete, restrict, or object to processing, obtain a portable copy, or appeal a request decision. We may need to verify your identity before completing a request.',
+            'You can revoke a paired device from AnyTTY access controls and can remove the app or its local data using your operating system.',
+          ],
+        },
+        {
+          id: 'security-children',
+          title: '8. Security and children',
+          paragraphs: [
+            'We use administrative, technical, and organizational safeguards designed to protect information, but no transmission or storage method is completely secure.',
+            'The services are not directed to children under 13, or a higher minimum age where local law requires one. We do not knowingly collect personal information from children below the applicable age.',
+          ],
+        },
+        {
+          id: 'changes',
+          title: '9. Changes and contact',
+          paragraphs: [
+            'We may update this policy as the services or legal requirements change. We will publish the revised policy here and update the date above.',
+          ],
+        },
+      ],
+    },
+    terms: {
+      title: 'Terms of Service',
+      description: 'Terms governing AnyTTY websites, software, accounts, and optional managed Cloud services.',
+      eyebrow: 'AnyTTY / Legal',
+      updated: 'Effective: August 24, 2026',
+      contactTitle: 'Questions about these terms',
+      contactBody: 'Contact support for service, billing, cancellation, or terms questions.',
+      email: 'support@anytty.com',
+      sections: [
+        {
+          id: 'services',
+          title: '1. The services',
+          paragraphs: [
+            'These terms govern access to AnyTTY websites, official apps, accounts, and optional managed services. Open-source components remain governed by their published licenses.',
+            'AnyTTY provides terminal and file access tools. AnyTTY Cloud may provide device enrollment, discovery, routing, peer-to-peer negotiation, encrypted Relay fallback, usage measurement, and subscription management.',
+          ],
+        },
+        {
+          id: 'accounts',
+          title: '2. Accounts and security',
+          paragraphs: [
+            'You must provide accurate account information, protect credentials and pairing claims, and promptly revoke access you no longer trust. You may use AnyTTY only to access systems and data that you own or are authorized to use.',
+          ],
+        },
+        {
+          id: 'acceptable-use',
+          title: '3. Acceptable use',
+          paragraphs: [
+            'You must not use the services for unauthorized access, malware, network interference, evasion of service limits, unlawful activity, intellectual-property infringement, public file hosting, an open proxy, spyware, or covert monitoring. We may limit or suspend activity that creates a security, legal, or operational risk.',
+          ],
+        },
+        {
+          id: 'billing',
+          title: '4. Plans, billing, and taxes',
+          paragraphs: [
+            'Paid plan features, billing periods, currency, taxes, renewal terms, and the seller for a transaction are shown before purchase. A plan may limit registered devices, Relay concurrency, traffic, rate, or regions.',
+            'Any purchase made through Apple or Google is also subject to that store provider\'s payment and refund rules.',
+          ],
+        },
+        {
+          id: 'cancellation',
+          title: '5. Cancellation and refunds',
+          paragraphs: [
+            'You may cancel automatic renewal through the service or store where you subscribed. Unless checkout states otherwise, cancellation takes effect at the end of the current paid period.',
+            'Refunds are handled under applicable law, the checkout terms, and the relevant merchant or app-store process. These terms do not limit mandatory consumer rights.',
+          ],
+        },
+        {
+          id: 'availability',
+          title: '6. Availability and changes',
+          paragraphs: [
+            'We work to keep managed services available but do not promise uninterrupted operation or a service level unless a separate written agreement says so. Networks, endpoint availability, third-party infrastructure, maintenance, and security incidents can affect connectivity.',
+            'We may change or retire features and plans. We will provide reasonable notice of material changes affecting an active paid plan when practicable.',
+          ],
+        },
+        {
+          id: 'data',
+          title: '7. Your data and privacy',
+          paragraphs: [
+            'You retain rights to your terminal content and files. You grant us only the limited rights needed to route encrypted traffic, operate the services, prevent abuse, provide support, and comply with law.',
+          ],
+          links: [{ label: 'Read the Privacy Policy', href: '/privacy/' }],
+        },
+        {
+          id: 'termination',
+          title: '8. Suspension and termination',
+          paragraphs: [
+            'You may stop using the services and request deletion of eligible account data. We may suspend or terminate access for material breach, fraud, security threats, unlawful activity, or nonpayment. When reasonable, we will provide notice and an opportunity to correct the issue.',
+          ],
+        },
+        {
+          id: 'liability',
+          title: '9. Disclaimers and liability',
+          paragraphs: [
+            'To the extent permitted by law, the services are provided on an as-available basis without warranties not expressly stated here. You remain responsible for endpoint security, backups, commands executed through terminals, and the systems you access.',
+            'To the extent permitted by law, AnyTTY is not liable for indirect, incidental, special, consequential, or punitive damages. Any aggregate liability relating to a paid service will not exceed the amount you paid for that service during the twelve months before the event giving rise to the claim. Limits do not apply where prohibited by law.',
+          ],
+        },
+        {
+          id: 'changes',
+          title: '10. Changes and contact',
+          paragraphs: [
+            'We may update these terms as the services or legal requirements change. The current version and effective date will remain available here. If applicable law requires consent to a material update, we will request it before the update applies.',
+          ],
+        },
+      ],
+    },
+    support: {
+      title: 'Support',
+      description: 'Get help with AnyTTY apps, connections, Cloud accounts, billing, privacy, and security.',
+      eyebrow: 'AnyTTY / Support',
+      updated: 'Support is available in English and Simplified Chinese.',
+      contactTitle: 'Private support',
+      contactBody: 'Use email for account, billing, privacy, or other reports that contain private information.',
+      email: 'support@anytty.com',
+      sections: [
+        {
+          id: 'setup',
+          title: 'Setup and connection help',
+          paragraphs: [
+            'Start with the public documentation for installation, pairing, Local, SSH, Direct, Cloud, terminal, and file-transfer questions.',
+          ],
+          links: [
+            { label: 'Open quick start', href: '/docs/quick-start/' },
+            { label: 'Read connection docs', href: '/docs/connections/' },
+          ],
+        },
+        {
+          id: 'bugs',
+          title: 'Bug reports and feature requests',
+          paragraphs: [
+            'Use GitHub for reproducible defects and product proposals after removing credentials, private addresses, terminal output, file content, and customer data. Include the AnyTTY version, operating system, connection type, and steps to reproduce.',
+          ],
+          links: [
+            { label: 'Report a bug', href: 'https://github.com/anytty/anytty/issues/new?template=bug_report.yml', external: true },
+            { label: 'Request a feature', href: 'https://github.com/anytty/anytty/issues/new?template=feature_request.yml', external: true },
+          ],
+        },
+        {
+          id: 'security',
+          title: 'Security vulnerabilities',
+          paragraphs: [
+            'Do not report security vulnerabilities in a public issue. Use GitHub private vulnerability reporting and provide only the minimum reproduction data needed to investigate.',
+          ],
+          links: [{ label: 'Report a vulnerability privately', href: 'https://github.com/anytty/anytty/security/advisories/new', external: true }],
+        },
+        {
+          id: 'account',
+          title: 'Accounts, billing, and privacy',
+          paragraphs: [
+            'Email support for sign-in, subscriptions, invoices, cancellation, refunds, App Store purchases, or account-specific questions. Email privacy for access, correction, deletion, or other privacy requests.',
+            'Never send passwords, private keys, pairing claims, Cloud tokens, or unredacted terminal and file content.',
+          ],
+          links: [
+            { label: 'Email support', href: 'mailto:support@anytty.com' },
+            { label: 'Email privacy', href: 'mailto:privacy@anytty.com' },
+          ],
+        },
+        {
+          id: 'availability',
+          title: 'Availability',
+          paragraphs: [
+            'AnyTTY Beta does not include a default response-time or availability SLA. We review reports as capacity allows and prioritize security, data-access, and purchase issues.',
+          ],
+        },
+      ],
+    },
+  },
+  'zh-CN': {
+    privacy: {
+      title: '隐私政策',
+      description: 'AnyTTY 如何在网站、App、开源软件和可选托管服务中处理信息。',
+      eyebrow: 'AnyTTY / 法律信息',
+      updated: '最后更新：2026 年 8 月 24 日',
+      contactTitle: '隐私问题',
+      contactBody: '如对本政策有疑问，或希望行使适用的隐私权利，请联系我们。',
+      email: 'privacy@anytty.com',
+      sections: [
+        { id: 'scope', title: '1. 适用范围', paragraphs: ['本政策适用于 AnyTTY 网站、官方 App、开源软件及可选托管服务，不适用于第三方服务或独立运营的部署。', 'AnyTTY 可以在本地运行，也可以使用您控制的连接；仅保留在您自己设备上的信息不会被 AnyTTY 收集。'] },
+        { id: 'information', title: '2. 我们处理的信息', paragraphs: ['具体信息取决于您使用的 AnyTTY 功能，可能包括：'], bullets: ['网站与诊断数据，例如 IP 地址、浏览器或设备类型、访问页面、时间戳、崩溃信息及类似技术日志。', 'Cloud 账号与服务数据，例如电子邮箱、账号标识符、身份验证记录、设置、订阅状态和交易编号。', '设备与连接元数据，例如设备标识符和名称、授权记录、连接时间、路由诊断和建立或排查连接所需的网络信息。', '您主动发送的支持消息、附件和联系方式。', 'Apple、Google 或其他支付服务商提供的有限购买状态。AnyTTY 不会从这些服务商处获得完整支付卡号。'] },
+        { id: 'device-data', title: '3. 终端、文件与设备数据', paragraphs: ['Local、SSH 和 Direct 连接不会通过 AnyTTY 托管服务传输终端或文件内容。托管 Relay 只转发加密流量，不会获得终端或文件权限。', '移动 App 可能在设备发现时请求本地网络权限，在扫码配对时请求相机权限，在您选择图片时请求照片权限，并在您主动复制或粘贴时访问剪贴板。这些能力只用于完成您请求的操作。'] },
+        { id: 'use', title: '4. 信息用途', paragraphs: ['我们使用信息来提供和保护服务、验证账号和设备、建立您请求的连接、处理订阅、维护可靠性、响应支持和滥用举报、通知重大变更、履行法律义务及执行相关协议。'] },
+        { id: 'sharing', title: '5. 信息共享与服务商', paragraphs: ['我们可能与提供基础设施、身份验证、分析、通信、客户支持、欺诈防范和支付处理的供应商共享信息；也可能与专业顾问共享，或在法律要求及公司交易中披露。', '我们不会出售个人信息，也不会为跨场景行为广告共享个人信息。'] },
+        { id: 'retention', title: '6. 保留与跨境处理', paragraphs: ['我们只在提供和保护服务、保存必要记录、解决争议及履行法律义务所合理需要的期限内保留信息。具体期限取决于信息及其用途。', 'AnyTTY 及其服务商可能在您所在国家或地区之外处理信息；在法律要求时，我们会采用认可的跨境传输保护措施。'] },
+        { id: 'rights', title: '7. 您的选择与权利', paragraphs: ['根据所在地区，您可能有权访问、更正、删除、限制或反对信息处理，获取可移植副本，或对请求决定提出申诉。完成请求前，我们可能需要验证您的身份。', '您可以在 AnyTTY 访问控制中撤销已配对设备，也可以通过操作系统删除 App 或其本地数据。'] },
+        { id: 'security-children', title: '8. 安全与未成年人', paragraphs: ['我们采用管理、技术和组织措施来保护信息，但任何传输或存储方式都无法保证绝对安全。', '服务不面向未满 13 周岁的儿童；当地法律规定更高最低年龄的，以该年龄为准。我们不会故意收集未达到适用年龄儿童的个人信息。'] },
+        { id: 'changes', title: '9. 更新与联系', paragraphs: ['服务或法律要求变化时，我们可能更新本政策。修订版本会发布在本页面，并更新上述日期。'] },
+      ],
+    },
+    terms: {
+      title: '服务条款',
+      description: '适用于 AnyTTY 网站、软件、账号及可选 Cloud 托管服务的条款。',
+      eyebrow: 'AnyTTY / 法律信息',
+      updated: '生效日期：2026 年 8 月 24 日',
+      contactTitle: '条款相关问题',
+      contactBody: '如有服务、账单、取消或条款问题，请联系支持邮箱。',
+      email: 'support@anytty.com',
+      sections: [
+        { id: 'services', title: '1. 服务内容', paragraphs: ['本条款适用于 AnyTTY 网站、官方 App、账号及可选托管服务。开源组件继续适用其公开许可证。', 'AnyTTY 提供终端和文件访问工具。AnyTTY Cloud 可提供设备接入、发现、路由、P2P 协商、加密 Relay 兜底、用量统计和订阅管理。'] },
+        { id: 'accounts', title: '2. 账号与安全', paragraphs: ['您必须提供准确的账号信息，保护登录凭据和配对 claim，并及时撤销不再信任的访问。您只能使用 AnyTTY 访问自己拥有或已获授权使用的系统和数据。'] },
+        { id: 'acceptable-use', title: '3. 可接受使用', paragraphs: ['不得使用服务实施未授权访问、传播恶意软件、干扰网络、规避服务限制、从事违法活动、侵犯知识产权、提供公共文件托管或开放代理，或用于间谍软件及隐蔽监控。对于造成安全、法律或运营风险的活动，我们可以限制或暂停服务。'] },
+        { id: 'billing', title: '4. 套餐、账单与税费', paragraphs: ['付费套餐能力、计费周期、币种、税费、续订条款及交易销售方会在购买前展示。套餐可能限制注册设备数、Relay 并发、流量、速率或区域。', '通过 Apple 或 Google 完成的购买还适用对应商店的支付和退款规则。'] },
+        { id: 'cancellation', title: '5. 取消与退款', paragraphs: ['您可以通过订阅时使用的服务或商店取消自动续订。除非结账页另有说明，取消会在当前付费周期结束时生效。', '退款按照适用法律、结账条款及相关商户或应用商店流程处理。本条款不限制法律规定的强制性消费者权利。'] },
+        { id: 'availability', title: '6. 可用性与变更', paragraphs: ['我们会努力维持托管服务可用，但除非另有书面协议，不承诺服务不中断或特定服务等级。网络、endpoint 状态、第三方基础设施、维护和安全事件都可能影响连接。', '我们可能调整或停止功能与套餐；对于影响现有付费套餐的重大变更，在可行情况下会合理提前通知。'] },
+        { id: 'data', title: '7. 数据与隐私', paragraphs: ['您保留对终端内容和文件的权利；您只授予我们为转发加密流量、运营服务、防止滥用、提供支持和履行法律义务所必需的有限权利。'], links: [{ label: '阅读隐私政策', href: '/privacy/' }] },
+        { id: 'termination', title: '8. 暂停与终止', paragraphs: ['您可以停止使用服务并请求删除符合条件的账号数据。对于重大违约、欺诈、安全威胁、违法活动或欠费，我们可以暂停或终止访问；在合理情况下会发出通知并提供纠正机会。'] },
+        { id: 'liability', title: '9. 免责声明与责任限制', paragraphs: ['在法律允许范围内，服务按可用状态提供，不附带本条款未明确说明的保证。您仍需对 endpoint 安全、备份、通过终端执行的命令及选择访问的系统负责。', '在法律允许范围内，AnyTTY 不对间接、附带、特殊、后果性或惩罚性损害负责。与付费服务相关的责任总额不超过引发索赔事件前十二个月内您为该服务支付的金额；法律禁止限制的责任不适用上述限制。'] },
+        { id: 'changes', title: '10. 更新与联系', paragraphs: ['服务或法律要求变化时，我们可能更新本条款。当前版本和生效日期会持续在本页面提供；重大更新依法需要同意时，我们会在生效前请求确认。'] },
+      ],
+    },
+    support: {
+      title: '支持',
+      description: '获取 AnyTTY App、连接、Cloud 账号、账单、隐私和安全问题的帮助。',
+      eyebrow: 'AnyTTY / 支持',
+      updated: '支持语言：英文和简体中文。',
+      contactTitle: '私密支持',
+      contactBody: '账号、账单、隐私或其他包含私人信息的问题，请使用电子邮件。',
+      email: 'support@anytty.com',
+      sections: [
+        { id: 'setup', title: '安装与连接问题', paragraphs: ['安装、配对、Local、SSH、Direct、Cloud、终端或文件传输问题，请先查阅公开文档。'], links: [{ label: '打开快速开始', href: '/docs/quick-start/' }, { label: '阅读连接文档', href: '/docs/connections/' }] },
+        { id: 'bugs', title: 'Bug 与功能建议', paragraphs: ['稳定复现的缺陷和产品建议可以提交到 GitHub。提交前请移除凭据、私人地址、终端输出、文件内容和客户数据，并附上 AnyTTY 版本、操作系统、连接类型和复现步骤。'], links: [{ label: '报告 Bug', href: 'https://github.com/anytty/anytty/issues/new?template=bug_report.yml', external: true }, { label: '提交功能建议', href: 'https://github.com/anytty/anytty/issues/new?template=feature_request.yml', external: true }] },
+        { id: 'security', title: '安全漏洞', paragraphs: ['不要在公开 Issue 中报告安全漏洞。请使用 GitHub 私密漏洞报告，并只提供调查所需的最少复现数据。'], links: [{ label: '私密报告安全漏洞', href: 'https://github.com/anytty/anytty/security/advisories/new', external: true }] },
+        { id: 'account', title: '账号、账单与隐私', paragraphs: ['登录、订阅、发票、取消、退款、App Store 购买或账号问题，请联系支持邮箱；访问、更正、删除或其他隐私请求，请联系隐私邮箱。', '请勿发送密码、私钥、配对 claim、Cloud token，或未经遮盖的终端与文件内容。'], links: [{ label: '联系支持', href: 'mailto:support@anytty.com' }, { label: '联系隐私邮箱', href: 'mailto:privacy@anytty.com' }] },
+        { id: 'availability', title: '支持可用性', paragraphs: ['AnyTTY Beta 默认不提供响应时间或可用性 SLA。我们会根据处理能力审阅报告，并优先处理安全、数据访问和购买问题。'] },
+      ],
+    },
+  },
+}
+
+const copy = copies[locale][kind]
+const pathname = localizedPath(locale, `/${kind}`)
+const Icon = kind === 'privacy' ? ShieldCheck : kind === 'terms' ? FileText : BookOpen
+const resolveLink = (href: string) => href.startsWith('/') ? localized(href) : href
+---
+
+<BaseLayout locale={locale} title={copy.title} description={copy.description} pathname={pathname}>
+  <main id="main" class="pb-20 sm:pb-24">
+    <header class="border-b border-[var(--line)] bg-muted/20">
+      <div class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-12">
+        <div class="flex items-center gap-3 text-primary">
+          <Icon className="size-5" aria-hidden="true" />
+          <p class="font-mono text-xs font-semibold uppercase">{copy.eyebrow}</p>
+        </div>
+        <h1 class="mt-5 max-w-4xl text-4xl font-semibold text-foreground sm:text-5xl">{copy.title}</h1>
+        <p class="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">{copy.description}</p>
+        <p class="mt-5 text-sm text-muted-foreground">{copy.updated}</p>
+      </div>
+    </header>
+
+    <div class="mx-auto grid max-w-7xl gap-12 px-5 py-12 sm:px-8 lg:grid-cols-[13rem_minmax(0,1fr)_17rem] lg:gap-12 lg:px-12 lg:py-16 xl:gap-16">
+      <nav class="hidden lg:block" aria-label={isEnglish ? 'On this page' : '本页目录'}>
+        <div class="sticky top-28 border-l border-[var(--line)] pl-4">
+          <p class="mb-4 text-xs font-semibold uppercase text-muted-foreground">{isEnglish ? 'On this page' : '本页目录'}</p>
+          <ol class="space-y-3 text-sm leading-5">
+            {copy.sections.map((section) => (
+              <li><a class="text-muted-foreground transition-colors hover:text-foreground" href={`#${section.id}`}>{section.title}</a></li>
+            ))}
+          </ol>
+        </div>
+      </nav>
+
+      <article class="min-w-0 divide-y divide-[var(--line-soft)]">
+        {copy.sections.map((section) => (
+          <section id={section.id} class="scroll-mt-28 py-9 first:pt-0">
+            <h2 class="text-xl font-semibold text-foreground sm:text-2xl">{section.title}</h2>
+            <div class="mt-4 space-y-4 text-base leading-7 text-muted-foreground">
+              {section.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+              {section.bullets && (
+                <ul class="list-disc space-y-3 pl-5 marker:text-primary">
+                  {section.bullets.map((bullet) => <li class="pl-1">{bullet}</li>)}
+                </ul>
+              )}
+              {section.links && (
+                <div class="flex flex-wrap gap-x-6 gap-y-2 pt-1">
+                  {section.links.map((link) => (
+                    <a
+                      class="inline-flex min-h-11 items-center gap-1.5 font-medium text-primary underline-offset-4 hover:underline"
+                      href={resolveLink(link.href)}
+                      target={link.external ? '_blank' : undefined}
+                      rel={link.external ? 'noreferrer' : undefined}
+                    >
+                      {link.label}{link.external && <ArrowUpRight className="size-4" aria-hidden="true" />}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        ))}
+      </article>
+
+      <aside>
+        <div class="border-l-2 border-primary pl-5 lg:sticky lg:top-28">
+          <p class="text-sm font-semibold text-foreground">{copy.contactTitle}</p>
+          <p class="mt-2 text-sm leading-6 text-muted-foreground">{copy.contactBody}</p>
+          <a class="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline" href={`mailto:${copy.email}`}>
+            <Mail className="size-4 shrink-0" aria-hidden="true" />{copy.email}
+          </a>
+        </div>
+      </aside>
+    </div>
+  </main>
+</BaseLayout>
+
