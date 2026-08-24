@@ -77,13 +77,7 @@ func TestServerOpensAuthenticatedBindingSession(t *testing.T) {
 	if err := websocket.Message.Send(connection, request); err != nil {
 		t.Fatal(err)
 	}
-	if frame := receiveLocalWebFrame(t, connection); frame[0] != 0x20 {
-		t.Fatalf("open acceptance operation = %#x payload=%q", frame[0], frame[21:])
-	}
-	eventFrame := receiveLocalWebFrame(t, connection)
-	if eventFrame[0] != 0x30 {
-		t.Fatalf("open event operation = %#x", eventFrame[0])
-	}
+	eventFrame := receiveLocalWebAcceptedEvent(t, connection, 1)
 	var event bindingpb.EventEnvelope
 	if err := proto.Unmarshal(eventFrame[21:], &event); err != nil {
 		t.Fatal(err)
@@ -104,10 +98,7 @@ func TestServerOpensAuthenticatedBindingSession(t *testing.T) {
 	if err := websocket.Message.Send(connection, execute); err != nil {
 		t.Fatal(err)
 	}
-	if frame := receiveLocalWebFrame(t, connection); frame[0] != 0x20 {
-		t.Fatalf("execute acceptance operation = %#x", frame[0])
-	}
-	executeFrame := receiveLocalWebFrame(t, connection)
+	executeFrame := receiveLocalWebAcceptedEvent(t, connection, 2)
 	var executeEvent bindingpb.EventEnvelope
 	if err := proto.Unmarshal(executeFrame[21:], &executeEvent); err != nil {
 		t.Fatal(err)
@@ -128,6 +119,38 @@ func receiveLocalWebFrame(t *testing.T, connection *websocket.Conn) []byte {
 		t.Fatalf("invalid bridge frame (%d bytes)", len(frame))
 	}
 	return frame
+}
+
+func receiveLocalWebAcceptedEvent(t *testing.T, connection *websocket.Conn, requestID uint64) []byte {
+	t.Helper()
+	var (
+		accepted bool
+		event    []byte
+	)
+	for range 2 {
+		frame := receiveLocalWebFrame(t, connection)
+		switch frame[0] {
+		case 0x20:
+			if accepted {
+				t.Fatal("received duplicate acceptance frame")
+			}
+			if got := binary.BigEndian.Uint64(frame[1:9]); got != requestID {
+				t.Fatalf("acceptance request ID = %d, want %d", got, requestID)
+			}
+			accepted = true
+		case 0x30:
+			if event != nil {
+				t.Fatal("received duplicate event frame")
+			}
+			event = frame
+		default:
+			t.Fatalf("unexpected bridge operation = %#x", frame[0])
+		}
+	}
+	if !accepted || event == nil {
+		t.Fatalf("accepted = %t, event received = %t", accepted, event != nil)
+	}
+	return event
 }
 
 type localWebTestAccessService struct {
