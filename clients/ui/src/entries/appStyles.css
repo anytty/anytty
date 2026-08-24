@@ -373,6 +373,14 @@
 }
 
 @media (min-width: 768px) {
+  [data-workspace-layout="web"] .anytty-web-split-primary {
+    flex-basis: var(--anytty-web-split-ratio, 50%);
+  }
+
+  [data-workspace-layout="web"] .anytty-web-split-secondary {
+    flex-basis: calc(100% - var(--anytty-web-split-ratio, 50%) - 0.375rem);
+  }
+
   ::-webkit-scrollbar {
     width: 12px;
     height: 12px;

@@ -67,6 +67,8 @@ export interface TerminalListProps {
   compact?: boolean | undefined
   pinnedTerminalIds?: readonly string[] | undefined
   onReorderPinnedTerminal?: ((terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => void) | undefined
+  webDraggable?: boolean | undefined
+  onWebTerminalDragChange?: ((terminalId: string | null) => void) | undefined
 }
 
 export function TerminalList({
@@ -82,6 +84,8 @@ export function TerminalList({
   compact = false,
   pinnedTerminalIds = [],
   onReorderPinnedTerminal,
+  webDraggable = false,
+  onWebTerminalDragChange,
 }: TerminalListProps) {
   const { t } = useTranslation()
   const terminalKeyCounts = new Map<string, number>()
@@ -147,17 +151,29 @@ export function TerminalList({
             const pinned = pinnedTerminalIds.includes(terminal.terminalId)
             const dragging = drag?.terminalId === terminal.terminalId
             const dragTarget = drag?.targetTerminalId === terminal.terminalId
+            const invertedActive = isActive && !webDraggable
             return (
               <li
                 key={itemKey}
                 data-terminal-id={terminal.terminalId}
                 aria-grabbed={dragging || undefined}
-                className={`overflow-hidden border bg-[var(--anytty-app-surface)] transition-[transform,box-shadow,border-color] duration-150 ${compact ? 'rounded-md' : 'rounded-lg'} ${dragging ? 'relative z-20 rotate-1 scale-[1.02] border-[var(--anytty-app-accent)] shadow-xl' : dragTarget ? 'border-[var(--anytty-app-accent)] shadow-md' : 'border-[var(--anytty-app-line)]'}`}
+                draggable={webDraggable && interactive}
+                className={`overflow-hidden border bg-[var(--anytty-app-surface)] transition-[transform,box-shadow,border-color] duration-150 ${compact ? 'rounded-md' : 'rounded-lg'} ${dragging ? 'relative z-20 rotate-1 scale-[1.02] border-[var(--anytty-app-accent)] shadow-xl' : dragTarget ? 'border-[var(--anytty-app-accent)] shadow-md' : isActive && webDraggable ? 'border-[var(--anytty-app-line-strong)] border-l-2 border-l-[var(--anytty-app-accent)]' : 'border-[var(--anytty-app-line)]'}`}
+                onDragEnd={() => onWebTerminalDragChange?.(null)}
+                onDragStart={(event) => {
+                  if (!webDraggable || !interactive) return
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('application/x-anytty-terminal-id', terminal.terminalId)
+                  event.dataTransfer.setData('text/plain', terminal.terminalId)
+                  onWebTerminalDragChange?.(terminal.terminalId)
+                }}
               >
                 <div
                   className={`group relative flex w-full items-center py-2 pl-2 pr-1 text-left transition-colors duration-200 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset has-[:focus-visible]:ring-[var(--anytty-app-accent)] ${pinned && onReorderPinnedTerminal ? 'touch-none' : ''} ${!interactive ? 'cursor-not-allowed' : ''} ${
-                    isActive
+                    invertedActive
                       ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                      : isActive && webDraggable
+                        ? 'bg-[var(--anytty-app-surface-soft)] text-[var(--anytty-app-text)]'
                       : 'bg-[var(--anytty-app-surface)] text-zinc-700 hover:bg-[var(--anytty-app-surface-soft)]'
                   }`}
                   onContextMenu={(event) => {
@@ -218,26 +234,26 @@ export function TerminalList({
                       onOpenTerminal({ machineId, terminalId: terminal.terminalId })
                     }}
                   >
-                    <ProgramGlyph active={isActive} presentation={program} />
+                    <ProgramGlyph active={invertedActive} presentation={program} />
 
                     <div className={`flex min-w-0 flex-1 flex-col justify-center ${compact ? 'gap-0.5' : 'gap-1'}`}>
                       <div className="flex min-w-0 items-center justify-between gap-2">
-                        <span className={`truncate text-[15px] font-semibold leading-5 ${isActive ? 'text-[var(--primary-foreground)]' : 'text-zinc-900'}`}>
+                        <span className={`truncate text-[15px] font-semibold leading-5 ${invertedActive ? 'text-[var(--primary-foreground)]' : 'text-zinc-900'}`}>
                           {terminal.title || terminal.command || t('terminal.defaultTitle')}
                         </span>
                         {terminal.environment ? (
-                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${isActive ? 'bg-black/15 text-[var(--primary-foreground)]' : 'bg-zinc-100 text-zinc-500'}`}>
+                          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${invertedActive ? 'bg-black/15 text-[var(--primary-foreground)]' : 'bg-zinc-100 text-zinc-500'}`}>
                             {terminal.environment}
                           </span>
                         ) : null}
                       </div>
                       {terminal.command || terminal.cwd ? (
-                        <span className={`truncate text-[11px] font-medium leading-4 ${isActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-zinc-500'}`}>
+                        <span className={`truncate text-[11px] font-medium leading-4 ${invertedActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-zinc-500'}`}>
                           {terminal.cwd ? terminal.cwd : terminal.command}
                         </span>
                       ) : null}
 
-                      <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-medium leading-4 ${isActive ? 'text-[var(--primary-foreground)] opacity-80' : 'text-zinc-500'}`}>
+                      <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-medium leading-4 ${invertedActive ? 'text-[var(--primary-foreground)] opacity-80' : 'text-zinc-500'}`}>
                         {program.label ? (
                           <span>{program.label}</span>
                         ) : null}
@@ -260,7 +276,7 @@ export function TerminalList({
                       type="button"
                       disabled={!interactive}
                       data-terminal-manage="true"
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--anytty-app-accent)] ${isActive ? 'text-[var(--primary-foreground)] hover:bg-black/15' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700'}`}
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--anytty-app-accent)] ${invertedActive ? 'text-[var(--primary-foreground)] hover:bg-black/15' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700'}`}
                       aria-label={t('terminal.manage', { name: terminal.title || terminal.command || t('terminal.defaultTitle') })}
                       onClick={() => {
                         if (!interactive) return
@@ -271,10 +287,10 @@ export function TerminalList({
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   ) : null}
-                  {pinned ? <Pin aria-label={t('terminal.order.pinned')} className={`mr-1 size-3.5 shrink-0 fill-current ${isActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-[var(--anytty-app-accent)]'}`} /> : null}
+                  {pinned ? <Pin aria-label={t('terminal.order.pinned')} className={`mr-1 size-3.5 shrink-0 fill-current ${invertedActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-[var(--anytty-app-accent)]'}`} /> : null}
                   <ChevronRight
                     aria-hidden="true"
-                    className={`mr-0.5 size-4 shrink-0 transition-transform group-active:translate-x-0.5 ${isActive ? 'text-[var(--primary-foreground)] opacity-70' : 'text-zinc-300 group-hover:text-zinc-400'}`}
+                    className={`mr-0.5 size-4 shrink-0 transition-transform group-active:translate-x-0.5 ${invertedActive ? 'text-[var(--primary-foreground)] opacity-70' : 'text-zinc-300 group-hover:text-zinc-400'}`}
                   />
                 </div>
               </li>

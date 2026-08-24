@@ -146,6 +146,72 @@ describe('MachineWorkspace terminal creation', () => {
     expect(screen.getByTestId('anytty-terminal-body').className).not.toContain('md:row-start-1')
   })
 
+  it('keeps Web terminals as reorderable view tabs without stopping daemon terminals', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = [
+      { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, command: '/bin/zsh', cwd: '/work/shell', cols: 80, rows: 24 },
+      { terminalId: 'term-logs', machineId: 'studio', title: 'Logs', state: 'running' as const, command: 'tail -f app.log', cwd: '/work/logs', cols: 80, rows: 24 },
+    ]
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    expect(await screen.findByTestId('anytty-web-workbench-bar')).toBeTruthy()
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Logs' }))
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(screen.getByRole('tab', { name: 'Logs' }).getAttribute('aria-selected')).toBe('true')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close Logs' }))
+    expect(screen.getByRole('tab', { name: 'Shell' }).getAttribute('aria-selected')).toBe('true')
+    expect(session.commands.some((command) => command.command.case === 'terminalRemove')).toBe(false)
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Settings' })[0]!)
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy()
+  })
+
+  it('turns a Web terminal drag into a directional resizable split', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = [
+      { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, command: '/bin/zsh', cols: 80, rows: 24 },
+      { terminalId: 'term-logs', machineId: 'studio', title: 'Logs', state: 'running' as const, command: 'tail -f app.log', cols: 80, rows: 24 },
+    ]
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    const logsItem = (await screen.findByRole('button', { name: 'Open Logs' })).closest('[data-terminal-id]')!
+    const dragValues = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: 'all', dropEffect: 'move', files: [], items: [], types: [],
+      clearData: vi.fn(), getData: (type: string) => dragValues.get(type) ?? '',
+      setData: (type: string, value: string) => { dragValues.set(type, value) }, setDragImage: vi.fn(),
+    }
+    fireEvent.dragStart(logsItem, { dataTransfer })
+    const splitRight = await screen.findByRole('button', { name: 'Split right' })
+    fireEvent.drop(splitRight, { dataTransfer })
+
+    expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
+    expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('vertical')
+    await userEvent.click(screen.getByRole('button', { name: 'Split below' }))
+    expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('horizontal')
+  })
+
   it('prefills daemon defaults and submits a complete generated Proto create command', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const session = new MockProtoSession('studio', (command) => {

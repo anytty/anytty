@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { create } from '@bufbuild/protobuf'
-import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Monitor, Pin, Plus, RefreshCw, Rows2, SlidersHorizontal, SquarePen, Trash2, X } from 'lucide-react'
+import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Monitor, Pin, Plus, RefreshCw, Rows2, Settings2, SlidersHorizontal, SquarePen, Trash2, X } from 'lucide-react'
 import { connectionPhaseLabel, connectionSnapshotFromStatus } from '../connection/connectionState'
 import { connectionErrorDisplayMessage, connectionFailurePresentation, isAuthorizationConnectionError, isCancelledConnectionError, type ConnectionFailurePresentation } from '../connection/connectionErrorPresentation'
 import { ConnectionNotice } from '../connection/ConnectionNotice'
@@ -48,6 +48,8 @@ import { NativeSelect } from '../ui/native-select'
 import { Textarea } from '../ui/textarea'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Spinner } from '../ui/spinner'
+import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
+import { WebSplitDivider, WebTerminalDropOverlay, WebTerminalPaneHeader, WebTerminalWorkbench, type WebPaneDropTarget, type WebSplitDirection } from './WebTerminalWorkbench'
 import '../i18n'
 
 export interface MachineWorkspaceInventoryApi extends Pick<LocalAgentApi, 'getStatus'> {
@@ -249,6 +251,11 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [pasteConfirmText, setPasteConfirmText] = useState('')
   const [splitTerminalId, setSplitTerminalId] = useState<string | null>(null)
   const [activeTerminalSlot, setActiveTerminalSlot] = useState<TerminalSlot>(0)
+  const [webOpenTerminalIds, setWebOpenTerminalIds] = useState<string[]>([])
+  const [webSplitDirection, setWebSplitDirection] = useState<WebSplitDirection>('columns')
+  const [webSplitRatio, setWebSplitRatio] = useState(50)
+  const [webDraggedTerminalId, setWebDraggedTerminalId] = useState<string | null>(null)
+  const [webSettingsOpen, setWebSettingsOpen] = useState(false)
   const [terminalHistorySearchOpenBySlot, setTerminalHistorySearchOpenBySlot] = useState<Record<TerminalSlot, boolean>>({
     0: false,
     1: false,
@@ -1286,6 +1293,9 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       return
     }
     if (connectionSessionUnavailable) return
+    if (webLayout) {
+      setWebOpenTerminalIds((current) => current.includes(intent.terminalId) ? current : [...current, intent.terminalId])
+    }
     setActiveTerminalId(intent.terminalId)
     if (splitTerminalId === intent.terminalId) {
       setSplitTerminalId(null)
@@ -1294,7 +1304,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     }
     setPage('terminal')
     setMobileSheet(null)
-  }, [connectionSessionUnavailable, handleConnectionAuthFailure, machine, requireVerification, splitTerminalId, t])
+  }, [connectionSessionUnavailable, handleConnectionAuthFailure, machine, requireVerification, splitTerminalId, t, webLayout])
 
   const handledInitialTerminalRef = useRef<string | null>(null)
   useEffect(() => {
@@ -1388,6 +1398,9 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       setPairStatus(t('workspace.chooseDifferentTerminal'))
       return
     }
+    if (webLayout) {
+      setWebOpenTerminalIds((current) => current.includes(intent.terminalId) ? current : [...current, intent.terminalId])
+    }
     setSplitTerminalId(intent.terminalId)
     setActiveTerminalSlot(1)
     setMobileSheet(null)
@@ -1396,7 +1409,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       splitTerminalRef.current?.fit()
       splitTerminalRef.current?.focus()
     }, 0)
-  }, [activeTerminalId, connectionSessionUnavailable, machine, t])
+  }, [activeTerminalId, connectionSessionUnavailable, machine, t, webLayout])
 
   const closeSplitTerminal = useCallback(() => {
     setSplitTerminalId(null)
@@ -1585,6 +1598,87 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     terminalRef.current?.adjustInputPosition(0)
     splitTerminalRef.current?.adjustInputPosition(0)
   }, [resetKeyboardLayout])
+
+  useEffect(() => {
+    if (!webLayout || !hasLoadedTerminals) return
+    const available = new Set(terminals.map((terminal) => terminal.terminalId))
+    setWebOpenTerminalIds((current) => {
+      const next = current.filter((terminalId) => available.has(terminalId))
+      return next.length === current.length ? current : next
+    })
+  }, [hasLoadedTerminals, terminals, webLayout])
+
+  const reorderWebTabs = useCallback((terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => {
+    setWebOpenTerminalIds((current) => {
+      if (terminalId === targetTerminalId || !current.includes(terminalId) || !current.includes(targetTerminalId)) return current
+      const next = current.filter((candidate) => candidate !== terminalId)
+      const targetIndex = next.indexOf(targetTerminalId)
+      next.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, terminalId)
+      return next
+    })
+  }, [])
+
+  const closeWebTab = useCallback((terminalId: string) => {
+    const closingIndex = webOpenTerminalIds.indexOf(terminalId)
+    const remaining = webOpenTerminalIds.filter((candidate) => candidate !== terminalId)
+    setWebOpenTerminalIds(remaining)
+    if (splitTerminalId === terminalId) {
+      setSplitTerminalId(null)
+      setActiveTerminalSlot(0)
+      setSyncSplitInput(false)
+    }
+    if (activeTerminalId !== terminalId) return
+    const candidate = remaining[Math.min(Math.max(closingIndex, 0), remaining.length - 1)] ?? remaining.at(-1)
+    if (candidate) {
+      setActiveTerminalId(candidate)
+      if (candidate === splitTerminalId) {
+        setSplitTerminalId(null)
+        setActiveTerminalSlot(0)
+        setSyncSplitInput(false)
+      }
+      setPage('terminal')
+      return
+    }
+    showTerminalListPage()
+  }, [activeTerminalId, showTerminalListPage, splitTerminalId, webOpenTerminalIds])
+
+  const handleWebPaneDrop = useCallback((terminalId: string, target: WebPaneDropTarget) => {
+    setWebDraggedTerminalId(null)
+    if (!machine) return
+    if (target === 'primary' || !activeTerminalId || activeTerminalId === terminalId) {
+      openTerminal({ machineId: machine.machineId, terminalId })
+      return
+    }
+    setWebSplitDirection(target === 'right' ? 'columns' : 'rows')
+    selectSplitTerminal({ machineId: machine.machineId, terminalId })
+  }, [activeTerminalId, machine, openTerminal, selectSplitTerminal])
+
+  const fitWebSplitTerminals = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      terminalRef.current?.fit()
+      splitTerminalRef.current?.fit()
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!webLayout || !splitTerminalId) return
+    fitWebSplitTerminals()
+  }, [fitWebSplitTerminals, splitTerminalId, webLayout, webSplitDirection, webSplitRatio])
+
+  useEffect(() => {
+    if (!webLayout) return
+    const handleWebTabShortcut = (event: globalThis.KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      const digit = Number(event.key)
+      if (!Number.isInteger(digit) || digit < 1 || digit > 9) return
+      const terminalId = webOpenTerminalIds[digit - 1]
+      if (!terminalId || !machine) return
+      event.preventDefault()
+      openTerminal({ machineId: machine.machineId, terminalId })
+    }
+    window.addEventListener('keydown', handleWebTabShortcut)
+    return () => window.removeEventListener('keydown', handleWebTabShortcut)
+  }, [machine, openTerminal, webLayout, webOpenTerminalIds])
 
   const openFiles = useCallback(() => {
     if (requireVerification) {
@@ -2532,7 +2626,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
     return (
       <aside
-        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : `md:flex md:flex-none md:border-r md:border-[var(--anytty-app-line)] ${webLayout ? 'md:w-[22rem] lg:w-96 xl:w-[26rem] 2xl:w-[28rem]' : 'md:w-72'}`} ${page === 'terminal' ? 'hidden' : 'flex'}`}
+        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : `md:flex md:flex-none md:border-r md:border-[var(--anytty-app-line)] ${webLayout ? 'md:w-[19rem] lg:w-80 2xl:w-[22rem]' : 'md:w-72'}`} ${page === 'terminal' ? 'hidden' : 'flex'}`}
         data-testid={page === 'terminal' ? undefined : 'anytty-terminal-list-page'}
       >
         <header className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : `md:pt-0 ${webLayout ? 'md:min-h-14 md:px-3' : ''}`}`}>
@@ -2564,6 +2658,18 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             >
               <Info className="h-5 w-5" />
             </Button>
+            {webLayout ? (
+              <Button
+                aria-label={t('common.settings')}
+                className="hidden border-transparent bg-transparent md:inline-flex"
+                onClick={() => setWebSettingsOpen(true)}
+                size="icon"
+                title={t('common.settings')}
+                variant="ghost"
+              >
+                <Settings2 className="h-5 w-5" />
+              </Button>
+            ) : null}
             <Button variant="ghost" size="icon"
               type="button"
               aria-hidden={page === 'terminal' ? 'true' : undefined}
@@ -2635,9 +2741,12 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               onOpenTerminal={openTerminal}
               onManageTerminal={openManageTerminal}
               activeTerminalId={activeTerminalId ?? undefined}
+              compact={webLayout}
               loading={showTerminalListLoader}
               loadingLabel={t('common.loading')}
               interactive={!connectionSessionUnavailable}
+              webDraggable={webLayout}
+              onWebTerminalDragChange={setWebDraggedTerminalId}
             />
           </div>
         ) : null}
@@ -2845,12 +2954,33 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       {renderTerminalListPage()}
 
       <main
-        className={`relative min-h-0 min-w-0 max-w-full flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${page === 'terminal-list' ? (singlePane ? 'hidden' : 'hidden md:flex md:items-center md:justify-center md:bg-zinc-50/50') : `grid grid-rows-[auto_minmax(0,1fr)_auto] ${singlePane ? '' : 'md:grid-rows-[minmax(0,1fr)]'}`}`}
+        className={`relative min-h-0 min-w-0 max-w-full flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${page === 'terminal-list' ? (singlePane ? 'hidden' : webLayout ? 'hidden md:grid md:grid-rows-[auto_minmax(0,1fr)]' : 'hidden md:flex md:items-center md:justify-center md:bg-zinc-50/50') : `grid grid-rows-[auto_minmax(0,1fr)_auto] ${singlePane ? '' : webLayout ? 'md:grid-rows-[auto_minmax(0,1fr)]' : 'md:grid-rows-[minmax(0,1fr)]'}`}`}
         data-testid="anytty-terminal-page"
         style={terminalThemeStyle}
       >
+        {webLayout ? (
+          <WebTerminalWorkbench
+            terminals={orderedTerminals}
+            openTerminalIds={webOpenTerminalIds}
+            activeTerminalId={activeTerminalId}
+            splitTerminalId={splitTerminalId}
+            splitDirection={webSplitDirection}
+            draggedTerminalId={webDraggedTerminalId}
+            canCreateTerminal={canManageTerminals}
+            disabled={connectionSessionUnavailable}
+            onActivateTerminal={(terminalId) => openTerminal({ machineId: machine.machineId, terminalId })}
+            onCloseTab={closeWebTab}
+            onCreateTerminal={openCreateTerminal}
+            onOpenFiles={openFiles}
+            onOpenSettings={() => setWebSettingsOpen(true)}
+            onOpenSplit={openSplitTerminalSheet}
+            onReorderTabs={reorderWebTabs}
+            onSetSplitDirection={setWebSplitDirection}
+            onTerminalDragChange={setWebDraggedTerminalId}
+          />
+        ) : null}
         {page === 'terminal-list' ? (
-          <div className="flex flex-col items-center gap-3 text-zinc-400">
+          <div className={`flex flex-col items-center gap-3 text-zinc-400 ${webLayout ? 'row-start-2' : ''}`}>
             <Monitor className="h-12 w-12 opacity-20" />
             <p className="text-sm font-medium">{t('workspace.selectTerminal')}</p>
           </div>
@@ -2932,9 +3062,17 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
 
         <div
           ref={terminalAreaRef}
-          className={`relative row-start-2 h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${singlePane ? '' : 'md:row-start-1'}`}
+          className={`relative row-start-2 h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${singlePane ? '' : webLayout ? 'md:row-start-2' : 'md:row-start-1'}`}
+          id={webLayout ? 'anytty-web-terminal-viewport' : undefined}
           data-testid="anytty-terminal-body"
         >
+          {webLayout && webDraggedTerminalId ? (
+            <WebTerminalDropOverlay
+              activeTerminalId={activeTerminalId}
+              draggedTerminalId={webDraggedTerminalId}
+              onDrop={handleWebPaneDrop}
+            />
+          ) : null}
           {terminalToolbarOpen ? (
             <TerminalActionToolbar
               mode={terminalToolbarMode}
@@ -3024,9 +3162,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             <div className="absolute inset-x-0 top-0 z-40 border-y border-red-500/30 bg-red-950/90 px-3 py-2 text-[12px] font-medium text-red-100 backdrop-blur" role="alert">{error}</div>
           ) : null}
 
-          <div ref={terminalWrapperRef} className={`absolute inset-0 flex flex-col bg-[var(--anytty-terminal-bg)] ${splitTerminalId ? 'gap-px' : ''}`}>
+          <div
+            ref={terminalWrapperRef}
+            className={`absolute inset-0 flex flex-col bg-[var(--anytty-terminal-bg)] ${splitTerminalId ? `gap-px ${webLayout ? webSplitDirection === 'columns' ? 'md:flex-row md:gap-0' : 'md:flex-col md:gap-0' : ''}` : ''}`}
+            style={webLayout && splitTerminalId ? { '--anytty-web-split-ratio': `${webSplitRatio}%` } as CSSProperties : undefined}
+          >
             <div
-              className={`relative min-h-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${splitTerminalId ? `border-b border-[var(--anytty-border-subtle)] ${activeTerminalSlot === 0 ? 'ring-1 ring-inset ring-[var(--anytty-accent)]' : ''}` : ''}`}
+              className={`relative min-h-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${webLayout && splitTerminalId ? 'anytty-web-split-primary md:flex-none' : ''} ${splitTerminalId ? `border-b border-[var(--anytty-border-subtle)] ${webLayout ? 'md:border-b-0' : ''} ${activeTerminalSlot === 0 ? 'ring-1 ring-inset ring-[var(--anytty-accent)]' : ''}` : ''}`}
               data-active-slot={activeTerminalSlot === 0 ? 'true' : 'false'}
               data-testid="anytty-terminal-panel"
               onPointerDown={() => {
@@ -3035,13 +3177,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
                 activeTerminalSlotRef.current = 0
               }}
             >
+              {webLayout && splitTerminalId ? <WebTerminalPaneHeader active={activeTerminalSlot === 0} terminal={activeTerminal} /> : null}
               {activeTerminalId && renderSession && connectedTerminalId === activeTerminalId ? (
                 <Terminal
                   ref={terminalRef}
                   machineId={machine.machineId}
                   terminalId={activeTerminalId}
                   session={renderSession}
-                  className="absolute inset-0 outline-none"
+                  className={`absolute inset-0 outline-none ${webLayout && splitTerminalId ? 'md:top-7' : ''}`}
                   modifierState={modifierState}
                   onModifierStateChange={setModifierState}
                   onInput={sendTerminalInput}
@@ -3065,9 +3208,18 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               )}
             </div>
 
+            {webLayout && splitTerminalId ? (
+              <WebSplitDivider
+                direction={webSplitDirection}
+                ratio={webSplitRatio}
+                onRatioChange={setWebSplitRatio}
+                onResizeEnd={fitWebSplitTerminals}
+              />
+            ) : null}
+
             {splitTerminalId ? (
               <div
-                className={`relative min-h-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${activeTerminalSlot === 1 ? 'ring-1 ring-inset ring-[var(--anytty-accent)]' : ''}`}
+                className={`relative min-h-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${webLayout ? 'anytty-web-split-secondary md:flex-none' : ''} ${activeTerminalSlot === 1 ? 'ring-1 ring-inset ring-[var(--anytty-accent)]' : ''}`}
                 data-active-slot={activeTerminalSlot === 1 ? 'true' : 'false'}
                 data-testid="anytty-split-terminal-panel"
                 onPointerDown={() => {
@@ -3076,13 +3228,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
                   activeTerminalSlotRef.current = 1
                 }}
               >
+                {webLayout ? <WebTerminalPaneHeader active={activeTerminalSlot === 1} terminal={splitTerminal} onClose={closeSplitTerminal} /> : null}
                 {renderSession ? (
                   <Terminal
                     ref={splitTerminalRef}
                     machineId={machine.machineId}
                     terminalId={splitTerminalId}
                     session={renderSession}
-                    className="absolute inset-0 outline-none"
+                    className={`absolute inset-0 outline-none ${webLayout ? 'md:top-7' : ''}`}
                     modifierState={modifierState}
                     onModifierStateChange={setModifierState}
                     onInput={sendTerminalInput}
@@ -3238,6 +3391,15 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         )}
         {page === 'terminal' && !filesOpen ? <ConnectionRecoveryOverlayHost /> : null}
       </main>
+
+      {webLayout ? (
+        <WebTerminalSettingsDialog
+          open={webSettingsOpen}
+          settings={effectiveTerminalSettings}
+          onChange={updateTerminalSettings}
+          onOpenChange={setWebSettingsOpen}
+        />
+      ) : null}
 
       {hasOpenedFiles ? (
         <div

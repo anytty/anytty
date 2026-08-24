@@ -1,0 +1,133 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Terminal } from '../core/model'
+import { anyttyI18n } from '../i18n'
+import { DEFAULT_TERMINAL_SETTINGS } from '../terminal/terminalSettings'
+import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
+import { ANYTTY_TERMINAL_DRAG_TYPE, WebSplitDivider, WebTerminalDropOverlay, WebTerminalWorkbench } from './WebTerminalWorkbench'
+
+afterEach(cleanup)
+
+describe('WebTerminalWorkbench', () => {
+  beforeEach(async () => {
+    await anyttyI18n.changeLanguage('en')
+  })
+
+  it('renders ordered tabs with keyboard navigation and view-only close actions', async () => {
+    const onActivateTerminal = vi.fn()
+    const onCloseTab = vi.fn()
+    renderWorkbench({ onActivateTerminal, onCloseTab })
+
+    const shell = screen.getByRole('tab', { name: 'Shell' })
+    expect(shell.getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(shell, { key: 'ArrowRight' })
+    expect(onActivateTerminal).toHaveBeenCalledWith('logs')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close Logs' }))
+    expect(onCloseTab).toHaveBeenCalledWith('logs')
+  })
+
+  it('reorders tabs through native drag and exposes split layout actions', async () => {
+    const onReorderTabs = vi.fn()
+    const onSetSplitDirection = vi.fn()
+    const onTerminalDragChange = vi.fn()
+    renderWorkbench({ onReorderTabs, onSetSplitDirection, onTerminalDragChange, splitTerminalId: 'logs' })
+    const transfer = dataTransfer('logs')
+    const shellContainer = screen.getByRole('tab', { name: 'Shell' }).parentElement!
+    const logsContainer = screen.getByRole('tab', { name: 'Logs' }).parentElement!
+    vi.spyOn(shellContainer, 'getBoundingClientRect').mockReturnValue(rect(100))
+
+    fireEvent.dragStart(logsContainer, { dataTransfer: transfer })
+    fireEvent.dragOver(shellContainer, { clientX: 10, dataTransfer: transfer })
+    fireEvent.drop(shellContainer, { clientX: 10, dataTransfer: transfer })
+
+    expect(onTerminalDragChange).toHaveBeenCalledWith('logs')
+    expect(onReorderTabs).toHaveBeenCalledWith('logs', 'shell', 'after')
+    await userEvent.click(screen.getByRole('button', { name: 'Split below' }))
+    expect(onSetSplitDirection).toHaveBeenCalledWith('rows')
+  })
+
+  it('offers explicit pane targets while dragging and a keyboard-resizable divider', () => {
+    const onDrop = vi.fn()
+    const onRatioChange = vi.fn()
+    const view = render(<WebTerminalDropOverlay activeTerminalId="shell" draggedTerminalId="logs" onDrop={onDrop} />)
+    const splitRight = screen.getByRole('button', { name: 'Split right' })
+    fireEvent.drop(splitRight, { dataTransfer: dataTransfer('logs') })
+    expect(onDrop).toHaveBeenCalledWith('logs', 'right')
+
+    view.rerender(<WebSplitDivider direction="columns" ratio={50} onRatioChange={onRatioChange} onResizeEnd={vi.fn()} />)
+    const divider = screen.getByRole('separator', { name: 'Resize terminal panes' })
+    fireEvent.keyDown(divider, { key: 'ArrowRight' })
+    expect(onRatioChange).toHaveBeenCalledWith(55)
+  })
+})
+
+describe('WebTerminalSettingsDialog', () => {
+  beforeEach(async () => {
+    await anyttyI18n.changeLanguage('en')
+  })
+
+  it('uses a modal surface and emits focused terminal setting patches', async () => {
+    const onChange = vi.fn()
+    const onOpenChange = vi.fn()
+    render(<WebTerminalSettingsDialog open settings={DEFAULT_TERMINAL_SETTINGS} onChange={onChange} onOpenChange={onOpenChange} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' })
+    expect(dialog.getAttribute('data-state')).toBe('open')
+    await userEvent.click(screen.getByRole('button', { name: 'Increase terminal font size' }))
+    expect(onChange).toHaveBeenCalledWith({ fontSize: DEFAULT_TERMINAL_SETTINGS.fontSize + 1 })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Canvas' }))
+    expect(onChange).toHaveBeenCalledWith({ renderer: 'canvas' })
+    await userEvent.click(screen.getByRole('button', { name: 'Close Settings' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+})
+
+function renderWorkbench(overrides: Partial<Parameters<typeof WebTerminalWorkbench>[0]> = {}) {
+  const props: Parameters<typeof WebTerminalWorkbench>[0] = {
+    terminals: [terminal('shell', 'Shell'), terminal('logs', 'Logs')],
+    openTerminalIds: ['shell', 'logs'],
+    activeTerminalId: 'shell',
+    splitTerminalId: null,
+    splitDirection: 'columns',
+    draggedTerminalId: null,
+    canCreateTerminal: true,
+    disabled: false,
+    onActivateTerminal: vi.fn(),
+    onCloseTab: vi.fn(),
+    onCreateTerminal: vi.fn(),
+    onOpenFiles: vi.fn(),
+    onOpenSettings: vi.fn(),
+    onOpenSplit: vi.fn(),
+    onReorderTabs: vi.fn(),
+    onSetSplitDirection: vi.fn(),
+    onTerminalDragChange: vi.fn(),
+    ...overrides,
+  }
+  return render(<WebTerminalWorkbench {...props} />)
+}
+
+function terminal(terminalId: string, title: string): Terminal {
+  return { terminalId, machineId: 'local', title, state: 'running', command: '/bin/zsh', cwd: `/work/${terminalId}` }
+}
+
+function dataTransfer(terminalId: string): DataTransfer {
+  const values = new Map<string, string>([[ANYTTY_TERMINAL_DRAG_TYPE, terminalId], ['text/plain', terminalId]])
+  return {
+    dropEffect: 'move',
+    effectAllowed: 'all',
+    files: [] as unknown as FileList,
+    items: [] as unknown as DataTransferItemList,
+    types: [...values.keys()],
+    clearData: vi.fn(),
+    getData: (type: string) => values.get(type) ?? '',
+    setData: (type: string, value: string) => { values.set(type, value) },
+    setDragImage: vi.fn(),
+  }
+}
+
+function rect(width: number): DOMRect {
+  return { x: 0, y: 0, width, height: 40, top: 0, right: width, bottom: 40, left: 0, toJSON: () => ({}) }
+}
