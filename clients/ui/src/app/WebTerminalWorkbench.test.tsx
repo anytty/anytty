@@ -48,7 +48,7 @@ describe('WebTerminalWorkbench', () => {
     expect(onOpenSplit).toHaveBeenCalledOnce()
   })
 
-  it('shows one global split preview that follows the drag position and keeps the divider keyboard-resizable', () => {
+  it('shows one global final-layout preview that follows the drag position and keeps the divider keyboard-resizable', () => {
     const onDrop = vi.fn()
     const onRatioChange = vi.fn()
     const view = render(<WebTerminalDropOverlay canSplit draggedTerminalId="logs" onDrop={onDrop} />)
@@ -60,12 +60,16 @@ describe('WebTerminalWorkbench', () => {
     const transfer = dataTransfer('logs')
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 10, 100))
     expect(overlay.getAttribute('data-preview-target')).toBe('left')
+    expect(previewLayout(overlay)).toEqual({ axis: 'columns', panes: ['incoming', 'existing'] })
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 10))
     expect(overlay.getAttribute('data-preview-target')).toBe('top')
+    expect(previewLayout(overlay)).toEqual({ axis: 'rows', panes: ['incoming', 'existing'] })
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
     expect(overlay.getAttribute('data-preview-target')).toBe('right')
+    expect(previewLayout(overlay)).toEqual({ axis: 'columns', panes: ['existing', 'incoming'] })
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 190))
     expect(overlay.getAttribute('data-preview-target')).toBe('bottom')
+    expect(previewLayout(overlay)).toEqual({ axis: 'rows', panes: ['existing', 'incoming'] })
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
     fireEvent(overlay, pointerDragEvent('drop', transfer, 390, 100))
     expect(onDrop).toHaveBeenCalledWith('logs', 'right')
@@ -153,4 +157,12 @@ function pointerDragEvent(type: 'dragover' | 'drop', transfer: DataTransfer, cli
     dataTransfer: { value: transfer },
   })
   return event
+}
+
+function previewLayout(overlay: HTMLElement): { axis: string | null; panes: Array<string | null> } {
+  const preview = overlay.querySelector<HTMLElement>('[data-preview-layout]')
+  return {
+    axis: preview?.getAttribute('data-preview-layout') ?? null,
+    panes: Array.from(preview?.querySelectorAll<HTMLElement>('[data-preview-pane]') ?? []).map((pane) => pane.getAttribute('data-preview-pane')),
+  }
 }

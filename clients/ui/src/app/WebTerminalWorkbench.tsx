@@ -245,19 +245,21 @@ export function WebTerminalDropOverlay({ canSplit, draggedTerminalId, onDrop }: 
       <div
         aria-hidden="true"
         className={`absolute inset-3 flex min-h-0 min-w-0 gap-1.5 overflow-hidden ${vertical ? 'flex-col' : 'flex-row'}`}
+        data-preview-layout={vertical ? 'rows' : 'columns'}
+        data-testid="anytty-web-terminal-drop-preview"
       >
-        {before ? <DropPreviewTarget /> : <div className="min-h-0 min-w-0 flex-1" />}
-        {before ? <div className="min-h-0 min-w-0 flex-1" /> : <DropPreviewTarget />}
+        {before ? <DropPreviewPane incoming /> : <DropPreviewPane />}
+        {before ? <DropPreviewPane /> : <DropPreviewPane incoming />}
       </div>
     </div>
   )
 }
 
-function DropPreviewTarget() {
+function DropPreviewPane({ incoming = false }: { incoming?: boolean }) {
   return (
     <div
-      className="min-h-0 min-w-0 flex-1 border-2 border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/16 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--anytty-accent)_24%,transparent),0_8px_28px_rgba(0,0,0,0.28)] transition-colors duration-150 motion-reduce:transition-none"
-      data-testid="anytty-web-terminal-drop-preview"
+      className={`min-h-0 min-w-0 flex-1 transition-colors duration-150 motion-reduce:transition-none ${incoming ? 'border-2 border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/16' : 'border border-[var(--anytty-border)] bg-black/15'}`}
+      data-preview-pane={incoming ? 'incoming' : 'existing'}
     />
   )
 }
