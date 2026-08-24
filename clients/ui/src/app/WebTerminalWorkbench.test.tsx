@@ -5,7 +5,8 @@ import type { Terminal } from '../core/model'
 import { anyttyI18n } from '../i18n'
 import { DEFAULT_TERMINAL_SETTINGS } from '../terminal/terminalSettings'
 import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
-import { ANYTTY_TERMINAL_DRAG_TYPE, WebSplitDivider, WebTerminalDropOverlay, WebTerminalWorkbench } from './WebTerminalWorkbench'
+import { ANYTTY_TERMINAL_DRAG_TYPE, WebTerminalDropOverlay } from './WebTerminalDropOverlay'
+import { WebSplitDivider, WebTerminalWorkbench } from './WebTerminalWorkbench'
 
 afterEach(cleanup)
 
@@ -48,31 +49,48 @@ describe('WebTerminalWorkbench', () => {
     expect(onOpenSplit).toHaveBeenCalledOnce()
   })
 
-  it('shows one global final-layout preview that follows the drag position and keeps the divider keyboard-resizable', () => {
+  it('shows one final-layout preview inside the hovered leaf pane and keeps the divider keyboard-resizable', () => {
     const onDrop = vi.fn()
     const onRatioChange = vi.fn()
-    const view = render(<WebTerminalDropOverlay canSplit draggedTerminalId="logs" onDrop={onDrop} />)
+    const view = render(
+      <div>
+        <div data-pane-key="primary" data-pane-terminal-id="shell" />
+        <div data-pane-key="terminal:logs" data-pane-terminal-id="logs" />
+        <WebTerminalDropOverlay canSplit draggedTerminalId="incoming" onDrop={onDrop} />
+      </div>,
+    )
     const overlay = screen.getByTestId('anytty-web-terminal-drop-overlay')
-    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue(rect(400, 200))
-    expect(screen.getAllByTestId('anytty-web-terminal-drop-preview')).toHaveLength(1)
+    const [shellPane, logsPane] = overlay.parentElement!.querySelectorAll<HTMLElement>('[data-pane-key]')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue(rectAt(0, 0, 400, 200))
+    vi.spyOn(shellPane!, 'getBoundingClientRect').mockReturnValue(rectAt(0, 0, 200, 200))
+    vi.spyOn(logsPane!, 'getBoundingClientRect').mockReturnValue(rectAt(200, 0, 200, 200))
+    expect(screen.queryByTestId('anytty-web-terminal-drop-preview')).toBeNull()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
 
-    const transfer = dataTransfer('logs')
+    const transfer = dataTransfer('incoming')
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 10, 100))
     expect(overlay.getAttribute('data-preview-target')).toBe('left')
+    expect(overlay.getAttribute('data-preview-pane-key')).toBe('primary')
+    expect(screen.getAllByTestId('anytty-web-terminal-drop-preview')).toHaveLength(1)
     expect(previewLayout(overlay)).toEqual({ axis: 'columns', panes: ['incoming', 'existing'] })
-    fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 10))
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 100, 10))
     expect(overlay.getAttribute('data-preview-target')).toBe('top')
     expect(previewLayout(overlay)).toEqual({ axis: 'rows', panes: ['incoming', 'existing'] })
-    fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 190, 100))
     expect(overlay.getAttribute('data-preview-target')).toBe('right')
     expect(previewLayout(overlay)).toEqual({ axis: 'columns', panes: ['existing', 'incoming'] })
-    fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 190))
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 100, 190))
     expect(overlay.getAttribute('data-preview-target')).toBe('bottom')
     expect(previewLayout(overlay)).toEqual({ axis: 'rows', panes: ['existing', 'incoming'] })
     fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
+    expect(overlay.getAttribute('data-preview-pane-key')).toBe('terminal:logs')
+    expect(screen.getByTestId('anytty-web-terminal-drop-preview').parentElement?.style.left).toBe('200px')
     fireEvent(overlay, pointerDragEvent('drop', transfer, 390, 100))
-    expect(onDrop).toHaveBeenCalledWith('logs', 'right')
+    expect(onDrop).toHaveBeenCalledWith('incoming', 'terminal:logs', 'right')
+
+    fireEvent(overlay, pointerDragEvent('dragover', dataTransfer('logs'), 300, 100))
+    expect(overlay.getAttribute('data-preview-pane-key')).toBeNull()
+    expect(screen.queryByTestId('anytty-web-terminal-drop-preview')).toBeNull()
 
     view.rerender(<WebSplitDivider direction="columns" ratio={50} onRatioChange={onRatioChange} onResizeEnd={vi.fn()} />)
     const divider = screen.getByRole('separator', { name: 'Resize terminal panes' })
@@ -146,7 +164,11 @@ function dataTransfer(terminalId: string): DataTransfer {
 }
 
 function rect(width: number, height = 40): DOMRect {
-  return { x: 0, y: 0, width, height, top: 0, right: width, bottom: height, left: 0, toJSON: () => ({}) }
+  return rectAt(0, 0, width, height)
+}
+
+function rectAt(left: number, top: number, width: number, height: number): DOMRect {
+  return { x: left, y: top, width, height, top, right: left + width, bottom: top + height, left, toJSON: () => ({}) }
 }
 
 function pointerDragEvent(type: 'dragover' | 'drop', transfer: DataTransfer, clientX: number, clientY: number): Event {

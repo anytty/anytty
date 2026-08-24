@@ -236,24 +236,87 @@ describe('MachineWorkspace terminal creation', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     const logsItem = (await screen.findByRole('button', { name: 'Open Logs' })).closest('[data-terminal-id]')!
-    const dragValues = new Map<string, string>()
-    const dataTransfer = {
-      effectAllowed: 'all', dropEffect: 'move', files: [], items: [], types: [],
-      clearData: vi.fn(), getData: (type: string) => dragValues.get(type) ?? '',
-      setData: (type: string, value: string) => { dragValues.set(type, value) }, setDragImage: vi.fn(),
-    }
+    const dataTransfer = testDataTransfer()
     fireEvent.dragStart(logsItem, { dataTransfer })
     const overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
-    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
-      x: 0, y: 0, width: 400, height: 200, top: 0, right: 400, bottom: 200, left: 0, toJSON: () => ({}),
-    })
-    fireEvent(overlay, pointerDragEvent('dragover', dataTransfer as unknown as DataTransfer, 390, 100))
+    mockBounds(overlay, 0, 0, 400, 200)
+    mockBounds(screen.getByTestId('anytty-terminal-panel'), 0, 0, 400, 200)
+    fireEvent(overlay, pointerDragEvent('dragover', dataTransfer, 390, 100))
     expect(overlay.getAttribute('data-preview-target')).toBe('right')
-    fireEvent(overlay, pointerDragEvent('drop', dataTransfer as unknown as DataTransfer, 390, 100))
+    expect(overlay.getAttribute('data-preview-pane-key')).toBe('primary')
+    fireEvent(overlay, pointerDragEvent('drop', dataTransfer, 390, 100))
 
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
     expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('vertical')
     expect(screen.queryByRole('button', { name: 'Open here' })).toBeNull()
+  })
+
+  it('splits only the hovered leaf when dragging into an existing pane tree', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = ['Shell', 'Logs', 'Server', 'Tests'].map((title, index) => ({
+      terminalId: `term-${title.toLowerCase()}`,
+      machineId: 'studio',
+      title,
+      state: 'running' as const,
+      command: index === 0 ? '/bin/zsh' : title.toLowerCase(),
+      cols: 80,
+      rows: 24,
+    }))
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+
+    const logsTransfer = testDataTransfer()
+    fireEvent.dragStart((await screen.findByRole('button', { name: 'Open Logs' })).closest('[data-terminal-id]')!, { dataTransfer: logsTransfer })
+    let overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
+    mockBounds(overlay, 0, 0, 400, 200)
+    mockBounds(screen.getByTestId('anytty-terminal-panel'), 0, 0, 400, 200)
+    fireEvent(overlay, pointerDragEvent('drop', logsTransfer, 390, 100))
+
+    const shellPane = await screen.findByTestId('anytty-terminal-panel')
+    const logsPane = screen.getByTestId('anytty-split-terminal-panel')
+    const serverTransfer = testDataTransfer()
+    fireEvent.dragStart((await screen.findByRole('button', { name: 'Open Server' })).closest('[data-terminal-id]')!, { dataTransfer: serverTransfer })
+    overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
+    mockBounds(overlay, 0, 0, 400, 200)
+    mockBounds(shellPane, 0, 0, 200, 200)
+    mockBounds(logsPane, 200, 0, 200, 200)
+    fireEvent(overlay, pointerDragEvent('dragover', serverTransfer, 100, 190))
+    expect(overlay.getAttribute('data-preview-pane-key')).toBe('primary')
+    expect(overlay.getAttribute('data-preview-target')).toBe('bottom')
+    expect(screen.getByTestId('anytty-web-terminal-drop-preview').parentElement?.style.width).toBe('200px')
+    fireEvent(overlay, pointerDragEvent('drop', serverTransfer, 100, 190))
+
+    const terminalBody = screen.getByTestId('anytty-terminal-body')
+    let root = terminalBody.querySelector<HTMLElement>('[data-split-direction="columns"]')!
+    expect(root.children[0]?.firstElementChild?.getAttribute('data-split-direction')).toBe('rows')
+    expect(root.children[2]?.querySelector('[data-split-direction]')).toBeNull()
+    expect(root.children[2]?.querySelector('[data-pane-terminal-id="term-logs"]')).toBeTruthy()
+
+    const testsTransfer = testDataTransfer()
+    fireEvent.dragStart((await screen.findByRole('button', { name: 'Open Tests' })).closest('[data-terminal-id]')!, { dataTransfer: testsTransfer })
+    overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
+    mockBounds(overlay, 0, 0, 400, 200)
+    mockBounds(terminalBody.querySelector<HTMLElement>('[data-pane-terminal-id="term-shell"]')!, 0, 0, 200, 100)
+    mockBounds(terminalBody.querySelector<HTMLElement>('[data-pane-terminal-id="term-server"]')!, 0, 100, 200, 100)
+    mockBounds(terminalBody.querySelector<HTMLElement>('[data-pane-terminal-id="term-logs"]')!, 200, 0, 200, 200)
+    fireEvent(overlay, pointerDragEvent('dragover', testsTransfer, 300, 190))
+    expect(overlay.getAttribute('data-preview-pane-key')).toBe('terminal:term-logs')
+    expect(overlay.getAttribute('data-preview-target')).toBe('bottom')
+    fireEvent(overlay, pointerDragEvent('drop', testsTransfer, 300, 190))
+
+    root = terminalBody.querySelector<HTMLElement>('[data-split-direction="columns"]')!
+    expect(root.children[0]?.firstElementChild?.getAttribute('data-split-direction')).toBe('rows')
+    expect(root.children[2]?.firstElementChild?.getAttribute('data-split-direction')).toBe('rows')
   })
 
   it('adds three, four, and five panes below without opening a chooser', async () => {
@@ -1588,6 +1651,36 @@ describe('MachineWorkspace terminal creation', () => {
     expect(terminalReattach).toHaveBeenCalledWith('term-shell', session, { forceTerminalChannel: true })
   })
 })
+
+function testDataTransfer(): DataTransfer {
+  const values = new Map<string, string>()
+  return {
+    effectAllowed: 'all',
+    dropEffect: 'move',
+    files: [] as unknown as FileList,
+    items: [] as unknown as DataTransferItemList,
+    types: [],
+    clearData: vi.fn(),
+    getData: (type: string) => values.get(type) ?? '',
+    setData: (type: string, value: string) => { values.set(type, value) },
+    setDragImage: vi.fn(),
+  }
+}
+
+function mockBounds(element: Element, left: number, top: number, width: number, height: number) {
+  const bounds: DOMRect = {
+    x: left,
+    y: top,
+    width,
+    height,
+    top,
+    right: left + width,
+    bottom: top + height,
+    left,
+    toJSON: () => ({}),
+  }
+  Object.defineProperty(element, 'getBoundingClientRect', { configurable: true, value: () => bounds })
+}
 
 function pointerDragEvent(type: 'dragover' | 'drop', transfer: DataTransfer, clientX: number, clientY: number): Event {
   const event = new Event(type, { bubbles: true, cancelable: true })

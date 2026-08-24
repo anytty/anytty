@@ -44,4 +44,21 @@ describe('terminalSplitLayout', () => {
     const left = splitTerminalPane(PRIMARY_TERMINAL_PANE, 'primary', 'logs', 'columns', 'split-1', 'before')
     expect(terminalPaneKeys(left)).toEqual([terminalPaneKey('logs'), 'primary'])
   })
+
+  it('replaces only the targeted leaf when nesting different split directions', () => {
+    const columns = splitTerminalPane(PRIMARY_TERMINAL_PANE, 'primary', 'logs', 'columns', 'split-1')
+    const leftRows = splitTerminalPane(columns, 'primary', 'server', 'rows', 'split-2')
+
+    expect(leftRows).toMatchObject({
+      type: 'split',
+      direction: 'columns',
+      first: {
+        type: 'split',
+        direction: 'rows',
+        first: { type: 'pane', paneKey: 'primary' },
+        second: { type: 'pane', paneKey: terminalPaneKey('server') },
+      },
+      second: { type: 'pane', paneKey: terminalPaneKey('logs') },
+    })
+  })
 })

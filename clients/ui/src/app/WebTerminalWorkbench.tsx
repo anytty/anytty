@@ -1,13 +1,13 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Folder, PanelBottom, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
 import { Button } from '../ui/button'
+import { ANYTTY_TERMINAL_DRAG_TYPE, terminalIdFromDrag } from './WebTerminalDropOverlay'
 
-export const ANYTTY_TERMINAL_DRAG_TYPE = 'application/x-anytty-terminal-id'
+export { ANYTTY_TERMINAL_DRAG_TYPE, WebTerminalDropOverlay, type WebPaneDropTarget } from './WebTerminalDropOverlay'
 
 export type WebSplitDirection = 'columns' | 'rows'
-export type WebPaneDropTarget = 'left' | 'right' | 'top' | 'bottom'
 
 export interface WebTerminalWorkbenchProps {
   terminals: readonly Terminal[]
@@ -204,66 +204,6 @@ function WorkbenchAction({ icon: Icon, label, disabled = false, onClick }: {
   )
 }
 
-export function WebTerminalDropOverlay({ canSplit, draggedTerminalId, onDrop }: {
-  canSplit: boolean
-  draggedTerminalId: string
-  onDrop: (terminalId: string, target: WebPaneDropTarget) => void
-}) {
-  const { t } = useTranslation()
-  const [target, setTarget] = useState<WebPaneDropTarget>('bottom')
-  if (!canSplit) return null
-  const targetLabel = {
-    left: t('workspace.splitLeft'),
-    right: t('workspace.splitRight'),
-    top: t('workspace.splitAbove'),
-    bottom: t('workspace.splitBelow'),
-  }[target]
-  const before = target === 'left' || target === 'top'
-  const vertical = target === 'top' || target === 'bottom'
-
-  const updateTarget = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    const next = dropTargetFromEvent(event)
-    setTarget((current) => current === next ? current : next)
-  }
-
-  return (
-    <div
-      aria-label={targetLabel}
-      className="absolute inset-0 z-40 hidden bg-black/35 backdrop-blur-[1px] md:block"
-      data-preview-target={target}
-      data-testid="anytty-web-terminal-drop-overlay"
-      onDragEnter={updateTarget}
-      onDragOver={updateTarget}
-      onDrop={(event) => {
-        event.preventDefault()
-        onDrop(terminalIdFromDrag(event) || draggedTerminalId, dropTargetFromEvent(event))
-      }}
-      role="status"
-    >
-      <div
-        aria-hidden="true"
-        className={`absolute inset-3 flex min-h-0 min-w-0 gap-1.5 overflow-hidden ${vertical ? 'flex-col' : 'flex-row'}`}
-        data-preview-layout={vertical ? 'rows' : 'columns'}
-        data-testid="anytty-web-terminal-drop-preview"
-      >
-        {before ? <DropPreviewPane incoming /> : <DropPreviewPane />}
-        {before ? <DropPreviewPane /> : <DropPreviewPane incoming />}
-      </div>
-    </div>
-  )
-}
-
-function DropPreviewPane({ incoming = false }: { incoming?: boolean }) {
-  return (
-    <div
-      className={`min-h-0 min-w-0 flex-1 transition-colors duration-150 motion-reduce:transition-none ${incoming ? 'border-2 border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/16' : 'border border-[var(--anytty-border)] bg-black/15'}`}
-      data-preview-pane={incoming ? 'incoming' : 'existing'}
-    />
-  )
-}
-
 export function WebSplitDivider({ direction, ratio, onRatioChange, onResizeEnd }: {
   direction: WebSplitDirection
   ratio: number
@@ -321,25 +261,6 @@ export function WebSplitDivider({ direction, ratio, onRatioChange, onResizeEnd }
       <span className={`rounded-full bg-[var(--anytty-muted)] opacity-0 transition-opacity group-hover:opacity-100 ${direction === 'columns' ? 'h-9 w-0.5' : 'h-0.5 w-9'}`} />
     </div>
   )
-}
-
-function terminalIdFromDrag(event: DragEvent<HTMLElement>): string {
-  return event.dataTransfer.getData(ANYTTY_TERMINAL_DRAG_TYPE) || event.dataTransfer.getData('text/plain')
-}
-
-function dropTargetFromEvent(event: DragEvent<HTMLElement>): WebPaneDropTarget {
-  const bounds = event.currentTarget.getBoundingClientRect()
-  const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left))
-  const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top))
-  return nearestDropTarget(x, y, bounds.width, bounds.height)
-}
-
-function nearestDropTarget(x: number, y: number, width: number, height: number): WebPaneDropTarget {
-  if (width <= 0 || height <= 0) return 'bottom'
-  const horizontal = (x / width) - 0.5
-  const vertical = (y / height) - 0.5
-  if (Math.abs(horizontal) > Math.abs(vertical)) return horizontal < 0 ? 'left' : 'right'
-  return vertical < 0 ? 'top' : 'bottom'
 }
 
 function webTabId(terminalId: string): string {

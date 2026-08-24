@@ -50,7 +50,8 @@ import { Textarea } from '../ui/textarea'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Spinner } from '../ui/spinner'
 import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
-import { WebSplitDivider, WebTerminalDropOverlay, WebTerminalPaneHeader, WebTerminalWorkbench, type WebPaneDropTarget } from './WebTerminalWorkbench'
+import { WebTerminalDropOverlay, type WebPaneDropTarget } from './WebTerminalDropOverlay'
+import { WebSplitDivider, WebTerminalPaneHeader, WebTerminalWorkbench } from './WebTerminalWorkbench'
 import {
   PRIMARY_TERMINAL_PANE,
   removeTerminalPane,
@@ -1385,13 +1386,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     setTerminalSwitcherInventoryByMachine({})
   }, [machine?.machineId])
 
-  const selectSplitTerminal = useCallback((intent: { machineId: string; terminalId: string }, target: WebPaneDropTarget = 'bottom') => {
+  const selectSplitTerminal = useCallback((intent: { machineId: string; terminalId: string }, target: WebPaneDropTarget = 'bottom', targetPaneKey: TerminalPaneKey = activeTerminalSlot) => {
     if (connectionSessionUnavailable) return
     if (machine && intent.machineId !== machine.machineId) {
       setError(t('workspace.terminalMachineMismatch'))
       return
     }
-    if (!activeTerminalId || intent.terminalId === activePaneTerminalId) {
+    if (!activeTerminalId || intent.terminalId === terminalIdForPane(targetPaneKey, activeTerminalId)) {
       setPairStatus(t('workspace.chooseDifferentTerminal'))
       return
     }
@@ -1403,7 +1404,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     terminalSplitSequenceRef.current += 1
     const splitId = `split-${terminalSplitSequenceRef.current}`
     const paneKey = terminalPaneKey(intent.terminalId)
-    setTerminalSplitRoot((current) => splitTerminalPane(current, activeTerminalSlot, intent.terminalId, direction, splitId, placement))
+    setTerminalSplitRoot((current) => splitTerminalPane(current, targetPaneKey, intent.terminalId, direction, splitId, placement))
     setTerminalResizeControlBySlot((current) => ({ ...current, [paneKey]: current[paneKey] ?? defaultTerminalResizeControl }))
     setActiveTerminalSlot(paneKey)
     setMobileSheet(null)
@@ -1411,7 +1412,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       fitDisplayedTerminals()
       splitTerminalRefs.current.get(intent.terminalId)?.focus()
     }, 0)
-  }, [activePaneTerminalId, activeTerminalId, activeTerminalSlot, connectionSessionUnavailable, fitDisplayedTerminals, machine, t, webLayout])
+  }, [activeTerminalId, activeTerminalSlot, connectionSessionUnavailable, fitDisplayedTerminals, machine, t, webLayout])
 
   const splitActiveTerminal = useCallback((target: WebPaneDropTarget = 'bottom') => {
     if (requireVerification) {
@@ -1667,10 +1668,10 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     showTerminalListPage()
   }, [activeTerminalId, removeSplitTerminal, showTerminalListPage, splitTerminalIds, webOpenTerminalIds])
 
-  const handleWebPaneDrop = useCallback((terminalId: string, target: WebPaneDropTarget) => {
+  const handleWebPaneDrop = useCallback((terminalId: string, targetPaneKey: TerminalPaneKey, target: WebPaneDropTarget) => {
     setWebDraggedTerminalId(null)
     if (!machine) return
-    selectSplitTerminal({ machineId: machine.machineId, terminalId }, target)
+    selectSplitTerminal({ machineId: machine.machineId, terminalId }, target, targetPaneKey)
   }, [machine, selectSplitTerminal])
 
   const fitWebSplitTerminals = useCallback(() => {
@@ -2980,6 +2981,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         className={`relative h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--anytty-terminal-bg)] ${active && hasSplitTerminals ? 'ring-1 ring-inset ring-[var(--anytty-accent)]' : ''}`}
         data-active-slot={active ? 'true' : 'false'}
         data-pane-key={paneKey}
+        data-pane-terminal-id={terminalId ?? undefined}
         data-testid={primary ? 'anytty-terminal-panel' : 'anytty-split-terminal-panel'}
         key={paneKey}
         onPointerDown={() => activateTerminalPane(paneKey)}
@@ -3179,7 +3181,10 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         >
           {webLayout && webDraggedTerminalId ? (
             <WebTerminalDropOverlay
-              canSplit={Boolean(activePaneTerminalId && activePaneTerminalId !== webDraggedTerminalId)}
+              canSplit={displayedPaneKeys.some((paneKey) => {
+                const terminalId = terminalIdForPane(paneKey, activeTerminalId)
+                return Boolean(terminalId && terminalId !== webDraggedTerminalId)
+              })}
               draggedTerminalId={webDraggedTerminalId}
               onDrop={handleWebPaneDrop}
             />
