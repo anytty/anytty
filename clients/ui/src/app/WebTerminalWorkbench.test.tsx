@@ -40,6 +40,14 @@ describe('WebTerminalWorkbench', () => {
     expect(screen.getByRole('button', { name: 'Show terminal sidebar' })).toBeTruthy()
   })
 
+  it('opens the terminal picker from the workbench search action', async () => {
+    const onOpenTerminalPicker = vi.fn()
+    renderWorkbench({ onOpenTerminalPicker })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Find terminal' }))
+    expect(onOpenTerminalPicker).toHaveBeenCalledOnce()
+  })
+
   it('reorders tabs through native drag and adds a split below directly', async () => {
     const onReorderTabs = vi.fn()
     const onOpenSplit = vi.fn()
@@ -151,6 +159,7 @@ function workbenchProps(overrides: Partial<Parameters<typeof WebTerminalWorkbenc
     onCloseTab: vi.fn(),
     onCreateTerminal: vi.fn(),
     onOpenFiles: vi.fn(),
+    onOpenTerminalPicker: vi.fn(),
     onOpenSettings: vi.fn(),
     onOpenSplit: vi.fn(),
     onReorderTabs: vi.fn(),

@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { Folder, PanelBottom, PanelLeftClose, PanelLeftOpen, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
+import { Folder, PanelBottom, PanelLeftClose, PanelLeftOpen, Plus, Rows2, Search, Settings2, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
 import { Button } from '../ui/button'
@@ -23,6 +23,7 @@ export interface WebTerminalWorkbenchProps {
   onCloseTab: (terminalId: string) => void
   onCreateTerminal: () => void
   onOpenFiles: () => void
+  onOpenTerminalPicker: () => void
   onOpenSettings: () => void
   onOpenSplit: () => void
   onReorderTabs: (terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => void
@@ -44,6 +45,7 @@ export function WebTerminalWorkbench({
   onCloseTab,
   onCreateTerminal,
   onOpenFiles,
+  onOpenTerminalPicker,
   onOpenSettings,
   onOpenSplit,
   onReorderTabs,
@@ -158,6 +160,7 @@ export function WebTerminalWorkbench({
       </div>
 
       <div className="flex shrink-0 items-center border-l border-[var(--anytty-border-subtle)] px-1">
+        <WorkbenchAction icon={Search} label={t('terminal.picker.title')} disabled={disabled} onClick={onOpenTerminalPicker} />
         <WorkbenchAction icon={Plus} label={t('workspace.createTerminal')} disabled={!canCreateTerminal || disabled} onClick={onCreateTerminal} />
         <WorkbenchAction icon={Folder} label={t('workspace.openFiles')} disabled={disabled} onClick={onOpenFiles} />
         <WorkbenchAction icon={Rows2} label={t('workspace.splitBelow')} disabled={disabled || !activeTabTerminalId || !canSplitTerminal} onClick={onOpenSplit} />

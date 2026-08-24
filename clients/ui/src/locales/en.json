@@ -291,6 +291,14 @@
     "open": "Open {{name}}",
     "manage": "Manage {{name}}",
     "state": { "running": "Running", "exited": "Exited", "unknown": "Unknown" },
+    "picker": {
+      "title": "Find terminal",
+      "description": "Search terminals by name, command, directory, state, or size.",
+      "placeholder": "Search terminals",
+      "noResults": "No matching terminals",
+      "current": "Current terminal",
+      "createDescription": "Create and open another terminal"
+    },
     "outputActivity": { "now": "now", "seconds": "{{count}}s", "minutes": "{{count}}m", "hours": "{{count}}h" },
     "order": { "pinTop": "Pin", "unpin": "Unpin", "pinned": "Pinned terminal", "moveUp": "Up", "moveDown": "Down" },
     "paste": { "title": "Confirm paste", "summary": "{{lines}} lines, {{characters}} characters", "confirm": "Paste" },

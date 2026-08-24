@@ -50,6 +50,7 @@ import { Textarea } from '../ui/textarea'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Spinner } from '../ui/spinner'
 import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
+import { WebTerminalPickerDialog } from './WebTerminalPickerDialog'
 import { WebTerminalDropOverlay, type WebPaneDropTarget } from './WebTerminalDropOverlay'
 import { WebSplitDivider, WebTerminalPaneHeader, WebTerminalWorkbench } from './WebTerminalWorkbench'
 import {
@@ -273,6 +274,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [webTerminalTabs, setWebTerminalTabs] = useState<WebTerminalTabLayout[]>([])
   const [webDraggedTerminalId, setWebDraggedTerminalId] = useState<string | null>(null)
   const [webTerminalSidebarOpen, setWebTerminalSidebarOpen] = useState(true)
+  const [webTerminalPickerOpen, setWebTerminalPickerOpen] = useState(false)
   const [webSettingsOpen, setWebSettingsOpen] = useState(false)
   const [terminalHistorySearchOpenBySlot, setTerminalHistorySearchOpenBySlot] = useState<Record<TerminalPaneKey, boolean>>({ primary: false })
 
@@ -1753,6 +1755,24 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
 
   useEffect(() => {
     if (!webLayout) return
+    const handleWebTerminalPickerShortcut = (event: globalThis.KeyboardEvent) => {
+      if ((!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'f') return
+      const target = event.target instanceof Element ? event.target : null
+      if (!webTerminalPickerOpen && target?.closest('[role="dialog"], [aria-modal="true"]')) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (webTerminalPickerOpen) {
+        document.querySelector<HTMLInputElement>('[data-testid="anytty-web-terminal-picker-input"]')?.focus({ preventScroll: true })
+        return
+      }
+      setWebTerminalPickerOpen(true)
+    }
+    window.addEventListener('keydown', handleWebTerminalPickerShortcut, true)
+    return () => window.removeEventListener('keydown', handleWebTerminalPickerShortcut, true)
+  }, [webLayout, webTerminalPickerOpen])
+
+  useEffect(() => {
+    if (!webLayout) return
     const handleWebTabShortcut = (event: globalThis.KeyboardEvent) => {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       const digit = Number(event.key)
@@ -3165,6 +3185,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             onCloseTab={closeWebTab}
             onCreateTerminal={openCreateTerminal}
             onOpenFiles={openFiles}
+            onOpenTerminalPicker={() => setWebTerminalPickerOpen(true)}
             onOpenSettings={() => setWebSettingsOpen(true)}
             onOpenSplit={() => splitActiveTerminal('bottom')}
             onReorderTabs={reorderWebTabs}
@@ -3483,12 +3504,24 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       </main>
 
       {webLayout ? (
-        <WebTerminalSettingsDialog
-          open={webSettingsOpen}
-          settings={effectiveTerminalSettings}
-          onChange={updateTerminalSettings}
-          onOpenChange={setWebSettingsOpen}
-        />
+        <>
+          <WebTerminalPickerDialog
+            activeTerminalId={activePaneTerminalId}
+            canCreateTerminal={canManageTerminals}
+            disabled={connectionSessionUnavailable}
+            open={webTerminalPickerOpen}
+            terminals={orderedTerminals}
+            onCreateTerminal={openCreateTerminal}
+            onOpenChange={setWebTerminalPickerOpen}
+            onSelectTerminal={(terminalId) => openTerminal({ machineId: machine.machineId, terminalId })}
+          />
+          <WebTerminalSettingsDialog
+            open={webSettingsOpen}
+            settings={effectiveTerminalSettings}
+            onChange={updateTerminalSettings}
+            onOpenChange={setWebSettingsOpen}
+          />
+        </>
       ) : null}
 
       {hasOpenedFiles ? (

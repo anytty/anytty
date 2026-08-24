@@ -291,6 +291,14 @@
     "open": "打开 {{name}}",
     "manage": "管理 {{name}}",
     "state": { "running": "运行中", "exited": "已退出", "unknown": "未知" },
+    "picker": {
+      "title": "查找终端",
+      "description": "按名称、命令、目录、状态或尺寸搜索终端。",
+      "placeholder": "搜索终端",
+      "noResults": "没有匹配的终端",
+      "current": "当前终端",
+      "createDescription": "创建并打开另一个终端"
+    },
     "outputActivity": { "now": "刚刚", "seconds": "{{count}}秒", "minutes": "{{count}}分钟", "hours": "{{count}}小时" },
     "order": { "pinTop": "置顶", "unpin": "取消置顶", "pinned": "已置顶终端", "moveUp": "上移", "moveDown": "下移" },
     "paste": { "title": "确认粘贴", "summary": "{{lines}} 行，{{characters}} 个字符", "confirm": "粘贴" },

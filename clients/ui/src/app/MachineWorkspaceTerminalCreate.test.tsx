@@ -356,7 +356,11 @@ describe('MachineWorkspace terminal creation', () => {
     expect(document.querySelectorAll('[data-split-direction]')).toHaveLength(0)
     expect(screen.getByTestId('anytty-terminal-panel').getAttribute('data-pane-terminal-id')).toBe('term-server')
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Shell' }))
+    fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
+    const pickerInput = await screen.findByRole('combobox', { name: 'Find terminal' })
+    await userEvent.type(pickerInput, 'lgs{Enter}')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Find terminal' })).toBeNull())
+    expect(screen.getByRole('tab', { name: 'Shell' }).getAttribute('aria-selected')).toBe('true')
     expect(document.querySelectorAll('[data-split-direction="columns"]')).toHaveLength(1)
     expect(document.querySelector('[data-pane-terminal-id="term-logs"]')).toBeTruthy()
 
