@@ -276,8 +276,10 @@ func runV3E2EPaneCommands(ctx context.Context, runtime *app.AppRuntime) (int, bo
 	if runtime.State().Shell.ZoomedPaneID != "pane-e2e" {
 		return 0, false, fmt.Errorf("v3 e2e smoke: zoom command did not set zoomed pane, shell=%#v", runtime.State().Shell)
 	}
-	if runtime.State().Session.Cols != 98 || runtime.State().Session.Rows != 36 {
-		return 0, false, fmt.Errorf("v3 e2e smoke: zoom command should restore full card content rect, state=%#v", runtime.State())
+	if err := drainV3RuntimeUntil(ctx, runtime, func(root state.Root) bool {
+		return root.Session.Cols == 98 && root.Session.Rows == 36
+	}); err != nil {
+		return 0, false, fmt.Errorf("v3 e2e smoke: zoom command did not restore full card content rect: %w state=%#v", err, runtime.State())
 	}
 	trailing := []app.Msg{
 		app.ShellPaneCommandMsg{Command: state.PaneCommand{
@@ -303,8 +305,10 @@ func runV3E2EPaneCommands(ctx context.Context, runtime *app.AppRuntime) (int, bo
 	if shell.ZoomedPaneID != "" || len(shell.Workspace.Tabs[0].Panes) != 1 || shell.ActivePaneID != state.DefaultPaneID {
 		return 0, false, fmt.Errorf("v3 e2e smoke: close/unzoom command did not restore single-pane shell, shell=%#v", shell)
 	}
-	if runtime.State().Session.Cols != 98 || runtime.State().Session.Rows != 36 {
-		return 0, false, fmt.Errorf("v3 e2e smoke: close command did not keep terminal at content rect, state=%#v", runtime.State())
+	if err := drainV3RuntimeUntil(ctx, runtime, func(root state.Root) bool {
+		return root.Session.Cols == 98 && root.Session.Rows == 36
+	}); err != nil {
+		return 0, false, fmt.Errorf("v3 e2e smoke: close command did not keep terminal at content rect: %w state=%#v", err, runtime.State())
 	}
 	return len(commands) + len(trailing), true, nil
 }

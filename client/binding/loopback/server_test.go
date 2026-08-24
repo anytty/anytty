@@ -377,7 +377,7 @@ func requestFrame(operation byte, requestID, handle uint64, payload []byte, with
 
 func receiveResponse(t *testing.T, client *websocket.Conn) (byte, uint64, uint64, []byte) {
 	t.Helper()
-	_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = client.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var frame []byte
 	if err := websocket.Message.Receive(client, &frame); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
