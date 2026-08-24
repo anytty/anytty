@@ -48,15 +48,26 @@ describe('WebTerminalWorkbench', () => {
     expect(onOpenSplit).toHaveBeenCalledOnce()
   })
 
-  it('previews four directional pane targets while dragging and keeps the divider keyboard-resizable', () => {
+  it('shows one global split preview that follows the drag position and keeps the divider keyboard-resizable', () => {
     const onDrop = vi.fn()
     const onRatioChange = vi.fn()
     const view = render(<WebTerminalDropOverlay canSplit draggedTerminalId="logs" onDrop={onDrop} />)
-    expect(screen.getByRole('button', { name: 'Split left' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Split above' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Open here' })).toBeNull()
-    const splitRight = screen.getByRole('button', { name: 'Split right' })
-    fireEvent.drop(splitRight, { dataTransfer: dataTransfer('logs') })
+    const overlay = screen.getByTestId('anytty-web-terminal-drop-overlay')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue(rect(400, 200))
+    expect(screen.getAllByTestId('anytty-web-terminal-drop-preview')).toHaveLength(1)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+
+    const transfer = dataTransfer('logs')
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 10, 100))
+    expect(overlay.getAttribute('data-preview-target')).toBe('left')
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 10))
+    expect(overlay.getAttribute('data-preview-target')).toBe('top')
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
+    expect(overlay.getAttribute('data-preview-target')).toBe('right')
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 200, 190))
+    expect(overlay.getAttribute('data-preview-target')).toBe('bottom')
+    fireEvent(overlay, pointerDragEvent('dragover', transfer, 390, 100))
+    fireEvent(overlay, pointerDragEvent('drop', transfer, 390, 100))
     expect(onDrop).toHaveBeenCalledWith('logs', 'right')
 
     view.rerender(<WebSplitDivider direction="columns" ratio={50} onRatioChange={onRatioChange} onResizeEnd={vi.fn()} />)
@@ -130,6 +141,16 @@ function dataTransfer(terminalId: string): DataTransfer {
   }
 }
 
-function rect(width: number): DOMRect {
-  return { x: 0, y: 0, width, height: 40, top: 0, right: width, bottom: 40, left: 0, toJSON: () => ({}) }
+function rect(width: number, height = 40): DOMRect {
+  return { x: 0, y: 0, width, height, top: 0, right: width, bottom: height, left: 0, toJSON: () => ({}) }
+}
+
+function pointerDragEvent(type: 'dragover' | 'drop', transfer: DataTransfer, clientX: number, clientY: number): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperties(event, {
+    clientX: { value: clientX },
+    clientY: { value: clientY },
+    dataTransfer: { value: transfer },
+  })
+  return event
 }

@@ -243,8 +243,13 @@ describe('MachineWorkspace terminal creation', () => {
       setData: (type: string, value: string) => { dragValues.set(type, value) }, setDragImage: vi.fn(),
     }
     fireEvent.dragStart(logsItem, { dataTransfer })
-    const splitRight = await screen.findByRole('button', { name: 'Split right' })
-    fireEvent.drop(splitRight, { dataTransfer })
+    const overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
+    vi.spyOn(overlay, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, width: 400, height: 200, top: 0, right: 400, bottom: 200, left: 0, toJSON: () => ({}),
+    })
+    fireEvent(overlay, pointerDragEvent('dragover', dataTransfer as unknown as DataTransfer, 390, 100))
+    expect(overlay.getAttribute('data-preview-target')).toBe('right')
+    fireEvent(overlay, pointerDragEvent('drop', dataTransfer as unknown as DataTransfer, 390, 100))
 
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
     expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('vertical')
@@ -1583,3 +1588,13 @@ describe('MachineWorkspace terminal creation', () => {
     expect(terminalReattach).toHaveBeenCalledWith('term-shell', session, { forceTerminalChannel: true })
   })
 })
+
+function pointerDragEvent(type: 'dragover' | 'drop', transfer: DataTransfer, clientX: number, clientY: number): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperties(event, {
+    clientX: { value: clientX },
+    clientY: { value: clientY },
+    dataTransfer: { value: transfer },
+  })
+  return event
+}

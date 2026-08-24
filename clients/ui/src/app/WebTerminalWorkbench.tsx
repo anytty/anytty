@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from 'react'
-import { Folder, PanelBottom, PanelLeft, PanelRight, PanelTop, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
+import { Folder, PanelBottom, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
 import { Button } from '../ui/button'
@@ -212,58 +212,53 @@ export function WebTerminalDropOverlay({ canSplit, draggedTerminalId, onDrop }: 
   const { t } = useTranslation()
   const [target, setTarget] = useState<WebPaneDropTarget>('bottom')
   if (!canSplit) return null
-  const targets: Array<{ id: WebPaneDropTarget; label: string; icon: typeof PanelLeft }> = [
-    { id: 'left', label: t('workspace.splitLeft'), icon: PanelLeft },
-    { id: 'right', label: t('workspace.splitRight'), icon: PanelRight },
-    { id: 'top', label: t('workspace.splitAbove'), icon: PanelTop },
-    { id: 'bottom', label: t('workspace.splitBelow'), icon: PanelBottom },
-  ]
+  const targetLabel = {
+    left: t('workspace.splitLeft'),
+    right: t('workspace.splitRight'),
+    top: t('workspace.splitAbove'),
+    bottom: t('workspace.splitBelow'),
+  }[target]
+  const before = target === 'left' || target === 'top'
+  const vertical = target === 'top' || target === 'bottom'
+
+  const updateTarget = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const next = dropTargetFromEvent(event)
+    setTarget((current) => current === next ? current : next)
+  }
 
   return (
-    <div className="absolute inset-0 z-40 hidden bg-black/60 p-4 backdrop-blur-[2px] md:block" data-testid="anytty-web-terminal-drop-overlay">
-      <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-3 rounded border border-[var(--anytty-border)] bg-[var(--anytty-terminal-bg)] p-3 shadow-2xl">
-        {targets.map((candidate) => {
-          const Icon = candidate.icon
-          const selected = target === candidate.id
-          return (
-            <button
-              aria-label={candidate.label}
-              className={`group relative grid min-h-0 overflow-hidden border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--anytty-accent)] ${selected ? 'border-[var(--anytty-accent)] bg-white/10' : 'border-dashed border-[var(--anytty-border)] bg-black/20'}`}
-              key={candidate.id}
-              onClick={() => onDrop(draggedTerminalId, candidate.id)}
-              onDragEnter={(event) => {
-                event.preventDefault()
-                setTarget(candidate.id)
-              }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                event.dataTransfer.dropEffect = 'move'
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                onDrop(terminalIdFromDrag(event) || draggedTerminalId, candidate.id)
-              }}
-              tabIndex={-1}
-              type="button"
-            >
-              <span aria-hidden="true" className={`grid h-full min-h-0 gap-1.5 p-2 ${candidate.id === 'left' || candidate.id === 'right' ? 'grid-cols-2' : 'grid-rows-2'}`}>
-                {(candidate.id === 'left' || candidate.id === 'top') ? (
-                  <span className={`${selected ? 'border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/10' : 'border-[var(--anytty-border)] bg-white/5'} flex items-center justify-center border`}>
-                    <Icon className={`size-7 ${selected ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} />
-                  </span>
-                ) : null}
-                <span className="border border-[var(--anytty-border-subtle)] bg-black/25" />
-                {(candidate.id === 'right' || candidate.id === 'bottom') ? (
-                  <span className={`${selected ? 'border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/10' : 'border-[var(--anytty-border)] bg-white/5'} flex items-center justify-center border`}>
-                    <Icon className={`size-7 ${selected ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} />
-                  </span>
-                ) : null}
-              </span>
-            </button>
-          )
-        })}
+    <div
+      aria-label={targetLabel}
+      className="absolute inset-0 z-40 hidden bg-black/35 backdrop-blur-[1px] md:block"
+      data-preview-target={target}
+      data-testid="anytty-web-terminal-drop-overlay"
+      onDragEnter={updateTarget}
+      onDragOver={updateTarget}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDrop(terminalIdFromDrag(event) || draggedTerminalId, dropTargetFromEvent(event))
+      }}
+      role="status"
+    >
+      <div
+        aria-hidden="true"
+        className={`absolute inset-3 flex min-h-0 min-w-0 gap-1.5 overflow-hidden ${vertical ? 'flex-col' : 'flex-row'}`}
+      >
+        {before ? <DropPreviewTarget /> : <div className="min-h-0 min-w-0 flex-1" />}
+        {before ? <div className="min-h-0 min-w-0 flex-1" /> : <DropPreviewTarget />}
       </div>
     </div>
+  )
+}
+
+function DropPreviewTarget() {
+  return (
+    <div
+      className="min-h-0 min-w-0 flex-1 border-2 border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/16 shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--anytty-accent)_24%,transparent),0_8px_28px_rgba(0,0,0,0.28)] transition-colors duration-150 motion-reduce:transition-none"
+      data-testid="anytty-web-terminal-drop-preview"
+    />
   )
 }
 
@@ -328,6 +323,21 @@ export function WebSplitDivider({ direction, ratio, onRatioChange, onResizeEnd }
 
 function terminalIdFromDrag(event: DragEvent<HTMLElement>): string {
   return event.dataTransfer.getData(ANYTTY_TERMINAL_DRAG_TYPE) || event.dataTransfer.getData('text/plain')
+}
+
+function dropTargetFromEvent(event: DragEvent<HTMLElement>): WebPaneDropTarget {
+  const bounds = event.currentTarget.getBoundingClientRect()
+  const x = Math.max(0, Math.min(bounds.width, event.clientX - bounds.left))
+  const y = Math.max(0, Math.min(bounds.height, event.clientY - bounds.top))
+  return nearestDropTarget(x, y, bounds.width, bounds.height)
+}
+
+function nearestDropTarget(x: number, y: number, width: number, height: number): WebPaneDropTarget {
+  if (width <= 0 || height <= 0) return 'bottom'
+  const horizontal = (x / width) - 0.5
+  const vertical = (y / height) - 0.5
+  if (Math.abs(horizontal) > Math.abs(vertical)) return horizontal < 0 ? 'left' : 'right'
+  return vertical < 0 ? 'top' : 'bottom'
 }
 
 function webTabId(terminalId: string): string {
