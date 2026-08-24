@@ -35,6 +35,14 @@ anytty
 anytty terminal create --name workspace --attach -- zsh
 ```
 
+也可以在 Web 浏览器中使用同一个 daemon：
+
+```sh
+anytty web
+```
+
+Web 入口只监听当前机器的 IPv4 回环地址。`anytty web --no-open` 仅打印 URL，`anytty web status` 查看状态，`anytty web stop` 关闭浏览器入口但不停止已有终端。
+
 ## 从源码构建
 
 源码构建需要 Go 1.26.7、Node.js 24 和 npm。

@@ -9,6 +9,7 @@
     "./button": "./src/ui/button.tsx",
     "./checkbox": "./src/ui/checkbox.tsx",
     "./input": "./src/ui/input.tsx",
+    "./machine-workspace": "./src/app/MachineWorkspace.tsx",
     "./modal": "./src/ui/ModalSurface.tsx",
     "./native-select": "./src/ui/native-select.tsx",
     "./primitives": "./src/ui/primitives.tsx",

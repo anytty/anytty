@@ -6,8 +6,11 @@
 
 ## Unreleased
 
+## [0.0.1-beta.1] - 2026-08-24
+
 ### Added
 
+- 新增 `anytty web`，按需启动仅监听回环地址的本地浏览器入口，复用终端和文件共享 UI，且不重启 daemon 或终端池。
 - 新增 `anytty update`，从公开的 `anytty/anytty` GitHub Releases 检查并安装经过校验的归档，且不重启正在运行的 daemon。
 - 在公开源码仓库新增 tag 驱动的发布自动化，统一生成 CLI 归档、未签名 Android APK、checksum、构建信息和 provenance attestation。
 

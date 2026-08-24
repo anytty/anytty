@@ -66,7 +66,7 @@ const copy = {
     historyStats: [['Live memory', 'Bounded'], ['History', 'Disk-limited'], ['Reconnect', 'Full context']],
     historyNote: 'Useful after a disconnect, an accidental exit, or an unattended agent run that produced hours of output.',
     mobileEyebrow: 'Android + iOS', mobileTitle: 'See what\'s alive on your phone. Step in when it matters.',
-    mobileLead: 'The mobile app is built for terminal work, not a desktop page squeezed onto a phone. Check recent activity, attach with a touch-optimized key row, and manage files over the same connection.',
+    mobileLead: 'The mobile app is built for terminal work, not a wide-screen Web page squeezed onto a phone. Check recent activity, attach with a touch-optimized key row, and manage files over the same connection.',
     mobilePoints: [
       ['Terminal activity at a glance', 'Scan running sessions and time since last output.'],
       ['Touch-ready controls', 'Use Esc, Ctrl, arrows, paging, and common terminal actions.'],
@@ -99,7 +99,7 @@ const copy = {
       ['Mobile & tablet clients', true, false, false, false],
       ['Preview remote files on mobile', true, false, false, false],
       ['Web browser access', true, false, false, false],
-      ['Cross-platform (desktop + mobile)', true, false, false, false],
+      ['Cross-platform (TUI + Web + mobile)', true, false, false, false],
       ['Native Windows support (no WSL)', true, false, false, true],
       ['NAT traversal (P2P / relay)', true, false, false, false],
     ],
@@ -144,7 +144,7 @@ const copy = {
     historyStats: [['实时内存', '有界'], ['历史容量', '看磁盘'], ['重新连接', '完整上下文']],
     historyNote: '断线、误关窗口，或者 Agent 跑了好几个小时，重新连上后还能看到完整现场。',
     mobileEyebrow: 'Android + iOS', mobileTitle: '手机上先看状态，再决定要不要接管。',
-    mobileLead: '手机 App 不是把桌面页面硬塞进小屏幕。你可以快速查看哪些终端还在跑，用触控优化的按键操作，也能直接管理远程文件。',
+    mobileLead: '手机 App 不是把宽屏 Web 页面硬塞进小屏幕。你可以快速查看哪些终端还在跑，用触控优化的按键操作，也能直接管理远程文件。',
     mobilePoints: [
       ['终端状态一眼看清', '查看运行中的终端和距离上次输出的时间。'],
       ['触控操作顺手', 'Esc、Ctrl、方向键、翻页和常用终端操作都做了触控适配。'],
@@ -177,7 +177,7 @@ const copy = {
       ['手机 / 平板客户端', true, false, false, false],
       ['移动端远程文件预览', true, false, false, false],
       ['Web 浏览器访问', true, false, false, false],
-      ['全平台（桌面 + 移动）', true, false, false, false],
+      ['全平台（TUI + Web + 移动）', true, false, false, false],
       ['Windows 原生支持（无需 WSL）', true, false, false, true],
       ['内网穿透（P2P / 中继）', true, false, false, false],
     ],
@@ -191,7 +191,7 @@ const copy = {
 
 const t = copy[locale]
 const docsPath = sitePath(localizedPath(locale, '/docs/quick-start'))
-const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0'
+const releaseUrl = 'https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1'
 const viewIcons = [PanelsTopLeft, TerminalSquare, Laptop, Smartphone]
 const observerIcons = [Eye, ShieldCheck]
 const workbenchIcons = [MonitorSmartphone, Laptop, Clock3]

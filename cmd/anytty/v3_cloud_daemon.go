@@ -7,11 +7,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	clouddaemon "github.com/anytty/anytty/cloud/daemon"
 	corev2 "github.com/anytty/anytty/core"
+	"github.com/anytty/anytty/localweb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
@@ -26,6 +28,9 @@ type v3CloudRuntimeControl struct {
 	disabledPath     string
 	lastRuntimeError string
 	updatedAt        time.Time
+	localWebCore     localweb.Core
+	localWeb         *localweb.Server
+	localWebUpdated  time.Time
 }
 
 func (control *v3CloudRuntimeControl) configure(recordPath, disabledPath string) {
@@ -35,6 +40,12 @@ func (control *v3CloudRuntimeControl) configure(recordPath, disabledPath string)
 	}
 	control.recordPath = recordPath
 	control.disabledPath = disabledPath
+	control.mu.Unlock()
+}
+
+func (control *v3CloudRuntimeControl) configureLocalWeb(core localweb.Core) {
+	control.mu.Lock()
+	control.localWebCore = core
 	control.mu.Unlock()
 }
 
@@ -195,14 +206,64 @@ func (*v3CloudRuntimeControl) Status(context.Context) (corev2.RemoteStatus, erro
 func (*v3CloudRuntimeControl) PairStart(context.Context, corev2.RemotePairStartRequest) (corev2.RemotePairStartResult, error) {
 	return corev2.RemotePairStartResult{}, corev2.ErrRemoteServiceUnavailable
 }
-func (*v3CloudRuntimeControl) LocalEnable(context.Context, corev2.RemoteLocalEnableRequest) (corev2.RemoteLocalStatus, error) {
-	return corev2.RemoteLocalStatus{}, corev2.ErrRemoteServiceUnavailable
+func (control *v3CloudRuntimeControl) LocalEnable(_ context.Context, request corev2.RemoteLocalEnableRequest) (corev2.RemoteLocalStatus, error) {
+	control.mu.Lock()
+	defer control.mu.Unlock()
+	if control.localWebCore == nil {
+		return corev2.RemoteLocalStatus{}, corev2.ErrRemoteServiceUnavailable
+	}
+	address := strings.TrimSpace(request.LocalWebAddress)
+	if address == "" {
+		address = localweb.DefaultAddress
+	}
+	if control.localWeb != nil {
+		if address == localweb.DefaultAddress || address == control.localWeb.Address() {
+			return localWebStatus(control.localWeb, control.localWebUpdated), nil
+		}
+		return corev2.RemoteLocalStatus{}, fmt.Errorf("local web is already running at %s", control.localWeb.Address())
+	}
+	server, err := localweb.Start(localweb.Options{Core: control.localWebCore, Address: address})
+	if err != nil {
+		return corev2.RemoteLocalStatus{}, err
+	}
+	control.localWeb = server
+	control.localWebUpdated = time.Now().UTC()
+	return localWebStatus(server, control.localWebUpdated), nil
 }
-func (*v3CloudRuntimeControl) LocalStatus(context.Context) (corev2.RemoteLocalStatus, error) {
-	return corev2.RemoteLocalStatus{}, corev2.ErrRemoteServiceUnavailable
+func (control *v3CloudRuntimeControl) LocalStatus(context.Context) (corev2.RemoteLocalStatus, error) {
+	control.mu.RLock()
+	defer control.mu.RUnlock()
+	return localWebStatus(control.localWeb, control.localWebUpdated), nil
 }
-func (*v3CloudRuntimeControl) LocalDisable(context.Context) (corev2.RemoteLocalStatus, error) {
-	return corev2.RemoteLocalStatus{}, corev2.ErrRemoteServiceUnavailable
+func (control *v3CloudRuntimeControl) LocalDisable(ctx context.Context) (corev2.RemoteLocalStatus, error) {
+	control.mu.Lock()
+	server := control.localWeb
+	control.localWeb = nil
+	control.localWebUpdated = time.Now().UTC()
+	updated := control.localWebUpdated
+	control.mu.Unlock()
+	if server != nil {
+		if err := server.Stop(ctx); err != nil {
+			return corev2.RemoteLocalStatus{}, err
+		}
+	}
+	return localWebStatus(nil, updated), nil
+}
+
+func (control *v3CloudRuntimeControl) closeLocalWeb() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = control.LocalDisable(ctx)
+}
+
+func localWebStatus(server *localweb.Server, updated time.Time) corev2.RemoteLocalStatus {
+	status := corev2.RemoteLocalStatus{UpdatedAt: updated}
+	if server != nil {
+		status.Enabled = true
+		status.HTTPURL = server.URL()
+		status.LocalWebAddress = server.Address()
+	}
+	return status
 }
 func (control *v3CloudRuntimeControl) CloudStatus(context.Context) (corev2.RemoteCloudStatus, error) {
 	return control.cloudStatus(true)

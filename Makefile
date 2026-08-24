@@ -8,7 +8,7 @@ ANDROID_DIR := $(CURDIR)/clients/mobile/android
 ANDROID_ARTIFACT_DIR := $(ARTIFACT_DIR)/android
 RELEASE_VERSION ?=
 
-.PHONY: build release test test-clients test-android site-build site-check site-preview public-check clean
+.PHONY: build release test test-clients test-android local-web-bundle site-build site-check site-preview public-check clean
 
 build:
 	mkdir -p "$(dir $(ANYTTY_BIN))"
@@ -25,6 +25,11 @@ test-clients:
 	npm run test
 	npm run typecheck
 	npm run build
+	GOWORK=off go run ./internal/cmd/localwebbundle --check
+
+local-web-bundle:
+	npm run build --workspace @anytty/mobile
+	GOWORK=off go run ./internal/cmd/localwebbundle
 
 test-android:
 	npm run cap:build

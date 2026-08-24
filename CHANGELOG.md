@@ -6,8 +6,11 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.1] - 2026-08-24
+
 ### Added
 
+- Added `anytty web`, a loopback-only local browser interface that reuses the shared terminal and file UI without restarting the daemon or terminal pool.
 - Added `anytty update` to check and install verified archives from the public `anytty/anytty` GitHub Releases without restarting a running daemon.
 - Added tag-driven release automation in the public source repository for CLI archives, the unsigned Android APK, checksums, build metadata, and provenance attestations.
 

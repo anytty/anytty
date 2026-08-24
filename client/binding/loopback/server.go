@@ -46,7 +46,7 @@ const (
 	opEvent             byte = 0x30
 )
 
-var allowedOrigins = map[string]struct{}{
+var defaultAllowedOrigins = map[string]struct{}{
 	"capacitor://localhost": {},
 	"http://localhost":      {},
 	"https://localhost":     {},
@@ -116,9 +116,10 @@ func (engine RegistryEngine) NextEvent(ctx context.Context, rendererHandle uint6
 // Server is one engine's loopback transport. Stop is idempotent and waits for
 // all in-flight binding calls before returning, so the engine can then close.
 type Server struct {
-	engine Engine
-	token  []byte
-	port   uint16
+	engine  Engine
+	token   []byte
+	port    uint16
+	origins map[string]struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -142,8 +143,10 @@ type client struct {
 	rendererOnce sync.Once
 }
 
-// Start listens only on an ephemeral IPv4 loopback port.
-func Start(engine Engine, token string) (*Server, error) {
+// Start listens only on an ephemeral IPv4 loopback port. Additional origins
+// let a daemon-owned local web page use the same authenticated bridge without
+// weakening the native WebView origin checks.
+func Start(engine Engine, token string, additionalOrigins ...string) (*Server, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("loopback binding engine is required")
 	}
@@ -160,9 +163,23 @@ func Start(engine Engine, token string) (*Server, error) {
 		return nil, fmt.Errorf("invalid loopback port %d", port)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	origins := make(map[string]struct{}, len(defaultAllowedOrigins)+len(additionalOrigins))
+	for origin := range defaultAllowedOrigins {
+		origins[origin] = struct{}{}
+	}
+	for _, origin := range additionalOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			_ = listener.Close()
+			cancel()
+			return nil, fmt.Errorf("loopback origin must not be empty")
+		}
+		origins[origin] = struct{}{}
+	}
 	server := &Server{
 		engine: engine, token: []byte(token), port: uint16(port), ctx: ctx, cancel: cancel,
-		listen: netutil.LimitListener(listener, maxPhysicalClients), clients: make(map[*client]struct{}),
+		origins: origins,
+		listen:  netutil.LimitListener(listener, maxPhysicalClients), clients: make(map[*client]struct{}),
 		stateChange: make(chan struct{}),
 	}
 	websocketServer := websocket.Server{
@@ -219,7 +236,7 @@ func (server *Server) handshake(config *websocket.Config, request *http.Request)
 	if request.URL.Path != "/" || request.URL.RawQuery != "" {
 		return fmt.Errorf("invalid loopback path")
 	}
-	if _, ok := allowedOrigins[request.Header.Get("Origin")]; !ok {
+	if _, ok := server.origins[request.Header.Get("Origin")]; !ok {
 		return fmt.Errorf("invalid loopback origin")
 	}
 	protocols := request.Header.Values("Sec-WebSocket-Protocol")

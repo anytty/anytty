@@ -35,6 +35,14 @@ The second command opens the TUI and connects to the local daemon. To create a s
 anytty terminal create --name workspace --attach -- zsh
 ```
 
+To use the same daemon from a Web browser:
+
+```sh
+anytty web
+```
+
+The Web interface listens only on your machine's IPv4 loopback address. Run `anytty web --no-open` to print its URL, `anytty web status` to inspect it, or `anytty web stop` to close the browser entry point without stopping terminals.
+
 ## Build from source
 
 Source builds require Go 1.26.7, Node.js 24, and npm.

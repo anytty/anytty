@@ -36,8 +36,8 @@ android {
         applicationId "com.anytty.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.0.1-beta.0"
+        versionCode 4
+        versionName "0.0.1-beta.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "int", "ENDPOINT_SUPERVISOR_PERCENT", anyttyEndpointSupervisorPercent.toString()
     }

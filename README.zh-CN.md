@@ -15,7 +15,7 @@
 
 AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换设备或稍后再回来，任务都不会丢。你可以用键盘优先的 TUI、CLI 或手机 App 随时查看、接管，并通过同一条连接管理远程文件。
 
-> **Beta：** `v0.0.1-beta.0` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
+> **Beta：** `v0.0.1-beta.1` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
 
 <table>
   <tr>
@@ -57,7 +57,7 @@ AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换�
   </tr>
 </table>
 
-> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 暂时可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0) 下载；iOS 当前还没有公开安装包，需要等待 Apple App Store 上架。Google Play 与 Apple App Store 的上架工作均在进行中。
+> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 暂时可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1) 下载；iOS 当前还没有公开安装包，需要等待 Apple App Store 上架。Google Play 与 Apple App Store 的上架工作均在进行中。
 
 ### 连接与文件管理
 
@@ -112,7 +112,7 @@ curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
-  sh -s -- --version v0.0.1-beta.0 --bin-dir "$HOME/bin"
+  sh -s -- --version v0.0.1-beta.1 --bin-dir "$HOME/bin"
 ```
 
 ### Windows PowerShell
@@ -124,7 +124,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 
 PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\bin`，并把目录加入当前用户的 `PATH`。如不希望修改 `PATH`，可传入 `-NoModifyPath`。
 
-你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.0) 下载各平台 CLI 压缩包和未签名 Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
+你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1) 下载各平台 CLI 压缩包和未签名 Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
 
 ### 更新
 
@@ -161,6 +161,14 @@ anytty terminal list
 anytty attach workspace
 ```
 
+也可以在当前机器的 Web 浏览器中打开同一个 daemon：
+
+```sh
+anytty web
+```
+
+该命令只监听 IPv4 回环地址并随机选择端口，然后打开默认浏览器。`anytty web --no-open` 只打印地址，`anytty web status` 查看状态，`anytty web stop` 关闭 Web 页面入口。关闭 Web 入口不会停止 daemon，也不会结束已有终端。
+
 执行 `anytty --help` 可查看完整命令列表，也可以继续阅读[中文快速开始](https://anytty.github.io/anytty/zh-CN/docs/quick-start.html)。
 
 ## 手机 App
@@ -191,7 +199,7 @@ npm ci
 make build
 ```
 
-二进制输出到 `.artifacts/bin/anytty`。主要检查命令为 `make test`、`make test-clients` 和 `npm run public:check`。Android 构建还需要 Java 21 与 Android SDK；iOS 构建需要 macOS 与 Xcode。
+二进制输出到 `.artifacts/bin/anytty`。浏览器 UI 以可复现的资源包嵌入二进制；修改共享或移动端 UI 后需执行 `make local-web-bundle` 更新。主要检查命令为 `make test`、`make test-clients` 和 `npm run public:check`。Android 构建还需要 Java 21 与 Android SDK；iOS 构建需要 macOS 与 Xcode。
 
 ## 开源版本与 AnyTTY Cloud
 

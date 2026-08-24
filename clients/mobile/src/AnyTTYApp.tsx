@@ -61,6 +61,7 @@ import { useAndroidBackButton } from './androidBack'
 import type { NativeQrScannerOptions } from './nativeQrScanner'
 import { endpointMachineAccessClass } from './endpointMachineProjection'
 import { cloudPresenceWithState, mergeCloudPresenceResults, samePresenceMap, type CloudPresenceState } from './cloudPresenceState'
+import { LocalWebAnyTTYApp, parseLocalWebBootstrap, type LocalWebBootstrap } from './LocalWebAnyTTYApp'
 
 const nativeHttpConnectTimeoutMs = 8_000
 const nativeHttpReadTimeoutMs = 15_000
@@ -98,9 +99,29 @@ export function AnyTTYApp() {
     [],
   )
   if (!Capacitor.isNativePlatform()) {
-    return <div className="h-full" style={initialAppThemeStyle}><UnsupportedWebPreview /></div>
+    return <BrowserAnyTTYApp initialAppThemeStyle={initialAppThemeStyle} />
   }
   return <NativeAnyTTYApp initialAppThemeStyle={initialAppThemeStyle} />
+}
+
+function BrowserAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSProperties }) {
+  const [bootstrap, setBootstrap] = useState<LocalWebBootstrap | null | undefined>(undefined)
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetch('/api/bootstrap', { cache: 'no-store', signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
+        return parseLocalWebBootstrap(await response.json())
+      })
+      .then((value) => setBootstrap(value))
+      .catch(() => {
+        if (!controller.signal.aborted) setBootstrap(null)
+      })
+    return () => controller.abort()
+  }, [])
+  if (bootstrap === undefined) return <div className="h-full" style={initialAppThemeStyle} />
+  if (bootstrap === null) return <div className="h-full" style={initialAppThemeStyle}><UnsupportedWebPreview /></div>
+  return <LocalWebAnyTTYApp bootstrap={bootstrap} initialAppThemeStyle={initialAppThemeStyle} />
 }
 
 function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSProperties }) {

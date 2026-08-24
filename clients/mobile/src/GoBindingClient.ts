@@ -26,8 +26,13 @@ type PendingBridgeRequest = {
   timeout: ReturnType<typeof setTimeout>
 }
 
-/** AndroidBindingBackend owns only the authenticated WebView-to-JNI binary bridge. */
-export class AndroidBindingBackend implements ProtoBindingBackend {
+export interface BindingBridgeEndpoint {
+  port: number
+  token: string
+}
+
+/** WebSocketBindingBackend owns only the authenticated browser-to-Go binary bridge. */
+export class WebSocketBindingBackend implements ProtoBindingBackend {
   private socket: WebSocket | null = null
   private connectPromise: Promise<void> | null = null
   private nextRequestId = 0n
@@ -37,6 +42,8 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
   private onClosed: ((error: Error) => void) | null = null
   private closed = false
   private intentionalClose = false
+
+  constructor(private readonly endpoint: () => Promise<BindingBridgeEndpoint>) {}
 
   start(onEvent: (payload: Uint8Array) => void, onClosed: (error: Error) => void): void {
     this.onEvent = onEvent
@@ -125,7 +132,7 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
   }
 
   private async connect(): Promise<void> {
-    const endpoint = await NativeConnection.getBridgeEndpoint()
+    const endpoint = await this.endpoint()
     const socket = new WebSocket(`ws://127.0.0.1:${endpoint.port}`, BRIDGE_PROTOCOL)
     socket.binaryType = 'arraybuffer'
     this.socket = socket
@@ -243,6 +250,11 @@ export class AndroidBindingBackend implements ProtoBindingBackend {
     this.pending.clear()
     this.abandoned.clear()
   }
+}
+
+/** AndroidBindingBackend resolves its bridge endpoint through the native plugin. */
+export class AndroidBindingBackend extends WebSocketBindingBackend {
+  constructor() { super(() => NativeConnection.getBridgeEndpoint()) }
 }
 
 /** GoBindingClient keeps the Android name while using the shared Proto binding owner. */

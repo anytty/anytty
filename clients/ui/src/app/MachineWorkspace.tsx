@@ -109,6 +109,7 @@ export interface MachineWorkspaceProps {
   connectionState?: AppConnectionState | undefined
   cloudPresence?: CloudPresenceSnapshot | undefined
   singlePane?: boolean | undefined
+  webLayout?: boolean | undefined
   storage?: RemoteRuntimeStorage | undefined
   initialTerminalId?: string | undefined
   onInitialTerminalOpened?: ((machineId: string, terminalId: string) => void) | undefined
@@ -157,7 +158,7 @@ function inventoryCacheForConnector(connector: MachineWorkspaceConnector): Map<s
  * MachineWorkspace 编排单个设备的 terminal/file 用户界面并消费 Go-owned session 投影。
  * 它不拥有 Endpoint、Route、credential 或 generation 真值，连接阶段仅用于本地化展示和交互反馈。
  */
-export function MachineWorkspace({ api, connector, retainConnectionDemand, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
+export function MachineWorkspace({ api, connector, retainConnectionDemand, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, webLayout = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
   const { t } = useTranslation()
   const connectionReady = appConnectionIsReady(connectionState)
   const initialInventory = initialMachine ? inventoryCacheForConnector(connector).get(initialMachine.machineId) : undefined
@@ -545,9 +546,9 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
 
   const handleConnectionAuthFailure = useCallback((machineId?: string | null) => {
     const targetMachineId = machineId ?? initialMachine?.machineId
-    if (!targetMachineId) return
+    if (!targetMachineId || !onNeedsReauthorization) return
     setVerifiedDevice(false)
-    onNeedsReauthorization?.(targetMachineId)
+    onNeedsReauthorization(targetMachineId)
   }, [initialMachine?.machineId, onNeedsReauthorization])
 
   const updateFromConnectionState = useCallback((snapshot: RtcConnectionStateSnapshot, session?: MachineWorkspaceClientSession, failureSource?: unknown) => {
@@ -1525,7 +1526,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       const title = connectionFailure?.title ?? t('machines.connectionFailed')
       const description = connectionFailure?.message ?? t('errors.connectionInterrupted')
       const machineId = machine?.machineId
-      const action = connectionFailure?.requiresPairing && machineId
+      const action = connectionFailure?.requiresPairing && machineId && onNeedsReauthorization
         ? {
             label: t('machines.scanPairing'),
             onClick: () => handleConnectionAuthFailure(machineId),
@@ -1545,7 +1546,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       title: displayedConnectionStatus || t('connectionStatus.recovering'),
       ...(hasConnectedOnce ? { description: t('connectionStatus.inputPaused') } : {}),
     }
-  }, [connectionFailure, connectionPhase, connectionReady, connectionRetryPending, displayedConnectionStatus, handleConnectionAuthFailure, hasConnectedOnce, machine?.machineId, phoneOnline, retryAfterFailure, showDelayedMachineNetworkOverlay, t])
+  }, [connectionFailure, connectionPhase, connectionReady, connectionRetryPending, displayedConnectionStatus, handleConnectionAuthFailure, hasConnectedOnce, machine?.machineId, onNeedsReauthorization, phoneOnline, retryAfterFailure, showDelayedMachineNetworkOverlay, t])
   useConnectionRecoveryOverlay(machineConnectionOverlayIntent)
 
   useEffect(() => {
@@ -2531,10 +2532,10 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
     return (
       <aside
-        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : 'md:flex md:w-72 md:flex-none md:border-r md:border-[var(--anytty-app-line)]'} ${page === 'terminal' ? 'hidden' : 'flex'}`}
+        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : `md:flex md:flex-none md:border-r md:border-[var(--anytty-app-line)] ${webLayout ? 'md:w-[22rem] lg:w-96 xl:w-[26rem] 2xl:w-[28rem]' : 'md:w-72'}`} ${page === 'terminal' ? 'hidden' : 'flex'}`}
         data-testid={page === 'terminal' ? undefined : 'anytty-terminal-list-page'}
       >
-        <header className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : 'md:pt-0'}`}>
+        <header className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : `md:pt-0 ${webLayout ? 'md:min-h-14 md:px-3' : ''}`}`}>
           <div className="flex min-w-0 items-center gap-2">
             {onBack ? (
               <Button variant="ghost" size="icon"
@@ -2591,7 +2592,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
           <MachineConnectionFailureState
             failure={initialConnectionFailure}
             onBack={onBack}
-            onPairAgain={initialConnectionFailure.requiresPairing ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
+            onPairAgain={initialConnectionFailure.requiresPairing && onNeedsReauthorization ? () => handleConnectionAuthFailure(machine.machineId) : undefined}
             onRetry={retryAfterFailure}
             retryPending={connectionRetryPending}
           />
@@ -2622,7 +2623,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         ) : null}
         {!hideTerminalListForUnavailableState && (hasLoadedTerminals || (!initialConnectionFailure && !requireVerification)) ? (
           <div
-            className="relative min-h-0 flex-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3"
+            className={`relative min-h-0 flex-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 ${webLayout ? 'md:px-4 md:pt-4' : ''}`}
             data-testid="anytty-terminal-list-scroll"
           >
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
@@ -2839,6 +2840,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       ref={outerContainerRef}
       className={`relative flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden bg-[var(--anytty-bg)] font-sans text-[var(--anytty-text)] ${singlePane ? '' : 'md:flex-row'} ${className || ''}`}
       data-machine-id={machine.machineId}
+      data-workspace-layout={webLayout ? 'web' : 'app'}
     >
       {renderTerminalListPage()}
 

@@ -8,13 +8,14 @@ const failures = [];
 const requiredRoot = [".gitattributes", ".gitignore", "README.md", "README.zh-CN.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "SUPPORT.md", "GOVERNANCE.md", "TRADEMARKS.md", "CHANGELOG.md", "RELEASE_CHECKLIST.md", "docs/SECURITY_BOUNDARY.md", "docs/zh-CN/SECURITY_BOUNDARY.md"];
 const forbiddenPaths = ["cloud/controller", "cloud/edge", "cloud/web", "cloud/deploy", "cloud/integration", "cmd/anytty-cloud-controller", "cmd/anytty-cloud-edge", "deploy", "migrations"];
 const allowedCloudPackages = new Set(["client", "daemon", "protocol", "securetransport", "ticket"]);
+const ignoredDirectories = new Set([".git", ".artifacts", ".astro", "DerivedData", "dist", "node_modules"]);
 
 async function exists(file) { try { await access(file); return true; } catch { return false; } }
 async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(entries.filter((entry) => entry.name !== ".git" && entry.name !== "node_modules").map(async (entry) => {
+  const nested = await Promise.all(entries.filter((entry) => !ignoredDirectories.has(entry.name)).map(async (entry) => {
     const target = path.join(directory, entry.name);
-    return entry.isDirectory() && ![".astro", "dist"].includes(entry.name) ? filesBelow(target) : entry.isDirectory() ? [] : [target];
+    return entry.isDirectory() ? filesBelow(target) : [target];
   }));
   return nested.flat();
 }

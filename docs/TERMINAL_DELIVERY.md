@@ -1,6 +1,6 @@
 # 终端实时画面与历史协议
 
-本文描述 daemon、TUI，以及 Android App 通过共享 React UI 使用的终端交付模型。共享 UI 的普通浏览器构建当前用于预览和测试，不代表已交付的 Web terminal 产品。
+本文描述 daemon、TUI，以及 Android/iOS App 和 `anytty web` 本地浏览器入口通过共享 React UI 使用的终端交付模型。普通 Vite 浏览器预览仍不连接 daemon；正式本地 Web 入口由 daemon 仅在 IPv4 回环地址上按需提供。
 
 ## 1. 目标
 

@@ -14,6 +14,7 @@ import (
 
 	apilayer "github.com/anytty/anytty/api_layer"
 	corev2 "github.com/anytty/anytty/core"
+	"github.com/anytty/anytty/localweb"
 	"github.com/anytty/anytty/shared/perftrace"
 	tuiv3 "github.com/anytty/anytty/tui"
 	tuiapp "github.com/anytty/anytty/tui/app"
@@ -150,6 +151,10 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		directCore, ok := srv.(v3RemoteDaemonCore)
 		if !ok {
 			return fmt.Errorf("Direct WebRTC requires core-v2 scoped transport")
+		}
+		if localWebCore, supported := srv.(localweb.Core); supported {
+			cloudControl.configureLocalWeb(localWebCore)
+			defer cloudControl.closeLocalWeb()
 		}
 		closeDirect, err := startV3DirectDaemon(ctx, directCore, clientAccess, logger)
 		if err != nil {

@@ -125,6 +125,34 @@ func TestStartRejectsInvalidToken(t *testing.T) {
 	}
 }
 
+func TestStartAllowsExplicitLocalWebOrigin(t *testing.T) {
+	server, err := Start(newFakeEngine(), testToken, "http://127.0.0.1:43210")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(server.Stop)
+	config, err := websocket.NewConfig(fmt.Sprintf("ws://127.0.0.1:%d/", server.Port()), "http://127.0.0.1:43210")
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.Protocol = []string{Protocol}
+	client, err := websocket.DialConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = client.Close()
+
+	rejected, err := websocket.NewConfig(fmt.Sprintf("ws://127.0.0.1:%d/", server.Port()), "http://127.0.0.1:43211")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected.Protocol = []string{Protocol}
+	if client, err := websocket.DialConfig(rejected); err == nil {
+		_ = client.Close()
+		t.Fatal("unconfigured local web origin was accepted")
+	}
+}
+
 func TestServerAuthenticatesAndDispatchesOpaqueRequests(t *testing.T) {
 	engine := newFakeEngine()
 	server := startTestServer(t, engine)
