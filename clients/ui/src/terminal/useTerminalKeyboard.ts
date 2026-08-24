@@ -197,7 +197,10 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
     fullWindowHeightRef.current = window.innerHeight
     let visibilityDebounce: ReturnType<typeof setTimeout> | undefined
     let fallbackTimer: ReturnType<typeof setTimeout> | undefined
+    let focusOutTimer: ReturnType<typeof setTimeout> | undefined
+    let resumeTimer: ReturnType<typeof setTimeout> | undefined
     let scrollRafId = 0
+    let disposed = false
 
     const publishVisibility = (isVisible: boolean) => {
       clearTimeout(visibilityDebounce)
@@ -211,6 +214,7 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
     }
 
     const update = () => {
+      if (disposed) return
       const { keyboardHeight } = measureKeyboard()
       if (keyboardHeight <= keyboardClosedThresholdPx || fullMainHeightRef.current <= 0) {
         rememberFullMainHeight()
@@ -244,7 +248,9 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
     }
 
     const onTerminalFocusOut = () => {
-      setTimeout(() => {
+      clearTimeout(focusOutTimer)
+      focusOutTimer = setTimeout(() => {
+        if (disposed) return
         if (termWrapperRef.current?.contains(document.activeElement)) return
         keyboardRequestedRef.current = false
         const { keyboardHeight } = measureKeyboard()
@@ -274,7 +280,8 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
 
     const onResume = () => {
       resetKeyboardLayout()
-      window.setTimeout(update, keyboardVisibilityDebounceMs)
+      clearTimeout(resumeTimer)
+      resumeTimer = window.setTimeout(update, keyboardVisibilityDebounceMs)
     }
 
     update()
@@ -290,6 +297,7 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
     document.addEventListener('anytty:resume', onResume)
 
     return () => {
+      disposed = true
       removeNativeKeyboardListener()
       vv?.removeEventListener('resize', update)
       vv?.removeEventListener('scroll', update)
@@ -303,6 +311,8 @@ export function useTerminalKeyboard(opts: UseTerminalKeyboardOptions): UseTermin
       document.removeEventListener('anytty:resume', onResume)
       clearTimeout(visibilityDebounce)
       clearTimeout(fallbackTimer)
+      clearTimeout(focusOutTimer)
+      clearTimeout(resumeTimer)
       if (scrollRafId) cancelAnimationFrame(scrollRafId)
       if (shiftRafRef.current) cancelAnimationFrame(shiftRafRef.current)
     }

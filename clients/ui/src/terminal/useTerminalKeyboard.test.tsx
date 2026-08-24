@@ -94,6 +94,24 @@ describe('useTerminalKeyboard', () => {
 
     expect(screen.getByTestId('container').style.height).toBe('')
   })
+
+  it('cancels delayed keyboard updates when the workspace unmounts', () => {
+    vi.useFakeTimers()
+    try {
+      const view = render(<KeyboardHarness mode="resize" adjustInputPosition={vi.fn()} />)
+      act(() => {
+        document.dispatchEvent(new FocusEvent('focusin'))
+        document.dispatchEvent(new FocusEvent('focusout'))
+        document.dispatchEvent(new Event('anytty:resume'))
+      })
+
+      view.unmount()
+
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 function setVisualViewport(input: { height: number; offsetTop: number }): void {

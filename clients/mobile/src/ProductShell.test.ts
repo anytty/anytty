@@ -118,6 +118,7 @@ describe('mobile product shell', () => {
   it('enforces Play-compatible native packaging and foreground-service lifecycle', () => {
     expect(androidBuildScriptSource).toContain('max-page-size=16384')
     expect(androidBoundarySource).toContain('native library is not 16 KB page aligned')
+    expect(androidBoundarySource).not.toMatch(/\brg\b/)
     expect(foregroundServiceSource).toContain('START_NOT_STICKY')
     expect(foregroundServiceSource).toContain('ACTION_DISCONNECT_ALL')
     expect(foregroundServiceSource).toContain('connection_notification_stop')

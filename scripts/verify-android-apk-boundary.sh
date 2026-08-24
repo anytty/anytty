@@ -16,7 +16,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app_apk="$1"
 [[ -s "$app_apk" ]] || fail "APK is missing or empty: $app_apk"
 
-for tool in node unzip strings rg awk cmp; do
+for tool in node unzip strings grep awk cmp; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool is unavailable: $tool"
 done
 
@@ -88,7 +88,7 @@ for abi in "${expected_abis[@]}"; do
   [[ "$abi" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "invalid expected ABI: $abi"
   for library in libanytty_client.so libanytty_client_jni.so; do
     native_path="lib/$abi/$library"
-    if ! printf '%s\n' "$apk_entries" | rg -F -x "$native_path" >/dev/null; then
+    if ! printf '%s\n' "$apk_entries" | grep -F -x -- "$native_path" >/dev/null; then
       fail "missing required native library: $native_path"
     fi
   done
@@ -119,7 +119,7 @@ resolve_xml_resource_path() {
 for resource in network_security_config backup_rules data_extraction_rules; do
   resource_path="$(resolve_xml_resource_path "$resource")"
   [[ "$resource_path" =~ ^res/[A-Za-z0-9_./-]+\.xml$ ]] || fail "invalid compiled path for xml/$resource: $resource_path"
-  if ! printf '%s\n' "$apk_entries" | rg -F -x "$resource_path" >/dev/null; then
+  if ! printf '%s\n' "$apk_entries" | grep -F -x -- "$resource_path" >/dev/null; then
     fail "compiled resource is missing from APK: xml/$resource -> $resource_path"
   fi
   output="$tmp_dir/$resource.xml"
@@ -160,14 +160,14 @@ dex_packages="$tmp_dir/dex-packages.txt"
 if ! "$apkanalyzer" dex packages --defined-only "$app_apk" >"$dex_packages"; then
   fail 'could not inspect final APK DEX packages'
 fi
-if rg -e 'org\.java_websocket' -e 'org\.slf4j' "$dex_packages" >/dev/null; then
+if grep -E -e 'org\.java_websocket' -e 'org\.slf4j' "$dex_packages" >/dev/null; then
   fail 'removed JVM bridge dependency is present in the final APK'
 fi
-if printf '%s\n' "$apk_entries" | rg -F -x 'META-INF/services/org.slf4j.spi.SLF4JServiceProvider' >/dev/null; then
+if printf '%s\n' "$apk_entries" | grep -F -x -- 'META-INF/services/org.slf4j.spi.SLF4JServiceProvider' >/dev/null; then
   fail 'removed SLF4J service provider is present in the final APK'
 fi
 
-native_libraries="$(printf '%s\n' "$apk_entries" | rg '^lib/[^/]+/[^/]+\.so$')"
+native_libraries="$(printf '%s\n' "$apk_entries" | grep -E '^lib/[^/]+/[^/]+\.so$')"
 [[ -n "$native_libraries" ]] || fail 'final APK contains no native libraries'
 native_index=0
 while IFS= read -r native_path; do
@@ -184,7 +184,7 @@ while IFS= read -r native_path; do
     [[ "$alignment" =~ ^0x[0-9A-Fa-f]+$ ]] || fail "invalid ELF LOAD alignment in $native_path: $alignment"
     (( alignment >= 0x4000 )) || fail "native library is not 16 KB page aligned: $native_path ($alignment)"
   done <<<"$load_alignments"
-  if rg -F \
+  if grep -F \
     -e 'ANYTTY_ANDROID_GO_TAGS' \
     -e 'anytty_android_spike' \
     -e 'createSpike' \
