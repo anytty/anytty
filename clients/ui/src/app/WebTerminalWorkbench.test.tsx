@@ -15,25 +15,36 @@ describe('WebTerminalWorkbench', () => {
     await anyttyI18n.changeLanguage('en')
   })
 
-  it('renders ordered tabs with keyboard navigation and view-only close actions', async () => {
-    const onActivateTerminal = vi.fn()
+  it('renders layout tabs with keyboard navigation and view-only close actions', async () => {
+    const onActivateTab = vi.fn()
     const onCloseTab = vi.fn()
-    renderWorkbench({ onActivateTerminal, onCloseTab })
+    renderWorkbench({ onActivateTab, onCloseTab })
 
     const shell = screen.getByRole('tab', { name: 'Shell' })
     expect(shell.getAttribute('aria-selected')).toBe('true')
     fireEvent.keyDown(shell, { key: 'ArrowRight' })
-    expect(onActivateTerminal).toHaveBeenCalledWith('logs')
+    expect(onActivateTab).toHaveBeenCalledWith('logs')
 
     await userEvent.click(screen.getByRole('button', { name: 'Close Logs' }))
     expect(onCloseTab).toHaveBeenCalledWith('logs')
+  })
+
+  it('toggles the terminal sidebar from the persistent workbench control', async () => {
+    const onToggleSidebar = vi.fn()
+    const view = renderWorkbench({ onToggleSidebar, sidebarOpen: true })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide terminal sidebar' }))
+    expect(onToggleSidebar).toHaveBeenCalledOnce()
+
+    view.rerender(<WebTerminalWorkbench {...workbenchProps({ onToggleSidebar, sidebarOpen: false })} />)
+    expect(screen.getByRole('button', { name: 'Show terminal sidebar' })).toBeTruthy()
   })
 
   it('reorders tabs through native drag and adds a split below directly', async () => {
     const onReorderTabs = vi.fn()
     const onOpenSplit = vi.fn()
     const onTerminalDragChange = vi.fn()
-    renderWorkbench({ onOpenSplit, onReorderTabs, onTerminalDragChange, splitTerminalIds: ['logs'] })
+    renderWorkbench({ onOpenSplit, onReorderTabs, onTerminalDragChange, splitTabTerminalIds: ['logs'] })
     const transfer = dataTransfer('logs')
     const shellContainer = screen.getByRole('tab', { name: 'Shell' }).parentElement!
     const logsContainer = screen.getByRole('tab', { name: 'Logs' }).parentElement!
@@ -122,26 +133,31 @@ describe('WebTerminalSettingsDialog', () => {
 })
 
 function renderWorkbench(overrides: Partial<Parameters<typeof WebTerminalWorkbench>[0]> = {}) {
-  const props: Parameters<typeof WebTerminalWorkbench>[0] = {
+  return render(<WebTerminalWorkbench {...workbenchProps(overrides)} />)
+}
+
+function workbenchProps(overrides: Partial<Parameters<typeof WebTerminalWorkbench>[0]> = {}): Parameters<typeof WebTerminalWorkbench>[0] {
+  return {
     terminals: [terminal('shell', 'Shell'), terminal('logs', 'Logs')],
-    openTerminalIds: ['shell', 'logs'],
-    activeTerminalId: 'shell',
-    splitTerminalIds: [],
+    tabTerminalIds: ['shell', 'logs'],
+    activeTabTerminalId: 'shell',
+    splitTabTerminalIds: [],
     draggedTerminalId: null,
+    sidebarOpen: true,
     canCreateTerminal: true,
     canSplitTerminal: true,
     disabled: false,
-    onActivateTerminal: vi.fn(),
+    onActivateTab: vi.fn(),
     onCloseTab: vi.fn(),
     onCreateTerminal: vi.fn(),
     onOpenFiles: vi.fn(),
     onOpenSettings: vi.fn(),
     onOpenSplit: vi.fn(),
     onReorderTabs: vi.fn(),
+    onToggleSidebar: vi.fn(),
     onTerminalDragChange: vi.fn(),
     ...overrides,
   }
-  return render(<WebTerminalWorkbench {...props} />)
 }
 
 function terminal(terminalId: string, title: string): Terminal {

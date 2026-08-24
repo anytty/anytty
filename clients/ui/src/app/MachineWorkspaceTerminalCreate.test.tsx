@@ -319,6 +319,61 @@ describe('MachineWorkspace terminal creation', () => {
     expect(root.children[2]?.firstElementChild?.getAttribute('data-split-direction')).toBe('rows')
   })
 
+  it('treats Web tabs as independent pane layouts and lets the terminal sidebar collapse', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = ['Shell', 'Logs', 'Server'].map((title) => ({
+      terminalId: `term-${title.toLowerCase()}`,
+      machineId: 'studio',
+      title,
+      state: 'running' as const,
+      command: title.toLowerCase(),
+      cols: 80,
+      rows: 24,
+    }))
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    const logsTransfer = testDataTransfer()
+    fireEvent.dragStart((await screen.findByRole('button', { name: 'Open Logs' })).closest('[data-terminal-id]')!, { dataTransfer: logsTransfer })
+    let overlay = await screen.findByTestId('anytty-web-terminal-drop-overlay')
+    mockBounds(overlay, 0, 0, 400, 200)
+    mockBounds(screen.getByTestId('anytty-terminal-panel'), 0, 0, 400, 200)
+    fireEvent(overlay, pointerDragEvent('drop', logsTransfer, 390, 100))
+    expect(document.querySelectorAll('[data-split-direction="columns"]')).toHaveLength(1)
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent?.trim())).toEqual(['Shell'])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open Server' }))
+    expect(screen.getByRole('tab', { name: 'Server' }).getAttribute('aria-selected')).toBe('true')
+    expect(document.querySelectorAll('[data-split-direction]')).toHaveLength(0)
+    expect(screen.getByTestId('anytty-terminal-panel').getAttribute('data-pane-terminal-id')).toBe('term-server')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Shell' }))
+    expect(document.querySelectorAll('[data-split-direction="columns"]')).toHaveLength(1)
+    expect(document.querySelector('[data-pane-terminal-id="term-logs"]')).toBeTruthy()
+
+    expect(screen.queryByRole('button', { name: 'Connection info' })).toBeNull()
+    const sidebar = document.querySelector<HTMLElement>('[data-web-sidebar-open]')!
+    await userEvent.click(screen.getByRole('button', { name: 'Hide terminal sidebar' }))
+    expect(sidebar.getAttribute('data-web-sidebar-open')).toBe('false')
+    expect(sidebar.className).toContain('md:hidden')
+    await userEvent.click(screen.getByRole('button', { name: 'Show terminal sidebar' }))
+    expect(sidebar.getAttribute('data-web-sidebar-open')).toBe('true')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close Server' }))
+    expect(screen.queryByRole('tab', { name: 'Server' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open Server' })).toBeTruthy()
+    expect(session.commands.some((command) => command.command.case === 'terminalDelete')).toBe(false)
+  })
+
   it('adds three, four, and five panes below without opening a chooser', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminals = ['Shell', 'Logs', 'Server', 'Tests', 'Watch'].map((title, index) => ({

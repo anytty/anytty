@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { Folder, PanelBottom, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
+import { Folder, PanelBottom, PanelLeftClose, PanelLeftOpen, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
 import { Button } from '../ui/button'
@@ -11,44 +11,48 @@ export type WebSplitDirection = 'columns' | 'rows'
 
 export interface WebTerminalWorkbenchProps {
   terminals: readonly Terminal[]
-  openTerminalIds: readonly string[]
-  activeTerminalId: string | null
-  splitTerminalIds: readonly string[]
+  tabTerminalIds: readonly string[]
+  activeTabTerminalId: string | null
+  splitTabTerminalIds: readonly string[]
   draggedTerminalId: string | null
+  sidebarOpen: boolean
   canCreateTerminal: boolean
   canSplitTerminal: boolean
   disabled: boolean
-  onActivateTerminal: (terminalId: string) => void
+  onActivateTab: (terminalId: string) => void
   onCloseTab: (terminalId: string) => void
   onCreateTerminal: () => void
   onOpenFiles: () => void
   onOpenSettings: () => void
   onOpenSplit: () => void
   onReorderTabs: (terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => void
+  onToggleSidebar: () => void
   onTerminalDragChange: (terminalId: string | null) => void
 }
 
 export function WebTerminalWorkbench({
   terminals,
-  openTerminalIds,
-  activeTerminalId,
-  splitTerminalIds,
+  tabTerminalIds,
+  activeTabTerminalId,
+  splitTabTerminalIds,
   draggedTerminalId,
+  sidebarOpen,
   canCreateTerminal,
   canSplitTerminal,
   disabled,
-  onActivateTerminal,
+  onActivateTab,
   onCloseTab,
   onCreateTerminal,
   onOpenFiles,
   onOpenSettings,
   onOpenSplit,
   onReorderTabs,
+  onToggleSidebar,
   onTerminalDragChange,
 }: WebTerminalWorkbenchProps) {
   const { t } = useTranslation()
   const terminalById = new Map(terminals.map((terminal) => [terminal.terminalId, terminal]))
-  const tabs = openTerminalIds.flatMap((terminalId) => {
+  const tabs = tabTerminalIds.flatMap((terminalId) => {
     const terminal = terminalById.get(terminalId)
     return terminal ? [terminal] : []
   })
@@ -67,18 +71,25 @@ export function WebTerminalWorkbench({
           : (currentIndex + 1) % tabs.length
     const nextId = tabs[nextIndex]?.terminalId
     if (!nextId) return
-    onActivateTerminal(nextId)
+    onActivateTab(nextId)
     window.setTimeout(() => document.getElementById(webTabId(nextId))?.focus(), 0)
   }
 
   return (
     <header className="hidden h-11 min-w-0 items-stretch border-b border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] md:flex" data-testid="anytty-web-workbench-bar">
+      <div className="flex shrink-0 items-center border-r border-[var(--anytty-border-subtle)] px-1">
+        <WorkbenchAction
+          icon={sidebarOpen ? PanelLeftClose : PanelLeftOpen}
+          label={t(sidebarOpen ? 'workspace.hideTerminalSidebar' : 'workspace.showTerminalSidebar')}
+          onClick={onToggleSidebar}
+        />
+      </div>
       <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div aria-label={t('terminal.list')} className="flex h-full min-w-max items-stretch" role="tablist">
           {tabs.map((terminal) => {
             const terminalId = terminal.terminalId
-            const active = activeTerminalId === terminalId
-            const inSplit = splitTerminalIds.includes(terminalId)
+            const active = activeTabTerminalId === terminalId
+            const inSplit = splitTabTerminalIds.includes(terminalId)
             const title = terminal.title || terminal.command || t('terminal.defaultTitle')
             const marker = dropMarker?.terminalId === terminalId ? dropMarker.placement : null
             return (
@@ -120,7 +131,7 @@ export function WebTerminalWorkbench({
                   className="flex min-w-0 flex-1 items-center gap-2 px-3 text-left text-xs font-medium text-[var(--anytty-muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--anytty-accent)] aria-selected:text-[var(--anytty-text)]"
                   disabled={disabled}
                   id={webTabId(terminalId)}
-                  onClick={() => onActivateTerminal(terminalId)}
+                  onClick={() => onActivateTab(terminalId)}
                   onKeyDown={(event) => moveTabFocus(event, terminalId)}
                   role="tab"
                   tabIndex={active ? 0 : -1}
@@ -149,7 +160,7 @@ export function WebTerminalWorkbench({
       <div className="flex shrink-0 items-center border-l border-[var(--anytty-border-subtle)] px-1">
         <WorkbenchAction icon={Plus} label={t('workspace.createTerminal')} disabled={!canCreateTerminal || disabled} onClick={onCreateTerminal} />
         <WorkbenchAction icon={Folder} label={t('workspace.openFiles')} disabled={disabled} onClick={onOpenFiles} />
-        <WorkbenchAction icon={Rows2} label={t('workspace.splitBelow')} disabled={disabled || !activeTerminalId || !canSplitTerminal} onClick={onOpenSplit} />
+        <WorkbenchAction icon={Rows2} label={t('workspace.splitBelow')} disabled={disabled || !activeTabTerminalId || !canSplitTerminal} onClick={onOpenSplit} />
         <WorkbenchAction icon={Settings2} label={t('common.settings')} onClick={onOpenSettings} />
       </div>
     </header>

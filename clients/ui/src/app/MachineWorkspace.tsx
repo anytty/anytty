@@ -63,6 +63,13 @@ import {
   type TerminalPaneKey,
   type TerminalSplitNode,
 } from './terminalSplitLayout'
+import {
+  createWebTerminalTab,
+  findWebTerminalTab,
+  sanitizeWebTerminalTabs,
+  updateWebTerminalTab,
+  type WebTerminalTabLayout,
+} from './webTerminalTabs'
 import '../i18n'
 
 export interface MachineWorkspaceInventoryApi extends Pick<LocalAgentApi, 'getStatus'> {
@@ -263,8 +270,9 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [pasteConfirmText, setPasteConfirmText] = useState('')
   const [terminalSplitRoot, setTerminalSplitRoot] = useState<TerminalSplitNode>(PRIMARY_TERMINAL_PANE)
   const [activeTerminalSlot, setActiveTerminalSlot] = useState<TerminalPaneKey>('primary')
-  const [webOpenTerminalIds, setWebOpenTerminalIds] = useState<string[]>([])
+  const [webTerminalTabs, setWebTerminalTabs] = useState<WebTerminalTabLayout[]>([])
   const [webDraggedTerminalId, setWebDraggedTerminalId] = useState<string | null>(null)
+  const [webTerminalSidebarOpen, setWebTerminalSidebarOpen] = useState(true)
   const [webSettingsOpen, setWebSettingsOpen] = useState(false)
   const [terminalHistorySearchOpenBySlot, setTerminalHistorySearchOpenBySlot] = useState<Record<TerminalPaneKey, boolean>>({ primary: false })
 
@@ -327,6 +335,8 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   connectionReadyRef.current = connectionReady
   hasConnectedOnceRef.current = hasConnectedOnce
   const displayedPaneKeys = useMemo(() => terminalPaneKeys(terminalSplitRoot), [terminalSplitRoot])
+  const webTabTerminalIds = useMemo(() => webTerminalTabs.map((tab) => tab.terminalId), [webTerminalTabs])
+  const webSplitTabTerminalIds = useMemo(() => webTerminalTabs.flatMap((tab) => terminalPaneKeys(tab.root).length > 1 ? [tab.terminalId] : []), [webTerminalTabs])
   const splitTerminalIds = useMemo(() => displayedPaneKeys.flatMap((paneKey) => {
     const terminalId = terminalIdForPane(paneKey, activeTerminalId)
     return paneKey === 'primary' || !terminalId ? [] : [terminalId]
@@ -1297,6 +1307,31 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     }
   }, [activeTerminalId, connectedSession, fitDisplayedTerminals, page, reattachActiveTerminals, resetKeyboardLayout, splitTerminalIds.length])
 
+  const activateWebTerminalTab = useCallback((terminalId: string, paneKey?: TerminalPaneKey) => {
+    const tab = webTerminalTabs.find((candidate) => candidate.terminalId === terminalId)
+    if (!tab) return
+    setWebTerminalTabs((current) => activeTerminalId && current.some((candidate) => candidate.terminalId === activeTerminalId)
+      ? updateWebTerminalTab(current, activeTerminalId, { root: terminalSplitRoot, activePaneKey: activeTerminalSlot })
+      : current)
+    const nextPaneKey = paneKey && terminalPaneKeys(tab.root).includes(paneKey) ? paneKey : tab.activePaneKey
+    setActiveTerminalId(tab.terminalId)
+    setTerminalSplitRoot(tab.root)
+    setActiveTerminalSlot(nextPaneKey)
+    setPage('terminal')
+    setMobileSheet(null)
+    window.setTimeout(() => terminalHandleForPane(nextPaneKey)?.focus(), 0)
+  }, [activeTerminalId, activeTerminalSlot, terminalHandleForPane, terminalSplitRoot, webTerminalTabs])
+
+  useEffect(() => {
+    if (!webLayout || !activeTerminalId) return
+    setWebTerminalTabs((current) => current.some((tab) => tab.terminalId === activeTerminalId)
+      ? updateWebTerminalTab(current, activeTerminalId, {
+          root: terminalSplitRoot,
+          activePaneKey: activeTerminalSlot,
+        })
+      : current)
+  }, [activeTerminalId, activeTerminalSlot, terminalSplitRoot, webLayout])
+
   const openTerminal = useCallback((intent: { machineId: string; terminalId: string }) => {
     if (requireVerification) {
       handleConnectionAuthFailure(intent.machineId)
@@ -1308,7 +1343,24 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     }
     if (connectionSessionUnavailable) return
     if (webLayout) {
-      setWebOpenTerminalIds((current) => current.includes(intent.terminalId) ? current : [...current, intent.terminalId])
+      const existing = findWebTerminalTab(webTerminalTabs, intent.terminalId)
+      if (existing) {
+        activateWebTerminalTab(existing.tab.terminalId, existing.paneKey)
+        return
+      }
+      const tab = createWebTerminalTab(intent.terminalId)
+      setWebTerminalTabs((current) => {
+        const saved = activeTerminalId && current.some((candidate) => candidate.terminalId === activeTerminalId)
+          ? updateWebTerminalTab(current, activeTerminalId, { root: terminalSplitRoot, activePaneKey: activeTerminalSlot })
+          : current
+        return [...saved, tab]
+      })
+      setActiveTerminalId(intent.terminalId)
+      setTerminalSplitRoot(tab.root)
+      setActiveTerminalSlot(tab.activePaneKey)
+      setPage('terminal')
+      setMobileSheet(null)
+      return
     }
     const existingPaneKey = terminalPaneKey(intent.terminalId)
     if (displayedPaneKeys.includes(existingPaneKey)) {
@@ -1322,7 +1374,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     setActiveTerminalSlot('primary')
     setPage('terminal')
     setMobileSheet(null)
-  }, [connectionSessionUnavailable, displayedPaneKeys, handleConnectionAuthFailure, machine, requireVerification, t, terminalHandleForPane, webLayout])
+  }, [activeTerminalId, activeTerminalSlot, activateWebTerminalTab, connectionSessionUnavailable, displayedPaneKeys, handleConnectionAuthFailure, machine, requireVerification, t, terminalHandleForPane, terminalSplitRoot, webLayout, webTerminalTabs])
 
   const handledInitialTerminalRef = useRef<string | null>(null)
   useEffect(() => {
@@ -1396,9 +1448,6 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       setPairStatus(t('workspace.chooseDifferentTerminal'))
       return
     }
-    if (webLayout) {
-      setWebOpenTerminalIds((current) => current.includes(intent.terminalId) ? current : [...current, intent.terminalId])
-    }
     const direction = target === 'left' || target === 'right' ? 'columns' : 'rows'
     const placement = target === 'left' || target === 'top' ? 'before' : 'after'
     terminalSplitSequenceRef.current += 1
@@ -1412,7 +1461,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       fitDisplayedTerminals()
       splitTerminalRefs.current.get(intent.terminalId)?.focus()
     }, 0)
-  }, [activeTerminalId, activeTerminalSlot, connectionSessionUnavailable, fitDisplayedTerminals, machine, t, webLayout])
+  }, [activeTerminalId, activeTerminalSlot, connectionSessionUnavailable, fitDisplayedTerminals, machine, t])
 
   const splitActiveTerminal = useCallback((target: WebPaneDropTarget = 'bottom') => {
     if (requireVerification) {
@@ -1636,37 +1685,51 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   useEffect(() => {
     if (!webLayout || !hasLoadedTerminals) return
     const available = new Set(terminals.map((terminal) => terminal.terminalId))
-    setWebOpenTerminalIds((current) => {
-      const next = current.filter((terminalId) => available.has(terminalId))
-      return next.length === current.length ? current : next
-    })
-  }, [hasLoadedTerminals, terminals, webLayout])
+    const next = sanitizeWebTerminalTabs(webTerminalTabs, available)
+    if (next !== webTerminalTabs) setWebTerminalTabs(next)
+    if (activeTerminalId && next.some((tab) => tab.terminalId === activeTerminalId)) return
+    const fallback = next[0]
+    if (fallback) {
+      setActiveTerminalId(fallback.terminalId)
+      setTerminalSplitRoot(fallback.root)
+      setActiveTerminalSlot(fallback.activePaneKey)
+      return
+    }
+    setActiveTerminalId(null)
+    setTerminalSplitRoot(PRIMARY_TERMINAL_PANE)
+    setActiveTerminalSlot('primary')
+    setPage('terminal-list')
+  }, [activeTerminalId, hasLoadedTerminals, terminals, webLayout, webTerminalTabs])
 
   const reorderWebTabs = useCallback((terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => {
-    setWebOpenTerminalIds((current) => {
-      if (terminalId === targetTerminalId || !current.includes(terminalId) || !current.includes(targetTerminalId)) return current
-      const next = current.filter((candidate) => candidate !== terminalId)
-      const targetIndex = next.indexOf(targetTerminalId)
-      next.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, terminalId)
+    setWebTerminalTabs((current) => {
+      if (terminalId === targetTerminalId || !current.some((tab) => tab.terminalId === terminalId) || !current.some((tab) => tab.terminalId === targetTerminalId)) return current
+      const moving = current.find((tab) => tab.terminalId === terminalId)!
+      const next = current.filter((tab) => tab.terminalId !== terminalId)
+      const targetIndex = next.findIndex((tab) => tab.terminalId === targetTerminalId)
+      next.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, moving)
       return next
     })
   }, [])
 
   const closeWebTab = useCallback((terminalId: string) => {
-    const closingIndex = webOpenTerminalIds.indexOf(terminalId)
-    const remaining = webOpenTerminalIds.filter((candidate) => candidate !== terminalId)
-    setWebOpenTerminalIds(remaining)
-    if (splitTerminalIds.includes(terminalId)) removeSplitTerminal(terminalId)
+    const closingIndex = webTerminalTabs.findIndex((tab) => tab.terminalId === terminalId)
+    const remaining = webTerminalTabs.filter((tab) => tab.terminalId !== terminalId)
+    setWebTerminalTabs(remaining)
     if (activeTerminalId !== terminalId) return
     const candidate = remaining[Math.min(Math.max(closingIndex, 0), remaining.length - 1)] ?? remaining.at(-1)
     if (candidate) {
-      setActiveTerminalId(candidate)
-      setActiveTerminalSlot('primary')
+      setActiveTerminalId(candidate.terminalId)
+      setTerminalSplitRoot(candidate.root)
+      setActiveTerminalSlot(candidate.activePaneKey)
       setPage('terminal')
       return
     }
-    showTerminalListPage()
-  }, [activeTerminalId, removeSplitTerminal, showTerminalListPage, splitTerminalIds, webOpenTerminalIds])
+    setActiveTerminalId(null)
+    setTerminalSplitRoot(PRIMARY_TERMINAL_PANE)
+    setActiveTerminalSlot('primary')
+    setPage('terminal-list')
+  }, [activeTerminalId, webTerminalTabs])
 
   const handleWebPaneDrop = useCallback((terminalId: string, targetPaneKey: TerminalPaneKey, target: WebPaneDropTarget) => {
     setWebDraggedTerminalId(null)
@@ -1685,18 +1748,23 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
 
   useEffect(() => {
     if (!webLayout) return
+    fitWebSplitTerminals()
+  }, [fitWebSplitTerminals, webLayout, webTerminalSidebarOpen])
+
+  useEffect(() => {
+    if (!webLayout) return
     const handleWebTabShortcut = (event: globalThis.KeyboardEvent) => {
       if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       const digit = Number(event.key)
       if (!Number.isInteger(digit) || digit < 1 || digit > 9) return
-      const terminalId = webOpenTerminalIds[digit - 1]
+      const terminalId = webTabTerminalIds[digit - 1]
       if (!terminalId || !machine) return
       event.preventDefault()
-      openTerminal({ machineId: machine.machineId, terminalId })
+      activateWebTerminalTab(terminalId)
     }
     window.addEventListener('keydown', handleWebTabShortcut)
     return () => window.removeEventListener('keydown', handleWebTabShortcut)
-  }, [machine, openTerminal, webLayout, webOpenTerminalIds])
+  }, [activateWebTerminalTab, machine, webLayout, webTabTerminalIds])
 
   const openFiles = useCallback(() => {
     if (requireVerification) {
@@ -2638,9 +2706,17 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const renderTerminalListPage = () => {
     if (!machine) return null
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
+    const desktopTerminalListClass = singlePane
+      ? ''
+      : webLayout
+        ? webTerminalSidebarOpen
+          ? 'md:flex md:w-[19rem] md:flex-none md:border-r md:border-[var(--anytty-app-line)] lg:w-80 2xl:w-[22rem]'
+          : 'md:hidden'
+        : 'md:flex md:w-72 md:flex-none md:border-r md:border-[var(--anytty-app-line)]'
     return (
       <aside
-        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${singlePane ? '' : `md:flex md:flex-none md:border-r md:border-[var(--anytty-app-line)] ${webLayout ? 'md:w-[19rem] lg:w-80 2xl:w-[22rem]' : 'md:w-72'}`} ${page === 'terminal' ? 'hidden' : 'flex'}`}
+        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative min-h-0 flex-1 flex-col ${desktopTerminalListClass} ${page === 'terminal' ? 'hidden' : 'flex'}`}
+        data-web-sidebar-open={webLayout ? webTerminalSidebarOpen : undefined}
         data-testid={page === 'terminal' ? undefined : 'anytty-terminal-list-page'}
       >
         <header className={`relative z-50 border-[var(--anytty-app-line)] bg-[var(--anytty-app-bg)] flex min-h-12 shrink-0 items-center justify-between border-b px-2 pt-[env(safe-area-inset-top)] ${singlePane ? '' : `md:pt-0 ${webLayout ? 'md:min-h-14 md:px-3' : ''}`}`}>
@@ -2662,16 +2738,18 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="icon"
-              type="button"
-              aria-hidden={page === 'terminal' ? 'true' : undefined}
-              aria-label={t('workspace.connectionInfo')}
-              className="border-transparent bg-transparent"
-              tabIndex={page === 'terminal' ? -1 : undefined}
-              onClick={() => { hapticSelection(); openConnectionInfo() }}
-            >
-              <Info className="h-5 w-5" />
-            </Button>
+            {!webLayout ? (
+              <Button variant="ghost" size="icon"
+                type="button"
+                aria-hidden={page === 'terminal' ? 'true' : undefined}
+                aria-label={t('workspace.connectionInfo')}
+                className="border-transparent bg-transparent"
+                tabIndex={page === 'terminal' ? -1 : undefined}
+                onClick={() => { hapticSelection(); openConnectionInfo() }}
+              >
+                <Info className="h-5 w-5" />
+              </Button>
+            ) : null}
             {webLayout ? (
               <Button
                 aria-label={t('common.settings')}
@@ -2754,7 +2832,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               onReorderPinnedTerminal={reorderTerminalPins}
               onOpenTerminal={openTerminal}
               onManageTerminal={openManageTerminal}
-              activeTerminalId={activeTerminalId ?? undefined}
+              activeTerminalId={activePaneTerminalId ?? undefined}
               compact={webLayout}
               loading={showTerminalListLoader}
               loadingLabel={t('common.loading')}
@@ -3075,20 +3153,22 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         {webLayout ? (
           <WebTerminalWorkbench
             terminals={orderedTerminals}
-            openTerminalIds={webOpenTerminalIds}
-            activeTerminalId={activePaneTerminalId}
-            splitTerminalIds={splitTerminalIds}
+            tabTerminalIds={webTabTerminalIds}
+            activeTabTerminalId={activeTerminalId}
+            splitTabTerminalIds={webSplitTabTerminalIds}
             draggedTerminalId={webDraggedTerminalId}
+            sidebarOpen={webTerminalSidebarOpen}
             canCreateTerminal={canManageTerminals}
             canSplitTerminal={canSplitTerminal}
             disabled={connectionSessionUnavailable}
-            onActivateTerminal={(terminalId) => openTerminal({ machineId: machine.machineId, terminalId })}
+            onActivateTab={activateWebTerminalTab}
             onCloseTab={closeWebTab}
             onCreateTerminal={openCreateTerminal}
             onOpenFiles={openFiles}
             onOpenSettings={() => setWebSettingsOpen(true)}
             onOpenSplit={() => splitActiveTerminal('bottom')}
             onReorderTabs={reorderWebTabs}
+            onToggleSidebar={() => setWebTerminalSidebarOpen((current) => !current)}
             onTerminalDragChange={setWebDraggedTerminalId}
           />
         ) : null}
