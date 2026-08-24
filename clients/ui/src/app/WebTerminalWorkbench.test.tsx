@@ -28,11 +28,11 @@ describe('WebTerminalWorkbench', () => {
     expect(onCloseTab).toHaveBeenCalledWith('logs')
   })
 
-  it('reorders tabs through native drag and exposes split layout actions', async () => {
+  it('reorders tabs through native drag and adds a split below directly', async () => {
     const onReorderTabs = vi.fn()
-    const onSetSplitDirection = vi.fn()
+    const onOpenSplit = vi.fn()
     const onTerminalDragChange = vi.fn()
-    renderWorkbench({ onReorderTabs, onSetSplitDirection, onTerminalDragChange, splitTerminalId: 'logs' })
+    renderWorkbench({ onOpenSplit, onReorderTabs, onTerminalDragChange, splitTerminalIds: ['logs'] })
     const transfer = dataTransfer('logs')
     const shellContainer = screen.getByRole('tab', { name: 'Shell' }).parentElement!
     const logsContainer = screen.getByRole('tab', { name: 'Logs' }).parentElement!
@@ -45,13 +45,16 @@ describe('WebTerminalWorkbench', () => {
     expect(onTerminalDragChange).toHaveBeenCalledWith('logs')
     expect(onReorderTabs).toHaveBeenCalledWith('logs', 'shell', 'after')
     await userEvent.click(screen.getByRole('button', { name: 'Split below' }))
-    expect(onSetSplitDirection).toHaveBeenCalledWith('rows')
+    expect(onOpenSplit).toHaveBeenCalledOnce()
   })
 
-  it('offers explicit pane targets while dragging and a keyboard-resizable divider', () => {
+  it('previews four directional pane targets while dragging and keeps the divider keyboard-resizable', () => {
     const onDrop = vi.fn()
     const onRatioChange = vi.fn()
-    const view = render(<WebTerminalDropOverlay activeTerminalId="shell" draggedTerminalId="logs" onDrop={onDrop} />)
+    const view = render(<WebTerminalDropOverlay canSplit draggedTerminalId="logs" onDrop={onDrop} />)
+    expect(screen.getByRole('button', { name: 'Split left' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Split above' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Open here' })).toBeNull()
     const splitRight = screen.getByRole('button', { name: 'Split right' })
     fireEvent.drop(splitRight, { dataTransfer: dataTransfer('logs') })
     expect(onDrop).toHaveBeenCalledWith('logs', 'right')
@@ -90,10 +93,10 @@ function renderWorkbench(overrides: Partial<Parameters<typeof WebTerminalWorkben
     terminals: [terminal('shell', 'Shell'), terminal('logs', 'Logs')],
     openTerminalIds: ['shell', 'logs'],
     activeTerminalId: 'shell',
-    splitTerminalId: null,
-    splitDirection: 'columns',
+    splitTerminalIds: [],
     draggedTerminalId: null,
     canCreateTerminal: true,
+    canSplitTerminal: true,
     disabled: false,
     onActivateTerminal: vi.fn(),
     onCloseTab: vi.fn(),
@@ -102,7 +105,6 @@ function renderWorkbench(overrides: Partial<Parameters<typeof WebTerminalWorkben
     onOpenSettings: vi.fn(),
     onOpenSplit: vi.fn(),
     onReorderTabs: vi.fn(),
-    onSetSplitDirection: vi.fn(),
     onTerminalDragChange: vi.fn(),
     ...overrides,
   }

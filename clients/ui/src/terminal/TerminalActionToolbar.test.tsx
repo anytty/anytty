@@ -207,6 +207,38 @@ describe('TerminalActionToolbar', () => {
     expect(onCloseSplitTerminal).toHaveBeenCalledTimes(1)
   })
 
+  it('splits the active mobile pane in all four directions', async () => {
+    const onSplitTerminal = vi.fn()
+
+    render(
+      <TerminalActionToolbar
+        mode="default"
+        hasSelection={false}
+        canSplitTerminal
+        onModeChange={vi.fn()}
+        onSelectAll={vi.fn()}
+        onSelectVisible={vi.fn()}
+        onCopy={vi.fn()}
+        onPaste={vi.fn()}
+        onOpenSnippets={vi.fn()}
+        onSplitTerminal={onSplitTerminal}
+      />,
+    )
+
+    const splitGroup = screen.getByRole('group', { name: 'Split terminal' })
+    await userEvent.click(within(splitGroup).getByRole('button', { name: 'Split left' }))
+    await userEvent.click(within(splitGroup).getByRole('button', { name: 'Split right' }))
+    await userEvent.click(within(splitGroup).getByRole('button', { name: 'Split above' }))
+    await userEvent.click(within(splitGroup).getByRole('button', { name: 'Split below' }))
+
+    expect(onSplitTerminal.mock.calls).toEqual([
+      ['left'],
+      ['right'],
+      ['top'],
+      ['bottom'],
+    ])
+  })
+
   it('keeps all default tools reachable in a short terminal viewport', () => {
     render(
       <TerminalActionToolbar

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef } from 'react'
-import { Clipboard, ClipboardList, Copy, Cpu, Crown, Info, Link2, Link2Off, Lock, LockOpen, Minus, MousePointer2, MoveVertical, PanelBottomClose, PanelTopOpen, Plus, Scaling, Search, Sparkles, X } from 'lucide-react'
+import { Clipboard, ClipboardList, Copy, Cpu, Crown, Info, Link2, Link2Off, Lock, LockOpen, Minus, MousePointer2, MoveVertical, PanelBottomClose, PanelBottomOpen, PanelLeftOpen, PanelRightOpen, PanelTopOpen, Plus, Scaling, Search, Sparkles, X } from 'lucide-react'
 import { hapticImpact, hapticSelection } from '../platform/haptics'
 import type { TerminalRenderer } from './Terminal'
 import { terminalResizeControlOwnsResize, type TerminalResizeControl } from './terminalClient'
@@ -9,6 +9,7 @@ import '../i18n'
 import { Button } from '../ui/button'
 
 export type TerminalToolbarMode = 'default' | 'selection'
+export type TerminalSplitTarget = 'left' | 'right' | 'top' | 'bottom'
 
 export interface TerminalActionToolbarProps {
   mode: TerminalToolbarMode
@@ -35,6 +36,8 @@ export interface TerminalActionToolbarProps {
   onReleaseResizeOwner?: (() => void) | undefined
   onToggleSizeLock?: (() => void) | undefined
   onOpenConnectionInfo?: (() => void) | undefined
+  canSplitTerminal?: boolean | undefined
+  onSplitTerminal?: ((target: TerminalSplitTarget) => void) | undefined
   splitTerminalOpen?: boolean | undefined
   syncSplitInput?: boolean | undefined
   onToggleSyncSplitInput?: (() => void) | undefined
@@ -79,6 +82,8 @@ export function TerminalActionToolbar({
   onReleaseResizeOwner,
   onToggleSizeLock,
   onOpenConnectionInfo,
+  canSplitTerminal = false,
+  onSplitTerminal,
   splitTerminalOpen = false,
   syncSplitInput = false,
   onToggleSyncSplitInput,
@@ -303,6 +308,15 @@ export function TerminalActionToolbar({
                 <ToolbarActionTile icon={<PanelBottomClose />} label={t('workspace.closeSplit')} onClick={() => onCloseSplitTerminal?.()} />
               </>
             ) : null}
+          </div>
+        </ToolbarSection>
+
+        <ToolbarSection label={t('workspace.splitTerminal')}>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label={t('workspace.splitTerminal')}>
+            <ToolbarActionTile disabled={!canSplitTerminal || remoteActionsDisabled} label={t('workspace.splitLeft')} icon={<PanelLeftOpen />} onClick={() => onSplitTerminal?.('left')} />
+            <ToolbarActionTile disabled={!canSplitTerminal || remoteActionsDisabled} label={t('workspace.splitRight')} icon={<PanelRightOpen />} onClick={() => onSplitTerminal?.('right')} />
+            <ToolbarActionTile disabled={!canSplitTerminal || remoteActionsDisabled} label={t('workspace.splitAbove')} icon={<PanelTopOpen />} onClick={() => onSplitTerminal?.('top')} />
+            <ToolbarActionTile disabled={!canSplitTerminal || remoteActionsDisabled} label={t('workspace.splitBelow')} icon={<PanelBottomOpen />} onClick={() => onSplitTerminal?.('bottom')} />
           </div>
         </ToolbarSection>
       </div>

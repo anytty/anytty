@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from 'react'
-import { Columns2, Folder, PanelBottom, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
+import { Folder, PanelBottom, PanelLeft, PanelRight, PanelTop, Plus, Rows2, Settings2, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
 import { Button } from '../ui/button'
@@ -7,16 +7,16 @@ import { Button } from '../ui/button'
 export const ANYTTY_TERMINAL_DRAG_TYPE = 'application/x-anytty-terminal-id'
 
 export type WebSplitDirection = 'columns' | 'rows'
-export type WebPaneDropTarget = 'primary' | 'right' | 'bottom'
+export type WebPaneDropTarget = 'left' | 'right' | 'top' | 'bottom'
 
 export interface WebTerminalWorkbenchProps {
   terminals: readonly Terminal[]
   openTerminalIds: readonly string[]
   activeTerminalId: string | null
-  splitTerminalId: string | null
-  splitDirection: WebSplitDirection
+  splitTerminalIds: readonly string[]
   draggedTerminalId: string | null
   canCreateTerminal: boolean
+  canSplitTerminal: boolean
   disabled: boolean
   onActivateTerminal: (terminalId: string) => void
   onCloseTab: (terminalId: string) => void
@@ -25,7 +25,6 @@ export interface WebTerminalWorkbenchProps {
   onOpenSettings: () => void
   onOpenSplit: () => void
   onReorderTabs: (terminalId: string, targetTerminalId: string, placement: 'before' | 'after') => void
-  onSetSplitDirection: (direction: WebSplitDirection) => void
   onTerminalDragChange: (terminalId: string | null) => void
 }
 
@@ -33,10 +32,10 @@ export function WebTerminalWorkbench({
   terminals,
   openTerminalIds,
   activeTerminalId,
-  splitTerminalId,
-  splitDirection,
+  splitTerminalIds,
   draggedTerminalId,
   canCreateTerminal,
+  canSplitTerminal,
   disabled,
   onActivateTerminal,
   onCloseTab,
@@ -45,7 +44,6 @@ export function WebTerminalWorkbench({
   onOpenSettings,
   onOpenSplit,
   onReorderTabs,
-  onSetSplitDirection,
   onTerminalDragChange,
 }: WebTerminalWorkbenchProps) {
   const { t } = useTranslation()
@@ -80,7 +78,7 @@ export function WebTerminalWorkbench({
           {tabs.map((terminal) => {
             const terminalId = terminal.terminalId
             const active = activeTerminalId === terminalId
-            const inSplit = splitTerminalId === terminalId
+            const inSplit = splitTerminalIds.includes(terminalId)
             const title = terminal.title || terminal.command || t('terminal.defaultTitle')
             const marker = dropMarker?.terminalId === terminalId ? dropMarker.placement : null
             return (
@@ -151,15 +149,7 @@ export function WebTerminalWorkbench({
       <div className="flex shrink-0 items-center border-l border-[var(--anytty-border-subtle)] px-1">
         <WorkbenchAction icon={Plus} label={t('workspace.createTerminal')} disabled={!canCreateTerminal || disabled} onClick={onCreateTerminal} />
         <WorkbenchAction icon={Folder} label={t('workspace.openFiles')} disabled={disabled} onClick={onOpenFiles} />
-        <WorkbenchAction icon={Rows2} label={t('workspace.splitTerminal')} disabled={disabled || !activeTerminalId} onClick={onOpenSplit} />
-        {splitTerminalId ? (
-          <WorkbenchAction
-            icon={splitDirection === 'columns' ? Rows2 : Columns2}
-            label={t(splitDirection === 'columns' ? 'workspace.splitBelow' : 'workspace.splitRight')}
-            disabled={disabled}
-            onClick={() => onSetSplitDirection(splitDirection === 'columns' ? 'rows' : 'columns')}
-          />
-        ) : null}
+        <WorkbenchAction icon={Rows2} label={t('workspace.splitBelow')} disabled={disabled || !activeTerminalId || !canSplitTerminal} onClick={onOpenSplit} />
         <WorkbenchAction icon={Settings2} label={t('common.settings')} onClick={onOpenSettings} />
       </div>
     </header>
@@ -174,14 +164,14 @@ export function WebTerminalPaneHeader({ terminal, active, onClose }: {
   const { t } = useTranslation()
   const title = terminal?.title || terminal?.command || t('terminal.defaultTitle')
   return (
-    <div className={`absolute inset-x-0 top-0 z-10 hidden h-7 items-center gap-2 border-b border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] px-2 text-[11px] md:flex ${active ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} data-testid="anytty-web-pane-header">
+    <div className={`absolute inset-x-0 top-0 z-10 flex h-7 items-center gap-2 border-b border-[var(--anytty-border-subtle)] bg-[var(--anytty-surface)] px-2 text-[11px] ${active ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} data-testid="anytty-web-pane-header">
       <SquareTerminal className="size-3.5 shrink-0" />
       <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
       {terminal?.cwd ? <span className="max-w-[45%] truncate font-mono text-[10px] text-[var(--anytty-faint)]">{terminal.cwd}</span> : null}
       {onClose ? (
         <button
           aria-label={t('workspace.closeSplit')}
-          className="flex size-6 shrink-0 items-center justify-center rounded outline-none hover:bg-[var(--anytty-surface-raised)] focus-visible:ring-2 focus-visible:ring-[var(--anytty-accent)]"
+          className="hidden size-6 shrink-0 items-center justify-center rounded outline-none hover:bg-[var(--anytty-surface-raised)] focus-visible:ring-2 focus-visible:ring-[var(--anytty-accent)] md:flex"
           onClick={onClose}
           title={t('workspace.closeSplit')}
           type="button"
@@ -214,48 +204,65 @@ function WorkbenchAction({ icon: Icon, label, disabled = false, onClick }: {
   )
 }
 
-export function WebTerminalDropOverlay({ activeTerminalId, draggedTerminalId, onDrop }: {
-  activeTerminalId: string | null
+export function WebTerminalDropOverlay({ canSplit, draggedTerminalId, onDrop }: {
+  canSplit: boolean
   draggedTerminalId: string
   onDrop: (terminalId: string, target: WebPaneDropTarget) => void
 }) {
   const { t } = useTranslation()
-  const [target, setTarget] = useState<WebPaneDropTarget>('primary')
-  const canSplit = Boolean(activeTerminalId && activeTerminalId !== draggedTerminalId)
-  const targets: Array<{ id: WebPaneDropTarget; label: string }> = canSplit
-    ? [
-        { id: 'primary', label: t('workspace.openInPane') },
-        { id: 'right', label: t('workspace.splitRight') },
-        { id: 'bottom', label: t('workspace.splitBelow') },
-      ]
-    : [{ id: 'primary', label: t('workspace.openInPane') }]
+  const [target, setTarget] = useState<WebPaneDropTarget>('bottom')
+  if (!canSplit) return null
+  const targets: Array<{ id: WebPaneDropTarget; label: string; icon: typeof PanelLeft }> = [
+    { id: 'left', label: t('workspace.splitLeft'), icon: PanelLeft },
+    { id: 'right', label: t('workspace.splitRight'), icon: PanelRight },
+    { id: 'top', label: t('workspace.splitAbove'), icon: PanelTop },
+    { id: 'bottom', label: t('workspace.splitBelow'), icon: PanelBottom },
+  ]
 
   return (
-    <div className="absolute inset-0 z-40 hidden items-stretch gap-2 bg-black/55 p-3 backdrop-blur-[2px] md:flex" data-testid="anytty-web-terminal-drop-overlay">
-      {targets.map((candidate) => (
-        <button
-          aria-label={candidate.label}
-          className={`flex flex-1 items-center justify-center border text-sm font-semibold transition-colors ${target === candidate.id ? 'border-[var(--anytty-accent)] bg-white/10 text-[var(--anytty-text)]' : 'border-dashed border-[var(--anytty-border)] text-[var(--anytty-muted)]'}`}
-          key={candidate.id}
-          onClick={() => onDrop(draggedTerminalId, candidate.id)}
-          onDragEnter={(event) => {
-            event.preventDefault()
-            setTarget(candidate.id)
-          }}
-          onDragOver={(event) => {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = 'move'
-          }}
-          onDrop={(event) => {
-            event.preventDefault()
-            onDrop(terminalIdFromDrag(event) || draggedTerminalId, candidate.id)
-          }}
-          tabIndex={-1}
-          type="button"
-        >
-          {candidate.label}
-        </button>
-      ))}
+    <div className="absolute inset-0 z-40 hidden bg-black/60 p-4 backdrop-blur-[2px] md:block" data-testid="anytty-web-terminal-drop-overlay">
+      <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-3 rounded border border-[var(--anytty-border)] bg-[var(--anytty-terminal-bg)] p-3 shadow-2xl">
+        {targets.map((candidate) => {
+          const Icon = candidate.icon
+          const selected = target === candidate.id
+          return (
+            <button
+              aria-label={candidate.label}
+              className={`group relative grid min-h-0 overflow-hidden border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--anytty-accent)] ${selected ? 'border-[var(--anytty-accent)] bg-white/10' : 'border-dashed border-[var(--anytty-border)] bg-black/20'}`}
+              key={candidate.id}
+              onClick={() => onDrop(draggedTerminalId, candidate.id)}
+              onDragEnter={(event) => {
+                event.preventDefault()
+                setTarget(candidate.id)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                onDrop(terminalIdFromDrag(event) || draggedTerminalId, candidate.id)
+              }}
+              tabIndex={-1}
+              type="button"
+            >
+              <span aria-hidden="true" className={`grid h-full min-h-0 gap-1.5 p-2 ${candidate.id === 'left' || candidate.id === 'right' ? 'grid-cols-2' : 'grid-rows-2'}`}>
+                {(candidate.id === 'left' || candidate.id === 'top') ? (
+                  <span className={`${selected ? 'border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/10' : 'border-[var(--anytty-border)] bg-white/5'} flex items-center justify-center border`}>
+                    <Icon className={`size-7 ${selected ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} />
+                  </span>
+                ) : null}
+                <span className="border border-[var(--anytty-border-subtle)] bg-black/25" />
+                {(candidate.id === 'right' || candidate.id === 'bottom') ? (
+                  <span className={`${selected ? 'border-[var(--anytty-accent)] bg-[var(--anytty-accent)]/10' : 'border-[var(--anytty-border)] bg-white/5'} flex items-center justify-center border`}>
+                    <Icon className={`size-7 ${selected ? 'text-[var(--anytty-text)]' : 'text-[var(--anytty-muted)]'}`} />
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

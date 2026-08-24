@@ -248,8 +248,78 @@ describe('MachineWorkspace terminal creation', () => {
 
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
     expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('vertical')
-    await userEvent.click(screen.getByRole('button', { name: 'Split below' }))
-    expect(screen.getByRole('separator', { name: 'Resize terminal panes' }).getAttribute('aria-orientation')).toBe('horizontal')
+    expect(screen.queryByRole('button', { name: 'Open here' })).toBeNull()
+  })
+
+  it('adds three, four, and five panes below without opening a chooser', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = ['Shell', 'Logs', 'Server', 'Tests', 'Watch'].map((title, index) => ({
+      terminalId: `term-${title.toLowerCase()}`,
+      machineId: 'studio',
+      title,
+      state: 'running' as const,
+      command: index === 0 ? '/bin/zsh' : title.toLowerCase(),
+      cols: 80,
+      rows: 24,
+    }))
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    const splitBelow = screen.getByTestId('anytty-terminal-split-button')
+    await userEvent.click(splitBelow)
+    await userEvent.click(splitBelow)
+    await userEvent.click(splitBelow)
+    await userEvent.click(splitBelow)
+
+    await waitFor(() => expect(screen.getAllByTestId('mock-terminal')).toHaveLength(5))
+    expect(screen.getAllByTestId('anytty-split-terminal-panel')).toHaveLength(4)
+    expect(screen.queryByTestId('anytty-split-terminal-sheet')).toBeNull()
+    expect(screen.getAllByRole('separator', { name: 'Resize terminal panes' })).toHaveLength(4)
+    expect(document.querySelectorAll('[data-split-direction="rows"]')).toHaveLength(4)
+  })
+
+  it('combines four split directions into nested mobile pane layouts', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = ['Shell', 'Logs', 'Server', 'Tests', 'Watch'].map((title) => ({
+      terminalId: `term-${title.toLowerCase()}`,
+      machineId: 'studio',
+      title,
+      state: 'running' as const,
+      command: title.toLowerCase(),
+      cols: 80,
+      rows: 24,
+    }))
+    const session = new MockProtoSession('studio', () => protoResult('acknowledge', create(AcknowledgeResultSchema)))
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    for (const direction of ['Split right', 'Split below', 'Split left', 'Split above']) {
+      await userEvent.click(screen.getByTestId('anytty-terminal-tools-button'))
+      const toolbar = await screen.findByTestId('anytty-terminal-action-toolbar')
+      await userEvent.click(within(toolbar).getByRole('button', { name: direction }))
+    }
+
+    await waitFor(() => expect(screen.getAllByTestId('mock-terminal')).toHaveLength(5))
+    expect(screen.getAllByTestId('anytty-split-terminal-panel')).toHaveLength(4)
+    expect(document.querySelectorAll('[data-split-direction="columns"]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-split-direction="rows"]')).toHaveLength(2)
   })
 
   it('prefills daemon defaults and submits a complete generated Proto create command', async () => {
@@ -330,7 +400,7 @@ describe('MachineWorkspace terminal creation', () => {
     expect(terminalSummary.querySelectorAll('.truncate')).toHaveLength(2)
     expect(within(terminalSwitcher).getByTestId('anytty-terminal-path').textContent).toBe('/home/ada')
     expect(within(header).getByRole('button', { name: 'Open files' })).toBeTruthy()
-    expect(within(header).getByRole('button', { name: 'Split terminal' })).toBeTruthy()
+    expect(within(header).getByRole('button', { name: 'Split below' })).toBeTruthy()
     expect(within(header).queryByRole('button', { name: 'Control resize' })).toBeNull()
     expect(within(header).getByRole('button', { name: 'Terminal tools' })).toBeTruthy()
     expect(within(header).queryByTestId('anytty-terminal-menu-button')).toBeNull()
@@ -608,7 +678,6 @@ describe('MachineWorkspace terminal creation', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await screen.findByTestId('mock-terminal')
     await userEvent.click(screen.getByTestId('anytty-terminal-split-button'))
-    await userEvent.click(within(await screen.findByTestId('anytty-split-terminal-sheet')).getByRole('button', { name: 'Open Logs' }))
 
     const splitPanel = await screen.findByTestId('anytty-split-terminal-panel')
     expect(splitPanel.querySelector('[data-testid="mock-terminal"][data-terminal-id="term-logs"][data-history-only="true"]')).toBeTruthy()
@@ -642,7 +711,6 @@ describe('MachineWorkspace terminal creation', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await screen.findByTestId('mock-terminal')
     await userEvent.click(screen.getByTestId('anytty-terminal-split-button'))
-    await userEvent.click(within(await screen.findByTestId('anytty-split-terminal-sheet')).getByRole('button', { name: 'Open Logs' }))
     const splitPanel = await screen.findByTestId('anytty-split-terminal-panel')
     await waitFor(() => expect(splitPanel.querySelector('[data-testid="mock-terminal"][data-terminal-id="term-logs"]')).toBeTruthy())
 
@@ -688,7 +756,6 @@ describe('MachineWorkspace terminal creation', () => {
     expect(window.innerWidth).toBe(320)
 
     await userEvent.click(within(header).getByTestId('anytty-terminal-split-button'))
-    await userEvent.click(within(await screen.findByTestId('anytty-split-terminal-sheet')).getByRole('button', { name: 'Open Logs' }))
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
 
     const toolsButton = within(header).getByTestId('anytty-terminal-tools-button')
@@ -1143,8 +1210,6 @@ describe('MachineWorkspace terminal creation', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await userEvent.click(screen.getByTestId('anytty-terminal-split-button'))
-    const splitSheet = await screen.findByTestId('anytty-split-terminal-sheet')
-    await userEvent.click(within(splitSheet).getByRole('button', { name: 'Open Logs' }))
     await waitFor(() => expect(screen.getAllByTestId('mock-terminal')).toHaveLength(2))
     await userEvent.click(screen.getByTestId('anytty-terminal-tools-button'))
     await userEvent.click(await screen.findByRole('button', { name: 'Sync input' }))
@@ -1301,7 +1366,6 @@ describe('MachineWorkspace terminal creation', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
     await userEvent.click(screen.getByTestId('anytty-terminal-split-button'))
-    await userEvent.click(within(await screen.findByTestId('anytty-split-terminal-sheet')).getByRole('button', { name: 'Open Logs' }))
     expect(await screen.findByTestId('anytty-split-terminal-panel')).toBeTruthy()
 
     await userEvent.click(screen.getByTestId('anytty-terminal-files-button'))
