@@ -26,9 +26,10 @@ describe('ActionSheet', () => {
     const close = screen.getByRole('button', { name: 'Close' })
     const lastAction = screen.getByRole('button', { name: 'Delete' })
 
+    expect(screen.getByTestId('action-sheet-backdrop').parentElement).toBe(document.body)
     expect(dialog.getAttribute('aria-modal')).toBe('true')
     expect(document.activeElement).toBe(firstAction)
-    expect(trigger.hasAttribute('inert')).toBe(true)
+    expect(trigger.closest('[inert]')).toBeTruthy()
 
     close.focus()
     await user.tab({ shift: true })
@@ -39,7 +40,7 @@ describe('ActionSheet', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog', { name: 'File actions' })).toBeNull()
-    expect(trigger.hasAttribute('inert')).toBe(false)
+    expect(trigger.closest('[inert]')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
 

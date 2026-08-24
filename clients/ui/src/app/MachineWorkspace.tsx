@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { create } from '@bufbuild/protobuf'
 import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Monitor, Pin, Plus, RefreshCw, Rows2, Settings2, SlidersHorizontal, SquarePen, Trash2, X } from 'lucide-react'
 import { connectionPhaseLabel, connectionSnapshotFromStatus } from '../connection/connectionState'
@@ -230,6 +231,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [restartingTerminalId, setRestartingTerminalId] = useState<string | null>(null)
   const [terminalDefaultsLoading, setTerminalDefaultsLoading] = useState(false)
   const terminalDefaultsRequestRef = useRef(0)
+  const terminalNameInputRef = useRef<HTMLInputElement>(null)
   const [terminalPathReturnSheet, setTerminalPathReturnSheet] = useState<TerminalEditorSheet>('create-terminal')
   const [terminalPathPickerPath, setTerminalPathPickerPath] = useState('/')
   const [terminalPathPickerEntries, setTerminalPathPickerEntries] = useState<FileEntry[]>([])
@@ -2342,7 +2344,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       .filter(isDirectoryEntry)
       .sort((left, right) => left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' }))
     return (
-      <MobileSheetPanel title={t('workspace.chooseDirectory')} testId="anytty-terminal-path-picker-sheet" onClose={() => setMobileSheet(terminalPathReturnSheet)}>
+      <MobileSheetPanel webModal={webLayout} wide title={t('workspace.chooseDirectory')} testId="anytty-terminal-path-picker-sheet" onClose={() => setMobileSheet(terminalPathReturnSheet)}>
         <div className="flex flex-col gap-3">
           <div className="rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm p-3">
             <div className="break-all font-mono text-[12px] font-semibold text-zinc-800">{normalizedPath}</div>
@@ -2413,7 +2415,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const renderTerminalPathBookmarksSheet = () => {
     if (mobileSheet !== 'terminal-path-bookmarks') return null
     return (
-      <MobileSheetPanel title={t('files.bookmarks.title')} testId="anytty-terminal-path-bookmarks-sheet" onClose={() => setMobileSheet(terminalPathReturnSheet)}>
+      <MobileSheetPanel webModal={webLayout} wide title={t('files.bookmarks.title')} testId="anytty-terminal-path-bookmarks-sheet" onClose={() => setMobileSheet(terminalPathReturnSheet)}>
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary"
@@ -2481,7 +2483,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const renderClipboardHistorySheet = () => {
     if (mobileSheet !== 'clipboard-history') return null
     return (
-      <MobileSheetPanel title={t('workspace.clipboard')} testId="anytty-clipboard-history-sheet" onClose={() => setMobileSheet(null)}>
+      <MobileSheetPanel webModal={webLayout} wide title={t('workspace.clipboard')} testId="anytty-clipboard-history-sheet" onClose={() => setMobileSheet(null)}>
         <div className="flex flex-col gap-3">
           <div className="rounded-lg border border-[var(--anytty-app-line)] bg-[var(--anytty-app-surface)] shadow-sm p-3">
             <Textarea
@@ -2752,7 +2754,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         ) : null}
 
         {mobileSheet === 'manage-terminal' && selectedTerminal ? (
-          <MobileSheetPanel title={selectedTerminal.title || t('terminal.defaultTitle')} testId="anytty-terminal-actions-sheet" onClose={() => setMobileSheet(null)}>
+          <MobileSheetPanel webModal={webLayout} title={selectedTerminal.title || t('terminal.defaultTitle')} testId="anytty-terminal-actions-sheet" onClose={() => setMobileSheet(null)}>
             <div className="flex flex-col gap-3">
               {selectedTerminal.state === 'exited' ? (
                 <Button variant="secondary"
@@ -2793,11 +2795,25 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
 
         {(mobileSheet === 'create-terminal' || mobileSheet === 'edit-terminal') ? (
           <MobileSheetPanel
+            initialFocusRef={webLayout && typeof window !== 'undefined' && window.innerWidth >= 768 ? terminalNameInputRef : undefined}
             title={t(mobileSheet === 'create-terminal' ? 'workspace.newTerminal' : 'workspace.editTerminal')}
             testId="anytty-terminal-editor-sheet"
+            webModal={webLayout}
+            wide
             onClose={() => setMobileSheet(null)}
           >
-            <div className="flex flex-col gap-4">
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                hapticImpact()
+                if (mobileSheet === 'create-terminal') {
+                  void submitCreateTerminal()
+                  return
+                }
+                void submitUpdateTerminal()
+              }}
+            >
               {terminalSubmitError ? (
                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-medium text-red-700" role="alert">
                   {terminalSubmitError}
@@ -2806,6 +2822,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               <label className="flex flex-col gap-2 text-[14px] font-semibold text-zinc-700">
                 {t('workspace.terminalForm.name')}
                 <Input
+                  ref={terminalNameInputRef}
                   className="min-h-12 bg-zinc-50 px-4 text-[15px] text-zinc-900"
                   value={terminalForm.name}
                   onChange={(event) => {
@@ -2886,21 +2903,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
                 </NativeSelect>
               </label>
               <Button variant="default"
-                type="button"
-                className="mt-2 min-h-12 w-full gap-2 px-4 text-[15px] font-semibold"
+                type="submit"
+                className="sticky -bottom-4 z-10 mt-2 min-h-12 w-full gap-2 px-4 text-[15px] font-semibold shadow-[0_-12px_24px_var(--anytty-app-bg)]"
                 disabled={!canManageTerminals || terminalSubmitting || terminalDefaultsLoading}
-                onClick={() => {
-                  hapticImpact()
-                  if (mobileSheet === 'create-terminal') {
-                    void submitCreateTerminal()
-                    return
-                  }
-                  void submitUpdateTerminal()
-                }}
               >
                 {terminalSubmitting || terminalDefaultsLoading ? t('workspace.saving') : t(mobileSheet === 'create-terminal' ? 'workspace.createTerminal' : 'workspace.saveChanges')}
               </Button>
-            </div>
+            </form>
           </MobileSheetPanel>
         ) : null}
 
@@ -3292,7 +3301,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         ) : null}
 
         {mobileSheet === 'terminals' ? (
-          <MobileSheetPanel expandable title={t('terminal.list')} testId="anytty-terminal-switcher-sheet" onClose={() => setMobileSheet(null)}>
+          <MobileSheetPanel expandable webModal={webLayout} title={t('terminal.list')} testId="anytty-terminal-switcher-sheet" onClose={() => setMobileSheet(null)}>
             <div className="flex flex-col divide-y divide-[var(--anytty-app-line)]" data-testid="anytty-terminal-machine-groups">
               {switcherMachines.map((switcherMachine) => {
                 const currentMachine = switcherMachine.machineId === machine.machineId
@@ -3369,7 +3378,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         ) : null}
 
         {mobileSheet === 'split-terminal' ? (
-          <MobileSheetPanel title={t('workspace.splitTerminal')} testId="anytty-split-terminal-sheet" onClose={() => setMobileSheet(null)}>
+          <MobileSheetPanel webModal={webLayout} title={t('workspace.splitTerminal')} testId="anytty-split-terminal-sheet" onClose={() => setMobileSheet(null)}>
             {terminals.filter((terminal) => terminal.terminalId !== activeTerminalId).length > 0 ? (
               <TerminalList
                 machineId={machine.machineId}
@@ -3574,15 +3583,21 @@ function workspaceConnectionPresentation(input: {
 function MobileSheetPanel({
   children,
   expandable = false,
+  initialFocusRef,
   onClose,
   testId,
   title,
+  webModal = false,
+  wide = false,
 }: {
   children: ReactNode
   expandable?: boolean | undefined
+  initialFocusRef?: RefObject<HTMLElement | null> | undefined
   onClose: () => void
   testId: string
   title: string
+  webModal?: boolean | undefined
+  wide?: boolean | undefined
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -3608,11 +3623,17 @@ function MobileSheetPanel({
     dragChangedRef.current = false
     hapticSelection()
   }
-  return (
-    <div className="absolute inset-0 z-40 flex items-end bg-black/40 backdrop-blur-sm transition-opacity md:items-center md:justify-center" data-testid={testId} onClick={() => { hapticSelection(); onClose() }}>
+  const panel = (
+    <div
+      className={`${webModal ? 'fixed z-[100] bg-black/55 backdrop-blur-[2px] md:p-6' : 'absolute z-40 bg-black/40 backdrop-blur-sm'} inset-0 flex items-end justify-center transition-opacity md:items-center`}
+      data-presentation={webModal ? 'dialog' : 'sheet'}
+      data-testid={testId}
+      onClick={() => { hapticSelection(); onClose() }}
+    >
       <ModalSurface
         aria-label={title}
-        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative flex w-full flex-col overflow-hidden rounded-t-xl border-t border-[var(--anytty-app-line)] transition-[height] duration-200 md:h-auto md:max-h-[85vh] md:max-w-md md:rounded-xl md:border ${expandable ? (expanded ? 'h-[85dvh]' : 'h-[60dvh]') : 'max-h-[85vh]'}`}
+        className={`bg-[var(--anytty-app-bg)] text-[var(--anytty-app-text)] relative flex w-full flex-col overflow-hidden rounded-t-xl border-t border-[var(--anytty-app-line)] shadow-2xl transition-[height] duration-200 md:h-auto md:max-h-[min(85dvh,44rem)] md:rounded-lg md:border ${wide ? 'md:max-w-2xl' : 'md:max-w-md'} ${expandable ? (expanded ? 'h-[85dvh]' : 'h-[60dvh]') : 'max-h-[85dvh]'}`}
+        initialFocusRef={initialFocusRef}
         onRequestClose={onClose}
         onClick={(e) => e.stopPropagation()}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -3648,12 +3669,13 @@ function MobileSheetPanel({
             <X className="h-5 w-5" />
           </Button>
         </header>
-        <div className={`${expandable ? 'min-h-0 flex-1' : 'max-h-[calc(85vh-4rem)]'} overflow-y-auto p-4`}>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
           {children}
         </div>
       </ModalSurface>
     </div>
   )
+  return webModal && typeof document !== 'undefined' ? createPortal(panel, document.body) : panel
 }
 
 /** ConnectionInfoDialog 分离持久连接偏好和当前 ReadySession 诊断，不在 UI 推断网络路径。 */

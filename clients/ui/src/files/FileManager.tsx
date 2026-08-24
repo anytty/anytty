@@ -6,6 +6,7 @@ import { FilePreviewSheet } from './preview/FilePreviewSheet'
 import type { ProtoClientSession } from '../core/protoClientSession'
 import type { RemoteRuntimeStorage } from '../core/transport'
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { PathBookmark } from './pathBookmarks'
 import 'highlight.js/styles/github.css'
 import { NATIVE_BACK_PRIORITY } from '../platform/nativeBack'
@@ -516,8 +517,8 @@ export function FileManager({
           </ul>
         )}
       </div>
-      {deletePath ? (
-        <div className="absolute inset-0 z-[110] flex items-end bg-black/40 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-sm md:items-center md:justify-center" data-testid="anytty-file-delete-confirm" onClick={() => { hapticSelection(); setDeletePath(null) }}>
+      {deletePath ? renderFileManagerPortal(
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/40 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-sm md:items-center" data-testid="anytty-file-delete-confirm" onClick={() => { hapticSelection(); setDeletePath(null) }}>
           <ModalSurface
             aria-labelledby={deleteConfirmTitleId}
             aria-describedby={deleteConfirmDescriptionId}
@@ -545,7 +546,7 @@ export function FileManager({
               </Button>
             </div>
           </ModalSurface>
-        </div>
+        </div>,
       ) : null}
       {manager.previewPath ? (
         <FilePreviewSheet
@@ -775,7 +776,7 @@ export function FileManager({
           onOpen: (bookmark) => { hapticSelection(); void manager.navigate(bookmark.path) },
         })}
       />
-      {bookmarksOpen && editingBookmark ? (
+      {bookmarksOpen && editingBookmark ? renderFileManagerPortal(
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/40 backdrop-blur-[2px] md:items-center" onClick={closeBookmarkEditor}>
           <ModalSurface
             aria-labelledby={bookmarkEditorTitleId}
@@ -832,10 +833,14 @@ export function FileManager({
               </Button>
             </div>
           </ModalSurface>
-        </div>
+        </div>,
       ) : null}
     </div>
   )
+}
+
+function renderFileManagerPortal(content: ReactNode): ReactNode {
+  return typeof document === 'undefined' ? content : createPortal(content, document.body)
 }
 
 function bookmarkActions({

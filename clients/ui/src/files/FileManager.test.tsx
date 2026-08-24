@@ -132,6 +132,7 @@ describe('FileManager overlays', () => {
     await user.click(within(actions).getByRole('button', { name: 'Delete' }))
 
     const confirmation = screen.getByRole('dialog', { name: 'Delete this entry?' })
+    expect(confirmation.parentElement?.parentElement).toBe(document.body)
     expect(confirmation.getAttribute('aria-modal')).toBe('true')
     expectAssociation(confirmation, 'aria-describedby', '/tmp/notes.txt')
     expect(actions.closest('[inert]')).toBeTruthy()
@@ -175,6 +176,7 @@ describe('FileManager overlays', () => {
 
     const editor = screen.getByRole('dialog', { name: 'Edit bookmark' })
     const alias = within(editor).getByRole('textbox', { name: 'Alias' })
+    expect(editor.parentElement?.parentElement).toBe(document.body)
     expect(editor.getAttribute('aria-modal')).toBe('true')
     expectAssociation(editor, 'aria-describedby', '/srv/app')
     expect(document.activeElement).toBe(alias)

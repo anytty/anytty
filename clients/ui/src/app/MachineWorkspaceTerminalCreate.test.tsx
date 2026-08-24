@@ -177,6 +177,46 @@ describe('MachineWorkspace terminal creation', () => {
     expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy()
   })
 
+  it('presents Web terminal workflows as full-viewport dialogs and submits the editor with Enter', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = { terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const, command: '/bin/zsh', cwd: '/work/shell', cols: 80, rows: 24 }
+    const session = new MockProtoSession('studio', (command) => {
+      if (command.command.case === 'terminalDefaults') {
+        return protoResult('terminalDefaults', create(TerminalDefaultsResultSchema, {
+          defaults: create(TerminalDefaultsSchema, { defaultCommand: ['/bin/zsh'], defaultCwd: '/work' }),
+        }))
+      }
+      if (command.command.case === 'terminalCreate') {
+        return protoResult('terminalCreate', create(TerminalCreateResultSchema, {
+          terminal: create(TerminalInfoSchema, {
+            ref: create(TerminalRefSchema, { endpointId: 'studio', terminalId: 'term-created' }),
+          }),
+        }))
+      }
+      return protoResult('acknowledge', create(AcknowledgeResultSchema))
+    })
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Create terminal' }))[0]!)
+    const editor = await screen.findByTestId('anytty-terminal-editor-sheet')
+    expect(editor.dataset.presentation).toBe('dialog')
+    expect(editor.parentElement).toBe(document.body)
+    expect(within(editor).getByRole('dialog', { name: 'New terminal' }).className).toContain('md:max-w-2xl')
+    const name = within(editor).getByLabelText('Name') as HTMLInputElement
+    await waitFor(() => expect(document.activeElement).toBe(name))
+    await waitFor(() => expect((within(editor).getByLabelText('Command') as HTMLInputElement).value).toBe('/bin/zsh'))
+    await userEvent.type(name, 'Web shell{enter}')
+    await waitFor(() => expect(session.commands.some((command) => command.command.case === 'terminalCreate')).toBe(true))
+  })
+
   it('turns a Web terminal drag into a directional resizable split', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminals = [

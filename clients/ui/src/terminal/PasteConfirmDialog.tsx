@@ -1,5 +1,6 @@
 import { hapticImpact, hapticSelection } from '../platform/haptics'
 import { useTranslation } from 'react-i18next'
+import { createPortal } from 'react-dom'
 import '../i18n'
 import { ModalSurface } from '../ui/ModalSurface'
 import { Button } from '../ui/button'
@@ -15,8 +16,8 @@ export function PasteConfirmDialog({ text, onCancel, onConfirm }: PasteConfirmDi
   const lineCount = text.split(/\r\n|\r|\n/).length
   const preview = text.length > 600 ? `${text.slice(0, 600)}...` : text
 
-  return (
-    <div className="absolute inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm md:items-center md:justify-center" data-testid="anytty-paste-confirm" onClick={() => { hapticSelection(); onCancel() }}>
+  const dialog = (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm md:items-center md:p-6" data-testid="anytty-paste-confirm" onClick={() => { hapticSelection(); onCancel() }}>
       <ModalSurface
         aria-labelledby="anytty-paste-confirm-title"
         className="w-full overflow-hidden rounded-t-xl border-y border-[#3f3f46] bg-[#09090b] text-[#f4f4f5] md:max-w-md md:rounded-xl md:border"
@@ -50,4 +51,5 @@ export function PasteConfirmDialog({ text, onCancel, onConfirm }: PasteConfirmDi
       </ModalSurface>
     </div>
   )
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body)
 }

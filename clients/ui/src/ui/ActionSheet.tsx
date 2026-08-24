@@ -1,4 +1,5 @@
 import { useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import '../i18n'
@@ -44,7 +45,7 @@ export function ActionSheet({ isOpen, onClose, title, subtitle, actions }: Actio
     onClose()
   }
 
-  return (
+  const sheet = (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 backdrop-blur-[2px] md:items-center"
       onClick={closeWithHaptic}
@@ -140,6 +141,7 @@ export function ActionSheet({ isOpen, onClose, title, subtitle, actions }: Actio
       </ModalSurface>
     </div>
   )
+  return typeof document === 'undefined' ? sheet : createPortal(sheet, document.body)
 }
 
 function runSheetAction(
