@@ -6,6 +6,22 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.2] - 2026-08-25
+
+### Added
+
+- Added a desktop-oriented local Web workbench with tabs, recursive multi-pane terminal layouts, drag previews, and the `Ctrl+F` terminal picker.
+- Added optional password protection for externally proxied Local Web access, including Argon2id password verification, rate-limited login, and bounded browser sessions.
+
+### Changed
+
+- Local Web now uses a same-origin bridge so an HTTPS reverse proxy can reach the local daemon without exposing machine enrollment or pairing controls in the browser.
+- Web tabs preserve independent pane layouts, and terminal drops split only the targeted pane on desktop and mobile layouts.
+
+### Security
+
+- Password-protected Local Web requires a secure public origin; unprotected mode remains restricted to loopback hosts.
+
 ## [0.0.1-beta.1] - 2026-08-24
 
 ### Added

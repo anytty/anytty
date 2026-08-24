@@ -31,6 +31,7 @@
     "@capacitor/preferences": "8.0.1",
     "@capacitor/status-bar": "8.0.2",
     "html5-qrcode": "2.3.8",
+    "lucide-react": "1.14.0",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },

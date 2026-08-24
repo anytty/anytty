@@ -24,7 +24,7 @@ import { LocalWebAnyTTYApp, parseLocalWebBootstrap } from './LocalWebAnyTTYApp'
 
 const bootstrap = {
   bridge: {
-    port: 43123,
+    path: '/api/bridge',
     token: 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE',
   },
   machine: { id: 'local' as const, name: 'Studio', platform: 'darwin' },
@@ -62,7 +62,7 @@ describe('parseLocalWebBootstrap', () => {
       parseLocalWebBootstrap(bootstrap),
     ).toEqual({
       bridge: {
-        port: 43123,
+        path: '/api/bridge',
         token: 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE',
       },
       machine: { id: 'local', name: 'Studio', platform: 'darwin' },
@@ -73,16 +73,16 @@ describe('parseLocalWebBootstrap', () => {
     null,
     {},
     {
-      bridge: { port: 0, token: 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE' },
+      bridge: { path: '/wrong', token: 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE' },
       machine: { id: 'local', name: 'Studio', platform: 'darwin' },
     },
     {
-      bridge: { port: 43123, token: 'short' },
+      bridge: { path: '/api/bridge', token: 'short' },
       machine: { id: 'local', name: 'Studio', platform: 'darwin' },
     },
     {
       bridge: {
-        port: 43123,
+        path: '/api/bridge',
         token: 'abcdefghijklmnopqrstuvwxyz0123456789_-ABCDE',
       },
       machine: { id: 'remote', name: 'Studio', platform: 'darwin' },

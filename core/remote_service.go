@@ -34,6 +34,7 @@ type RemotePairStartResult struct {
 type RemoteLocalEnableRequest struct {
 	LocalWebAddress, ICETCPAddress, ControlURL, AccessToken, Region string
 	HubURLs                                                         []string
+	LocalWebPassword                                                []byte
 }
 
 // RemoteLocalStatus 是 local remote runtime 的 core-native 状态。
@@ -43,6 +44,7 @@ type RemoteLocalStatus struct {
 	ICETCPEnabled                          bool
 	ICETCPAddress                          string
 	ICETCPPort                             int
+	PasswordProtected                      bool
 	UpdatedAt                              time.Time
 }
 

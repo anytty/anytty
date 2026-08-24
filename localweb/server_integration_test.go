@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,7 +36,8 @@ func TestServerOpensAuthenticatedBindingSession(t *testing.T) {
 		corev2.WithClientAccessService(&localWebTestAccessService{identity: identity}),
 	)
 	t.Cleanup(func() { _ = core.Shutdown(context.Background()) })
-	server, err := Start(Options{Core: core, Address: DefaultAddress, MachineName: "Test machine"})
+	password := "correct horse battery staple"
+	server, err := Start(Options{Core: core, Address: DefaultAddress, MachineName: "Test machine", Password: []byte(password)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,16 +47,45 @@ func TestServerOpensAuthenticatedBindingSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated bootstrap response = %d", response.StatusCode)
+	}
+	loginRequest, err := http.NewRequest(http.MethodPost, server.URL()+"/api/auth/login", strings.NewReader(fmt.Sprintf(`{"password":%q}`, password)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginRequest.Header.Set("Origin", server.URL())
+	loginResponse, err := http.DefaultClient.Do(loginRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = loginResponse.Body.Close()
+	if loginResponse.StatusCode != http.StatusNoContent || len(loginResponse.Cookies()) != 1 {
+		t.Fatalf("login response = %d cookies=%v", loginResponse.StatusCode, loginResponse.Cookies())
+	}
+	cookie := loginResponse.Cookies()[0]
+	bootstrapRequest, err := http.NewRequest(http.MethodGet, server.URL()+"/api/bootstrap", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bootstrapRequest.AddCookie(cookie)
+	response, err = http.DefaultClient.Do(bootstrapRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer response.Body.Close()
 	var bootstrap bootstrapResponse
 	if err := json.NewDecoder(response.Body).Decode(&bootstrap); err != nil {
 		t.Fatal(err)
 	}
-	config, err := websocket.NewConfig(fmt.Sprintf("ws://127.0.0.1:%d/", bootstrap.Bridge.Port), server.URL())
+	config, err := websocket.NewConfig(strings.Replace(server.URL(), "http://", "ws://", 1)+bootstrap.Bridge.Path, server.URL())
 	if err != nil {
 		t.Fatal(err)
 	}
 	config.Protocol = []string{"anytty.binding.v1"}
+	config.Header.Set("Cookie", cookie.String())
 	connection, err := websocket.DialConfig(config)
 	if err != nil {
 		t.Fatal(err)

@@ -37,3 +37,23 @@ func TestClientAccessOwnerLabelRoundTripsThroughAPIMapping(t *testing.T) {
 		t.Fatalf("record labels = access %q client %q", record.GetAccessLabel(), record.GetClientLabel())
 	}
 }
+
+func TestRemoteLocalPasswordStateRoundTripsThroughAPIMapping(t *testing.T) {
+	password := []byte("correct horse battery staple")
+	request := RemoteLocalEnableRequestFromProto(&apipb.RemoteLocalEnableCommand{
+		LocalWebAddress:  "127.0.0.1:0",
+		LocalWebPassword: password,
+	})
+	if string(request.LocalWebPassword) != string(password) {
+		t.Fatalf("local Web password = %q", request.LocalWebPassword)
+	}
+	request.LocalWebPassword[0] = 'X'
+	if password[0] == 'X' {
+		t.Fatal("API mapping retained the protobuf password buffer")
+	}
+
+	status := RemoteLocalStatusToProto(corev2.RemoteLocalStatus{Enabled: true, PasswordProtected: true})
+	if !status.GetPasswordProtected() {
+		t.Fatal("password-protected status was not projected")
+	}
+}

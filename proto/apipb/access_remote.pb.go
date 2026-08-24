@@ -480,15 +480,16 @@ func (x *RemotePairStartCommand) GetAuthTtlSeconds() int32 {
 }
 
 type RemoteLocalEnableCommand struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	LocalWebAddress string                 `protobuf:"bytes,2,opt,name=local_web_address,json=localWebAddress,proto3" json:"local_web_address,omitempty"`
-	IceTcpAddress   string                 `protobuf:"bytes,3,opt,name=ice_tcp_address,json=iceTcpAddress,proto3" json:"ice_tcp_address,omitempty"`
-	HubUrls         []string               `protobuf:"bytes,4,rep,name=hub_urls,json=hubUrls,proto3" json:"hub_urls,omitempty"`
-	ControlUrl      string                 `protobuf:"bytes,5,opt,name=control_url,json=controlUrl,proto3" json:"control_url,omitempty"`
-	AccessToken     string                 `protobuf:"bytes,6,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	Region          string                 `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	LocalWebAddress  string                 `protobuf:"bytes,2,opt,name=local_web_address,json=localWebAddress,proto3" json:"local_web_address,omitempty"`
+	IceTcpAddress    string                 `protobuf:"bytes,3,opt,name=ice_tcp_address,json=iceTcpAddress,proto3" json:"ice_tcp_address,omitempty"`
+	HubUrls          []string               `protobuf:"bytes,4,rep,name=hub_urls,json=hubUrls,proto3" json:"hub_urls,omitempty"`
+	ControlUrl       string                 `protobuf:"bytes,5,opt,name=control_url,json=controlUrl,proto3" json:"control_url,omitempty"`
+	AccessToken      string                 `protobuf:"bytes,6,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	Region           string                 `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
+	LocalWebPassword []byte                 `protobuf:"bytes,8,opt,name=local_web_password,json=localWebPassword,proto3" json:"local_web_password,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RemoteLocalEnableCommand) Reset() {
@@ -561,6 +562,13 @@ func (x *RemoteLocalEnableCommand) GetRegion() string {
 		return x.Region
 	}
 	return ""
+}
+
+func (x *RemoteLocalEnableCommand) GetLocalWebPassword() []byte {
+	if x != nil {
+		return x.LocalWebPassword
+	}
+	return nil
 }
 
 type RemoteLocalStatusCommand struct {
@@ -1109,6 +1117,7 @@ type RemoteLocalStatusResult struct {
 	IceTcpAddress     string                 `protobuf:"bytes,6,opt,name=ice_tcp_address,json=iceTcpAddress,proto3" json:"ice_tcp_address,omitempty"`
 	IceTcpPort        int32                  `protobuf:"varint,7,opt,name=ice_tcp_port,json=iceTcpPort,proto3" json:"ice_tcp_port,omitempty"`
 	UpdatedAtUnixNano int64                  `protobuf:"varint,8,opt,name=updated_at_unix_nano,json=updatedAtUnixNano,proto3" json:"updated_at_unix_nano,omitempty"`
+	PasswordProtected bool                   `protobuf:"varint,9,opt,name=password_protected,json=passwordProtected,proto3" json:"password_protected,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1197,6 +1206,13 @@ func (x *RemoteLocalStatusResult) GetUpdatedAtUnixNano() int64 {
 		return x.UpdatedAtUnixNano
 	}
 	return 0
+}
+
+func (x *RemoteLocalStatusResult) GetPasswordProtected() bool {
+	if x != nil {
+		return x.PasswordProtected
+	}
+	return false
 }
 
 type RemoteCloudStatusResult struct {
@@ -1466,7 +1482,7 @@ const file_apipb_access_remote_proto_rawDesc = "" +
 	"\x0elocal_pair_url\x18\x02 \x01(\tR\flocalPairUrl\x12\x1f\n" +
 	"\vttl_seconds\x18\x03 \x01(\x05R\n" +
 	"ttlSeconds\x12(\n" +
-	"\x10auth_ttl_seconds\x18\x04 \x01(\x05R\x0eauthTtlSecondsJ\x04\b\x01\x10\x02\"\xeb\x01\n" +
+	"\x10auth_ttl_seconds\x18\x04 \x01(\x05R\x0eauthTtlSecondsJ\x04\b\x01\x10\x02\"\x99\x02\n" +
 	"\x18RemoteLocalEnableCommand\x12*\n" +
 	"\x11local_web_address\x18\x02 \x01(\tR\x0flocalWebAddress\x12&\n" +
 	"\x0fice_tcp_address\x18\x03 \x01(\tR\riceTcpAddress\x12\x19\n" +
@@ -1474,7 +1490,8 @@ const file_apipb_access_remote_proto_rawDesc = "" +
 	"\vcontrol_url\x18\x05 \x01(\tR\n" +
 	"controlUrl\x12!\n" +
 	"\faccess_token\x18\x06 \x01(\tR\vaccessToken\x12\x16\n" +
-	"\x06region\x18\a \x01(\tR\x06regionJ\x04\b\x01\x10\x02\" \n" +
+	"\x06region\x18\a \x01(\tR\x06region\x12,\n" +
+	"\x12local_web_password\x18\b \x01(\fR\x10localWebPasswordJ\x04\b\x01\x10\x02\" \n" +
 	"\x18RemoteLocalStatusCommandJ\x04\b\x01\x10\x02\"!\n" +
 	"\x19RemoteLocalDisableCommandJ\x04\b\x01\x10\x02\" \n" +
 	"\x18RemoteCloudStatusCommandJ\x04\b\x01\x10\x02\" \n" +
@@ -1511,7 +1528,7 @@ const file_apipb_access_remote_proto_rawDesc = "" +
 	"\vpair_secret\x18\x06 \x01(\tR\n" +
 	"pairSecret\x12.\n" +
 	"\x13answer_proof_secret\x18\a \x01(\tR\x11answerProofSecret\x12/\n" +
-	"\x14expires_at_unix_nano\x18\b \x01(\x03R\x11expiresAtUnixNano\"\xc3\x02\n" +
+	"\x14expires_at_unix_nano\x18\b \x01(\x03R\x11expiresAtUnixNano\"\xf2\x02\n" +
 	"\x17RemoteLocalStatusResult\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x19\n" +
 	"\bhttp_url\x18\x02 \x01(\tR\ahttpUrl\x12*\n" +
@@ -1521,7 +1538,8 @@ const file_apipb_access_remote_proto_rawDesc = "" +
 	"\x0fice_tcp_address\x18\x06 \x01(\tR\riceTcpAddress\x12 \n" +
 	"\fice_tcp_port\x18\a \x01(\x05R\n" +
 	"iceTcpPort\x12/\n" +
-	"\x14updated_at_unix_nano\x18\b \x01(\x03R\x11updatedAtUnixNano\"\xb5\x05\n" +
+	"\x14updated_at_unix_nano\x18\b \x01(\x03R\x11updatedAtUnixNano\x12-\n" +
+	"\x12password_protected\x18\t \x01(\bR\x11passwordProtected\"\xb5\x05\n" +
 	"\x17RemoteCloudStatusResult\x12\x1a\n" +
 	"\benrolled\x18\x01 \x01(\bR\benrolled\x12\x18\n" +
 	"\aenabled\x18\x02 \x01(\bR\aenabled\x12\x18\n" +

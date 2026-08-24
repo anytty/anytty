@@ -207,6 +207,7 @@ func (*v3CloudRuntimeControl) PairStart(context.Context, corev2.RemotePairStartR
 	return corev2.RemotePairStartResult{}, corev2.ErrRemoteServiceUnavailable
 }
 func (control *v3CloudRuntimeControl) LocalEnable(_ context.Context, request corev2.RemoteLocalEnableRequest) (corev2.RemoteLocalStatus, error) {
+	defer clear(request.LocalWebPassword)
 	control.mu.Lock()
 	defer control.mu.Unlock()
 	if control.localWebCore == nil {
@@ -218,11 +219,14 @@ func (control *v3CloudRuntimeControl) LocalEnable(_ context.Context, request cor
 	}
 	if control.localWeb != nil {
 		if address == localweb.DefaultAddress || address == control.localWeb.Address() {
+			if len(request.LocalWebPassword) > 0 {
+				return corev2.RemoteLocalStatus{}, fmt.Errorf("local web is already running; stop it before changing password protection")
+			}
 			return localWebStatus(control.localWeb, control.localWebUpdated), nil
 		}
 		return corev2.RemoteLocalStatus{}, fmt.Errorf("local web is already running at %s", control.localWeb.Address())
 	}
-	server, err := localweb.Start(localweb.Options{Core: control.localWebCore, Address: address})
+	server, err := localweb.Start(localweb.Options{Core: control.localWebCore, Address: address, Password: request.LocalWebPassword})
 	if err != nil {
 		return corev2.RemoteLocalStatus{}, err
 	}
@@ -262,6 +266,7 @@ func localWebStatus(server *localweb.Server, updated time.Time) corev2.RemoteLoc
 		status.Enabled = true
 		status.HTTPURL = server.URL()
 		status.LocalWebAddress = server.Address()
+		status.PasswordProtected = server.PasswordProtected()
 	}
 	return status
 }

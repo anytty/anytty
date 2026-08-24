@@ -43,6 +43,26 @@ anytty web
 
 Web 入口只监听当前机器的 IPv4 回环地址。`anytty web --no-open` 仅打印 URL，`anytty web status` 查看状态，`anytty web stop` 关闭浏览器入口但不停止已有终端。
 
+### 带密码的 Web 访问
+
+通过反向代理或隧道发布 Local Web 之前，可以先加访问密码：
+
+```sh
+anytty web --password --no-open
+```
+
+AnyTTY 会在终端中无回显地读取并二次确认至少 12 个字符的密码。密码不会进入 Shell 历史、命令行参数或 `web status` 输出。修改密码前需要先停止再重新启动 Local Web。
+
+AnyTTY 自身仍应只监听回环地址，并由同一台机器上的反向代理或隧道终止 TLS。公网入口需要满足以下条件：
+
+- 使用 HTTPS；
+- 将打印出的 Local Web 地址代理到站点根路径；
+- 除普通 HTTP 请求外，也转发 `/api/bridge` 的 WebSocket Upgrade；
+- 保留公网 `Host`，或者通过 `X-Forwarded-Host` 传入；
+- 如果 TLS 在代理层终止，传入 `X-Forwarded-Proto: https`。
+
+登录成功后，浏览器会获得一个非持久化、`HttpOnly`、同站点的会话 Cookie。知道密码的人拥有 Local Web 的全部终端与文件权限，因此应使用独立密码，并建议在代理层再保留一层登录限速。
+
 ## 从源码构建
 
 源码构建需要 Go 1.26.7、Node.js 24 和 npm。

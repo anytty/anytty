@@ -22,7 +22,7 @@ message ClientAccessRevokeResult { anytty.remote.auth.v1.ClientAccessRecord reco
 
 message RemoteStatusCommand { reserved 1; }
 message RemotePairStartCommand { reserved 1; string local_pair_url = 2; int32 ttl_seconds = 3; int32 auth_ttl_seconds = 4; }
-message RemoteLocalEnableCommand { reserved 1; string local_web_address = 2; string ice_tcp_address = 3; repeated string hub_urls = 4; string control_url = 5; string access_token = 6; string region = 7; }
+message RemoteLocalEnableCommand { reserved 1; string local_web_address = 2; string ice_tcp_address = 3; repeated string hub_urls = 4; string control_url = 5; string access_token = 6; string region = 7; bytes local_web_password = 8; }
 message RemoteLocalStatusCommand { reserved 1; }
 message RemoteLocalDisableCommand { reserved 1; }
 message RemoteCloudStatusCommand { reserved 1; }
@@ -34,7 +34,7 @@ message RemoteCloudReselectEdgeCommand { reserved 1; }
 
 message RemoteStatusResult { string state = 1; string detail = 2; string device_id = 3; string device_name = 4; string control_url = 5; string hub_url = 6; repeated string hub_urls = 7; string data_directory = 8; string mode = 9; bool allow_lan = 10; int32 terminal_count = 11; int64 updated_at_unix_nano = 12; }
 message RemotePairStartResult { string type = 1; string machine_id = 2; string machine_name = 3; string local_pair_url = 4; string pair_session_id = 5; string pair_secret = 6; string answer_proof_secret = 7; int64 expires_at_unix_nano = 8; }
-message RemoteLocalStatusResult { bool enabled = 1; string http_url = 2; string local_web_address = 3; string local_pair_url = 4; bool ice_tcp_enabled = 5; string ice_tcp_address = 6; int32 ice_tcp_port = 7; int64 updated_at_unix_nano = 8; }
+message RemoteLocalStatusResult { bool enabled = 1; string http_url = 2; string local_web_address = 3; string local_pair_url = 4; bool ice_tcp_enabled = 5; string ice_tcp_address = 6; int32 ice_tcp_port = 7; int64 updated_at_unix_nano = 8; bool password_protected = 9; }
 message RemoteCloudStatusResult {
   bool enrolled = 1;
   bool enabled = 2;

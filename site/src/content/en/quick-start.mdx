@@ -43,6 +43,26 @@ anytty web
 
 The Web interface listens only on your machine's IPv4 loopback address. Run `anytty web --no-open` to print its URL, `anytty web status` to inspect it, or `anytty web stop` to close the browser entry point without stopping terminals.
 
+### Password-protected Web access
+
+Add a password before publishing Local Web through a reverse proxy or tunnel:
+
+```sh
+anytty web --password --no-open
+```
+
+AnyTTY reads and confirms a passphrase of at least 12 characters directly from the terminal. It does not place the password in shell history, command-line arguments, or `web status` output. Stop and restart Local Web to change the password.
+
+Keep the AnyTTY listener on loopback and terminate TLS at a reverse proxy or tunnel on the same machine. The public endpoint must:
+
+- use HTTPS;
+- proxy the printed Local Web URL at the origin root;
+- forward WebSocket upgrades for `/api/bridge` as well as normal HTTP requests;
+- preserve the public `Host`, or send it as `X-Forwarded-Host`; and
+- send `X-Forwarded-Proto: https` when TLS terminates at the proxy.
+
+The browser receives a non-persistent, `HttpOnly`, same-site session cookie after login. Anyone who knows the password has the same terminal and file permissions as the local AnyTTY Web interface, so use a unique passphrase and keep login throttling enabled at the proxy as an additional layer.
+
 ## Build from source
 
 Source builds require Go 1.26.7, Node.js 24, and npm.

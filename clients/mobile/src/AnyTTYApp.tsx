@@ -62,6 +62,7 @@ import type { NativeQrScannerOptions } from './nativeQrScanner'
 import { endpointMachineAccessClass } from './endpointMachineProjection'
 import { cloudPresenceWithState, mergeCloudPresenceResults, samePresenceMap, type CloudPresenceState } from './cloudPresenceState'
 import { LocalWebAnyTTYApp, parseLocalWebBootstrap, type LocalWebBootstrap } from './LocalWebAnyTTYApp'
+import { LocalWebLogin } from './LocalWebLogin'
 
 const nativeHttpConnectTimeoutMs = 8_000
 const nativeHttpReadTimeoutMs = 15_000
@@ -106,20 +107,38 @@ export function AnyTTYApp() {
 
 function BrowserAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSProperties }) {
   const [bootstrap, setBootstrap] = useState<LocalWebBootstrap | null | undefined>(undefined)
+  const [authenticationRequired, setAuthenticationRequired] = useState(false)
+  const loadBootstrap = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch('/api/bootstrap', { cache: 'no-store', signal })
+    if (response.status === 401) {
+      setBootstrap(null)
+      setAuthenticationRequired(true)
+      return false
+    }
+    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+      setBootstrap(null)
+      setAuthenticationRequired(false)
+      return false
+    }
+    const value = parseLocalWebBootstrap(await response.json())
+    setBootstrap(value)
+    setAuthenticationRequired(false)
+    return value !== null
+  }, [])
   useEffect(() => {
     const controller = new AbortController()
-    void fetch('/api/bootstrap', { cache: 'no-store', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
-        return parseLocalWebBootstrap(await response.json())
-      })
-      .then((value) => setBootstrap(value))
+    void loadBootstrap(controller.signal)
       .catch(() => {
         if (!controller.signal.aborted) setBootstrap(null)
       })
     return () => controller.abort()
-  }, [])
+  }, [loadBootstrap])
   if (bootstrap === undefined) return <div className="h-full" style={initialAppThemeStyle} />
+  if (authenticationRequired) {
+    return <LocalWebLogin initialAppThemeStyle={initialAppThemeStyle} onAuthenticated={async () => {
+      if (!await loadBootstrap()) throw new Error('local Web bootstrap is unavailable')
+    }} />
+  }
   if (bootstrap === null) return <div className="h-full" style={initialAppThemeStyle}><UnsupportedWebPreview /></div>
   return <LocalWebAnyTTYApp bootstrap={bootstrap} initialAppThemeStyle={initialAppThemeStyle} />
 }

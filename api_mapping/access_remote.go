@@ -135,7 +135,7 @@ func RemotePairStartRequestFromProto(command *apipb.RemotePairStartCommand) core
 
 // RemoteLocalEnableRequestFromProto 转为 core-native local remote runtime request。
 func RemoteLocalEnableRequestFromProto(command *apipb.RemoteLocalEnableCommand) corev2.RemoteLocalEnableRequest {
-	return corev2.RemoteLocalEnableRequest{LocalWebAddress: command.GetLocalWebAddress(), ICETCPAddress: command.GetIceTcpAddress(), HubURLs: append([]string(nil), command.GetHubUrls()...), ControlURL: command.GetControlUrl(), AccessToken: command.GetAccessToken(), Region: command.GetRegion()}
+	return corev2.RemoteLocalEnableRequest{LocalWebAddress: command.GetLocalWebAddress(), ICETCPAddress: command.GetIceTcpAddress(), HubURLs: append([]string(nil), command.GetHubUrls()...), ControlURL: command.GetControlUrl(), AccessToken: command.GetAccessToken(), Region: command.GetRegion(), LocalWebPassword: append([]byte(nil), command.GetLocalWebPassword()...)}
 }
 
 // RemoteStatusToProto 转为公共 remote runtime 状态。
@@ -150,7 +150,7 @@ func RemotePairStartToProto(result corev2.RemotePairStartResult) *apipb.RemotePa
 
 // RemoteLocalStatusToProto 转为公共 local remote runtime 状态。
 func RemoteLocalStatusToProto(status corev2.RemoteLocalStatus) *apipb.RemoteLocalStatusResult {
-	return &apipb.RemoteLocalStatusResult{Enabled: status.Enabled, HttpUrl: status.HTTPURL, LocalWebAddress: status.LocalWebAddress, LocalPairUrl: status.LocalPairURL, IceTcpEnabled: status.ICETCPEnabled, IceTcpAddress: status.ICETCPAddress, IceTcpPort: int32(status.ICETCPPort), UpdatedAtUnixNano: unixNanoOrZero(status.UpdatedAt)}
+	return &apipb.RemoteLocalStatusResult{Enabled: status.Enabled, HttpUrl: status.HTTPURL, LocalWebAddress: status.LocalWebAddress, LocalPairUrl: status.LocalPairURL, IceTcpEnabled: status.ICETCPEnabled, IceTcpAddress: status.ICETCPAddress, IceTcpPort: int32(status.ICETCPPort), UpdatedAtUnixNano: unixNanoOrZero(status.UpdatedAt), PasswordProtected: status.PasswordProtected}
 }
 
 // RemoteCloudStatusToProto 转为公共 Cloud runtime 状态。

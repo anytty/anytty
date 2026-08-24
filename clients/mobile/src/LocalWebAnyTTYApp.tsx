@@ -149,12 +149,14 @@ export function parseLocalWebBootstrap(value: unknown): LocalWebBootstrap | null
   if (!record.machine || typeof record.machine !== 'object' || Array.isArray(record.machine)) return null
   const bridge = record.bridge as Record<string, unknown>
   const machine = record.machine as Record<string, unknown>
-  if (!Number.isInteger(bridge.port) || Number(bridge.port) < 1 || Number(bridge.port) > 65535) return null
+  const hasLocalPath = bridge.path === '/api/bridge'
+  const hasLoopbackPort = Number.isInteger(bridge.port) && Number(bridge.port) >= 1 && Number(bridge.port) <= 65535
+  if (!hasLocalPath && !hasLoopbackPort) return null
   if (typeof bridge.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(bridge.token)) return null
   if (machine.id !== 'local' || typeof machine.name !== 'string' || machine.name.trim() === '') return null
   if (typeof machine.platform !== 'string' || !/^[a-z0-9_-]{1,32}$/.test(machine.platform)) return null
   return {
-    bridge: { port: Number(bridge.port), token: bridge.token },
+    bridge: hasLocalPath ? { path: '/api/bridge', token: bridge.token } : { port: Number(bridge.port), token: bridge.token },
     machine: {
       id: 'local',
       name: machine.name.trim(),

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/anytty/anytty/localweb"
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type localWebApplicationSession interface {
@@ -23,10 +26,11 @@ type localWebApplicationSession interface {
 }
 
 type localWebStatusView struct {
-	Enabled   bool   `json:"enabled"`
-	URL       string `json:"url,omitempty"`
-	Address   string `json:"address,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
+	Enabled           bool   `json:"enabled"`
+	URL               string `json:"url,omitempty"`
+	Address           string `json:"address,omitempty"`
+	PasswordProtected bool   `json:"password_protected"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
 }
 
 var openLocalWebBrowser = openBrowser
@@ -35,13 +39,23 @@ func newWebCommand(socket, logFile, configPath *string) *cobra.Command {
 	var address string
 	var noOpen bool
 	var jsonOutput bool
+	var passwordProtected bool
 	command := &cobra.Command{
 		Use:   "web",
 		Short: "Open the local AnyTTY browser interface",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			var password []byte
+			if passwordProtected {
+				var err error
+				password, err = promptLocalWebPassword(cmd)
+				if err != nil {
+					return err
+				}
+				defer clear(password)
+			}
 			response, err := callLocalWeb(cmd, socket, logFile, configPath, func(ctx context.Context, application localWebApplicationSession) (*apipb.RemoteLocalStatusResult, error) {
-				return application.RemoteLocalEnable(ctx, &apipb.RemoteLocalEnableCommand{LocalWebAddress: strings.TrimSpace(address)})
+				return application.RemoteLocalEnable(ctx, &apipb.RemoteLocalEnableCommand{LocalWebAddress: strings.TrimSpace(address), LocalWebPassword: password})
 			})
 			if err != nil {
 				return err
@@ -51,6 +65,7 @@ func newWebCommand(socket, logFile, configPath *string) *cobra.Command {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(status)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "AnyTTY Web: %s\n", status.URL)
+			fmt.Fprintf(cmd.OutOrStdout(), "Password protection: %s\n", passwordProtectionState(status.PasswordProtected))
 			if noOpen {
 				return nil
 			}
@@ -61,6 +76,7 @@ func newWebCommand(socket, logFile, configPath *string) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&address, "listen", localweb.DefaultAddress, "IPv4 loopback listen address")
+	command.Flags().BoolVar(&passwordProtected, "password", false, "prompt for a Web access password")
 	command.Flags().BoolVar(&noOpen, "no-open", false, "print the URL without opening a browser")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	command.AddCommand(newWebStatusCommand(socket, logFile, configPath), newWebStopCommand(socket, logFile, configPath))
@@ -82,10 +98,18 @@ func newWebStatusCommand(socket, logFile, configPath *string) *cobra.Command {
 			return nil
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "AnyTTY Web is running at %s\n", status.URL)
+		fmt.Fprintf(cmd.OutOrStdout(), "Password protection: %s\n", passwordProtectionState(status.PasswordProtected))
 		return nil
 	}}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	return command
+}
+
+func passwordProtectionState(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "disabled"
 }
 
 func newWebStopCommand(socket, logFile, configPath *string) *cobra.Command {
@@ -149,11 +173,41 @@ func localWebStatusFromProto(status *apipb.RemoteLocalStatusResult) localWebStat
 	if status == nil {
 		return localWebStatusView{}
 	}
-	view := localWebStatusView{Enabled: status.GetEnabled(), URL: status.GetHttpUrl(), Address: status.GetLocalWebAddress()}
+	view := localWebStatusView{Enabled: status.GetEnabled(), URL: status.GetHttpUrl(), Address: status.GetLocalWebAddress(), PasswordProtected: status.GetPasswordProtected()}
 	if value := status.GetUpdatedAtUnixNano(); value > 0 {
 		view.UpdatedAt = time.Unix(0, value).UTC().Format(time.RFC3339Nano)
 	}
 	return view
+}
+
+func promptLocalWebPassword(cmd *cobra.Command) ([]byte, error) {
+	input, ok := cmd.InOrStdin().(*os.File)
+	if !ok || !term.IsTerminal(int(input.Fd())) {
+		return nil, fmt.Errorf("--password requires interactive terminal input")
+	}
+	fmt.Fprint(cmd.ErrOrStderr(), "Web access password: ")
+	password, err := term.ReadPassword(int(input.Fd()))
+	fmt.Fprintln(cmd.ErrOrStderr())
+	if err != nil {
+		return nil, fmt.Errorf("read Web access password: %w", err)
+	}
+	if err := localweb.ValidatePassword(password); err != nil {
+		clear(password)
+		return nil, err
+	}
+	fmt.Fprint(cmd.ErrOrStderr(), "Confirm Web access password: ")
+	confirmation, err := term.ReadPassword(int(input.Fd()))
+	fmt.Fprintln(cmd.ErrOrStderr())
+	if err != nil {
+		clear(password)
+		return nil, fmt.Errorf("confirm Web access password: %w", err)
+	}
+	defer clear(confirmation)
+	if !bytes.Equal(password, confirmation) {
+		clear(password)
+		return nil, fmt.Errorf("Web access passwords do not match")
+	}
+	return password, nil
 }
 
 func openBrowser(url string) error {

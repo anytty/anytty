@@ -220,6 +220,8 @@ public nonisolated struct Anytty_Api_V1_RemoteLocalEnableCommand: Sendable {
 
   public var region: String = String()
 
+  public var localWebPassword: Data = Data()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -389,6 +391,8 @@ public nonisolated struct Anytty_Api_V1_RemoteLocalStatusResult: Sendable {
   public var iceTcpPort: Int32 = 0
 
   public var updatedAtUnixNano: Int64 = 0
+
+  public var passwordProtected: Bool = false
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -856,7 +860,7 @@ nonisolated extension Anytty_Api_V1_RemotePairStartCommand: SwiftProtobuf.Messag
 
 nonisolated extension Anytty_Api_V1_RemoteLocalEnableCommand: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".RemoteLocalEnableCommand"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{4}\u{2}local_web_address\0\u{3}ice_tcp_address\0\u{3}hub_urls\0\u{3}control_url\0\u{3}access_token\0\u{1}region\0\u{c}\u{1}\u{1}")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{4}\u{2}local_web_address\0\u{3}ice_tcp_address\0\u{3}hub_urls\0\u{3}control_url\0\u{3}access_token\0\u{1}region\0\u{3}local_web_password\0\u{c}\u{1}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -870,6 +874,7 @@ nonisolated extension Anytty_Api_V1_RemoteLocalEnableCommand: SwiftProtobuf.Mess
       case 5: try { try decoder.decodeSingularStringField(value: &self.controlURL) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.accessToken) }()
       case 7: try { try decoder.decodeSingularStringField(value: &self.region) }()
+      case 8: try { try decoder.decodeSingularBytesField(value: &self.localWebPassword) }()
       default: break
       }
     }
@@ -894,6 +899,9 @@ nonisolated extension Anytty_Api_V1_RemoteLocalEnableCommand: SwiftProtobuf.Mess
     if !self.region.isEmpty {
       try visitor.visitSingularStringField(value: self.region, fieldNumber: 7)
     }
+    if !self.localWebPassword.isEmpty {
+      try visitor.visitSingularBytesField(value: self.localWebPassword, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -904,6 +912,7 @@ nonisolated extension Anytty_Api_V1_RemoteLocalEnableCommand: SwiftProtobuf.Mess
     if lhs.controlURL != rhs.controlURL {return false}
     if lhs.accessToken != rhs.accessToken {return false}
     if lhs.region != rhs.region {return false}
+    if lhs.localWebPassword != rhs.localWebPassword {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -1229,7 +1238,7 @@ nonisolated extension Anytty_Api_V1_RemotePairStartResult: SwiftProtobuf.Message
 
 nonisolated extension Anytty_Api_V1_RemoteLocalStatusResult: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".RemoteLocalStatusResult"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}enabled\0\u{3}http_url\0\u{3}local_web_address\0\u{3}local_pair_url\0\u{3}ice_tcp_enabled\0\u{3}ice_tcp_address\0\u{3}ice_tcp_port\0\u{3}updated_at_unix_nano\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}enabled\0\u{3}http_url\0\u{3}local_web_address\0\u{3}local_pair_url\0\u{3}ice_tcp_enabled\0\u{3}ice_tcp_address\0\u{3}ice_tcp_port\0\u{3}updated_at_unix_nano\0\u{3}password_protected\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1245,6 +1254,7 @@ nonisolated extension Anytty_Api_V1_RemoteLocalStatusResult: SwiftProtobuf.Messa
       case 6: try { try decoder.decodeSingularStringField(value: &self.iceTcpAddress) }()
       case 7: try { try decoder.decodeSingularInt32Field(value: &self.iceTcpPort) }()
       case 8: try { try decoder.decodeSingularInt64Field(value: &self.updatedAtUnixNano) }()
+      case 9: try { try decoder.decodeSingularBoolField(value: &self.passwordProtected) }()
       default: break
       }
     }
@@ -1275,6 +1285,9 @@ nonisolated extension Anytty_Api_V1_RemoteLocalStatusResult: SwiftProtobuf.Messa
     if self.updatedAtUnixNano != 0 {
       try visitor.visitSingularInt64Field(value: self.updatedAtUnixNano, fieldNumber: 8)
     }
+    if self.passwordProtected != false {
+      try visitor.visitSingularBoolField(value: self.passwordProtected, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1287,6 +1300,7 @@ nonisolated extension Anytty_Api_V1_RemoteLocalStatusResult: SwiftProtobuf.Messa
     if lhs.iceTcpAddress != rhs.iceTcpAddress {return false}
     if lhs.iceTcpPort != rhs.iceTcpPort {return false}
     if lhs.updatedAtUnixNano != rhs.updatedAtUnixNano {return false}
+    if lhs.passwordProtected != rhs.passwordProtected {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

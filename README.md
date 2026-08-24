@@ -15,7 +15,7 @@
 
 AnyTTY keeps terminal sessions running on your own machines, so you can close the window, switch devices, or come back later without losing the work. Use the keyboard-first TUI, CLI, or mobile app to check in, take control, and manage files over the same connection.
 
-> **Beta:** `v0.0.1-beta.1` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
+> **Beta:** `v0.0.1-beta.2` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
 
 <table>
   <tr>
@@ -57,7 +57,7 @@ AnyTTY keeps terminal sessions running on your own machines, so you can close th
   </tr>
 </table>
 
-> **Install the app:** The mobile app supports both Android and iOS. The Android Beta APK is temporarily available from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1). A public iOS build is not yet available and must wait for the Apple App Store release. Google Play and Apple App Store publishing are both in progress.
+> **Install the app:** The mobile app supports both Android and iOS. The Android Beta APK is temporarily available from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.2). A public iOS build is not yet available and must wait for the Apple App Store release. Google Play and Apple App Store publishing are both in progress.
 
 ### Connections and file management
 
@@ -112,7 +112,7 @@ Choose another version or installation directory when needed:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
-  sh -s -- --version v0.0.1-beta.1 --bin-dir "$HOME/bin"
+  sh -s -- --version v0.0.1-beta.2 --bin-dir "$HOME/bin"
 ```
 
 ### Windows PowerShell
@@ -124,7 +124,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 
 The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. Pass `-NoModifyPath` to leave `PATH` unchanged.
 
-You can also download CLI archives and the unsigned Android Beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.1). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
+You can also download CLI archives and the unsigned Android Beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.2). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
 
 ### Update
 
@@ -168,6 +168,8 @@ anytty web
 ```
 
 This starts a loopback-only Web interface on a random port and opens it in your default browser. Use `anytty web --no-open` to print the URL, `anytty web status` to inspect it, and `anytty web stop` to close the Web interface. Stopping the page does not stop the daemon or its terminals.
+
+To protect the Web interface with a password, start it with `anytty web --password`. AnyTTY reads and confirms a passphrase of at least 12 characters without placing it in shell history or process arguments. A password-protected loopback URL can be published through an HTTPS reverse proxy or tunnel that forwards both HTTP and WebSocket traffic, including `/api/bridge`, and preserves the public Host (or supplies `X-Forwarded-Host` and `X-Forwarded-Proto`). Anyone with this password receives full terminal and file access, so use a unique passphrase. Stop the Web interface before changing its password.
 
 Run `anytty --help` for the complete command list, or continue with the [quick-start guide](https://anytty.github.io/anytty/docs/quick-start.html).
 

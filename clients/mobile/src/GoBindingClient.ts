@@ -27,7 +27,8 @@ type PendingBridgeRequest = {
 }
 
 export interface BindingBridgeEndpoint {
-  port: number
+  port?: number
+  path?: string
   token: string
 }
 
@@ -133,7 +134,7 @@ export class WebSocketBindingBackend implements ProtoBindingBackend {
 
   private async connect(): Promise<void> {
     const endpoint = await this.endpoint()
-    const socket = new WebSocket(`ws://127.0.0.1:${endpoint.port}`, BRIDGE_PROTOCOL)
+    const socket = new WebSocket(bindingBridgeURL(endpoint), BRIDGE_PROTOCOL)
     socket.binaryType = 'arraybuffer'
     this.socket = socket
     await new Promise<void>((resolve, reject) => {
@@ -250,6 +251,18 @@ export class WebSocketBindingBackend implements ProtoBindingBackend {
     this.pending.clear()
     this.abandoned.clear()
   }
+}
+
+export function bindingBridgeURL(endpoint: BindingBridgeEndpoint, browserLocation: Pick<Location, 'protocol' | 'host'> = globalThis.location): string {
+  if (endpoint.path !== undefined) {
+    if (endpoint.path !== '/api/bridge') throw new Error('Go binding bridge path is invalid')
+    const protocol = browserLocation.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${browserLocation.host}${endpoint.path}`
+  }
+  if (!Number.isInteger(endpoint.port) || Number(endpoint.port) < 1 || Number(endpoint.port) > 65535) {
+    throw new Error('Go binding bridge port is invalid')
+  }
+  return `ws://127.0.0.1:${endpoint.port}`
 }
 
 /** AndroidBindingBackend resolves its bridge endpoint through the native plugin. */

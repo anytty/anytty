@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BindingOperation } from '@anytty/ui'
-import { AndroidBindingBackend, decodeBridgeFrame, encodeBridgeRequestFrame } from './GoBindingClient'
+import { AndroidBindingBackend, bindingBridgeURL, decodeBridgeFrame, encodeBridgeRequestFrame } from './GoBindingClient'
 
 const nativeConnectionMock = vi.hoisted(() => ({
   getBridgeEndpoint: vi.fn(),
@@ -44,6 +44,21 @@ describe('Android binding bridge allocation limits', () => {
   it('rejects oversized responses before slicing payload', () => {
     expect(() => decodeBridgeFrame(new Uint8Array(MAX_MESSAGE_BYTES + 1)))
       .toThrow('exceeds bridge message limit')
+  })
+})
+
+describe('Web binding bridge URL', () => {
+  it('uses the current secure origin for Local Web', () => {
+    expect(bindingBridgeURL(
+      { path: '/api/bridge', token: 'A'.repeat(43) },
+      { protocol: 'https:', host: 'terminal.example' },
+    ))
+      .toBe('wss://terminal.example/api/bridge')
+  })
+
+  it('keeps the native loopback endpoint', () => {
+    expect(bindingBridgeURL({ port: 43123, token: 'A'.repeat(43) }))
+      .toBe('ws://127.0.0.1:43123')
   })
 })
 
