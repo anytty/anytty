@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	cloudclient "github.com/anytty/anytty/cloud/client"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -19,6 +20,7 @@ type StatusSnapshot struct {
 	ActiveSessions                                      int
 	EnrolledAt, AgentReadyAt, UpdatedAt                 time.Time
 	EnrollmentDeleted, ActiveAttempt, HasLifecycleState bool
+	EntitlementFailure                                  *cloudv1.CloudEntitlementFailure
 }
 
 func (runtime *Runtime) StatusSnapshot() StatusSnapshot {
@@ -39,13 +41,19 @@ func (runtime *Runtime) StatusSnapshot() StatusSnapshot {
 	runtime.attemptMu.Lock()
 	activeAttempt := runtime.activeAttemptID != ""
 	runtime.attemptMu.Unlock()
+	runtime.connectionFailureMu.RLock()
+	connectionFailure := runtime.connectionFailure
+	if connectionFailure != nil {
+		connectionFailure = proto.Clone(connectionFailure).(*cloudv1.CloudEntitlementFailure)
+	}
+	runtime.connectionFailureMu.RUnlock()
 
 	snapshot := StatusSnapshot{
 		DaemonID: record.DaemonID, AccountID: record.AccountID,
 		EdgeID: locator.GetEdgeId(), EdgeName: locator.GetName(), EdgeRegion: locator.GetRegion(),
 		PublicEndpoint: locator.GetPublicEndpoint(), ServerName: locator.GetServerName(),
 		Ready: ready, ActiveSessions: activeSessions, EnrolledAt: record.EnrolledAt, UpdatedAt: time.Now().UTC(),
-		EnrollmentDeleted: enrollmentDeleted, ActiveAttempt: activeAttempt,
+		EnrollmentDeleted: enrollmentDeleted, ActiveAttempt: activeAttempt, EntitlementFailure: connectionFailure,
 	}
 	if readyAt := runtime.agentReadyAt.Load(); readyAt != 0 {
 		snapshot.AgentReadyAt = time.Unix(0, readyAt).UTC()
@@ -56,6 +64,16 @@ func (runtime *Runtime) StatusSnapshot() StatusSnapshot {
 		snapshot.LifecycleRevision = daemonState.GetStateRevision()
 	}
 	return snapshot
+}
+
+func (runtime *Runtime) recordConnectionFailure(err error) {
+	if runtime == nil {
+		return
+	}
+	failure := cloudclient.EntitlementFailure(err)
+	runtime.connectionFailureMu.Lock()
+	defer runtime.connectionFailureMu.Unlock()
+	runtime.connectionFailure = failure
 }
 
 func normalizeDaemonState(state cloudv1.DaemonState) string {

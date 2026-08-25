@@ -194,7 +194,30 @@ func loadV3CloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Run
 	if strings.TrimSpace(lastRuntimeError) != "" && status.State != "online" {
 		status.Detail = strings.TrimSpace(lastRuntimeError)
 	}
+	if snapshot.EntitlementFailure != nil && status.State != "online" {
+		status.State, status.Detail = cloudEntitlementRuntimeStatus(snapshot.EntitlementFailure)
+	}
 	return status, nil
+}
+
+func cloudEntitlementRuntimeStatus(failure *cloudv1.CloudEntitlementFailure) (string, string) {
+	if failure == nil {
+		return "entitlement_denied", "AnyTTY Cloud access is not allowed by the current plan"
+	}
+	switch failure.GetCode() {
+	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_DAEMON_LIMIT_EXHAUSTED:
+		limit := ""
+		if failure.GetLimit() > 0 {
+			limit = fmt.Sprintf(" (limit %d)", failure.GetLimit())
+		}
+		return "quota_limited", "AnyTTY Cloud daemon connection limit is reached" + limit + "; stop another Cloud daemon or upgrade at https://cloud.anytty.com/app/subscription. Direct and SSH remain available"
+	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE:
+		return "subscription_inactive", "AnyTTY Cloud subscription is inactive; renew it at https://cloud.anytty.com/app/subscription. Direct and SSH remain available"
+	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SERVICE_UNAVAILABLE:
+		return "degraded", "AnyTTY Cloud entitlement is temporarily unavailable; retry later. Direct and SSH remain available"
+	default:
+		return "entitlement_denied", "AnyTTY Cloud access is not allowed by the current plan; review https://cloud.anytty.com/app/subscription"
+	}
 }
 
 func applyCloudRecordLocator(status *corev2.RemoteCloudStatus, record clouddaemon.EnrollmentRecord) {

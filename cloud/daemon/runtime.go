@@ -52,23 +52,25 @@ type Config struct {
 
 // Runtime 持有可刷新的 enrollment 路由材料和当前 AgentGateway 在线状态。
 type Runtime struct {
-	config             Config
-	bootID             string
-	attemptGeneration  atomic.Uint64
-	agentReadySequence atomic.Uint64
-	agentReadyAt       atomic.Int64
-	recordMu           sync.RWMutex
-	record             EnrollmentRecord
-	lifecycleMu        sync.Mutex
-	daemonState        *cloudv1.DaemonStateRecord
-	readyConnectionID  string
-	lifecycleAck       uint64
-	cloudSessions      map[string]*cloudSession
-	enrollmentDeleted  bool
-	operationMu        sync.Mutex
-	attemptMu          sync.Mutex
-	activeAttemptID    string
-	activeCancel       context.CancelFunc
+	config              Config
+	bootID              string
+	attemptGeneration   atomic.Uint64
+	agentReadySequence  atomic.Uint64
+	agentReadyAt        atomic.Int64
+	recordMu            sync.RWMutex
+	record              EnrollmentRecord
+	lifecycleMu         sync.Mutex
+	daemonState         *cloudv1.DaemonStateRecord
+	readyConnectionID   string
+	lifecycleAck        uint64
+	cloudSessions       map[string]*cloudSession
+	enrollmentDeleted   bool
+	operationMu         sync.Mutex
+	attemptMu           sync.Mutex
+	activeAttemptID     string
+	activeCancel        context.CancelFunc
+	connectionFailureMu sync.RWMutex
+	connectionFailure   *cloudv1.CloudEntitlementFailure
 }
 
 var errEdgeReselected = errors.New("daemon Edge reselection requested")
@@ -211,6 +213,7 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		runtime.recordConnectionFailure(err)
 		if errors.Is(err, errEdgeReselected) {
 			delay = runtime.config.RetryMinimum
 			continue
@@ -706,6 +709,7 @@ func (runtime *Runtime) cloudActiveLocked() bool {
 }
 
 func (runtime *Runtime) markAgentReady(connectionID string) {
+	runtime.recordConnectionFailure(nil)
 	runtime.lifecycleMu.Lock()
 	runtime.readyConnectionID = connectionID
 	runtime.lifecycleAck = 0

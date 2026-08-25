@@ -15,7 +15,7 @@
 
 AnyTTY keeps terminal sessions running on your own machines, so you can close the window, switch devices, or come back later without losing the work. Use the keyboard-first TUI, CLI, or mobile app to check in, take control, and manage files over the same connection.
 
-> **Beta:** `v0.0.1-beta.3` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
+> **Beta:** `v0.0.1-beta.4` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
 
 <table>
   <tr>
@@ -57,7 +57,7 @@ AnyTTY keeps terminal sessions running on your own machines, so you can close th
   </tr>
 </table>
 
-> **Install the app:** The mobile app supports both Android and iOS. The Android Beta APK is temporarily available from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.3). A public iOS build is not yet available and must wait for the Apple App Store release. Google Play and Apple App Store publishing are both in progress.
+> **Install the app:** The mobile app supports both Android and iOS. The Android Beta APK is temporarily available from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4). A public iOS build is not yet available and must wait for the Apple App Store release. Google Play and Apple App Store publishing are both in progress.
 
 ### Connections and file management
 
@@ -112,7 +112,7 @@ Choose another version or installation directory when needed:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
-  sh -s -- --version v0.0.1-beta.3 --bin-dir "$HOME/bin"
+  sh -s -- --version v0.0.1-beta.4 --bin-dir "$HOME/bin"
 ```
 
 ### Windows PowerShell
@@ -124,7 +124,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 
 The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. Pass `-NoModifyPath` to leave `PATH` unchanged.
 
-You can also download CLI archives and the unsigned Android Beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.3). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
+You can also download CLI archives and the unsigned Android Beta APK directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
 
 ### Update
 

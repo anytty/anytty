@@ -206,6 +206,8 @@ func cloudEntitlementMessage(failure *cloudv1.CloudEntitlementFailure) string {
 		return "Cloud entitlement denied"
 	}
 	switch failure.GetCode() {
+	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_DAEMON_LIMIT_EXHAUSTED:
+		return "Cloud daemon connection limit is reached; stop another Cloud daemon or upgrade the plan. Direct and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_QUOTA_EXHAUSTED:
 		return "Relay traffic quota is exhausted; Direct, P2P, and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED:

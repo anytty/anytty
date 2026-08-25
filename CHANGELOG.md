@@ -6,6 +6,12 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.4] - 2026-08-26
+
+### Fixed
+
+- Cloud daemon admission now carries a structured daemon-limit failure, and `anytty cloud status` reports an actionable `quota_limited` state instead of waiting indefinitely for Edge readiness.
+
 ## [0.0.1-beta.3] - 2026-08-26
 
 ### Added

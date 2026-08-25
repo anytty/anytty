@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+## [0.0.1-beta.4] - 2026-08-26
+
+### Fixed
+
+- Cloud daemon 准入现在会携带结构化的 daemon 名额受限详情，`anytty cloud status` 会展示可操作的 `quota_limited` 状态，不再无限停留在等待 Edge 就绪。
+
 ## [0.0.1-beta.3] - 2026-08-26
 
 ### Added

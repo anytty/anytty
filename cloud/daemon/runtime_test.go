@@ -135,6 +135,31 @@ func TestAgentDiagnosticExposesStageWithoutErrorSecrets(t *testing.T) {
 	}
 }
 
+func TestStatusSnapshotProjectsAndClearsEntitlementFailure(t *testing.T) {
+	runtime := &Runtime{cloudSessions: make(map[string]*cloudSession)}
+	failure := &cloudv1.CloudEntitlementFailure{
+		Code:    cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_DAEMON_LIMIT_EXHAUSTED,
+		Message: "cloud daemon connection limit reached",
+	}
+	grpcErr, err := status.New(codes.ResourceExhausted, failure.GetMessage()).WithDetails(failure)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.recordConnectionFailure(grpcErr.Err())
+	snapshot := runtime.StatusSnapshot()
+	if snapshot.EntitlementFailure.GetCode() != failure.GetCode() {
+		t.Fatalf("entitlement failure = %#v", snapshot.EntitlementFailure)
+	}
+	snapshot.EntitlementFailure.Message = "mutated"
+	if got := runtime.StatusSnapshot().EntitlementFailure.GetMessage(); got != failure.GetMessage() {
+		t.Fatalf("stored entitlement failure was mutated: %q", got)
+	}
+	runtime.markAgentReady("connection")
+	if got := runtime.StatusSnapshot().EntitlementFailure; got != nil {
+		t.Fatalf("ready runtime retained entitlement failure: %#v", got)
+	}
+}
+
 func TestManagedPairingClaimRequiresReadyEdge(t *testing.T) {
 	identity, err := remoteauth.NewIdentity("daemon-online-gate", ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x21}, ed25519.SeedSize)))
 	if err != nil {
