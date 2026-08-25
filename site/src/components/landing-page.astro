@@ -88,7 +88,8 @@ const copy = {
     compareLead: 'Close the window and see what survives. AnyTTY keeps a pool of persistent terminals your phone, tablet, and browser can all take over — tmux, Zellij, and Windows Terminal don\'t.',
     cloudEyebrow: 'AnyTTY Cloud', cloudTitle: 'Reach your machines, even behind NAT.',
     cloudLead: 'AnyTTY Cloud connects your machines through peer-to-peer paths with an encrypted relay fallback — no router config, no public IP required.',
-    cloudCta: 'Open Cloud', cloudMeta: 'P2P hole punching · encrypted relay',
+    cloudCta: 'View Cloud & pricing', cloudMeta: 'USD · Annual billing is also available',
+    cloudPlans: [['Cloud Free', '$0'], ['Personal Pro', '$9.90 / month'], ['Power User', '$19.90 / month']],
     compareProducts: ['AnyTTY', 'tmux', 'Zellij', 'Windows Terminal'],
     compareRows: [
       ['Persistent pool · survives closed windows', true, true, true, false],
@@ -166,7 +167,8 @@ const copy = {
     compareLead: '关掉窗口，看看什么还在。AnyTTY 维护着一个持续运行的终端池，手机、平板和浏览器都能随时接管——tmux、Zellij 和 Windows Terminal 都没有这个池子。',
     cloudEyebrow: 'AnyTTY Cloud', cloudTitle: '内网机器，也能随时连上。',
     cloudLead: 'AnyTTY Cloud 通过 P2P 直连打通你的机器，连不上时自动走加密中继——不用改路由器，不需要公网 IP。',
-    cloudCta: '进入 Cloud', cloudMeta: 'P2P 打洞 · 加密中继',
+    cloudCta: '查看 Cloud 与价格', cloudMeta: '美元计价 · 同时提供年付',
+    cloudPlans: [['Cloud Free', '$0'], ['Personal Pro', '$9.90 / 月'], ['Power User', '$19.90 / 月']],
     compareProducts: ['AnyTTY', 'tmux', 'Zellij', 'Windows Terminal'],
     compareRows: [
       ['终端池 · 关窗不中断', true, true, true, false],
@@ -487,18 +489,25 @@ const accessIcons = [Cloud, LockKeyhole, Files]
     </div>
   </section>
 
-  <section class="py-20 sm:py-24 lg:py-28" aria-labelledby="cloud-title">
+  <section id="cloud" class="scroll-mt-20 border-y border-[var(--line)] bg-zinc-950/35 py-20 sm:py-24 lg:py-28" aria-labelledby="cloud-title">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="relative overflow-hidden rounded-3xl bg-zinc-900/60 p-8 ring-1 ring-[var(--line)] sm:p-12 lg:p-16">
-        <div class="pointer-events-none absolute inset-0 opacity-80" style="background: radial-gradient(48% 65% at 50% 0%, rgba(56, 189, 248, 0.12), transparent 70%);"></div>
-        <div class="relative mx-auto max-w-2xl text-center">
+      <div class="grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-center lg:gap-16">
+        <div>
           <Badge variant="secondary" className="border-0 bg-[var(--chip)] font-mono text-[11px] font-normal text-zinc-200">{t.cloudEyebrow}</Badge>
           <h2 id="cloud-title" class="mt-5 text-3xl font-medium leading-tight sm:text-4xl">{t.cloudTitle}</h2>
           <p class="mt-5 text-base font-normal leading-7 text-zinc-400">{t.cloudLead}</p>
-          <a class={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'mt-8 h-11 gap-2 bg-sky-500 px-6 font-normal hover:bg-sky-400')} href="https://cloud.anytty.com">
+          <a class={cn(buttonVariants({ variant: 'default', size: 'lg' }), 'mt-8 h-11 gap-2 px-6 font-normal')} href={sitePath(localizedPath(locale, '/cloud'))}>
             <Cloud className="size-4" aria-hidden="true" />{t.cloudCta}<ArrowRight aria-hidden="true" />
           </a>
-          <p class="mt-5 font-mono text-[11px] font-normal text-zinc-500">{t.cloudMeta}</p>
+        </div>
+        <div class="grid divide-y divide-[var(--line)] border-y border-[var(--line)] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {t.cloudPlans.map(([name, price]) => (
+            <div class="px-1 py-5 sm:px-5 sm:py-7">
+              <p class="font-mono text-[11px] text-zinc-500">{name}</p>
+              <p class="mt-2 text-xl font-semibold text-zinc-100">{price}</p>
+            </div>
+          ))}
+          <p class="col-span-full px-1 py-4 font-mono text-[11px] font-normal text-zinc-500 sm:px-5">{t.cloudMeta}</p>
         </div>
       </div>
     </div>
