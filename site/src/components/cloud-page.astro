@@ -114,8 +114,7 @@ const localized = (path: string) => sitePath(localizedPath(locale, path))
 
 <main id="main" class="bg-background text-zinc-50">
   <section
-    class="relative -mt-20 flex min-h-[540px] items-end overflow-hidden border-b border-[var(--line)] bg-zinc-950 px-5 pb-14 pt-32 sm:min-h-[600px] sm:px-8 sm:pb-20"
-    style={`background-image: linear-gradient(180deg, rgba(3,7,18,.3) 0%, rgba(5,8,16,.68) 45%, rgba(7,9,15,.97) 100%), url('${sitePath('/assets/tui-workbench.webp')}'); background-size: cover; background-position: center 20%;`}
+    class="relative -mt-20 flex min-h-[500px] items-end overflow-hidden border-b border-[var(--line)] bg-zinc-950 px-5 pb-14 pt-32 sm:min-h-[540px] sm:px-8 sm:pb-16"
     aria-labelledby="cloud-page-title"
   >
     <div class="relative mx-auto w-full max-w-7xl">
@@ -133,6 +132,14 @@ const localized = (path: string) => sitePath(localizedPath(locale, path))
         <a class="inline-flex min-h-11 items-center gap-2 px-2 text-sm font-medium text-zinc-200 underline-offset-4 hover:text-white hover:underline" href="https://cloud.anytty.com/login">
           <LogIn className="size-4" aria-hidden="true" />{t.signIn}
         </a>
+      </div>
+      <div class="mt-9 flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/10 pt-5 font-mono text-[11px] text-zinc-400" aria-label={`${t.routeClient}, ${t.routeP2P}, ${t.routeMachine}`}>
+        <span class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-sky-400"></span>{t.routeClient}</span>
+        <ArrowRight className="size-3.5 text-zinc-600" aria-hidden="true" />
+        <span class="flex items-center gap-2 text-emerald-300"><span class="size-1.5 rounded-full bg-emerald-400"></span>{t.routeP2P}</span>
+        <ArrowRight className="size-3.5 text-zinc-600" aria-hidden="true" />
+        <span class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-sky-400"></span>{t.routeMachine}</span>
+        <span class="sm:ml-auto">{t.routeFallback}</span>
       </div>
     </div>
   </section>
