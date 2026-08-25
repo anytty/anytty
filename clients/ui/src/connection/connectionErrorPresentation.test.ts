@@ -78,12 +78,23 @@ describe('connection error presentation', () => {
   it.each([
     ['relay_quota_exhausted', 'relay_quota'],
     ['relay_concurrency_exhausted', 'relay_concurrency'],
-    ['relay_not_in_plan', 'entitlement'],
-    ['subscription_inactive', 'entitlement'],
-    ['relay_region_unavailable', 'entitlement'],
+    ['relay_not_in_plan', 'relay_not_in_plan'],
+    ['subscription_inactive', 'subscription_inactive'],
+    ['relay_region_unavailable', 'relay_region_unavailable'],
   ] as const)('uses stable Cloud code %s without parsing its message', (code, reason) => {
     const source = Object.assign(new Error('opaque localized detail'), { code })
     expect(connectionFailurePresentation(source, anyttyI18n.t)).toMatchObject({ reason, requiresPairing: false })
+  })
+
+  it('tells App users that the device owner must resolve an inactive subscription', () => {
+    const source = Object.assign(new Error('opaque detail'), { code: 'subscription_inactive' })
+    const result = connectionFailurePresentation(source, anyttyI18n.t)
+    expect(result).toMatchObject({ reason: 'subscription_inactive', retryable: false, requiresPairing: false })
+    expect(result.message).toBe(anyttyI18n.t('errors.subscriptionInactive'))
+    expect(anyttyI18n.t('errors.subscriptionInactive', { lng: 'zh-CN' })).toContain('设备所有者')
+    expect(anyttyI18n.t('errors.subscriptionInactive', { lng: 'zh-CN' })).toContain('Cloud 控制台')
+    expect(anyttyI18n.t('errors.subscriptionInactive', { lng: 'en' })).toContain('device owner')
+    expect(anyttyI18n.t('errors.subscriptionInactive', { lng: 'en' })).toContain('Cloud console')
   })
 
   it.each([

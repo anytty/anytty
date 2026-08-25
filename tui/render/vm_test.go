@@ -3416,11 +3416,17 @@ func TestRenderVMBuilderProjectsConnectingPaneFromAttachPending(t *testing.T) {
 
 func TestEndpointRecoveryHintUsesErrorCategory(t *testing.T) {
 	cases := map[state.EndpointErrorKind]string{
-		state.EndpointErrorAuth:         "credentials",
-		state.EndpointErrorHostKey:      "host identity",
-		state.EndpointErrorRemoteDaemon: "anytty daemon",
-		state.EndpointErrorProtocol:     "protocol session",
-		state.EndpointErrorConfig:       "endpoint configuration",
+		state.EndpointErrorAuth:             "credentials",
+		state.EndpointErrorHostKey:          "host identity",
+		state.EndpointErrorRemoteDaemon:     "anytty daemon",
+		state.EndpointErrorProtocol:         "protocol session",
+		state.EndpointErrorConfig:           "endpoint configuration",
+		state.EndpointErrorEntitlement:      "Cloud plan and usage",
+		state.EndpointErrorRelayPlan:        "change the Cloud plan",
+		state.EndpointErrorRelayQuota:       "next Cloud period",
+		state.EndpointErrorRelayConcurrency: "Close another Relay connection",
+		state.EndpointErrorSubscription:     "restore the Cloud subscription",
+		state.EndpointErrorRelayRegion:      "another Relay region",
 	}
 	for kind, want := range cases {
 		if got := endpointRecoveryHint(kind); !strings.Contains(got, want) {
@@ -3431,11 +3437,17 @@ func TestEndpointRecoveryHintUsesErrorCategory(t *testing.T) {
 
 func TestEndpointIssueLabelUsesReadableCategory(t *testing.T) {
 	cases := map[state.EndpointErrorKind]string{
-		state.EndpointErrorAuth:            "Authentication failed",
-		state.EndpointErrorHostKey:         "Remote host identity changed",
-		state.EndpointErrorRemoteDaemon:    "Remote anytty daemon unavailable",
-		state.EndpointErrorTransportClosed: "Transport connection closed",
-		state.EndpointErrorProtocol:        "Protocol session ended",
+		state.EndpointErrorAuth:             "Authentication failed",
+		state.EndpointErrorHostKey:          "Remote host identity changed",
+		state.EndpointErrorRemoteDaemon:     "Remote anytty daemon unavailable",
+		state.EndpointErrorTransportClosed:  "Transport connection closed",
+		state.EndpointErrorProtocol:         "Protocol session ended",
+		state.EndpointErrorEntitlement:      "Cloud entitlement unavailable",
+		state.EndpointErrorRelayPlan:        "Relay is not included in the Cloud plan",
+		state.EndpointErrorRelayQuota:       "Relay traffic quota exhausted",
+		state.EndpointErrorRelayConcurrency: "Relay connection limit reached",
+		state.EndpointErrorSubscription:     "Cloud subscription inactive",
+		state.EndpointErrorRelayRegion:      "Relay unavailable in this region",
 	}
 	for kind, want := range cases {
 		if got := endpointIssueLabel(kind); got != want {

@@ -85,7 +85,12 @@ const (
 	// EndpointErrorUnavailable 表示无法进一步分类的连接不可达错误。
 	EndpointErrorUnavailable EndpointErrorKind = "unavailable"
 	// EndpointErrorEntitlement 表示 Cloud 套餐、Relay 流量或并发限制，不应被展示为普通网络故障。
-	EndpointErrorEntitlement EndpointErrorKind = "cloud-entitlement"
+	EndpointErrorEntitlement      EndpointErrorKind = "cloud-entitlement"
+	EndpointErrorRelayPlan        EndpointErrorKind = "cloud-relay-plan"
+	EndpointErrorRelayQuota       EndpointErrorKind = "cloud-relay-quota"
+	EndpointErrorRelayConcurrency EndpointErrorKind = "cloud-relay-concurrency"
+	EndpointErrorSubscription     EndpointErrorKind = "cloud-subscription"
+	EndpointErrorRelayRegion      EndpointErrorKind = "cloud-relay-region"
 )
 
 // EndpointTransportKind 是 TUI 展示层使用的 transport 枚举。
@@ -650,7 +655,12 @@ func NormalizeEndpointErrorKind(kind EndpointErrorKind) EndpointErrorKind {
 		EndpointErrorProtocol,
 		EndpointErrorConfig,
 		EndpointErrorUnavailable,
-		EndpointErrorEntitlement:
+		EndpointErrorEntitlement,
+		EndpointErrorRelayPlan,
+		EndpointErrorRelayQuota,
+		EndpointErrorRelayConcurrency,
+		EndpointErrorSubscription,
+		EndpointErrorRelayRegion:
 		return kind
 	default:
 		return EndpointErrorUnknown
@@ -664,6 +674,18 @@ func ClassifyEndpointErrorText(text string) EndpointErrorKind {
 	switch {
 	case lower == "":
 		return EndpointErrorUnknown
+	case strings.HasPrefix(lower, string(EndpointErrorRelayPlan)):
+		return EndpointErrorRelayPlan
+	case strings.HasPrefix(lower, string(EndpointErrorRelayQuota)):
+		return EndpointErrorRelayQuota
+	case strings.HasPrefix(lower, string(EndpointErrorRelayConcurrency)):
+		return EndpointErrorRelayConcurrency
+	case strings.HasPrefix(lower, string(EndpointErrorSubscription)):
+		return EndpointErrorSubscription
+	case strings.HasPrefix(lower, string(EndpointErrorRelayRegion)):
+		return EndpointErrorRelayRegion
+	case strings.HasPrefix(lower, string(EndpointErrorEntitlement)):
+		return EndpointErrorEntitlement
 	case strings.Contains(lower, "host key") ||
 		strings.Contains(lower, "remote host identification") ||
 		strings.Contains(lower, "known_hosts"):

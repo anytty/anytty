@@ -6,8 +6,15 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.3] - 2026-08-26
+
+### Added
+
+- Added structured Cloud subscription failure details so clients can distinguish inactive subscriptions, unavailable regions, Relay plan restrictions, and service failures.
+
 ### Changed
 
+- Desktop, mobile, CLI, and TUI clients now present subscription-specific recovery guidance instead of a generic connection failure.
 - Moved the product website and user-facing documentation to the dedicated `anytty/anytty-site` repository and updated documentation links to `anytty.com`.
 
 ### Removed

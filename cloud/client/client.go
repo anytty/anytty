@@ -108,6 +108,11 @@ func EntitlementFailure(err error) *cloudv1.CloudEntitlementFailure {
 	if errors.As(err, &entitlement) && entitlement.Failure != nil {
 		return proto.Clone(entitlement.Failure).(*cloudv1.CloudEntitlementFailure)
 	}
+	for _, detail := range status.Convert(err).Details() {
+		if failure, ok := detail.(*cloudv1.CloudEntitlementFailure); ok {
+			return proto.Clone(failure).(*cloudv1.CloudEntitlementFailure)
+		}
+	}
 	return nil
 }
 
@@ -341,6 +346,9 @@ func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signe
 func classifyDaemonLifecycleError(err error) error {
 	if err == nil {
 		return nil
+	}
+	if failure := EntitlementFailure(err); failure != nil {
+		return &EntitlementError{Failure: failure}
 	}
 	grpcStatus := status.Convert(err)
 	switch {

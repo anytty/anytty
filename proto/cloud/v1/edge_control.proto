@@ -196,6 +196,7 @@ message DaemonConnectionAdmissionResponse {
   DaemonConnectionAdmissionResult result = 3;
   uint32 limit = 4;
   string message = 5;
+  CloudEntitlementFailure entitlement_failure = 6;
 }
 
 message CloseDaemonConnection {

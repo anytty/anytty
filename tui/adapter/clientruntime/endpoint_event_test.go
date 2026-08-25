@@ -61,11 +61,20 @@ func TestProjectEndpointEventMapsStableRuntimeErrors(t *testing.T) {
 }
 
 func TestProjectEndpointEventPreservesCloudEntitlementFailure(t *testing.T) {
-	event := ProjectEndpointEvent(clientruntime.EndpointEvent{
-		EndpointID: "studio", Phase: clientruntime.EndpointPhaseOffline,
-		ErrorCode: clientruntime.ErrorResourceExhausted, Message: "Relay concurrency is full; existing connection remains active",
-	})
-	if event.ErrorKind != state.EndpointErrorEntitlement || event.Message == "" {
-		t.Fatalf("projected event = %#v", event)
+	tests := []struct {
+		code clientruntime.ErrorCode
+		kind state.EndpointErrorKind
+	}{
+		{code: clientruntime.ErrorRelayNotInPlan, kind: state.EndpointErrorRelayPlan},
+		{code: clientruntime.ErrorRelayQuotaExhausted, kind: state.EndpointErrorRelayQuota},
+		{code: clientruntime.ErrorRelayConcurrencyExhausted, kind: state.EndpointErrorRelayConcurrency},
+		{code: clientruntime.ErrorSubscriptionInactive, kind: state.EndpointErrorSubscription},
+		{code: clientruntime.ErrorRelayRegionUnavailable, kind: state.EndpointErrorRelayRegion},
+	}
+	for _, test := range tests {
+		event := ProjectEndpointEvent(clientruntime.EndpointEvent{EndpointID: "studio", Phase: clientruntime.EndpointPhaseOffline, ErrorCode: test.code, Message: "opaque backend detail"})
+		if event.ErrorKind != test.kind || event.Message == "" || event.Message == "opaque backend detail" {
+			t.Fatalf("projected %s event = %#v", test.code, event)
+		}
 	}
 }

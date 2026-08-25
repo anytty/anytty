@@ -8,6 +8,9 @@ export type ConnectionFailureReason =
   | 'authorization'
   | 'identity_mismatch'
   | 'entitlement'
+  | 'relay_not_in_plan'
+  | 'subscription_inactive'
+  | 'relay_region_unavailable'
   | 'relay_quota'
   | 'relay_concurrency'
   | 'daemon_blocked'
@@ -37,7 +40,9 @@ export function connectionFailureReason(error: unknown, phoneOnline = true): Con
   if (code === 'daemon_blocked') return 'daemon_blocked'
   if (code === 'relay_concurrency_exhausted') return 'relay_concurrency'
   if (code === 'relay_quota_exhausted') return 'relay_quota'
-  if (code === 'relay_not_in_plan' || code === 'subscription_inactive' || code === 'relay_region_unavailable') return 'entitlement'
+  if (code === 'relay_not_in_plan') return 'relay_not_in_plan'
+  if (code === 'subscription_inactive') return 'subscription_inactive'
+  if (code === 'relay_region_unavailable') return 'relay_region_unavailable'
   if (/relay concurrency/i.test(detail)) return 'relay_concurrency'
   if (/relay (?:traffic )?quota|quota (?:is )?exhausted/i.test(detail)) return 'relay_quota'
   if (code === 'resource_exhausted' && /relay/i.test(detail)) return 'relay_quota'
@@ -90,6 +95,12 @@ export function connectionFailurePresentation(
       return failure(reason, t('errors.identityMismatchTitle'), t('errors.identityMismatch'), false, true)
     case 'entitlement':
       return failure(reason, t('errors.connectionProblemTitle'), t('errors.relayEntitlementDenied'), false)
+    case 'relay_not_in_plan':
+      return failure(reason, t('errors.relayNotInPlanTitle'), t('errors.relayNotInPlan'), false)
+    case 'subscription_inactive':
+      return failure(reason, t('errors.subscriptionInactiveTitle'), t('errors.subscriptionInactive'), false)
+    case 'relay_region_unavailable':
+      return failure(reason, t('errors.relayRegionUnavailableTitle'), t('errors.relayRegionUnavailable'), false)
     case 'relay_quota':
       return failure(reason, t('errors.relayQuotaTitle'), t('errors.relayQuotaExhausted'), false)
     case 'relay_concurrency':

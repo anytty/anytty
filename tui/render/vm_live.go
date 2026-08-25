@@ -172,6 +172,18 @@ func endpointIssueLabel(kind state.EndpointErrorKind) string {
 		return "Protocol session ended"
 	case state.EndpointErrorConfig:
 		return "Endpoint configuration invalid"
+	case state.EndpointErrorEntitlement:
+		return "Cloud entitlement unavailable"
+	case state.EndpointErrorRelayPlan:
+		return "Relay is not included in the Cloud plan"
+	case state.EndpointErrorRelayQuota:
+		return "Relay traffic quota exhausted"
+	case state.EndpointErrorRelayConcurrency:
+		return "Relay connection limit reached"
+	case state.EndpointErrorSubscription:
+		return "Cloud subscription inactive"
+	case state.EndpointErrorRelayRegion:
+		return "Relay unavailable in this region"
 	default:
 		return "Endpoint unavailable"
 	}
@@ -191,6 +203,18 @@ func endpointRecoveryHint(kind state.EndpointErrorKind) string {
 		return "Reconnect to open a new protocol session."
 	case state.EndpointErrorConfig:
 		return "Review the endpoint configuration before reconnecting."
+	case state.EndpointErrorEntitlement:
+		return "Review the Cloud plan and usage, or use Direct or SSH."
+	case state.EndpointErrorRelayPlan:
+		return "Use Direct or SSH, or ask the device owner to change the Cloud plan."
+	case state.EndpointErrorRelayQuota:
+		return "Use P2P, Direct, or SSH, or wait for the next Cloud period."
+	case state.EndpointErrorRelayConcurrency:
+		return "Close another Relay connection, or use P2P, Direct, or SSH."
+	case state.EndpointErrorSubscription:
+		return "Ask the device owner to restore the Cloud subscription, or use Direct or SSH."
+	case state.EndpointErrorRelayRegion:
+		return "Select another Relay region, or use P2P, Direct, or SSH."
 	default:
 		return "Reconnect to open a new endpoint session."
 	}

@@ -86,3 +86,19 @@ func TestClassifyDaemonLifecycleError(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyDaemonLifecycleErrorPreservesEntitlementDetail(t *testing.T) {
+	failure := &cloudv1.CloudEntitlementFailure{
+		Code:    cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE,
+		Message: "subscription inactive",
+	}
+	grpcStatus, err := status.New(codes.PermissionDenied, "Cloud entitlement unavailable").WithDetails(failure)
+	if err != nil {
+		t.Fatal(err)
+	}
+	classified := classifyDaemonLifecycleError(grpcStatus.Err())
+	got := EntitlementFailure(classified)
+	if got.GetCode() != failure.GetCode() || got.GetMessage() != failure.GetMessage() {
+		t.Fatalf("entitlement failure = %#v", got)
+	}
+}

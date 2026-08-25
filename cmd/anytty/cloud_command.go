@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	cloudclient "github.com/anytty/anytty/cloud/client"
 	clouddaemon "github.com/anytty/anytty/cloud/daemon"
 	corev2 "github.com/anytty/anytty/core"
 	"github.com/anytty/anytty/proto/apipb"
@@ -440,6 +441,9 @@ func cloudEnrollCommand() *cobra.Command {
 			}
 			record, err := clouddaemon.EnrollLocal(ctx, address, serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath())
 			if err != nil {
+				if failure := cloudclient.EntitlementFailure(err); failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE {
+					return fmt.Errorf("AnyTTY Cloud subscription is inactive; ask the account owner to manage it at %s/subscription", strings.TrimRight(controllerOrigin, "/"))
+				}
 				if status.Code(err) == codes.ResourceExhausted && strings.Contains(status.Convert(err).Message(), "cloud_daemon_limit_exhausted") {
 					return fmt.Errorf("Cloud daemon limit reached; upgrade the plan or permanently delete an unused daemon at %s/devices", strings.TrimRight(controllerOrigin, "/"))
 				}

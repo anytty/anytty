@@ -83,9 +83,11 @@ function localizedAppError(error: unknown, t: TFunction): string {
     case 'entitlement_denied':
       return t('errors.relayEntitlementDenied')
     case 'relay_not_in_plan':
+      return t('errors.relayNotInPlan')
     case 'subscription_inactive':
+      return t('errors.subscriptionInactive')
     case 'relay_region_unavailable':
-      return t('errors.relayEntitlementDenied')
+      return t('errors.relayRegionUnavailable')
     case 'relay_quota_exhausted':
       return t('errors.relayQuotaExhausted')
     case 'relay_concurrency_exhausted':
