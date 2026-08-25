@@ -13,7 +13,7 @@ This checklist is for maintainers preparing an AnyTTY public release from `anytt
 
 - [ ] Run `make test`, `make test-clients`, Android validation, and the supported iOS build check.
 - [ ] Build the CLI/TUI and verify official Cloud client capability remains compiled in.
-- [ ] Build the Pages artifact and inspect desktop, phone, keyboard, and reduced-motion behavior.
+- [ ] Confirm website claims and download links in `anytty/anytty-site` match the release being prepared.
 - [ ] Confirm README, documentation, issue forms, and security links resolve.
 - [ ] Review `CHANGELOG.md`, supported platforms, known limitations, and upgrade notes.
 
@@ -27,7 +27,7 @@ This checklist is for maintainers preparing an AnyTTY public release from `anytt
 ## GitHub and publication
 
 - [ ] Enable private vulnerability reporting and verify the maintainer notification path.
-- [ ] Configure GitHub Pages to use GitHub Actions and verify the published base path `/anytty/`.
+- [ ] Verify product and documentation links resolve to the website maintained in `anytty/anytty-site`.
 - [ ] Review branch protection, required checks, CODEOWNERS, Discussions, issue permissions, and Actions permissions.
 - [ ] Decide whether the existing public history is suitable; only then consider a reviewed clean-history initialization.
 - [ ] Create a signed tag; verify the Release workflow publishes only to `anytty/anytty` and produces all expected checksums and attestations.

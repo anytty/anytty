@@ -4,8 +4,7 @@
   "private": true,
   "workspaces": [
     "clients/ui",
-    "clients/mobile",
-    "site"
+    "clients/mobile"
   ],
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -15,7 +14,6 @@
     "globals": "16.5.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "sharp": "0.35.3",
     "typescript-eslint": "8.65.0"
   },
   "overrides": {
@@ -29,7 +27,6 @@
     "lru-cache@^11": "11.3.6",
     "postcss": "8.5.26",
     "semver@^7": "7.7.4",
-    "sharp": "0.35.3",
     "tar": "7.5.22",
     "undici-types": "7.19.2"
   },
@@ -37,14 +34,10 @@
     "proto": "npm run proto --workspace @anytty/ui",
     "lint": "npm run lint --workspace @anytty/ui && npm run lint --workspace @anytty/mobile",
     "test": "npm test --workspace @anytty/ui && npm test --workspace @anytty/mobile",
-    "typecheck": "npm run typecheck --workspace @anytty/ui && npm run typecheck --workspace @anytty/mobile && npm run typecheck --workspace @anytty/site",
-    "build": "npm run build --workspace @anytty/ui && npm run build --workspace @anytty/mobile && npm run build --workspace @anytty/site",
+    "typecheck": "npm run typecheck --workspace @anytty/ui && npm run typecheck --workspace @anytty/mobile",
+    "build": "npm run build --workspace @anytty/ui && npm run build --workspace @anytty/mobile",
     "cap:copy": "npm run cap:copy --workspace @anytty/mobile",
     "cap:build": "npm run cap:build --workspace @anytty/mobile",
-    "site:dev": "npm run dev --workspace @anytty/site",
-    "site:build": "npm run build --workspace @anytty/site",
-    "site:check": "npm run site:build && node scripts/check-public-repository.mjs --site-only",
-    "site:preview": "npm run preview --workspace @anytty/site",
-    "public:check": "npm run site:build && node scripts/check-public-repository.mjs"
+    "public:check": "node scripts/check-public-repository.mjs"
   }
 }

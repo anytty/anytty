@@ -7,9 +7,6 @@
 *.tsbuildinfo
 /clients/ui/public/*-wasm/
 /node_modules/
-/site/.astro/
-/site/dist/
-/site/node_modules/
 /cloud/web/node_modules/
 /private/archive/**/.build/
 /anytty

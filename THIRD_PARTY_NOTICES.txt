@@ -6,7 +6,6 @@ Artifact Notice Bundles
 
 - anytty CLI/daemon: cmd/anytty/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
 - Android App: clients/mobile/public/THIRD_PARTY_NOTICES.txt 和 clients/mobile/public/third-party/; 随 App web assets 与 APK assets/public/ 分发。
-- GitHub Pages site: site/package.json 与根 package-lock.json 固定 Astro、React、Tailwind CSS、shadcn/ui open-code components、Lucide 及 MDX 构建依赖；生成的静态产物以这些包的原始开源许可证为准。
 
 这些 bundle 按实际 Go build graph、npm lockfile、Gradle runtime graph 和内嵌资产分别生成。单独列出 SPDX 名称或本索引不能替代 artifact 内的完整版权、许可和 NOTICE 文本。
 

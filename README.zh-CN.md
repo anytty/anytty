@@ -169,7 +169,7 @@ anytty web
 
 该命令只监听 IPv4 回环地址并随机选择端口，然后打开默认浏览器。`anytty web --no-open` 只打印地址，`anytty web status` 查看状态，`anytty web stop` 关闭 Web 页面入口。关闭 Web 入口不会停止 daemon，也不会结束已有终端。
 
-执行 `anytty --help` 可查看完整命令列表，也可以继续阅读[中文快速开始](https://anytty.github.io/anytty/zh-CN/docs/quick-start.html)。
+执行 `anytty --help` 可查看完整命令列表，也可以继续阅读[中文快速开始](https://anytty.com/zh-CN/docs/quick-start/)。
 
 ## 手机 App
 
@@ -209,7 +209,7 @@ AnyTTY 的 Apache-2.0 开源版本包含 CLI、TUI、daemon、共享 UI、Androi
 
 ## 项目入口
 
-- [中文文档](https://anytty.github.io/anytty/zh-CN/)与[变更记录](docs/zh-CN/CHANGELOG.md)
+- [中文文档](https://anytty.com/zh-CN/docs/overview/)与[变更记录](docs/zh-CN/CHANGELOG.md)
 - [贡献指南](docs/zh-CN/CONTRIBUTING.md)、[治理](docs/zh-CN/GOVERNANCE.md)与[行为准则](docs/zh-CN/CODE_OF_CONDUCT.md)
 - [安全策略](docs/zh-CN/SECURITY.md)、[支持](docs/zh-CN/SUPPORT.md)与[私密漏洞报告](https://github.com/anytty/anytty/security/advisories/new)
 - [Apache-2.0 许可证](LICENSE)、[NOTICE](NOTICE)、[第三方声明](THIRD_PARTY_NOTICES.txt)与[商标政策](docs/zh-CN/TRADEMARKS.md)

@@ -6,6 +6,14 @@
 
 ## Unreleased
 
+### Changed
+
+- 产品官网与面向用户的文档统一由独立的 `anytty/anytty-site` 仓库维护，文档链接统一指向 `anytty.com`。
+
+### Removed
+
+- 从公开源码仓库删除重复的 Astro 官网、网站 npm workspace 和 GitHub Pages 发布流程。
+
 ## [0.0.1-beta.2] - 2026-08-25
 
 ### Added

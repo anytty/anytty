@@ -6,6 +6,14 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+### Changed
+
+- Moved the product website and user-facing documentation to the dedicated `anytty/anytty-site` repository and updated documentation links to `anytty.com`.
+
+### Removed
+
+- Removed the duplicate Astro website, website npm workspace, and GitHub Pages deployment from the public source repository.
+
 ## [0.0.1-beta.2] - 2026-08-25
 
 ### Added

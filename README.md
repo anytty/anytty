@@ -171,7 +171,7 @@ This starts a loopback-only Web interface on a random port and opens it in your 
 
 To protect the Web interface with a password, start it with `anytty web --password`. AnyTTY reads and confirms a passphrase of at least 12 characters without placing it in shell history or process arguments. A password-protected loopback URL can be published through an HTTPS reverse proxy or tunnel that forwards both HTTP and WebSocket traffic, including `/api/bridge`, and preserves the public Host (or supplies `X-Forwarded-Host` and `X-Forwarded-Proto`). Anyone with this password receives full terminal and file access, so use a unique passphrase. Stop the Web interface before changing its password.
 
-Run `anytty --help` for the complete command list, or continue with the [quick-start guide](https://anytty.github.io/anytty/docs/quick-start.html).
+Run `anytty --help` for the complete command list, or continue with the [quick-start guide](https://anytty.com/docs/quick-start/).
 
 ## Mobile app
 
@@ -219,7 +219,7 @@ On top of that, AnyTTY provides an official managed Cloud service for device dis
 
 ## Project links
 
-- [Documentation](https://anytty.github.io/anytty/) and [changelog](CHANGELOG.md)
+- [Documentation](https://anytty.com/docs/overview/) and [changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md), [governance](GOVERNANCE.md), and [code of conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md), [support](SUPPORT.md), and [private vulnerability reporting](https://github.com/anytty/anytty/security/advisories/new)
 - [Apache-2.0 license](LICENSE), [NOTICE](NOTICE), [third-party notices](THIRD_PARTY_NOTICES.txt), and [trademark policy](TRADEMARKS.md)

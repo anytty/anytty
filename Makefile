@@ -8,7 +8,7 @@ ANDROID_DIR := $(CURDIR)/clients/mobile/android
 ANDROID_ARTIFACT_DIR := $(ARTIFACT_DIR)/android
 RELEASE_VERSION ?=
 
-.PHONY: build release test test-clients test-android local-web-bundle site-build site-check site-preview public-check clean
+.PHONY: build release test test-clients test-android local-web-bundle public-check clean
 
 build:
 	mkdir -p "$(dir $(ANYTTY_BIN))"
@@ -38,17 +38,8 @@ test-android:
 	cp "$(ANDROID_DIR)/app/build/outputs/apk/release/app-release-unsigned.apk" "$(ANDROID_ARTIFACT_DIR)/app-release-unsigned.apk"
 	scripts/verify-android-apk-boundary.sh "$(ANDROID_ARTIFACT_DIR)/app-release-unsigned.apk"
 
-site-build:
-	npm run site:build
-
-site-check:
-	npm run site:check
-
-site-preview:
-	npm run site:preview
-
 public-check:
 	npm run public:check
 
 clean:
-	rm -rf "$(ARTIFACT_DIR)" clients/ui/dist clients/mobile/dist site/.astro site/dist
+	rm -rf "$(ARTIFACT_DIR)" clients/ui/dist clients/mobile/dist

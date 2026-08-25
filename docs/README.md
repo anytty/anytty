@@ -17,4 +17,4 @@
 - [Code of conduct](../CODE_OF_CONDUCT.md)
 - [Release checklist](../RELEASE_CHECKLIST.md)
 
-The complete user-facing guide is built from MDX in `site/content/en/` and `site/content/zh-CN/` and published at [anytty.github.io/anytty](https://anytty.github.io/anytty/).
+The complete user-facing guide is maintained in [`anytty/anytty-site`](https://github.com/anytty/anytty-site) and published at [anytty.com](https://anytty.com/).
