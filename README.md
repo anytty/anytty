@@ -57,7 +57,7 @@ AnyTTY keeps terminal sessions running on your own machines, so you can close th
   </tr>
 </table>
 
-> **Install the app:** The mobile app supports both Android and iOS. The Android Beta APK is temporarily available from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4). A public iOS build is not yet available and must wait for the Apple App Store release. Google Play and Apple App Store publishing are both in progress.
+> **Install the app:** The mobile app supports both Android and iOS. Download the Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh). The current iOS build becomes available to new testers after Apple Beta App Review; Google Play and App Store publishing are still in progress.
 
 ### Connections and file management
 
@@ -175,7 +175,7 @@ Run `anytty --help` for the complete command list, or continue with the [quick-s
 
 ## Mobile app
 
-Install the Android Beta APK from the release page, then choose **Add device** in the app. On the machine running the daemon, use `anytty pair create` to generate a short-lived pairing QR code or text claim, then scan or paste it in the app. Once paired, the device page lists running terminals and opens the file browser from a terminal's working directory.
+Install the Android Beta APK from the release page, or [join the iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh), then choose **Add device** in the app. On the machine running the daemon, use `anytty pair create` to generate a short-lived pairing QR code or text claim, then scan or paste it in the app. Once paired, the device page lists running terminals and opens the file browser from a terminal's working directory.
 
 Give each new authorization an owner-defined name so it remains identifiable later. Grants are permanent until revoked unless `--grant-ttl` is set explicitly:
 
@@ -185,7 +185,7 @@ anytty access list
 anytty access revoke REPLACE_WITH_GRANT_ID
 ```
 
-The mobile app supports Android and iOS. The Android Beta APK is currently available from the release page; iOS does not yet have a public install and is waiting for Apple App Store publication. Official Google Play and Apple App Store releases are both in progress.
+The mobile app supports Android and iOS. The Android Beta APK is available from the release page, and the iOS public beta is available through [TestFlight](https://testflight.apple.com/join/rfcgFyJh). The current iOS build becomes available to new testers after Apple Beta App Review. Official Google Play and Apple App Store releases are both in progress.
 
 ## Connection options
 

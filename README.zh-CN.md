@@ -57,7 +57,7 @@ AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换�
   </tr>
 </table>
 
-> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 暂时可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4) 下载；iOS 当前还没有公开安装包，需要等待 Apple App Store 上架。Google Play 与 Apple App Store 的上架工作均在进行中。
+> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。当前 iOS 构建通过 Apple Beta App Review 后，新测试员即可加入；Google Play 与 App Store 正式上架仍在进行中。
 
 ### 连接与文件管理
 
@@ -173,9 +173,9 @@ anytty web
 
 ## 手机 App
 
-从 Release 页面安装 Android Beta APK，然后在 App 中选择“添加设备”。在运行 daemon 的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
+从 Release 页面安装 Android Beta APK，或通过 [TestFlight 加入 iOS 公开测试](https://testflight.apple.com/join/rfcgFyJh)，然后在 App 中选择“添加设备”。在运行 daemon 的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
 
-手机 App 同时支持 Android 与 iOS。当前可以从 Release 页面安装 Android Beta APK；iOS 暂未提供公开安装包，需要等待 Apple App Store 上架。Google Play 和 Apple App Store 的正式商店版本都在上架过程中。
+手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 Release 页面安装，iOS 公开测试可通过 [TestFlight](https://testflight.apple.com/join/rfcgFyJh) 加入。当前 iOS 构建通过 Apple Beta App Review 后，新测试员即可加入。Google Play 和 Apple App Store 的正式商店版本都在上架过程中。
 
 ## 连接方式
 
