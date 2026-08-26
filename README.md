@@ -15,9 +15,9 @@
 
 AnyTTY keeps terminal sessions running on your own machines, so you can close the window, switch devices, or come back later without losing the work. Use the keyboard-first TUI, CLI, or mobile app to check in, take control, and manage files over the same connection.
 
-> **Beta:** `v0.0.1-beta.4` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
+> **Beta:** `v0.0.1-beta.4` provides macOS, Linux, and Windows builds, an Android Beta APK, and a public iOS TestFlight beta. Protocols and configuration may still change before the first stable release.
 
-## Install
+## Quick install
 
 **macOS / Linux - daemon, CLI, and TUI**
 
@@ -34,7 +34,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 **Mobile app**
 
-- iPhone and iPad: [join the public beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh). New testers can install the current build after Apple Beta App Review.
+- iPhone and iPad: [join the public beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
 - Android: [download the Beta APK from GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4).
 
 <table>
@@ -77,7 +77,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
   </tr>
 </table>
 
-> **Install the app:** The mobile app supports both Android and iOS. Download the Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh). The current iOS build becomes available to new testers after Apple Beta App Review; Google Play and App Store publishing are still in progress.
+> **Install the app:** The mobile app supports both Android and iOS. Download the Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
 
 ### Connections and file management
 
@@ -205,7 +205,7 @@ anytty access list
 anytty access revoke REPLACE_WITH_GRANT_ID
 ```
 
-The mobile app supports Android and iOS. The Android Beta APK is available from the release page, and the iOS public beta is available through [TestFlight](https://testflight.apple.com/join/rfcgFyJh). The current iOS build becomes available to new testers after Apple Beta App Review. Official Google Play and Apple App Store releases are both in progress.
+The mobile app supports Android and iOS. The Android Beta APK is available from the release page, and the iOS public beta is available through [TestFlight](https://testflight.apple.com/join/rfcgFyJh).
 
 ## Connection options
 

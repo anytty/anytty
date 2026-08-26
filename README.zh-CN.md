@@ -15,9 +15,9 @@
 
 AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换设备或稍后再回来，任务都不会丢。你可以用键盘优先的 TUI、CLI 或手机 App 随时查看、接管，并通过同一条连接管理远程文件。
 
-> **Beta：** `v0.0.1-beta.4` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
+> **Beta：** `v0.0.1-beta.4` 已提供 macOS、Linux 和 Windows 构建、Android Beta APK，以及 iOS TestFlight 公开测试；首个稳定版发布前，协议与配置仍可能变化。
 
-## 安装
+## 快速安装
 
 **macOS / Linux - daemon、CLI 与 TUI**
 
@@ -34,7 +34,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 **手机 App**
 
-- iPhone 与 iPad：[通过 TestFlight 加入公开测试](https://testflight.apple.com/join/rfcgFyJh)。当前构建通过 Apple Beta App Review 后，新测试员即可安装。
+- iPhone 与 iPad：[通过 TestFlight 加入公开测试](https://testflight.apple.com/join/rfcgFyJh)。
 - Android：[从 GitHub Releases 下载 Beta APK](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4)。
 
 <table>
@@ -77,7 +77,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
   </tr>
 </table>
 
-> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。当前 iOS 构建通过 Apple Beta App Review 后，新测试员即可加入；Google Play 与 App Store 正式上架仍在进行中。
+> **下载安装：** 手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。
 
 ### 连接与文件管理
 
@@ -195,7 +195,7 @@ anytty web
 
 从 Release 页面安装 Android Beta APK，或通过 [TestFlight 加入 iOS 公开测试](https://testflight.apple.com/join/rfcgFyJh)，然后在 App 中选择“添加设备”。在运行 daemon 的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
 
-手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 Release 页面安装，iOS 公开测试可通过 [TestFlight](https://testflight.apple.com/join/rfcgFyJh) 加入。当前 iOS 构建通过 Apple Beta App Review 后，新测试员即可加入。Google Play 和 Apple App Store 的正式商店版本都在上架过程中。
+手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 Release 页面安装，iOS 公开测试可通过 [TestFlight](https://testflight.apple.com/join/rfcgFyJh) 加入。
 
 ## 连接方式
 
