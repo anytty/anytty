@@ -1,5 +1,8 @@
 package com.anytty.app
 
+import android.content.ClipData
+import android.content.ContentResolver
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.os.SystemClock
 import com.anytty.app.goclient.GoClientNative
@@ -11,16 +14,20 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.lang.ref.WeakReference
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @CapacitorPlugin(name = "NativeConnection")
 class NativeConnectionPlugin : Plugin() {
     companion object {
-        private const val FOREGROUND_SUPERVISOR_TIMEOUT_MILLIS = 18_000
+        // The supervisor keeps recovering after this observation budget. Foreground UI
+        // readiness must not wait on a slow or offline endpoint.
+        private const val FOREGROUND_SUPERVISOR_TIMEOUT_MILLIS = 3_000
         @Volatile private var loadedPlugin = WeakReference<NativeConnectionPlugin>(null)
 
         internal fun notifyDisconnectAllRequested(snapshot: NativeRendererDemandSnapshot?) {
@@ -107,6 +114,72 @@ class NativeConnectionPlugin : Plugin() {
         runtimeScope.cancel("NativeConnectionPlugin destroyed")
         if (loadedPlugin.get() === this) loadedPlugin.clear()
         super.handleOnDestroy()
+    }
+
+    @PluginMethod
+    fun writeDebugDiagnostic(call: PluginCall) {
+        val value = call.getString("value").orEmpty().trim()
+        if (value.isNotEmpty()) AnyTTYDebugLog.connection("web $value")
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun shareDiagnosticBundle(call: PluginCall) {
+        val settled = AtomicBoolean(false)
+        val sharing = runtimeScope.launch {
+            var bundle: AnyTTYDiagnosticBundle? = null
+            try {
+                val createdBundle = AnyTTYDiagnosticStore.createBundle(context.applicationContext)
+                bundle = createdBundle
+                val saved = AndroidDownloadStore(context.applicationContext).save(
+                    createdBundle.name,
+                    "application/zip",
+                    createdBundle.file,
+                )
+                val shareUri = if (saved.uri.scheme == ContentResolver.SCHEME_CONTENT) {
+                    saved.uri
+                } else {
+                    AnyTTYDownloadProvider.uriForFile(
+                        context.applicationContext,
+                        File(requireNotNull(saved.uri.path) { "diagnostic download path is missing" }),
+                    )
+                }
+                val result = JSObject()
+                    .put("name", createdBundle.name)
+                    .put("path", saved.path)
+                    .put("bytes", saved.bytes)
+                    .put("sha256", saved.sha256)
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, shareUri)
+                    clipData = ClipData.newUri(context.contentResolver, createdBundle.name, shareUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                try {
+                    withContext(Dispatchers.Main) {
+                        activity.startActivity(Intent.createChooser(shareIntent, null))
+                    }
+                } catch (failure: Exception) {
+                    AnyTTYDebugLog.connection("diagnostic_bundle share_failed type=${failure.javaClass.simpleName}")
+                    if (settled.compareAndSet(false, true)) {
+                        call.reject("failed to open the Android share sheet", failure)
+                    }
+                    return@launch
+                }
+                AnyTTYDebugLog.connection("diagnostic_bundle shared entries=${createdBundle.entryCount}")
+                if (settled.compareAndSet(false, true)) call.resolve(result)
+            } catch (failure: Exception) {
+                AnyTTYDebugLog.connection("diagnostic_bundle prepare_failed type=${failure.javaClass.simpleName}")
+                if (settled.compareAndSet(false, true)) call.reject("failed to prepare diagnostic logs", failure)
+            } finally {
+                bundle?.file?.delete()
+            }
+        }
+        sharing.invokeOnCompletion { failure ->
+            if (failure is CancellationException && settled.compareAndSet(false, true)) {
+                call.reject("diagnostic log sharing was cancelled", failure)
+            }
+        }
     }
 
     @PluginMethod

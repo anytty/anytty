@@ -112,6 +112,7 @@ function createLocalMachineAPI(machine: Machine, connector: ProtoBindingConnecto
               last_output_at: unixNanoISOString(terminal.lastOutputAtUnixNano),
               size_locked: terminal.tags['anytty.size_lock'] === 'lock',
               size_lock_mode: terminal.tags['anytty.size_lock'],
+              tags: { ...terminal.tags },
             })),
           }).terminals
         } finally {

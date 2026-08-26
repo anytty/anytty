@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from '@bufbuild/protobuf'
-import { Bookmark, BookmarkMinus, BookmarkPlus, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Info, KeyRound, Monitor, Pin, Plus, RefreshCw, Rows2, Settings2, SlidersHorizontal, SquarePen, Trash2, X } from 'lucide-react'
+import { Bookmark, BookmarkMinus, BookmarkPlus, Check, ChevronDown, ChevronLeft, ClipboardList, Folder, FolderOpen, Hash, Info, KeyRound, ListFilter, Monitor, Pin, Plus, RefreshCw, Rows2, Settings2, SlidersHorizontal, Square, SquarePen, Trash2, TriangleAlert, X } from 'lucide-react'
 import { connectionPhaseLabel, connectionSnapshotFromStatus } from '../connection/connectionState'
 import { connectionErrorDisplayMessage, connectionFailurePresentation, isAuthorizationConnectionError, isCancelledConnectionError, type ConnectionFailurePresentation } from '../connection/connectionErrorPresentation'
 import { ConnectionNotice } from '../connection/ConnectionNotice'
@@ -30,6 +30,8 @@ import { NATIVE_BACK_PRIORITY } from '../platform/nativeBack'
 import { useNativeBackHandler } from '../platform/useNativeBackHandler'
 import { defaultTerminalResizeControl, terminalResizeControlOwnsResize, type TerminalResizeControl } from '../terminal/terminalClient'
 import { TerminalList } from '../terminal/TerminalList'
+import { TerminalListFilterBar } from '../terminal/TerminalListFilterBar'
+import { filterTerminals, terminalTagOptions, type TerminalStatusFilter } from '../terminal/terminalListFilters'
 import { pinTerminal, readTerminalOrder, reorderPinnedTerminal, sortTerminalIds, unpinTerminal, writeTerminalOrder } from '../terminal/terminalOrder'
 import { createTerminalManagementApi } from '../terminal/terminalManagementApi'
 import { formatCommandLine, parseCommandLine, validateEnvironmentVariables } from '../terminal/terminalCreateForm'
@@ -143,7 +145,8 @@ export interface MachineWorkspaceProps {
 }
 
 type TerminalEditorSheet = 'create-terminal' | 'edit-terminal'
-type MobileSheet = 'terminals' | 'manage-terminal' | TerminalEditorSheet | 'terminal-path-picker' | 'terminal-path-bookmarks' | 'clipboard-history' | null
+type TerminalDestructiveAction = 'kill' | 'remove'
+type MobileSheet = 'terminals' | 'terminal-tags' | 'manage-terminal' | TerminalEditorSheet | 'terminal-path-picker' | 'terminal-path-bookmarks' | 'clipboard-history' | null
 type AppPage = 'terminal-list' | 'terminal'
 type TerminalSwitcherInventory =
   | { status: 'loading'; terminals: RemoteTerminal[] }
@@ -231,6 +234,10 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [transferCenterOpen, setTransferCenterOpen] = useState(false)
   const [mobileSheet, setMobileSheet] = useState<MobileSheet>(null)
   const [selectedTerminalId, setSelectedTerminalId] = useState<string | null>(null)
+  const [terminalStatusFilter, setTerminalStatusFilter] = useState<TerminalStatusFilter>('running')
+  const [terminalTagFilters, setTerminalTagFilters] = useState<string[]>([])
+  const [terminalActionConfirm, setTerminalActionConfirm] = useState<TerminalDestructiveAction | null>(null)
+  const [terminalActionPending, setTerminalActionPending] = useState(false)
   const [terminalForm, setTerminalForm] = useState<{
     name: string
     command: string
@@ -354,6 +361,16 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const LoadedFileManager = fileManagerLoadState.status === 'ready' ? fileManagerLoadState.component : null
   const selectedTerminal = terminals.find((terminal) => terminal.terminalId === selectedTerminalId)
   const orderedTerminals = useMemo(() => sortTerminalIds(terminals, terminalOrder), [terminalOrder, terminals])
+  const terminalTagFilterOptions = useMemo(() => terminalTagOptions(terminals), [terminals])
+  const filteredTerminals = useMemo(
+    () => filterTerminals(orderedTerminals, terminalStatusFilter, terminalTagFilters),
+    [orderedTerminals, terminalStatusFilter, terminalTagFilters],
+  )
+  const terminalStateCounts = useMemo(() => ({
+    running: terminals.filter((terminal) => terminal.state === 'running').length,
+    exited: terminals.filter((terminal) => terminal.state === 'exited').length,
+    all: terminals.length,
+  }), [terminals])
   const canSplitTerminal = orderedTerminals.some((terminal) => terminal.terminalId !== activeTerminalId && !splitTerminalIds.includes(terminal.terminalId))
   const selectedTerminalPinned = Boolean(selectedTerminal && terminalOrder.includes(selectedTerminal.terminalId))
   const terminalHeaderTitle = activeToolTerminal?.title || activeToolTerminal?.command || activePaneTerminalId || t('terminal.defaultTitle')
@@ -366,6 +383,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   useEffect(() => {
     setTerminalOrder(readTerminalOrder(machine?.machineId ?? ''))
   }, [machine?.machineId])
+
+  useEffect(() => {
+    const available = new Set(terminalTagFilterOptions.map((option) => option.id))
+    setTerminalTagFilters((current) => {
+      const next = current.filter((tagId) => available.has(tagId))
+      return next.length === current.length ? current : next
+    })
+  }, [terminalTagFilterOptions])
 
   const updateTerminalPins = useCallback((update: (current: string[]) => string[]) => {
     if (!machine) return
@@ -1849,6 +1874,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       return
     }
     setSelectedTerminalId(intent.terminalId)
+    setTerminalActionConfirm(null)
     setMobileSheet('manage-terminal')
   }, [canManageTerminals, handleConnectionAuthFailure, machine, requireVerification, t])
 
@@ -2017,6 +2043,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       name: terminalForm.name.trim() || undefined,
       cwd: terminalForm.cwd.trim() || undefined,
       sizeLockMode: terminalForm.sizeLockMode,
+      tags: selectedTerminal?.tags,
     }
     try {
       const management = await withManagementApi()
@@ -2132,27 +2159,63 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   }, [acquireActiveResizeOwner, activeTerminalResizeControl, activeToolTerminal, effectiveTerminalSettings.autoAcquireResizeOwner, renderSession])
 
   const deleteManagedTerminal = useCallback(async () => {
-    if (!canManageTerminals || !selectedTerminalId) return
+    if (!canManageTerminals || !selectedTerminalId || selectedTerminal?.state !== 'exited' || terminalActionPending) return
     const deletedTerminalId = selectedTerminalId
     const deletedTitle = selectedTerminal?.title ?? selectedTerminalId
-    const management = await withManagementApi()
-    await management.api.deleteTerminal(deletedTerminalId)
-    if (activeTerminalId === deletedTerminalId) {
-      setActiveTerminalId(null)
-      setTerminalSplitRoot(PRIMARY_TERMINAL_PANE)
-      setActiveTerminalSlot('primary')
-      setSyncSplitInput(false)
-      setPage('terminal-list')
+    setTerminalActionPending(true)
+    setError(null)
+    try {
+      const management = await withManagementApi()
+      await management.api.deleteTerminal(deletedTerminalId)
+      if (activeTerminalId === deletedTerminalId) {
+        setActiveTerminalId(null)
+        setTerminalSplitRoot(PRIMARY_TERMINAL_PANE)
+        setActiveTerminalSlot('primary')
+        setSyncSplitInput(false)
+        setPage('terminal-list')
+      }
+      if (fileTerminalId === deletedTerminalId) {
+        setFilesOpen(false)
+        setFileTerminalId(null)
+      }
+      if (splitTerminalIds.includes(deletedTerminalId)) removeSplitTerminal(deletedTerminalId)
+      await refreshTerminals()
+      setPairStatus(t('workspace.terminalRemoved', { name: deletedTitle }))
+      setTerminalActionConfirm(null)
+      setMobileSheet(null)
+    } catch (err) {
+      const message = connectionErrorDisplayMessage(err, t)
+      if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
+      setError(message)
+      updateConnectionStatus(message, 'failed')
+    } finally {
+      setTerminalActionPending(false)
     }
-    if (fileTerminalId === deletedTerminalId) {
-      setFilesOpen(false)
-      setFileTerminalId(null)
+  }, [activeTerminalId, canManageTerminals, fileTerminalId, handleConnectionAuthFailure, machine?.machineId, refreshTerminals, removeSplitTerminal, selectedTerminal, selectedTerminalId, splitTerminalIds, t, terminalActionPending, updateConnectionStatus, withManagementApi])
+
+  const killManagedTerminal = useCallback(async () => {
+    if (!canManageTerminals || !selectedTerminalId || selectedTerminal?.state !== 'running' || terminalActionPending) return
+    const terminalId = selectedTerminalId
+    const terminalTitle = selectedTerminal.title || terminalId
+    setTerminalActionPending(true)
+    setError(null)
+    try {
+      const management = await withManagementApi()
+      await management.api.killTerminal(terminalId)
+      closeTerminalDataChannel(management.session, terminalId)
+      await refreshTerminals()
+      setPairStatus(t('workspace.terminalEnded', { name: terminalTitle }))
+      setTerminalActionConfirm(null)
+      setMobileSheet(null)
+    } catch (err) {
+      const message = connectionErrorDisplayMessage(err, t)
+      if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine?.machineId)
+      setError(message)
+      updateConnectionStatus(message, 'failed')
+    } finally {
+      setTerminalActionPending(false)
     }
-    if (splitTerminalIds.includes(deletedTerminalId)) removeSplitTerminal(deletedTerminalId)
-    await refreshTerminals()
-    setPairStatus(t('workspace.terminalDeleted', { name: deletedTitle }))
-    setMobileSheet(null)
-  }, [activeTerminalId, canManageTerminals, fileTerminalId, removeSplitTerminal, selectedTerminal, selectedTerminalId, refreshTerminals, splitTerminalIds, t, withManagementApi])
+  }, [canManageTerminals, handleConnectionAuthFailure, machine?.machineId, refreshTerminals, selectedTerminal, selectedTerminalId, t, terminalActionPending, updateConnectionStatus, withManagementApi])
 
   const restartTerminalById = useCallback(async (terminalId: string): Promise<boolean> => {
     if (!canManageTerminals || restartingTerminalId) return false
@@ -2726,6 +2789,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const renderTerminalListPage = () => {
     if (!machine) return null
     const showTerminalListLoader = loadingTerminals && !hasLoadedTerminals
+    const filteredTerminalEmptyLabel = terminalTagFilters.length > 0
+      ? t('terminal.filters.noMatch')
+      : terminalStatusFilter === 'running'
+        ? t('terminal.filters.noRunning')
+        : terminalStatusFilter === 'exited'
+          ? t('terminal.filters.noExited')
+          : t('terminal.filters.noTerminals')
     const desktopTerminalListClass = singlePane
       ? ''
       : webLayout
@@ -2844,10 +2914,25 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             className={`relative min-h-0 flex-1 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 ${webLayout ? 'md:px-4 md:pt-4' : ''}`}
             data-testid="anytty-terminal-list-scroll"
           >
-            <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">{t('terminal.list')}</h2>
+            <TerminalListFilterBar
+              filteredCount={filteredTerminals.length}
+              mobileTagSheet={!webLayout}
+              onClearTags={() => setTerminalTagFilters([])}
+              onOpenTagSheet={() => setMobileSheet('terminal-tags')}
+              onStatusChange={setTerminalStatusFilter}
+              onTagToggle={(tagId) => setTerminalTagFilters((current) => current.includes(tagId)
+                ? current.filter((currentTagId) => currentTagId !== tagId)
+                : [...current, tagId])}
+              selectedTagIds={terminalTagFilters}
+              status={terminalStatusFilter}
+              statusCounts={terminalStateCounts}
+              tagSheetOpen={mobileSheet === 'terminal-tags'}
+              tagOptions={terminalTagFilterOptions}
+            />
             <TerminalList
               machineId={machine.machineId}
-              terminals={orderedTerminals}
+              terminals={filteredTerminals}
+              emptyLabel={filteredTerminalEmptyLabel}
               pinnedTerminalIds={terminalOrder}
               onReorderPinnedTerminal={reorderTerminalPins}
               onOpenTerminal={openTerminal}
@@ -2863,10 +2948,123 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
           </div>
         ) : null}
 
+        {mobileSheet === 'terminal-tags' ? (
+          <MobileSheetPanel
+            title={t('terminal.filters.tagLabel')}
+            testId="anytty-terminal-tag-filter-sheet"
+            onClose={() => setMobileSheet(null)}
+          >
+            <div className="flex min-h-0 flex-col gap-3" id="anytty-terminal-tag-filter-sheet">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <span className="text-xs tabular-nums text-[var(--anytty-app-muted)]">
+                  {t('terminal.filters.results', { shown: filteredTerminals.length, total: terminals.length })}
+                </span>
+                {terminalTagFilters.length > 0 ? (
+                  <Button
+                    className="h-9 px-2 text-xs font-semibold"
+                    onClick={() => { hapticSelection(); setTerminalTagFilters([]) }}
+                    type="button"
+                    variant="ghost"
+                  >
+                    {t('terminal.filters.resetTags')}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="flex flex-col divide-y divide-[var(--anytty-app-line)]" role="group" aria-label={t('terminal.filters.tagLabel')}>
+                {terminalTagFilterOptions.map((option) => {
+                  const selected = terminalTagFilters.includes(option.id)
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className="flex min-h-12 w-full items-center gap-3 px-1 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--anytty-app-accent)]"
+                      data-testid={`anytty-terminal-tag-option-${encodeURIComponent(option.id)}`}
+                      key={option.id}
+                      onClick={() => {
+                        hapticSelection()
+                        setTerminalTagFilters((current) => current.includes(option.id)
+                          ? current.filter((tagId) => tagId !== option.id)
+                          : [...current, option.id])
+                      }}
+                      type="button"
+                    >
+                      <Hash aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--anytty-app-muted)]" />
+                      <span className="min-w-0 flex-1 truncate font-medium" title={option.label}>{option.label}</span>
+                      <span className="shrink-0 text-xs tabular-nums text-[var(--anytty-app-muted)]">{option.count}</span>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? 'border-[var(--anytty-app-accent)] bg-[var(--anytty-app-accent)] text-white' : 'border-[var(--anytty-app-line-strong)] text-transparent'}`}>
+                        <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <Button
+                className="sticky -bottom-4 mt-1 min-h-12 w-full gap-2 text-sm font-semibold shadow-[0_-12px_24px_var(--anytty-app-bg)]"
+                onClick={() => { hapticSelection(); setMobileSheet(null) }}
+                type="button"
+              >
+                <ListFilter aria-hidden="true" className="h-4 w-4" />
+                {t('terminal.filters.showTerminals', { count: filteredTerminals.length })}
+              </Button>
+            </div>
+          </MobileSheetPanel>
+        ) : null}
+
         {mobileSheet === 'manage-terminal' && selectedTerminal ? (
-          <MobileSheetPanel webModal={webLayout} title={selectedTerminal.title || t('terminal.defaultTitle')} testId="anytty-terminal-actions-sheet" onClose={() => setMobileSheet(null)}>
-            <div className="flex flex-col gap-3">
-              {selectedTerminal.state === 'exited' ? (
+          <MobileSheetPanel
+            webModal={webLayout}
+            title={selectedTerminal.title || t('terminal.defaultTitle')}
+            testId="anytty-terminal-actions-sheet"
+            onClose={() => {
+              if (terminalActionPending) return
+              setTerminalActionConfirm(null)
+              setMobileSheet(null)
+            }}
+          >
+            {terminalActionConfirm ? (
+              <div className="flex flex-col gap-4" data-testid="anytty-terminal-action-confirmation">
+                <div className="flex gap-3 rounded-md border border-red-200 bg-red-50 p-4 text-red-900">
+                  <TriangleAlert aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">
+                      {t(terminalActionConfirm === 'kill' ? 'workspace.confirmEndTerminalTitle' : 'workspace.confirmRemoveTerminalTitle')}
+                    </h3>
+                    <p className="mt-1 text-sm leading-5 text-red-800">
+                      {t(terminalActionConfirm === 'kill' ? 'workspace.confirmEndTerminalCopy' : 'workspace.confirmRemoveTerminalCopy', {
+                        name: selectedTerminal.title || selectedTerminal.terminalId,
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    className="min-h-12"
+                    disabled={terminalActionPending}
+                    onClick={() => setTerminalActionConfirm(null)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    className="min-h-12 border border-red-700 bg-red-700 text-white hover:bg-red-800"
+                    data-testid={`anytty-terminal-confirm-${terminalActionConfirm}`}
+                    disabled={terminalActionPending}
+                    onClick={() => {
+                      hapticImpact()
+                      void (terminalActionConfirm === 'kill' ? killManagedTerminal() : deleteManagedTerminal())
+                    }}
+                    type="button"
+                  >
+                    {terminalActionPending ? <Spinner aria-hidden="true" className="mr-2 h-4 w-4" /> : null}
+                    {t(terminalActionPending
+                      ? terminalActionConfirm === 'kill' ? 'workspace.endingTerminal' : 'workspace.removingTerminal'
+                      : terminalActionConfirm === 'kill' ? 'workspace.endTerminal' : 'workspace.removeTerminal')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {selectedTerminal.state === 'exited' ? (
                 <Button variant="secondary"
                   type="button"
                   className="min-h-12 w-full justify-between px-4 text-left text-[15px] font-medium"
@@ -2876,12 +3074,12 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
                   <span>{t('workspace.restartTerminal')}</span>
                   <RefreshCw className="h-4 w-4 text-zinc-500" />
                 </Button>
-              ) : null}
-              <Button variant="secondary" type="button" className="min-h-11 w-full justify-between px-4 text-sm font-medium" onClick={() => { hapticSelection(); toggleTerminalPin(selectedTerminal.terminalId) }}>
+                ) : null}
+                <Button variant="secondary" type="button" className="min-h-11 w-full justify-between px-4 text-sm font-medium" onClick={() => { hapticSelection(); toggleTerminalPin(selectedTerminal.terminalId) }}>
                 <span>{t(selectedTerminalPinned ? 'terminal.order.unpin' : 'terminal.order.pinTop')}</span>
                 <Pin className={`h-4 w-4 ${selectedTerminalPinned ? 'fill-current' : ''}`} />
-              </Button>
-              <Button variant="secondary"
+                </Button>
+                <Button variant="secondary"
                 type="button"
                 className="min-h-12 w-full justify-between px-4 text-left text-[15px] font-medium"
                 disabled={!canManageTerminals}
@@ -2889,17 +3087,22 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
               >
                 <span>{t('workspace.editTerminal')}</span>
                 <SquarePen className="h-4 w-4 text-zinc-500" />
-              </Button>
-              <Button variant="ghost"
-                type="button"
-                className="flex min-h-12 w-full items-center justify-between rounded-md border border-red-200 bg-red-50 px-4 text-left text-[15px] font-medium text-red-700"
-                disabled={!canManageTerminals}
-                onClick={() => { hapticImpact(); void deleteManagedTerminal() }}
-              >
-                <span>{t('workspace.deleteTerminal')}</span>
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            </div>
+                </Button>
+                {selectedTerminal.state === 'running' || selectedTerminal.state === 'exited' ? (
+                  <Button variant="ghost"
+                    type="button"
+                    className="flex min-h-12 w-full items-center justify-between rounded-md border border-red-200 bg-red-50 px-4 text-left text-[15px] font-medium text-red-700"
+                    disabled={!canManageTerminals}
+                    onClick={() => { hapticImpact(); setTerminalActionConfirm(selectedTerminal.state === 'running' ? 'kill' : 'remove') }}
+                  >
+                    <span>{t(selectedTerminal.state === 'running' ? 'workspace.endTerminal' : 'workspace.removeTerminal')}</span>
+                    {selectedTerminal.state === 'running'
+                      ? <Square className="h-4 w-4 fill-red-500 text-red-500" />
+                      : <Trash2 className="h-4 w-4 text-red-500" />}
+                  </Button>
+                ) : null}
+              </div>
+            )}
           </MobileSheetPanel>
         ) : null}
 

@@ -17,6 +17,11 @@ for asset in \
   "anytty-$version-linux-arm64.tar.gz" \
   "anytty-$version-windows-amd64.zip" \
   "anytty-$version-windows-arm64.zip" \
+  "anytty-$version-android-armeabi-v7a.apk" \
+  "anytty-$version-android-arm64-v8a.apk" \
+  "anytty-$version-android-x86_64.apk" \
+  "anytty-$version-android-universal.apk" \
+  "anytty-$version-android-play.aab" \
   BUILD_INFO.txt SHA256SUMS; do
   [[ -s "$asset_dir/$asset" ]] || { echo "release asset is missing: $asset_dir/$asset" >&2; exit 1; }
 done

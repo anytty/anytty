@@ -84,6 +84,20 @@ forbid(activity, [
   'setGeolocationEnabled(true)',
 ], 'MainActivity.java')
 
+const webViewCompatibility = read(join(javaRoot, 'AnyTTYWebViewCompatibility.java'))
+if (!webViewCompatibility.includes('MINIMUM_MAJOR_VERSION = 101')) {
+  fail('Android WebView compatibility baseline must match the mobile bundle target')
+}
+if (!activity.includes('WebViewCompat.getCurrentWebViewPackage(this)') ||
+    !activity.includes('R.layout.activity_unsupported_webview')) {
+  fail('MainActivity must replace an unsupported WebView with the native recovery screen')
+}
+
+const viteConfig = read(join(mobileRoot, 'vite.config.ts'))
+if (!viteConfig.includes("target: 'chrome101'")) {
+  fail('mobile bundle target must match the Android WebView compatibility baseline')
+}
+
 const chromeClient = read(join(javaRoot, 'AnyTTYWebChromeClient.java'))
 forbid(chromeClient, ['RESOURCE_AUDIO_CAPTURE', 'new Intent(', 'startActivityForResult('], 'AnyTTYWebChromeClient.java')
 
@@ -93,6 +107,36 @@ forbid(bridge, ['perOrigin', 'onConnect(false)', 'slotSnapshot', 'getDeclaredMet
 const plugins = read(join(javaRoot, 'NativeConnectionPlugin.kt')) + read(join(javaRoot, 'NativeFilePickerPlugin.kt'))
 forbid(plugins, ['android.util.Log', 'exportDebugLogs', 'writeDebugLog'], 'Android plugins')
 if (/\bLog\.(?:d|e|i|v|w|wtf)\s*\(/.test(plugins)) fail('Android plugins call Log.*')
+for (const required of [
+  'fun shareDiagnosticBundle(call: PluginCall)',
+  'AnyTTYDiagnosticStore.createBundle(context.applicationContext)',
+  'Intent(Intent.ACTION_SEND)',
+  'Intent.EXTRA_STREAM',
+  'Intent.FLAG_GRANT_READ_URI_PERMISSION',
+  'AnyTTYDownloadProvider.uriForFile',
+]) {
+  if (!plugins.includes(required)) fail(`Android diagnostic sharing is missing ${JSON.stringify(required)}`)
+}
+
+const diagnosticStore = read(join(javaRoot, 'AnyTTYDiagnosticStore.kt'))
+forbid(diagnosticStore, [
+  'Build.MODEL',
+  'ANDROID_ID',
+  'getLastKnownLocation',
+  'endpointId',
+  'deviceId',
+  'credential',
+], 'Android diagnostic store')
+for (const required of [
+  'context.noBackupFilesDir',
+  'MAX_FILE_BYTES = 512L * 1024L',
+  'RETAINED_FILES = 4',
+  'automatic_upload=false',
+  'log_policy=redacted_structured_user_shared',
+  'ZipOutputStream',
+]) {
+  if (!diagnosticStore.includes(required)) fail(`Android diagnostic store is missing ${JSON.stringify(required)}`)
+}
 
 const releaseLog = read(join(appRoot, 'src', 'release', 'java', 'com', 'anytty', 'app', 'AnyTTYDebugLog.kt'))
 forbid(releaseLog, ['File(', 'Log.', 'Throwable', 'String?', 'message', 'details'], 'release diagnostics')
@@ -103,17 +147,27 @@ forbid(debugLog, ['Throwable', 'Uri', 'message:', 'tag:', 'details:', 'logcat', 
 const androidGo = read(join(repoRoot, 'client', 'binding', 'cabi', 'androidlib', 'log_android.go')) +
   read(join(repoRoot, 'client', 'binding', 'cabi', 'androidlib', 'production.go'))
 forbid(androidGo, ['slog.', 'log.Printf', 'log.Println'], 'Android Go logging')
+const normalizedAndroidGo = androidGo.replace(/\s+/g, ' ')
 for (const required of [
-  'cloudTimingPrefix      = []byte("anytty cloud connect ")',
-  'cloudFailurePrefix     = []byte("anytty cloud failure ")',
+  'cloudTimingPrefix = []byte("anytty cloud connect ")',
+  'cloudFailurePrefix = []byte("anytty cloud failure ")',
   'webRTCDiagnosticPrefix = []byte("anytty webrtc ")',
+  'endpointSupervisorPrefix = []byte("anytty endpoint_supervisor ")',
   'bytes.HasPrefix(payload, cloudTimingPrefix)',
   'bytes.HasPrefix(payload, cloudFailurePrefix)',
   'bytes.HasPrefix(payload, webRTCDiagnosticPrefix)',
+  'bytes.HasPrefix(payload, endpointSupervisorPrefix)',
+  'bytes.Index(trimmed, []byte(" invalidate_error="))',
+  '[]byte(" invalidate_failed=true")',
+  'bytes.HasPrefix(field, []byte("endpoint="))',
   'C.__android_log_write(C.ANDROID_LOG_INFO, tag, message)',
   'C.CString("AnyTTYCloud")',
+  'androidDiagnosticMaxFileBytes = int64(512 * 1024)',
+  'androidDiagnosticRetainedFiles = 4',
+  'androidDiagnosticMaxEntryBytes = 4 * 1024',
+  'rotateAndroidDiagnosticLog(path, int64(len(line)+1))',
 ]) {
-  if (!androidGo.includes(required)) fail(`Android Go timing allowlist is missing ${JSON.stringify(required)}`)
+  if (!normalizedAndroidGo.includes(required)) fail(`Android Go timing allowlist is missing ${JSON.stringify(required)}`)
 }
 
 const packageJson = JSON.parse(read(join(mobileRoot, 'package.json')))

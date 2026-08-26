@@ -91,7 +91,7 @@ describe('NativeRecoveryCoordinator', () => {
 })
 
 describe('resumeNativeForegroundTargets', () => {
-  it('waits for every target and rejects a single endpoint failure unchanged', async () => {
+  it('waits for every target without turning one endpoint into a global failure', async () => {
     const failure = new Error('endpoint-a failed')
     const second = deferred<void>()
     const resumed = resumeNativeForegroundTargets([
@@ -99,25 +99,30 @@ describe('resumeNativeForegroundTargets', () => {
       { endpointId: 'endpoint-b', resume: async () => await second.promise },
     ])
     let settled = false
-    void resumed.finally(() => { settled = true }).catch(() => undefined)
+    void resumed.finally(() => { settled = true })
 
     await Promise.resolve()
     expect(settled).toBe(false)
     second.resolve()
 
-    await expect(resumed).rejects.toBe(failure)
+    await expect(resumed).resolves.toEqual({
+      total: 2,
+      resumed: 1,
+      failures: [failure],
+    })
   })
 
-  it('aggregates multiple endpoint failures with endpoint context', async () => {
+  it('reports all endpoint failures to per-endpoint diagnostics', async () => {
     const failureA = new Error('endpoint-a failed')
     const failureB = new Error('endpoint-b failed')
 
     await expect(resumeNativeForegroundTargets([
       { endpointId: 'endpoint-a', resume: async () => { throw failureA } },
       { endpointId: 'endpoint-b', resume: async () => { throw failureB } },
-    ])).rejects.toMatchObject({
-      message: 'Native foreground resume failed for endpoints: endpoint-a, endpoint-b',
-      errors: [failureA, failureB],
+    ])).resolves.toEqual({
+      total: 2,
+      resumed: 0,
+      failures: [failureA, failureB],
     })
   })
 })

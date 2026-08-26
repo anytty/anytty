@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="webview_unsupported_title">系统组件需要更新</string>
+    <string name="webview_unsupported_message">Android System WebView %1$s 版本过旧。AnyTTY 需要 %2$d 或更高版本。请通过设备应用商店或系统固件更新 WebView，然后重试。</string>
+    <string name="webview_unknown_version">未找到</string>
+    <string name="webview_retry">重试</string>
+</resources>

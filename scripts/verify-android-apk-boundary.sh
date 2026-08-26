@@ -68,12 +68,31 @@ resolve_aapt2() {
   command -v aapt2 2>/dev/null || fail 'aapt2 is unavailable'
 }
 
+resolve_apksigner() {
+  if [[ -n "${ANYTTY_APKSIGNER:-}" && -x "$ANYTTY_APKSIGNER" ]]; then
+    printf '%s\n' "$ANYTTY_APKSIGNER"
+    return
+  fi
+  local android_sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
+  if [[ -x "$android_sdk_root/build-tools/36.0.0/apksigner" ]]; then
+    printf '%s\n' "$android_sdk_root/build-tools/36.0.0/apksigner"
+    return
+  fi
+  command -v apksigner 2>/dev/null || fail 'apksigner is unavailable'
+}
+
 apkanalyzer="$(resolve_apkanalyzer)"
 aapt2="$(resolve_aapt2)"
 llvm_readelf="$(resolve_llvm_readelf)"
 apk_entries="$(unzip -Z1 "$app_apk")" || fail "APK is not a readable ZIP archive: $app_apk"
 
-expected_abis_value="${ANYTTY_ANDROID_EXPECTED_ABIS:-arm64-v8a x86_64}"
+if [[ "${ANYTTY_ANDROID_REQUIRE_SIGNATURE:-0}" == "1" ]]; then
+  apksigner="$(resolve_apksigner)"
+  "$apksigner" verify --verbose "$app_apk" >/dev/null \
+    || fail "APK signature verification failed: $app_apk"
+fi
+
+expected_abis_value="${ANYTTY_ANDROID_EXPECTED_ABIS:-armeabi-v7a arm64-v8a x86_64}"
 if [[ "$expected_abis_value" == *$'\n'* || "$expected_abis_value" == *$'\r'* ]]; then
   fail 'ANYTTY_ANDROID_EXPECTED_ABIS must not contain CR or LF'
 fi
@@ -93,6 +112,14 @@ for abi in "${expected_abis[@]}"; do
     fi
   done
 done
+
+packaged_abis="$({
+  printf '%s\n' "$apk_entries" | awk -F/ '$1 == "lib" && NF == 3 && $3 ~ /\.so$/ { print $2 }'
+} | LC_ALL=C sort -u)"
+expected_abis_sorted="$(printf '%s\n' "${expected_abis[@]}" | LC_ALL=C sort -u)"
+if [[ "$packaged_abis" != "$expected_abis_sorted" ]]; then
+  fail "packaged ABIs do not match expected ABIs (expected: ${expected_abis[*]}; found: ${packaged_abis//$'\n'/, })"
+fi
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/anytty-apk-boundary.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT

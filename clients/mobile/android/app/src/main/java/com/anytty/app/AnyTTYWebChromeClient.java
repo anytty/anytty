@@ -1,6 +1,7 @@
 package com.anytty.app;
 
 import android.net.Uri;
+import android.webkit.ConsoleMessage;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -11,6 +12,8 @@ import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeWebChromeClient;
 
 public class AnyTTYWebChromeClient extends BridgeWebChromeClient {
+    private static final String DIAGNOSTIC_PREFIX = "[anytty:diagnostic] ";
+
     public AnyTTYWebChromeClient(Bridge bridge) {
         super(bridge);
     }
@@ -32,6 +35,15 @@ public class AnyTTYWebChromeClient extends BridgeWebChromeClient {
     @Override
     public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
         callback.invoke(origin, false, false);
+    }
+
+    @Override
+    public boolean onConsoleMessage(ConsoleMessage message) {
+        String value = message == null ? "" : message.message();
+        if (value.startsWith(DIAGNOSTIC_PREFIX)) {
+            AnyTTYDebugLog.connection("web " + value.substring(DIAGNOSTIC_PREFIX.length()));
+        }
+        return super.onConsoleMessage(message);
     }
 
     @Override

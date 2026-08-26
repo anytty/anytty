@@ -164,9 +164,7 @@ aab_path="$android_dir/app/build/outputs/bundle/release/app-release.aab"
 
 echo
 echo "Verifying AAB signature..."
-if ! jarsigner -verify "$aab_path"; then
-  fail "AAB verification failed; the package is not signed correctly"
-fi
+"$repo_root/scripts/verify-android-aab-boundary.sh" "$aab_path"
 
 echo
 echo "Signed AAB ready: $aab_path"

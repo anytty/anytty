@@ -1,6 +1,7 @@
 package com.anytty.app
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Base64
 import com.anytty.app.goclient.AndroidClientAccessCredentialStore
 import com.anytty.app.goclient.AndroidEndpointRegistryStore
@@ -118,17 +119,45 @@ internal object NativeConnectionRuntimeOwner {
         networkConnected = connected
         networkReason = reason.trim().ifEmpty { if (connected) "path_changed" else "offline" }
         incrementHostRevisionLocked()
+        AnyTTYDebugLog.connection(
+            "host_signal revision=$hostRevision foreground=false connected=$networkConnected reason=$networkReason",
+        )
         signalGoSupervisorLocked(foreground = false)
     }
 
     fun handleForegroundResume(context: Context, timeoutMillis: Int) {
-        val engineHandle = synchronized(this) {
+        val startedAt = SystemClock.elapsedRealtime()
+        val resume = synchronized(this) {
             ensureStarted(context.applicationContext)
             incrementHostRevisionLocked()
             signalGoSupervisorLocked(foreground = true)
-            goEngine?.handle ?: throw IllegalStateException("Go client engine is unavailable")
+            ForegroundResumeSignal(
+                engineHandle = goEngine?.handle ?: throw IllegalStateException("Go client engine is unavailable"),
+                revision = hostRevision,
+                connected = networkConnected,
+                reason = networkReason,
+                demandCount = rendererDemand.canonicalSnapshot().endpointIds.size,
+            )
         }
-        GoClientNative.awaitSupervisorReady(engineHandle, timeoutMillis)
+        AnyTTYDebugLog.connection(
+            "foreground_resume native_start revision=${resume.revision}" +
+                " connected=${resume.connected} reason=${resume.reason}" +
+                " demand_count=${resume.demandCount} timeout_ms=$timeoutMillis",
+        )
+        try {
+            GoClientNative.awaitSupervisorReady(resume.engineHandle, timeoutMillis)
+            AnyTTYDebugLog.connection(
+                "foreground_resume native_done revision=${resume.revision}" +
+                    " duration_ms=${SystemClock.elapsedRealtime() - startedAt} ${supervisorSummary(resume.engineHandle)}",
+            )
+        } catch (failure: Exception) {
+            AnyTTYDebugLog.connection(
+                "foreground_resume native_failed revision=${resume.revision}" +
+                    " duration_ms=${SystemClock.elapsedRealtime() - startedAt}" +
+                    " failure=${failure.javaClass.simpleName} ${supervisorSummary(resume.engineHandle)}",
+            )
+            throw failure
+        }
     }
 
     @Synchronized
@@ -219,4 +248,37 @@ internal object NativeConnectionRuntimeOwner {
         SecureRandom().nextBytes(bytes)
         return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
     }
+
+    private data class ForegroundResumeSignal(
+        val engineHandle: Long,
+        val revision: Long,
+        val connected: Boolean,
+        val reason: String,
+        val demandCount: Int,
+    )
+
+    private fun supervisorSummary(engineHandle: Long): String = runCatching {
+        val endpoints = ClientBinding.EndpointSupervisorSnapshot
+            .parseFrom(GoClientNative.supervisorSnapshot(engineHandle))
+            .endpointsList
+        val phases = endpoints.groupingBy { it.phase.ifBlank { "unknown" } }
+            .eachCount()
+            .toSortedMap()
+            .entries
+            .joinToString("_") { (phase, count) -> "${phase}_$count" }
+            .ifBlank { "none" }
+        val errors = endpoints.map { it.errorCode.ifBlank { "none" } }
+            .groupingBy { it }
+            .eachCount()
+            .toSortedMap()
+            .entries
+            .joinToString("_") { (code, count) -> "${code}_$count" }
+            .ifBlank { "none" }
+        "supervisor_total=${endpoints.size} phases=$phases errors=$errors" +
+            " probes=${endpoints.sumOf { it.probeCount }}" +
+            " dials=${endpoints.sumOf { it.dialCount }}" +
+            " backoffs=${endpoints.sumOf { it.backoffCount }}" +
+            " max_control_revision=${endpoints.maxOfOrNull { it.controlRevision } ?: 0L}" +
+            " max_attempt_id=${endpoints.maxOfOrNull { it.attemptId } ?: 0L}"
+    }.getOrElse { "supervisor_snapshot=unavailable" }
 }

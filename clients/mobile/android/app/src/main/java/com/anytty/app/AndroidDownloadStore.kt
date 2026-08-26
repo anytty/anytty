@@ -28,6 +28,16 @@ class AndroidDownloadStore(private val context: Context) {
         return publish(name, mimeType, bytes.size.toLong(), digest) { output -> output.write(bytes) }
     }
 
+    /** Publishes a completed app-private file without loading the whole artifact into memory. */
+    fun save(rawName: String, mimeType: String, source: File): SavedDownload {
+        require(source.isFile) { "download source is unavailable" }
+        val name = safeName(rawName)
+        val digest = digest(source)
+        return publish(name, mimeType, source.length(), digest) { output ->
+            FileInputStream(source).use { input -> input.copyTo(output) }
+        }
+    }
+
     @Synchronized
     fun resumeOffset(machineId: String, remotePath: String, totalSize: Long): Long {
         if (totalSize <= 0) return 0

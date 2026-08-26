@@ -38,6 +38,7 @@ import { useRef, useState } from 'react'
 import '../i18n'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { publicTerminalTags } from './terminalListFilters'
 import claudeIcon from '../assets/terminal-programs/claude.png'
 import clineIcon from '../assets/terminal-programs/cline.png'
 import codexIcon from '../assets/terminal-programs/codex.png'
@@ -63,6 +64,7 @@ export interface TerminalListProps {
   className?: string
   loading?: boolean
   loadingLabel?: string | undefined
+  emptyLabel?: string | undefined
   interactive?: boolean | undefined
   compact?: boolean | undefined
   pinnedTerminalIds?: readonly string[] | undefined
@@ -80,6 +82,7 @@ export function TerminalList({
   className,
   loading,
   loadingLabel,
+  emptyLabel,
   interactive = true,
   compact = false,
   pinnedTerminalIds = [],
@@ -133,7 +136,7 @@ export function TerminalList({
         ) : (
           <div className={`flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--anytty-app-line-strong)] bg-[var(--anytty-app-surface-soft)] text-sm text-[var(--anytty-app-muted)] animate-in fade-in duration-300 ${compact ? 'h-20 gap-1.5' : 'h-32 gap-3'}`}>
             <TerminalIcon className="h-8 w-8 text-zinc-300" />
-            <p>{t('terminal.noActive')}</p>
+            <p>{emptyLabel ?? t('terminal.noActive')}</p>
           </div>
         )
       ) : (
@@ -152,6 +155,8 @@ export function TerminalList({
             const dragging = drag?.terminalId === terminal.terminalId
             const dragTarget = drag?.targetTerminalId === terminal.terminalId
             const invertedActive = isActive && !webDraggable
+            const visibleTags = publicTerminalTags(terminal)
+            const displayedTags = visibleTags.slice(0, compact ? 1 : 2)
             return (
               <li
                 key={itemKey}
@@ -251,6 +256,25 @@ export function TerminalList({
                         <span className={`truncate text-[11px] font-medium leading-4 ${invertedActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-zinc-500'}`}>
                           {terminal.cwd ? terminal.cwd : terminal.command}
                         </span>
+                      ) : null}
+
+                      {displayedTags.length > 0 ? (
+                        <div className="flex min-w-0 items-center gap-1 overflow-hidden" aria-label={t('terminal.filters.tagsForTerminal')}>
+                          {displayedTags.map((tag) => (
+                            <span
+                              className={`max-w-32 truncate rounded border px-1.5 py-0.5 text-[9px] font-medium leading-3 ${invertedActive ? 'border-white/20 bg-black/10 text-[var(--primary-foreground)]' : 'border-zinc-200 bg-zinc-50 text-zinc-600'}`}
+                              key={tag.id}
+                              title={tag.label}
+                            >
+                              {tag.label}
+                            </span>
+                          ))}
+                          {visibleTags.length > displayedTags.length ? (
+                            <span className={`shrink-0 text-[9px] font-medium ${invertedActive ? 'text-[var(--primary-foreground)] opacity-75' : 'text-zinc-400'}`}>
+                              +{visibleTags.length - displayedTags.length}
+                            </span>
+                          ) : null}
+                        </div>
                       ) : null}
 
                       <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-medium leading-4 ${invertedActive ? 'text-[var(--primary-foreground)] opacity-80' : 'text-zinc-500'}`}>

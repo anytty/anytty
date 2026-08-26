@@ -13,7 +13,7 @@ import { MockProtoSession, protoResult } from '../test/mockProtoSession'
 import { createTerminalManagementApi } from './terminalManagementApi'
 
 describe('terminal management generated Proto API', () => {
-  it('emits typed create, metadata, restart, remove, and get commands', async () => {
+  it('emits typed create, metadata, restart, kill, remove, and get commands', async () => {
     const session = new MockProtoSession('machine-local', (command) => {
       if (command.command.case === 'terminalDefaults') {
         return protoResult('terminalDefaults', create(TerminalDefaultsResultSchema, {
@@ -42,20 +42,21 @@ describe('terminal management generated Proto API', () => {
     await expect(api.createTerminal({
       name: 'ops shell', command: ['/bin/zsh', '-l'], cwd: '/srv/app', environment: ['MODE=prod', 'TOKEN=a=b'], sizeLockMode: 'lock',
     })).resolves.toEqual({ terminalId: 'terminal-3' })
-    await api.updateTerminal({ terminalId: 'terminal-1', name: 'renamed', sizeLockMode: 'off' })
+    await api.updateTerminal({ terminalId: 'terminal-1', name: 'renamed', sizeLockMode: 'off', tags: { project: 'api', cwd: '/old' } })
     await api.updateTerminalSizeLock({ terminalId: 'terminal-1', cwd: '/srv/configured', sizeLockMode: 'lock' })
     await api.restartTerminal('terminal-1')
+    await api.killTerminal('terminal-1')
     await api.deleteTerminal('terminal-1')
     await expect(api.getTerminalDirectory('terminal-1')).resolves.toEqual({ path: '/srv/live', source: 'live' })
 
     expect(session.commands.map((command) => command.command.case)).toEqual([
-      'terminalDefaults', 'terminalCreate', 'terminalSetMetadata', 'terminalSetTags', 'terminalRestart', 'terminalRemove', 'terminalGet',
+      'terminalDefaults', 'terminalCreate', 'terminalSetMetadata', 'terminalSetTags', 'terminalRestart', 'terminalKill', 'terminalRemove', 'terminalGet',
     ])
     expect(session.commands[1]?.command.value).toMatchObject({
       terminal: { command: ['/bin/zsh', '-l'], cwd: '/srv/app', env: ['MODE=prod', 'TOKEN=a=b'], size: { cols: 80, rows: 24 }, tags: { 'anytty.size_lock': 'lock', cwd: '/srv/app' } },
     })
     expect((session.commands[1]?.command.value as { terminal?: { terminalId?: string } }).terminal?.terminalId).toMatch(/^term-/)
-    expect(session.commands[2]?.command.value).toMatchObject({ tags: { 'anytty.size_lock': 'off' } })
+    expect(session.commands[2]?.command.value).toMatchObject({ tags: { 'anytty.size_lock': 'off', project: 'api' } })
     expect(session.commands[3]?.command.value).toMatchObject({
       terminal: { terminalId: 'terminal-1' },
       tags: { 'anytty.size_lock': 'lock', cwd: '/srv/configured' },

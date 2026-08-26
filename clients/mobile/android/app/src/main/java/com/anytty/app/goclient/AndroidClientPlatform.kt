@@ -1,6 +1,7 @@
 package com.anytty.app.goclient
 
 import android.content.Context
+import com.anytty.app.AnyTTYDiagnosticStore
 import com.anytty.app.BuildConfig
 import com.anytty.app.NativeLocalDiscoveryCache
 import com.anytty.app.nativeLocalDiscoveryResult
@@ -174,16 +175,12 @@ class AndroidClientPlatform(
 
 /** AndroidGoClientEngine owns one production Go engine and its platform pump. */
 class AndroidGoClientEngine(context: Context) : AutoCloseable {
-	val handle: Long
-	init {
-		val logPath = if (BuildConfig.DEBUG) {
-			java.io.File(context.cacheDir, "anytty-debug-share").apply { mkdirs() }
-				.resolve("anytty-native-connection.log").absolutePath
-		} else ""
-		GoClientNative.setDebugLogPath(logPath)
-		check(GoClientNative.abiVersion() == GoClientNative.ABI_VERSION) { "AnyTTY native client ABI mismatch" }
-		handle = GoClientNative.create()
-	}
+    val handle: Long
+    init {
+        GoClientNative.setDebugLogPath(AnyTTYDiagnosticStore.nativeLogPath(context))
+        check(GoClientNative.abiVersion() == GoClientNative.ABI_VERSION) { "AnyTTY native client ABI mismatch" }
+        handle = GoClientNative.create()
+    }
     private val platform = AndroidClientPlatform(context, handle)
     private val closed = AtomicBoolean(false)
 

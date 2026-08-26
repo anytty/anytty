@@ -1467,6 +1467,20 @@ function SettingsView({
   onOpenPrivacyPolicy?: (() => void | Promise<void>) | undefined
 }) {
   const { t, i18n } = useTranslation()
+  const [diagnosticExportState, setDiagnosticExportState] = useState<'idle' | 'sharing' | 'ready' | 'failed'>('idle')
+  const handleDiagnosticExport = async () => {
+    if (!onExportDebugLogs || diagnosticExportState === 'sharing') return
+    hapticImpact()
+    setDiagnosticExportState('sharing')
+    try {
+      await onExportDebugLogs()
+      setDiagnosticExportState('ready')
+      hapticSuccess()
+    } catch {
+      setDiagnosticExportState('failed')
+      hapticError()
+    }
+  }
   const handleNumberSetting = (key: 'fontSize', min: number, max: number) =>
     (event: ChangeEvent<HTMLInputElement>) => {
       const value = Number(event.currentTarget.value)
@@ -1520,17 +1534,31 @@ function SettingsView({
 
           {onExportDebugLogs ? (
             <SettingsSection title={t('settings.diagnostics')}>
-              <div className="px-4 py-3">
+              <div className="px-4 py-4">
+                <p className="mb-3 text-sm leading-5 text-zinc-600" id="anytty-diagnostic-log-description">
+                  {t('settings.exportLogsDescription')}
+                </p>
                 <Button
-                  className="h-11 w-full gap-2 px-3 font-semibold"
-                  onClick={() => {
-                    hapticImpact()
-                    void onExportDebugLogs()
-                  }}
+                  aria-describedby="anytty-diagnostic-log-description"
+                  className="h-12 w-full gap-2 px-3 font-semibold"
+                  disabled={diagnosticExportState === 'sharing'}
+                  onClick={() => { void handleDiagnosticExport() }}
                 >
-                  <Download className="h-4 w-4" />
-                  {t('settings.exportLogs')}
+                  {diagnosticExportState === 'sharing'
+                    ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    : <Download aria-hidden="true" className="h-4 w-4" />}
+                  {diagnosticExportState === 'sharing' ? t('settings.exportingLogs') : t('settings.exportLogs')}
                 </Button>
+                {diagnosticExportState === 'ready' ? (
+                  <p aria-live="polite" className="mt-2 text-sm font-medium text-emerald-700" role="status">
+                    {t('settings.exportLogsReady')}
+                  </p>
+                ) : null}
+                {diagnosticExportState === 'failed' ? (
+                  <p aria-live="assertive" className="mt-2 text-sm font-medium text-red-700" role="alert">
+                    {t('settings.exportLogsFailed')}
+                  </p>
+                ) : null}
               </div>
             </SettingsSection>
           ) : null}

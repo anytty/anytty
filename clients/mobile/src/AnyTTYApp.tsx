@@ -256,6 +256,9 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
         onRefreshMachines={() => refreshRegistry()}
         pickMachineIconImage={pickNativeMachineIconImage}
         scanPairingCode={scanNativePairingCode}
+        exportDebugLogs={Capacitor.getPlatform() === 'android'
+          ? async () => { await NativeConnection.shareDiagnosticBundle() }
+          : undefined}
         privacyPolicyUrl={privacyPolicyUrl}
         onOpenPrivacyPolicy={() => Browser.open({ url: privacyPolicyUrl })}
         systemClipboard={nativeSystemClipboard}
@@ -623,7 +626,35 @@ function finishNativeForeground(failure?: unknown): void {
 }
 
 function reportNativeGenerationFailure(failure: unknown): void {
-  void failure
+  nativeDiagnostic('foreground_recovery_failure', {
+    failure: diagnosticFailureCode(failure),
+  })
+}
+
+function nativeDiagnostic(event: string, fields: Record<string, string | number | boolean> = {}): void {
+  const details = Object.entries(fields).map(([key, value]) => `${diagnosticToken(key)}=${diagnosticToken(String(value))}`)
+  const value = `event=${diagnosticToken(event)}${details.length > 0 ? ` ${details.join(' ')}` : ''}`
+  writeNativeDiagnostic(value)
+}
+
+function writeNativeDiagnostic(value: string): void {
+  console.info(`[anytty:diagnostic] ${value}`)
+  void NativeConnection.writeDebugDiagnostic({ value }).catch(() => undefined)
+}
+
+function diagnosticFailureCode(failure: unknown): string {
+  if (failure && typeof failure === 'object') {
+    const code = 'code' in failure && typeof failure.code === 'string' ? failure.code : ''
+    if (code.trim()) return code
+    if ('name' in failure && typeof failure.name === 'string' && failure.name.trim()) return failure.name
+    const constructorName = failure.constructor?.name
+    if (constructorName) return constructorName
+  }
+  return typeof failure
+}
+
+function diagnosticToken(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) || 'none'
 }
 
 let nativeGenerationReplacement: Promise<void> = Promise.resolve()
@@ -720,12 +751,25 @@ function useNativeNetworkRecovery(
     }))
   }, [connectionState, successfulRecoveryRevision])
 
-  const executeRecovery = useCallback(async ({ attempt, intent }: NativeRecoveryWork) => {
-    if (!recoveryFence.isCurrent(attempt)) return
+  const executeRecovery = useCallback(async ({ attempt, intent, trigger }: NativeRecoveryWork) => {
+    if (!recoveryFence.isCurrent(attempt)) {
+      nativeDiagnostic('foreground_recovery_skipped', { attempt, intent, trigger, reason: 'superseded' })
+      return
+    }
+    const startedAt = globalThis.performance.now()
+    let stage = 'native_runtime'
+    nativeDiagnostic('foreground_recovery_start', { attempt, intent, trigger })
     markNativeBackground()
     try {
       await withNativeRecoveryTimeout(NativeConnection.handleForegroundResume(), 'Native runtime recovery')
+      nativeDiagnostic('foreground_recovery_stage', {
+        attempt,
+        stage,
+        status: 'done',
+        elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
+      })
       if (!recoveryFence.isCurrent(attempt)) return
+      stage = intent === 'repair' ? 'binding_replacement' : 'binding_health'
       if (intent === 'repair') {
         await withNativeRecoveryTimeout(
           replaceNativeGeneration(refreshRegistry, resetRuntime),
@@ -745,17 +789,40 @@ function useNativeNetworkRecovery(
           )
         }
       }
+      nativeDiagnostic('foreground_recovery_stage', {
+        attempt,
+        stage,
+        status: 'done',
+        elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
+      })
       if (!recoveryFence.isCurrent(attempt)) return
       lastHeartbeatRef.current = globalThis.performance.now()
+      stage = 'endpoint_resume'
       await foregroundResume()
+      nativeDiagnostic('foreground_recovery_stage', {
+        attempt,
+        stage,
+        status: 'done',
+        elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
+      })
       if (!recoveryFence.isCurrent(attempt)) return
       resumeInterruptedTransfers()
       finishRecoveryStatus({ type: 'recovery.succeeded' })
       finishNativeForeground()
       setSuccessfulRecoveryRevision((revision) => revision + 1)
+      nativeDiagnostic('foreground_recovery_done', {
+        attempt,
+        duration_ms: Math.round(globalThis.performance.now() - startedAt),
+      })
     } catch (failure) {
       if (!recoveryFence.isCurrent(attempt)) return
       finishRecoveryStatus({ type: 'recovery.failed' })
+      nativeDiagnostic('foreground_recovery_failed', {
+        attempt,
+        stage,
+        duration_ms: Math.round(globalThis.performance.now() - startedAt),
+        failure: diagnosticFailureCode(failure),
+      })
       reportNativeGenerationFailure(failure)
       finishNativeForeground(failure)
       throw failure
@@ -780,11 +847,13 @@ function useNativeNetworkRecovery(
   useEffect(() => {
     const promise = CapApp.addListener('appStateChange', (state) => {
       if (!state.isActive) {
+        nativeDiagnostic('app_state', { state: 'background' })
         recoveryFence.invalidate()
         dismissRecoveryStatus()
         markNativeBackground()
         return
       }
+      nativeDiagnostic('app_state', { state: 'foreground' })
       void runRecovery({
         intent: 'ensure_ready',
         trigger: 'app_resume',
@@ -994,10 +1063,23 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
     },
     async foregroundResume() {
       await nativeSessionDemand.reconcileRenderer()
-      await resumeNativeForegroundTargets([...sessionManagers].map(([endpointId, entry]) => ({
+      const targets = [...sessionManagers].map(([endpointId, entry]) => ({
         endpointId,
         resume: () => entry.manager.foregroundResume(),
-      })))
+      }))
+      nativeDiagnostic('endpoint_resume_started', { total: targets.length })
+      // Each manager owns its retry loop and publishes its own state. App readiness must
+      // not stay blocked for up to a full dial timeout because one endpoint is offline.
+      void resumeNativeForegroundTargets(targets).then((result) => {
+        nativeDiagnostic('endpoint_resume_settled', {
+          total: result.total,
+          resumed: result.resumed,
+          failed: result.failures.length,
+        })
+        for (const failure of result.failures) {
+          nativeDiagnostic('endpoint_resume_failed', { failure: diagnosticFailureCode(failure) })
+        }
+      })
     },
     async initializeNetworkState(connected) {
       networkConnected = connected
@@ -1070,6 +1152,7 @@ function createNativeMachineRuntime(
         verifyOnFirstAcquire: true,
         initiallyConnected: shared.networkConnected(),
         waitForForeground: (signal) => nativeForegroundBarrier.wait(signal),
+        writeDiagnostic: writeNativeDiagnostic,
       }),
     }
     shared.sessionManagers.set(machine.id, entry)
@@ -1122,6 +1205,7 @@ function createNativeMachineRuntime(
             last_output_at: unixNanoISOString(terminal.lastOutputAtUnixNano),
             size_locked: terminal.tags['anytty.size_lock'] === 'lock',
             size_lock_mode: terminal.tags['anytty.size_lock'],
+            tags: { ...terminal.tags },
           })),
         }).terminals
       } finally {

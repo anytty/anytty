@@ -146,6 +146,77 @@ describe('MachineWorkspace terminal creation', () => {
     expect(screen.getByTestId('anytty-terminal-body').className).not.toContain('md:row-start-1')
   })
 
+  it('filters terminal inventory by lifecycle tab and public tag', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = [
+      { terminalId: 'term-api', machineId: 'studio', title: 'API Shell', state: 'running' as const, command: '/bin/zsh', tags: { project: 'api' } },
+      { terminalId: 'term-web', machineId: 'studio', title: 'Web Shell', state: 'running' as const, command: '/bin/zsh', tags: { project: 'web' } },
+      { terminalId: 'term-api-old', machineId: 'studio', title: 'Old API Shell', state: 'exited' as const, command: '/bin/zsh', tags: { project: 'api' } },
+    ]
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+      initialMachine={machine}
+    />)
+
+    expect(await screen.findByText('API Shell')).toBeTruthy()
+    expect(screen.getByText('Web Shell')).toBeTruthy()
+    expect(screen.queryByText('Old API Shell')).toBeNull()
+    expect(screen.getByTestId('anytty-terminal-status-running').getAttribute('aria-pressed')).toBe('true')
+
+    await userEvent.click(screen.getByTestId('anytty-terminal-status-exited'))
+    expect(await screen.findByText('Old API Shell')).toBeTruthy()
+    expect(screen.queryByText('API Shell')).toBeNull()
+
+    await userEvent.click(screen.getByTestId('anytty-terminal-status-all'))
+    await userEvent.click(screen.getByTestId('anytty-terminal-tag-filter'))
+    await userEvent.click(screen.getByTestId('anytty-terminal-tag-option-project%3Dapi'))
+    expect(await screen.findByText('API Shell')).toBeTruthy()
+    expect(screen.getByText('Old API Shell')).toBeTruthy()
+    expect(screen.queryByText('Web Shell')).toBeNull()
+  })
+
+  it('requires confirmation before ending a running terminal and keeps its record', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    let terminalState: 'running' | 'exited' = 'running'
+    const listTerminals = vi.fn(async () => [{
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: terminalState, command: '/bin/zsh', tags: { project: 'api' },
+    }])
+    const session = new MockProtoSession('studio', (command) => {
+      if (command.command.case === 'terminalKill') terminalState = 'exited'
+      return protoResult('acknowledge', create(AcknowledgeResultSchema))
+    })
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals,
+      }}
+      connector={{ connect: vi.fn(async () => session) }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage Shell' }))
+    await userEvent.click(screen.getByRole('button', { name: 'End terminal' }))
+
+    expect(screen.getByText('End this terminal?')).toBeTruthy()
+    expect(session.commands.some((command) => command.command.case === 'terminalKill')).toBe(false)
+
+    await userEvent.click(screen.getByTestId('anytty-terminal-confirm-kill'))
+    await waitFor(() => expect(session.commands.some((command) => command.command.case === 'terminalKill')).toBe(true))
+    await waitFor(() => expect(listTerminals.mock.calls.length).toBeGreaterThan(1))
+
+    expect(await screen.findByText('No running terminals')).toBeTruthy()
+    await userEvent.click(screen.getByTestId('anytty-terminal-status-exited'))
+    expect(await screen.findByText('Shell')).toBeTruthy()
+    expect(screen.getAllByText('Exited')).toHaveLength(2)
+    expect(session.commands.some((command) => command.command.case === 'terminalRemove')).toBe(false)
+  })
+
   it('keeps Web terminals as reorderable view tabs without stopping daemon terminals', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminals = [

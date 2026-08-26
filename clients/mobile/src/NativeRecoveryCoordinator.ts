@@ -15,6 +15,12 @@ export interface NativeForegroundResumeTarget {
   resume: () => Promise<void>
 }
 
+export interface NativeForegroundResumeResult {
+  total: number
+  resumed: number
+  failures: unknown[]
+}
+
 interface NativeRecoverySchedule {
   beginAttempt: () => number
   isCurrent: (attempt: number) => boolean
@@ -96,21 +102,18 @@ export class NativeRecoveryCoordinator {
   }
 }
 
-/** Waits for every demanded endpoint to settle, but never converts endpoint failures into APP ready. */
+/** Waits for every demanded endpoint to settle without making one endpoint a global APP failure. */
 export async function resumeNativeForegroundTargets(
   targets: Iterable<NativeForegroundResumeTarget>,
-): Promise<void> {
+): Promise<NativeForegroundResumeResult> {
   const pending = [...targets]
   const results = await Promise.allSettled(pending.map((target) => target.resume()))
-  const failures = results.flatMap((result, index) => result.status === 'rejected'
-    ? [{ endpointId: pending[index]?.endpointId ?? 'unknown', reason: result.reason }]
-    : [])
-  if (failures.length === 0) return
-  if (failures.length === 1) throw failures[0]?.reason
-  throw new AggregateError(
-    failures.map((failure) => failure.reason),
-    `Native foreground resume failed for endpoints: ${failures.map((failure) => failure.endpointId).join(', ')}`,
-  )
+  const failures = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+  return {
+    total: pending.length,
+    resumed: pending.length - failures.length,
+    failures,
+  }
 }
 
 function covers(current: NativeRecoveryRequest, requested: NativeRecoveryRequest): boolean {

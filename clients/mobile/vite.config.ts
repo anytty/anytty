@@ -14,6 +14,7 @@ export default defineConfig(({ command, mode }) => ({
     outDir: 'dist',
     manifest: true,
     minify: 'oxc',
+    target: 'chrome101',
     rolldownOptions: {
       output: productionRolldownOutput(),
     },

@@ -36,7 +36,7 @@ const privacyPolicyCopy: Record<PrivacyPolicyLanguage, PrivacyPolicyCopy> = {
       },
       {
         title: 'Diagnostics, analytics, and advertising',
-        paragraphs: ['The app does not contain advertising SDKs or third-party analytics SDKs. Operational diagnostics use redacted categories, states, and timing values. Diagnostic logs are not uploaded automatically.'],
+        paragraphs: ['The app does not contain advertising SDKs or third-party analytics SDKs. Operational diagnostics use redacted categories, states, and timing values. Diagnostic logs are not uploaded automatically and leave the device only when you choose to share them.'],
       },
       {
         title: 'How information is used and shared',
@@ -84,7 +84,7 @@ const privacyPolicyCopy: Record<PrivacyPolicyLanguage, PrivacyPolicyCopy> = {
       },
       {
         title: '诊断、分析与广告',
-        paragraphs: ['App 不包含广告 SDK 或第三方分析 SDK。运行诊断仅使用已脱敏的类别、状态和耗时信息，诊断日志不会自动上传。'],
+        paragraphs: ['App 不包含广告 SDK 或第三方分析 SDK。运行诊断仅使用已脱敏的类别、状态和耗时信息，诊断日志不会自动上传，只有在你主动分享时才会离开设备。'],
       },
       {
         title: '信息用途与共享',

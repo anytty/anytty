@@ -7,6 +7,7 @@ import {
   TerminalCreateSpecSchema,
   TerminalDefaultsCommandSchema,
   TerminalGetCommandSchema,
+  TerminalKillCommandSchema,
   TerminalRefSchema,
   TerminalRemoveCommandSchema,
   TerminalRestartCommandSchema,
@@ -22,6 +23,7 @@ export interface TerminalManagementApi {
   updateTerminal(input: LocalUpdateTerminalInput): Promise<void>
   updateTerminalSizeLock(input: Pick<LocalUpdateTerminalInput, 'terminalId' | 'cwd' | 'sizeLockMode'>): Promise<void>
   restartTerminal(terminalId: string): Promise<void>
+  killTerminal(terminalId: string): Promise<void>
   deleteTerminal(terminalId: string): Promise<void>
   getTerminalDirectory(terminalId: string): Promise<{ path: string; source?: string | undefined }>
 }
@@ -91,6 +93,9 @@ function createProtoTerminalManagementApi(session: ProtoClientSession, machineId
     async restartTerminal(terminalId) {
       assertAcknowledge(await execute('terminalRestart', create(TerminalRestartCommandSchema, { terminal: terminalRef(terminalId) })), 'terminal restart')
     },
+    async killTerminal(terminalId) {
+      assertAcknowledge(await execute('terminalKill', create(TerminalKillCommandSchema, { terminal: terminalRef(terminalId) })), 'terminal kill')
+    },
     async deleteTerminal(terminalId) {
       assertAcknowledge(await execute('terminalRemove', create(TerminalRemoveCommandSchema, { terminal: terminalRef(terminalId) })), 'terminal remove')
     },
@@ -129,13 +134,16 @@ function newTerminalId(): string {
 function terminalTags(input: {
   cwd?: string | undefined
   sizeLockMode?: LocalCreateTerminalInput['sizeLockMode'] | LocalUpdateTerminalInput['sizeLockMode']
+  tags?: Record<string, string> | undefined
 }): Record<string, string> {
-  const tags: Record<string, string> = {}
+  const tags: Record<string, string> = { ...input.tags }
   if (input.sizeLockMode) {
     tags['anytty.size_lock'] = input.sizeLockMode
   }
   if (input.cwd) {
     tags.cwd = input.cwd
+  } else {
+    delete tags.cwd
   }
   return tags
 }

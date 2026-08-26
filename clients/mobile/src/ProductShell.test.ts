@@ -15,6 +15,9 @@ import androidBoundarySource from '../../../scripts/verify-android-apk-boundary.
 import androidLogSource from '../../../client/binding/enginehost/host.go?raw'
 import mainActivitySource from '../android/app/src/main/java/com/anytty/app/MainActivity.java?raw'
 import webViewClientSource from '../android/app/src/main/java/com/anytty/app/AnyTTYWebViewClient.java?raw'
+import diagnosticStoreSource from '../android/app/src/main/java/com/anytty/app/AnyTTYDiagnosticStore.kt?raw'
+import webViewCompatibilitySource from '../android/app/src/main/java/com/anytty/app/AnyTTYWebViewCompatibility.java?raw'
+import mobileViteConfigSource from '../vite.config.ts?raw'
 
 describe('mobile product shell', () => {
   it('does not expose staging IP addresses in the official App shell', () => {
@@ -26,6 +29,18 @@ describe('mobile product shell', () => {
   it('links the App to the canonical public privacy policy', () => {
     expect(mobileAppSource).toContain("const privacyPolicyUrl = 'https://anytty.com/privacy/'")
     expect(mobileAppSource).not.toContain('https://cloud.anytty.com/privacy')
+  })
+
+  it('keeps bounded private diagnostics and shares them only after a user action', () => {
+    expect(diagnosticStoreSource).toContain('context.noBackupFilesDir')
+    expect(diagnosticStoreSource).toContain('MAX_FILE_BYTES = 512L * 1024L')
+    expect(diagnosticStoreSource).toContain('RETAINED_FILES = 4')
+    expect(diagnosticStoreSource).toContain('automatic_upload=false')
+    expect(nativeConnectionSource).toContain('fun shareDiagnosticBundle(call: PluginCall)')
+    expect(nativeConnectionSource).toContain('Intent(Intent.ACTION_SEND)')
+    expect(nativeConnectionSource).toContain('Intent.FLAG_GRANT_READ_URI_PERMISSION')
+    expect(mobileAppSource).toContain('await NativeConnection.shareDiagnosticBundle()')
+    expect(mobileAppSource).toContain('exportDebugLogs={Capacitor.getPlatform()')
   })
 
   it('keeps the process runtime across backgrounding and replaces only a failed binding', () => {
@@ -89,6 +104,14 @@ describe('mobile product shell', () => {
     expect(mainActivitySource).toContain('Build.VERSION.SDK_INT >= Build.VERSION_CODES.O')
     expect(mainActivitySource).toContain('webView.destroy()')
     expect(mainActivitySource).toContain('mainHandler.post(this::recreate)')
+  })
+
+  it('fails visibly when the Android WebView cannot run the mobile bundle', () => {
+    expect(webViewCompatibilitySource).toContain('MINIMUM_MAJOR_VERSION = 101')
+    expect(mainActivitySource).toContain('WebViewCompat.getCurrentWebViewPackage(this)')
+    expect(mainActivitySource).toContain('R.layout.activity_unsupported_webview')
+    expect(mainActivitySource).toContain('R.id.webview_retry')
+    expect(mobileViteConfigSource).toContain("target: 'chrome101'")
   })
 
   it('projects native local discovery without feeding it into session recovery', () => {

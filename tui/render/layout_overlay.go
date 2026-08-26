@@ -22,7 +22,11 @@ func measureCompactOverlay(content ContentVM, viewport Rect) Rect {
 	}
 	padX, padY := compactOverlayPadding(viewport)
 	width := minInt(maxInt(lineWidth+padX*2+2, 64), 80)
-	height := minInt(maxInt(len(content.Lines)+padY*2+2, 6), 12)
+	maxHeight := 12
+	if content.Kind == ContentTerminalPicker {
+		maxHeight = 24
+	}
+	height := minInt(maxInt(len(content.Lines)+padY*2+2, 6), maxHeight)
 	if width > viewport.W-4 {
 		width = maxInt(8, viewport.W-2)
 	}

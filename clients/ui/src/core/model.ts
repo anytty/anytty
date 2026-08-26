@@ -30,6 +30,7 @@ export interface Terminal {
   sizeLocked?: boolean | undefined
   sizeLockMode?: 'off' | 'warn' | 'lock' | undefined
   environment?: string | undefined
+  tags?: Record<string, string> | undefined
   resizeOwnerSurfaceId?: string | undefined
   resizeOwnerViewId?: string | undefined
   resizeOwnerAttachmentCount?: number | undefined
@@ -69,6 +70,7 @@ export function assertRemoteModelShape(value: unknown): void {
     }
 
     for (const [key, nested] of Object.entries(current as Record<string, unknown>)) {
+      if (key === 'tags') continue
       if ((blockedPublicModelKeys as readonly string[]).includes(key)) {
         throw new Error(`remote public model must not contain ${key}`)
       }
@@ -112,6 +114,7 @@ export function normalizeTerminal(input: Record<string, unknown>): Terminal {
     sizeLocked: getOptionalBoolean(input, 'size_locked', 'sizeLocked'),
     sizeLockMode: normalizeSizeLockMode(getOptionalString(input, 'size_lock_mode', 'sizeLockMode')),
     environment: getOptionalString(input, 'environment', 'env'),
+    tags: getOptionalStringRecord(input, 'tags'),
     resizeOwnerSurfaceId: getResizeOwnershipString(input, 'owner_surface_id'),
     resizeOwnerViewId: getResizeOwnershipString(input, 'owner_view_id'),
     resizeOwnerAttachmentCount: getOptionalNumber(input, 'resize_owner_attachment_count', 'resizeOwnerAttachmentCount'),
@@ -205,6 +208,22 @@ function getOptionalBoolean(record: Record<string, unknown>, ...keys: string[]):
       throw new Error(`${key} must be a boolean`)
     }
     return value
+  }
+  return undefined
+}
+
+function getOptionalStringRecord(record: Record<string, unknown>, ...keys: string[]): Record<string, string> | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (value === undefined || value === null) continue
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error(`${key} must be an object`)
+    }
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (!entries.every(([, entryValue]) => typeof entryValue === 'string')) {
+      throw new Error(`${key} must contain only string values`)
+    }
+    return Object.fromEntries(entries) as Record<string, string>
   }
   return undefined
 }

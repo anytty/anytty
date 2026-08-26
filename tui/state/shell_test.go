@@ -510,6 +510,20 @@ func TestTerminalPickerAndManagerFilterTerminalTags(t *testing.T) {
 	}
 }
 
+func TestTerminalTagsTextHidesSequentialTransportKeys(t *testing.T) {
+	tags := map[string]string{
+		"tag1": "tag=123",
+		"tag2": "ABC",
+		"kind": "task",
+	}
+	if got := TerminalTagsText(tags); got != "kind=task, tag=123, ABC" {
+		t.Fatalf("visible tags should omit sequential transport keys, got %q", got)
+	}
+	if got := TerminalTagsMetadataText(tags); got != "kind=task, tag1=tag=123, tag2=ABC" {
+		t.Fatalf("metadata tags should preserve exact keys, got %q", got)
+	}
+}
+
 func TestTerminalPickerItemsKeepSameTerminalIDAcrossEndpoints(t *testing.T) {
 	root := Root{
 		Shell: DefaultShell().OpenTerminalPicker(),

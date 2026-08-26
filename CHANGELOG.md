@@ -6,6 +6,11 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+### Added
+
+- Added Android ARMv7 (`armeabi-v7a`) native builds for supported 32-bit devices.
+- Added signed per-ABI Android APKs, a signed universal APK, and a signed Google Play AAB to the tag-driven release workflow.
+
 ## [0.0.1-beta.4] - 2026-08-26
 
 ### Fixed

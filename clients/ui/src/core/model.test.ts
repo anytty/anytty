@@ -30,6 +30,7 @@ describe('remote public model', () => {
       rows: 36,
       foreground_process: 'gemini',
       last_output_at: '2026-08-13T10:00:00Z',
+      tags: { project: 'api', 'anytty.size_lock': 'lock' },
     })
 
     expect(machine.machineId).toBe('machine-local')
@@ -38,6 +39,7 @@ describe('remote public model', () => {
     expect(terminal.machineId).toBe(machine.machineId)
     expect(terminal.foregroundProcess).toBe('gemini')
     expect(terminal.lastOutputAt).toBe('2026-08-13T10:00:00Z')
+    expect(terminal.tags).toEqual({ project: 'api', 'anytty.size_lock': 'lock' })
   })
 
   it('rejects workspace/tab/window/pane-shaped public records', () => {
@@ -85,5 +87,21 @@ describe('remote public model', () => {
       state: 'exited',
       command: '/bin/zsh -l',
     })
+  })
+
+  it('rejects non-string terminal tag values', () => {
+    expect(() => normalizeTerminal({
+      terminal_id: 'term-1',
+      machine_id: 'machine-local',
+      tags: { project: 42 },
+    })).toThrow(/tags must contain only string values/)
+  })
+
+  it('treats user-defined tag keys as opaque metadata rather than layout fields', () => {
+    expect(normalizeTerminal({
+      terminal_id: 'term-1',
+      machine_id: 'machine-local',
+      tags: { workspace: 'production', tab: 'backend' },
+    }).tags).toEqual({ workspace: 'production', tab: 'backend' })
   })
 })

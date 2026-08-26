@@ -35,14 +35,19 @@ include_dir="${repo_root}/client/binding/cabi"
 jni_source="${repo_root}/clients/mobile/android/app/src/main/cpp/anytty_client_jni.c"
 
 build_abi() {
-  local abi="$1" goarch="$2" triple="$3"
+  local abi="$1" goarch="$2" triple="$3" goarm="${4:-}"
   local destination="${output_root}/${abi}"
   mkdir -p "${destination}"
   (
     cd "${repo_root}"
+    export GOOS=android GOARCH="${goarch}" CGO_ENABLED=1 CC="${toolchain}/${triple}${api}-clang"
+    if [[ -n "${goarm}" ]]; then
+      export GOARM="${goarm}"
+    else
+      unset GOARM
+    fi
     # Pion 的 Android interface adapter 仍使用受控 linkname；Go 1.23+ 需要显式允许该上游实现。
-    GOOS=android GOARCH="${goarch}" CGO_ENABLED=1 CC="${toolchain}/${triple}${api}-clang" \
-      go build -trimpath -buildmode=c-shared -ldflags="${cloud_ldflags}" \
+    go build -trimpath -buildmode=c-shared -ldflags="${cloud_ldflags}" \
       -o "${destination}/libanytty_client.so" ./client/binding/cabi/androidlib
   )
   "${toolchain}/${triple}${api}-clang" -shared -fPIC \
@@ -53,5 +58,6 @@ build_abi() {
   rm -f "${destination}/libanytty_client.h"
 }
 
+build_abi armeabi-v7a arm armv7a-linux-androideabi 7
 build_abi arm64-v8a arm64 aarch64-linux-android
 build_abi x86_64 amd64 x86_64-linux-android

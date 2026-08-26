@@ -118,6 +118,7 @@ function terminalInventoryDetailScore(terminal: Terminal): number {
     terminal.command,
     terminal.cwd,
     terminal.environment,
+    terminal.tags && Object.keys(terminal.tags).length > 0,
     terminal.cols,
     terminal.rows,
     terminal.sizeLockMode,

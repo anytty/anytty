@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, Plus, Search, SquareTerminal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Terminal } from '../core/model'
@@ -47,6 +47,14 @@ export function WebTerminalPickerDialog({
     ...(showCreate ? [{ kind: 'create' as const }] : []),
     ...terminalItems.map((terminal) => ({ kind: 'terminal' as const, terminal })),
   ], [showCreate, terminalItems])
+  const resultSummary = query.trim() === ''
+    ? t('terminal.terminalCount', { count: terminals.length })
+    : t('terminal.picker.results', { shown: terminalItems.length, total: terminals.length })
+  const selectedPosition = items.length > 0
+    ? t('terminal.picker.position', { current: selectedIndex + 1, total: items.length })
+    : null
+  const preferredRowCount = Math.min(13, Math.max(2, terminals.length + (canCreateTerminal ? 1 : 0)))
+  const preferredHeight = 56 + 36 + 16 + preferredRowCount * 48
 
   useEffect(() => {
     if (!open) return
@@ -89,7 +97,11 @@ export function WebTerminalPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(38rem,calc(100dvh-3rem))] max-w-2xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0" hideClose>
+      <DialogContent
+        className="h-[min(calc(100dvh-2rem),var(--anytty-picker-height))] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
+        hideClose
+        style={{ '--anytty-picker-height': `${preferredHeight}px` } as CSSProperties}
+      >
         <DialogHeader className="sr-only">
           <DialogTitle>{t('terminal.picker.title')}</DialogTitle>
           <DialogDescription>{t('terminal.picker.description')}</DialogDescription>
@@ -130,7 +142,8 @@ export function WebTerminalPickerDialog({
 
         <div
           aria-label={t('terminal.list')}
-          className="min-h-0 overflow-y-auto p-2"
+          className="min-h-0 overscroll-contain overflow-y-auto p-2"
+          data-testid="anytty-web-terminal-picker-list"
           id={listId}
           role="listbox"
         >
@@ -207,6 +220,13 @@ export function WebTerminalPickerDialog({
               </PickerOption>
             )
           })}
+        </div>
+
+        <div className="flex h-9 items-center justify-between border-t border-[var(--anytty-app-line)] px-4 text-xs tabular-nums text-[var(--anytty-app-muted)]">
+          <span aria-atomic="true" aria-live="polite" data-testid="anytty-web-terminal-picker-results">
+            {resultSummary}
+          </span>
+          {selectedPosition ? <span>{selectedPosition}</span> : null}
         </div>
       </DialogContent>
     </Dialog>

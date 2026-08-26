@@ -74,7 +74,19 @@ internal class NativeNetworkMonitor(
         lastStable = current
         if (!requiresSessionRecovery(previous, current)) return
         epoch += 1
-        onStableNetworkChanged(epoch, current.connected, networkChangeReason(previous, current))
+        val reason = networkChangeReason(previous, current)
+        AnyTTYDebugLog.connection(buildString {
+            append("network_stable epoch=$epoch reason=$reason")
+            append(" connected=${current.connected} internet=${current.internet} validated=${current.validated}")
+            append(" handle_changed=${previous.networkHandle != current.networkHandle}")
+            append(" address_changed=${previous.addresses != current.addresses}")
+            append(" dns_changed=${previous.dnsServers != current.dnsServers}")
+            append(" routes_changed=${previous.routes != current.routes}")
+            append(" address_count=${current.addresses.size}")
+            append(" dns_count=${current.dnsServers.size}")
+            append(" route_count=${current.routes.size}")
+        })
+        onStableNetworkChanged(epoch, current.connected, reason)
     }
 
     private fun currentSignature(): Signature {
@@ -132,6 +144,14 @@ internal fun networkChangeReason(
 ): String = when {
     !current.connected -> "offline"
     !previous.connected -> "available"
-    previous.networkHandle != current.networkHandle -> "network_replaced"
+    previous.networkHandle != current.networkHandle && effectivePathChanged(previous, current) -> "network_replaced"
     else -> "path_changed"
 }
+
+private fun effectivePathChanged(
+    previous: NativeNetworkMonitor.Signature,
+    current: NativeNetworkMonitor.Signature,
+): Boolean = previous.internet != current.internet ||
+    previous.addresses != current.addresses ||
+    previous.dnsServers != current.dnsServers ||
+    previous.routes != current.routes

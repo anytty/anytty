@@ -10,6 +10,19 @@ type ProtoClientSessionCloseHandler = Parameters<ProtoClientSession['subscribeCl
 type ProtoClientSessionCloseError = Parameters<ProtoClientSessionCloseHandler>[0]
 
 describe('NativeSessionManager', () => {
+  it('emits lifecycle diagnostics without exposing the endpoint identifier', async () => {
+    const writeDiagnostic = vi.fn()
+    const manager = new NativeSessionManager('private-endpoint-id', {
+      connect: vi.fn(async () => fakeSession()),
+    }, { writeDiagnostic })
+
+    await manager.foregroundResume()
+
+    expect(writeDiagnostic).toHaveBeenCalledWith(expect.stringContaining('event=session_created'))
+    expect(writeDiagnostic).toHaveBeenCalledWith(expect.stringContaining('event=session_foreground_resume_skipped'))
+    expect(writeDiagnostic.mock.calls.flat().join(' ')).not.toContain('private-endpoint-id')
+  })
+
   it('returns to idle after an explicit probe releases its temporary demand', async () => {
     const session = fakeSession()
     const connect = vi.fn(async () => session)

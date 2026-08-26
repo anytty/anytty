@@ -1072,7 +1072,7 @@ func syncCreatePromptDefaultsForEndpoint(root state.Root, shell state.ShellStore
 func terminalEditPrompt(item state.TerminalPoolPageItem) state.PromptState {
 	// 中文说明：metadata 输入归 Shell Prompt 管，提交后再生成 TerminalPoolEditRequestMsg；
 	// 这里不直接修改 reducer-owned pool state，也不在 renderer/service 间绕过主消息链。
-	tags := state.TerminalTagsText(item.Tags)
+	tags := state.TerminalTagsMetadataText(item.Tags)
 	return state.PromptState{
 		Title:            "Edit Terminal",
 		Purpose:          "terminal.rename",

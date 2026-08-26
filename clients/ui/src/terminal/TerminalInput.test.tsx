@@ -570,6 +570,48 @@ describe('Terminal input modifier boundary', () => {
     expect(application.getAttribute('tabindex')).toBe('-1')
   })
 
+  it('reveals the initial terminal frame only after the viewport has settled', async () => {
+    terminalHarness.historySnapshot = true
+    terminalHarness.fitDimensions = { cols: 43, rows: 17 }
+    let frameId = 0
+    const frames = new Map<number, FrameRequestCallback>()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frameId += 1
+      frames.set(frameId, callback)
+      return frameId
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id)
+    })
+
+    render(<Terminal machineId="studio" terminalId="term-shell" session={session} renderer="dom" />)
+    await waitFor(() => expect(terminalHarness.instances).toHaveLength(1))
+    const terminal = screen.getByTestId('anytty-terminal')
+    const application = screen.getByRole('application', { hidden: true })
+
+    expect(terminal.getAttribute('data-viewport-ready')).toBe('false')
+    expect(application.style.opacity).toBe('0')
+    expect(application.getAttribute('tabindex')).toBe('-1')
+
+    act(() => {
+      const pending = Array.from(frames.entries())
+      frames.clear()
+      pending.forEach(([, callback]) => callback(0))
+    })
+    expect(terminal.getAttribute('data-viewport-ready')).toBe('false')
+    expect(application.style.opacity).toBe('0')
+
+    act(() => {
+      const pending = Array.from(frames.entries())
+      frames.clear()
+      pending.forEach(([, callback]) => callback(16))
+    })
+    await waitFor(() => expect(terminal.getAttribute('data-viewport-ready')).toBe('true'))
+    expect(application.style.opacity).toBe('1')
+    expect(application.getAttribute('tabindex')).toBe('0')
+    expect(terminalHarness.instances[0]).toMatchObject({ cols: 43, rows: 17 })
+  })
+
   it('shows stale history recovery and does not retry until reload is pressed', async () => {
     terminalHarness.historySnapshot = true
     terminalHarness.historyLoad

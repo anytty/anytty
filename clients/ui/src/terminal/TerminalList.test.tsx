@@ -97,6 +97,25 @@ describe('TerminalList', () => {
     expect(screen.getByTestId('anytty-terminal-list').textContent).not.toMatch(/workspace|tab|window|pane|session/i)
   })
 
+  it('shows public terminal tags without exposing internal metadata tags', () => {
+    render(
+      <TerminalList
+        machineId="machine-local"
+        terminals={[terminal({
+          tags: { tag1: 'release=blue', tag2: 'ABC', cwd: '/srv/app', 'anytty.size_lock': 'lock' },
+        })]}
+        onOpenTerminal={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('release=blue')).toBeTruthy()
+    expect(screen.getByText('ABC')).toBeTruthy()
+    expect(screen.getByTestId('anytty-terminal-list').textContent).not.toContain('tag1=')
+    expect(screen.getByTestId('anytty-terminal-list').textContent).not.toContain('tag2=')
+    expect(screen.getByTestId('anytty-terminal-list').textContent).not.toContain('anytty.size_lock')
+    expect(screen.getByTestId('anytty-terminal-list').textContent).not.toContain('cwd=/srv/app')
+  })
+
   it('maps known agent programs and formats output quiet time', () => {
     expect(terminalProgramPresentation('gemini').label).toBe('Gemini CLI')
     expect(terminalProgramPresentation('/usr/local/bin/claude').label).toBe('Claude Code')
@@ -225,5 +244,6 @@ function terminal(overrides: Partial<Terminal>): Terminal {
     sizeLocked: overrides.sizeLocked,
     sizeLockMode: overrides.sizeLockMode,
     environment: overrides.environment,
+    tags: overrides.tags,
   }
 }

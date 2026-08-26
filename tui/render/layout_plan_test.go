@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -935,6 +936,22 @@ func TestMeasureLayoutTerminalPickerShrinksPaddingOnTinyViewport(t *testing.T) {
 	}
 	if plan.OverlayContentRect.X-plan.Overlay.X > 1 || plan.OverlayContentRect.Y-plan.Overlay.Y > 1 {
 		t.Fatalf("tiny picker overlay should shrink padding, overlay=%#v content=%#v", plan.Overlay, plan.OverlayContentRect)
+	}
+}
+
+func TestMeasureLayoutTerminalPickerUsesAvailableDesktopHeight(t *testing.T) {
+	lines := make([]Line, 32)
+	for index := range lines {
+		lines[index] = NewLine(fmt.Sprintf("terminal-%02d", index+1))
+	}
+	shell := ShellVM{Overlay: OverlayVM{Kind: OverlayTerminalPicker, Content: ContentVM{Kind: ContentTerminalPicker, Lines: lines}}}
+
+	plan := MeasureLayout(shell, Rect{W: 120, H: 40})
+	if plan.Overlay.H != 24 {
+		t.Fatalf("large terminal picker should use its expanded height cap, overlay=%#v", plan.Overlay)
+	}
+	if plan.OverlayContentRect.H <= 8 {
+		t.Fatalf("large terminal picker should expose substantially more rows, content=%#v", plan.OverlayContentRect)
 	}
 }
 

@@ -52,13 +52,13 @@ android {
         main.proto.srcDir '../../../../proto'
         main.jniLibs.srcDir "$buildDir/generated/anyttyJniLibs"
     }
-    if (project.hasProperty("anyttyArmOnly")) {
+    if (project.hasProperty("anyttyReleaseApkSplits")) {
         splits {
             abi {
                 enable true
                 reset()
-                include "arm64-v8a"
-                universalApk false
+                include "armeabi-v7a", "arm64-v8a", "x86_64"
+                universalApk true
             }
         }
     }
@@ -100,7 +100,9 @@ tasks.register("buildAnyTTYClientNative", Exec) {
         fileTree('../../../../remote'),
         fileTree('../../../../shared'),
         fileTree('../../../../proto'),
-        file('src/main/cpp/anytty_client_jni.c')
+        file('src/main/cpp/anytty_client_jni.c'),
+        file('../../../../scripts/build-android-client.sh'),
+        file('../../../../scripts/build-android-client-windows.ps1')
     )
     outputs.dir "$buildDir/generated/anyttyJniLibs"
     environment "ANYTTY_CLOUD_CONTROLLER_ADDRESS", anyttyCloudControllerAddress

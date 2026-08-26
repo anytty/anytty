@@ -51,6 +51,15 @@ class NativeNetworkMonitorTest {
     }
 
     @Test
+    fun `handle only replacement verifies the existing path before reconnecting`() {
+        val vpnBefore = signature(42L, validated = true, address = "192.0.2.10")
+        val vpnAfter = vpnBefore.copy(networkHandle = 77L)
+
+        assertTrue(requiresSessionRecovery(vpnBefore, vpnAfter))
+        assertEquals("path_changed", networkChangeReason(vpnBefore, vpnAfter))
+    }
+
+    @Test
     fun `a replacement network publishes once while validation settles`() {
         val wifi = signature(42L, validated = true, address = "192.0.2.10")
         val settlingCellular = signature(77L, address = "198.51.100.10")

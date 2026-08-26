@@ -3109,7 +3109,7 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 			t.Fatalf("picker must not render management table/detail content %q, got %#v", forbidden, content.Lines)
 		}
 	}
-	if content.Status != "terminal picker: 2 items query:term" {
+	if content.Status != "terminal picker: 2 items selected:1/3 query:term" {
 		t.Fatalf("expected picker item count status, got %q", content.Status)
 	}
 	if !content.Cursor.Visible || content.Cursor.Shape != CursorShapeBar {
@@ -3144,8 +3144,50 @@ func TestRenderVMBuilderFiltersTerminalPickerAndHighlightsSelectedRow(t *testing
 	if content.Cursor.Col != DisplayWidth("search: 日志") {
 		t.Fatalf("expected cursor after query text, got %#v", content.Cursor)
 	}
-	if content.Status != "terminal picker: 1 items query:日志" {
+	if content.Status != "terminal picker: 1 items selected:1/1 query:日志" {
 		t.Fatalf("expected query status, got %q", content.Status)
+	}
+}
+
+func TestRenderVMBuilderTerminalPickerKeepsLargeSelectionVisible(t *testing.T) {
+	items := make([]state.TerminalPoolItem, 30)
+	for index := range items {
+		items[index] = state.TerminalPoolItem{
+			TerminalID: fmt.Sprintf("term-%02d", index+1),
+			Title:      fmt.Sprintf("terminal-%02d", index+1),
+			State:      "running",
+			Cols:       80,
+			Rows:       24,
+		}
+	}
+	root := state.Root{
+		Shell:        state.DefaultShell().OpenTerminalPicker(),
+		Viewport:     state.ViewportStore{Valid: true, Cols: 120, Rows: 24},
+		TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: items},
+	}
+	allRows := state.TerminalPickerItems(root)
+	root.Shell = root.Shell.SetTerminalPickerSelectedIndex(24, len(allRows))
+
+	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	plain := plainLines(content.Lines)
+	if len(content.Lines) > 16 || !strings.Contains(plain, "terminal-24") || strings.Contains(plain, "terminal-01") {
+		t.Fatalf("large picker should render a bounded window around the selection, lines=%d:\n%s", len(content.Lines), plain)
+	}
+	if content.Status != "terminal picker: 30 items selected:25/31" {
+		t.Fatalf("large picker status should expose the full position, got %q", content.Status)
+	}
+	if len(content.HitRegions) == 0 || content.HitRegions[0].Row == 0 {
+		t.Fatalf("windowed picker hits must retain absolute item indexes, got %#v", content.HitRegions)
+	}
+	selectedVisible := false
+	for _, line := range content.Lines {
+		if strings.Contains(line.PlainString(), "▸ ● terminal-24") {
+			selectedVisible = true
+			break
+		}
+	}
+	if !selectedVisible {
+		t.Fatalf("selected terminal must remain visible in the picker window, got:\n%s", plain)
 	}
 }
 

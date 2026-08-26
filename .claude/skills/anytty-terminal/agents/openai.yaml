@@ -1,4 +1,4 @@
 interface:
   display_name: "AnyTTY Terminal"
-  short_description: "Run durable tasks in the AnyTTY terminal pool"
-  default_prompt: "Use $anytty-terminal to run this long-lived task as a named AnyTTY terminal and return its result."
+  short_description: "Operate remote machines through the AnyTTY CLI"
+  default_prompt: "Use $anytty-terminal to operate the configured AnyTTY endpoint and complete this remote terminal task."

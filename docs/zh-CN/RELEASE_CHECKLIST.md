@@ -12,6 +12,8 @@
 ## 质量
 
 - [ ] 运行 `make test`、`make test-clients`、Android 验证和支持的 iOS 构建检查。
+- [ ] 验证 Android ARMv7、ARM64、x86_64 与 universal APK 的 ABI 边界、签名和 16 KB ELF 对齐，并验证 Play AAB 同时包含三个 ABI。
+- [ ] 至少在一台 `armeabi-v7a` 真机和一台 64 位 Android 设备或模拟器上完成安装与启动检查。
 - [ ] 构建 CLI/TUI，并确认官方 Cloud 客户端能力仍包含在二进制中。
 - [ ] 生成 Pages 产物并检查桌面、手机、键盘和 reduced-motion。
 - [ ] 验证 README、文档、issue 表单和安全链接。
@@ -26,6 +28,7 @@
 
 ## GitHub 与发布
 
+- [ ] 确认四个 `ANYTTY_ANDROID_UPLOAD_*` Actions secrets 已配置，并与上一版直发 APK 使用相同的 upload key。
 - [ ] 启用私密漏洞报告并验证维护者通知路径。
 - [ ] Pages source 设为 GitHub Actions，并验证 `/anytty/` 基址。
 - [ ] 检查分支保护、必需检查、CODEOWNERS、Discussions、issue 与 Actions 权限。

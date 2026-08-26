@@ -37,6 +37,39 @@ describe('RemoteControlApp accountless product shell', () => {
     expect(screen.queryByRole('heading', { name: 'Account' })).toBeNull()
   })
 
+  it('shares redacted diagnostic logs with progress and success feedback', async () => {
+    const sharing = deferred<void>()
+    const exportDebugLogs = vi.fn(() => sharing.promise)
+    renderApp({ exportDebugLogs })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open settings' }))
+    expect(screen.getByText('Contains only redacted runtime details. Logs are never uploaded automatically.')).toBeTruthy()
+    const shareButton = screen.getByRole('button', { name: 'Share diagnostic logs' })
+    await userEvent.click(shareButton)
+
+    expect(exportDebugLogs).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Preparing diagnostic package...' }).hasAttribute('disabled')).toBe(true)
+    sharing.resolve()
+    expect((await screen.findByRole('status')).textContent).toContain('Saved and opened the system share sheet.')
+  })
+
+  it('keeps diagnostic sharing retryable after a native failure', async () => {
+    const exportDebugLogs = vi.fn()
+      .mockRejectedValueOnce(new Error('native detail must not be rendered'))
+      .mockResolvedValueOnce(undefined)
+    renderApp({ exportDebugLogs })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open settings' }))
+    const shareButton = screen.getByRole('button', { name: 'Share diagnostic logs' })
+    await userEvent.click(shareButton)
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not prepare diagnostic logs. Try again.')
+    expect(screen.queryByText(/native detail/)).toBeNull()
+
+    await userEvent.click(shareButton)
+    expect(exportDebugLogs).toHaveBeenCalledTimes(2)
+    expect((await screen.findByRole('status')).textContent).toContain('Saved and opened the system share sheet.')
+  })
+
   it('keeps the privacy policy readable in-app and exposes the public policy action', async () => {
     const onOpenPrivacyPolicy = vi.fn(async () => undefined)
     renderApp({
@@ -356,6 +389,7 @@ function renderApp({
   onRetryConnectionRecovery,
   privacyPolicyUrl,
   onOpenPrivacyPolicy,
+  exportDebugLogs,
 }: {
   connectionState?: AppConnectionState | undefined
   pairingImport?: ExternalPairingAdapter['import'] | undefined
@@ -364,6 +398,7 @@ function renderApp({
   onRetryConnectionRecovery?: (() => Promise<void>) | undefined
   privacyPolicyUrl?: string | undefined
   onOpenPrivacyPolicy?: (() => Promise<void>) | undefined
+  exportDebugLogs?: (() => Promise<void>) | undefined
 } = {}) {
   const storage = new MemoryStorage()
   const networkRuntime: RemoteNetworkRuntime = {
@@ -386,6 +421,7 @@ function renderApp({
       scanPairingCode={scanPairingCode}
       privacyPolicyUrl={privacyPolicyUrl}
       onOpenPrivacyPolicy={onOpenPrivacyPolicy}
+      exportDebugLogs={exportDebugLogs}
     />,
   )
   return { storage }

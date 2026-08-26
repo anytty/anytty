@@ -7,6 +7,7 @@
 - [Project overview](../README.md)
 - [Security boundary](SECURITY_BOUNDARY.md)
 - [Terminal delivery model](TERMINAL_DELIVERY.md)
+- [Android release process](ANDROID_RELEASE.md)
 
 ## Project participation
 

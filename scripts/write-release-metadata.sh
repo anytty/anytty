@@ -46,16 +46,34 @@ CLI targets:
 - windows/arm64
 EOF
 
-android_asset="$asset_dir/anytty-$version-android-universal-unsigned.apk"
-if [[ -f "$android_asset" ]]; then
+android_assets=(
+  "anytty-$version-android-armeabi-v7a.apk"
+  "anytty-$version-android-arm64-v8a.apk"
+  "anytty-$version-android-x86_64.apk"
+  "anytty-$version-android-universal.apk"
+  "anytty-$version-android-play.aab"
+)
+android_assets_present=0
+for android_asset in "${android_assets[@]}"; do
+  if [[ -f "$asset_dir/$android_asset" ]]; then
+    android_assets_present=$((android_assets_present + 1))
+  fi
+done
+if (( android_assets_present > 0 && android_assets_present != ${#android_assets[@]} )); then
+  echo "Android release assets are incomplete" >&2
+  exit 1
+fi
+if (( android_assets_present == ${#android_assets[@]} )); then
   cat >>"$build_info" <<'EOF'
 
 Android:
 - Package: com.anytty.app
 - Minimum SDK: 24
 - Target SDK: 36
-- ABIs: arm64-v8a, x86_64
-- Signing: unsigned release APK
+- APKs: armeabi-v7a, arm64-v8a, x86_64, universal
+- Play bundle: signed AAB with ABI splits enabled
+- ABIs: armeabi-v7a, arm64-v8a, x86_64
+- Signing: Android upload key
 EOF
 fi
 

@@ -12,6 +12,7 @@ const NATIVE_SESSION_READY_TIMEOUT_MS = 45_000
 const NATIVE_SESSION_DEFAULT_PROBE_TIMEOUT_MS = 3_000
 const NATIVE_SESSION_INVALIDATION_TIMEOUT_MS = 8_000
 const NATIVE_RECONNECT_BACKOFF_CAPS_MS = [0, 500, 2_000, 4_000, 8_000, 15_000] as const
+let nativeSessionDiagnosticId = 0
 
 /** NativeSessionConnector 是 Android UI 到 Go binding session 的窄连接入口，不拥有 route 或 generation 真值。 */
 export type NativeSessionConnector = {
@@ -31,6 +32,7 @@ export type NativeSessionManagerOptions = {
   initiallyConnected?: boolean
   random?: () => number
   waitForForeground?: (signal?: AbortSignal) => Promise<void>
+  writeDiagnostic?: (value: string) => void
 }
 
 export type NativeNetworkChangeReason = 'available' | 'offline' | 'network_replaced' | 'path_changed'
@@ -50,6 +52,7 @@ type PendingNativeNetworkChange = {
  * reset 仍用于 Android generation 更换、显式重连或 Endpoint 配置失效。
  */
 export class NativeSessionManager {
+  private readonly diagnosticId = ++nativeSessionDiagnosticId
   private session: ProtoClientSession | null = null
   private pending: Promise<ProtoClientSession> | null = null
   private pendingController: AbortController | null = null
@@ -79,6 +82,7 @@ export class NativeSessionManager {
   private readonly stateListeners = new Set<() => void>()
   private readonly random: () => number
   private readonly waitForForeground: ((signal?: AbortSignal) => Promise<void>) | undefined
+  private readonly writeDiagnostic: ((value: string) => void) | undefined
 
   readonly connectionState = {
     getSnapshot: (): MachineConnectionSnapshot => this.snapshot,
@@ -97,9 +101,11 @@ export class NativeSessionManager {
     this.verifyNextOpenedSession = options.verifyOnFirstAcquire === true
     this.random = options.random ?? Math.random
     this.waitForForeground = options.waitForForeground
+    this.writeDiagnostic = options.writeDiagnostic
     this.snapshot = this.networkConnected
       ? idleMachineConnectionSnapshot(machineId)
       : waitingNetworkMachineConnectionSnapshot(machineId)
+    this.diagnostic('created', { connected: this.networkConnected, go_managed: this.goOwnsMaintenance() })
   }
 
   /** machineID 仅供 generation owner 释放同一 Endpoint 的 connector 资源。 */
@@ -222,6 +228,13 @@ export class NativeSessionManager {
     connected = true,
     reason: NativeNetworkChangeReason = connected ? 'path_changed' : 'offline',
   ): Promise<void> {
+    this.diagnostic('network_changed', {
+      connected,
+      reason,
+      has_session: this.session !== null,
+      pending: this.pending !== null,
+      keep_alive: this.keepAliveRequested,
+    })
     this.networkConnected = connected
     if (this.goOwnsMaintenance()) {
       this.verifyNextOpenedSession = false
@@ -377,38 +390,63 @@ export class NativeSessionManager {
 
   /** foregroundResume verifies the remote application protocol, not merely the local JS-to-Go bridge. */
   async foregroundResume(): Promise<void> {
-    if (!this.keepAliveRequested) return
-    if (!this.networkConnected) {
-      this.publish(waitingNetworkMachineConnectionSnapshot(
-        this.machineId,
-        this.snapshot.forceRelay,
-        this.reconnectAttempt,
-      ))
-      return
-    }
-    if (this.goOwnsMaintenance()) {
-      this.verifyNextOpenedSession = false
-      this.resetOwnedSession(
-        true,
-        true,
-        networkTransitionMachineConnectionSnapshot(
+    const startedAt = globalThis.performance.now()
+    this.diagnostic('foreground_resume_start', {
+      phase: this.snapshot.phase,
+      connected: this.networkConnected,
+      keep_alive: this.keepAliveRequested,
+      go_managed: this.goOwnsMaintenance(),
+      has_session: this.session !== null,
+      pending: this.pending !== null,
+    })
+    try {
+      if (!this.keepAliveRequested) {
+        this.diagnostic('foreground_resume_skipped', { reason: 'no_demand' })
+        return
+      }
+      if (!this.networkConnected) {
+        this.publish(waitingNetworkMachineConnectionSnapshot(
           this.machineId,
           this.snapshot.forceRelay,
           this.reconnectAttempt,
-          'reconnecting',
-          'Restoring session...',
-        ),
-      )
-      await this.acquire({ forceRelay: this.snapshot.forceRelay }).then((lease) => lease.close())
-      return
+        ))
+        this.diagnostic('foreground_resume_skipped', { reason: 'offline' })
+        return
+      }
+      if (this.goOwnsMaintenance()) {
+        this.verifyNextOpenedSession = false
+        this.resetOwnedSession(
+          true,
+          true,
+          networkTransitionMachineConnectionSnapshot(
+            this.machineId,
+            this.snapshot.forceRelay,
+            this.reconnectAttempt,
+            'reconnecting',
+            'Restoring session...',
+          ),
+        )
+        await this.acquire({ forceRelay: this.snapshot.forceRelay }).then((lease) => lease.close())
+      } else {
+        const session = this.session
+        if (!session?.isAlive()) {
+          await this.acquire({ forceRelay: this.snapshot.forceRelay }).then((lease) => lease.close())
+        } else if (this.connector.verify) {
+          await this.verifyCurrentSession(session)
+        }
+      }
+      this.diagnostic('foreground_resume_done', {
+        duration_ms: Math.round(globalThis.performance.now() - startedAt),
+        phase: this.snapshot.phase,
+      })
+    } catch (failure) {
+      this.diagnostic('foreground_resume_failed', {
+        duration_ms: Math.round(globalThis.performance.now() - startedAt),
+        phase: this.snapshot.phase,
+        failure: nativeSessionFailureCode(failure),
+      })
+      throw failure
     }
-    const session = this.session
-    if (!session?.isAlive()) {
-      await this.acquire({ forceRelay: this.snapshot.forceRelay }).then((lease) => lease.close())
-      return
-    }
-    if (!this.connector.verify) return
-    await this.verifyCurrentSession(session)
   }
 
   private verifyCurrentSession(session: ProtoClientSession, networkRevision?: number): Promise<void> {
@@ -799,7 +837,21 @@ export class NativeSessionManager {
   }
 
   private publish(snapshot: MachineConnectionSnapshot): void {
+    const previous = this.snapshot
     this.snapshot = snapshot
+    if (
+      previous.phase !== snapshot.phase ||
+      previous.reconnectAttempt !== snapshot.reconnectAttempt ||
+      nativeSessionFailureCode(previous.error) !== nativeSessionFailureCode(snapshot.error)
+    ) {
+      this.diagnostic('state', {
+        from: previous.phase,
+        to: snapshot.phase,
+        attempt: snapshot.reconnectAttempt,
+        epoch: this.epoch,
+        failure: nativeSessionFailureCode(snapshot.error),
+      })
+    }
     for (const listener of this.stateListeners) listener()
   }
 
@@ -847,6 +899,12 @@ export class NativeSessionManager {
     const cap = NATIVE_RECONNECT_BACKOFF_CAPS_MS[Math.min(this.reconnectBackoffIndex, NATIVE_RECONNECT_BACKOFF_CAPS_MS.length - 1)] ?? 0
     const delay = cap === 0 ? 0 : equalJitterDelay(cap, this.random())
     this.reconnectBackoffIndex += 1
+    this.diagnostic('reconnect_scheduled', {
+      epoch,
+      delay_ms: delay,
+      backoff_index: this.reconnectBackoffIndex,
+      failure: nativeSessionFailureCode(failure),
+    })
     this.reconnectTimer = globalThis.setTimeout(() => {
       this.reconnectTimer = null
       if (epoch !== this.epoch || !this.keepAliveRequested || !this.networkConnected) return
@@ -890,6 +948,15 @@ export class NativeSessionManager {
     return this.connector.isGoManaged?.(this.machineId) === true
   }
 
+  private diagnostic(event: string, fields: Record<string, string | number | boolean>): void {
+    const details = Object.entries(fields)
+      .map(([key, value]) => `${nativeSessionDiagnosticToken(key)}=${nativeSessionDiagnosticToken(String(value))}`)
+      .join(' ')
+    const value = `event=session_${nativeSessionDiagnosticToken(event)} session=${this.diagnosticId}${details ? ` ${details}` : ''}`
+    console.info(`[anytty:diagnostic] ${value}`)
+    this.writeDiagnostic?.(value)
+  }
+
   private async disconnectWhenUnused(revision: number): Promise<void> {
     if (revision !== this.demandRevision || this.demandOwners.size !== 0) return
     if (!this.keepAliveRequested && !this.session && !this.pending) return
@@ -899,6 +966,19 @@ export class NativeSessionManager {
       // Passive demand release must not turn a completed UI/task cleanup into an error.
     }
   }
+}
+
+function nativeSessionFailureCode(failure: unknown): string {
+  if (failure && typeof failure === 'object') {
+    const code = 'code' in failure && typeof failure.code === 'string' ? failure.code.trim() : ''
+    if (code) return code
+    if ('name' in failure && typeof failure.name === 'string' && failure.name.trim()) return failure.name
+  }
+  return failure == null ? 'none' : typeof failure
+}
+
+function nativeSessionDiagnosticToken(value: string): string {
+  return value.trim().replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) || 'none'
 }
 
 async function withDeadline<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {

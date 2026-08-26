@@ -8,4 +8,8 @@
     <string name="title_activity_main">AnyTTY</string>
     <string name="package_name">com.anytty.app</string>
     <string name="custom_url_scheme">com.anytty.app</string>
+    <string name="webview_unsupported_title">System component needs updating</string>
+    <string name="webview_unsupported_message">Android System WebView %1$s is too old. AnyTTY needs version %2$d or later. Update WebView in the device app store or system firmware, then try again.</string>
+    <string name="webview_unknown_version">not found</string>
+    <string name="webview_retry">Try again</string>
 </resources>

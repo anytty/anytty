@@ -172,4 +172,5 @@ export interface LocalUpdateTerminalInput {
   cwd?: string | undefined
   environment?: string | undefined
   sizeLockMode?: 'off' | 'warn' | 'lock' | undefined
+  tags?: Record<string, string> | undefined
 }

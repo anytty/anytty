@@ -21,16 +21,17 @@ $toolchain = Join-Path $ndkRoot 'toolchains\llvm\prebuilt\windows-x86_64\bin'
 $includeDir = Join-Path $repoRoot 'client\binding\cabi'
 $jniSource = Join-Path $repoRoot 'clients\mobile\android\app\src\main\cpp\anytty_client_jni.c'
 
-function Build-Abi([string]$Abi, [string]$GoArch, [string]$Triple) {
+function Build-Abi([string]$Abi, [string]$GoArch, [string]$Triple, [string]$GoArm = '') {
     $destination = Join-Path $OutputRoot $Abi
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     $compiler = Join-Path $toolchain "$Triple$api-clang.cmd"
     if (-not (Test-Path -LiteralPath $compiler)) { throw "Android compiler is missing: $compiler" }
 
-    $previous = @($env:GOOS, $env:GOARCH, $env:CGO_ENABLED, $env:CC)
+    $previous = @($env:GOOS, $env:GOARCH, $env:GOARM, $env:CGO_ENABLED, $env:CC)
     try {
         $env:GOOS = 'android'
         $env:GOARCH = $GoArch
+        $env:GOARM = $GoArm
         $env:CGO_ENABLED = '1'
         $env:CC = '"' + $compiler + '"'
         $arguments = @('build', '-trimpath', '-buildmode=c-shared', "-ldflags=$cloudLdflags")
@@ -39,7 +40,7 @@ function Build-Abi([string]$Abi, [string]$GoArch, [string]$Triple) {
         try { & go @arguments } finally { Pop-Location }
         if ($LASTEXITCODE -ne 0) { throw "building Go Android library for $Abi failed" }
     } finally {
-        $env:GOOS, $env:GOARCH, $env:CGO_ENABLED, $env:CC = $previous
+        $env:GOOS, $env:GOARCH, $env:GOARM, $env:CGO_ENABLED, $env:CC = $previous
     }
 
     & $compiler -shared -fPIC "-I$includeDir" $jniSource "-L$destination" -lanytty_client '-Wl,-soname,libanytty_client_jni.so' '-Wl,-z,max-page-size=16384' -o (Join-Path $destination 'libanytty_client_jni.so')
@@ -47,5 +48,6 @@ function Build-Abi([string]$Abi, [string]$GoArch, [string]$Triple) {
     Remove-Item -LiteralPath (Join-Path $destination 'libanytty_client.h') -ErrorAction SilentlyContinue
 }
 
+Build-Abi 'armeabi-v7a' 'arm' 'armv7a-linux-androideabi' '7'
 Build-Abi 'arm64-v8a' 'arm64' 'aarch64-linux-android'
 Build-Abi 'x86_64' 'amd64' 'x86_64-linux-android'

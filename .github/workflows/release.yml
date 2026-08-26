@@ -47,6 +47,10 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
+    env:
+      ANYTTY_ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANYTTY_ANDROID_UPLOAD_STORE_PASSWORD }}
+      ANYTTY_ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEY_ALIAS }}
+      ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,21 +72,56 @@ jobs:
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;$ANDROID_NDK_VERSION"
       - run: npm ci
-      - name: Build unsigned Android release APK
+      - name: Configure Android release signing
+        env:
+          ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          for name in \
+            ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64 \
+            ANYTTY_ANDROID_UPLOAD_STORE_PASSWORD \
+            ANYTTY_ANDROID_UPLOAD_KEY_ALIAS \
+            ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD; do
+            test -n "${!name:-}" || { echo "Missing required GitHub Actions secret: $name" >&2; exit 1; }
+          done
+          keystore="$RUNNER_TEMP/anytty-upload-keystore.jks"
+          umask 077
+          printf '%s' "$ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode >"$keystore"
+          test -s "$keystore"
+          echo "ANYTTY_ANDROID_UPLOAD_STORE_FILE=$keystore" >>"$GITHUB_ENV"
+      - name: Build signed Android release APKs and AAB
         env:
           ANYTTY_ANDROID_NDK_VERSION: ${{ env.ANDROID_NDK_VERSION }}
         run: |
           npm run cap:build
-          clients/mobile/android/gradlew --no-daemon -p clients/mobile/android assembleRelease
-      - name: Verify and stage Android APK
+          clients/mobile/android/gradlew --no-daemon -p clients/mobile/android bundleRelease
+          clients/mobile/android/gradlew --no-daemon -p clients/mobile/android \
+            -PanyttyReleaseApkSplits assembleRelease
+      - name: Verify and stage Android packages
         run: |
-          apk="clients/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          scripts/verify-android-apk-boundary.sh "$apk"
-          cp "$apk" "$RUNNER_TEMP/anytty-$RELEASE_TAG-android-universal-unsigned.apk"
+          apk_dir="clients/mobile/android/app/build/outputs/apk/release"
+          verify_apk() {
+            local source="$1" abi="$2" target="$3"
+            ANYTTY_ANDROID_EXPECTED_ABIS="$abi" \
+              ANYTTY_ANDROID_REQUIRE_SIGNATURE=1 \
+              scripts/verify-android-apk-boundary.sh "$apk_dir/$source"
+            cp "$apk_dir/$source" "$RUNNER_TEMP/$target"
+          }
+          verify_apk app-armeabi-v7a-release.apk armeabi-v7a \
+            "anytty-$RELEASE_TAG-android-armeabi-v7a.apk"
+          verify_apk app-arm64-v8a-release.apk arm64-v8a \
+            "anytty-$RELEASE_TAG-android-arm64-v8a.apk"
+          verify_apk app-x86_64-release.apk x86_64 \
+            "anytty-$RELEASE_TAG-android-x86_64.apk"
+          verify_apk app-universal-release.apk "armeabi-v7a arm64-v8a x86_64" \
+            "anytty-$RELEASE_TAG-android-universal.apk"
+
+          aab="clients/mobile/android/app/build/outputs/bundle/release/app-release.aab"
+          scripts/verify-android-aab-boundary.sh "$aab"
+          cp "$aab" "$RUNNER_TEMP/anytty-$RELEASE_TAG-android-play.aab"
       - uses: actions/upload-artifact@v4
         with:
-          name: android-release-asset
-          path: ${{ runner.temp }}/anytty-${{ env.RELEASE_TAG }}-android-universal-unsigned.apk
+          name: android-release-assets
+          path: ${{ runner.temp }}/anytty-${{ env.RELEASE_TAG }}-android-*
           if-no-files-found: error
 
   publish:

@@ -1,10 +1,13 @@
 package com.anytty.app;
 
+import android.content.pm.PackageInfo;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.TextView;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
@@ -38,6 +41,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         AnyTTYDebugLog.init(this);
+        PackageInfo webViewPackage = WebViewCompat.getCurrentWebViewPackage(this);
+        if (!AnyTTYWebViewCompatibility.isSupported(webViewPackage)) {
+            super.onCreate(savedInstanceState);
+            showUnsupportedWebView(webViewPackage);
+            return;
+        }
+
         registerPlugin(NativeConnectionPlugin.class);
         registerPlugin(NativeFilePickerPlugin.class);
         registerPlugin(NativeHapticPlugin.class);
@@ -67,16 +77,42 @@ public class MainActivity extends BridgeActivity {
         AnyTTYDebugLog.event(AnyTTYDebugEvent.ACTIVITY_CREATED, isDebug);
     }
 
+    private void showUnsupportedWebView(PackageInfo webViewPackage) {
+        int majorVersion = AnyTTYWebViewCompatibility.majorVersion(webViewPackage);
+        AnyTTYDebugLog.event(AnyTTYDebugEvent.WEBVIEW_UNSUPPORTED, majorVersion);
+
+        WebView webView = getBridge().getWebView();
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setVisibility(android.view.View.GONE);
+        }
+        setContentView(R.layout.activity_unsupported_webview);
+
+        String installedVersion = webViewPackage == null || webViewPackage.versionName == null
+            ? getString(R.string.webview_unknown_version)
+            : webViewPackage.versionName;
+        TextView message = findViewById(R.id.webview_unsupported_message);
+        message.setText(getString(
+            R.string.webview_unsupported_message,
+            installedVersion,
+            AnyTTYWebViewCompatibility.MINIMUM_MAJOR_VERSION
+        ));
+        Button retry = findViewById(R.id.webview_retry);
+        retry.setOnClickListener(view -> recreate());
+    }
+
     @Override
     public void onResume() {
         super.onResume();
         resumed = true;
+        AnyTTYDebugLog.event(AnyTTYDebugEvent.ACTIVITY_RESUMED);
         if (unresponsiveRenderer != null) scheduleUnresponsiveRendererRecovery();
     }
 
     @Override
     public void onPause() {
         resumed = false;
+        AnyTTYDebugLog.event(AnyTTYDebugEvent.ACTIVITY_PAUSED);
         mainHandler.removeCallbacks(recoverUnresponsiveRenderer);
         super.onPause();
     }
@@ -84,6 +120,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         resumed = false;
+        AnyTTYDebugLog.event(AnyTTYDebugEvent.ACTIVITY_DESTROYED);
         mainHandler.removeCallbacks(recoverUnresponsiveRenderer);
         unresponsiveRenderer = null;
         super.onDestroy();

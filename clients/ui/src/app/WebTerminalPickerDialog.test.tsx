@@ -53,6 +53,38 @@ describe('WebTerminalPickerDialog', () => {
     expect(filterWebTerminalPickerTerminals(pickerTerminals, '80x24').map((terminal) => terminal.terminalId)).toEqual(['shell'])
     expect(filterWebTerminalPickerTerminals(pickerTerminals, '/wrk/lgs').map((terminal) => terminal.terminalId)).toEqual(['logs'])
   })
+
+  it('renders the complete terminal inventory in a tall scrollable list with result feedback', async () => {
+    const terminals = Array.from({ length: 24 }, (_, index): Terminal => ({
+      terminalId: `terminal-${index + 1}`,
+      machineId: 'local',
+      title: `Terminal ${index + 1}`,
+      state: 'running',
+      command: '/bin/zsh',
+      cwd: `/work/${index + 1}`,
+      cols: 80,
+      rows: 24,
+    }))
+    renderPicker({ terminals })
+
+    expect(screen.getByRole('dialog').style.getPropertyValue('--anytty-picker-height')).toBe('732px')
+    expect(screen.getAllByRole('option')).toHaveLength(25)
+    expect(screen.getByTestId('anytty-web-terminal-picker-list').className).toContain('overflow-y-auto')
+    expect(screen.getByTestId('anytty-web-terminal-picker-results').textContent).toBe('24 terminals')
+    expect(screen.getByText('1 / 25')).toBeTruthy()
+
+    await userEvent.type(screen.getByRole('combobox', { name: 'Find terminal' }), 'Terminal 24')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.getByTestId('anytty-web-terminal-picker-results').textContent).toBe('1 of 24 terminals')
+    expect(screen.getByText('1 / 1')).toBeTruthy()
+  })
+
+  it('keeps an empty picker compact', () => {
+    renderPicker({ canCreateTerminal: false, terminals: [] })
+
+    expect(screen.getByRole('dialog').style.getPropertyValue('--anytty-picker-height')).toBe('204px')
+    expect(screen.getByTestId('anytty-web-terminal-picker-results').textContent).toBe('0 terminals')
+  })
 })
 
 const pickerTerminals: Terminal[] = [

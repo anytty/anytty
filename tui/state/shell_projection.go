@@ -206,9 +206,18 @@ func terminalPickerSizeText(item TerminalPickerItem) string {
 	return strconv.Itoa(item.Cols) + "x" + strconv.Itoa(item.Rows)
 }
 
-// TerminalTagsText returns a stable, human-readable tag list for TUI forms,
-// detail views, and key=value search.
+// TerminalTagsText returns the user-visible tag list. Sequential tag1/tag2 keys
+// are protocol placeholders, so only their values belong in list and search UI.
 func TerminalTagsText(tags map[string]string) string {
+	return terminalTagsText(tags, true)
+}
+
+// TerminalTagsMetadataText preserves exact keys for metadata editing.
+func TerminalTagsMetadataText(tags map[string]string) string {
+	return terminalTagsText(tags, false)
+}
+
+func terminalTagsText(tags map[string]string, hidePositionalKeys bool) string {
 	if len(tags) == 0 {
 		return ""
 	}
@@ -219,9 +228,35 @@ func TerminalTagsText(tags map[string]string) string {
 	sort.Strings(keys)
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
-		parts = append(parts, key+"="+tags[key])
+		value := strings.TrimSpace(tags[key])
+		if hidePositionalKeys && isPositionalTerminalTagKey(key) && value != "" {
+			parts = append(parts, value)
+			continue
+		}
+		if value == "" {
+			if hidePositionalKeys {
+				parts = append(parts, key)
+			} else {
+				parts = append(parts, key+"=")
+			}
+			continue
+		}
+		parts = append(parts, key+"="+value)
 	}
 	return strings.Join(parts, ", ")
+}
+
+func isPositionalTerminalTagKey(key string) bool {
+	suffix := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(key)), "tag")
+	if suffix == "" {
+		return false
+	}
+	for _, char := range suffix {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func TerminalPickerQueryMatchIndexes(value string, query string) []int {

@@ -282,6 +282,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const liveOutputWatchdogRef = useRef<number | null>(null)
   const markLiveOutputSyncLostRef = useRef<(reason?: string) => void>(() => {})
   const surfaceReadyRef = useRef(false)
+  const initialViewportReadyRef = useRef(false)
   const canSendResizeRef = useRef(false)
   const historyLoadingRef = useRef(false)
   const historyApplyingRef = useRef(false)
@@ -360,6 +361,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const selectionModeRef = useRef(false)
   const selectionResetHandlersRef = useRef(new Set<() => void>())
   const [surfaceReady, setSurfaceReady] = useState(false)
+  const [initialViewportReady, setInitialViewportReady] = useState(false)
   const [xtermReady, setXtermReady] = useState(false)
   const [historyLoadingVisible, setHistoryLoadingVisible] = useState(false)
   const [historyStatusVisible, setHistoryStatusVisible] = useState(false)
@@ -816,14 +818,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
 
   useEffect(() => {
     surfaceReadyRef.current = false
+    initialViewportReadyRef.current = false
     lastLiveScreenSubmittedRevisionRef.current = undefined
     setSurfaceReady(false)
-  }, [historyOnly, machineId, session, terminalId])
+    setInitialViewportReady(false)
+  }, [historyOnly, machineId, renderer, session, settings.renderer, terminalId])
 
   const isOpen = historyOnly
     ? terminalSession.historyReady
     : terminalSession.snapshot.terminalChannels[terminalId]?.state === 'open'
   const showConnectingOverlay = !suppressConnectingOverlay && (!isOpen || !surfaceReady)
+  const terminalSurfaceVisible = initialViewportReady && !showConnectingOverlay
   const [showDelayedConnectingOverlay, setShowDelayedConnectingOverlay] = useState(false)
   const inputFailureVisible = Boolean(terminalSession.inputRecoveryFailure)
   const channelFailure = terminalSession.snapshot.visibleError
@@ -919,7 +924,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     retryHistoryLoadRef.current()
   }, [])
 
-  const fitAndMaybeSendResize = useCallback(() => {
+  const fitAndMaybeSendResize = useCallback((allowInitialReveal = false) => {
     if (terminalDisposedRef.current) return
     const term = xtermRef.current
     const fitAddon = fitAddonRef.current
@@ -937,7 +942,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           fitRetryCountRef.current += 1
           fitRetryTimerRef.current = window.setTimeout(() => {
             fitRetryTimerRef.current = null
-            fitAndMaybeSendResize()
+            fitAndMaybeSendResize(allowInitialReveal)
           }, retryCount < untrustedFitShortRetryLimit ? untrustedFitRetryMs : untrustedFitLongRetryMs)
           if (retryCount === 0) {
             logTerminal('fit_untrusted_dimensions', {
@@ -961,6 +966,18 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       fitRetryCountRef.current = 0
       const previousCols = term.cols
       term.resize(dimensions.cols, dimensions.rows)
+      if (allowInitialReveal && !initialViewportReadyRef.current) {
+        initialViewportReadyRef.current = true
+        setInitialViewportReady(true)
+        logTerminal('initial_viewport_ready', {
+          details: {
+            cols: dimensions.cols,
+            rows: dimensions.rows,
+            containerWidth: container.clientWidth,
+            containerHeight: container.clientHeight,
+          },
+        })
+      }
       if (shouldKeepBottom) term.scrollToBottom()
       if (previousCols !== dimensions.cols && (
         historyViewportControllerRef.current.isLiveUpdateDeferred ||
@@ -1146,7 +1163,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     if (terminalDisposedRef.current) return
     const generation = terminalGenerationRef.current
     if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
-      fitAndMaybeSendResize()
+      fitAndMaybeSendResize(true)
       return
     }
     if (fitFrameRef.current !== null) {
@@ -1161,7 +1178,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       fitFrameRef.current = window.requestAnimationFrame(() => {
         fitFrameRef.current = null
         if (terminalDisposedRef.current || terminalGenerationRef.current !== generation) return
-        fitAndMaybeSendResize()
+        fitAndMaybeSendResize(true)
       })
     })
   }, [fitAndMaybeSendResize])
@@ -1357,6 +1374,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
     const generation = terminalGenerationRef.current + 1
     terminalGenerationRef.current = generation
     terminalDisposedRef.current = false
+    initialViewportReadyRef.current = false
+    setInitialViewportReady(false)
     setHistoryLoadFailure('none')
     if (historyApplyTimerRef.current !== null) {
       window.clearTimeout(historyApplyTimerRef.current)
@@ -3308,7 +3327,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       lastSnapshotTextRef.current = ''
       recoveryRevisionAppliedRef.current = 0
       surfaceReadyRef.current = false
+      initialViewportReadyRef.current = false
       setSurfaceReady(false)
+      setInitialViewportReady(false)
       return
     }
     fitAndMaybeSendResize()
@@ -3482,21 +3503,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
       data-phase={terminalSession.snapshot.phase}
       data-channel-state={terminalSession.snapshot.terminalChannels[terminalId]?.state ?? 'closed'}
       data-history-only={historyOnly ? 'true' : undefined}
+      data-viewport-ready={initialViewportReady ? 'true' : 'false'}
       data-testid="anytty-terminal"
     >
       <div
         ref={containerRef}
         aria-label={t('terminal.tools.output')}
-        aria-hidden={showConnectingOverlay ? true : undefined}
+        aria-hidden={!terminalSurfaceVisible ? true : undefined}
         className="absolute inset-0 min-h-0 overflow-hidden xterm-wrapper outline-none"
-        inert={showConnectingOverlay ? true : undefined}
+        inert={!terminalSurfaceVisible ? true : undefined}
         style={{
-          opacity: showConnectingOverlay ? 0 : 1,
+          opacity: terminalSurfaceVisible ? 1 : 0,
           overscrollBehavior: 'contain',
           touchAction: 'none',
         }}
         role="application"
-        tabIndex={showConnectingOverlay ? -1 : 0}
+        tabIndex={terminalSurfaceVisible ? 0 : -1}
       />
       {historyLoadingVisible && !showConnectingOverlay ? (
         <div

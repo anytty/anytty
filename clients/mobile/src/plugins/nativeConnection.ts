@@ -21,10 +21,19 @@ export interface NativeSessionDemandResult {
   goManagedEndpointIds: string[]
 }
 
+export interface NativeDiagnosticBundleResult {
+  name: string
+  path: string
+  bytes: number
+  sha256: string
+}
+
 export interface NativeConnectionPlugin extends Plugin {
   addListener(eventName: 'networkChanged', listener: (event: NativeNetworkChangedEvent) => void): Promise<PluginListenerHandle>
   addListener(eventName: 'localDiscoveryChanged', listener: (event: NativeLocalDiscoveryChangedEvent) => void): Promise<PluginListenerHandle>
   addListener(eventName: 'disconnectAllRequested', listener: (event: NativeDisconnectAllRequestedEvent) => void): Promise<PluginListenerHandle>
+  writeDebugDiagnostic(input: { value: string }): Promise<void>
+  shareDiagnosticBundle(): Promise<NativeDiagnosticBundleResult>
   handleForegroundResume(): Promise<void>
   getNetworkSnapshot(): Promise<NativeNetworkChangedEvent>
   resetLocalPairings(): Promise<void>

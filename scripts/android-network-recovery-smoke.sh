@@ -6,7 +6,7 @@ package_name="${ANYTTY_ANDROID_PACKAGE:-com.anytty.app}"
 activity_name="${ANYTTY_ANDROID_ACTIVITY:-com.anytty.app.MainActivity}"
 background_seconds="${ANYTTY_BACKGROUND_SECONDS:-30}"
 settle_seconds="${ANYTTY_RECOVERY_SETTLE_SECONDS:-12}"
-log_path="cache/anytty-debug-share/anytty-native-connection.log"
+log_path="no_backup/anytty-diagnostics/native-connection.log"
 
 if ! [[ "${background_seconds}" =~ ^[0-9]+$ && "${settle_seconds}" =~ ^[0-9]+$ ]]; then
   echo "background and settle durations must be non-negative integers" >&2

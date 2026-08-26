@@ -6,6 +6,11 @@
 
 ## Unreleased
 
+### 新增
+
+- Android 原生构建新增 ARMv7（`armeabi-v7a`），覆盖支持范围内的 32 位设备。
+- tag 驱动的发布工作流新增签名的单 ABI APK、universal APK 和 Google Play AAB。
+
 ## [0.0.1-beta.4] - 2026-08-26
 
 ### Fixed

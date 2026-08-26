@@ -234,16 +234,53 @@ func buildTerminalPickerContent(root state.Root, shell state.ShellStore) Content
 	}
 	rowOffset := len(lines)
 	rows := state.TerminalPickerItems(root)
-	for _, row := range rows {
+	selected := terminalPickerSelectedIndex(rows)
+	visibleRowLimit := terminalPickerVisibleRowLimit(root, shell, len(lines)+len(rows), rowOffset)
+	start, end := terminalPickerRowWindow(selected, len(rows), visibleRowLimit)
+	visibleRows := rows[start:end]
+	for _, row := range visibleRows {
 		lines = append(lines, terminalPickerLine(row, query))
 	}
 	return ContentVM{
 		Kind:       ContentTerminalPicker,
 		Lines:      lines,
-		Status:     terminalPickerStatus(terminalPickerSelectableCount(rows), query),
+		Status:     terminalPickerStatus(terminalPickerSelectableCount(rows), selected, len(rows), query),
 		Cursor:     Cursor{Visible: true, Row: 0, Col: terminalPickerSearchCursorCol(query), Shape: CursorShapeBar},
-		HitRegions: terminalPickerHitRegions(rows, rowOffset),
+		HitRegions: terminalPickerHitRegions(visibleRows, rowOffset, start),
 	}
+}
+
+func terminalPickerVisibleRowLimit(root state.Root, shell state.ShellStore, totalLineCount int, fixedLineCount int) int {
+	if !root.Viewport.Valid {
+		return maxInt(0, totalLineCount-fixedLineCount)
+	}
+	viewport := viewportRect(chromeSafeViewportForShell(root.Viewport, shell))
+	viewport.W = normalizeViewportDimension(viewport.W, defaultWidth)
+	viewport.H = normalizeViewportDimension(viewport.H, defaultHeight)
+	overlay := measureCompactOverlay(ContentVM{Kind: ContentTerminalPicker, Lines: make([]Line, totalLineCount)}, viewport)
+	content := measureOverlayContentRect(OverlayVM{Content: ContentVM{Kind: ContentTerminalPicker}}, overlay)
+	return maxInt(0, content.H-fixedLineCount)
+}
+
+func terminalPickerRowWindow(selected int, itemCount int, visibleRows int) (int, int) {
+	if itemCount <= 0 || visibleRows <= 0 {
+		return 0, 0
+	}
+	visibleRows = minInt(visibleRows, itemCount)
+	start := clampInt(selected-visibleRows/2, 0, itemCount-visibleRows)
+	return start, start + visibleRows
+}
+
+func terminalPickerSelectedIndex(rows []state.TerminalPickerItem) int {
+	for index, row := range rows {
+		if row.Selected {
+			return index
+		}
+	}
+	if len(rows) > 0 {
+		return 0
+	}
+	return -1
 }
 
 func chromeSafeViewportForShell(viewport state.ViewportStore, shell state.ShellStore) state.ViewportStore {
@@ -821,7 +858,7 @@ func floatingOverviewHitRegions(rows []state.FloatingOverviewItem, rowOffset int
 	return regions
 }
 
-func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int) []HitRegion {
+func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int, itemOffset int) []HitRegion {
 	regions := make([]HitRegion, 0, len(rows)+1)
 	for index, row := range rows {
 		action := ActionPickerAttach
@@ -832,7 +869,7 @@ func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int) []
 			Kind:       HitRegionContentAction,
 			Rect:       Rect{Y: rowOffset + index, W: terminalPickerHitRegionWidth, H: 1},
 			PaneID:     row.PaneID,
-			Row:        index,
+			Row:        itemOffset + index,
 			HasRow:     true,
 			ActionID:   action.String(),
 			Invocation: invocationForProjection(action),
@@ -960,11 +997,15 @@ func terminalPickerSelectableCount(rows []state.TerminalPickerItem) int {
 	return count
 }
 
-func terminalPickerStatus(count int, query string) string {
-	if query == "" {
-		return fmt.Sprintf("terminal picker: %d items", count)
+func terminalPickerStatus(count int, selected int, itemCount int, query string) string {
+	position := ""
+	if selected >= 0 && itemCount > 0 {
+		position = fmt.Sprintf(" selected:%d/%d", selected+1, itemCount)
 	}
-	return fmt.Sprintf("terminal picker: %d items query:%s", count, query)
+	if query == "" {
+		return fmt.Sprintf("terminal picker: %d items%s", count, position)
+	}
+	return fmt.Sprintf("terminal picker: %d items%s query:%s", count, position, query)
 }
 
 func searchLabel(query string) string {

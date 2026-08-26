@@ -301,10 +301,10 @@ internal class NativeLocalDiscovery(
 		}.filter { it.address.isNotBlank() }
 			NativeLocalDiscoveryCache.update(name, discovered)
 			onChanged()
-		val handles = discovered.map { it.networkHandle }.distinct().joinToString(",")
+		val networkCount = discovered.map { it.networkHandle }.distinct().size
 		val foundAt = foundAtElapsedMillis.remove(name)
 		val resolvedIn = foundAt?.let { SystemClock.elapsedRealtime() - it } ?: -1L
-		AnyTTYDebugLog.connection("local_discovery candidates=${discovered.size} port=${info.port} network_handles=$handles resolve_ms=$resolvedIn")
+		AnyTTYDebugLog.connection("local_discovery candidates=${discovered.size} network_count=$networkCount resolve_ms=$resolvedIn")
 	}
 
     private fun bestNetworkFor(address: java.net.InetAddress): Network? = connectivity.allNetworks
