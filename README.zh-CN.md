@@ -17,6 +17,26 @@ AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换�
 
 > **Beta：** `v0.0.1-beta.4` 已提供 macOS、Linux、Windows 和 Android 构建，可用于体验和评估；首个稳定版发布前，协议与配置仍可能变化。
 
+## 安装
+
+**macOS / Linux - daemon、CLI 与 TUI**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
+```
+
+**Windows PowerShell - daemon、CLI 与 TUI**
+
+```powershell
+irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile install.ps1
+./install.ps1
+```
+
+**手机 App**
+
+- iPhone 与 iPad：[通过 TestFlight 加入公开测试](https://testflight.apple.com/join/rfcgFyJh)。当前构建通过 Apple Beta App Review 后，新测试员即可安装。
+- Android：[从 GitHub Releases 下载 Beta APK](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4)。
+
 <table>
   <tr>
     <td align="center"><img src="docs/assets/mac-tui.png" alt="macOS 上的 AnyTTY TUI 多终端工作台" width="520"></td>

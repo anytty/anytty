@@ -17,6 +17,26 @@ AnyTTY keeps terminal sessions running on your own machines, so you can close th
 
 > **Beta:** `v0.0.1-beta.4` provides macOS, Linux, Windows, and Android builds for evaluation. Protocols and configuration may still change before the first stable release.
 
+## Install
+
+**macOS / Linux - daemon, CLI, and TUI**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
+```
+
+**Windows PowerShell - daemon, CLI, and TUI**
+
+```powershell
+irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile install.ps1
+./install.ps1
+```
+
+**Mobile app**
+
+- iPhone and iPad: [join the public beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh). New testers can install the current build after Apple Beta App Review.
+- Android: [download the Beta APK from GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.4).
+
 <table>
   <tr>
     <td align="center"><img src="docs/assets/mac-tui.png" alt="AnyTTY multi-terminal TUI workspace on macOS" width="520"></td>
