@@ -38,8 +38,13 @@ release_args=(
   --repo anytty/anytty
   --verify-tag
   --title "AnyTTY $version"
-  --generate-notes
 )
+notes_file="${ANYTTY_RELEASE_NOTES_FILE:-$repo_root/.github/release-notes/$version.md}"
+if [[ -s "$notes_file" ]]; then
+  release_args+=(--notes-file "$notes_file")
+else
+  release_args+=(--generate-notes)
+fi
 if [[ "$version" == *-* ]]; then
   release_args+=(--prerelease)
 fi

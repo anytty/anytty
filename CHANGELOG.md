@@ -6,10 +6,28 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.5] - 2026-08-26
+
 ### Added
 
+- Added running, exited, all, and public-tag filters to terminal inventories on mobile and Web surfaces.
+- Added explicit end-running-terminal and remove-exited-record actions with separate confirmation and history-preservation behavior.
+- Added bounded, redacted Android diagnostic bundles that are created and shared only after an explicit user action.
 - Added Android ARMv7 (`armeabi-v7a`) native builds for supported 32-bit devices.
 - Added signed per-ABI Android APKs, a signed universal APK, and a signed Google Play AAB to the tag-driven release workflow.
+
+### Changed
+
+- Foreground recovery now records structured stage diagnostics and lets healthy endpoints resume without waiting for an offline endpoint to become a global app failure.
+- Terminal pickers now expose result counts, keep keyboard selection visible in long lists, and render positional terminal tags as user-facing values instead of protocol keys.
+- Expanded the bundled AnyTTY terminal skill with endpoint-scoped remote terminal and file workflows plus clearer authority boundaries.
+- Added stable human-readable Cloud operator projections alongside numeric protocol values.
+
+### Fixed
+
+- Replaced the Android white screen on unsupported system WebViews with a native compatibility screen that reports the installed WebView and the Chromium 101 minimum.
+- Kept terminal rendering and input gated during native generation recovery so stale sessions are not mounted while reconnecting.
+- Corrected Android native recovery logging so exported diagnostics remain structured and do not include endpoint identifiers or service addresses.
 
 ## [0.0.1-beta.4] - 2026-08-26
 
