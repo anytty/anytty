@@ -385,17 +385,21 @@ func (x *AccountSummary) GetUsage() *UsagePeriodProjection {
 }
 
 type RuntimeSessionProjection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	DaemonId      string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
-	EdgeId        string                 `protobuf:"bytes,4,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
-	ClientId      string                 `protobuf:"bytes,5,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	Product       ClientProduct          `protobuf:"varint,6,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
-	Generation    uint64                 `protobuf:"varint,8,opt,name=generation,proto3" json:"generation,omitempty"`
-	ConnectedAt   *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=connected_at,json=connectedAt,proto3" json:"connected_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SessionId          string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AccountId          string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DaemonId           string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
+	EdgeId             string                 `protobuf:"bytes,4,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
+	ClientId           string                 `protobuf:"bytes,5,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Product            ClientProduct          `protobuf:"varint,6,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
+	Generation         uint64                 `protobuf:"varint,8,opt,name=generation,proto3" json:"generation,omitempty"`
+	ConnectedAt        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=connected_at,json=connectedAt,proto3" json:"connected_at,omitempty"`
+	AccountDisplayName string                 `protobuf:"bytes,10,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
+	AccountEmail       string                 `protobuf:"bytes,11,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
+	DaemonDisplayName  string                 `protobuf:"bytes,12,opt,name=daemon_display_name,json=daemonDisplayName,proto3" json:"daemon_display_name,omitempty"`
+	EdgeName           string                 `protobuf:"bytes,13,opt,name=edge_name,json=edgeName,proto3" json:"edge_name,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RuntimeSessionProjection) Reset() {
@@ -482,6 +486,34 @@ func (x *RuntimeSessionProjection) GetConnectedAt() *timestamppb.Timestamp {
 		return x.ConnectedAt
 	}
 	return nil
+}
+
+func (x *RuntimeSessionProjection) GetAccountDisplayName() string {
+	if x != nil {
+		return x.AccountDisplayName
+	}
+	return ""
+}
+
+func (x *RuntimeSessionProjection) GetAccountEmail() string {
+	if x != nil {
+		return x.AccountEmail
+	}
+	return ""
+}
+
+func (x *RuntimeSessionProjection) GetDaemonDisplayName() string {
+	if x != nil {
+		return x.DaemonDisplayName
+	}
+	return ""
+}
+
+func (x *RuntimeSessionProjection) GetEdgeName() string {
+	if x != nil {
+		return x.EdgeName
+	}
+	return ""
 }
 
 type OperatorAuditEvent struct {
@@ -2121,7 +2153,7 @@ const file_cloud_v1_operator_proto_rawDesc = "" +
 	"\fdaemon_count\x18\x03 \x01(\x04R\vdaemonCount\x12K\n" +
 	"\fsubscription\x18\x04 \x01(\v2'.anytty.cloud.v1.SubscriptionProjectionR\fsubscription\x12G\n" +
 	"\ventitlement\x18\x05 \x01(\v2%.anytty.cloud.v1.EffectiveEntitlementR\ventitlement\x12<\n" +
-	"\x05usage\x18\x06 \x01(\v2&.anytty.cloud.v1.UsagePeriodProjectionR\x05usage\"\xca\x02\n" +
+	"\x05usage\x18\x06 \x01(\v2&.anytty.cloud.v1.UsagePeriodProjectionR\x05usage\"\xee\x03\n" +
 	"\x18RuntimeSessionProjection\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
@@ -2134,7 +2166,12 @@ const file_cloud_v1_operator_proto_rawDesc = "" +
 	"\n" +
 	"generation\x18\b \x01(\x04R\n" +
 	"generation\x12=\n" +
-	"\fconnected_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vconnectedAtJ\x04\b\a\x10\b\"\xf9\x02\n" +
+	"\fconnected_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vconnectedAt\x120\n" +
+	"\x14account_display_name\x18\n" +
+	" \x01(\tR\x12accountDisplayName\x12#\n" +
+	"\raccount_email\x18\v \x01(\tR\faccountEmail\x12.\n" +
+	"\x13daemon_display_name\x18\f \x01(\tR\x11daemonDisplayName\x12\x1b\n" +
+	"\tedge_name\x18\r \x01(\tR\bedgeNameJ\x04\b\a\x10\b\"\xf9\x02\n" +
 	"\x12OperatorAuditEvent\x12\x19\n" +
 	"\baudit_id\x18\x01 \x01(\tR\aauditId\x12(\n" +
 	"\x10actor_account_id\x18\x02 \x01(\tR\x0eactorAccountId\x12,\n" +

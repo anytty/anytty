@@ -742,6 +742,9 @@ type OrderProjection struct {
 	Revision            uint64                 `protobuf:"varint,11,opt,name=revision,proto3" json:"revision,omitempty"`
 	CreatedAt           *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	SettledAt           *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=settled_at,json=settledAt,proto3" json:"settled_at,omitempty"`
+	AccountDisplayName  string                 `protobuf:"bytes,14,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
+	AccountEmail        string                 `protobuf:"bytes,15,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
+	PlanName            string                 `protobuf:"bytes,16,opt,name=plan_name,json=planName,proto3" json:"plan_name,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -867,6 +870,27 @@ func (x *OrderProjection) GetSettledAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *OrderProjection) GetAccountDisplayName() string {
+	if x != nil {
+		return x.AccountDisplayName
+	}
+	return ""
+}
+
+func (x *OrderProjection) GetAccountEmail() string {
+	if x != nil {
+		return x.AccountEmail
+	}
+	return ""
+}
+
+func (x *OrderProjection) GetPlanName() string {
+	if x != nil {
+		return x.PlanName
+	}
+	return ""
+}
+
 type PaymentAttemptProjection struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	PaymentAttemptId  string                 `protobuf:"bytes,1,opt,name=payment_attempt_id,json=paymentAttemptId,proto3" json:"payment_attempt_id,omitempty"`
@@ -976,20 +1000,24 @@ func (x *PaymentAttemptProjection) GetUpdatedAt() *timestamppb.Timestamp {
 }
 
 type SubscriptionProjection struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	SubscriptionId    string                 `protobuf:"bytes,1,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	AccountId         string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	PlanId            string                 `protobuf:"bytes,3,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
-	PlanVersion       uint64                 `protobuf:"varint,4,opt,name=plan_version,json=planVersion,proto3" json:"plan_version,omitempty"`
-	SourceOrderId     string                 `protobuf:"bytes,5,opt,name=source_order_id,json=sourceOrderId,proto3" json:"source_order_id,omitempty"`
-	State             SubscriptionState      `protobuf:"varint,6,opt,name=state,proto3,enum=anytty.cloud.v1.SubscriptionState" json:"state,omitempty"`
-	CancelAtPeriodEnd bool                   `protobuf:"varint,7,opt,name=cancel_at_period_end,json=cancelAtPeriodEnd,proto3" json:"cancel_at_period_end,omitempty"`
-	Revision          uint64                 `protobuf:"varint,8,opt,name=revision,proto3" json:"revision,omitempty"`
-	PeriodStart       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
-	PeriodEnd         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
-	UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SubscriptionId     string                 `protobuf:"bytes,1,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	AccountId          string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	PlanId             string                 `protobuf:"bytes,3,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
+	PlanVersion        uint64                 `protobuf:"varint,4,opt,name=plan_version,json=planVersion,proto3" json:"plan_version,omitempty"`
+	SourceOrderId      string                 `protobuf:"bytes,5,opt,name=source_order_id,json=sourceOrderId,proto3" json:"source_order_id,omitempty"`
+	State              SubscriptionState      `protobuf:"varint,6,opt,name=state,proto3,enum=anytty.cloud.v1.SubscriptionState" json:"state,omitempty"`
+	CancelAtPeriodEnd  bool                   `protobuf:"varint,7,opt,name=cancel_at_period_end,json=cancelAtPeriodEnd,proto3" json:"cancel_at_period_end,omitempty"`
+	Revision           uint64                 `protobuf:"varint,8,opt,name=revision,proto3" json:"revision,omitempty"`
+	PeriodStart        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
+	PeriodEnd          *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
+	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PlanName           string                 `protobuf:"bytes,12,opt,name=plan_name,json=planName,proto3" json:"plan_name,omitempty"`
+	Provider           string                 `protobuf:"bytes,13,opt,name=provider,proto3" json:"provider,omitempty"`
+	AccountDisplayName string                 `protobuf:"bytes,14,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
+	AccountEmail       string                 `protobuf:"bytes,15,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *SubscriptionProjection) Reset() {
@@ -1097,6 +1125,34 @@ func (x *SubscriptionProjection) GetUpdatedAt() *timestamppb.Timestamp {
 		return x.UpdatedAt
 	}
 	return nil
+}
+
+func (x *SubscriptionProjection) GetPlanName() string {
+	if x != nil {
+		return x.PlanName
+	}
+	return ""
+}
+
+func (x *SubscriptionProjection) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *SubscriptionProjection) GetAccountDisplayName() string {
+	if x != nil {
+		return x.AccountDisplayName
+	}
+	return ""
+}
+
+func (x *SubscriptionProjection) GetAccountEmail() string {
+	if x != nil {
+		return x.AccountEmail
+	}
+	return ""
 }
 
 // EffectiveEntitlement 是签发 Cloud 票据时冻结限制的唯一商业真值。
@@ -1237,6 +1293,8 @@ type UsagePeriodProjection struct {
 	Revision                uint64                 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
 	ActiveRelayReservations uint32                 `protobuf:"varint,10,opt,name=active_relay_reservations,json=activeRelayReservations,proto3" json:"active_relay_reservations,omitempty"`
 	RelayHeldBytes          uint64                 `protobuf:"varint,11,opt,name=relay_held_bytes,json=relayHeldBytes,proto3" json:"relay_held_bytes,omitempty"`
+	AccountDisplayName      string                 `protobuf:"bytes,12,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
+	AccountEmail            string                 `protobuf:"bytes,13,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1346,6 +1404,20 @@ func (x *UsagePeriodProjection) GetRelayHeldBytes() uint64 {
 		return x.RelayHeldBytes
 	}
 	return 0
+}
+
+func (x *UsagePeriodProjection) GetAccountDisplayName() string {
+	if x != nil {
+		return x.AccountDisplayName
+	}
+	return ""
+}
+
+func (x *UsagePeriodProjection) GetAccountEmail() string {
+	if x != nil {
+		return x.AccountEmail
+	}
+	return ""
 }
 
 type ListPlansRequest struct {
@@ -2498,7 +2570,7 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	" \x01(\x04R\brevision\x129\n" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12=\n" +
-	"\fpublished_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\"\xcf\x04\n" +
+	"\fpublished_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\"\xc3\x05\n" +
 	"\x0fOrderProjection\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1d\n" +
 	"\n" +
@@ -2516,7 +2588,10 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"settled_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tsettledAt\"\x9e\x03\n" +
+	"settled_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tsettledAt\x120\n" +
+	"\x14account_display_name\x18\x0e \x01(\tR\x12accountDisplayName\x12#\n" +
+	"\raccount_email\x18\x0f \x01(\tR\faccountEmail\x12\x1b\n" +
+	"\tplan_name\x18\x10 \x01(\tR\bplanName\"\x9e\x03\n" +
 	"\x18PaymentAttemptProjection\x12,\n" +
 	"\x12payment_attempt_id\x18\x01 \x01(\tR\x10paymentAttemptId\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\tR\aorderId\x12\x1d\n" +
@@ -2529,7 +2604,7 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x80\x04\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x90\x05\n" +
 	"\x16SubscriptionProjection\x12'\n" +
 	"\x0fsubscription_id\x18\x01 \x01(\tR\x0esubscriptionId\x12\x1d\n" +
 	"\n" +
@@ -2545,7 +2620,11 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"period_end\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb8\x04\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1b\n" +
+	"\tplan_name\x18\f \x01(\tR\bplanName\x12\x1a\n" +
+	"\bprovider\x18\r \x01(\tR\bprovider\x120\n" +
+	"\x14account_display_name\x18\x0e \x01(\tR\x12accountDisplayName\x12#\n" +
+	"\raccount_email\x18\x0f \x01(\tR\faccountEmail\"\xb8\x04\n" +
 	"\x14EffectiveEntitlement\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x127\n" +
@@ -2562,7 +2641,7 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"\x0feffective_until\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\x0eeffectiveUntil\x12;\n" +
 	"\vcomputed_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"computedAt\"\x86\x04\n" +
+	"computedAt\"\xdd\x04\n" +
 	"\x15UsagePeriodProjection\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12=\n" +
@@ -2578,7 +2657,9 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"\brevision\x18\t \x01(\x04R\brevision\x12:\n" +
 	"\x19active_relay_reservations\x18\n" +
 	" \x01(\rR\x17activeRelayReservations\x12(\n" +
-	"\x10relay_held_bytes\x18\v \x01(\x04R\x0erelayHeldBytes\"C\n" +
+	"\x10relay_held_bytes\x18\v \x01(\x04R\x0erelayHeldBytes\x120\n" +
+	"\x14account_display_name\x18\f \x01(\tR\x12accountDisplayName\x12#\n" +
+	"\raccount_email\x18\r \x01(\tR\faccountEmail\"C\n" +
 	"\x10ListPlansRequest\x12/\n" +
 	"\x13include_unpublished\x18\x01 \x01(\bR\x12includeUnpublished\"J\n" +
 	"\x11ListPlansResponse\x125\n" +

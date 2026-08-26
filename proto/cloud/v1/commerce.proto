@@ -120,6 +120,9 @@ message OrderProjection {
   uint64 revision = 11;
   google.protobuf.Timestamp created_at = 12;
   google.protobuf.Timestamp settled_at = 13;
+  string account_display_name = 14;
+  string account_email = 15;
+  string plan_name = 16;
 }
 
 message PaymentAttemptProjection {
@@ -146,6 +149,10 @@ message SubscriptionProjection {
   google.protobuf.Timestamp period_start = 9;
   google.protobuf.Timestamp period_end = 10;
   google.protobuf.Timestamp updated_at = 11;
+  string plan_name = 12;
+  string provider = 13;
+  string account_display_name = 14;
+  string account_email = 15;
 }
 
 // EffectiveEntitlement 是签发 Cloud 票据时冻结限制的唯一商业真值。
@@ -175,6 +182,8 @@ message UsagePeriodProjection {
   uint64 revision = 9;
   uint32 active_relay_reservations = 10;
   uint64 relay_held_bytes = 11;
+  string account_display_name = 12;
+  string account_email = 13;
 }
 
 message ListPlansRequest { bool include_unpublished = 1; }

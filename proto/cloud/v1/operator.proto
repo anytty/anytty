@@ -49,6 +49,10 @@ message RuntimeSessionProjection {
   reserved 7;
   uint64 generation = 8;
   google.protobuf.Timestamp connected_at = 9;
+  string account_display_name = 10;
+  string account_email = 11;
+  string daemon_display_name = 12;
+  string edge_name = 13;
 }
 
 message OperatorAuditEvent {
