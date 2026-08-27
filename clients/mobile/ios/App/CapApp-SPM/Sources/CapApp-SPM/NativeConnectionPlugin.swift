@@ -17,6 +17,7 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getBridgeEndpoint", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "replaceSessionDemand", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isLocalEndpointDiscovered", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isDirectRouteReachable", returnType: CAPPluginReturnPromise),
     ]
 
     private let runtimeQueue = DispatchQueue(label: "com.anytty.ios.runtime")
@@ -156,6 +157,21 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(["discovered": try GoClientNative.localProbe(result.serializedData())])
             } catch {
                 call.reject("local discovery probe failed", nil, error)
+            }
+        }
+    }
+
+    @objc func isDirectRouteReachable(_ call: CAPPluginCall) {
+        guard let encoded = call.getString("routeProtoBase64")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let routeProto = Data(base64Encoded: encoded), !routeProto.isEmpty else {
+            call.reject("routeProtoBase64 is required")
+            return
+        }
+        runtimeQueue.async {
+            do {
+                call.resolve(["reachable": try GoClientNative.directProbe(routeProto)])
+            } catch {
+                call.reject("Direct TCP probe failed", nil, error)
             }
         }
     }

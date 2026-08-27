@@ -112,6 +112,23 @@ func anytty_local_probe(data *C.uint8_t, length C.size_t, outReachable *C.uint8_
 	return C.ANYTTY_STATUS_OK
 }
 
+//export anytty_direct_probe
+func anytty_direct_probe(data *C.uint8_t, length C.size_t, outReachable *C.uint8_t) C.anytty_status_v1 {
+	if data == nil || length == 0 || uint64(length) > uint64(binding.MaxPayloadBytes) || outReachable == nil {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	reachable, err := directRouteReachable(C.GoBytes(unsafe.Pointer(data), C.int(length)))
+	if err != nil {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	if reachable {
+		*outReachable = 1
+	} else {
+		*outReachable = 0
+	}
+	return C.ANYTTY_STATUS_OK
+}
+
 //export anytty_supervisor_replace_demand
 func anytty_supervisor_replace_demand(engine C.anytty_handle_t, data *C.uint8_t, length C.size_t) C.anytty_status_v1 {
 	if data == nil || length == 0 || uint64(length) > uint64(binding.MaxPayloadBytes) {

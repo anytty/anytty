@@ -13,7 +13,7 @@ import (
 )
 
 var expectedCSymbols = []string{
-	"anytty_client_abi_version", "anytty_engine_create", "anytty_bridge_start", "anytty_local_probe",
+	"anytty_client_abi_version", "anytty_engine_create", "anytty_bridge_start", "anytty_local_probe", "anytty_direct_probe",
 	"anytty_supervisor_replace_demand", "anytty_supervisor_signal", "anytty_supervisor_wait_ready", "anytty_supervisor_snapshot",
 	"anytty_engine_open_session", "anytty_engine_execute",
 	"anytty_engine_open_resource_stream", "anytty_engine_send_resource_stream_frame", "anytty_engine_close_resource_stream",
@@ -27,7 +27,7 @@ func TestBindingABIBaselinesStayGeneric(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(header), "ANYTTY_CLIENT_ABI_VERSION 5u") || ABIVersion != 5 {
+	if !strings.Contains(string(header), "ANYTTY_CLIENT_ABI_VERSION 6u") || ABIVersion != 6 {
 		t.Fatalf("ABI version mismatch header=%q go=%d", header, ABIVersion)
 	}
 	re := regexp.MustCompile(`(?m)^anytty_status_v1 (anytty_[a-z0-9_]+)\(`)

@@ -10,29 +10,34 @@ import (
 func TerminalPickerItems(root Root) []TerminalPickerItem {
 	shell := root.Shell.ReadonlyDefaults()
 	query := strings.ToLower(strings.TrimSpace(shell.Overlay.Query))
+	endpointID := TerminalPickerActiveEndpointID(root)
+	status := normalizeTerminalPickerStatus(shell.Overlay.TerminalPickerStatus)
 	items := []TerminalPickerItem{}
-	items = append(items, terminalPickerCreateItems(root, query)...)
+	items = append(items, terminalPickerCreateItems(root, query, endpointID)...)
 	for _, poolItem := range root.TerminalPool.Items {
 		poolItem = normalizeTerminalPoolItem(poolItem)
-		if poolItem.TerminalID == "" {
+		if poolItem.TerminalID == "" || poolItem.EndpointID != endpointID {
 			continue
 		}
 		active := terminalPickerPoolItemActive(root, poolItem)
 		item := TerminalPickerItem{
-			EndpointID:   poolItem.EndpointID,
-			Title:        terminalPoolTitle(poolItem),
-			Kind:         PaneTerminalLive,
-			TerminalID:   poolItem.TerminalID,
-			Active:       active,
-			FromPool:     true,
-			PoolState:    terminalPickerPoolState(poolItem, active),
-			Tags:         cloneStringMap(poolItem.Tags),
-			Cols:         poolItem.Cols,
-			Rows:         poolItem.Rows,
-			LastOutputAt: poolItem.LastOutputAt,
+			EndpointID:      poolItem.EndpointID,
+			Title:           terminalPoolTitle(poolItem),
+			Kind:            PaneTerminalLive,
+			TerminalID:      poolItem.TerminalID,
+			Active:          active,
+			FromPool:        true,
+			PoolState:       terminalPickerPoolState(poolItem, active),
+			Tags:            cloneStringMap(poolItem.Tags),
+			Cols:            poolItem.Cols,
+			Rows:            poolItem.Rows,
+			AttachmentCount: terminalPoolAttachmentCount(root, poolItem),
+			LastOutputAt:    poolItem.LastOutputAt,
 		}
 		item = terminalPickerItemWithEndpoint(root, item)
-		if !matchesTerminalPickerQuery(item, query) {
+		if !terminalPickerMatchesStatus(item, status) ||
+			!terminalPickerMatchesTags(item, shell.Overlay.TerminalPickerTagFilters) ||
+			!matchesTerminalPickerQuery(item, query) {
 			continue
 		}
 		items = append(items, item)
@@ -185,18 +190,22 @@ func matchesTerminalPickerQuery(item TerminalPickerItem, query string) bool {
 	if item.CreateNew {
 		return TerminalPickerQueryMatchIndexes(item.Title, query) != nil ||
 			TerminalPickerQueryMatchIndexes("create terminal", query) != nil ||
-			TerminalPickerQueryMatchIndexes("new terminal", query) != nil ||
-			TerminalPickerQueryMatchIndexes(string(item.EndpointID), query) != nil ||
-			TerminalPickerQueryMatchIndexes(item.EndpointLabel, query) != nil ||
-			TerminalPickerQueryMatchIndexes(item.EndpointSearchText, query) != nil
+			TerminalPickerQueryMatchIndexes("new terminal", query) != nil
 	}
 	return TerminalPickerQueryMatchIndexes(item.Title, query) != nil ||
 		TerminalPickerQueryMatchIndexes(item.TerminalID, query) != nil ||
 		TerminalPickerQueryMatchIndexes(item.PoolState, query) != nil ||
-		TerminalPickerQueryMatchIndexes(TerminalTagsText(item.Tags), query) != nil ||
-		TerminalPickerQueryMatchIndexes(string(item.EndpointID), query) != nil ||
-		TerminalPickerQueryMatchIndexes(item.EndpointLabel, query) != nil ||
+		TerminalPickerQueryMatchIndexes(strings.Join(PublicTerminalTagLabels(item.Tags), ", "), query) != nil ||
+		TerminalPickerQueryMatchIndexes(terminalPickerAttachmentText(item), query) != nil ||
 		TerminalPickerQueryMatchIndexes(terminalPickerSizeText(item), query) != nil
+}
+
+func terminalPickerAttachmentText(item TerminalPickerItem) string {
+	count := item.AttachmentCount
+	if count < 0 {
+		count = 0
+	}
+	return "x" + strconv.Itoa(count)
 }
 
 func terminalPickerSizeText(item TerminalPickerItem) string {

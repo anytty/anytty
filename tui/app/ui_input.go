@@ -653,33 +653,138 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 	if event.Kind != input.EventKindKey {
 		return root, nil
 	}
-	items := state.TerminalPickerItems(root)
-	if entry, ok := input.ShortcutEntryForEvent(root.Config.Shortcuts, "terminal_picker", event); ok {
+	scene := "terminal_picker"
+	if terminalPickerTagsOpen(root) {
+		scene = "terminal_picker_tags"
+	}
+	if entry, ok := input.ShortcutEntryForEvent(root.Config.Shortcuts, scene, event); ok {
+		items := state.TerminalPickerItems(root)
 		return reduceTerminalPickerShortcut(root, entry, items, event)
 	}
 	switch event.Key {
 	case input.KeyUp:
-		root.Shell = root.Shell.MoveTerminalPickerSelection(-1, len(items))
+		root = moveTerminalPickerSelection(root, -1)
 		return root.Advance(), []Effect{handledEffect{}}
 	case input.KeyDown:
-		root.Shell = root.Shell.MoveTerminalPickerSelection(1, len(items))
+		root = moveTerminalPickerSelection(root, 1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case input.KeyLeft:
+		if !terminalPickerTagsOpen(root) {
+			if event.Shift {
+				root = moveTerminalPickerStatus(root, -1)
+			} else {
+				root = moveTerminalPickerEndpoint(root, -1)
+			}
+		}
+		return root.Advance(), []Effect{handledEffect{}}
+	case input.KeyRight:
+		if !terminalPickerTagsOpen(root) {
+			if event.Shift {
+				root = moveTerminalPickerStatus(root, 1)
+			} else {
+				root = moveTerminalPickerEndpoint(root, 1)
+			}
+		}
 		return root.Advance(), []Effect{handledEffect{}}
 	case input.KeyBackspace, input.KeyDelete:
-		root.Shell = root.Shell.SetTerminalPickerQuery(trimLastRune(root.Shell.EnsureDefaults().Overlay.Query))
+		root = deleteTerminalPickerQueryRune(root)
 		return root.Advance(), []Effect{handledEffect{}}
 	case input.KeyChar:
 		if isBackspaceEvent(event) {
-			root.Shell = root.Shell.SetTerminalPickerQuery(trimLastRune(root.Shell.EnsureDefaults().Overlay.Query))
+			root = deleteTerminalPickerQueryRune(root)
 			return root.Advance(), []Effect{handledEffect{}}
 		}
-		if event.Ctrl || event.Char == "" {
+		if event.Ctrl || event.Alt || event.Char == "" {
 			return root, []Effect{handledEffect{}}
 		}
-		root.Shell = root.Shell.SetTerminalPickerQuery(root.Shell.EnsureDefaults().Overlay.Query + event.Char)
+		if terminalPickerTagsOpen(root) {
+			root.Shell = root.Shell.SetTerminalPickerTagQuery(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagQuery + event.Char)
+		} else {
+			root.Shell = root.Shell.SetTerminalPickerQuery(root.Shell.ReadonlyDefaults().Overlay.Query + event.Char)
+		}
 		return root.Advance(), []Effect{handledEffect{}}
 	default:
 		return root, []Effect{handledEffect{}}
 	}
+}
+
+func moveTerminalPickerSelection(root state.Root, delta int) state.Root {
+	if terminalPickerTagsOpen(root) {
+		root.Shell = root.Shell.MoveTerminalPickerTagIndex(delta, len(state.TerminalPickerVisibleTagOptions(root)))
+		return root
+	}
+	root.Shell = root.Shell.MoveTerminalPickerSelection(delta, len(state.TerminalPickerItems(root)))
+	return root
+}
+
+func moveTerminalPickerEndpoint(root state.Root, delta int) state.Root {
+	tabs := state.TerminalPickerEndpointTabs(root)
+	if len(tabs) == 0 || delta == 0 {
+		return root
+	}
+	index := 0
+	for candidate, tab := range tabs {
+		if tab.Selected {
+			index = candidate
+			break
+		}
+	}
+	index = (index + delta) % len(tabs)
+	if index < 0 {
+		index += len(tabs)
+	}
+	root.Shell = root.Shell.SetTerminalPickerEndpoint(tabs[index].EndpointID)
+	return root
+}
+
+func moveTerminalPickerStatus(root state.Root, delta int) state.Root {
+	options := state.TerminalPickerStatusOptions(root)
+	if len(options) == 0 || delta == 0 {
+		return root
+	}
+	index := 0
+	for candidate, option := range options {
+		if option.Selected {
+			index = candidate
+			break
+		}
+	}
+	index = (index + delta) % len(options)
+	if index < 0 {
+		index += len(options)
+	}
+	root.Shell = root.Shell.SetTerminalPickerStatus(options[index].Status)
+	return root
+}
+
+func toggleTerminalPickerTag(root state.Root, row int) state.Root {
+	options := state.TerminalPickerVisibleTagOptions(root)
+	if len(options) == 0 {
+		return root
+	}
+	index := root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagIndex
+	if row >= 0 {
+		index = row
+	}
+	if index < 0 || index >= len(options) {
+		index = 0
+	}
+	root.Shell = root.Shell.SetTerminalPickerTagIndex(index, len(options)).ToggleTerminalPickerTag(options[index].Label)
+	return root
+}
+
+func deleteTerminalPickerQueryRune(root state.Root) state.Root {
+	if terminalPickerTagsOpen(root) {
+		root.Shell = root.Shell.SetTerminalPickerTagQuery(trimLastRune(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagQuery))
+		return root
+	}
+	root.Shell = root.Shell.SetTerminalPickerQuery(trimLastRune(root.Shell.ReadonlyDefaults().Overlay.Query))
+	return root
+}
+
+func terminalPickerTagsOpen(root state.Root) bool {
+	overlay := root.Shell.ReadonlyDefaults().Overlay
+	return overlay.Kind == state.OverlayTerminalPicker && overlay.Open && overlay.TerminalPickerView == state.TerminalPickerViewTags
 }
 
 func reduceTerminalPickerShortcut(root state.Root, entry input.ShortcutEntry, items []state.TerminalPickerItem, event input.InputEvent) (state.Root, []Effect) {
@@ -703,7 +808,7 @@ func reduceTerminalPickerConfirm(root state.Root, items []state.TerminalPickerIt
 		return root, []Effect{
 			handledEffect{},
 			FuncEffect{Run: func(context.Context) Msg {
-				return ShellOpenPromptMsg{Prompt: createTerminalPromptForTargetEndpoint(root, target, selected.EndpointID)}
+				return ShellOpenPromptMsg{Prompt: createTerminalPickerPromptForTargetEndpoint(root, target, selected.EndpointID)}
 			}},
 		}
 	}

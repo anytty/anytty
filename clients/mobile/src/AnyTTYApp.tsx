@@ -5,7 +5,7 @@ import { Clipboard } from '@capacitor/clipboard'
 import { Keyboard } from '@capacitor/keyboard'
 import { Network } from '@capacitor/network'
 import { Browser } from '@capacitor/browser'
-import { create } from '@bufbuild/protobuf'
+import { create, toBinary } from '@bufbuild/protobuf'
 import {
   RemoteControlApp,
   appThemeCssVariables,
@@ -66,9 +66,9 @@ import { LocalWebLogin } from './LocalWebLogin'
 
 const nativeHttpConnectTimeoutMs = 8_000
 const nativeHttpReadTimeoutMs = 15_000
-const localDiscoveryFeedbackDelayMs = 300
-const localDiscoverySearchWindowMs = 6_000
-const localDiscoveryRefreshIntervalMs = 3_000
+const directReachabilityFeedbackDelayMs = 300
+const directReachabilitySearchWindowMs = 6_000
+const directReachabilityRefreshIntervalMs = 3_000
 const cloudPresenceFeedbackDelayMs = 300
 const cloudPresenceProbeTimeoutMs = 15_000
 const cloudPresenceRefreshIntervalMs = 20_000
@@ -154,7 +154,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
   useNativeDisconnectAll(nativeAppRuntime.disconnectAll)
   const [registryReady, setRegistryReady] = useState(false)
   const [registryError, setRegistryError] = useState<string | null>(null)
-  const localDiscovery = useNativeLocalDiscovery(endpointRegistry, registryReady)
+  const directReachability = useNativeDirectReachability(endpointRegistry, registryReady)
   const cloudPresenceByMachineId = useNativeCloudPresence(endpointRegistry, registryReady)
   const refreshRegistry = useCallback(async (client: GoBindingClient = goBindingClient) => {
     try {
@@ -248,8 +248,8 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
         machineRuntimeFactory={machineRuntimeFactory}
         networkRuntime={networkRuntime}
         phoneOnline={nativeConnectionRecovery.phoneOnline}
-        locallyDiscoveredMachineIds={localDiscovery.discoveredMachineIds}
-        locallyDiscoveringMachineIds={localDiscovery.checkingMachineIds}
+        directReachableMachineIds={directReachability.reachableMachineIds}
+        directCheckingMachineIds={directReachability.checkingMachineIds}
         cloudPresenceByMachineId={cloudPresenceByMachineId}
         connectionState={nativeConnectionRecovery.connectionState}
         onRetryConnectionRecovery={nativeConnectionRecovery.retryConnectionRecovery}
@@ -381,13 +381,24 @@ class NativeEndpointRegistryProjection {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
-  localDiscoveryIdentities(): Array<{ machineId: string; deviceId: string; fingerprint: string }> {
+  directReachabilityTargets(): Array<{
+    machineId: string
+    identity?: { deviceId: string; fingerprint: string }
+    routeProtoBase64: string[]
+  }> {
     return this.registry.endpoints.flatMap((endpoint) => {
       const deviceId = endpoint.identity?.deviceId.trim() ?? ''
       const fingerprint = endpoint.identity?.deviceFingerprint.trim() ?? ''
-      return endpoint.endpointId && deviceId && fingerprint
-        ? [{ machineId: endpoint.endpointId, deviceId, fingerprint }]
-        : []
+      const routeProtoBase64 = endpoint.routes.flatMap((route) => {
+        if (!route.enabled || route.route.case !== 'directWebrtcTcp') return []
+        return [directRouteProtoBase64(route.route.value)]
+      })
+      if (!endpoint.endpointId || ((!deviceId || !fingerprint) && routeProtoBase64.length === 0)) return []
+      return [{
+        machineId: endpoint.endpointId,
+        ...(deviceId && fingerprint ? { identity: { deviceId, fingerprint } } : {}),
+        routeProtoBase64,
+      }]
     })
   }
   cloudPresenceEndpointIds(): string[] {
@@ -402,62 +413,73 @@ class NativeEndpointRegistryProjection {
   }
 }
 
-function useNativeLocalDiscovery(
+function useNativeDirectReachability(
   registry: NativeEndpointRegistryProjection,
   enabled: boolean,
-): { discoveredMachineIds: ReadonlySet<string>; checkingMachineIds: ReadonlySet<string> } {
-  const [view, setView] = useState<{ discoveredMachineIds: ReadonlySet<string>; checkingMachineIds: ReadonlySet<string> }>(() => ({
-    discoveredMachineIds: new Set(),
+): { reachableMachineIds: ReadonlySet<string>; checkingMachineIds: ReadonlySet<string> } {
+  const [view, setView] = useState<{ reachableMachineIds: ReadonlySet<string>; checkingMachineIds: ReadonlySet<string> }>(() => ({
+    reachableMachineIds: new Set(),
     checkingMachineIds: new Set(),
   }))
   useEffect(() => {
     if (!enabled) {
-      setView({ discoveredMachineIds: new Set(), checkingMachineIds: new Set() })
+      setView({ reachableMachineIds: new Set(), checkingMachineIds: new Set() })
       return
     }
     let cancelled = false
     let revision = 0
+    let probeRevision = 0
     let feedbackTimer: ReturnType<typeof setTimeout> | undefined
     let settleTimer: ReturnType<typeof setTimeout> | undefined
     let interval: ReturnType<typeof setInterval> | undefined
     const startSearch = (restartWindow = true) => {
-      const identities = registry.localDiscoveryIdentities()
+      const targets = registry.directReachabilityTargets()
       if (!restartWindow && settleTimer) {
-        void refresh(revision, identities)
+        void refresh(revision, targets)
         return
       }
       const currentRevision = ++revision
       if (feedbackTimer) clearTimeout(feedbackTimer)
       if (settleTimer) clearTimeout(settleTimer)
-      const eligible = new Set(identities.map((identity) => identity.machineId))
+      const eligible = new Set(targets.map((target) => target.machineId))
       feedbackTimer = setTimeout(() => {
         feedbackTimer = undefined
         if (cancelled || currentRevision !== revision) return
         setView((current) => {
-          const checking = new Set([...eligible].filter((machineId) => !current.discoveredMachineIds.has(machineId)))
+          const checking = new Set([...eligible].filter((machineId) => !current.reachableMachineIds.has(machineId)))
           return sameStringSet(current.checkingMachineIds, checking) ? current : { ...current, checkingMachineIds: checking }
         })
-      }, localDiscoveryFeedbackDelayMs)
+      }, directReachabilityFeedbackDelayMs)
       settleTimer = setTimeout(() => {
         settleTimer = undefined
         if (cancelled || currentRevision !== revision) return
         setView((current) => current.checkingMachineIds.size === 0 ? current : { ...current, checkingMachineIds: new Set() })
-      }, localDiscoverySearchWindowMs)
-      void refresh(currentRevision, identities)
+      }, directReachabilitySearchWindowMs)
+      void refresh(currentRevision, targets)
     }
-    const refresh = async (currentRevision: number, identities: ReturnType<NativeEndpointRegistryProjection['localDiscoveryIdentities']>) => {
+    const refresh = async (currentRevision: number, targets: ReturnType<NativeEndpointRegistryProjection['directReachabilityTargets']>) => {
+      const currentProbeRevision = ++probeRevision
       try {
-        const results = await Promise.all(identities.map(async (identity) => ({
-          machineId: identity.machineId,
-          discovered: (await NativeConnection.isLocalEndpointDiscovered(identity)).discovered,
-        })))
-        if (cancelled || currentRevision !== revision) return
-        const next = new Set(results.filter((result) => result.discovered).map((result) => result.machineId))
+        const results = await Promise.all(targets.map(async (target) => {
+          const probes: Array<Promise<boolean>> = target.routeProtoBase64.map(async (routeProtoBase64) => (
+            await NativeConnection.isDirectRouteReachable({ routeProtoBase64 })
+          ).reachable)
+          if (target.identity) {
+            probes.push(NativeConnection.isLocalEndpointDiscovered(target.identity).then((result) => result.discovered))
+          }
+          const outcomes = await Promise.allSettled(probes)
+          return {
+            machineId: target.machineId,
+            reachable: outcomes.some((outcome) => outcome.status === 'fulfilled' && outcome.value),
+          }
+        }))
+        if (cancelled || currentRevision !== revision || currentProbeRevision !== probeRevision) return
+        const next = new Set(results.filter((result) => result.reachable).map((result) => result.machineId))
         setView((current) => {
           const checking = new Set([...current.checkingMachineIds].filter((machineId) => !next.has(machineId)))
-          return sameStringSet(current.discoveredMachineIds, next) && sameStringSet(current.checkingMachineIds, checking)
+          return sameStringSet(current.reachableMachineIds, next) && sameStringSet(current.checkingMachineIds, checking)
             ? current
-            : { discoveredMachineIds: next, checkingMachineIds: checking }
+            : { reachableMachineIds: next, checkingMachineIds: checking }
         })
       } catch {
         // The native bridge can be briefly unavailable while its generation changes.
@@ -465,10 +487,11 @@ function useNativeLocalDiscovery(
     }
     const removeRegistryListener = registry.subscribe(() => startSearch(true))
     const nativeListener = NativeConnection.addListener('localDiscoveryChanged', () => startSearch(false))
+    const networkListener = NativeConnection.addListener('networkChanged', () => startSearch(true))
     void nativeListener.then(() => startSearch(true)).catch(() => undefined)
     interval = setInterval(() => {
-      void refresh(revision, registry.localDiscoveryIdentities())
-    }, localDiscoveryRefreshIntervalMs)
+      void refresh(revision, registry.directReachabilityTargets())
+    }, directReachabilityRefreshIntervalMs)
     return () => {
       cancelled = true
       if (feedbackTimer) clearTimeout(feedbackTimer)
@@ -476,9 +499,17 @@ function useNativeLocalDiscovery(
       if (interval) clearInterval(interval)
       removeRegistryListener()
       void nativeListener.then((listener) => listener.remove())
+      void networkListener.then((listener) => listener.remove())
     }
   }, [enabled, registry])
   return view
+}
+
+function directRouteProtoBase64(value: AnyTTYRemoteAuth.DirectWebRTCTCPRouteConfig): string {
+  const bytes = toBinary(AnyTTYRemoteAuth.DirectWebRTCTCPRouteConfigSchema, value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 function useNativeCloudPresence(

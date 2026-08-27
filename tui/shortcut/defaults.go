@@ -187,11 +187,23 @@ var defaultBindings = []DefaultBinding{
 	{Scene: "copy", Key: "p", Action: "clipboard.paste_latest"},
 	{Scene: "copy", Key: "P", Action: "clipboard.paste_system"},
 
+	{Scene: "terminal_picker", Key: "left", Action: "terminal_picker.endpoint_previous"},
+	{Scene: "terminal_picker", Key: "right", Action: "terminal_picker.endpoint_next"},
+	{Scene: "terminal_picker", Key: "shift-left", Action: "terminal_picker.status_previous"},
+	{Scene: "terminal_picker", Key: "shift-right", Action: "terminal_picker.status_next"},
+	{Scene: "terminal_picker", Key: "up", Action: "terminal_picker.select_previous"},
+	{Scene: "terminal_picker", Key: "down", Action: "terminal_picker.select_next"},
+	{Scene: "terminal_picker", Key: "ctrl-t", Action: "terminal_picker.tags"},
 	{Scene: "terminal_picker", Key: "enter", Action: "terminal_picker.attach"},
 	{Scene: "terminal_picker", Key: "tab", Action: "terminal_picker.split"},
 	{Scene: "terminal_picker", Key: "ctrl-e", Action: "terminal_picker.edit"},
 	{Scene: "terminal_picker", Key: "ctrl-k", Action: "terminal_picker.kill"},
 	{Scene: "terminal_picker", Key: "ctrl-x", Action: "terminal_picker.delete"},
+
+	{Scene: "terminal_picker_tags", Key: "up", Action: "terminal_picker.select_previous"},
+	{Scene: "terminal_picker_tags", Key: "down", Action: "terminal_picker.select_next"},
+	{Scene: "terminal_picker_tags", Key: "space", Action: "terminal_picker.tag_toggle"},
+	{Scene: "terminal_picker_tags", Key: "ctrl-t", Action: "terminal_picker.tags"},
 
 	{Scene: "terminal_pool", Key: "enter", Action: "terminal_pool.attach"},
 	{Scene: "terminal_pool", Key: "ctrl-t", Action: "terminal_pool.attach_tab"},

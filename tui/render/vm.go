@@ -6,6 +6,7 @@ import (
 
 	actiondomain "github.com/anytty/anytty/tui/action"
 	"github.com/anytty/anytty/tui/input"
+	"github.com/anytty/anytty/tui/shortcut"
 	"github.com/anytty/anytty/tui/state"
 )
 
@@ -244,6 +245,9 @@ func floatingSummary(shell state.ShellStore) string {
 
 func footerMode(root state.Root, shell state.ShellStore) string {
 	if shell.Overlay.Open {
+		if shell.Overlay.Kind == state.OverlayTerminalPicker && shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+			return "terminal-picker-tags"
+		}
 		return string(shell.Overlay.Kind)
 	}
 	if root.ActiveViewOwnsCopyInput() {
@@ -401,6 +405,26 @@ func footerActionAvailable(action FooterActionVM, mode string, root state.Root, 
 			return len(state.TerminalPoolPageItems(root)) > 0
 		}
 		return len(root.TerminalPool.Items) > 0
+	case "terminal_picker.select_previous", "terminal_picker.select_next":
+		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+			return len(state.TerminalPickerVisibleTagOptions(root)) > 1
+		}
+		return len(state.TerminalPickerItems(root)) > 1
+	case "terminal_picker.tag_toggle":
+		return shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags && len(state.TerminalPickerVisibleTagOptions(root)) > 0
+	case "terminal_picker.attach":
+		return shell.Overlay.TerminalPickerView != state.TerminalPickerViewTags && len(state.TerminalPickerItems(root)) > 0
+	case "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete":
+		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+			return false
+		}
+		items := state.TerminalPickerItems(root)
+		for _, item := range items {
+			if item.Selected {
+				return item.TerminalID != ""
+			}
+		}
+		return false
 	case "clipboard_history.paste", "clipboard_history.edit", "clipboard_history.delete":
 		return len(state.ClipboardHistoryItems(root)) > 0
 	case "help.previous", "help.page_up", "help.first":
@@ -1335,9 +1359,20 @@ func (projector ShellProjector) buildOverlayVM(root state.Root, shell state.Shel
 	var overlay OverlayVM
 	switch shell.Overlay.Kind {
 	case state.OverlayTerminalPicker:
+		title := "Terminal Picker"
+		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+			title = "Terminal Picker / Tags"
+		}
 		overlay = OverlayVM{
-			Kind:    OverlayTerminalPicker,
-			Opaque:  false,
+			Kind:   OverlayTerminalPicker,
+			Opaque: false,
+			Title:  title,
+			Picker: PickerChromeVM{
+				Presentation: root.Config.Chrome.Picker.Presentation,
+				Width:        root.Config.Chrome.Picker.Width,
+				Density:      root.Config.Chrome.Picker.Density,
+				EndpointTabs: root.Config.Chrome.Picker.EndpointTabs,
+			},
 			Content: projector.Content.Project(ContentProjectorContext{Root: root, Shell: shell, Kind: ContentTerminalPicker}),
 		}
 	case state.OverlayTerminalPool:
@@ -1382,7 +1417,11 @@ func (projector ShellProjector) buildOverlayVM(root state.Root, shell state.Shel
 	default:
 		return OverlayVM{}
 	}
-	overlay.Content.HitRegions = bindOverlayShortcutInvocations(overlay.Kind, overlay.Content.HitRegions, root.Config.Shortcuts)
+	if shell.Overlay.Kind == state.OverlayTerminalPicker && shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+		overlay.Content.HitRegions = bindOverlayShortcutInvocationsForScene(string(shortcut.SceneTerminalPickerTags), overlay.Content.HitRegions, root.Config.Shortcuts)
+	} else {
+		overlay.Content.HitRegions = bindOverlayShortcutInvocations(overlay.Kind, overlay.Content.HitRegions, root.Config.Shortcuts)
+	}
 	return overlay
 }
 

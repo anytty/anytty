@@ -44,8 +44,12 @@ const (
 	ActionDisconnectedReconnect  ProjectionID = "disconnected.reconnect"
 	ActionDisconnectedDisconnect ProjectionID = "disconnected.disconnect"
 
-	ActionPickerAttach ProjectionID = "picker.attach"
-	ActionPickerNew    ProjectionID = "picker.new"
+	ActionPickerAttach         ProjectionID = "picker.attach"
+	ActionPickerNew            ProjectionID = "picker.new"
+	ActionPickerEndpointSelect ProjectionID = "picker.endpoint-select"
+	ActionPickerStatusSelect   ProjectionID = "picker.status-select"
+	ActionPickerTags           ProjectionID = "picker.tags"
+	ActionPickerTagToggle      ProjectionID = "picker.tag-toggle"
 
 	ActionPoolSelect ProjectionID = "pool.select"
 
@@ -133,6 +137,10 @@ func ProjectionCatalog() []ProjectionSpec {
 		projectionSpec(ActionDisconnectedDisconnect, ActionSurfaceContent).withDanger(),
 		projectionSpec(ActionPickerAttach, ActionSurfaceContent),
 		projectionSpec(ActionPickerNew, ActionSurfaceContent),
+		projectionSpec(ActionPickerEndpointSelect, ActionSurfaceContent),
+		projectionSpec(ActionPickerStatusSelect, ActionSurfaceContent),
+		projectionSpec(ActionPickerTags, ActionSurfaceContent),
+		projectionSpec(ActionPickerTagToggle, ActionSurfaceContent),
 		projectionSpec(ActionPoolSelect, ActionSurfaceContent),
 		projectionSpec(ActionWorkbenchOpen, ActionSurfaceContent),
 		projectionSpec(ActionClipboardHistorySelect, ActionSurfaceContent),

@@ -440,8 +440,8 @@ func TestTerminalPickerItemsDoNotAppendStaleLocalBindings(t *testing.T) {
 	}
 
 	items := TerminalPickerItems(root)
-	if len(items) != 3 || !items[0].CreateNew || items[1].TerminalID != "111" || items[2].TerminalID != "123" {
-		t.Fatalf("picker must only show daemon-listed terminals plus create row, got %#v", items)
+	if len(items) != 1 || items[0].EndpointID != "cn-fast" || items[0].TerminalID != "111" {
+		t.Fatalf("picker must scope daemon-listed terminals to the active endpoint tab, got %#v", items)
 	}
 	for _, item := range items {
 		if item.TerminalID == "term-pool-legacy" {
@@ -458,14 +458,14 @@ func TestTerminalPickerItemsShowOnlyTerminalPoolInfo(t *testing.T) {
 		TerminalPool: TerminalPoolStore{
 			Status: TerminalPoolReady,
 			Items: []TerminalPoolItem{
-				{TerminalID: "term-main", Title: "main", State: "running", Cols: 80, Rows: 24},
-				{TerminalID: "term-pool", Title: "远程🚀", State: "running", Cols: 100, Rows: 30},
+				{TerminalID: "term-main", Title: "main", State: "running", Cols: 80, Rows: 24, AttachmentCount: 2},
+				{TerminalID: "term-pool", Title: "远程🚀", State: "running", Cols: 100, Rows: 30, AttachmentCount: 7},
 			},
 		},
 	}
 
 	items := TerminalPickerItems(root)
-	if len(items) != 3 || !items[0].CreateNew || items[1].PaneID != "" || items[1].Location != "" || items[1].CreateNew || !items[1].FromPool || items[2].TerminalID != "term-pool" || items[2].Cols != 100 || items[2].Rows != 30 {
+	if len(items) != 3 || !items[0].CreateNew || items[1].PaneID != "" || items[1].Location != "" || items[1].CreateNew || !items[1].FromPool || items[1].AttachmentCount != 2 || items[2].TerminalID != "term-pool" || items[2].Cols != 100 || items[2].Rows != 30 || items[2].AttachmentCount != 7 {
 		t.Fatalf("expected create row plus terminal-only pool rows, got %#v", items)
 	}
 	root.Shell = root.Shell.SetTerminalPickerQuery("远程")
@@ -537,11 +537,13 @@ func TestTerminalPickerItemsKeepSameTerminalIDAcrossEndpoints(t *testing.T) {
 	}
 
 	items := TerminalPickerItems(root)
-	if len(items) != 3 {
-		t.Fatalf("expected create row plus both endpoint terminal rows, got %#v", items)
+	if len(items) != 2 || !items[0].CreateNew || items[1].EndpointID != DefaultEndpointID || items[1].TerminalID != "term-1" {
+		t.Fatalf("default endpoint tab should only contain local rows, got %#v", items)
 	}
-	if items[1].EndpointID != DefaultEndpointID || items[1].TerminalID != "term-1" || items[2].EndpointID != "west" || items[2].TerminalID != "term-1" {
-		t.Fatalf("terminal picker must keep endpoint identity for duplicate terminal ids, got %#v", items)
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west")
+	items = TerminalPickerItems(root)
+	if len(items) != 1 || items[0].EndpointID != "west" || items[0].TerminalID != "term-1" {
+		t.Fatalf("west endpoint tab must keep duplicate terminal identity scoped to west, got %#v", items)
 	}
 }
 
@@ -559,16 +561,12 @@ func TestTerminalPickerItemsUseCurrentViewBindingForAttachedState(t *testing.T) 
 	}
 
 	items := TerminalPickerItems(root)
-	if len(items) != 3 {
-		t.Fatalf("expected create row plus local and west rows, got %#v", items)
+	if len(items) != 2 {
+		t.Fatalf("expected create row plus active local row, got %#v", items)
 	}
-	if !items[1].Active || items[1].PoolState != string(TerminalLiveAttached) {
+	if !items[1].Active || items[1].PoolState != string(TerminalLiveAttached) || items[1].AttachmentCount != 1 {
 		t.Fatalf("local exact binding should be projected as attached, got %#v", items[1])
 	}
-	if items[2].Active || items[2].PoolState != "running" {
-		t.Fatalf("remote daemon attached metadata must not become current TUI attached state, got %#v", items[2])
-	}
-
 	root.Shell = root.Shell.SetTerminalPickerQuery("attached")
 	items = TerminalPickerItems(root)
 	if len(items) != 1 || items[0].EndpointID != DefaultEndpointID || items[0].TerminalID != "term-1" {
@@ -576,9 +574,14 @@ func TestTerminalPickerItemsUseCurrentViewBindingForAttachedState(t *testing.T) 
 	}
 
 	root.Shell = root.Shell.SetTerminalPickerQuery("")
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west")
+	items = TerminalPickerItems(root)
+	if len(items) != 1 || items[0].Active || items[0].PoolState != "running" || items[0].AttachmentCount != 2 {
+		t.Fatalf("remote daemon attached metadata must not become current TUI attached state, got %#v", items)
+	}
 	root.TerminalViews = root.TerminalViews.BindPane(NewEndpointPaneTerminalView("west", "pane-west", "term-1", 8, 100, 30, TerminalResizeRoleFollower, "surface-west", TerminalPaneViewID("pane-west"), false))
 	items = TerminalPickerItems(root)
-	if len(items) != 3 || !items[2].Active || items[2].PoolState != string(TerminalLiveAttached) {
+	if len(items) != 1 || !items[0].Active || items[0].PoolState != string(TerminalLiveAttached) {
 		t.Fatalf("west exact binding should be projected as attached only after this TUI attaches it, got %#v", items)
 	}
 }
@@ -600,8 +603,13 @@ func TestTerminalPickerAndPoolRowsSortByName(t *testing.T) {
 	}
 
 	picker := TerminalPickerItems(root)
-	if len(picker) != 4 || !picker[0].CreateNew || picker[1].Title != "alpha" || picker[2].Title != "Beta" || picker[3].Title != "zeta" {
-		t.Fatalf("terminal picker rows should sort by display name after create row, got %#v", picker)
+	if len(picker) != 2 || !picker[0].CreateNew || picker[1].Title != "Beta" {
+		t.Fatalf("terminal picker should sort the selected endpoint collection, got %#v", picker)
+	}
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west")
+	picker = TerminalPickerItems(root)
+	if len(picker) != 3 || !picker[0].CreateNew || picker[1].Title != "alpha" || picker[2].Title != "zeta" {
+		t.Fatalf("west endpoint collection should sort independently, got %#v", picker)
 	}
 
 	root.Shell = root.Shell.OpenTerminalPool()
@@ -611,17 +619,22 @@ func TestTerminalPickerAndPoolRowsSortByName(t *testing.T) {
 	}
 }
 
-func TestTerminalPickerCreateRowIsGlobalButEndpointSearchable(t *testing.T) {
+func TestTerminalPickerCreateRowBelongsToSelectedEndpointTab(t *testing.T) {
 	root := Root{
-		Shell: DefaultShell().OpenTerminalPicker().SetTerminalPickerQuery("us west"),
+		Shell: DefaultShell().OpenTerminalPicker(),
 		Endpoints: (EndpointStore{}).
 			Upsert(EndpointItem{ID: DefaultEndpointID, Label: "This Mac", Transport: EndpointTransportLocal, ConnectMode: EndpointConnectAuto, Enabled: true}).
 			Upsert(EndpointItem{ID: "us-west", Label: "US West", Transport: EndpointTransportSSH, ConnectMode: EndpointConnectOnDemand, Enabled: true}),
 	}
 
 	picker := TerminalPickerItems(root)
-	if len(picker) != 1 || !picker[0].CreateNew || picker[0].EndpointID != DefaultEndpointID || picker[0].EndpointLabel != "This Mac" || !strings.Contains(picker[0].EndpointSearchText, "US West") {
-		t.Fatalf("endpoint query should expose one global create row, got %#v", picker)
+	if len(picker) != 1 || !picker[0].CreateNew || picker[0].EndpointID != DefaultEndpointID {
+		t.Fatalf("local tab should own its create row, got %#v", picker)
+	}
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("us-west")
+	picker = TerminalPickerItems(root)
+	if len(picker) != 1 || !picker[0].CreateNew || picker[0].EndpointID != "us-west" || picker[0].EndpointLabel != "US West" {
+		t.Fatalf("selected west tab should own its create row, got %#v", picker)
 	}
 }
 
@@ -838,10 +851,51 @@ func TestTerminalPickerGroupsExposeEndpointMetadataAndSearch(t *testing.T) {
 		t.Fatalf("unexpected endpoint group terminal rows %#v", rowCountByID)
 	}
 
-	root.Shell = root.Shell.SetTerminalPickerQuery("US West")
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west").SetTerminalPickerQuery("shell")
 	items := TerminalPickerItems(root)
-	if len(items) != 2 || !items[0].CreateNew || items[1].EndpointID != "west" || items[1].TerminalID != "term-1" {
-		t.Fatalf("endpoint label query should match west terminal row, got %#v", items)
+	if len(items) != 1 || items[0].EndpointID != "west" || items[0].TerminalID != "term-1" {
+		t.Fatalf("west endpoint tab query should only match its terminal collection, got %#v", items)
+	}
+}
+
+func TestTerminalPickerFiltersStatusAndPublicTagsWithinEndpoint(t *testing.T) {
+	root := Root{
+		Shell: DefaultShell().OpenTerminalPicker(),
+		TerminalPool: TerminalPoolStore{Status: TerminalPoolReady, Items: []TerminalPoolItem{
+			{EndpointID: DefaultEndpointID, TerminalID: "api-prod", Title: "api prod", State: "running", Tags: map[string]string{"tag1": "production", "tag2": "backend", "cwd": "/srv", "anytty.owner": "system"}},
+			{EndpointID: DefaultEndpointID, TerminalID: "api-dev", Title: "api dev", State: "running", Tags: map[string]string{"tag1": "development", "tag2": "backend"}},
+			{EndpointID: DefaultEndpointID, TerminalID: "job-prod", Title: "job prod", State: "exited", Tags: map[string]string{"tag1": "production", "tag2": "worker"}},
+			{EndpointID: "west", TerminalID: "west-prod", Title: "west prod", State: "running", Tags: map[string]string{"tag1": "production", "tag2": "backend"}},
+		}},
+	}
+
+	tags := TerminalPickerTagOptions(root)
+	if len(tags) != 4 || tags[0].Label != "backend" || tags[0].Count != 2 {
+		t.Fatalf("tag options must be endpoint-scoped public strings, got %#v", tags)
+	}
+	for _, option := range tags {
+		if strings.Contains(option.Label, "tag1=") || option.Label == "/srv" || strings.Contains(option.Label, "anytty.") {
+			t.Fatalf("transport/internal metadata must stay out of picker tags, got %#v", tags)
+		}
+	}
+	root.Shell = root.Shell.SetTerminalPickerStatus(TerminalPickerStatusRunning).
+		ToggleTerminalPickerTag("production").ToggleTerminalPickerTag("backend")
+	items := TerminalPickerItems(root)
+	if len(items) != 2 || !items[0].CreateNew || items[1].TerminalID != "api-prod" {
+		t.Fatalf("status and multi-tag filters must combine with AND inside the endpoint, got %#v", items)
+	}
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west")
+	if got := root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagFilters; len(got) != 0 {
+		t.Fatalf("switching endpoint must clear endpoint-scoped tag filters, got %#v", got)
+	}
+}
+
+func TestReplacePublicTerminalTagsPreservesOnlyInternalMetadata(t *testing.T) {
+	tags := ReplacePublicTerminalTags(map[string]string{
+		"role": "build", "tag1": "old", "cwd": "/srv", "anytty.owner": "system",
+	}, []string{"production", "backend", "production"})
+	if tags["tag1"] != "production" || tags["tag2"] != "backend" || tags["cwd"] != "/srv" || tags["anytty.owner"] != "system" || tags["role"] != "" {
+		t.Fatalf("public tags should be replaced as positional strings while internal metadata survives, got %#v", tags)
 	}
 }
 

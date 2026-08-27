@@ -2,15 +2,18 @@ package state
 
 import "strings"
 
-func terminalPickerCreateItems(root Root, query string) []TerminalPickerItem {
+func terminalPickerCreateItems(root Root, query string, endpointID EndpointID) []TerminalPickerItem {
+	endpointID = NormalizeEndpointID(endpointID)
+	if !terminalPickerCreateEndpointAvailable(root, endpointID) {
+		return nil
+	}
 	item := TerminalPickerItem{
-		EndpointID: terminalPickerCreateDefaultEndpoint(root),
-		Title:      "new terminal",
+		EndpointID: endpointID,
+		Title:      "New Terminal",
 		Kind:       PaneTerminalLive,
 		CreateNew:  true,
 	}
 	item = terminalPickerItemWithEndpoint(root, item)
-	item.EndpointSearchText = terminalPickerCreateEndpointSearchText(root, item.EndpointLabel)
 	if matchesTerminalPickerQuery(item, query) {
 		return []TerminalPickerItem{item}
 	}

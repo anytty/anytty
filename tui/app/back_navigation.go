@@ -21,6 +21,9 @@ func NewBackNavigationReducer(copyMode CopyModeDeps) Reducer {
 		case state.BackNavigationPromptSuggestion:
 			root.Shell = root.Shell.SetPromptSuggestionFocused(false)
 			return root.Advance(), []Effect{handledEffect{}}
+		case state.BackNavigationTerminalTags:
+			root.Shell = root.Shell.CloseTerminalPickerTags()
+			return root.Advance(), []Effect{handledEffect{}}
 		case state.BackNavigationOverlay:
 			if root.Shell.EnsureDefaults().Overlay.Kind == state.OverlayPrompt {
 				root.Shell = root.Shell.CancelPrompt()

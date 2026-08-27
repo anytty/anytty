@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define ANYTTY_CLIENT_ABI_VERSION 5u
+#define ANYTTY_CLIENT_ABI_VERSION 6u
 
 typedef uint64_t anytty_handle_t;
 
@@ -34,6 +34,7 @@ uint32_t anytty_client_abi_version(void);
 anytty_status_v1 anytty_engine_create(anytty_handle_t *out_engine_handle);
 anytty_status_v1 anytty_bridge_start(anytty_handle_t engine_handle, const uint8_t *token, size_t token_length, uint16_t *out_port);
 anytty_status_v1 anytty_local_probe(const uint8_t *local_discovery_proto, size_t local_discovery_length, uint8_t *out_reachable);
+anytty_status_v1 anytty_direct_probe(const uint8_t *direct_route_proto, size_t direct_route_length, uint8_t *out_reachable);
 anytty_status_v1 anytty_supervisor_replace_demand(anytty_handle_t engine_handle, const uint8_t *demand_proto, size_t demand_length);
 anytty_status_v1 anytty_supervisor_signal(anytty_handle_t engine_handle, const uint8_t *signal_proto, size_t signal_length);
 anytty_status_v1 anytty_supervisor_wait_ready(anytty_handle_t engine_handle, uint32_t timeout_millis);

@@ -1116,14 +1116,17 @@ func TestInteractiveRuntimeCtrlFDoesNotSendTerminalInput(t *testing.T) {
 		t.Fatalf("ctrl-f must not be sent to terminal, got %#v", terminal.Inputs)
 	}
 	last := lastFrame(t, host.Frames())
-	if !frameContains(last, "terminal picker") ||
-		!frameContains(last, "search:") ||
-		!frameContains(last, "▸ + new terminal") ||
+	if !frameContains(last, "Terminal Picker") ||
+		!frameContains(last, "⌕") ||
+		!frameContains(last, "● All 1") ||
+		!frameContains(last, "Running 1") ||
+		!frameContains(last, "Exited 0") ||
+		!frameContains(last, "Tags") ||
+		!frameContains(last, "▸ + New terminal") ||
 		!frameContains(last, "● term-1") ||
 		!frameContains(last, "attached") ||
 		!frameContains(last, "80x24") ||
-		!frameContains(last, "+ new terminal") ||
-		!frameContains(last, "Create terminal") ||
+		!frameContains(last, "+ New terminal") ||
 		frameContains(last, "@pane-main") ||
 		frameContains(last, "Select terminal source state target") ||
 		frameContains(last, "DETAIL") {
@@ -1215,7 +1218,7 @@ func TestInteractiveRuntimeTerminalPickerKeyboardFlow(t *testing.T) {
 		t.Fatalf("expected picker query retained in reducer state, got %#v", runtime.State().Shell.Overlay)
 	}
 	queryFrame := lastFrame(t, host.Frames())
-	if !frameContains(queryFrame, "search: 日志") || !frameContains(queryFrame, "▸ ● 日志🚀") || !frameContains(queryFrame, "running") || !frameContains(queryFrame, "100x30") || frameContains(queryFrame, "@pane-2") || frameContains(queryFrame, "DETAIL 日志🚀") {
+	if !frameContains(queryFrame, "⌕ 日志") || !frameContains(queryFrame, "▸ ● 日志🚀") || !frameContains(queryFrame, "running") || !frameContains(queryFrame, "100x30") || frameContains(queryFrame, "@pane-2") || frameContains(queryFrame, "DETAIL 日志🚀") {
 		t.Fatalf("expected filtered picker frame, got %#v", queryFrame.Lines)
 	}
 	if len(terminal.Inputs) != 0 {
@@ -1711,6 +1714,23 @@ func TestTerminalCreateAndEditPromptsManageTags(t *testing.T) {
 
 	if _, err := parseTerminalTagsInput("kind=task, broken"); err == nil {
 		t.Fatal("invalid tag input should return an actionable validation error")
+	}
+
+	pickerPrompt := terminalPickerEditPrompt(state.TerminalPoolPageItem{
+		TerminalID: "task-tests", Title: "tests",
+		Tags: map[string]string{"tag1": "production", "tag2": "backend", "cwd": "/srv"},
+	})
+	if !pickerPrompt.PublicTagList || pickerPrompt.FieldRawValue("tags") != "backend, production" {
+		t.Fatalf("picker edit prompt should expose pure public tag strings, got %#v", pickerPrompt)
+	}
+	for index := range pickerPrompt.Fields {
+		if pickerPrompt.Fields[index].Key == "tags" {
+			pickerPrompt.Fields[index].Value = "production, worker"
+		}
+	}
+	pickerEdit, err := terminalEditRequestFromPrompt(pickerPrompt)
+	if err != nil || pickerEdit.Tags["tag1"] != "production" || pickerEdit.Tags["tag2"] != "worker" || pickerEdit.Tags["cwd"] != "/srv" {
+		t.Fatalf("picker edit prompt should encode pure strings at the request boundary, edit=%#v err=%v", pickerEdit, err)
 	}
 }
 
@@ -4209,10 +4229,98 @@ func TestOverlayKeyboardCommandsUseCanonicalAppHandlers(t *testing.T) {
 	}
 }
 
+func TestTerminalPickerKeyboardMovesEndpointStatusAndTagFilters(t *testing.T) {
+	root := state.Root{
+		Shell: state.DefaultShell().OpenTerminalPicker(),
+		Endpoints: (state.EndpointStore{}).
+			Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "This Mac", Enabled: true}).
+			Upsert(state.EndpointItem{ID: "west", Label: "US West", Enabled: true}),
+		TerminalPool: state.TerminalPoolStore{Items: []state.TerminalPoolItem{
+			{EndpointID: state.DefaultEndpointID, TerminalID: "local", State: "running", Tags: map[string]string{"tag1": "local"}},
+			{EndpointID: "west", TerminalID: "west-run", State: "running", Tags: map[string]string{"tag1": "backend", "tag2": "production"}},
+			{EndpointID: "west", TerminalID: "west-exit", State: "exited", Tags: map[string]string{"tag1": "production"}},
+		}},
+	}
+	reducer := NewUIInputReducer()
+	send := func(event input.InputEvent) {
+		root, _ = reducer(root, InputMsg{Event: event})
+	}
+
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight})
+	if state.TerminalPickerActiveEndpointID(root) != "west" {
+		t.Fatalf("right should switch endpoint tabs directly, got %#v", state.TerminalPickerEndpointTabs(root))
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x14", Ctrl: true})
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewTags {
+		t.Fatalf("ctrl-t should open the tag subview, got %#v", root.Shell.Overlay)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: " "})
+	if got := root.Shell.Overlay.TerminalPickerTagFilters; len(got) != 1 || got[0] != "backend" {
+		t.Fatalf("space should toggle the selected pure tag, got %#v", got)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x14", Ctrl: true})
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewList {
+		t.Fatalf("ctrl-t should return to the terminal list, got %#v", root.Shell.Overlay)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight, Shift: true})
+	if root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusRunning {
+		t.Fatalf("shift-right should cycle status directly, got %#v", root.Shell.Overlay)
+	}
+	items := state.TerminalPickerItems(root)
+	if len(items) != 2 || !items[0].CreateNew || items[1].TerminalID != "west-run" {
+		t.Fatalf("keyboard filters should combine inside west endpoint, got %#v", items)
+	}
+}
+
+func TestTerminalPickerMouseControlsUseCanonicalSurfaceActions(t *testing.T) {
+	root := state.Root{
+		Shell: state.DefaultShell().OpenTerminalPicker(),
+		Endpoints: (state.EndpointStore{}).
+			Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "This Mac", Enabled: true}).
+			Upsert(state.EndpointItem{ID: "west", Label: "US West", Enabled: true}),
+		TerminalPool: state.TerminalPoolStore{Items: []state.TerminalPoolItem{
+			{EndpointID: "west", TerminalID: "west-run", State: "running", Tags: map[string]string{"tag1": "production"}},
+			{EndpointID: "west", TerminalID: "west-exit", State: "exited", Tags: map[string]string{"tag1": "production"}},
+		}},
+	}
+	click := func(id actiondomain.ID, row int, hasRow bool) {
+		root, _ = NewShellReducer()(root, ShellShortcutActionMsg{
+			Invocation: actiondomain.Invocation{ID: id, SourceActionID: id.String()},
+			Surface:    &ShortcutSurfaceContext{ExplicitTarget: true, Row: row, HasRow: hasRow},
+		})
+	}
+
+	tabs := state.TerminalPickerEndpointTabs(root)
+	westIndex := -1
+	for index, tab := range tabs {
+		if tab.EndpointID == "west" {
+			westIndex = index
+		}
+	}
+	click(actiondomain.ActionTerminalPickerEndpointSelect, westIndex, true)
+	click(actiondomain.ActionTerminalPickerStatusSelect, 2, true)
+	click("terminal_picker.tags", 0, false)
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewTags {
+		t.Fatalf("clicking tags should open the tag subview, got %#v", root.Shell.Overlay)
+	}
+	click(actiondomain.ActionTerminalPickerTagToggle, 0, true)
+	if state.TerminalPickerActiveEndpointID(root) != "west" || root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusExited || len(root.Shell.Overlay.TerminalPickerTagFilters) != 1 {
+		t.Fatalf("mouse controls should update picker state through canonical actions, overlay=%#v", root.Shell.Overlay)
+	}
+	items := state.TerminalPickerItems(root)
+	if len(items) != 2 || !items[0].CreateNew || items[1].TerminalID != "west-exit" {
+		t.Fatalf("mouse-selected filters should project the expected endpoint collection, got %#v", items)
+	}
+	click("terminal_picker.tags", 0, false)
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewList {
+		t.Fatalf("clicking tags again should return to terminal list, got %#v", root.Shell.Overlay)
+	}
+}
+
 func TestTerminalPickerEditUsesUnfilteredEndpointMetadataAndPreservesTags(t *testing.T) {
-	root := state.Root{Shell: state.DefaultShell().OpenTerminalPicker().SetTerminalPickerQuery("mn")}
+	root := state.Root{Shell: state.DefaultShell().OpenTerminalPicker().SetTerminalPickerEndpoint("west").SetTerminalPickerQuery("mn")}
 	root.TerminalPool, _ = root.TerminalPool.ApplyList(0, []state.TerminalPoolItem{{
-		EndpointID: "west", TerminalID: "term-main", Title: "main", State: "running", Tags: map[string]string{"role": "build"},
+		EndpointID: "west", TerminalID: "term-main", Title: "main", State: "running", Tags: map[string]string{"tag1": "build", "cwd": "/srv"},
 	}}, "")
 	items := state.TerminalPickerItems(root)
 	for index, item := range items {
@@ -4224,7 +4332,7 @@ func TestTerminalPickerEditUsesUnfilteredEndpointMetadataAndPreservesTags(t *tes
 	next, effects := NewUIInputReducer()(root, InputMsg{Event: input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x05", Ctrl: true}})
 	prompt := next.Shell.EnsureDefaults().Overlay.Prompt
 	if next.Shell.EnsureDefaults().Overlay.Kind != state.OverlayPrompt || prompt.Purpose != "terminal.rename" ||
-		prompt.TargetEndpointID != "west" || prompt.TargetID != "term-main" || prompt.Value != "main" || prompt.Tags["role"] != "build" {
+		prompt.TargetEndpointID != "west" || prompt.TargetID != "term-main" || prompt.Value != "main" || !prompt.PublicTagList || prompt.FieldRawValue("tags") != "build" {
 		t.Fatalf("picker edit must open metadata-preserving endpoint prompt, prompt=%#v", prompt)
 	}
 	if len(effects) != 1 {
@@ -4237,7 +4345,7 @@ func TestTerminalPickerEditUsesUnfilteredEndpointMetadataAndPreservesTags(t *tes
 		t.Fatalf("rename submit must emit one service request message, effects=%#v", effects)
 	}
 	request, ok := effects[0].(FuncEffect).Run(context.Background()).(TerminalPoolEditRequestMsg)
-	if !ok || request.EndpointID != "west" || request.TerminalID != "term-main" || request.Title != "build logs" || request.Tags["role"] != "build" {
+	if !ok || request.EndpointID != "west" || request.TerminalID != "term-main" || request.Title != "build logs" || request.Tags["tag1"] != "build" || request.Tags["cwd"] != "/srv" {
 		t.Fatalf("rename request must preserve TerminalRef and tags, got %#v", request)
 	}
 }

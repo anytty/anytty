@@ -20,17 +20,28 @@ import (
 const cloudRuntimeCurrentWait = 3 * time.Second
 
 type v3CloudRuntimeControl struct {
-	mu               sync.RWMutex
-	runtime          *clouddaemon.Runtime
-	runtimeCancel    context.CancelFunc
-	wake             chan struct{}
-	recordPath       string
-	disabledPath     string
-	lastRuntimeError string
-	updatedAt        time.Time
-	localWebCore     localweb.Core
-	localWeb         *localweb.Server
-	localWebUpdated  time.Time
+	mu                sync.RWMutex
+	runtime           *clouddaemon.Runtime
+	runtimeCancel     context.CancelFunc
+	runtimeEnrollment cloudRuntimeEnrollmentIdentity
+	wake              chan struct{}
+	recordPath        string
+	disabledPath      string
+	lastRuntimeError  string
+	updatedAt         time.Time
+	localWebCore      localweb.Core
+	localWeb          *localweb.Server
+	localWebUpdated   time.Time
+}
+
+type cloudRuntimeEnrollmentIdentity struct {
+	daemonID   string
+	accountID  string
+	enrolledAt time.Time
+}
+
+func cloudRuntimeEnrollmentIdentityFromRecord(record clouddaemon.EnrollmentRecord) cloudRuntimeEnrollmentIdentity {
+	return cloudRuntimeEnrollmentIdentity{daemonID: record.DaemonID, accountID: record.AccountID, enrolledAt: record.EnrolledAt}
 }
 
 func (control *v3CloudRuntimeControl) configure(recordPath, disabledPath string) {
@@ -49,15 +60,59 @@ func (control *v3CloudRuntimeControl) configureLocalWeb(core localweb.Core) {
 	control.mu.Unlock()
 }
 
-func (control *v3CloudRuntimeControl) setRuntime(runtime *clouddaemon.Runtime, cancel context.CancelFunc) {
+func (control *v3CloudRuntimeControl) setRuntime(runtime *clouddaemon.Runtime, cancel context.CancelFunc, record clouddaemon.EnrollmentRecord) {
 	control.mu.Lock()
 	control.runtime = runtime
 	control.runtimeCancel = cancel
+	control.runtimeEnrollment = cloudRuntimeEnrollmentIdentityFromRecord(record)
 	control.updatedAt = time.Now().UTC()
 	if runtime != nil {
 		control.lastRuntimeError = ""
 	}
 	control.mu.Unlock()
+}
+
+func (control *v3CloudRuntimeControl) restartRuntimeForEnrollment(record clouddaemon.EnrollmentRecord) bool {
+	desired := cloudRuntimeEnrollmentIdentityFromRecord(record)
+	control.mu.RLock()
+	running := control.runtime != nil
+	current := control.runtimeEnrollment
+	cancel := control.runtimeCancel
+	control.mu.RUnlock()
+	if !running || current == desired {
+		return false
+	}
+	if cancel != nil {
+		cancel()
+	}
+	return true
+}
+
+func (control *v3CloudRuntimeControl) runtimeUsesEnrollment(record clouddaemon.EnrollmentRecord) bool {
+	desired := cloudRuntimeEnrollmentIdentityFromRecord(record)
+	control.mu.RLock()
+	defer control.mu.RUnlock()
+	return control.runtime != nil && control.runtimeEnrollment == desired
+}
+
+func (control *v3CloudRuntimeControl) waitRuntimeEnrollment(ctx context.Context, record clouddaemon.EnrollmentRecord, timeout time.Duration) {
+	if timeout <= 0 || control.runtimeUsesEnrollment(record) {
+		return
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-waitCtx.Done():
+			return
+		case <-ticker.C:
+			if control.runtimeUsesEnrollment(record) {
+				return
+			}
+		}
+	}
 }
 
 func (control *v3CloudRuntimeControl) currentRuntime() (*clouddaemon.Runtime, bool, error) {
@@ -277,11 +332,14 @@ func (control *v3CloudRuntimeControl) CloudEnable(ctx context.Context) (corev2.R
 	if err := removeV3CloudDisabled(); err != nil {
 		return corev2.RemoteCloudStatus{}, err
 	}
-	control.wakeLoop()
-	if _, err := clouddaemon.LoadRecord(v3CloudEnrollmentRecordPath()); err == nil {
-		control.waitRuntimeRunning(ctx, true, 2*time.Second)
+	if record, err := clouddaemon.LoadRecord(v3CloudEnrollmentRecordPath()); err == nil {
+		control.restartRuntimeForEnrollment(record)
+		control.wakeLoop()
+		control.waitRuntimeEnrollment(ctx, record, 2*time.Second)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return corev2.RemoteCloudStatus{}, err
+	} else {
+		control.wakeLoop()
 	}
 	return control.cloudStatus(true)
 }
@@ -375,7 +433,7 @@ func startV3CloudDaemon(ctx context.Context, core v3RemoteDaemonCore, clientAcce
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		defer control.setRuntime(nil, nil)
+		defer control.setRuntime(nil, nil, clouddaemon.EnrollmentRecord{})
 		runtime := initial
 		for runCtx.Err() == nil {
 			if runtime == nil {
@@ -404,17 +462,26 @@ func startV3CloudDaemon(ctx context.Context, core v3RemoteDaemonCore, clientAcce
 				}
 				runtime, loadErr = newV3CloudRuntime(next, recordPath, core, clientAccess, logger)
 				if loadErr != nil {
+					control.setRuntimeError(loadErr)
 					logger.Error("AnyTTY Cloud daemon runtime could not start", "error", loadErr)
-					return
+					if !waitForCloudEnrollment(runCtx, control.wakeChannel()) {
+						return
+					}
+					continue
 				}
 				record = next
 			}
 			runtimeCtx, runtimeCancel := context.WithCancel(runCtx)
-			control.setRuntime(runtime, runtimeCancel)
+			control.setRuntime(runtime, runtimeCancel, record)
 			logger.Info("AnyTTY Cloud daemon runtime started", "daemon_id", record.DaemonID)
 			runErr := runtime.Run(runtimeCtx)
 			runtimeCancel()
-			control.setRuntime(nil, nil)
+			control.setRuntime(nil, nil, clouddaemon.EnrollmentRecord{})
+			if releaseErr := clientAccess.Store.DisableManagedCloudRoute(); releaseErr != nil {
+				control.setRuntimeError(releaseErr)
+				logger.Error("AnyTTY Cloud route issuers could not be released", "error", releaseErr)
+				return
+			}
 			control.setRuntimeError(runErr)
 			if runErr != nil && runCtx.Err() == nil && !errors.Is(runErr, context.Canceled) {
 				logger.Error("AnyTTY Cloud daemon runtime stopped", "error", runErr)

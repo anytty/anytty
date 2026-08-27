@@ -63,8 +63,8 @@ func TestMeasureLayoutAlignsPromptWithTerminalPickerOverlay(t *testing.T) {
 
 	prompt := MeasureLayout(promptShell, viewport)
 	picker := MeasureLayout(pickerShell, viewport)
-	if prompt.Overlay.X != picker.Overlay.X || prompt.Overlay.W != picker.Overlay.W || prompt.Overlay.H > picker.Overlay.H {
-		t.Fatalf("prompt should use compact modal geometry aligned with picker, prompt=%#v picker=%#v", prompt.Overlay, picker.Overlay)
+	if prompt.Overlay.X != picker.Overlay.X || prompt.Overlay.W != picker.Overlay.W || picker.Overlay.H > prompt.Overlay.H {
+		t.Fatalf("picker should share the compact modal width while using denser vertical geometry, prompt=%#v picker=%#v", prompt.Overlay, picker.Overlay)
 	}
 }
 
@@ -905,8 +905,8 @@ func TestMeasureLayoutTerminalPickerOwnsCursorAndActionHits(t *testing.T) {
 	if plan.Overlay.W > 80 || plan.Overlay.H > 12 {
 		t.Fatalf("terminal picker should use compact overlay, overlay=%#v", plan.Overlay)
 	}
-	if plan.OverlayContentRect.X-plan.Overlay.X < 4 || plan.OverlayContentRect.Y-plan.Overlay.Y < 2 {
-		t.Fatalf("terminal picker should keep adaptive modal padding, overlay=%#v content=%#v", plan.Overlay, plan.OverlayContentRect)
+	if plan.OverlayContentRect.X-plan.Overlay.X != 2 || plan.OverlayContentRect.Y-plan.Overlay.Y != 1 {
+		t.Fatalf("compact terminal picker should keep two-column and one-row content padding, overlay=%#v content=%#v", plan.Overlay, plan.OverlayContentRect)
 	}
 	if !plan.Cursor.Visible || plan.Cursor.Shape != CursorShapeBar {
 		t.Fatalf("terminal picker should own cursor, got %#v", plan.Cursor)
@@ -936,6 +936,20 @@ func TestMeasureLayoutTerminalPickerShrinksPaddingOnTinyViewport(t *testing.T) {
 	}
 	if plan.OverlayContentRect.X-plan.Overlay.X > 1 || plan.OverlayContentRect.Y-plan.Overlay.Y > 1 {
 		t.Fatalf("tiny picker overlay should shrink padding, overlay=%#v content=%#v", plan.Overlay, plan.OverlayContentRect)
+	}
+}
+
+func TestMeasureLayoutTerminalPickerAppliesConfigurableChrome(t *testing.T) {
+	content := ContentVM{Kind: ContentTerminalPicker, Lines: []Line{NewLine("picker")}}
+	card := MeasureLayout(ShellVM{Overlay: OverlayVM{Kind: OverlayTerminalPicker, Picker: PickerChromeVM{
+		Presentation: "card", Width: "adaptive", Density: "compact", EndpointTabs: "underline",
+	}, Content: content}}, Rect{W: 140, H: 40})
+	flat := MeasureLayout(ShellVM{Overlay: OverlayVM{Kind: OverlayTerminalPicker, Picker: PickerChromeVM{
+		Presentation: "flat", Width: "wide", Density: "comfortable", EndpointTabs: "plain",
+	}, Content: content}}, Rect{W: 140, H: 40})
+
+	if card.Overlay.W != 64 || flat.Overlay.W != 88 || flat.OverlayContentRect.X-flat.Overlay.X != 4 || flat.OverlayContentRect.Y-flat.Overlay.Y != 2 {
+		t.Fatalf("picker chrome config should control width, presentation, and density: card=%#v flat=%#v", card, flat)
 	}
 }
 

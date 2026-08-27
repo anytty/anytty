@@ -8,9 +8,37 @@ func TerminalPickerGroups(root Root) []EndpointPickerGroup {
 	if !root.Endpoints.HasItems() {
 		return nil
 	}
-	rows := TerminalPickerItems(root)
-	groups := endpointPickerGroupsForRows(root, rows)
+	counts := terminalCountsByEndpoint(root.TerminalPool.Items)
+	groups := makeEndpointPickerGroups(root.Endpoints.Normalize(), counts)
+	indexByEndpoint := map[EndpointID]int{}
+	for index, group := range groups {
+		indexByEndpoint[group.EndpointID] = index
+	}
 	query := strings.ToLower(strings.TrimSpace(root.Shell.ReadonlyDefaults().Overlay.Query))
+	for _, poolItem := range root.TerminalPool.Items {
+		poolItem = normalizeTerminalPoolItem(poolItem)
+		if poolItem.TerminalID == "" {
+			continue
+		}
+		active := terminalPickerPoolItemActive(root, poolItem)
+		item := terminalPickerItemWithEndpoint(root, TerminalPickerItem{
+			EndpointID: poolItem.EndpointID, Title: terminalPoolTitle(poolItem), Kind: PaneTerminalLive,
+			TerminalID: poolItem.TerminalID, Active: active, FromPool: true,
+			PoolState: terminalPickerPoolState(poolItem, active), Tags: cloneStringMap(poolItem.Tags),
+			Cols: poolItem.Cols, Rows: poolItem.Rows, LastOutputAt: poolItem.LastOutputAt,
+		})
+		if !matchesTerminalPickerQuery(item, query) {
+			continue
+		}
+		endpointID := NormalizeEndpointID(item.EndpointID)
+		index, ok := indexByEndpoint[endpointID]
+		if !ok {
+			groups = append(groups, endpointPickerGroupFromEndpoint(UnregisteredEndpoint(endpointID), counts[endpointID], false))
+			index = len(groups) - 1
+			indexByEndpoint[endpointID] = index
+		}
+		groups[index].VisibleTerminalRows = append(groups[index].VisibleTerminalRows, item)
+	}
 	return filterEndpointPickerGroups(groups, query)
 }
 

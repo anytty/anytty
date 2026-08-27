@@ -7,6 +7,7 @@ type BackNavigationLayer string
 const (
 	BackNavigationNone             BackNavigationLayer = ""
 	BackNavigationPromptSuggestion BackNavigationLayer = "prompt-suggestion"
+	BackNavigationTerminalTags     BackNavigationLayer = "terminal-picker-tags"
 	BackNavigationOverlay          BackNavigationLayer = "overlay"
 	BackNavigationCopy             BackNavigationLayer = "copy"
 	BackNavigationInteraction      BackNavigationLayer = "interaction"
@@ -20,6 +21,9 @@ func (r Root) CurrentBackNavigationLayer() BackNavigationLayer {
 	if shell.Overlay.Open {
 		if shell.Overlay.Kind == OverlayPrompt && shell.Overlay.Prompt.SuggestionFocused {
 			return BackNavigationPromptSuggestion
+		}
+		if shell.Overlay.Kind == OverlayTerminalPicker && shell.Overlay.TerminalPickerView == TerminalPickerViewTags {
+			return BackNavigationTerminalTags
 		}
 		return BackNavigationOverlay
 	}

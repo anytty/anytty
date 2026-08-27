@@ -105,6 +105,10 @@ func floatingChromeActionItemsFromVM(actions []ChromeActionVM, width int) []pane
 }
 
 func OverlayChromePrimitive(overlay OverlayVM, rect Rect, contentRect Rect) ChromePrimitive {
+	title := overlay.Title
+	if title == "" {
+		title = overlayTitle(overlay.Kind)
+	}
 	return ChromePrimitive{
 		Kind:        ChromePrimitiveOverlay,
 		Rect:        rect,
@@ -114,7 +118,7 @@ func OverlayChromePrimitive(overlay OverlayVM, rect Rect, contentRect Rect) Chro
 		Layer:       LayerOverlay,
 		Title: ChromeSlot{
 			Rect:  Rect{X: rect.X + 2, Y: rect.Y, W: maxInt(0, rect.W-4), H: 1},
-			Text:  overlayTitle(overlay.Kind),
+			Text:  title,
 			Style: StyleAccent,
 		},
 		State: ChromeSlot{Text: overlayChromeState(overlay), Style: StyleAccent},

@@ -157,6 +157,11 @@ func loadV3CloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Run
 
 	snapshot := runtime.StatusSnapshot()
 	status.Running = true
+	if !cloudRuntimeMatchesEnrollment(record, snapshot) {
+		status.State = "enrollment_changed"
+		status.Detail = "Cloud enrollment changed; the daemon runtime is restarting"
+		return status, nil
+	}
 	status.Ready = snapshot.Ready
 	status.DaemonID = firstNonEmpty(snapshot.DaemonID, status.DaemonID)
 	status.AccountID = firstNonEmpty(snapshot.AccountID, status.AccountID)
@@ -198,6 +203,10 @@ func loadV3CloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Run
 		status.State, status.Detail = cloudEntitlementRuntimeStatus(snapshot.EntitlementFailure)
 	}
 	return status, nil
+}
+
+func cloudRuntimeMatchesEnrollment(record clouddaemon.EnrollmentRecord, snapshot clouddaemon.StatusSnapshot) bool {
+	return snapshot.DaemonID == record.DaemonID && snapshot.AccountID == record.AccountID && snapshot.EnrolledAt.Equal(record.EnrolledAt)
 }
 
 func cloudEntitlementRuntimeStatus(failure *cloudv1.CloudEntitlementFailure) (string, string) {

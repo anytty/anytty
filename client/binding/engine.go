@@ -23,7 +23,7 @@ import (
 const (
 	// ABIVersion 是 C/JNI/WASM binding 符号与 EventEnvelope 语义版本。
 	// 不兼容的 handle ownership、函数签名或事件 oneof 变更必须递增该值。
-	ABIVersion uint32 = 5
+	ABIVersion uint32 = 6
 	// MaxPayloadBytes 限制跨语言单次 protobuf 输入，防止 JNI/WASM 分配无界内存。
 	MaxPayloadBytes      = 4 << 20
 	defaultEventCapacity = 256

@@ -219,6 +219,25 @@ tui:
     # Example: panel_presentation: card
     panel_presentation: split-line
 
+    # Layout of the frequently used Terminal Picker. This does not affect
+    # Terminal Manager.
+    picker:
+      # Whether the picker has its own frame.
+      # Default: card. Allowed: card, flat.
+      presentation: card
+
+      # Maximum picker width.
+      # Default: adaptive. Allowed: adaptive, wide.
+      width: adaptive
+
+      # Picker content padding.
+      # Default: compact. Allowed: compact, comfortable.
+      density: compact
+
+      # Active endpoint treatment.
+      # Default: underline. Allowed: underline, plain.
+      endpoint_tabs: underline
+
     # Icon for creating a tab from the tab strip.
     # Default: "+". Any short text or glyph supported by the terminal is valid.
     # Nerd Font opt-in, only after confirming font support:

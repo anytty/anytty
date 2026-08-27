@@ -3092,19 +3092,19 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 		OpenTerminalPicker()
 	shell.Overlay.Query = "term"
 
-	root := state.Root{Shell: shell, TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{TerminalID: "term-main", Title: "shell", State: "running", Tags: map[string]string{"kind": "task", "task": "tests"}, Cols: 80, Rows: 24}, {TerminalID: "term-2", Title: "日志🚀", State: "running", Cols: 100, Rows: 30}}}}
+	root := state.Root{Shell: shell, TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{TerminalID: "term-main", Title: "shell", State: "running", Tags: map[string]string{"tag1": "production", "tag2": "backend"}, Cols: 80, Rows: 24}, {TerminalID: "term-2", Title: "日志🚀", State: "running", Cols: 100, Rows: 30}}}}
 	vm := NewRenderVMBuilder().Build(root)
 	content := vm.Shell.Overlay.Content
 	if vm.Shell.Overlay.Kind != OverlayTerminalPicker || content.Kind != ContentTerminalPicker {
 		t.Fatalf("expected terminal picker content, got %#v", vm.Shell.Overlay)
 	}
 	plain := plainLines(content.Lines)
-	for _, want := range []string{"search: term", "▸ + new terminal", "● shell · task=tests", "running", "80x24", "● 日志🚀", "100x30", "Create terminal"} {
+	for _, want := range []string{"● local 2", "⌕ term", "● All 2", "Running 2", "Exited 0", "Tags", "backend", "production", "▸ + New terminal", "● shell · backend · production", "running", "80x24", "● 日志🚀", "100x30"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("expected compact picker marker %q, got %#v", want, content.Lines)
 		}
 	}
-	for _, forbidden := range []string{"Select terminal source state target", "DETAIL", "TARGET", "TERMINAL", "[attach]", "[new]", "PREVIEW pane:", "pane:", "selected "} {
+	for _, forbidden := range []string{"tag1=", "tag2=", "Select terminal source state target", "DETAIL", "TARGET", "TERMINAL", "[attach]", "[new]", "PREVIEW pane:", "pane:", "selected "} {
 		if strings.Contains(plain, forbidden) {
 			t.Fatalf("picker must not render management table/detail content %q, got %#v", forbidden, content.Lines)
 		}
@@ -3120,6 +3120,36 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 	}
 }
 
+func TestRenderVMBuilderProjectsPickerTagSubviewAndGlobalFooterActions(t *testing.T) {
+	shell := state.DefaultShell().OpenTerminalPicker().OpenTerminalPickerTags()
+	root := state.Root{
+		Shell: shell,
+		TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{
+			{TerminalID: "term-api", Title: "api", State: "running", Tags: map[string]string{"tag1": "backend", "tag2": "production"}},
+		}},
+	}
+
+	vm := NewRenderVMBuilder().Build(root)
+	plain := plainLines(vm.Shell.Overlay.Content.Lines)
+	if vm.Shell.Overlay.Title != "Terminal Picker / Tags" || vm.Shell.Footer.Mode != "terminal-picker-tags" ||
+		!strings.Contains(plain, "backend") || !strings.Contains(plain, "production") || strings.Contains(plain, "tag1=") {
+		t.Fatalf("tag subview should render pure tag strings, overlay=%#v footer=%#v", vm.Shell.Overlay, vm.Shell.Footer)
+	}
+	for _, actionID := range []string{"terminal_picker.select_previous", "terminal_picker.tag_toggle", "terminal_picker.tags"} {
+		if !containsFooterActionID(vm.Shell.Footer.ActionTokens, actionID) {
+			t.Fatalf("tag keyboard action %q must be in the global footer, got %#v", actionID, vm.Shell.Footer.ActionTokens)
+		}
+	}
+	for _, forbidden := range []string{"Ctrl+T", "Space", "Esc", "SELECT", "TOGGLE"} {
+		if strings.Contains(plain, forbidden) {
+			t.Fatalf("picker content must not duplicate footer keyboard hint %q, got:\n%s", forbidden, plain)
+		}
+	}
+	if !contentHasAction(vm.Shell.Overlay.Content, ActionPickerTagToggle.String()) {
+		t.Fatalf("tag options should retain canonical mouse hit regions, got %#v", vm.Shell.Overlay.Content.HitRegions)
+	}
+}
+
 func TestRenderVMBuilderFiltersTerminalPickerAndHighlightsSelectedRow(t *testing.T) {
 	shell := state.DefaultShell()
 	shell.Workspace.Tabs[0].Panes[0].TerminalID = "term-main"
@@ -3130,18 +3160,18 @@ func TestRenderVMBuilderFiltersTerminalPickerAndHighlightsSelectedRow(t *testing
 
 	root := state.Root{Shell: shell, TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{TerminalID: "term-main", Title: "shell", State: "running", Cols: 80, Rows: 24}, {TerminalID: "term-2", Title: "日志🚀", State: "running", Cols: 100, Rows: 30}}}}
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if !strings.Contains(content.Lines[0].PlainString(), "search: 日志") ||
-		!strings.Contains(content.Lines[1].PlainString(), "▸ ● 日志🚀") ||
-		!strings.Contains(content.Lines[1].PlainString(), "running") ||
-		!strings.Contains(content.Lines[1].PlainString(), "100x30") ||
+	if !strings.Contains(content.Lines[2].PlainString(), "⌕ 日志") ||
+		!strings.Contains(content.Lines[3].PlainString(), "▸ ● 日志🚀") ||
+		!strings.Contains(content.Lines[3].PlainString(), "running") ||
+		!strings.Contains(content.Lines[3].PlainString(), "100x30") ||
 		strings.Contains(plainLines(content.Lines), "shell") ||
 		strings.Contains(plainLines(content.Lines), "DETAIL") {
 		t.Fatalf("expected filtered selected picker row, got %#v", content.Lines)
 	}
-	if !lineHasStyledCell(content.Lines[1], "日", StylePickerMatch) || !lineHasStyledCell(content.Lines[1], "志", StylePickerMatch) || !lineHasStyledCell(content.Lines[1], "running", StyleSuccess) {
+	if !lineHasStyledCell(content.Lines[3], "日", StylePickerMatch) || !lineHasStyledCell(content.Lines[3], "志", StylePickerMatch) || !lineHasStyledCell(content.Lines[3], "running", StyleSuccess) {
 		t.Fatalf("expected picker row text to use picker style and match highlight, got %#v", content.Lines)
 	}
-	if content.Cursor.Col != DisplayWidth("search: 日志") {
+	if content.Cursor.Col != DisplayWidth("⌕ 日志") {
 		t.Fatalf("expected cursor after query text, got %#v", content.Cursor)
 	}
 	if content.Status != "terminal picker: 1 items selected:1/1 query:日志" {
@@ -3170,14 +3200,20 @@ func TestRenderVMBuilderTerminalPickerKeepsLargeSelectionVisible(t *testing.T) {
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
 	plain := plainLines(content.Lines)
-	if len(content.Lines) > 16 || !strings.Contains(plain, "terminal-24") || strings.Contains(plain, "terminal-01") {
+	if len(content.Lines) > 18 || !strings.Contains(plain, "terminal-24") || strings.Contains(plain, "terminal-01") {
 		t.Fatalf("large picker should render a bounded window around the selection, lines=%d:\n%s", len(content.Lines), plain)
 	}
 	if content.Status != "terminal picker: 30 items selected:25/31" {
 		t.Fatalf("large picker status should expose the full position, got %q", content.Status)
 	}
-	if len(content.HitRegions) == 0 || content.HitRegions[0].Row == 0 {
-		t.Fatalf("windowed picker hits must retain absolute item indexes, got %#v", content.HitRegions)
+	attachRegions := make([]HitRegion, 0)
+	for _, region := range content.HitRegions {
+		if region.ActionID == ActionPickerAttach.String() {
+			attachRegions = append(attachRegions, region)
+		}
+	}
+	if len(attachRegions) == 0 || attachRegions[0].Row == 0 {
+		t.Fatalf("windowed picker row hits must retain absolute item indexes, got %#v", content.HitRegions)
 	}
 	selectedVisible := false
 	for _, line := range content.Lines {
@@ -3208,20 +3244,21 @@ func TestRenderVMBuilderProjectsTerminalPickerPoolStateAndRows(t *testing.T) {
 	}
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if !strings.Contains(content.Lines[1].PlainString(), "▸ + new terminal") ||
-		!strings.Contains(content.Lines[2].PlainString(), "● 远程🚀") ||
-		!strings.Contains(content.Lines[2].PlainString(), "running") ||
-		!strings.Contains(content.Lines[2].PlainString(), "120x40") ||
+	if !strings.Contains(content.Lines[3].PlainString(), "▸ + New terminal") ||
+		!strings.Contains(content.Lines[4].PlainString(), "● 远程🚀") ||
+		!strings.Contains(content.Lines[4].PlainString(), "running") ||
+		!strings.Contains(content.Lines[4].PlainString(), "120x40") ||
 		strings.Contains(plainLines(content.Lines), "DETAIL") {
 		t.Fatalf("expected terminal-only pool row, got %#v", content.Lines)
 	}
-	if len(content.HitRegions) != 2 || content.HitRegions[0].ActionID != ActionPickerNew.String() || content.HitRegions[1].PaneID != "" || content.HitRegions[1].ActionID != ActionPickerAttach.String() {
-		t.Fatalf("expected create and terminal attach action regions, got %#v", content.HitRegions)
+	if !contentHasAction(content, ActionPickerNew.String()) || !contentHasAction(content, ActionPickerAttach.String()) ||
+		!contentHasAction(content, ActionPickerEndpointSelect.String()) || !contentHasAction(content, ActionPickerStatusSelect.String()) {
+		t.Fatalf("expected controls plus create and terminal attach action regions, got %#v", content.HitRegions)
 	}
 
 	root.Shell = root.Shell.SetTerminalPickerQuery("trpl")
 	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if len(content.HitRegions) != 1 || content.HitRegions[0].ActionID != ActionPickerAttach.String() ||
+	if !contentHasAction(content, ActionPickerAttach.String()) || contentHasAction(content, ActionPickerNew.String()) ||
 		strings.Contains(plainLines(content.Lines), "term-pool") ||
 		strings.Contains(plainLines(content.Lines), "DETAIL") {
 		t.Fatalf("expected fuzzy terminal id match without id column highlight, got %#v", content.Lines)
@@ -3234,7 +3271,7 @@ func TestRenderVMBuilderProjectsTerminalPickerPoolStateAndRows(t *testing.T) {
 	}
 	root.TerminalPool = state.TerminalPoolStore{Status: state.TerminalPoolReady}
 	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if terminalPickerSelectableCount(state.TerminalPickerItems(root)) != 0 || strings.Contains(plainLines(content.Lines), "new terminal") {
+	if terminalPickerSelectableCount(state.TerminalPickerItems(root)) != 0 || strings.Contains(plainLines(content.Lines), "New Terminal") {
 		t.Fatalf("expected empty row, got %#v", content.Lines)
 	}
 	root.TerminalPool = state.TerminalPoolStore{Status: state.TerminalPoolError, LastError: "boom"}
@@ -3244,7 +3281,7 @@ func TestRenderVMBuilderProjectsTerminalPickerPoolStateAndRows(t *testing.T) {
 	}
 }
 
-func TestRenderVMBuilderTerminalPickerCreateRowShowsDefaultEndpointOnly(t *testing.T) {
+func TestRenderVMBuilderTerminalPickerCreateRowUsesSelectedEndpointTab(t *testing.T) {
 	root := state.Root{
 		Shell: state.DefaultShell().OpenTerminalPicker(),
 		Endpoints: (state.EndpointStore{}).
@@ -3254,8 +3291,9 @@ func TestRenderVMBuilderTerminalPickerCreateRowShowsDefaultEndpointOnly(t *testi
 	root.Shell.TerminalCreateDraft = state.TerminalCreateDraft{EndpointID: "us-west"}
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if len(content.Lines) < 2 || !strings.Contains(content.Lines[1].PlainString(), "US West") || strings.Contains(content.Lines[1].PlainString(), "This Mac") {
-		t.Fatalf("create row should display only selected/default endpoint label, got %#v", content.Lines)
+	if len(content.Lines) < 4 || !strings.Contains(content.Lines[0].PlainString(), "This Mac") || !strings.Contains(content.Lines[0].PlainString(), "US West") ||
+		!lineHasStyledCell(content.Lines[0], "● US West 0", StylePickerAccent) || !strings.Contains(plainLines(content.Lines), "+ New terminal") {
+		t.Fatalf("endpoint tabs should identify the selected create-row owner, got %#v", content.Lines)
 	}
 }
 
@@ -3277,29 +3315,34 @@ func TestRenderVMBuilderProjectsTerminalPickerEndpointLabels(t *testing.T) {
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
 	plain := plainLines(content.Lines)
-	for _, want := range []string{"local shell", "This Mac", "west shell", "US West", "running"} {
+	for _, want := range []string{"local shell", "This Mac", "Manual Box", "US West", "running"} {
 		if !strings.Contains(plain, want) {
-			t.Fatalf("expected flat endpoint label picker content %q in:\n%s", want, plain)
+			t.Fatalf("expected endpoint tabs and local collection %q in:\n%s", want, plain)
 		}
 	}
-	if !lineHasStyledCell(content.Lines[2], "This Mac", StylePickerInfo) ||
-		!lineHasStyledCell(content.Lines[3], "US West", StylePickerInfo) {
-		t.Fatalf("terminal picker endpoint ownership should use readable info style, got %#v", content.Lines)
+	if strings.Contains(plain, "west shell") {
+		t.Fatalf("inactive endpoint collection must not leak into local tab:\n%s", plain)
 	}
-	for _, notWant := range []string{"Manual Box", "manual connect", "ssh timeout"} {
+	for _, notWant := range []string{"manual connect", "ssh timeout"} {
 		if strings.Contains(plain, notWant) {
-			t.Fatalf("terminal picker should stay a flat terminal table without endpoint-only rows %q in:\n%s", notWant, plain)
+			t.Fatalf("terminal picker tabs should hide endpoint connection details %q in:\n%s", notWant, plain)
 		}
 	}
-	if len(content.HitRegions) != 3 || content.HitRegions[0].Row != 0 || content.HitRegions[1].Row != 1 || content.HitRegions[2].Row != 2 {
-		t.Fatalf("flat picker rows should own hit regions, got %#v", content.HitRegions)
+	endpointHits := 0
+	for _, region := range content.HitRegions {
+		if region.ActionID == ActionPickerEndpointSelect.String() {
+			endpointHits++
+		}
+	}
+	if endpointHits != 3 {
+		t.Fatalf("each visible endpoint tab should be clickable, got %#v", content.HitRegions)
 	}
 
-	root.Shell = root.Shell.SetTerminalPickerQuery("US West")
+	root.Shell = root.Shell.SetTerminalPickerEndpoint("west")
 	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
 	plain = plainLines(content.Lines)
-	if !strings.Contains(plain, "US West") || !strings.Contains(plain, "new terminal") || !strings.Contains(plain, "west shell") || strings.Contains(plain, "local shell") || strings.Contains(plain, "ssh timeout") || len(content.HitRegions) != 2 || content.HitRegions[0].Row != 0 || content.HitRegions[1].Row != 1 {
-		t.Fatalf("endpoint label query should show only west terminal row, lines=%#v hits=%#v", content.Lines, content.HitRegions)
+	if !strings.Contains(plain, "US West") || !strings.Contains(plain, "New terminal") || !strings.Contains(plain, "west shell") || strings.Contains(plain, "local shell") || strings.Contains(plain, "ssh timeout") {
+		t.Fatalf("selected endpoint tab should show only west collection, lines=%#v hits=%#v", content.Lines, content.HitRegions)
 	}
 }
 
@@ -3331,52 +3374,78 @@ func TestRenderVMBuilderTerminalPickerHidesManagedEndpointConnectionState(t *tes
 
 	root.Shell = root.Shell.SetTerminalPickerQuery("offline")
 	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if len(content.Lines) != 1 || len(content.HitRegions) != 0 {
-		t.Fatalf("hidden endpoint status should not be searchable, lines=%#v hits=%#v", content.Lines, content.HitRegions)
+	if len(content.Lines) != 3 || contentHasAction(content, ActionPickerAttach.String()) || contentHasAction(content, ActionPickerNew.String()) {
+		t.Fatalf("hidden endpoint status should not produce terminal rows, lines=%#v hits=%#v", content.Lines, content.HitRegions)
 	}
 }
 
-func TestRenderVMBuilderAlignsTerminalPickerEndpointColumns(t *testing.T) {
+func TestRenderVMBuilderAlignsTerminalPickerColumnsWithoutEndpointColumn(t *testing.T) {
 	root := state.Root{
-		Shell: state.DefaultShell().OpenTerminalPicker(),
-		Endpoints: (state.EndpointStore{}).
-			Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "This Mac", Transport: state.EndpointTransportLocal, ConnectMode: state.EndpointConnectAuto, Enabled: true, Status: state.EndpointStatusConnected}).
-			Upsert(state.EndpointItem{ID: "cn_fast", Label: "CN Fast", Transport: state.EndpointTransportSSH, ConnectMode: state.EndpointConnectOnDemand, Enabled: true, Status: state.EndpointStatusConnected}).
-			Upsert(state.EndpointItem{ID: "us_west", Label: "US West", Transport: state.EndpointTransportSSH, ConnectMode: state.EndpointConnectOnDemand, Enabled: true, Status: state.EndpointStatusConnected}),
+		Shell:     state.DefaultShell().OpenTerminalPicker(),
+		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "This Mac", Transport: state.EndpointTransportLocal, ConnectMode: state.EndpointConnectAuto, Enabled: true, Status: state.EndpointStatusConnected}),
 		TerminalPool: state.TerminalPoolStore{
 			Status: state.TerminalPoolReady,
 			Items: []state.TerminalPoolItem{
-				{EndpointID: state.DefaultEndpointID, TerminalID: "term-local", Title: "123", State: "running", Cols: 214, Rows: 94},
-				{EndpointID: "cn_fast", TerminalID: "term-cn", Title: "cn-123", State: "running", Cols: 281, Rows: 73},
-				{EndpointID: "us_west", TerminalID: "term-pool", Title: "term-pool-1783313349952893063", State: "attached", Cols: 281, Rows: 73},
+				{EndpointID: state.DefaultEndpointID, TerminalID: "term-local", Title: "123", State: "running", Cols: 214, Rows: 94, AttachmentCount: 1},
+				{EndpointID: state.DefaultEndpointID, TerminalID: "term-cn", Title: "cn-123", State: "running", Cols: 281, Rows: 73, AttachmentCount: 12},
+				{EndpointID: state.DefaultEndpointID, TerminalID: "term-pool", Title: "term-pool-1783313349952893063", State: "running", Cols: 281, Rows: 73},
 			},
 		},
 	}
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if len(content.Lines) < 5 {
-		t.Fatalf("expected search, create and terminal rows, got %#v", content.Lines)
+	if len(content.Lines) < 7 {
+		t.Fatalf("expected controls, create and terminal rows, got %#v", content.Lines)
 	}
-	local := content.Lines[2].PlainString()
-	cn := content.Lines[3].PlainString()
-	west := content.Lines[4].PlainString()
-	endpointCol := displayColumnOf(local, "This Mac")
-	if endpointCol < 0 || displayColumnOf(cn, "CN Fast") != endpointCol || displayColumnOf(west, "US West") != endpointCol {
-		t.Fatalf("endpoint column should stay aligned:\n%s\n%s\n%s", local, cn, west)
-	}
+	local := content.Lines[4].PlainString()
+	cn := content.Lines[5].PlainString()
+	west := content.Lines[6].PlainString()
 	stateCol := displayColumnOf(local, "running")
 	if stateCol < 0 || displayColumnOf(cn, "running") != stateCol || displayColumnOf(west, "running") != stateCol {
 		t.Fatalf("state column should stay aligned:\n%s\n%s\n%s", local, cn, west)
+	}
+	viewCol := displayColumnOf(local, "x1")
+	if viewCol < 0 || displayColumnOf(cn, "x12") != viewCol || displayColumnOf(west, "x0") != viewCol {
+		t.Fatalf("viewer column should stay aligned:\n%s\n%s\n%s", local, cn, west)
 	}
 	sizeCol := displayColumnOf(local, "214x94")
 	if sizeCol < 0 || displayColumnOf(cn, "281x73") != sizeCol || displayColumnOf(west, "281x73") != sizeCol {
 		t.Fatalf("size column should stay aligned:\n%s\n%s\n%s", local, cn, west)
 	}
-	if DisplayWidth(west) > terminalPickerHitRegionWidth {
-		t.Fatalf("long terminal title should be clipped inside picker row width=%d line=%q", terminalPickerHitRegionWidth, west)
+	if width := terminalPickerContentWidth(root); DisplayWidth(west) > width {
+		t.Fatalf("long terminal title should be clipped inside picker row width=%d line=%q", width, west)
 	}
-	if !lineHasStyledCell(content.Lines[2], "This Mac", StylePickerInfo) || !lineHasStyledCell(content.Lines[3], "CN Fast", StylePickerInfo) || !lineHasStyledCell(content.Lines[4], "US West", StylePickerInfo) {
-		t.Fatalf("endpoint ownership column should use info style, got %#v", content.Lines[2:5])
+	for _, endpointLabel := range []string{"This Mac", "CN Fast", "US West"} {
+		if strings.Contains(local+cn+west, endpointLabel) {
+			t.Fatalf("terminal rows must not repeat endpoint labels after tabs were introduced, rows=%q", local+"\n"+cn+"\n"+west)
+		}
+	}
+}
+
+func TestRenderVMBuilderKeepsTerminalPickerViewerColumnInsideNarrowViewport(t *testing.T) {
+	root := state.Root{
+		Shell:    state.DefaultShell().OpenTerminalPicker(),
+		Viewport: state.ViewportStore{Valid: true, Cols: 48, Rows: 36},
+		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{
+			ID: state.DefaultEndpointID, Label: "This Mac", Transport: state.EndpointTransportLocal,
+			ConnectMode: state.EndpointConnectAuto, Enabled: true, Status: state.EndpointStatusConnected,
+		}),
+		TerminalPool: state.TerminalPoolStore{Status: state.TerminalPoolReady, Items: []state.TerminalPoolItem{{
+			EndpointID: state.DefaultEndpointID, TerminalID: "term-long", Title: "a very long terminal name",
+			State: "running", Cols: 24, Rows: 36, AttachmentCount: 4,
+		}}},
+	}
+
+	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	plain := plainLines(content.Lines)
+	if !strings.Contains(plain, "x4") || !strings.Contains(plain, "24x36") {
+		t.Fatalf("narrow picker should retain viewer and size columns, got:\n%s", plain)
+	}
+	width := terminalPickerContentWidth(root)
+	for _, line := range content.Lines {
+		if DisplayWidth(line.PlainString()) > width {
+			t.Fatalf("narrow picker line exceeded content width=%d line=%q", width, line.PlainString())
+		}
 	}
 }
 

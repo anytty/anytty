@@ -52,6 +52,12 @@ func Default() state.TUIConfigStore {
 			Header:            true,
 			Footer:            true,
 			PanelPresentation: "split-line",
+			Picker: state.TUIPickerChromeConfig{
+				Presentation: "card",
+				Width:        "adaptive",
+				Density:      "compact",
+				EndpointTabs: "underline",
+			},
 			TabCreateIcon:     "+",
 			TabCreateTemplate: "",
 			WorkspaceTemplate: DefaultWorkspaceTemplate,
@@ -360,6 +366,7 @@ func knownSection(path string) bool {
 		"tui.theme.border",
 		"tui.theme.surface",
 		"tui.chrome",
+		"tui.chrome.picker",
 		"tui.chrome.pane_glyphs",
 		"tui.footer",
 		"tui.footer.templates",
@@ -452,6 +459,10 @@ var scalarSetters = map[string]scalarSetter{
 	"tui.chrome.header":                setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Header = value }),
 	"tui.chrome.footer":                setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Footer = value }),
 	"tui.chrome.panel_presentation":    setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.PanelPresentation = value }),
+	"tui.chrome.picker.presentation":   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Presentation = value }),
+	"tui.chrome.picker.width":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
+	"tui.chrome.picker.density":        setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
+	"tui.chrome.picker.endpoint_tabs":  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
 	"tui.chrome.tab_create_icon":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.TabCreateIcon = value }),
 	"tui.chrome.tab_create_template": setString(func(cfg *state.TUIConfigStore, value string) {
 		cfg.Chrome.TabCreateTemplate = value
@@ -885,6 +896,10 @@ var envScalarPaths = map[string]string{
 	"ANYTTY_TUI_CHROME_HEADER":                    "tui.chrome.header",
 	"ANYTTY_TUI_CHROME_FOOTER":                    "tui.chrome.footer",
 	"ANYTTY_TUI_CHROME_PANEL_PRESENTATION":        "tui.chrome.panel_presentation",
+	"ANYTTY_TUI_CHROME_PICKER_PRESENTATION":       "tui.chrome.picker.presentation",
+	"ANYTTY_TUI_CHROME_PICKER_WIDTH":              "tui.chrome.picker.width",
+	"ANYTTY_TUI_CHROME_PICKER_DENSITY":            "tui.chrome.picker.density",
+	"ANYTTY_TUI_CHROME_PICKER_ENDPOINT_TABS":      "tui.chrome.picker.endpoint_tabs",
 	"ANYTTY_TUI_CHROME_TAB_CREATE_TEMPLATE":       "tui.chrome.tab_create_template",
 	"ANYTTY_TUI_CHROME_PANE_TITLE_TEMPLATE":       "tui.chrome.pane_title_template",
 	"ANYTTY_TUI_INTERACTION_MOUSE":                "tui.interaction.mouse",
@@ -959,6 +974,18 @@ func Validate(cfg state.TUIConfigStore) error {
 	}
 	if !oneOf(cfg.Chrome.PanelPresentation, "split-line", "card") {
 		return fmt.Errorf("tui.chrome.panel_presentation must be split-line or card, got %q", cfg.Chrome.PanelPresentation)
+	}
+	if !oneOf(cfg.Chrome.Picker.Presentation, "card", "flat") {
+		return fmt.Errorf("tui.chrome.picker.presentation must be card or flat, got %q", cfg.Chrome.Picker.Presentation)
+	}
+	if !oneOf(cfg.Chrome.Picker.Width, "adaptive", "wide") {
+		return fmt.Errorf("tui.chrome.picker.width must be adaptive or wide, got %q", cfg.Chrome.Picker.Width)
+	}
+	if !oneOf(cfg.Chrome.Picker.Density, "compact", "comfortable") {
+		return fmt.Errorf("tui.chrome.picker.density must be compact or comfortable, got %q", cfg.Chrome.Picker.Density)
+	}
+	if !oneOf(cfg.Chrome.Picker.EndpointTabs, "underline", "plain") {
+		return fmt.Errorf("tui.chrome.picker.endpoint_tabs must be underline or plain, got %q", cfg.Chrome.Picker.EndpointTabs)
 	}
 	if strings.TrimSpace(cfg.Chrome.TabCreateIcon) == "" {
 		return fmt.Errorf("tui.chrome.tab_create_icon must not be empty")

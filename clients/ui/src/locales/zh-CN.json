@@ -150,7 +150,7 @@
     "reachability": {
       "localOnline": "直连可用",
       "localOffline": "直连不可达",
-      "localChecking": "正在发现局域网设备",
+      "localChecking": "正在检测 Direct TCP",
       "localUnknown": "直连状态未知",
       "cloudOnline": "守护进程已在 Edge 在线",
       "cloudOffline": "守护进程未在 Edge 在线",
@@ -161,7 +161,7 @@
     },
     "path": {
       "local": "直连",
-      "localNetwork": "局域网",
+      "directAccess": "Direct 直连",
       "ssh": "SSH",
       "relay": "单节点中转",
       "direct": "P2P 直连",

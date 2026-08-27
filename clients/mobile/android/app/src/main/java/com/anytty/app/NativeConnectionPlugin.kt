@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.os.SystemClock
+import android.util.Base64
 import com.anytty.app.goclient.GoClientNative
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
@@ -316,6 +317,44 @@ class NativeConnectionPlugin : Plugin() {
         probe.invokeOnCompletion { failure ->
             if (failure is CancellationException && settled.compareAndSet(false, true)) {
                 call.reject("local discovery probe was cancelled", failure)
+            }
+        }
+    }
+
+    @PluginMethod
+    fun isDirectRouteReachable(call: PluginCall) {
+        val encoded = call.getString("routeProtoBase64").orEmpty().trim()
+        val routeProto = try {
+            Base64.decode(encoded, Base64.DEFAULT)
+        } catch (failure: IllegalArgumentException) {
+            call.reject("routeProtoBase64 is invalid", failure)
+            return
+        }
+        if (routeProto.isEmpty()) {
+            call.reject("routeProtoBase64 is required")
+            return
+        }
+        val settled = AtomicBoolean(false)
+        val probe = runtimeScope.launch {
+            try {
+                val startedAt = SystemClock.elapsedRealtime()
+                val reachable = GoClientNative.directProbe(routeProto)
+                AnyTTYDebugLog.connection(
+                    "direct_probe reachable=$reachable probe_ms=${SystemClock.elapsedRealtime() - startedAt}",
+                )
+                if (settled.compareAndSet(false, true)) {
+                    call.resolve(JSObject().put("reachable", reachable))
+                }
+            } catch (failure: Exception) {
+                AnyTTYDebugLog.connection("direct_probe failed type=${failure.javaClass.simpleName}")
+                if (settled.compareAndSet(false, true)) {
+                    call.reject("Direct TCP probe failed", failure)
+                }
+            }
+        }
+        probe.invokeOnCompletion { failure ->
+            if (failure is CancellationException && settled.compareAndSet(false, true)) {
+                call.reject("Direct TCP probe was cancelled", failure)
             }
         }
     }

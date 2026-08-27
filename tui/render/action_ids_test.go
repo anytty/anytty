@@ -39,7 +39,8 @@ func TestProjectionCatalogIsSingleSourceForRenderedActions(t *testing.T) {
 		ActionEmptyAttach, ActionEmptyCreate, ActionEmptyManager, ActionEmptyClose,
 		ActionExitedRestart, ActionExitedReconnect, ActionExitedClose,
 		ActionDisconnectedReconnect, ActionDisconnectedDisconnect,
-		ActionPickerAttach, ActionPickerNew, ActionPoolSelect, ActionWorkbenchOpen,
+		ActionPickerAttach, ActionPickerNew, ActionPickerEndpointSelect, ActionPickerStatusSelect,
+		ActionPickerTags, ActionPickerTagToggle, ActionPoolSelect, ActionWorkbenchOpen,
 		ActionClipboardHistorySelect, ActionClipboardHistoryDividerDrag, ActionHelpClose,
 	} {
 		if _, ok := seen[id]; !ok {

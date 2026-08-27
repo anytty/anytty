@@ -80,13 +80,17 @@ func TestSmokeRunDetailedCoversUIFramework(t *testing.T) {
 		t.Fatalf("split hidden toast should not render premature pane chrome tokens: %#v", cases["split-hidden-toast"].Lines)
 	}
 	assertNoASCIIChrome(t, "split-hidden-toast", cases["split-hidden-toast"])
-	if !frameContains(cases["terminal-picker"].Lines, "search:") ||
+	if !frameContains(cases["terminal-picker"].Lines, "⌕") ||
+		!frameContains(cases["terminal-picker"].Lines, "● local 1") ||
+		!frameContains(cases["terminal-picker"].Lines, "● All 1") ||
+		!frameContains(cases["terminal-picker"].Lines, "Running 1") ||
+		!frameContains(cases["terminal-picker"].Lines, "Exited 0") ||
+		!frameContains(cases["terminal-picker"].Lines, "Tags") ||
 		!frameContains(cases["terminal-picker"].Lines, "anytty-picker shell") ||
 		!frameContains(cases["terminal-picker"].Lines, "running") ||
 		!frameContains(cases["terminal-picker"].Lines, "80x24") ||
 		!frameContains(cases["terminal-picker"].Lines, "local") ||
-		!frameContains(cases["terminal-picker"].Lines, "+ new terminal") ||
-		!frameContains(cases["terminal-picker"].Lines, "Create terminal") ||
+		!frameContains(cases["terminal-picker"].Lines, "+ New terminal") ||
 		frameContains(cases["terminal-picker"].Lines, "filter terminals") ||
 		frameContains(cases["terminal-picker"].Lines, "Select terminal source state target") ||
 		frameContains(cases["terminal-picker"].Lines, "DETAIL") ||
@@ -241,7 +245,7 @@ func assertDefaultVisualReviewChrome(t *testing.T, cases map[string]render.Frame
 		}
 	}
 	requiredOverlays := map[string][]string{
-		"terminal-picker":     {"┌─ terminal picker", "search:", "anytty-picker shell", "running", "80x24"},
+		"terminal-picker":     {"┌─ Terminal Picker", "⌕", "anytty-picker shell", "running", "80x24"},
 		"terminal-pool-page":  {"┌─ Terminal Manager", "⌕ search 日志", "TERMINAL", "CPU", "pool page base"},
 		"workbench-tree-page": {"┌─ Workbench Navigator", "⌕ search [main]", "WORKBENCH", "shell page base", "日志终端", "tree page base"},
 		"prompt-overlay":      {"┌─ prompt", "Command Prompt", "重命名"},

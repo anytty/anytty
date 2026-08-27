@@ -139,14 +139,14 @@ describe('RemoteControlApp native session pool', () => {
     )
 
     await waitFor(() => expect(screen.getAllByLabelText(/Direct access available/).length).toBeGreaterThan(0))
-    expect(screen.queryByLabelText('Discovering on the local network')).toBeNull()
+    expect(screen.queryByLabelText('Checking Direct TCP access')).toBeNull()
     await waitFor(() => expect(screen.getAllByLabelText(/Daemon online on Edge/).length).toBeGreaterThan(0))
     expect(screen.queryByText('Session connected')).toBeNull()
     expect(screen.getByText('P2P direct')).toBeTruthy()
     expect(screen.queryByText('0 terminals')).toBeNull()
   })
 
-  it('shows mDNS discovery as an available LAN route before opening a session', async () => {
+  it('shows mDNS discovery as an available Direct route before opening a session', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
       machineId: 'device-1',
@@ -165,7 +165,7 @@ describe('RemoteControlApp native session pool', () => {
       <RemoteControlApp
         cloudPresenceByMachineId={new Map([['device-1', 'online']])}
         externalPairingAdapter={authorizedAdapter()}
-        locallyDiscoveredMachineIds={new Set(['device-1'])}
+        directReachableMachineIds={new Set(['device-1'])}
         machineRuntimeFactory={() => runtimeWithSnapshot(idleSnapshot())}
         networkRuntime={networkRuntime(storage)}
       />,
@@ -173,7 +173,38 @@ describe('RemoteControlApp native session pool', () => {
 
     const localStatus = await screen.findByLabelText('Direct access available')
     expect(localStatus.getAttribute('data-tone')).toBe('positive')
-    expect(localStatus.textContent).toBe('LAN')
+    expect(localStatus.textContent).toBe('Direct')
+  })
+
+  it('does not report a configured Direct route as unreachable when mDNS does not find it', async () => {
+    const storage = new MemoryStorage()
+    createMachineStore({ storage }).saveMachine({
+      machineId: 'device-1',
+      name: 'Public Direct host',
+      state: 'offline',
+      terminalCount: 0,
+      source: 'manual',
+      accessClass: 'local',
+      addresses: { local: [], lan: [], public: [] },
+      endpoints: {},
+      addedAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:00.000Z',
+    })
+
+    render(
+      <RemoteControlApp
+        externalPairingAdapter={authorizedAdapter()}
+        directReachableMachineIds={new Set()}
+        directCheckingMachineIds={new Set()}
+        machineRuntimeFactory={() => runtimeWithSnapshot(idleSnapshot())}
+        networkRuntime={networkRuntime(storage)}
+      />,
+    )
+
+    const directStatus = await screen.findByLabelText('Direct access status unknown')
+    expect(directStatus.textContent).toBe('Direct')
+    expect(directStatus.getAttribute('data-tone')).toBe('neutral')
+    expect(screen.queryByText('Not currently reachable')).toBeNull()
   })
 
   it('shows connection progress only inside the affected device row', async () => {
@@ -202,7 +233,7 @@ describe('RemoteControlApp native session pool', () => {
       />,
     )
 
-    expect((await screen.findByLabelText('Direct access available')).textContent).toBe('LAN')
+    expect((await screen.findByLabelText('Direct access available')).textContent).toBe('Direct')
     expect((await screen.findByLabelText('Daemon online on Edge')).textContent).toBe('Cloud')
     expect(await screen.findByText('Connecting to the device...')).toBeTruthy()
     expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
@@ -228,15 +259,15 @@ describe('RemoteControlApp native session pool', () => {
     render(
       <RemoteControlApp
         cloudPresenceByMachineId={new Map([['device-1', 'checking']])}
-        locallyDiscoveredMachineIds={new Set()}
-        locallyDiscoveringMachineIds={new Set(['device-1'])}
+        directReachableMachineIds={new Set()}
+        directCheckingMachineIds={new Set(['device-1'])}
         externalPairingAdapter={authorizedAdapter()}
         machineRuntimeFactory={() => runtimeWithSnapshot(idleSnapshot())}
         networkRuntime={{ storage, queryParam: () => null, fetch: pendingFetch }}
       />,
     )
 
-    const directCheck = await screen.findByLabelText('Discovering on the local network')
+    const directCheck = await screen.findByLabelText('Checking Direct TCP access')
     const cloudCheck = await screen.findByLabelText('Checking daemon presence on Edge')
     expect(directCheck.getAttribute('aria-busy')).toBe('true')
     expect(cloudCheck.getAttribute('aria-busy')).toBe('true')
@@ -281,7 +312,7 @@ describe('RemoteControlApp native session pool', () => {
     expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(false)
   })
 
-  it('keeps the device entry available when stale reachability says all routes are offline', async () => {
+  it('does not turn a missed mDNS discovery into a Direct connection failure', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
       machineId: 'device-1',
@@ -310,12 +341,12 @@ describe('RemoteControlApp native session pool', () => {
 
     expect((await screen.findByLabelText('Daemon offline on Edge')).getAttribute('data-tone')).toBe('warning')
     expect(screen.getByRole('button', { name: 'Open Build host' }).hasAttribute('disabled')).toBe(false)
-    const status = screen.getByText('Not currently reachable').closest<HTMLElement>('[role="status"]')
+    const status = screen.getByText('Connection interrupted. Reconnecting...').closest<HTMLElement>('[role="status"]')
     expect(status).toBeTruthy()
-    expect(status.textContent).toBe('Not currently reachable')
-    expect(status.hasAttribute('aria-busy')).toBe(false)
-    expect(status.querySelector('.lucide-wifi-off')).toBeTruthy()
-    expect(status.querySelector('.lucide-loader-circle')).toBeNull()
+    expect(status.textContent).toBe('Connection interrupted. Reconnecting...')
+    expect(status.getAttribute('aria-busy')).toBe('true')
+    expect(status.querySelector('.lucide-loader-circle')).toBeTruthy()
+    expect(screen.queryByText('Not currently reachable')).toBeNull()
     expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
   })
 

@@ -89,6 +89,21 @@ Java_com_anytty_app_goclient_GoClientNative_localProbe(JNIEnv *env, jobject self
   return throw_status(env, status) == 0 && reachable != 0 ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_anytty_app_goclient_GoClientNative_directProbe(JNIEnv *env, jobject self, jbyteArray payload) {
+  (void)self;
+  jsize length = 0;
+  jbyte *bytes = borrow_payload(env, payload, &length);
+  if (bytes == NULL) {
+    return JNI_FALSE;
+  }
+  uint8_t reachable = 0;
+  anytty_status_v1 status = anytty_direct_probe(
+      (const uint8_t *)bytes, (size_t)length, &reachable);
+  (*env)->ReleaseByteArrayElements(env, payload, bytes, JNI_ABORT);
+  return throw_status(env, status) == 0 && reachable != 0 ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_anytty_app_goclient_GoClientNative_replaceSupervisorDemand(JNIEnv *env, jobject self, jlong engine, jbyteArray payload) {
   (void)self;

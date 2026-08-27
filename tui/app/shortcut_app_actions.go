@@ -12,6 +12,36 @@ import (
 // handler 只按 action.ID 选择业务步骤；选中行来自 reducer state 或显式点击上下文，绝不查询 render projection。
 func reduceAppShortcutAction(root state.Root, invocation actiondomain.Invocation, row int) (state.Root, []Effect) {
 	switch invocation.ID {
+	case "terminal_picker.endpoint_previous":
+		root = moveTerminalPickerEndpoint(root, -1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.endpoint_next":
+		root = moveTerminalPickerEndpoint(root, 1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.status_previous":
+		root = moveTerminalPickerStatus(root, -1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.status_next":
+		root = moveTerminalPickerStatus(root, 1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.select_previous":
+		root = moveTerminalPickerSelection(root, -1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.select_next":
+		root = moveTerminalPickerSelection(root, 1)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.tags":
+		if terminalPickerTagsOpen(root) {
+			root.Shell = root.Shell.CloseTerminalPickerTags()
+		} else {
+			root.Shell = root.Shell.OpenTerminalPickerTags()
+		}
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.tag_toggle":
+		if terminalPickerTagsOpen(root) {
+			root = toggleTerminalPickerTag(root, row)
+		}
+		return root.Advance(), []Effect{handledEffect{}}
 	case "terminal_picker.attach":
 		items := state.TerminalPickerItems(root)
 		if row >= 0 {
@@ -155,7 +185,7 @@ func reduceTerminalPickerEdit(root state.Root, row int) (state.Root, []Effect) {
 	if !ok {
 		return shortcutUnavailable(root, "terminal_picker.edit", "terminal metadata unavailable")
 	}
-	root.Shell = root.Shell.OpenPrompt(terminalEditPrompt(state.TerminalPoolPageItem{
+	root.Shell = root.Shell.OpenPrompt(terminalPickerEditPrompt(state.TerminalPoolPageItem{
 		EndpointID: item.EndpointID, TerminalID: item.TerminalID, Title: item.Title, Tags: item.Tags,
 	}))
 	return root.Advance(), []Effect{handledEffect{}}

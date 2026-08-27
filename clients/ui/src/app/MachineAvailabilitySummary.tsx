@@ -64,7 +64,7 @@ export function MachineAvailabilitySummary({
             className={cn('gap-1 text-[10px] leading-none transition-colors duration-200 ease-out motion-reduce:transition-none [&>span:first-child]:size-4 [&>span:first-child]:rounded [&>span:first-child>svg]:size-2.5', toneClass(pathPresentation))}
             icon={icon}
             key={kind}
-            label={kind === 'local' ? t('machines.path.localNetwork') : cloudDetail ? `${t('machines.path.cloud')} · ${cloudDetail}` : t('machines.path.cloud')}
+            label={kind === 'local' ? t('machines.path.directAccess') : cloudDetail ? `${t('machines.path.cloud')} · ${cloudDetail}` : t('machines.path.cloud')}
             presentation={pathPresentation}
             title={detail}
           />

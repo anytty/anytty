@@ -4,6 +4,41 @@ import (
 	"time"
 )
 
+type TerminalPickerStatusFilter string
+
+const (
+	TerminalPickerStatusAll     TerminalPickerStatusFilter = "all"
+	TerminalPickerStatusRunning TerminalPickerStatusFilter = "running"
+	TerminalPickerStatusExited  TerminalPickerStatusFilter = "exited"
+)
+
+type TerminalPickerView string
+
+const (
+	TerminalPickerViewList TerminalPickerView = "list"
+	TerminalPickerViewTags TerminalPickerView = "tags"
+)
+
+type TerminalPickerEndpointTab struct {
+	EndpointID EndpointID
+	Label      string
+	Count      int
+	Selected   bool
+}
+
+type TerminalPickerStatusOption struct {
+	Status   TerminalPickerStatusFilter
+	Label    string
+	Count    int
+	Selected bool
+}
+
+type TerminalPickerTagOption struct {
+	Label    string
+	Count    int
+	Selected bool
+}
+
 // TerminalPickerItem 是 terminal picker 的只读行投影。
 // EndpointID + TerminalID 是后续 attach/create/reconnect action 的目标身份；Endpoint* 字段来自 reducer-owned EndpointStore，renderer 不读取 registry 或 protocol client。
 // EndpointSearchText 仅服务 create 行的跨 endpoint 搜索，展示仍必须使用 EndpointLabel，避免把搜索聚合文本当成可见 server 名称。
@@ -28,6 +63,7 @@ type TerminalPickerItem struct {
 	Tags                map[string]string
 	Cols                int
 	Rows                int
+	AttachmentCount     int
 	LastOutputAt        time.Time
 	CreateNew           bool
 }

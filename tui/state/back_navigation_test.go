@@ -13,6 +13,7 @@ func TestCurrentBackNavigationLayerUsesFixedPriority(t *testing.T) {
 		{name: "interaction", root: Root{Shell: DefaultShell().SetInteractionMode(InteractionModePane)}, want: BackNavigationInteraction},
 		{name: "copy before interaction", root: Root{Shell: DefaultShell().SetInteractionMode(InteractionModePane), CopyMode: copyMode}, want: BackNavigationCopy},
 		{name: "overlay before copy", root: Root{Shell: DefaultShell().OpenHelp("most-used"), CopyMode: copyMode}, want: BackNavigationOverlay},
+		{name: "picker tags before picker overlay", root: Root{Shell: DefaultShell().OpenTerminalPicker().OpenTerminalPickerTags()}, want: BackNavigationTerminalTags},
 		{name: "suggestion before prompt", root: Root{Shell: promptShellWithFocusedSuggestion()}, want: BackNavigationPromptSuggestion},
 	}
 	for _, tc := range cases {

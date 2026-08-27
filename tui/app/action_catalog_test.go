@@ -60,8 +60,8 @@ func TestDefaultShortcutActionsReachObservableOwnerBoundary(t *testing.T) {
 			assertDefaultActionServiceOwner(t, invocation, execution)
 		})
 	}
-	if len(seen) != 159 {
-		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=159", len(seen))
+	if len(seen) != 167 {
+		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=167", len(seen))
 	}
 }
 
@@ -640,13 +640,16 @@ func defaultActionExecutionRoot(t *testing.T, id actiondomain.ID) state.Root {
 	}
 	switch {
 	case strings.HasPrefix(string(id), "terminal_picker."):
-		root.Shell = root.Shell.OpenTerminalPicker()
+		root.Shell = root.Shell.OpenTerminalPicker().SetTerminalPickerEndpoint("west")
 		items := state.TerminalPickerItems(root)
 		for index, item := range items {
 			if item.EndpointID == "west" && item.TerminalID == "term-1" {
 				root.Shell = root.Shell.SetTerminalPickerSelectedIndex(index, len(items))
 				break
 			}
+		}
+		if id == "terminal_picker.tag_toggle" {
+			root.Shell = root.Shell.OpenTerminalPickerTags()
 		}
 	case strings.HasPrefix(string(id), "terminal_pool."):
 		root.Shell = root.Shell.OpenTerminalPool()

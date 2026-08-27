@@ -150,7 +150,7 @@
     "reachability": {
       "localOnline": "Direct access available",
       "localOffline": "Direct access unreachable",
-      "localChecking": "Discovering on the local network",
+      "localChecking": "Checking Direct TCP access",
       "localUnknown": "Direct access status unknown",
       "cloudOnline": "Daemon online on Edge",
       "cloudOffline": "Daemon offline on Edge",
@@ -161,7 +161,7 @@
     },
     "path": {
       "local": "Direct access",
-      "localNetwork": "LAN",
+      "directAccess": "Direct",
       "ssh": "SSH",
       "relay": "Single relay",
       "direct": "P2P direct",

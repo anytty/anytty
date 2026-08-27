@@ -118,10 +118,12 @@ func (store ShellStore) OpenTerminalPicker() ShellStore {
 		targetID = activeFloatingID
 	}
 	store.Overlay = OverlayState{
-		Kind:          OverlayTerminalPicker,
-		Open:          true,
-		TargetID:      targetID,
-		SelectedIndex: 0,
+		Kind:                 OverlayTerminalPicker,
+		Open:                 true,
+		TargetID:             targetID,
+		SelectedIndex:        0,
+		TerminalPickerStatus: TerminalPickerStatusAll,
+		TerminalPickerView:   TerminalPickerViewList,
 	}
 	return store
 }
@@ -261,6 +263,114 @@ func (store ShellStore) SetTerminalPickerQuery(query string) ShellStore {
 	store.Overlay.Query = query
 	store.Overlay.SelectedIndex = 0
 	return store
+}
+
+func (store ShellStore) SetTerminalPickerTagQuery(query string) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || store.Overlay.TerminalPickerView != TerminalPickerViewTags {
+		return store
+	}
+	store.Overlay.TerminalPickerTagQuery = query
+	store.Overlay.TerminalPickerTagIndex = 0
+	return store
+}
+
+func (store ShellStore) SetTerminalPickerEndpoint(endpointID EndpointID) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerEndpointID = NormalizeEndpointID(endpointID)
+	store.Overlay.TerminalPickerTagFilters = nil
+	store.Overlay.TerminalPickerTagIndex = 0
+	store.Overlay.SelectedIndex = 0
+	return store
+}
+
+func (store ShellStore) SetTerminalPickerStatus(status TerminalPickerStatusFilter) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerStatus = normalizeTerminalPickerStatus(status)
+	store.Overlay.SelectedIndex = 0
+	return store
+}
+
+func (store ShellStore) OpenTerminalPickerTags() ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerView = TerminalPickerViewTags
+	store.Overlay.TerminalPickerTagQuery = ""
+	store.Overlay.TerminalPickerTagIndex = 0
+	return store
+}
+
+func (store ShellStore) CloseTerminalPickerTags() ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerView = TerminalPickerViewList
+	store.Overlay.TerminalPickerTagQuery = ""
+	return store
+}
+
+func (store ShellStore) SetTerminalPickerTagIndex(index int, tagCount int) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || tagCount <= 0 {
+		return store
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index >= tagCount {
+		index = tagCount - 1
+	}
+	store.Overlay.TerminalPickerTagIndex = index
+	return store
+}
+
+func (store ShellStore) MoveTerminalPickerTagIndex(delta int, tagCount int) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || tagCount <= 0 || delta == 0 {
+		return store
+	}
+	next := (store.Overlay.TerminalPickerTagIndex + delta) % tagCount
+	if next < 0 {
+		next += tagCount
+	}
+	store.Overlay.TerminalPickerTagIndex = next
+	return store
+}
+
+func (store ShellStore) ToggleTerminalPickerTag(label string) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || label == "" {
+		return store
+	}
+	filters := append([]string(nil), store.Overlay.TerminalPickerTagFilters...)
+	for index, current := range filters {
+		if current == label {
+			store.Overlay.TerminalPickerTagFilters = append(filters[:index], filters[index+1:]...)
+			store.Overlay.SelectedIndex = 0
+			return store
+		}
+	}
+	store.Overlay.TerminalPickerTagFilters = append(filters, label)
+	store.Overlay.SelectedIndex = 0
+	return store
+}
+
+func normalizeTerminalPickerStatus(status TerminalPickerStatusFilter) TerminalPickerStatusFilter {
+	switch status {
+	case TerminalPickerStatusRunning, TerminalPickerStatusExited:
+		return status
+	default:
+		return TerminalPickerStatusAll
+	}
 }
 
 func (store ShellStore) SetTerminalPoolQuery(query string) ShellStore {

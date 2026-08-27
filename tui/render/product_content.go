@@ -2,6 +2,8 @@ package render
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,26 +128,12 @@ type liveDisconnectedProjectionSpec struct {
 }
 
 const (
-	terminalPickerTitleColumnWidth    = 22
-	terminalPickerEndpointColumnWidth = 14
-	terminalPickerStateColumnWidth    = 8
-	terminalPickerSizeColumnWidth     = 7
-	terminalPickerLastColumnWidth     = 5
-	terminalPickerActionColumnWidth   = 6
-	terminalPickerColumnGapWidth      = 2
-	terminalPickerPrefixWidth         = 4
-	terminalPickerHitRegionWidth      = terminalPickerPrefixWidth +
-		terminalPickerTitleColumnWidth +
-		terminalPickerColumnGapWidth +
-		terminalPickerEndpointColumnWidth +
-		terminalPickerColumnGapWidth +
-		terminalPickerStateColumnWidth +
-		terminalPickerColumnGapWidth +
-		terminalPickerSizeColumnWidth +
-		terminalPickerColumnGapWidth +
-		terminalPickerLastColumnWidth +
-		terminalPickerColumnGapWidth +
-		terminalPickerActionColumnWidth
+	terminalPickerStateColumnWidth = 8
+	terminalPickerViewColumnWidth  = 4
+	terminalPickerSizeColumnWidth  = 7
+	terminalPickerLastColumnWidth  = 5
+	terminalPickerColumnGapWidth   = 2
+	terminalPickerPrefixWidth      = 4
 )
 
 func liveExitedActions() []liveExitedProjectionSpec {
@@ -227,8 +215,15 @@ func buildEmptyWorkspaceContent(workspace state.WorkspaceState) ContentVM {
 // Terminal Picker 只消费 reducer-owned root；服务端 terminal list 必须先回投 TerminalPoolStore。
 func buildTerminalPickerContent(root state.Root, shell state.ShellStore) ContentVM {
 	shell = shell.ReadonlyDefaults()
+	if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+		return buildTerminalPickerTagsContent(root, shell)
+	}
 	query := strings.TrimSpace(shell.Overlay.Query)
-	lines := []Line{terminalPickerSearchLine(query)}
+	contentWidth := terminalPickerContentWidth(root)
+	endpointLines, endpointRegions := terminalPickerEndpointLines(state.TerminalPickerEndpointTabs(root), contentWidth, terminalPickerEndpointTabStyle(root))
+	toolbarLine, toolbarRegions, cursorCol := terminalPickerToolbarLine(query, state.TerminalPickerStatusOptions(root), shell.Overlay.TerminalPickerTagFilters, contentWidth, len(endpointLines))
+	lines := append([]Line(nil), endpointLines...)
+	lines = append(lines, toolbarLine)
 	if poolLine, ok := terminalPoolStateLine(root.TerminalPool); ok {
 		lines = append(lines, poolLine)
 	}
@@ -239,14 +234,44 @@ func buildTerminalPickerContent(root state.Root, shell state.ShellStore) Content
 	start, end := terminalPickerRowWindow(selected, len(rows), visibleRowLimit)
 	visibleRows := rows[start:end]
 	for _, row := range visibleRows {
-		lines = append(lines, terminalPickerLine(row, query))
+		lines = append(lines, terminalPickerLine(row, query, contentWidth))
 	}
+	hitRegions := append(endpointRegions, toolbarRegions...)
+	hitRegions = append(hitRegions, terminalPickerHitRegions(visibleRows, rowOffset, start, contentWidth)...)
 	return ContentVM{
 		Kind:       ContentTerminalPicker,
 		Lines:      lines,
 		Status:     terminalPickerStatus(terminalPickerSelectableCount(rows), selected, len(rows), query),
-		Cursor:     Cursor{Visible: true, Row: 0, Col: terminalPickerSearchCursorCol(query), Shape: CursorShapeBar},
-		HitRegions: terminalPickerHitRegions(visibleRows, rowOffset, start),
+		Cursor:     Cursor{Visible: true, Row: len(endpointLines), Col: cursorCol, Shape: CursorShapeBar},
+		HitRegions: hitRegions,
+	}
+}
+
+func buildTerminalPickerTagsContent(root state.Root, shell state.ShellStore) ContentVM {
+	query := strings.TrimSpace(shell.Overlay.TerminalPickerTagQuery)
+	contentWidth := terminalPickerContentWidth(root)
+	searchLine, cursorCol := terminalPickerFilterSearchLine(query, contentWidth)
+	lines := []Line{searchLine}
+	options := state.TerminalPickerVisibleTagOptions(root)
+	selected := shell.Overlay.TerminalPickerTagIndex
+	if len(options) == 0 {
+		lines = append(lines, Line{Cells: []Cell{styledCell("No tags", StylePickerMuted)}})
+		selected = -1
+	} else {
+		selected = clampInt(selected, 0, len(options)-1)
+	}
+	visibleRowLimit := terminalPickerVisibleRowLimit(root, shell, len(lines)+len(options), 1)
+	start, end := terminalPickerRowWindow(selected, len(options), visibleRowLimit)
+	visibleOptions := options[start:end]
+	for index, option := range visibleOptions {
+		lines = append(lines, terminalPickerTagOptionLine(option, start+index == selected, contentWidth))
+	}
+	return ContentVM{
+		Kind:       ContentTerminalPicker,
+		Lines:      lines,
+		Status:     terminalPickerTagsStatus(options, selected, len(shell.Overlay.TerminalPickerTagFilters), query),
+		Cursor:     Cursor{Visible: true, Row: 0, Col: cursorCol, Shape: CursorShapeBar},
+		HitRegions: terminalPickerTagHitRegions(visibleOptions, 1, start, contentWidth),
 	}
 }
 
@@ -257,8 +282,9 @@ func terminalPickerVisibleRowLimit(root state.Root, shell state.ShellStore, tota
 	viewport := viewportRect(chromeSafeViewportForShell(root.Viewport, shell))
 	viewport.W = normalizeViewportDimension(viewport.W, defaultWidth)
 	viewport.H = normalizeViewportDimension(viewport.H, defaultHeight)
-	overlay := measureCompactOverlay(ContentVM{Kind: ContentTerminalPicker, Lines: make([]Line, totalLineCount)}, viewport)
-	content := measureOverlayContentRect(OverlayVM{Content: ContentVM{Kind: ContentTerminalPicker}}, overlay)
+	picker := terminalPickerChrome(root)
+	overlay := measureTerminalPickerOverlay(ContentVM{Kind: ContentTerminalPicker, Lines: make([]Line, totalLineCount)}, viewport, picker)
+	content := measureOverlayContentRect(OverlayVM{Content: ContentVM{Kind: ContentTerminalPicker}, Picker: picker}, overlay)
 	return maxInt(0, content.H-fixedLineCount)
 }
 
@@ -586,7 +612,7 @@ func helpSceneLabel(scene string) string {
 	labels := map[string]string{
 		"global": "Most used", "panel": "Pane", "resize": "Resize", "system": "Shell",
 		"floating": "Floating", "tab": "Tab", "workspace": "Workspace", "copy": "Display / Copy",
-		"terminal_picker": "Terminal Picker", "terminal_pool": "Terminal Manager", "connections": "Connections",
+		"terminal_picker": "Terminal Picker", "terminal_picker_tags": "Terminal Picker Tags", "terminal_pool": "Terminal Manager", "connections": "Connections",
 		"workbench_tree": "Workbench Tree", "clipboard_history": "Clipboard History",
 		"floating_overview": "Floating Overview", "prompt": "Prompt", "help": "Help",
 	}
@@ -605,7 +631,7 @@ func shortcutSceneHasAction(shortcuts state.TUIShortcutConfig, scene string, act
 	return false
 }
 
-func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
+func terminalPickerLine(row state.TerminalPickerItem, query string, width int) Line {
 	marker := "  "
 	textStyle := StylePicker
 	markerStyle := StylePicker
@@ -614,22 +640,15 @@ func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
 		markerStyle = StylePickerAccent
 	}
 	if row.CreateNew {
-		endpointLabel := terminalPickerEndpointLabel(row)
-		cells := []Cell{
+		return Line{Cells: []Cell{
 			styledCell(marker, markerStyle),
 			styledCell("+", StylePickerInfo),
 			pickerSpace(" "),
-		}
-		cells = append(cells, terminalPickerColumnCells(row.Title, query, textStyle, terminalPickerTitleColumnWidth)...)
-		cells = append(cells, pickerSpace("  "))
-		cells = append(cells, terminalPickerColumnCells(endpointLabel, query, StylePickerInfo, terminalPickerEndpointColumnWidth)...)
-		cells = append(cells, pickerSpace("  "))
-		cells = append(cells, terminalPickerColumnCells("-", query, StylePickerMuted, terminalPickerStateColumnWidth)...)
-		cells = append(cells, pickerSpace("  "))
-		cells = append(cells, highlightPickerText("Create terminal", query, textStyle)...)
-		return Line{Cells: cells}
+			styledCell("New terminal", textStyle),
+		}}
 	}
 	stateText := terminalPickerStateLabel(row)
+	viewText := terminalPickerViewLabel(row)
 	sizeText := terminalPickerSizeLabel(row)
 	if sizeText == "" {
 		sizeText = "-"
@@ -638,46 +657,41 @@ func terminalPickerLine(row state.TerminalPickerItem, query string) Line {
 	if activityLabel == "" {
 		activityLabel = "-"
 	}
-	endpointLabel := terminalPickerEndpointLabel(row)
 	title := row.Title
-	if taskLabel := terminalTaskLabel(row.Tags); taskLabel != "" {
-		title += " · " + taskLabel
+	if tags := state.PublicTerminalTagLabels(row.Tags); len(tags) > 0 {
+		title += " · " + strings.Join(tags, " · ")
 	}
+	titleWidth := maxInt(1, width-terminalPickerRowFixedWidth())
 	cells := []Cell{
 		styledCell(marker, markerStyle),
 		styledCell("●", terminalPoolStateStyle(stateText)),
 		pickerSpace(" "),
 	}
-	cells = append(cells, terminalPickerColumnCells(title, query, textStyle, terminalPickerTitleColumnWidth)...)
-	cells = append(cells, pickerSpace("  "))
-	cells = append(cells, terminalPickerColumnCells(endpointLabel, query, StylePickerInfo, terminalPickerEndpointColumnWidth)...)
+	cells = append(cells, terminalPickerColumnCells(title, query, textStyle, titleWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells(stateText, query, terminalPoolStateStyle(stateText), terminalPickerStateColumnWidth)...)
+	cells = append(cells, pickerSpace("  "))
+	cells = append(cells, terminalPickerColumnCells(viewText, query, terminalPickerViewStyle(row.AttachmentCount), terminalPickerViewColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells(sizeText, query, textStyle, terminalPickerSizeColumnWidth)...)
 	cells = append(cells, pickerSpace("  "))
 	cells = append(cells, terminalPickerColumnCells(activityLabel, query, TerminalOutputActivityStyle(activityLabel), terminalPickerLastColumnWidth)...)
-	cells = append(cells, pickerSpace("  "))
-	cells = append(cells, terminalPickerColumnCells("Attach", query, StylePickerMuted, terminalPickerActionColumnWidth)...)
 	return Line{Cells: cells}
 }
 
-func terminalPickerEndpointLabel(row state.TerminalPickerItem) string {
-	if row.EndpointLabel != "" {
-		return row.EndpointLabel
-	}
-	if row.EndpointID != "" {
-		return string(row.EndpointID)
-	}
-	return "-"
+func terminalPickerRowFixedWidth() int {
+	return terminalPickerPrefixWidth +
+		terminalPickerColumnGapWidth + terminalPickerStateColumnWidth +
+		terminalPickerColumnGapWidth + terminalPickerViewColumnWidth +
+		terminalPickerColumnGapWidth + terminalPickerSizeColumnWidth +
+		terminalPickerColumnGapWidth + terminalPickerLastColumnWidth
 }
 
 func terminalPickerColumnCells(value string, query string, baseStyle StyleToken, width int) []Cell {
 	if width <= 0 {
 		return nil
 	}
-	// 中文说明：picker 行的列边界属于 render view-model 展示契约；长名称只能在本列内截断，
-	// 不能把 endpoint、状态或尺寸列挤偏，否则同名 terminal 的机器归属会失去可比性。
+	// Picker rows keep stable status, viewer, size, and activity columns for quick scanning.
 	value = TruncateCells(value, width)
 	cells := highlightPickerText(value, query, baseStyle)
 	pad := width - DisplayWidth(value)
@@ -685,6 +699,17 @@ func terminalPickerColumnCells(value string, query string, baseStyle StyleToken,
 		cells = append(cells, pickerSpace(strings.Repeat(" ", pad)))
 	}
 	return cells
+}
+
+func terminalPickerViewLabel(row state.TerminalPickerItem) string {
+	return "x" + strconv.Itoa(maxInt(row.AttachmentCount, 0))
+}
+
+func terminalPickerViewStyle(count int) StyleToken {
+	if count > 0 {
+		return StylePickerInfo
+	}
+	return StylePickerMuted
 }
 
 func terminalPickerStateLabel(row state.TerminalPickerItem) string {
@@ -708,16 +733,250 @@ func terminalPickerSizeLabel(row state.TerminalPickerItem) string {
 	return fmt.Sprintf("%dx%d", row.Cols, row.Rows)
 }
 
-func terminalPickerSearchLine(query string) Line {
-	if query == "" {
-		return Line{Cells: []Cell{
-			styledCell("search:", StylePickerAccent),
-		}}
+func terminalPickerEndpointLines(tabs []state.TerminalPickerEndpointTab, width int, tabStyle string) ([]Line, []HitRegion) {
+	labels := make([]string, len(tabs))
+	widths := make([]int, len(tabs))
+	target := 0
+	for index, tab := range tabs {
+		marker := "  "
+		if tab.Selected {
+			marker = "● "
+			target = index
+		}
+		labels[index] = marker + TruncateCells(tab.Label, 22) + " " + strconv.Itoa(tab.Count)
+		widths[index] = DisplayWidth(labels[index])
 	}
-	return Line{Cells: []Cell{
-		styledCell("search: ", StylePickerAccent),
-		styledCell(query, StylePickerAccent),
-	}}
+	start, end := terminalPickerOptionWindow(widths, target, width, 3)
+	cells := []Cell{}
+	regions := make([]HitRegion, 0, end-start)
+	x := 0
+	activeX, activeWidth := 0, 0
+	if start > 0 {
+		cells = append(cells, styledCell("‹ ", StylePickerMuted))
+		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, 2, start-1, true))
+		x += 2
+	}
+	for index := start; index < end; index++ {
+		if index > start {
+			cells = append(cells, pickerSpace("   "))
+			x += 3
+		}
+		style := StylePickerMuted
+		if tabs[index].Selected {
+			style = StylePickerAccent
+			activeX, activeWidth = x, widths[index]
+		}
+		cells = append(cells, styledCell(labels[index], style))
+		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, widths[index], index, true))
+		x += widths[index]
+	}
+	if end < len(tabs) {
+		cells = append(cells, styledCell(" ›", StylePickerMuted))
+		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, 2, end, true))
+	}
+	lines := []Line{{Cells: cells}}
+	if tabStyle == "underline" && activeWidth > 2 {
+		underline := strings.Repeat(" ", activeX+2) + strings.Repeat("━", activeWidth-2)
+		lines = append(lines, Line{Cells: []Cell{styledCell(underline, StylePickerAccent)}})
+	}
+	return lines, regions
+}
+
+func terminalPickerToolbarLine(query string, options []state.TerminalPickerStatusOption, filters []string, width int, row int) (Line, []HitRegion, int) {
+	statusLabels := make([]string, len(options))
+	statusWidth := 0
+	for index, option := range options {
+		marker := "  "
+		if option.Selected {
+			marker = "● "
+		}
+		statusLabels[index] = marker + option.Label + " " + strconv.Itoa(option.Count)
+		statusWidth += DisplayWidth(statusLabels[index])
+		if index > 0 {
+			statusWidth += 2
+		}
+	}
+	tagLabel := terminalPickerTagSummary(filters)
+	tagLabel = TruncateCells(tagLabel, 18)
+	separator := " │ "
+	searchWidth := maxInt(6, width-statusWidth-DisplayWidth(tagLabel)-DisplayWidth(separator)*2)
+	searchLine, cursorCol := terminalPickerFilterSearchLine(query, searchWidth)
+	cells := fitContentLine(searchLine, searchWidth, StylePicker).Cells
+	cells = append(cells, styledCell(separator, StylePickerMuted))
+	regions := make([]HitRegion, 0, len(options)+1)
+	x := searchWidth + DisplayWidth(separator)
+	for index, option := range options {
+		if index > 0 {
+			cells = append(cells, pickerSpace("  "))
+			x += 2
+		}
+		style := StylePickerMuted
+		if option.Selected {
+			style = StylePickerAccent
+		}
+		cells = append(cells, styledCell(statusLabels[index], style))
+		regions = append(regions, terminalPickerControlRegion(ActionPickerStatusSelect, x, row, minInt(DisplayWidth(statusLabels[index]), maxInt(0, width-x)), index, true))
+		x += DisplayWidth(statusLabels[index])
+	}
+	cells = append(cells, styledCell(separator, StylePickerMuted), styledCell(tagLabel, StylePickerInfo))
+	x += DisplayWidth(separator)
+	regions = append(regions, terminalPickerControlRegion(ActionPickerTags, x, row, minInt(DisplayWidth(tagLabel), maxInt(0, width-x)), 0, false))
+	return fitContentLine(Line{Cells: cells}, width, StylePicker), regions, minInt(cursorCol, width)
+}
+
+func terminalPickerFilterSearchLine(query string, width int) (Line, int) {
+	prefix := "⌕ "
+	visible := terminalPickerVisibleQuery(query, maxInt(0, width-DisplayWidth(prefix)))
+	cells := []Cell{styledCell(prefix, StylePickerAccent)}
+	if visible != "" {
+		cells = append(cells, styledCell(visible, StylePickerInfo))
+	}
+	return Line{Cells: cells}, DisplayWidth(prefix) + DisplayWidth(visible)
+}
+
+func terminalPickerTagSummary(filters []string) string {
+	if len(filters) == 0 {
+		return "Tags"
+	}
+	labels := append([]string(nil), filters...)
+	sort.Strings(labels)
+	label := "Tags " + labels[0]
+	if len(labels) > 1 {
+		label += " +" + strconv.Itoa(len(labels)-1)
+	}
+	return label
+}
+
+func terminalPickerTagOptionLine(option state.TerminalPickerTagOption, selected bool, width int) Line {
+	marker := "  "
+	markerStyle := StylePicker
+	if selected {
+		marker = "▸ "
+		markerStyle = StylePickerAccent
+	}
+	check := "○"
+	checkStyle := StylePickerMuted
+	if option.Selected {
+		check = "✓"
+		checkStyle = StylePickerSuccess
+	}
+	count := strconv.Itoa(option.Count)
+	labelWidth := maxInt(1, width-DisplayWidth(marker)-DisplayWidth(check)-3-DisplayWidth(count))
+	cells := []Cell{styledCell(marker, markerStyle), styledCell(check, checkStyle), pickerSpace(" ")}
+	cells = append(cells, terminalPickerColumnCells(option.Label, "", StylePicker, labelWidth)...)
+	cells = append(cells, pickerSpace("  "), styledCell(count, StylePickerMuted))
+	return Line{Cells: cells}
+}
+
+func terminalPickerTagHitRegions(options []state.TerminalPickerTagOption, rowOffset int, itemOffset int, width int) []HitRegion {
+	regions := make([]HitRegion, 0, len(options))
+	for index := range options {
+		regions = append(regions, terminalPickerControlRegion(ActionPickerTagToggle, 0, rowOffset+index, width, itemOffset+index, true))
+	}
+	return regions
+}
+
+func terminalPickerOptionWindow(widths []int, target int, available int, gap int) (int, int) {
+	if len(widths) == 0 || available <= 0 {
+		return 0, 0
+	}
+	total := gap * (len(widths) - 1)
+	for _, width := range widths {
+		total += width
+	}
+	if total <= available {
+		return 0, len(widths)
+	}
+	if target < 0 || target >= len(widths) {
+		target = 0
+	}
+	budget := maxInt(1, available-4)
+	start, end := target, target+1
+	used := widths[target]
+	for {
+		grew := false
+		if start > 0 && used+gap+widths[start-1] <= budget {
+			start--
+			used += gap + widths[start]
+			grew = true
+		}
+		if end < len(widths) && used+gap+widths[end] <= budget {
+			used += gap + widths[end]
+			end++
+			grew = true
+		}
+		if !grew {
+			break
+		}
+	}
+	return start, end
+}
+
+func terminalPickerControlRegion(action ProjectionID, x int, y int, width int, row int, hasRow bool) HitRegion {
+	return HitRegion{
+		Kind: HitRegionContentAction, Rect: Rect{X: x, Y: y, W: width, H: 1}, Row: row, HasRow: hasRow,
+		ActionID: action.String(), Invocation: invocationForProjection(action), TargetMode: HitTargetExplicit,
+	}
+}
+
+func terminalPickerVisibleQuery(query string, width int) string {
+	if width <= 0 || query == "" {
+		return ""
+	}
+	queryWidth := DisplayWidth(query)
+	if queryWidth <= width {
+		return query
+	}
+	return SliceCells(query, queryWidth-width, queryWidth)
+}
+
+func terminalPickerChrome(root state.Root) PickerChromeVM {
+	picker := root.Config.Chrome.Picker
+	vm := PickerChromeVM{Presentation: picker.Presentation, Width: picker.Width, Density: picker.Density, EndpointTabs: picker.EndpointTabs}
+	if vm.Presentation == "" {
+		vm.Presentation = "card"
+	}
+	if vm.Width == "" {
+		vm.Width = "adaptive"
+	}
+	if vm.Density == "" {
+		vm.Density = "compact"
+	}
+	if vm.EndpointTabs == "" {
+		vm.EndpointTabs = "underline"
+	}
+	return vm
+}
+
+func terminalPickerEndpointTabStyle(root state.Root) string {
+	return terminalPickerChrome(root).EndpointTabs
+}
+
+func terminalPickerContentWidth(root state.Root) int {
+	picker := terminalPickerChrome(root)
+	cols := defaultWidth
+	if root.Viewport.Valid && root.Viewport.Cols > 0 {
+		cols = root.Viewport.Cols
+	}
+	maxOuter := 80
+	if picker.Width == "wide" {
+		maxOuter = 112
+	}
+	outer := minInt(maxOuter, maxInt(8, cols-2))
+	padX, _ := terminalPickerOverlayPadding(Rect{W: outer, H: defaultHeight}, picker)
+	return maxInt(1, outer-padX*2)
+}
+
+func terminalPickerTagsStatus(options []state.TerminalPickerTagOption, selected int, selectedCount int, query string) string {
+	position := ""
+	if selected >= 0 && len(options) > 0 {
+		position = fmt.Sprintf(" selected:%d/%d", selected+1, len(options))
+	}
+	filter := ""
+	if query != "" {
+		filter = " query:" + query
+	}
+	return fmt.Sprintf("terminal picker tags: %d items · %d active%s%s", len(options), selectedCount, position, filter)
 }
 
 func highlightPickerText(value string, query string, baseStyle StyleToken) []Cell {
@@ -746,13 +1005,6 @@ func highlightPickerText(value string, query string, baseStyle StyleToken) []Cel
 
 func pickerSpace(value string) Cell {
 	return styledCell(value, StylePicker)
-}
-
-func terminalPickerSearchCursorCol(query string) int {
-	if query == "" {
-		return DisplayWidth("search:")
-	}
-	return DisplayWidth("search: ") + DisplayWidth(query)
 }
 
 func terminalManagerFullLine(line Line, layout terminalManagerLayout) Line {
@@ -858,7 +1110,7 @@ func floatingOverviewHitRegions(rows []state.FloatingOverviewItem, rowOffset int
 	return regions
 }
 
-func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int, itemOffset int) []HitRegion {
+func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int, itemOffset int, width int) []HitRegion {
 	regions := make([]HitRegion, 0, len(rows)+1)
 	for index, row := range rows {
 		action := ActionPickerAttach
@@ -867,7 +1119,7 @@ func terminalPickerHitRegions(rows []state.TerminalPickerItem, rowOffset int, it
 		}
 		regions = append(regions, HitRegion{
 			Kind:       HitRegionContentAction,
-			Rect:       Rect{Y: rowOffset + index, W: terminalPickerHitRegionWidth, H: 1},
+			Rect:       Rect{Y: rowOffset + index, W: width, H: 1},
 			PaneID:     row.PaneID,
 			Row:        itemOffset + index,
 			HasRow:     true,

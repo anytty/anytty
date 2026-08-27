@@ -205,6 +205,24 @@ tui:
     # 示例：panel_presentation: card
     panel_presentation: split-line
 
+    # picker 控制经常出现的 Terminal Picker 的布局，不影响 Terminal Manager。
+    picker:
+      # presentation 控制 picker 是否使用独立边框。
+      # 默认值：card。可选值：card、flat。
+      presentation: card
+
+      # width 控制 picker 的最大宽度。
+      # 默认值：adaptive。可选值：adaptive、wide。
+      width: adaptive
+
+      # density 控制 picker 内容边距。
+      # 默认值：compact。可选值：compact、comfortable。
+      density: compact
+
+      # endpoint_tabs 控制 active endpoint 的标识方式。
+      # 默认值：underline。可选值：underline、plain。
+      endpoint_tabs: underline
+
     # tab_create_icon 是 tab strip 上创建新 tab 的图标。
     # 默认值："+"；也可以显式配置终端可显示的短文本或任意字形。
     # Nerd Font opt-in（仅在用户确认字体支持时）：tab_create_icon: "󰐕"

@@ -124,6 +124,18 @@ func reduceCanonicalSurfaceAction(root state.Root, msg ShellShortcutActionMsg) (
 		items := state.TerminalPoolPageItems(root)
 		root.Shell = root.Shell.SetTerminalPoolSelectedIndex(target.Row, len(items))
 		return root.Advance(), []Effect{handledEffect{}, FuncEffect{Run: func(context.Context) Msg { return TerminalPoolPreviewRefreshMsg{} }}}, true
+	case actiondomain.ActionTerminalPickerEndpointSelect:
+		tabs := state.TerminalPickerEndpointTabs(root)
+		root.Shell = root.Shell.SetTerminalPickerEndpoint(tabs[target.Row].EndpointID)
+		return root.Advance(), []Effect{handledEffect{}}, true
+	case actiondomain.ActionTerminalPickerStatusSelect:
+		options := state.TerminalPickerStatusOptions(root)
+		root.Shell = root.Shell.SetTerminalPickerStatus(options[target.Row].Status)
+		return root.Advance(), []Effect{handledEffect{}}, true
+	case actiondomain.ActionTerminalPickerTagToggle:
+		options := state.TerminalPickerVisibleTagOptions(root)
+		root.Shell = root.Shell.SetTerminalPickerTagIndex(target.Row, len(options)).ToggleTerminalPickerTag(options[target.Row].Label)
+		return root.Advance(), []Effect{handledEffect{}}, true
 	case actiondomain.ActionWorkbenchTreeSelect:
 		items := state.WorkbenchTreeItems(root)
 		root.Shell = root.Shell.SetWorkbenchTreeSelectedIndex(target.Row, len(items))
@@ -137,7 +149,7 @@ func reduceCanonicalSurfaceAction(root state.Root, msg ShellShortcutActionMsg) (
 		poolTarget := terminalPoolTargetForOverlay(root)
 		endpointID := terminalCreateEndpointIDFromPickerSelection(root, target.Row)
 		return root, []Effect{handledEffect{}, FuncEffect{Run: func(context.Context) Msg {
-			return ShellOpenPromptMsg{Prompt: createTerminalPromptForTargetEndpoint(root, poolTarget, endpointID)}
+			return ShellOpenPromptMsg{Prompt: createTerminalPickerPromptForTargetEndpoint(root, poolTarget, endpointID)}
 		}}}, true
 	case actiondomain.ActionEmptyAttach, actiondomain.ActionExitedReconnect:
 		root = focusCanonicalSurfaceTarget(root, msg)
@@ -381,6 +393,12 @@ func surfaceActionRowValid(root state.Root, id actiondomain.ID, row int) bool {
 	case actiondomain.ActionTerminalPickerNew:
 		items := state.TerminalPickerItems(root)
 		return row >= 0 && row < len(items) && items[row].CreateNew && items[row].EndpointID != ""
+	case actiondomain.ActionTerminalPickerEndpointSelect:
+		return row >= 0 && row < len(state.TerminalPickerEndpointTabs(root))
+	case actiondomain.ActionTerminalPickerStatusSelect:
+		return row >= 0 && row < len(state.TerminalPickerStatusOptions(root))
+	case actiondomain.ActionTerminalPickerTagToggle:
+		return row >= 0 && row < len(state.TerminalPickerVisibleTagOptions(root))
 	case "terminal_picker.attach":
 		items := state.TerminalPickerItems(root)
 		return row >= 0 && row < len(items) && !items[row].CreateNew && items[row].TerminalID != ""
@@ -401,6 +419,9 @@ func surfaceActionRequiresRow(id actiondomain.ID) bool {
 		actiondomain.ActionWorkbenchTreeSelect,
 		actiondomain.ActionClipboardHistorySelect,
 		actiondomain.ActionTerminalPickerNew,
+		actiondomain.ActionTerminalPickerEndpointSelect,
+		actiondomain.ActionTerminalPickerStatusSelect,
+		actiondomain.ActionTerminalPickerTagToggle,
 		"terminal_picker.attach", "workbench_tree.open", "floating_overview.open":
 		return true
 	default:

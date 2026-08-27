@@ -26,7 +26,7 @@ const defaultCloudControllerOrigin = "https://api.anytty.com"
 
 func cloudCommand(socket, logFile, configPath *string) *cobra.Command {
 	command := &cobra.Command{Use: "cloud", Short: "Manage AnyTTY Cloud enrollment", Args: cobra.NoArgs}
-	command.AddCommand(cloudEnrollCommand())
+	command.AddCommand(cloudEnrollCommand(socket, logFile, configPath))
 	command.AddCommand(cloudStatusCommand(socket, logFile, configPath))
 	command.AddCommand(cloudEnableCommand(socket, logFile, configPath))
 	command.AddCommand(cloudDisableCommand(socket, logFile, configPath))
@@ -424,7 +424,7 @@ func formatCloudTime(value time.Time) string {
 	return value.UTC().Format(time.RFC3339)
 }
 
-func cloudEnrollCommand() *cobra.Command {
+func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 	var controllerOrigin, controllerAddress, controllerServerName string
 	command := &cobra.Command{
 		Use: "enroll CODE", Short: "Enroll this daemon DeviceIdentity into AnyTTY Cloud", Args: cobra.ExactArgs(1),
@@ -448,6 +448,15 @@ func cloudEnrollCommand() *cobra.Command {
 					return fmt.Errorf("Cloud daemon limit reached; upgrade the plan or permanently delete an unused daemon at %s/devices", strings.TrimRight(controllerOrigin, "/"))
 				}
 				return fmt.Errorf("enroll daemon in AnyTTY Cloud: %w", err)
+			}
+			if _, disabled, err := readV3CloudDisabled(v3CloudDisabledPath()); err != nil {
+				return fmt.Errorf("Cloud enrollment was saved, but its runtime state could not be read: %w", err)
+			} else if !disabled {
+				if _, err := runCloudControlWhenRunning(cmd, socket, logFile, configPath, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudStatusResult, error) {
+					return application.RemoteCloudEnable(ctx, &apipb.RemoteCloudEnableCommand{})
+				}); err != nil {
+					return fmt.Errorf("Cloud enrollment was saved, but the running daemon could not reload it: %w", err)
+				}
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment complete: daemon=%s account=%s\n", record.DaemonID, record.AccountID)
 			if record.DaemonLimit > 0 {

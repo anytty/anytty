@@ -580,7 +580,7 @@ func TestTerminalPoolCreateRequestReusesNameAfterRenameWithFreshStableID(t *test
 	}
 }
 
-func TestTerminalPickerGlobalCreateRowOpensPromptWithDraftEndpoint(t *testing.T) {
+func TestTerminalPickerEndpointCreateRowOpensPromptWithDraftEndpoint(t *testing.T) {
 	root := state.Root{
 		Shell: state.DefaultShell().OpenTerminalPicker(),
 		Endpoints: (state.EndpointStore{}).
@@ -589,8 +589,8 @@ func TestTerminalPickerGlobalCreateRowOpensPromptWithDraftEndpoint(t *testing.T)
 	}
 	root.Shell.TerminalCreateDraft = state.TerminalCreateDraft{EndpointID: "us-west", Command: "/bin/bash", Workdir: "/srv/app"}
 	items := state.TerminalPickerItems(root)
-	if len(items) != 1 || !items[0].CreateNew {
-		t.Fatalf("expected one global create row, picker=%#v", items)
+	if len(items) != 1 || !items[0].CreateNew || items[0].EndpointID != "us-west" {
+		t.Fatalf("expected one create row owned by the selected draft endpoint, picker=%#v", items)
 	}
 
 	_, effects := NewShellReducer()(root, shortcutTestMessage("terminal_picker.new", "", false, 0))
@@ -601,11 +601,11 @@ func TestTerminalPickerGlobalCreateRowOpensPromptWithDraftEndpoint(t *testing.T)
 	if !ok {
 		t.Fatalf("expected prompt message, got %#v", effects[1])
 	}
-	if msg.Prompt.TargetEndpointID != "us-west" || msg.Prompt.FieldRawValue("server") != "US West (us-west)" {
-		t.Fatalf("global create row should default prompt server to remembered endpoint, prompt=%#v", msg.Prompt)
+	if msg.Prompt.TargetEndpointID != "us-west" || msg.Prompt.FieldRawValue("server") != "US West (us-west)" || !msg.Prompt.PublicTagList {
+		t.Fatalf("endpoint create row should use the remembered endpoint and pure tag input, prompt=%#v", msg.Prompt)
 	}
 	if msg.Prompt.FieldRawValue("workdir") != "/srv/app" || msg.Prompt.FieldRawValue("command") != "/bin/bash" {
-		t.Fatalf("global create row should reuse last create draft fields, prompt=%#v", msg.Prompt)
+		t.Fatalf("endpoint create row should reuse last create draft fields, prompt=%#v", msg.Prompt)
 	}
 }
 

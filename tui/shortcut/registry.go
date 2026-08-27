@@ -31,22 +31,23 @@ type BindingPolicy struct {
 type SceneID string
 
 const (
-	SceneGlobal           SceneID = "global"
-	SceneSystem           SceneID = "system"
-	ScenePanel            SceneID = "panel"
-	SceneFloating         SceneID = "floating"
-	SceneTab              SceneID = "tab"
-	SceneWorkspace        SceneID = "workspace"
-	SceneResize           SceneID = "resize"
-	SceneCopy             SceneID = "copy"
-	SceneTerminalPicker   SceneID = "terminal_picker"
-	SceneTerminalPool     SceneID = "terminal_pool"
-	SceneConnections      SceneID = "connections"
-	SceneWorkbenchTree    SceneID = "workbench_tree"
-	SceneClipboardHistory SceneID = "clipboard_history"
-	SceneFloatingOverview SceneID = "floating_overview"
-	ScenePrompt           SceneID = "prompt"
-	SceneHelp             SceneID = "help"
+	SceneGlobal             SceneID = "global"
+	SceneSystem             SceneID = "system"
+	ScenePanel              SceneID = "panel"
+	SceneFloating           SceneID = "floating"
+	SceneTab                SceneID = "tab"
+	SceneWorkspace          SceneID = "workspace"
+	SceneResize             SceneID = "resize"
+	SceneCopy               SceneID = "copy"
+	SceneTerminalPicker     SceneID = "terminal_picker"
+	SceneTerminalPickerTags SceneID = "terminal_picker_tags"
+	SceneTerminalPool       SceneID = "terminal_pool"
+	SceneConnections        SceneID = "connections"
+	SceneWorkbenchTree      SceneID = "workbench_tree"
+	SceneClipboardHistory   SceneID = "clipboard_history"
+	SceneFloatingOverview   SceneID = "floating_overview"
+	ScenePrompt             SceneID = "prompt"
+	SceneHelp               SceneID = "help"
 )
 
 // SceneSpec 描述一个内置 shortcut scene 及进入它的 canonical menu action。
@@ -67,6 +68,7 @@ var sceneSpecs = []SceneSpec{
 	{ID: SceneResize, MenuAction: "menu.resize", Routable: true},
 	{ID: SceneCopy, MenuAction: "menu.copy", Routable: true},
 	{ID: SceneTerminalPicker, MenuAction: "menu.terminal_picker"},
+	{ID: SceneTerminalPickerTags},
 	{ID: SceneTerminalPool, MenuAction: "menu.terminal_pool"},
 	{ID: SceneConnections, MenuAction: "menu.connections"},
 	{ID: SceneWorkbenchTree, MenuAction: "menu.workbench_tree"},
@@ -142,7 +144,9 @@ func buildPolicies() map[actiondomain.ID]BindingPolicy {
 	visible([]SceneID{SceneTab}, true, "tab.create", "tab.next", "tab.previous", "tab.rename", "tab.close", "tab.kill")
 	visible([]SceneID{SceneGlobal, SceneTab}, true, "tab.jump")
 	visible([]SceneID{SceneWorkspace}, true, "workspace.create", "workspace.next", "workspace.previous", "workspace.rename", "workspace.delete")
-	visible([]SceneID{SceneTerminalPicker}, false, "terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close")
+	visible([]SceneID{SceneTerminalPicker}, false, "terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.status_previous", "terminal_picker.status_next", "terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close")
+	visible([]SceneID{SceneTerminalPicker, SceneTerminalPickerTags}, false, "terminal_picker.select_previous", "terminal_picker.select_next", "terminal_picker.tags")
+	visible([]SceneID{SceneTerminalPickerTags}, false, "terminal_picker.tag_toggle")
 	visible([]SceneID{SceneTerminalPool}, false, "terminal_pool.attach", "terminal_pool.attach_tab", "terminal_pool.attach_float", "terminal_pool.restart", "terminal_pool.edit", "terminal_pool.kill", "terminal_pool.delete", "terminal_pool.close")
 	visible([]SceneID{SceneConnections}, false, "connections.edit", "connections.toggle", "connections.refresh", "connections.close")
 	visible([]SceneID{SceneWorkbenchTree}, false, "workbench_tree.open", "workbench_tree.new", "workbench_tree.rename", "workbench_tree.delete", "workbench_tree.detach", "workbench_tree.zoom", "workbench_tree.close")

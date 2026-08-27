@@ -70,6 +70,7 @@ type TUIChromeConfig struct {
 	Header            bool
 	Footer            bool
 	PanelPresentation string
+	Picker            TUIPickerChromeConfig
 	TabCreateIcon     string
 	// TabCreateTemplate 是顶部创建 tab 按钮的展示模板。
 	// 它只改变 tab.create action 的可见片段和 hit region 样式，真实新建 tab 消息仍由 app reducer 处理。
@@ -83,6 +84,13 @@ type TUIChromeConfig struct {
 	// 它只消费 reducer-owned terminal pool 与 endpoint 展示投影，不改变 pane title、terminal identity 或输入路由。
 	PaneTitleTemplate string
 	PaneGlyphs        TUIPaneChromeGlyphsConfig
+}
+
+type TUIPickerChromeConfig struct {
+	Presentation string
+	Width        string
+	Density      string
+	EndpointTabs string
 }
 
 // TUIPaneChromeGlyphsConfig 描述 pane/floating chrome 可点击动作、状态标记和左右装饰模板。

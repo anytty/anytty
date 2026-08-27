@@ -29,7 +29,11 @@ func canonicalActionForProjection(id ProjectionID) actiondomain.ID {
 		ActionExitedClose: actiondomain.ActionExitedClose, ActionDisconnectedReconnect: actiondomain.ActionDisconnectedReconnect,
 		ActionDisconnectedDisconnect: actiondomain.ActionDisconnectedDisconnect,
 		ActionPickerAttach:           "terminal_picker.attach", ActionPickerNew: actiondomain.ActionTerminalPickerNew,
-		ActionPoolSelect: actiondomain.ActionTerminalPoolSelect, ActionWorkbenchOpen: "workbench_tree.open",
+		ActionPickerEndpointSelect: actiondomain.ActionTerminalPickerEndpointSelect,
+		ActionPickerStatusSelect:   actiondomain.ActionTerminalPickerStatusSelect,
+		ActionPickerTags:           "terminal_picker.tags",
+		ActionPickerTagToggle:      actiondomain.ActionTerminalPickerTagToggle,
+		ActionPoolSelect:           actiondomain.ActionTerminalPoolSelect, ActionWorkbenchOpen: "workbench_tree.open",
 		ActionClipboardHistorySelect:      actiondomain.ActionClipboardHistorySelect,
 		ActionClipboardHistoryDividerDrag: actiondomain.ActionClipboardHistoryDividerDrag,
 		ActionHelpClose:                   "help.close",
@@ -84,37 +88,7 @@ func shortcutSceneForFooterMode(mode string) string {
 // invocation 是“执行什么”的真值，HitRegion 上的 row/pane 仍只是点击目标上下文；catalog 未配置的
 // shortcut action 不保留旧 ActionID 点击入口，行选择和拖拽等非 shortcut 交互不受影响。
 func bindOverlayShortcutInvocations(kind OverlayKind, regions []HitRegion, shortcuts state.TUIShortcutConfig) []HitRegion {
-	scene := shortcutSceneForFooterMode(string(kind))
-	entries := input.ShortcutEntriesForScene(shortcuts, scene)
-	invocations := map[actiondomain.ID][]actiondomain.Invocation{}
-	for _, entry := range entries {
-		invocation, _, err := actiondomain.ParseInvocation(entry.ActionID)
-		if err != nil {
-			continue
-		}
-		invocations[invocation.ID] = appendUniqueInvocation(invocations[invocation.ID], invocation)
-	}
-	out := make([]HitRegion, 0, len(regions))
-	for _, region := range regions {
-		if region.Invocation.ID == "" {
-			if region.ActionID != "" {
-				continue
-			}
-			out = append(out, region)
-			continue
-		}
-		if _, shortcutAction := shortcut.Policies()[region.Invocation.ID]; !shortcutAction {
-			out = append(out, region)
-			continue
-		}
-		candidates := invocations[region.Invocation.ID]
-		if len(candidates) != 1 {
-			continue
-		}
-		region.Invocation = candidates[0]
-		out = append(out, region)
-	}
-	return out
+	return bindOverlayShortcutInvocationsForScene(shortcutSceneForFooterMode(string(kind)), regions, shortcuts)
 }
 
 func appendUniqueInvocation(items []actiondomain.Invocation, invocation actiondomain.Invocation) []actiondomain.Invocation {
@@ -296,6 +270,22 @@ func compactShortcutFooterActions(scene string, actions []FooterActionVM) []Foot
 		actions = compactFooterActionGroup(actions, "workspace.previous")
 		actions = compactFooterActionGroup(actions, "menu.workbench_tree")
 	}
+	if scene == "terminal_picker" {
+		actions = compactFooterActionGroup(actions, "terminal_picker.endpoint_previous", "terminal_picker.endpoint_next")
+		actions = compactFooterActionGroup(actions, "terminal_picker.status_previous", "terminal_picker.status_next")
+		actions = compactFooterActionGroup(actions, "terminal_picker.select_previous", "terminal_picker.select_next")
+		actions = orderShortcutFooterActions(actions, []actiondomain.ID{
+			"terminal_picker.select_previous", "terminal_picker.attach", "terminal_picker.tags",
+			"terminal_picker.endpoint_previous", "terminal_picker.status_previous", "terminal_picker.split",
+			"terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete",
+		})
+	}
+	if scene == "terminal_picker_tags" {
+		actions = compactFooterActionGroup(actions, "terminal_picker.select_previous", "terminal_picker.select_next")
+		actions = orderShortcutFooterActions(actions, []actiondomain.ID{
+			"terminal_picker.select_previous", "terminal_picker.tag_toggle", "terminal_picker.tags",
+		})
+	}
 	if scene == "floating" || scene == "floating_overview" {
 		actions = compactFloatingSummonActions(actions)
 		actions = compactFooterActionGroup(actions, "floating.collapse")
@@ -305,6 +295,39 @@ func compactShortcutFooterActions(scene string, actions []FooterActionVM) []Foot
 		actions = compactFooterActionGroup(actions, "floating.move_down")
 	}
 	return actions
+}
+
+func bindOverlayShortcutInvocationsForScene(scene string, regions []HitRegion, shortcuts state.TUIShortcutConfig) []HitRegion {
+	entries := input.ShortcutEntriesForScene(shortcuts, shortcutCatalogScene(scene))
+	invocations := map[actiondomain.ID][]actiondomain.Invocation{}
+	for _, entry := range entries {
+		invocation, _, err := actiondomain.ParseInvocation(entry.ActionID)
+		if err != nil {
+			continue
+		}
+		invocations[invocation.ID] = appendUniqueInvocation(invocations[invocation.ID], invocation)
+	}
+	out := make([]HitRegion, 0, len(regions))
+	for _, region := range regions {
+		if region.Invocation.ID == "" {
+			if region.ActionID != "" {
+				continue
+			}
+			out = append(out, region)
+			continue
+		}
+		if _, shortcutAction := shortcut.Policies()[region.Invocation.ID]; !shortcutAction {
+			out = append(out, region)
+			continue
+		}
+		candidates := invocations[region.Invocation.ID]
+		if len(candidates) != 1 {
+			continue
+		}
+		region.Invocation = candidates[0]
+		out = append(out, region)
+	}
+	return out
 }
 
 func compactFloatingSummonActions(actions []FooterActionVM) []FooterActionVM {

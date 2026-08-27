@@ -68,6 +68,11 @@ tui:
   chrome:
     header: false
     panel_presentation: card
+    picker:
+      presentation: flat
+      width: wide
+      density: comfortable
+      endpoint_tabs: plain
     tab_create_icon: "+"
     tab_create_template: "[fg:#040a0d;bg:#8ffcff] {{create_icon}} [/]"
     workspace_template: "[style:header-workspace] {{workspace | truncate 8}} [/style]"
@@ -153,6 +158,9 @@ tui:
 	}
 	if cfg.Theme.Border.Active != "#ff00aa" || cfg.Chrome.Header || cfg.Chrome.PanelPresentation != "card" || cfg.Chrome.TabCreateIcon != "+" || !strings.Contains(cfg.Chrome.TabCreateTemplate, "{{create_icon}}") || !strings.Contains(cfg.Chrome.WorkspaceTemplate, "{{workspace | truncate 8}}") || !strings.Contains(cfg.Chrome.TabTemplate, "{{tab_id}}") || cfg.Chrome.PaneTitleTemplate != "{{terminal}}@{{endpoint}}" {
 		t.Fatalf("chrome/border overrides not applied: %#v", cfg)
+	}
+	if cfg.Chrome.Picker.Presentation != "flat" || cfg.Chrome.Picker.Width != "wide" || cfg.Chrome.Picker.Density != "comfortable" || cfg.Chrome.Picker.EndpointTabs != "plain" {
+		t.Fatalf("picker chrome overrides not applied: %#v", cfg.Chrome.Picker)
 	}
 	if cfg.Chrome.PaneGlyphs.Zoom != "󰁌" ||
 		cfg.Chrome.PaneGlyphs.Unzoom != "󰁄" ||
@@ -281,6 +289,11 @@ func TestParseRejectsUnknownFieldAndBadValues(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "compression_level") {
 		t.Fatalf("expected history compression level error, got %v", err)
 	}
+
+	_, err = Parse([]byte("tui:\n  chrome:\n    picker:\n      presentation: dialog\n"))
+	if err == nil || !strings.Contains(err.Error(), "picker.presentation") {
+		t.Fatalf("expected picker presentation validation error, got %v", err)
+	}
 }
 
 func TestLoadUsesMissingDefaultPathButFailsExplicitMissingPath(t *testing.T) {
@@ -316,6 +329,10 @@ func TestLoadAppliesEnvOverrides(t *testing.T) {
 		"ANYTTY_TUI_THEME_PRIMARY":                    "#010203",
 		"ANYTTY_TUI_THEME_PALETTE":                    "builtin",
 		"ANYTTY_TUI_CHROME_HEADER":                    "false",
+		"ANYTTY_TUI_CHROME_PICKER_PRESENTATION":       "flat",
+		"ANYTTY_TUI_CHROME_PICKER_WIDTH":              "wide",
+		"ANYTTY_TUI_CHROME_PICKER_DENSITY":            "comfortable",
+		"ANYTTY_TUI_CHROME_PICKER_ENDPOINT_TABS":      "plain",
 		"ANYTTY_TUI_CHROME_TAB_CREATE_TEMPLATE":       "{{create_icon}}",
 		"ANYTTY_TUI_CHROME_PANE_TITLE_TEMPLATE":       "{{terminal}}@{{endpoint}}",
 		"ANYTTY_TUI_SHORTCUT_PASSTHROUGH_INTERVAL_MS": "650",
@@ -335,6 +352,10 @@ func TestLoadAppliesEnvOverrides(t *testing.T) {
 		cfg.Daemon.History.CompressionLevel != "best" ||
 		cfg.Theme.Palette != "builtin" ||
 		cfg.Chrome.Header ||
+		cfg.Chrome.Picker.Presentation != "flat" ||
+		cfg.Chrome.Picker.Width != "wide" ||
+		cfg.Chrome.Picker.Density != "comfortable" ||
+		cfg.Chrome.Picker.EndpointTabs != "plain" ||
 		cfg.Chrome.TabCreateTemplate != "{{create_icon}}" ||
 		cfg.Chrome.PaneTitleTemplate != "{{terminal}}@{{endpoint}}" ||
 		cfg.Interaction.ShortcutPassthroughIntervalMS != 650 ||

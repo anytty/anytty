@@ -1145,8 +1145,17 @@ const (
 type OverlayVM struct {
 	Kind    OverlayKind
 	Opaque  bool
+	Title   string
+	Picker  PickerChromeVM
 	Content ContentVM
 	Popup   OverlayPopupVM
+}
+
+type PickerChromeVM struct {
+	Presentation string
+	Width        string
+	Density      string
+	EndpointTabs string
 }
 
 type ShellVM struct {

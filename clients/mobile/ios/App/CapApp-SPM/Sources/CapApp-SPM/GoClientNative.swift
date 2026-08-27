@@ -43,6 +43,14 @@ enum GoClientNative {
         return reachable != 0
     }
 
+    static func directProbe(_ payload: Data) throws -> Bool {
+        var reachable: UInt8 = 0
+        try withPayload(payload) { bytes, count in
+            try check(anytty_direct_probe(bytes, count, &reachable))
+        }
+        return reachable != 0
+    }
+
     static func openSession(engine: UInt64, payload: Data) throws -> UInt64 {
         try operation(payload) { bytes, count, output in
             anytty_engine_open_session(engine, bytes, count, output)

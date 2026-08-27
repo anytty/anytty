@@ -840,6 +840,17 @@ func createTerminalPromptForTargetEndpoint(root state.Root, target terminalPoolT
 	return prompt
 }
 
+func createTerminalPickerPromptForTargetEndpoint(root state.Root, target terminalPoolTarget, endpointID state.EndpointID) state.PromptState {
+	prompt := createTerminalPromptForTargetEndpoint(root, target, endpointID)
+	prompt.PublicTagList = true
+	for index := range prompt.Fields {
+		if prompt.Fields[index].Key == "tags" {
+			prompt.Fields[index].Placeholder = "production, backend"
+		}
+	}
+	return prompt
+}
+
 func terminalCreateRequestFromPrompt(root state.Root, prompt state.PromptState) (TerminalPoolCreateRequestMsg, error) {
 	name := strings.TrimSpace(prompt.FieldValue("name"))
 	if name == "" {
@@ -870,9 +881,15 @@ func terminalCreateRequestFromPrompt(root state.Root, prompt state.PromptState) 
 		// 提交边界仍要防止把旧 endpoint 自动 cwd 发送到新的 owning daemon。
 		workdir = terminalCreateDefaultWorkdirForEndpoint(root, endpointID)
 	}
-	tags, err := parseTerminalTagsInput(prompt.FieldRawValue("tags"))
-	if err != nil {
-		return TerminalPoolCreateRequestMsg{}, err
+	var tags map[string]string
+	if prompt.PublicTagList {
+		tags = state.ReplacePublicTerminalTags(nil, parseTerminalTagLabelsInput(prompt.FieldRawValue("tags")))
+	} else {
+		var err error
+		tags, err = parseTerminalTagsInput(prompt.FieldRawValue("tags"))
+		if err != nil {
+			return TerminalPoolCreateRequestMsg{}, err
+		}
 	}
 	request := TerminalPoolCreateRequestMsg{EndpointID: endpointID, Title: name, Command: command, CWD: workdir, Tags: tags}
 	if prompt.Context == "floating" {
@@ -1087,6 +1104,20 @@ func terminalEditPrompt(item state.TerminalPoolPageItem) state.PromptState {
 	}
 }
 
+func terminalPickerEditPrompt(item state.TerminalPoolPageItem) state.PromptState {
+	prompt := terminalEditPrompt(item)
+	tags := strings.Join(state.PublicTerminalTagLabels(item.Tags), ", ")
+	prompt.PublicTagList = true
+	for index := range prompt.Fields {
+		if prompt.Fields[index].Key == "tags" {
+			prompt.Fields[index].Value = tags
+			prompt.Fields[index].Cursor = len([]rune(tags))
+			prompt.Fields[index].Placeholder = "production, backend"
+		}
+	}
+	return prompt
+}
+
 func terminalEditRequestFromPrompt(prompt state.PromptState) (TerminalPoolEditRequestMsg, error) {
 	name := strings.TrimSpace(prompt.FieldValue("name"))
 	if name == "" {
@@ -1103,10 +1134,14 @@ func terminalEditRequestFromPrompt(prompt state.PromptState) (TerminalPoolEditRe
 	}
 	tags := cloneStringMap(prompt.Tags)
 	if len(prompt.Fields) > 0 {
-		var err error
-		tags, err = parseTerminalTagsInput(prompt.FieldRawValue("tags"))
-		if err != nil {
-			return TerminalPoolEditRequestMsg{}, err
+		if prompt.PublicTagList {
+			tags = state.ReplacePublicTerminalTags(tags, parseTerminalTagLabelsInput(prompt.FieldRawValue("tags")))
+		} else {
+			var err error
+			tags, err = parseTerminalTagsInput(prompt.FieldRawValue("tags"))
+			if err != nil {
+				return TerminalPoolEditRequestMsg{}, err
+			}
 		}
 	}
 	return TerminalPoolEditRequestMsg{EndpointID: prompt.TargetEndpointID, TerminalID: prompt.TargetID, Title: name, Tags: tags}, nil
@@ -1127,6 +1162,26 @@ func parseTerminalTagsInput(value string) (map[string]string, error) {
 		tags[key] = strings.TrimSpace(tagValue)
 	}
 	return tags, nil
+}
+
+func parseTerminalTagLabelsInput(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	labels := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, entry := range strings.Split(value, ",") {
+		label := strings.TrimSpace(entry)
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		labels = append(labels, label)
+	}
+	return labels
 }
 
 func parsePromptCommand(value string) ([]string, error) {

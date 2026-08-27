@@ -25,6 +25,23 @@ func TestBackNavigationEscExitsOneLayerAtATime(t *testing.T) {
 	}
 }
 
+func TestBackNavigationEscLeavesPickerTagsBeforeClosingPicker(t *testing.T) {
+	runtime := NewInteractiveRuntime(
+		state.Root{Shell: state.DefaultShell().OpenTerminalPicker().OpenTerminalPickerTags()},
+		NewFakeTerminalHost(2), NewSyncEffectRunner(), LiveDeps{}, CopyModeDeps{},
+	)
+
+	postBackNavigationEsc(t, runtime)
+	overlay := runtime.State().Shell.ReadonlyDefaults().Overlay
+	if !overlay.Open || overlay.TerminalPickerView != state.TerminalPickerViewList {
+		t.Fatalf("first esc must return from tags to the picker list, overlay=%#v", overlay)
+	}
+	postBackNavigationEsc(t, runtime)
+	if runtime.State().Shell.ReadonlyDefaults().Overlay.Open {
+		t.Fatalf("second esc must close the terminal picker, overlay=%#v", runtime.State().Shell.Overlay)
+	}
+}
+
 func TestBackNavigationPriorityPreservesUnderlyingCopyAndStickyState(t *testing.T) {
 	root := state.Root{
 		Shell: state.DefaultShell().SetInteractionMode(state.InteractionModePane).OpenHelp("most-used"),

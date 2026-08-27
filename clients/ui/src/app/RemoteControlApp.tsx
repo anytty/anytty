@@ -228,7 +228,11 @@ export interface RemoteControlAppProps {
   onRefreshMachines?: (() => Promise<void>) | undefined
   nativeNetworkStatusPlugin?: NativeNetworkStatusPlugin | undefined
   phoneOnline?: boolean | undefined
+  directReachableMachineIds?: ReadonlySet<string> | undefined
+  directCheckingMachineIds?: ReadonlySet<string> | undefined
+  /** @deprecated Use directReachableMachineIds. */
   locallyDiscoveredMachineIds?: ReadonlySet<string> | undefined
+  /** @deprecated Use directCheckingMachineIds. */
   locallyDiscoveringMachineIds?: ReadonlySet<string> | undefined
   cloudPresenceByMachineId?: ReadonlyMap<string, CloudPresenceInput> | undefined
   connectionState?: AppConnectionState | undefined
@@ -251,6 +255,8 @@ export function RemoteControlApp({
   onRefreshMachines,
   nativeNetworkStatusPlugin,
   phoneOnline: phoneOnlineProp,
+  directReachableMachineIds,
+  directCheckingMachineIds,
   locallyDiscoveredMachineIds,
   locallyDiscoveringMachineIds,
   cloudPresenceByMachineId,
@@ -265,6 +271,8 @@ export function RemoteControlApp({
   const { t } = useTranslation()
   const networkRuntime = networkRuntimeProp ?? unavailableNetworkRuntime
   const storage = storageProp ?? networkRuntime.storage
+  const nativeDirectReachableMachineIds = directReachableMachineIds ?? locallyDiscoveredMachineIds
+  const nativeDirectCheckingMachineIds = directCheckingMachineIds ?? locallyDiscoveringMachineIds
   const [view, setView] = useState<AppView>('home')
   const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>(() => readTerminalSettings(storage))
   const [appTheme, setAppTheme] = useState<AppTheme>(() => (
@@ -455,10 +463,10 @@ export function RemoteControlApp({
     const map = new Map<string, DisplayMachine>()
     for (const local of localMachines) {
       const reachability = localHubReachability.get(local.machineId)
-      const locallyDiscovered = locallyDiscoveredMachineIds?.has(local.machineId) ?? false
-      const locallyDiscovering = locallyDiscoveringMachineIds?.has(local.machineId) ?? false
-      const nativeDiscoveryManaged = locallyDiscoveredMachineIds !== undefined || locallyDiscoveringMachineIds !== undefined
-      const localOnline = locallyDiscovered || (reachability ? localMachineOnline(local, reachability) : !nativeDiscoveryManaged && localMachineOnline(local, reachability))
+      const directReachable = nativeDirectReachableMachineIds?.has(local.machineId) ?? false
+      const directChecking = nativeDirectCheckingMachineIds?.has(local.machineId) ?? false
+      const nativeDirectManaged = nativeDirectReachableMachineIds !== undefined || nativeDirectCheckingMachineIds !== undefined
+      const localOnline = directReachable || (reachability ? localMachineOnline(local, reachability) : !nativeDirectManaged && localMachineOnline(local, reachability))
       const canonicalName = userFacingMachineName(local.machineId, local.name, local.hostname, t)
       const cloudPresence = normalizeCloudPresence(cloudPresenceByMachineId?.get(local.machineId), local.machineId)
       map.set(local.machineId, {
@@ -480,9 +488,9 @@ export function RemoteControlApp({
         cloudPresence,
         reachability: machineReachabilityView({
           cloud: cloudPresenceReachability(cloudPresence),
-          locallyDiscovered,
-          locallyDiscovering,
-          localDiscoveryManaged: nativeDiscoveryManaged,
+          directReachable,
+          directChecking,
+          nativeDirectManaged,
           hasLocalTargets: localHubReachabilityTargets.some((target) => target.machineId === local.machineId),
           localOnline,
           snapshot: reachability,
@@ -492,7 +500,7 @@ export function RemoteControlApp({
       })
     }
     return Array.from(map.values())
-  }, [cloudPresenceByMachineId, localHubReachability, localHubReachabilityTargets, localMachines, locallyDiscoveredMachineIds, locallyDiscoveringMachineIds, t])
+  }, [cloudPresenceByMachineId, localHubReachability, localHubReachabilityTargets, localMachines, nativeDirectCheckingMachineIds, nativeDirectReachableMachineIds, t])
 
   const selectedMachine = displayMachines.find((machine) => machine.id === selectedMachineId) ?? null
   const terminalSwitcherMachines = useMemo<MachineWorkspaceSwitcherMachine[]>(() => displayMachines
@@ -3153,20 +3161,20 @@ function localMachineOnline(
 function machineReachabilityView(input: {
   cloud: ReachabilityState
   hasLocalTargets: boolean
-  localDiscoveryManaged: boolean
-  locallyDiscovered: boolean
-  locallyDiscovering: boolean
+  nativeDirectManaged: boolean
+  directReachable: boolean
+  directChecking: boolean
   localOnline: boolean
   snapshot?: LocalHubReachabilitySnapshot | undefined
 }): MachineReachabilityView {
   return {
     cloud: input.cloud,
-    local: input.locallyDiscovered
+    local: input.directReachable
       ? 'online'
-      : input.locallyDiscovering
+      : input.directChecking
       ? 'checking'
-      : input.localDiscoveryManaged
-      ? 'offline'
+      : input.nativeDirectManaged
+      ? 'unknown'
       : input.snapshot
       ? input.localOnline ? 'online' : 'offline'
       : input.hasLocalTargets ? 'checking' : 'unknown',

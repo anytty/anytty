@@ -40,6 +40,7 @@ export interface NativeConnectionPlugin extends Plugin {
   getBridgeEndpoint(): Promise<NativeBridgeEndpoint>
   replaceSessionDemand(input: { endpointIds: string[] }): Promise<NativeSessionDemandResult>
   isLocalEndpointDiscovered(input: { deviceId: string; fingerprint: string }): Promise<{ discovered: boolean }>
+  isDirectRouteReachable(input: { routeProtoBase64: string }): Promise<{ reachable: boolean }>
 }
 
 export const NativeConnection = registerPlugin<NativeConnectionPlugin>('NativeConnection')

@@ -247,7 +247,9 @@ func measureOverlay(overlay OverlayVM, viewport Rect) Rect {
 		return Rect{}
 	}
 	switch overlay.Content.Kind {
-	case ContentTerminalPicker, ContentPrompt:
+	case ContentTerminalPicker:
+		return measureTerminalPickerOverlay(overlay.Content, viewport, overlay.Picker)
+	case ContentPrompt:
 		return measureCompactOverlay(overlay.Content, viewport)
 	case ContentClipboardHistory:
 		return measureClipboardHistoryOverlay(overlay.Content, viewport)
@@ -264,7 +266,7 @@ func measureOverlayContentRect(overlay OverlayVM, rect Rect) Rect {
 		return Rect{}
 	}
 	if overlay.Content.Kind == ContentTerminalPicker {
-		padX, padY := compactOverlayPadding(rect)
+		padX, padY := terminalPickerOverlayPadding(rect, overlay.Picker)
 		return Rect{X: rect.X + padX, Y: rect.Y + padY, W: maxInt(0, rect.W-padX*2), H: maxInt(0, rect.H-padY*2)}
 	}
 	if overlay.Content.Kind == ContentClipboardHistory {
