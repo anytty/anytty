@@ -898,7 +898,10 @@ func (runtime *Runtime) refreshBindingRequest(ctx context.Context, measurements 
 	if err != nil {
 		return nil, err
 	}
-	updated := EnrollmentRecord{Version: recordVersion, DaemonID: record.DaemonID, AccountID: record.AccountID, DaemonBinding: binding, EdgeLocator: locatorPayload, EnrolledAt: record.EnrolledAt}
+	updated := EnrollmentRecord{
+		Version: recordVersion, DaemonID: record.DaemonID, AccountID: record.AccountID, DisplayName: daemon.GetDisplayName(),
+		DaemonBinding: binding, EdgeLocator: locatorPayload, EnrolledAt: record.EnrolledAt,
+	}
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -983,6 +986,10 @@ func markEdgeMeasurementUnreachable(measurements []*cloudv1.DaemonEdgeMeasuremen
 }
 
 func (runtime *Runtime) probeEdges(ctx context.Context, candidates []*cloudv1.DaemonEdgeCandidate) []*cloudv1.DaemonEdgeMeasurement {
+	return probeEdgeCandidates(ctx, candidates)
+}
+
+func probeEdgeCandidates(ctx context.Context, candidates []*cloudv1.DaemonEdgeCandidate) []*cloudv1.DaemonEdgeMeasurement {
 	result := make([]*cloudv1.DaemonEdgeMeasurement, len(candidates))
 	var workers sync.WaitGroup
 	limit := make(chan struct{}, 4)
@@ -1095,11 +1102,22 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
-	proof, err := remoteauth.SignDeviceIdentityProof(identity, challenge.GetChallenge())
+	identityChallenge := challenge.GetIdentityChallenge()
+	if identityChallenge == nil || len(challenge.GetEdgeCandidates()) == 0 {
+		return EnrollmentRecord{}, errors.New("daemon enrollment challenge has no Edge candidates")
+	}
+	measurements := probeEdgeCandidates(ctx, challenge.GetEdgeCandidates())
+	if len(measurements) != len(challenge.GetEdgeCandidates()) {
+		if err := ctx.Err(); err != nil {
+			return EnrollmentRecord{}, err
+		}
+		return EnrollmentRecord{}, errors.New("daemon enrollment could not measure every Edge candidate")
+	}
+	proof, err := remoteauth.SignDeviceIdentityProof(identity, identityChallenge.GetChallenge())
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
-	completed, err := client.CompleteDaemonEnrollment(ctx, &cloudv1.CompleteDaemonEnrollmentRequest{ChallengeId: challenge.GetChallengeId(), DeviceProof: proof})
+	completed, err := client.CompleteDaemonEnrollment(ctx, &cloudv1.CompleteDaemonEnrollmentRequest{ChallengeId: identityChallenge.GetChallengeId(), DeviceProof: proof, EdgeMeasurements: measurements})
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
@@ -1114,10 +1132,15 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
-	return EnrollmentRecord{
-		Version: recordVersion, DaemonID: completed.GetDaemon().GetDaemonId(), AccountID: completed.GetDaemon().GetAccountId(), DaemonBinding: binding, EdgeLocator: locator, EnrolledAt: time.Now().UTC(),
+	record := EnrollmentRecord{
+		Version: recordVersion, DaemonID: completed.GetDaemon().GetDaemonId(), AccountID: completed.GetDaemon().GetAccountId(), DisplayName: completed.GetDaemon().GetDisplayName(),
+		DaemonBinding: binding, EdgeLocator: locator, EnrolledAt: time.Now().UTC(),
 		DaemonCount: completed.GetDaemonCount(), DaemonLimit: completed.GetDaemonLimit(),
-	}, nil
+	}
+	if err := record.Validate(); err != nil {
+		return EnrollmentRecord{}, err
+	}
+	return record, nil
 }
 
 // EnrollLocal 加载 daemon 已有 DeviceIdentity、完成注册并原子保存最小 Cloud record。

@@ -141,7 +141,7 @@ func (service *cloudEdgeListE2EEnrollmentService) CompleteDaemonBindingRefresh(_
 	}
 	return &cloudv1.RefreshDaemonBindingResponse{
 		Daemon: &cloudv1.DaemonRecord{
-			DaemonId: service.daemonID, AccountId: service.accountID, DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint,
+			DaemonId: service.daemonID, AccountId: service.accountID, DisplayName: "Edge list Mac", DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint,
 			State: cloudv1.DaemonState_DAEMON_STATE_ACTIVE, StateRevision: 1,
 		},
 		DaemonBinding: binding, EdgeLocator: proto.Clone(service.locator).(*cloudv1.EdgeLocator), EdgeSelection: selection,
@@ -287,7 +287,7 @@ func cloudEdgeListE2ERecord(t *testing.T, daemonID, accountID string, identity r
 		t.Fatal(err)
 	}
 	return clouddaemon.EnrollmentRecord{
-		Version: 2, DaemonID: daemonID, AccountID: accountID, DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC(),
+		Version: 3, DaemonID: daemonID, AccountID: accountID, DisplayName: "Edge list Mac", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC(),
 	}
 }
 

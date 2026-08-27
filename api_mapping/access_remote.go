@@ -36,8 +36,8 @@ func ValidateAccessRemoteCommand(command *apipb.CommandEnvelope) error {
 		return nil
 	case *apipb.CommandEnvelope_ClientAccessTicketCreate:
 		request := value.ClientAccessTicketCreate.GetRequest()
-		if request == nil || request.GetLabel() == "" || request.GetScope() == nil {
-			return validation("client_access_ticket_create.request", "label and scope are required")
+		if request == nil || request.GetScope() == nil {
+			return validation("client_access_ticket_create.request", "scope is required")
 		}
 		if request.GetTicketTtlSeconds() <= 0 || request.GetTicketTtlSeconds() > maxPairingTicketLifetimeSeconds || request.GetGrantLifetimeSeconds() < 0 || request.GetGrantLifetimeSeconds() > maxClientGrantLifetimeSeconds {
 			return validation("client_access_ticket_create.request", "ticket lifetime must be between one second and seven days; grant lifetime must be zero or at most one year")

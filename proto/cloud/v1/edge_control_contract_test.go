@@ -236,6 +236,15 @@ func TestEnrollmentAndDirectoryExcludeRemovedHotPathRPCs(t *testing.T) {
 		enrollment.Methods().ByName("BeginDaemonBindingRefresh") == nil || enrollment.Methods().ByName("CompleteDaemonBindingRefresh") == nil {
 		t.Fatalf("EnrollmentService methods = %v", enrollment)
 	}
+	begin := enrollment.Methods().ByName("BeginDaemonEnrollment")
+	challenge := (&DaemonEnrollmentChallenge{}).ProtoReflect().Descriptor()
+	if begin.Output() != challenge || challenge.Fields().ByName("identity_challenge") == nil || challenge.Fields().ByName("edge_candidates") == nil {
+		t.Fatalf("BeginDaemonEnrollment output = %v", begin.Output())
+	}
+	complete := enrollment.Methods().ByName("CompleteDaemonEnrollment")
+	if field := complete.Input().Fields().ByName("edge_measurements"); field == nil || field.Number() != 3 || !field.IsList() {
+		t.Fatalf("CompleteDaemonEnrollment.edge_measurements = %v", field)
+	}
 	directory := File_cloud_v1_directory_proto.Services().ByName("DirectoryService")
 	if directory == nil || directory.Methods().Len() != 2 || directory.Methods().ByName("BeginClientRoute") == nil || directory.Methods().ByName("ResolveClientRoute") == nil {
 		t.Fatalf("DirectoryService methods = %v", directory)

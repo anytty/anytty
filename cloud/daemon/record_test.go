@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestEnrollmentRecordV2RoundTripsAndRejectsV1(t *testing.T) {
+func TestEnrollmentRecordV3RoundTripsAndRejectsV2(t *testing.T) {
 	locatorPayload, err := proto.Marshal(&cloudv1.EdgeLocator{EdgeId: "edge-1", PublicEndpoint: "edge.example:443", ServerName: "edge.example", CaCertificatePem: []byte("ca")})
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestEnrollmentRecordV2RoundTripsAndRejectsV1(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "cloud-enrollment.json")
-	record := EnrollmentRecord{DaemonID: "daemon-1", AccountID: "account-1", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC()}
+	record := EnrollmentRecord{DaemonID: "daemon-1", AccountID: "account-1", DisplayName: "Office Mac", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC()}
 	if err := SaveRecord(path, record); err != nil {
 		t.Fatal(err)
 	}
@@ -40,10 +40,10 @@ func TestEnrollmentRecordV2RoundTripsAndRejectsV1(t *testing.T) {
 	if err := tampered.Validate(); err == nil {
 		t.Fatal("record accepted an Edge locator not covered by the daemon binding")
 	}
-	if err := os.WriteFile(path, []byte(`{"version":1,"daemon_id":"daemon-1","account_id":"account-1","daemon_binding":"","edge_locator":"","enrolled_at":"2026-07-29T00:00:00Z"}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"version":2,"daemon_id":"daemon-1","account_id":"account-1","daemon_binding":"","edge_locator":"","enrolled_at":"2026-07-29T00:00:00Z"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := LoadRecord(path); err == nil {
-		t.Fatal("v1 enrollment record was accepted")
+		t.Fatal("v2 enrollment record was accepted")
 	}
 }

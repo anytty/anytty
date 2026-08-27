@@ -38,6 +38,18 @@ func TestClientAccessOwnerLabelRoundTripsThroughAPIMapping(t *testing.T) {
 	}
 }
 
+func TestValidateClientAccessTicketAllowsDaemonDefaultLabel(t *testing.T) {
+	command := &apipb.CommandEnvelope{
+		Context: terminalRequestContext("default-label"),
+		Command: &apipb.CommandEnvelope_ClientAccessTicketCreate{ClientAccessTicketCreate: &apipb.ClientAccessTicketCreateCommand{Request: &remoteauthpb.ClientAccessTicketCreateRequest{
+			Scope: &remoteauthpb.ClientAccessScope{AllowDaemon: true}, TicketTtlSeconds: 60,
+		}}},
+	}
+	if err := ValidateAccessRemoteCommand(command); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRemoteLocalPasswordStateRoundTripsThroughAPIMapping(t *testing.T) {
 	password := []byte("correct horse battery staple")
 	request := RemoteLocalEnableRequestFromProto(&apipb.RemoteLocalEnableCommand{

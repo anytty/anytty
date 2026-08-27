@@ -153,11 +153,6 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 			}
 			defer client.Close()
 			label = strings.TrimSpace(label)
-			if label == "" {
-				if hostname, hostnameErr := v3PairHostname(); hostnameErr == nil {
-					label = strings.TrimSpace(hostname)
-				}
-			}
 			scope := remoteauth.FullDaemonScope()
 			if terminalID = strings.TrimSpace(terminalID); terminalID != "" {
 				terminalID, err = localPairTerminalID(terminalID)
@@ -484,9 +479,6 @@ func v3PairImportCommand() *cobra.Command {
 			}
 			id := endpointdomain.EndpointID(strings.TrimSpace(endpointID))
 			endpointLabel := strings.TrimSpace(label)
-			if endpointLabel == "" {
-				endpointLabel = string(id)
-			}
 			var endpoint endpointdomain.Endpoint
 			var credential remoteauth.ClientAccessCredential
 			_, err = updateV3ConnectionRegistry(cmd.Context(), registryPath, true, func(registry endpointdomain.Registry) (endpointdomain.Registry, error) {

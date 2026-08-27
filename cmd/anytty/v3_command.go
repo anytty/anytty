@@ -120,7 +120,7 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 			return err
 		}
 		defer releaseRecord()
-		accessService := v3ClientAccessService{identity: clientAccess.Identity, store: clientAccess.Store}
+		accessService := v3ClientAccessService{identity: clientAccess.Identity, store: clientAccess.Store, defaultLabel: v3DefaultPairingLabel}
 		historyEnabled := !envBool("ANYTTY_HISTORY_DISABLE")
 		if historyEnabled {
 			removed, err := corev2.DeleteObsoleteCompactHistory(resolveV3ObsoleteCompactHistoryDir())

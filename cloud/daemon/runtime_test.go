@@ -75,6 +75,31 @@ func TestProbeEdgesProbesPreferredIneligibleCandidate(t *testing.T) {
 	}
 }
 
+func TestEnrollMeasuresAdvertisedEdgesBeforeCompletion(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := remoteauth.NewIdentity("enrollment-probe-device", privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge := startDaemonTestAgentGatewayWithHealth(t, &daemonTestAgentGateway{})
+	service := &daemonEnrollmentProbeService{identity: identity, challenge: bytes.Repeat([]byte{0x72}, remoteauth.DeviceIdentityChallengeBytes), edge: edge}
+	controller := startDaemonTestEnrollmentService(t, service)
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(controller.GetCaCertificatePem()) {
+		t.Fatal("append Controller test CA")
+	}
+	record, err := Enroll(context.Background(), controller.GetPublicEndpoint(), controller.GetServerName(), "mxe_probe", &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: controller.GetServerName()}, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !service.measured || record.DaemonID != "daemon-enrollment-probe" || record.DisplayName != "China Mac" {
+		t.Fatalf("enrollment record=%+v measured=%v", record, service.measured)
+	}
+}
+
 func TestRetryJitterDelayStaysWithinBackoffWindow(t *testing.T) {
 	const delay = 10 * time.Second
 	for range 100 {
@@ -489,6 +514,40 @@ type daemonFailoverEnrollmentService struct {
 	proofVerified, selectedHealthyEdge atomic.Bool
 }
 
+type daemonEnrollmentProbeService struct {
+	cloudv1.UnimplementedEnrollmentServiceServer
+	identity  remoteauth.Identity
+	challenge []byte
+	edge      *cloudv1.EdgeLocator
+	measured  bool
+}
+
+func (service *daemonEnrollmentProbeService) BeginDaemonEnrollment(context.Context, *cloudv1.BeginDaemonEnrollmentRequest) (*cloudv1.DaemonEnrollmentChallenge, error) {
+	return &cloudv1.DaemonEnrollmentChallenge{
+		IdentityChallenge: &cloudv1.IdentityChallenge{ChallengeId: "enrollment-probe-challenge", Challenge: append([]byte(nil), service.challenge...), ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))},
+		EdgeCandidates:    []*cloudv1.DaemonEdgeCandidate{{Locator: proto.Clone(service.edge).(*cloudv1.EdgeLocator), Online: true, Eligible: true}},
+	}, nil
+}
+
+func (service *daemonEnrollmentProbeService) CompleteDaemonEnrollment(_ context.Context, request *cloudv1.CompleteDaemonEnrollmentRequest) (*cloudv1.CompleteDaemonEnrollmentResponse, error) {
+	if request.GetChallengeId() != "enrollment-probe-challenge" || remoteauth.VerifyDeviceIdentityProof(service.challenge, service.identity.DeviceID, service.identity.Fingerprint, service.identity.PublicKey, request.GetDeviceProof()) != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid enrollment probe proof")
+	}
+	measurements := request.GetEdgeMeasurements()
+	if len(measurements) != 1 || measurements[0].GetEdgeId() != service.edge.GetEdgeId() || !measurements[0].GetReachable() || measurements[0].GetSampleCount() != 3 {
+		return nil, status.Error(codes.InvalidArgument, "enrollment probe measurement is incomplete")
+	}
+	service.measured = true
+	binding, err := daemonBindingEnvelopeForService("daemon-enrollment-probe", "account-enrollment-probe", service.identity, service.edge)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &cloudv1.CompleteDaemonEnrollmentResponse{
+		Daemon:        &cloudv1.DaemonRecord{DaemonId: "daemon-enrollment-probe", AccountId: "account-enrollment-probe", DisplayName: "China Mac", DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint},
+		DaemonBinding: binding, EdgeLocator: proto.Clone(service.edge).(*cloudv1.EdgeLocator),
+	}, nil
+}
+
 func (service *daemonFailoverEnrollmentService) BeginDaemonBindingRefresh(context.Context, *cloudv1.BeginDaemonBindingRefreshRequest) (*cloudv1.IdentityChallenge, error) {
 	return &cloudv1.IdentityChallenge{ChallengeId: "failover-challenge", Challenge: append([]byte(nil), service.challenge...), ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}, nil
 }
@@ -516,7 +575,7 @@ func (service *daemonFailoverEnrollmentService) CompleteDaemonBindingRefresh(_ c
 	}
 	response := &cloudv1.RefreshDaemonBindingResponse{
 		Daemon: &cloudv1.DaemonRecord{
-			DaemonId: service.daemonID, AccountId: service.accountID, DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint,
+			DaemonId: service.daemonID, AccountId: service.accountID, DisplayName: "Failover Mac", DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint,
 			State: cloudv1.DaemonState_DAEMON_STATE_ACTIVE, StateRevision: 1,
 		},
 		DaemonBinding: binding, EdgeLocator: proto.Clone(locator).(*cloudv1.EdgeLocator),
@@ -547,7 +606,7 @@ func daemonRefreshResponse(t *testing.T, daemonID, accountID string, identity re
 	t.Helper()
 	binding := daemonBindingEnvelope(t, daemonID, accountID, identity, locator)
 	return &cloudv1.RefreshDaemonBindingResponse{
-		Daemon:        &cloudv1.DaemonRecord{DaemonId: daemonID, AccountId: accountID, DeviceId: identity.DeviceID, DeviceFingerprint: identity.Fingerprint, State: state, StateRevision: revision},
+		Daemon:        &cloudv1.DaemonRecord{DaemonId: daemonID, AccountId: accountID, DisplayName: "Office Mac", DeviceId: identity.DeviceID, DeviceFingerprint: identity.Fingerprint, State: state, StateRevision: revision},
 		DaemonBinding: binding, EdgeLocator: proto.Clone(locator).(*cloudv1.EdgeLocator),
 	}
 }
@@ -562,7 +621,7 @@ func daemonEnrollmentRecord(t *testing.T, daemonID, accountID string, identity r
 	if err != nil {
 		t.Fatal(err)
 	}
-	return EnrollmentRecord{Version: recordVersion, DaemonID: daemonID, AccountID: accountID, DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC()}
+	return EnrollmentRecord{Version: recordVersion, DaemonID: daemonID, AccountID: accountID, DisplayName: "Office Mac", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC()}
 }
 
 func daemonBindingEnvelope(t *testing.T, daemonID, accountID string, identity remoteauth.Identity, locator *cloudv1.EdgeLocator) *cloudv1.SignedEnvelope {

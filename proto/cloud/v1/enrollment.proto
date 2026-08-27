@@ -171,9 +171,15 @@ message IdentityChallenge {
   google.protobuf.Timestamp expires_at = 3;
 }
 
+message DaemonEnrollmentChallenge {
+  IdentityChallenge identity_challenge = 1;
+  repeated DaemonEdgeCandidate edge_candidates = 2;
+}
+
 message CompleteDaemonEnrollmentRequest {
   string challenge_id = 1;
   bytes device_proof = 2;
+  repeated DaemonEdgeMeasurement edge_measurements = 3;
 }
 
 // EdgeLocator 是 daemon 和已授权客户端可持久化的公开连接位置，不包含授权秘密。
@@ -220,7 +226,7 @@ message RefreshDaemonBindingResponse {
 
 // EnrollmentService 负责一次性注册，以及现有 DeviceIdentity 在 Edge 位置失效后的 binding 刷新。
 service EnrollmentService {
-  rpc BeginDaemonEnrollment(BeginDaemonEnrollmentRequest) returns (IdentityChallenge);
+  rpc BeginDaemonEnrollment(BeginDaemonEnrollmentRequest) returns (DaemonEnrollmentChallenge);
   rpc CompleteDaemonEnrollment(CompleteDaemonEnrollmentRequest) returns (CompleteDaemonEnrollmentResponse);
   rpc BeginDaemonBindingRefresh(BeginDaemonBindingRefreshRequest) returns (IdentityChallenge);
   rpc CompleteDaemonBindingRefresh(CompleteDaemonBindingRefreshRequest) returns (RefreshDaemonBindingResponse);

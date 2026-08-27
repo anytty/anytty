@@ -6,12 +6,14 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	clouddaemon "github.com/anytty/anytty/cloud/daemon"
 	corev2 "github.com/anytty/anytty/core"
 	"github.com/anytty/anytty/proto/remoteauthpb"
 	remotev2daemon "github.com/anytty/anytty/remote/daemon"
@@ -114,8 +116,20 @@ func startV3PairingListener(ctx context.Context, runtime v3ClientAccessRuntime, 
 }
 
 type v3ClientAccessService struct {
-	identity remoteauth.Identity
-	store    *remoteauth.AccessStore
+	identity     remoteauth.Identity
+	store        *remoteauth.AccessStore
+	defaultLabel func() string
+}
+
+func v3DefaultPairingLabel() string {
+	if record, err := clouddaemon.LoadRecord(v3CloudEnrollmentRecordPath()); err == nil {
+		return record.DisplayName
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(hostname)
 }
 
 // newEphemeralV3ClientAccessService 只为进程内 smoke harness 创建不落盘的 DeviceIdentity。
@@ -164,8 +178,15 @@ func (service v3ClientAccessService) CreateTicket(_ context.Context, request cor
 		}
 		routes = append(routes, route)
 	}
+	label := strings.TrimSpace(request.Label)
+	if label == "" && service.defaultLabel != nil {
+		label = strings.TrimSpace(service.defaultLabel())
+	}
+	if label == "" {
+		label = service.identity.DeviceID
+	}
 	issued, err := service.store.IssuePairingClaim(remoteauth.PairingIssueOptions{
-		Label: request.Label, AccessLabel: request.AccessLabel, Scope: remoteAuthScopeFromCore(request.Scope), TicketTTL: request.TicketTTL, GrantLifetime: request.GrantLifetime,
+		Label: label, AccessLabel: request.AccessLabel, Scope: remoteAuthScopeFromCore(request.Scope), TicketTTL: request.TicketTTL, GrantLifetime: request.GrantLifetime,
 		Routes: routes, Platform: runtime.GOOS,
 	})
 	if err != nil {

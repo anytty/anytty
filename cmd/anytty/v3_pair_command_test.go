@@ -77,6 +77,21 @@ func TestPairCreateAndImportUsesClaimThenClientBoundCredential(t *testing.T) {
 	}
 }
 
+func TestPairImportUsesBundleLabelWhenLabelFlagIsOmitted(t *testing.T) {
+	runtimeDir, _, configHome := configurePairCommandTest(t)
+	socket := filepath.Join(runtimeDir, "daemon.sock")
+	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Beijing Office Mac")
+	registryPath := filepath.Join(configHome, "anytty", endpointdomain.DefaultFileName)
+	executePairCommand(t, created, "pair", "import", "--id", "office", "--registry", registryPath, "--pair-socket", v3PairingSocketPath(socket), "-")
+	registry, err := endpointdomain.Load(registryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if endpoint := registry.Endpoints["office"]; endpoint.Label != "Beijing Office Mac" {
+		t.Fatalf("imported endpoint label = %q", endpoint.Label)
+	}
+}
+
 func TestPairImportAddsAdvertisedDirectRouteToExistingSSHEndpoint(t *testing.T) {
 	runtimeDir, _, configHome := configurePairCommandTest(t)
 	socket := filepath.Join(runtimeDir, "daemon.sock")

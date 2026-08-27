@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,8 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// defaultCloudControllerOrigin 是官方 AnyTTY Cloud API 域名，作为注册默认值内置。
-const defaultCloudControllerOrigin = "https://api.anytty.com"
+const defaultCloudConsoleOrigin = "https://cloud.anytty.com/app"
 
 func cloudCommand(socket, logFile, configPath *string) *cobra.Command {
 	command := &cobra.Command{Use: "cloud", Short: "Manage AnyTTY Cloud enrollment", Args: cobra.NoArgs}
@@ -425,11 +422,10 @@ func formatCloudTime(value time.Time) string {
 }
 
 func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
-	var controllerOrigin, controllerAddress, controllerServerName string
 	command := &cobra.Command{
 		Use: "enroll CODE", Short: "Enroll this daemon DeviceIdentity into AnyTTY Cloud", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			address, serverName, err := resolveController(controllerOrigin, controllerAddress, controllerServerName)
+			controller, err := cliCloudControllerEndpointFromEnvironment()
 			if err != nil {
 				return err
 			}
@@ -439,13 +435,13 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 				ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 			}
-			record, err := clouddaemon.EnrollLocal(ctx, address, serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath())
+			record, err := clouddaemon.EnrollLocal(ctx, controller.address, controller.serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath())
 			if err != nil {
 				if failure := cloudclient.EntitlementFailure(err); failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE {
-					return fmt.Errorf("AnyTTY Cloud subscription is inactive; ask the account owner to manage it at %s/subscription", strings.TrimRight(controllerOrigin, "/"))
+					return fmt.Errorf("AnyTTY Cloud subscription is inactive; ask the account owner to manage it at %s/subscription", defaultCloudConsoleOrigin)
 				}
 				if status.Code(err) == codes.ResourceExhausted && strings.Contains(status.Convert(err).Message(), "cloud_daemon_limit_exhausted") {
-					return fmt.Errorf("Cloud daemon limit reached; upgrade the plan or permanently delete an unused daemon at %s/devices", strings.TrimRight(controllerOrigin, "/"))
+					return fmt.Errorf("Cloud daemon limit reached; upgrade the plan or permanently delete an unused daemon at %s/devices", defaultCloudConsoleOrigin)
 				}
 				return fmt.Errorf("enroll daemon in AnyTTY Cloud: %w", err)
 			}
@@ -460,39 +456,12 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment complete: daemon=%s account=%s\n", record.DaemonID, record.AccountID)
 			if record.DaemonLimit > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "Registered daemon capacity: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, strings.TrimRight(controllerOrigin, "/"))
+				fmt.Fprintf(cmd.OutOrStdout(), "Registered daemon capacity: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, defaultCloudConsoleOrigin)
 			}
 			return nil
 		},
 	}
-	command.Flags().StringVar(&controllerOrigin, "controller", defaultCloudControllerOrigin, "Controller HTTPS origin (built-in default; override for self-hosted controllers)")
-	command.Flags().StringVar(&controllerAddress, "controller-address", "", "Controller gRPC address override")
-	command.Flags().StringVar(&controllerServerName, "controller-server-name", "", "Controller TLS server name override")
 	return command
-}
-
-func resolveController(origin, addressOverride, serverOverride string) (string, string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(origin))
-	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.Path != "" {
-		return "", "", fmt.Errorf("controller must be an HTTPS origin")
-	}
-	serverName := strings.TrimSpace(serverOverride)
-	if serverName == "" {
-		serverName = parsed.Hostname()
-	}
-	address := strings.TrimSpace(addressOverride)
-	if address == "" {
-		port := parsed.Port()
-		if port == "" && parsed.Hostname() == defaultCloudControllerServerName {
-			address = defaultCloudControllerAddress
-		} else {
-			if port == "" {
-				port = "443"
-			}
-			address = net.JoinHostPort(parsed.Hostname(), port)
-		}
-	}
-	return address, serverName, nil
 }
 
 func v3CloudEnrollmentRecordPath() string {

@@ -63,13 +63,13 @@ func TestWriteCloudEdgeSelectionIncludesScore(t *testing.T) {
 	}
 }
 
-func TestResolveOfficialControllerUsesPublicHTTPSPort(t *testing.T) {
-	address, serverName, err := resolveController("https://cloud.anytty.com", "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if address != "cloud.anytty.com:443" || serverName != "cloud.anytty.com" {
-		t.Fatalf("official controller = %s / %s", address, serverName)
+func TestCloudEnrollDoesNotExposeControllerFlags(t *testing.T) {
+	var socket, logFile, configPath string
+	command := cloudEnrollCommand(&socket, &logFile, &configPath)
+	for _, name := range []string{"controller", "controller-address", "controller-server-name"} {
+		if command.Flags().Lookup(name) != nil {
+			t.Fatalf("cloud enroll still exposes --%s", name)
+		}
 	}
 }
 

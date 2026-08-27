@@ -16,7 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const recordVersion = 2
+const recordVersion = 3
 
 // EnrollmentRecord 是 daemon 唯一允许持久化的 Cloud 状态。
 // 它不包含 Controller runtime locator、Presence、session 或任何私钥。
@@ -24,6 +24,7 @@ type EnrollmentRecord struct {
 	Version       int       `json:"version"`
 	DaemonID      string    `json:"daemon_id"`
 	AccountID     string    `json:"account_id"`
+	DisplayName   string    `json:"display_name"`
 	DaemonBinding []byte    `json:"daemon_binding"`
 	EdgeLocator   []byte    `json:"edge_locator"`
 	EnrolledAt    time.Time `json:"enrolled_at"`
@@ -31,9 +32,11 @@ type EnrollmentRecord struct {
 	DaemonLimit   uint32    `json:"-"`
 }
 
-// Validate 校验 v2 record，并拒绝旧字段、损坏 protobuf 和 binding/locator 身份错配。
+// Validate 校验 v3 record，并拒绝旧字段、损坏 protobuf 和 binding/locator 身份错配。
 func (record EnrollmentRecord) Validate() error {
-	if record.Version != recordVersion || strings.TrimSpace(record.DaemonID) == "" || strings.TrimSpace(record.AccountID) == "" || len(record.DaemonBinding) == 0 || len(record.EdgeLocator) == 0 || record.EnrolledAt.IsZero() {
+	if record.Version != recordVersion || strings.TrimSpace(record.DaemonID) == "" || strings.TrimSpace(record.AccountID) == "" ||
+		strings.TrimSpace(record.DisplayName) == "" || strings.TrimSpace(record.DisplayName) != record.DisplayName || len(record.DisplayName) > 128 ||
+		len(record.DaemonBinding) == 0 || len(record.EdgeLocator) == 0 || record.EnrolledAt.IsZero() {
 		return errors.New("Cloud enrollment record is incomplete or unsupported")
 	}
 	binding := &cloudv1.SignedEnvelope{}
