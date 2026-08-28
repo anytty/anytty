@@ -68,7 +68,7 @@ func ValidateAccessRemoteCommand(command *apipb.CommandEnvelope) error {
 func RemoteCloudEdgeSelectionToProto(selection corev2.RemoteCloudEdgeSelection) *apipb.RemoteCloudEdgesResult {
 	projected := &cloudv1.DaemonEdgeSelection{DaemonId: selection.DaemonID, PreferredEdgeId: selection.PreferredEdgeID, PreferenceRevision: selection.PreferenceRevision, CurrentEdgeId: selection.CurrentEdgeID, SelectedEdgeId: selection.SelectedEdgeID, EvaluatedAt: timestamppb.New(selection.EvaluatedAt), Candidates: make([]*cloudv1.DaemonEdgeCandidate, 0, len(selection.Candidates))}
 	for _, candidate := range selection.Candidates {
-		value := &cloudv1.DaemonEdgeCandidate{Locator: &cloudv1.EdgeLocator{EdgeId: candidate.EdgeID, Name: candidate.Name, Region: candidate.Region, PublicEndpoint: candidate.PublicEndpoint}, Online: candidate.Online, Eligible: candidate.Eligible, AgentCount: candidate.AgentCount, Capacity: candidate.Capacity, Preferred: candidate.Preferred, Current: candidate.Current, Score: candidate.Score, Status: candidate.Status}
+		value := &cloudv1.DaemonEdgeCandidate{Locator: &cloudv1.EdgeLocator{EdgeId: candidate.EdgeID, Name: candidate.Name, Region: candidate.Region, PublicEndpoint: candidate.PublicEndpoint}, Online: candidate.Online, Eligible: candidate.Eligible, Preferred: candidate.Preferred, Current: candidate.Current, Score: candidate.Score, Status: candidate.Status}
 		if measurement := candidate.Measurement; measurement != nil {
 			value.Measurement = &cloudv1.DaemonEdgeMeasurement{EdgeId: candidate.EdgeID, Reachable: measurement.Reachable, ConnectLatencyMs: measurement.ConnectLatencyMS, ConnectionFailureRate: measurement.ConnectionFailureRate, SampleCount: measurement.SampleCount, MeasuredAt: timestamppb.New(measurement.MeasuredAt)}
 		}

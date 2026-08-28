@@ -59,7 +59,6 @@ type RemoteCloudEdgeMeasurement struct {
 type RemoteCloudEdgeCandidate struct {
 	EdgeID, Name, Region, PublicEndpoint, Status string
 	Online, Eligible, Preferred, Current         bool
-	AgentCount, Capacity                         uint64
 	Score                                        float64
 	Measurement                                  *RemoteCloudEdgeMeasurement
 }

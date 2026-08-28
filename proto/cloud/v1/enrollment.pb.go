@@ -522,8 +522,6 @@ type DaemonEdgeCandidate struct {
 	Locator       *EdgeLocator           `protobuf:"bytes,1,opt,name=locator,proto3" json:"locator,omitempty"`
 	Online        bool                   `protobuf:"varint,2,opt,name=online,proto3" json:"online,omitempty"`
 	Eligible      bool                   `protobuf:"varint,3,opt,name=eligible,proto3" json:"eligible,omitempty"`
-	AgentCount    uint64                 `protobuf:"varint,4,opt,name=agent_count,json=agentCount,proto3" json:"agent_count,omitempty"`
-	Capacity      uint64                 `protobuf:"varint,5,opt,name=capacity,proto3" json:"capacity,omitempty"`
 	Preferred     bool                   `protobuf:"varint,6,opt,name=preferred,proto3" json:"preferred,omitempty"`
 	Current       bool                   `protobuf:"varint,7,opt,name=current,proto3" json:"current,omitempty"`
 	Measurement   *DaemonEdgeMeasurement `protobuf:"bytes,8,opt,name=measurement,proto3" json:"measurement,omitempty"`
@@ -582,20 +580,6 @@ func (x *DaemonEdgeCandidate) GetEligible() bool {
 		return x.Eligible
 	}
 	return false
-}
-
-func (x *DaemonEdgeCandidate) GetAgentCount() uint64 {
-	if x != nil {
-		return x.AgentCount
-	}
-	return 0
-}
-
-func (x *DaemonEdgeCandidate) GetCapacity() uint64 {
-	if x != nil {
-		return x.Capacity
-	}
-	return 0
 }
 
 func (x *DaemonEdgeCandidate) GetPreferred() bool {
@@ -1902,6 +1886,7 @@ type CompleteDaemonEnrollmentResponse struct {
 	EdgeLocator   *EdgeLocator           `protobuf:"bytes,3,opt,name=edge_locator,json=edgeLocator,proto3" json:"edge_locator,omitempty"`
 	DaemonCount   uint32                 `protobuf:"varint,4,opt,name=daemon_count,json=daemonCount,proto3" json:"daemon_count,omitempty"`
 	DaemonLimit   uint32                 `protobuf:"varint,5,opt,name=daemon_limit,json=daemonLimit,proto3" json:"daemon_limit,omitempty"`
+	EdgeSelection *DaemonEdgeSelection   `protobuf:"bytes,6,opt,name=edge_selection,json=edgeSelection,proto3" json:"edge_selection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1969,6 +1954,13 @@ func (x *CompleteDaemonEnrollmentResponse) GetDaemonLimit() uint32 {
 		return x.DaemonLimit
 	}
 	return 0
+}
+
+func (x *CompleteDaemonEnrollmentResponse) GetEdgeSelection() *DaemonEdgeSelection {
+	if x != nil {
+		return x.EdgeSelection
+	}
+	return nil
 }
 
 // BeginDaemonBindingRefreshRequest 只标识现有 daemon；身份和 Edge 选择都由 Controller 的当前真值决定。
@@ -2219,20 +2211,17 @@ const file_cloud_v1_enrollment_proto_rawDesc = "" +
 	"\x17connection_failure_rate\x18\x04 \x01(\x01R\x15connectionFailureRate\x12!\n" +
 	"\fsample_count\x18\x05 \x01(\rR\vsampleCount\x12;\n" +
 	"\vmeasured_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"measuredAt\"\xee\x02\n" +
+	"measuredAt\"\xd4\x02\n" +
 	"\x13DaemonEdgeCandidate\x126\n" +
 	"\alocator\x18\x01 \x01(\v2\x1c.anytty.cloud.v1.EdgeLocatorR\alocator\x12\x16\n" +
 	"\x06online\x18\x02 \x01(\bR\x06online\x12\x1a\n" +
-	"\beligible\x18\x03 \x01(\bR\beligible\x12\x1f\n" +
-	"\vagent_count\x18\x04 \x01(\x04R\n" +
-	"agentCount\x12\x1a\n" +
-	"\bcapacity\x18\x05 \x01(\x04R\bcapacity\x12\x1c\n" +
+	"\beligible\x18\x03 \x01(\bR\beligible\x12\x1c\n" +
 	"\tpreferred\x18\x06 \x01(\bR\tpreferred\x12\x18\n" +
 	"\acurrent\x18\a \x01(\bR\acurrent\x12H\n" +
 	"\vmeasurement\x18\b \x01(\v2&.anytty.cloud.v1.DaemonEdgeMeasurementR\vmeasurement\x12\x14\n" +
 	"\x05score\x18\t \x01(\x01R\x05score\x12\x16\n" +
 	"\x06status\x18\n" +
-	" \x01(\tR\x06status\"\xe6\x02\n" +
+	" \x01(\tR\x06statusJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06R\vagent_countR\bcapacity\"\xe6\x02\n" +
 	"\x13DaemonEdgeSelection\x12\x1b\n" +
 	"\tdaemon_id\x18\x01 \x01(\tR\bdaemonId\x12*\n" +
 	"\x11preferred_edge_id\x18\x02 \x01(\tR\x0fpreferredEdgeId\x12/\n" +
@@ -2326,13 +2315,14 @@ const file_cloud_v1_enrollment_proto_rawDesc = "" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
 	"serverName\x12,\n" +
 	"\x12ca_certificate_pem\x18\x06 \x01(\fR\x10caCertificatePem\x12\x1a\n" +
-	"\brevision\x18\a \x01(\x04R\brevision\"\xa8\x02\n" +
+	"\brevision\x18\a \x01(\x04R\brevision\"\xf5\x02\n" +
 	" CompleteDaemonEnrollmentResponse\x125\n" +
 	"\x06daemon\x18\x01 \x01(\v2\x1d.anytty.cloud.v1.DaemonRecordR\x06daemon\x12F\n" +
 	"\x0edaemon_binding\x18\x02 \x01(\v2\x1f.anytty.cloud.v1.SignedEnvelopeR\rdaemonBinding\x12?\n" +
 	"\fedge_locator\x18\x03 \x01(\v2\x1c.anytty.cloud.v1.EdgeLocatorR\vedgeLocator\x12!\n" +
 	"\fdaemon_count\x18\x04 \x01(\rR\vdaemonCount\x12!\n" +
-	"\fdaemon_limit\x18\x05 \x01(\rR\vdaemonLimit\"?\n" +
+	"\fdaemon_limit\x18\x05 \x01(\rR\vdaemonLimit\x12K\n" +
+	"\x0eedge_selection\x18\x06 \x01(\v2$.anytty.cloud.v1.DaemonEdgeSelectionR\redgeSelection\"?\n" +
 	" BeginDaemonBindingRefreshRequest\x12\x1b\n" +
 	"\tdaemon_id\x18\x01 \x01(\tR\bdaemonId\"\xdb\x02\n" +
 	"#CompleteDaemonBindingRefreshRequest\x12!\n" +
@@ -2443,36 +2433,37 @@ var file_cloud_v1_enrollment_proto_depIdxs = []int32{
 	1,  // 24: anytty.cloud.v1.CompleteDaemonEnrollmentResponse.daemon:type_name -> anytty.cloud.v1.DaemonRecord
 	33, // 25: anytty.cloud.v1.CompleteDaemonEnrollmentResponse.daemon_binding:type_name -> anytty.cloud.v1.SignedEnvelope
 	27, // 26: anytty.cloud.v1.CompleteDaemonEnrollmentResponse.edge_locator:type_name -> anytty.cloud.v1.EdgeLocator
-	5,  // 27: anytty.cloud.v1.CompleteDaemonBindingRefreshRequest.edge_measurements:type_name -> anytty.cloud.v1.DaemonEdgeMeasurement
-	1,  // 28: anytty.cloud.v1.RefreshDaemonBindingResponse.daemon:type_name -> anytty.cloud.v1.DaemonRecord
-	33, // 29: anytty.cloud.v1.RefreshDaemonBindingResponse.daemon_binding:type_name -> anytty.cloud.v1.SignedEnvelope
-	27, // 30: anytty.cloud.v1.RefreshDaemonBindingResponse.edge_locator:type_name -> anytty.cloud.v1.EdgeLocator
-	7,  // 31: anytty.cloud.v1.RefreshDaemonBindingResponse.edge_selection:type_name -> anytty.cloud.v1.DaemonEdgeSelection
-	23, // 32: anytty.cloud.v1.EnrollmentService.BeginDaemonEnrollment:input_type -> anytty.cloud.v1.BeginDaemonEnrollmentRequest
-	26, // 33: anytty.cloud.v1.EnrollmentService.CompleteDaemonEnrollment:input_type -> anytty.cloud.v1.CompleteDaemonEnrollmentRequest
-	29, // 34: anytty.cloud.v1.EnrollmentService.BeginDaemonBindingRefresh:input_type -> anytty.cloud.v1.BeginDaemonBindingRefreshRequest
-	30, // 35: anytty.cloud.v1.EnrollmentService.CompleteDaemonBindingRefresh:input_type -> anytty.cloud.v1.CompleteDaemonBindingRefreshRequest
-	12, // 36: anytty.cloud.v1.DaemonManagementService.CreateMyEnrollment:input_type -> anytty.cloud.v1.CreateMyDaemonEnrollmentRequest
-	13, // 37: anytty.cloud.v1.DaemonManagementService.ListMyDaemons:input_type -> anytty.cloud.v1.ListMyDaemonsRequest
-	15, // 38: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonState:input_type -> anytty.cloud.v1.ChangeMyDaemonStateRequest
-	17, // 39: anytty.cloud.v1.DaemonManagementService.ListMyDaemonEdges:input_type -> anytty.cloud.v1.ListMyDaemonEdgesRequest
-	19, // 40: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonEdgePreference:input_type -> anytty.cloud.v1.ChangeMyDaemonEdgePreferenceRequest
-	21, // 41: anytty.cloud.v1.DaemonManagementService.ReselectMyDaemonEdge:input_type -> anytty.cloud.v1.ReselectMyDaemonEdgeRequest
-	25, // 42: anytty.cloud.v1.EnrollmentService.BeginDaemonEnrollment:output_type -> anytty.cloud.v1.DaemonEnrollmentChallenge
-	28, // 43: anytty.cloud.v1.EnrollmentService.CompleteDaemonEnrollment:output_type -> anytty.cloud.v1.CompleteDaemonEnrollmentResponse
-	24, // 44: anytty.cloud.v1.EnrollmentService.BeginDaemonBindingRefresh:output_type -> anytty.cloud.v1.IdentityChallenge
-	31, // 45: anytty.cloud.v1.EnrollmentService.CompleteDaemonBindingRefresh:output_type -> anytty.cloud.v1.RefreshDaemonBindingResponse
-	9,  // 46: anytty.cloud.v1.DaemonManagementService.CreateMyEnrollment:output_type -> anytty.cloud.v1.CreateDaemonEnrollmentResponse
-	14, // 47: anytty.cloud.v1.DaemonManagementService.ListMyDaemons:output_type -> anytty.cloud.v1.ListMyDaemonsResponse
-	16, // 48: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonState:output_type -> anytty.cloud.v1.ChangeMyDaemonStateResponse
-	18, // 49: anytty.cloud.v1.DaemonManagementService.ListMyDaemonEdges:output_type -> anytty.cloud.v1.ListMyDaemonEdgesResponse
-	20, // 50: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonEdgePreference:output_type -> anytty.cloud.v1.ChangeMyDaemonEdgePreferenceResponse
-	22, // 51: anytty.cloud.v1.DaemonManagementService.ReselectMyDaemonEdge:output_type -> anytty.cloud.v1.ReselectMyDaemonEdgeResponse
-	42, // [42:52] is the sub-list for method output_type
-	32, // [32:42] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	7,  // 27: anytty.cloud.v1.CompleteDaemonEnrollmentResponse.edge_selection:type_name -> anytty.cloud.v1.DaemonEdgeSelection
+	5,  // 28: anytty.cloud.v1.CompleteDaemonBindingRefreshRequest.edge_measurements:type_name -> anytty.cloud.v1.DaemonEdgeMeasurement
+	1,  // 29: anytty.cloud.v1.RefreshDaemonBindingResponse.daemon:type_name -> anytty.cloud.v1.DaemonRecord
+	33, // 30: anytty.cloud.v1.RefreshDaemonBindingResponse.daemon_binding:type_name -> anytty.cloud.v1.SignedEnvelope
+	27, // 31: anytty.cloud.v1.RefreshDaemonBindingResponse.edge_locator:type_name -> anytty.cloud.v1.EdgeLocator
+	7,  // 32: anytty.cloud.v1.RefreshDaemonBindingResponse.edge_selection:type_name -> anytty.cloud.v1.DaemonEdgeSelection
+	23, // 33: anytty.cloud.v1.EnrollmentService.BeginDaemonEnrollment:input_type -> anytty.cloud.v1.BeginDaemonEnrollmentRequest
+	26, // 34: anytty.cloud.v1.EnrollmentService.CompleteDaemonEnrollment:input_type -> anytty.cloud.v1.CompleteDaemonEnrollmentRequest
+	29, // 35: anytty.cloud.v1.EnrollmentService.BeginDaemonBindingRefresh:input_type -> anytty.cloud.v1.BeginDaemonBindingRefreshRequest
+	30, // 36: anytty.cloud.v1.EnrollmentService.CompleteDaemonBindingRefresh:input_type -> anytty.cloud.v1.CompleteDaemonBindingRefreshRequest
+	12, // 37: anytty.cloud.v1.DaemonManagementService.CreateMyEnrollment:input_type -> anytty.cloud.v1.CreateMyDaemonEnrollmentRequest
+	13, // 38: anytty.cloud.v1.DaemonManagementService.ListMyDaemons:input_type -> anytty.cloud.v1.ListMyDaemonsRequest
+	15, // 39: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonState:input_type -> anytty.cloud.v1.ChangeMyDaemonStateRequest
+	17, // 40: anytty.cloud.v1.DaemonManagementService.ListMyDaemonEdges:input_type -> anytty.cloud.v1.ListMyDaemonEdgesRequest
+	19, // 41: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonEdgePreference:input_type -> anytty.cloud.v1.ChangeMyDaemonEdgePreferenceRequest
+	21, // 42: anytty.cloud.v1.DaemonManagementService.ReselectMyDaemonEdge:input_type -> anytty.cloud.v1.ReselectMyDaemonEdgeRequest
+	25, // 43: anytty.cloud.v1.EnrollmentService.BeginDaemonEnrollment:output_type -> anytty.cloud.v1.DaemonEnrollmentChallenge
+	28, // 44: anytty.cloud.v1.EnrollmentService.CompleteDaemonEnrollment:output_type -> anytty.cloud.v1.CompleteDaemonEnrollmentResponse
+	24, // 45: anytty.cloud.v1.EnrollmentService.BeginDaemonBindingRefresh:output_type -> anytty.cloud.v1.IdentityChallenge
+	31, // 46: anytty.cloud.v1.EnrollmentService.CompleteDaemonBindingRefresh:output_type -> anytty.cloud.v1.RefreshDaemonBindingResponse
+	9,  // 47: anytty.cloud.v1.DaemonManagementService.CreateMyEnrollment:output_type -> anytty.cloud.v1.CreateDaemonEnrollmentResponse
+	14, // 48: anytty.cloud.v1.DaemonManagementService.ListMyDaemons:output_type -> anytty.cloud.v1.ListMyDaemonsResponse
+	16, // 49: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonState:output_type -> anytty.cloud.v1.ChangeMyDaemonStateResponse
+	18, // 50: anytty.cloud.v1.DaemonManagementService.ListMyDaemonEdges:output_type -> anytty.cloud.v1.ListMyDaemonEdgesResponse
+	20, // 51: anytty.cloud.v1.DaemonManagementService.ChangeMyDaemonEdgePreference:output_type -> anytty.cloud.v1.ChangeMyDaemonEdgePreferenceResponse
+	22, // 52: anytty.cloud.v1.DaemonManagementService.ReselectMyDaemonEdge:output_type -> anytty.cloud.v1.ReselectMyDaemonEdgeResponse
+	43, // [43:53] is the sub-list for method output_type
+	33, // [33:43] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_enrollment_proto_init() }

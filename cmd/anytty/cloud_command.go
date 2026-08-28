@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
@@ -435,7 +436,9 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 				ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 			}
-			record, err := clouddaemon.EnrollLocal(ctx, controller.address, controller.serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath())
+			record, err := clouddaemon.EnrollLocalWithProgress(ctx, controller.address, controller.serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath(), func(progress clouddaemon.EnrollmentProgress) {
+				writeCloudEnrollmentProgress(cmd.OutOrStdout(), progress)
+			})
 			if err != nil {
 				if failure := cloudclient.EntitlementFailure(err); failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE {
 					return fmt.Errorf("AnyTTY Cloud subscription is inactive; ask the account owner to manage it at %s/subscription", defaultCloudConsoleOrigin)
@@ -448,20 +451,71 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 			if _, disabled, err := readV3CloudDisabled(v3CloudDisabledPath()); err != nil {
 				return fmt.Errorf("Cloud enrollment was saved, but its runtime state could not be read: %w", err)
 			} else if !disabled {
-				if _, err := runCloudControlWhenRunning(cmd, socket, logFile, configPath, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudStatusResult, error) {
+				fmt.Fprintln(cmd.OutOrStdout(), "Cloud enrollment: starting the local daemon runtime...")
+				status, err := runCloudControlWhenRunning(cmd, socket, logFile, configPath, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudStatusResult, error) {
 					return application.RemoteCloudEnable(ctx, &apipb.RemoteCloudEnableCommand{})
-				}); err != nil {
+				})
+				if err != nil {
 					return fmt.Errorf("Cloud enrollment was saved, but the running daemon could not reload it: %w", err)
+				}
+				if status.Ready {
+					fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment: connected to %s (%s) at %s.\n", status.EdgeName, status.EdgeRegion, status.PublicEndpoint)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment: runtime state is %s; it will connect when the daemon is running.\n", status.State)
 				}
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment complete: daemon=%s account=%s\n", record.DaemonID, record.AccountID)
 			if record.DaemonLimit > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "Registered daemon capacity: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, defaultCloudConsoleOrigin)
+				fmt.Fprintf(cmd.OutOrStdout(), "Registered daemons: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, defaultCloudConsoleOrigin)
 			}
 			return nil
 		},
 	}
 	return command
+}
+
+func writeCloudEnrollmentProgress(writer io.Writer, progress clouddaemon.EnrollmentProgress) {
+	switch progress.Stage {
+	case clouddaemon.EnrollmentProgressDiscovering:
+		fmt.Fprintln(writer, "Cloud enrollment: requesting eligible Edge candidates...")
+	case clouddaemon.EnrollmentProgressCandidates:
+		fmt.Fprintf(writer, "Cloud enrollment: Controller returned %d eligible Edge candidates:\n", len(progress.Candidates))
+		for _, candidate := range progress.Candidates {
+			locator := candidate.GetLocator()
+			fmt.Fprintf(writer, "  - %s (%s) %s\n", locator.GetName(), locator.GetRegion(), locator.GetPublicEndpoint())
+		}
+	case clouddaemon.EnrollmentProgressMeasuring:
+		fmt.Fprintf(writer, "Cloud enrollment: measuring %d Edge candidates with 3 health checks each...\n", len(progress.Candidates))
+	case clouddaemon.EnrollmentProgressMeasured:
+		fmt.Fprintln(writer, "Cloud enrollment: local measurements:")
+		measurements := make(map[string]*cloudv1.DaemonEdgeMeasurement, len(progress.Measurements))
+		for _, measurement := range progress.Measurements {
+			measurements[measurement.GetEdgeId()] = measurement
+		}
+		for _, candidate := range progress.Candidates {
+			locator := candidate.GetLocator()
+			measurement := measurements[locator.GetEdgeId()]
+			state := "unreachable"
+			if measurement.GetReachable() {
+				state = "reachable"
+			}
+			fmt.Fprintf(writer, "  - %s (%s): %s, latency=%d ms, failures=%.0f%%, samples=%d\n", locator.GetName(), locator.GetRegion(), state, measurement.GetConnectLatencyMs(), measurement.GetConnectionFailureRate()*100, measurement.GetSampleCount())
+		}
+	case clouddaemon.EnrollmentProgressSelecting:
+		fmt.Fprintln(writer, "Cloud enrollment: submitting measurements for Controller filtering and scoring...")
+	case clouddaemon.EnrollmentProgressSelected:
+		fmt.Fprintln(writer, "Cloud enrollment: Controller ranking:")
+		for index, candidate := range progress.Selection.GetCandidates() {
+			locator, measurement := candidate.GetLocator(), candidate.GetMeasurement()
+			latency := "unmeasured"
+			if measurement != nil {
+				latency = fmt.Sprintf("%d ms, failures=%.0f%%", measurement.GetConnectLatencyMs(), measurement.GetConnectionFailureRate()*100)
+			}
+			fmt.Fprintf(writer, "  %d. %s (%s): score=%.1f, %s, status=%s\n", index+1, locator.GetName(), locator.GetRegion(), candidate.GetScore(), latency, candidate.GetStatus())
+		}
+		selected := progress.SelectedEdge
+		fmt.Fprintf(writer, "Cloud enrollment: selected %s (%s) at %s.\n", selected.GetName(), selected.GetRegion(), selected.GetPublicEndpoint())
+	}
 }
 
 func v3CloudEnrollmentRecordPath() string {

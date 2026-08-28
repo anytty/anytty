@@ -72,8 +72,8 @@ message DaemonEdgeCandidate {
   EdgeLocator locator = 1;
   bool online = 2;
   bool eligible = 3;
-  uint64 agent_count = 4;
-  uint64 capacity = 5;
+  reserved 4, 5;
+  reserved "agent_count", "capacity";
   bool preferred = 6;
   bool current = 7;
   DaemonEdgeMeasurement measurement = 8;
@@ -199,6 +199,7 @@ message CompleteDaemonEnrollmentResponse {
   EdgeLocator edge_locator = 3;
   uint32 daemon_count = 4;
   uint32 daemon_limit = 5;
+  DaemonEdgeSelection edge_selection = 6;
 }
 
 // BeginDaemonBindingRefreshRequest 只标识现有 daemon；身份和 Edge 选择都由 Controller 的当前真值决定。

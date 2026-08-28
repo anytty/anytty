@@ -89,6 +89,30 @@ const (
 	agentDiagnosticDisconnected  agentDiagnosticStage = "disconnected"
 )
 
+// EnrollmentProgressStage identifies user-visible milestones during first enrollment.
+type EnrollmentProgressStage string
+
+const (
+	EnrollmentProgressDiscovering EnrollmentProgressStage = "discovering"
+	EnrollmentProgressCandidates  EnrollmentProgressStage = "candidates"
+	EnrollmentProgressMeasuring   EnrollmentProgressStage = "measuring"
+	EnrollmentProgressMeasured    EnrollmentProgressStage = "measured"
+	EnrollmentProgressSelecting   EnrollmentProgressStage = "selecting"
+	EnrollmentProgressSelected    EnrollmentProgressStage = "selected"
+)
+
+// EnrollmentProgress contains only public Edge routing information suitable for logs.
+type EnrollmentProgress struct {
+	Stage        EnrollmentProgressStage
+	Candidates   []*cloudv1.DaemonEdgeCandidate
+	Measurements []*cloudv1.DaemonEdgeMeasurement
+	Selection    *cloudv1.DaemonEdgeSelection
+	SelectedEdge *cloudv1.EdgeLocator
+}
+
+// EnrollmentProgressFunc receives synchronous first-enrollment progress updates.
+type EnrollmentProgressFunc func(EnrollmentProgress)
+
 type authorizedRuntimeOptions struct {
 	pionLogger           *slog.Logger
 	recordPath           string
@@ -214,7 +238,7 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 	var lastRefresh time.Time
 	if runtime.config.ControllerAddress != "" {
 		lastRefresh = runtime.now()
-		if err := runtime.refreshBinding(ctx); err == nil && runtime.daemonDeleted() {
+		if _, err := runtime.reselect(ctx, false, "", 0, true, false, ""); err == nil && runtime.daemonDeleted() {
 			return nil
 		}
 	}
@@ -252,7 +276,7 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 		failedBeforeReady := runtime.agentReadySequence.Load() == readySequence
 		if err != nil && failedBeforeReady && runtime.config.ControllerAddress != "" && (lastRefresh.IsZero() || runtime.now().Sub(lastRefresh) >= runtime.config.BindingRefreshMinimum) {
 			lastRefresh = runtime.now()
-			if _, refreshErr := runtime.reselect(ctx, false, "", 0, true, runtime.currentRecordEdgeID()); refreshErr == nil {
+			if _, refreshErr := runtime.reselect(ctx, false, "", 0, true, true, runtime.currentRecordEdgeID()); refreshErr == nil {
 				if runtime.daemonDeleted() {
 					return nil
 				}
@@ -453,12 +477,24 @@ func (runtime *Runtime) reportAgentDiagnostic(stage agentDiagnosticStage, genera
 		return
 	}
 	attributes := []any{"stage", string(stage), "generation", generation}
+	if locator := runtime.currentEdgeLocator(); locator != nil {
+		attributes = append(attributes, "edge_id", locator.GetEdgeId(), "edge_name", locator.GetName(), "edge_region", locator.GetRegion(), "endpoint", locator.GetPublicEndpoint())
+	}
 	if err != nil {
 		attributes = append(attributes, "rpc_code", status.Code(err).String())
 		logger.Warn("anytty cloud daemon state", attributes...)
 		return
 	}
 	logger.Info("anytty cloud daemon state", attributes...)
+}
+
+func (runtime *Runtime) currentEdgeLocator() *cloudv1.EdgeLocator {
+	record := runtime.currentRecord()
+	locator := &cloudv1.EdgeLocator{}
+	if proto.Unmarshal(record.EdgeLocator, locator) != nil || strings.TrimSpace(locator.GetEdgeId()) == "" {
+		return nil
+	}
+	return locator
 }
 
 func validateAgentGatewayChallenge(command *cloudv1.EdgeCommand, expectedEdgeID string, now time.Time) (*cloudv1.EdgeChallenge, error) {
@@ -547,7 +583,7 @@ func (runtime *Runtime) runEdgeCommands(ctx context.Context, stream cloudv1.Agen
 				failures <- errors.New("Edge reselection command generation is invalid")
 				return
 			}
-			if _, reselectErr := runtime.reselect(ctx, false, "", 0, true, ""); reselectErr != nil {
+			if _, reselectErr := runtime.reselect(ctx, false, "", 0, true, true, ""); reselectErr != nil {
 				failures <- reselectErr
 				return
 			}
@@ -892,7 +928,7 @@ func (runtime *Runtime) maintainBinding(ctx context.Context) {
 			}
 		}
 		previousEdgeID := runtime.currentRecordEdgeID()
-		err := runtime.refreshBinding(ctx)
+		_, err := runtime.reselect(ctx, false, "", 0, true, false, "")
 		if err == nil {
 			retryDelay = runtime.config.BindingRefreshMinimum
 			if runtime.daemonDeleted() {
@@ -1026,7 +1062,7 @@ func (runtime *Runtime) refreshBindingRequest(ctx context.Context, measurements 
 
 // EdgeSelection probes every currently advertised Edge and returns the Controller's final ranking.
 func (runtime *Runtime) EdgeSelection(ctx context.Context) (*cloudv1.DaemonEdgeSelection, error) {
-	return runtime.reselect(ctx, false, "", 0, false, "")
+	return runtime.reselect(ctx, false, "", 0, false, false, "")
 }
 
 // PreferEdge persists a soft preference, probes candidates, and reconnects the Cloud control stream.
@@ -1034,31 +1070,85 @@ func (runtime *Runtime) PreferEdge(ctx context.Context, edgeID string, expectedR
 	if expectedRevision == 0 {
 		return nil, errors.New("Edge preference revision is required")
 	}
-	return runtime.reselect(ctx, true, strings.TrimSpace(edgeID), expectedRevision, true, "")
+	return runtime.reselect(ctx, true, strings.TrimSpace(edgeID), expectedRevision, true, true, "")
 }
 
 // ReselectEdge keeps the current preference and immediately probes/reconnects without restarting the daemon.
 func (runtime *Runtime) ReselectEdge(ctx context.Context) (*cloudv1.DaemonEdgeSelection, error) {
-	return runtime.reselect(ctx, false, "", 0, true, "")
+	return runtime.reselect(ctx, false, "", 0, true, true, "")
 }
 
-func (runtime *Runtime) reselect(ctx context.Context, changePreference bool, preferredEdgeID string, expectedRevision uint64, reconnect bool, failedEdgeID string) (*cloudv1.DaemonEdgeSelection, error) {
+func (runtime *Runtime) reselect(ctx context.Context, changePreference bool, preferredEdgeID string, expectedRevision uint64, persistBinding, reconnect bool, failedEdgeID string) (*cloudv1.DaemonEdgeSelection, error) {
 	runtime.operationMu.Lock()
 	defer runtime.operationMu.Unlock()
 	selection, err := runtime.refreshBindingRequest(ctx, nil, changePreference, preferredEdgeID, expectedRevision, false)
 	if err != nil {
 		return nil, err
 	}
+	if runtime.daemonDeleted() {
+		return selection, nil
+	}
+	if selection == nil {
+		return nil, errors.New("daemon Edge selection is unavailable")
+	}
+	runtime.reportEdgeCandidates(selection.GetCandidates())
 	measurements := runtime.probeEdges(ctx, selection.GetCandidates())
 	measurements = markEdgeMeasurementUnreachable(measurements, failedEdgeID)
-	selection, err = runtime.refreshBindingRequest(ctx, measurements, false, "", 0, reconnect)
+	runtime.reportEdgeMeasurements(selection.GetCandidates(), measurements)
+	selection, err = runtime.refreshBindingRequest(ctx, measurements, false, "", 0, persistBinding)
 	if err != nil {
 		return nil, err
 	}
+	if runtime.daemonDeleted() {
+		return selection, nil
+	}
+	if selection == nil {
+		return nil, errors.New("daemon Edge selection result is unavailable")
+	}
+	runtime.reportEdgeRanking(selection)
 	if reconnect {
 		runtime.interruptActiveAttempt()
 	}
 	return proto.Clone(selection).(*cloudv1.DaemonEdgeSelection), nil
+}
+
+func (runtime *Runtime) reportEdgeCandidates(candidates []*cloudv1.DaemonEdgeCandidate) {
+	if runtime.config.Logger == nil {
+		return
+	}
+	runtime.config.Logger.Info("anytty cloud Edge candidates", "count", len(candidates))
+	for _, candidate := range candidates {
+		locator := candidate.GetLocator()
+		runtime.config.Logger.Info("anytty cloud Edge candidate", "edge_id", locator.GetEdgeId(), "edge_name", locator.GetName(), "edge_region", locator.GetRegion(), "endpoint", locator.GetPublicEndpoint(), "online", candidate.GetOnline(), "eligible", candidate.GetEligible())
+	}
+}
+
+func (runtime *Runtime) reportEdgeMeasurements(candidates []*cloudv1.DaemonEdgeCandidate, measurements []*cloudv1.DaemonEdgeMeasurement) {
+	if runtime.config.Logger == nil {
+		return
+	}
+	locators := make(map[string]*cloudv1.EdgeLocator, len(candidates))
+	for _, candidate := range candidates {
+		if locator := candidate.GetLocator(); locator != nil {
+			locators[locator.GetEdgeId()] = locator
+		}
+	}
+	for _, measurement := range measurements {
+		locator := locators[measurement.GetEdgeId()]
+		runtime.config.Logger.Info("anytty cloud Edge measurement", "edge_id", measurement.GetEdgeId(), "edge_name", locator.GetName(), "edge_region", locator.GetRegion(), "reachable", measurement.GetReachable(), "latency_ms", measurement.GetConnectLatencyMs(), "failure_rate", measurement.GetConnectionFailureRate(), "samples", measurement.GetSampleCount())
+	}
+}
+
+func (runtime *Runtime) reportEdgeRanking(selection *cloudv1.DaemonEdgeSelection) {
+	if runtime.config.Logger == nil {
+		return
+	}
+	for index, candidate := range selection.GetCandidates() {
+		locator := candidate.GetLocator()
+		measurement := candidate.GetMeasurement()
+		runtime.config.Logger.Info("anytty cloud Edge ranking", "rank", index+1, "edge_id", locator.GetEdgeId(), "edge_name", locator.GetName(), "edge_region", locator.GetRegion(), "score", candidate.GetScore(), "latency_ms", measurement.GetConnectLatencyMs(), "failure_rate", measurement.GetConnectionFailureRate(), "status", candidate.GetStatus())
+	}
+	runtime.config.Logger.Info("anytty cloud Edge selected", "edge_id", selection.GetSelectedEdgeId())
 }
 
 func (runtime *Runtime) currentRecordEdgeID() string {
@@ -1193,6 +1283,11 @@ func (runtime *Runtime) interruptActiveAttempt() {
 
 // Enroll 使用一次性 code 和现有 DeviceIdentity 完成 challenge，并返回可持久化最小记录。
 func Enroll(ctx context.Context, controllerAddress, controllerServerName, code string, tlsConfig *tls.Config, identity remoteauth.Identity) (EnrollmentRecord, error) {
+	return EnrollWithProgress(ctx, controllerAddress, controllerServerName, code, tlsConfig, identity, nil)
+}
+
+// EnrollWithProgress reports the public candidate, measurement, and ranking stages.
+func EnrollWithProgress(ctx context.Context, controllerAddress, controllerServerName, code string, tlsConfig *tls.Config, identity remoteauth.Identity, report EnrollmentProgressFunc) (EnrollmentRecord, error) {
 	if err := identity.Validate(); err != nil {
 		return EnrollmentRecord{}, err
 	}
@@ -1207,6 +1302,7 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 	}
 	defer connection.Close()
 	client := cloudv1.NewEnrollmentServiceClient(connection)
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressDiscovering})
 	challenge, err := client.BeginDaemonEnrollment(ctx, &cloudv1.BeginDaemonEnrollmentRequest{EnrollmentCode: strings.TrimSpace(code), DeviceId: identity.DeviceID, DeviceFingerprint: identity.Fingerprint, DevicePublicKey: append([]byte(nil), identity.PublicKey...)})
 	if err != nil {
 		return EnrollmentRecord{}, err
@@ -1215,6 +1311,9 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 	if identityChallenge == nil || len(challenge.GetEdgeCandidates()) == 0 {
 		return EnrollmentRecord{}, errors.New("daemon enrollment challenge has no Edge candidates")
 	}
+	candidates := cloneEdgeCandidates(challenge.GetEdgeCandidates())
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressCandidates, Candidates: candidates})
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressMeasuring, Candidates: candidates})
 	measurements := probeEdgeCandidates(ctx, challenge.GetEdgeCandidates())
 	if len(measurements) != len(challenge.GetEdgeCandidates()) {
 		if err := ctx.Err(); err != nil {
@@ -1222,17 +1321,23 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 		}
 		return EnrollmentRecord{}, errors.New("daemon enrollment could not measure every Edge candidate")
 	}
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressMeasured, Candidates: candidates, Measurements: cloneEdgeMeasurements(measurements)})
 	proof, err := remoteauth.SignDeviceIdentityProof(identity, identityChallenge.GetChallenge())
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressSelecting, Candidates: candidates, Measurements: cloneEdgeMeasurements(measurements)})
 	completed, err := client.CompleteDaemonEnrollment(ctx, &cloudv1.CompleteDaemonEnrollmentRequest{ChallengeId: identityChallenge.GetChallengeId(), DeviceProof: proof, EdgeMeasurements: measurements})
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
-	if completed.GetDaemon() == nil || completed.GetDaemonBinding() == nil || completed.GetEdgeLocator() == nil {
+	if completed.GetDaemon() == nil || completed.GetDaemonBinding() == nil || completed.GetEdgeLocator() == nil || completed.GetEdgeSelection() == nil {
 		return EnrollmentRecord{}, errors.New("daemon enrollment response is incomplete")
 	}
+	if completed.GetEdgeSelection().GetSelectedEdgeId() != completed.GetEdgeLocator().GetEdgeId() {
+		return EnrollmentRecord{}, errors.New("daemon enrollment selection does not match the selected Edge")
+	}
+	reportEnrollmentProgress(report, EnrollmentProgress{Stage: EnrollmentProgressSelected, Selection: proto.Clone(completed.GetEdgeSelection()).(*cloudv1.DaemonEdgeSelection), SelectedEdge: proto.Clone(completed.GetEdgeLocator()).(*cloudv1.EdgeLocator)})
 	binding, err := proto.MarshalOptions{Deterministic: true}.Marshal(completed.GetDaemonBinding())
 	if err != nil {
 		return EnrollmentRecord{}, err
@@ -1252,13 +1357,44 @@ func Enroll(ctx context.Context, controllerAddress, controllerServerName, code s
 	return record, nil
 }
 
+func reportEnrollmentProgress(report EnrollmentProgressFunc, progress EnrollmentProgress) {
+	if report != nil {
+		report(progress)
+	}
+}
+
+func cloneEdgeCandidates(values []*cloudv1.DaemonEdgeCandidate) []*cloudv1.DaemonEdgeCandidate {
+	result := make([]*cloudv1.DaemonEdgeCandidate, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, proto.Clone(value).(*cloudv1.DaemonEdgeCandidate))
+		}
+	}
+	return result
+}
+
+func cloneEdgeMeasurements(values []*cloudv1.DaemonEdgeMeasurement) []*cloudv1.DaemonEdgeMeasurement {
+	result := make([]*cloudv1.DaemonEdgeMeasurement, 0, len(values))
+	for _, value := range values {
+		if value != nil {
+			result = append(result, proto.Clone(value).(*cloudv1.DaemonEdgeMeasurement))
+		}
+	}
+	return result
+}
+
 // EnrollLocal 加载 daemon 已有 DeviceIdentity、完成注册并原子保存最小 Cloud record。
 func EnrollLocal(ctx context.Context, controllerAddress, controllerServerName, code, identityDirectory, recordPath string) (EnrollmentRecord, error) {
+	return EnrollLocalWithProgress(ctx, controllerAddress, controllerServerName, code, identityDirectory, recordPath, nil)
+}
+
+// EnrollLocalWithProgress enrolls the local identity and reports public routing stages.
+func EnrollLocalWithProgress(ctx context.Context, controllerAddress, controllerServerName, code, identityDirectory, recordPath string, report EnrollmentProgressFunc) (EnrollmentRecord, error) {
 	identity, err := remoteauth.LoadOrCreateLocalIdentity(identityDirectory)
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}
-	record, err := Enroll(ctx, controllerAddress, controllerServerName, code, &tls.Config{MinVersion: tls.VersionTLS13, ServerName: controllerServerName}, identity)
+	record, err := EnrollWithProgress(ctx, controllerAddress, controllerServerName, code, &tls.Config{MinVersion: tls.VersionTLS13, ServerName: controllerServerName}, identity, report)
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}

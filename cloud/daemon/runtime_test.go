@@ -92,12 +92,27 @@ func TestEnrollMeasuresAdvertisedEdgesBeforeCompletion(t *testing.T) {
 	if !roots.AppendCertsFromPEM(controller.GetCaCertificatePem()) {
 		t.Fatal("append Controller test CA")
 	}
-	record, err := Enroll(context.Background(), controller.GetPublicEndpoint(), controller.GetServerName(), "mxe_probe", &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: controller.GetServerName()}, identity)
+	var progress []EnrollmentProgress
+	record, err := EnrollWithProgress(context.Background(), controller.GetPublicEndpoint(), controller.GetServerName(), "mxe_probe", &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: controller.GetServerName()}, identity, func(event EnrollmentProgress) {
+		progress = append(progress, event)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !service.measured || record.DaemonID != "daemon-enrollment-probe" || record.DisplayName != "China Mac" {
 		t.Fatalf("enrollment record=%+v measured=%v", record, service.measured)
+	}
+	wantStages := []EnrollmentProgressStage{EnrollmentProgressDiscovering, EnrollmentProgressCandidates, EnrollmentProgressMeasuring, EnrollmentProgressMeasured, EnrollmentProgressSelecting, EnrollmentProgressSelected}
+	if len(progress) != len(wantStages) {
+		t.Fatalf("enrollment progress = %+v", progress)
+	}
+	for index, stage := range wantStages {
+		if progress[index].Stage != stage {
+			t.Fatalf("enrollment progress[%d] = %q, want %q", index, progress[index].Stage, stage)
+		}
+	}
+	if progress[len(progress)-1].Selection.GetSelectedEdgeId() != edge.GetEdgeId() || progress[len(progress)-1].SelectedEdge.GetEdgeId() != edge.GetEdgeId() {
+		t.Fatalf("selected progress = %+v", progress[len(progress)-1])
 	}
 }
 
@@ -145,11 +160,15 @@ func TestRetryDelayResetsAfterStableAgentConnection(t *testing.T) {
 
 func TestAgentDiagnosticExposesStageWithoutErrorSecrets(t *testing.T) {
 	var output bytes.Buffer
-	runtime := &Runtime{config: Config{Logger: slog.New(slog.NewTextHandler(&output, nil))}}
+	locatorPayload, err := proto.Marshal(&cloudv1.EdgeLocator{EdgeId: "edge-cn2", Name: "CN2", Region: "CN2", PublicEndpoint: "cn2.example.com:41102"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &Runtime{config: Config{Logger: slog.New(slog.NewTextHandler(&output, nil))}, record: EnrollmentRecord{EdgeLocator: locatorPayload}}
 	runtime.reportAgentDiagnostic(agentDiagnosticDisconnected, 7, status.Error(codes.NotFound, "secret endpoint and credential"))
 
 	logged := output.String()
-	for _, expected := range []string{"anytty cloud daemon state", "stage=disconnected", "generation=7", "rpc_code=NotFound"} {
+	for _, expected := range []string{"anytty cloud daemon state", "stage=disconnected", "generation=7", "edge_id=edge-cn2", "edge_name=CN2", "edge_region=CN2", "endpoint=cn2.example.com:41102", "rpc_code=NotFound"} {
 		if !strings.Contains(logged, expected) {
 			t.Fatalf("diagnostic log %q does not contain %q", logged, expected)
 		}
@@ -157,6 +176,30 @@ func TestAgentDiagnosticExposesStageWithoutErrorSecrets(t *testing.T) {
 	for _, secret := range []string{"secret endpoint", "credential"} {
 		if strings.Contains(logged, secret) {
 			t.Fatalf("diagnostic log exposed secret %q: %s", secret, logged)
+		}
+	}
+}
+
+func TestEdgeSelectionDiagnosticsExposeRoutingWithoutPrivateCapacity(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&output, nil))
+	runtime := &Runtime{config: Config{Logger: logger}}
+	locator := &cloudv1.EdgeLocator{EdgeId: "edge-cn2", Name: "CN2", Region: "CN2", PublicEndpoint: "cn2.example.com:41102"}
+	measurement := &cloudv1.DaemonEdgeMeasurement{EdgeId: locator.GetEdgeId(), Reachable: true, ConnectLatencyMs: 42, SampleCount: 3}
+	candidate := &cloudv1.DaemonEdgeCandidate{Locator: locator, Online: true, Eligible: true, Measurement: measurement, Score: 1000, Status: "available"}
+	runtime.reportEdgeCandidates([]*cloudv1.DaemonEdgeCandidate{candidate})
+	runtime.reportEdgeMeasurements([]*cloudv1.DaemonEdgeCandidate{candidate}, []*cloudv1.DaemonEdgeMeasurement{measurement})
+	runtime.reportEdgeRanking(&cloudv1.DaemonEdgeSelection{SelectedEdgeId: locator.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}})
+
+	logged := output.String()
+	for _, expected := range []string{"anytty cloud Edge candidates", "edge_name=CN2", "endpoint=cn2.example.com:41102", "latency_ms=42", "score=1000", "anytty cloud Edge selected"} {
+		if !strings.Contains(logged, expected) {
+			t.Fatalf("Edge selection log %q does not contain %q", logged, expected)
+		}
+	}
+	for _, private := range []string{"capacity", "agent_count", "load"} {
+		if strings.Contains(strings.ToLower(logged), private) {
+			t.Fatalf("Edge selection log exposed %q: %s", private, logged)
 		}
 	}
 }
@@ -367,6 +410,7 @@ func TestBindingRefreshRunsBeforeExpiryWithoutWaitingForEdgeFailure(t *testing.T
 	const daemonID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 	const accountID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 	service.response = daemonRefreshResponse(t, daemonID, accountID, identity, controller, cloudv1.DaemonState_DAEMON_STATE_ACTIVE, 2)
+	service.response.EdgeSelection = &cloudv1.DaemonEdgeSelection{DaemonId: daemonID, SelectedEdgeId: controller.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{{Locator: proto.Clone(controller).(*cloudv1.EdgeLocator), Online: true, Eligible: true}}}
 	now := time.Now().UTC().Truncate(time.Second)
 	record := daemonEnrollmentRecord(t, daemonID, accountID, identity, controller)
 	record = withBindingValidity(t, record, now.Add(-time.Hour), now.Add(time.Hour))
@@ -387,7 +431,7 @@ func TestBindingRefreshRunsBeforeExpiryWithoutWaitingForEdgeFailure(t *testing.T
 		defer close(done)
 		runtime.maintainBinding(ctx)
 	}()
-	eventuallyDaemon(t, 5*time.Second, func() bool { return service.refreshes.Load() > 0 })
+	eventuallyDaemon(t, 5*time.Second, func() bool { return runtime.bindingRefreshDelay(now) >= 300*24*time.Hour })
 	cancel()
 	<-done
 	if delay := runtime.bindingRefreshDelay(now); delay < 300*24*time.Hour {
@@ -592,6 +636,7 @@ func (service *daemonEnrollmentProbeService) CompleteDaemonEnrollment(_ context.
 		return nil, status.Error(codes.InvalidArgument, "enrollment probe measurement is incomplete")
 	}
 	service.measured = true
+	measurement := proto.Clone(measurements[0]).(*cloudv1.DaemonEdgeMeasurement)
 	binding, err := daemonBindingEnvelopeForService("daemon-enrollment-probe", "account-enrollment-probe", service.identity, service.edge)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -599,6 +644,7 @@ func (service *daemonEnrollmentProbeService) CompleteDaemonEnrollment(_ context.
 	return &cloudv1.CompleteDaemonEnrollmentResponse{
 		Daemon:        &cloudv1.DaemonRecord{DaemonId: "daemon-enrollment-probe", AccountId: "account-enrollment-probe", DisplayName: "China Mac", DeviceId: service.identity.DeviceID, DeviceFingerprint: service.identity.Fingerprint},
 		DaemonBinding: binding, EdgeLocator: proto.Clone(service.edge).(*cloudv1.EdgeLocator),
+		EdgeSelection: &cloudv1.DaemonEdgeSelection{DaemonId: "daemon-enrollment-probe", SelectedEdgeId: service.edge.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{{Locator: proto.Clone(service.edge).(*cloudv1.EdgeLocator), Online: true, Eligible: true, Measurement: measurement, Score: 1000, Status: "available"}}},
 	}, nil
 }
 

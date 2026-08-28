@@ -136,7 +136,7 @@ func (service *cloudEdgeListE2EEnrollmentService) CompleteDaemonBindingRefresh(_
 		PreferenceRevision: 1, EvaluatedAt: timestamppb.Now(),
 		Candidates: []*cloudv1.DaemonEdgeCandidate{{
 			Locator: proto.Clone(service.locator).(*cloudv1.EdgeLocator), Online: true, Eligible: true, Current: true,
-			AgentCount: 1, Capacity: 32, Status: "可用",
+			Status: "可用",
 		}},
 	}
 	return &cloudv1.RefreshDaemonBindingResponse{

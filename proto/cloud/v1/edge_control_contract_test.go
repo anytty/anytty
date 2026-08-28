@@ -36,6 +36,16 @@ func TestCloudV1DescriptorBaseline(t *testing.T) {
 		protodesc.ToFileDescriptorProto(File_cloud_v1_agent_gateway_proto),
 		protodesc.ToFileDescriptorProto(File_cloud_v1_operator_proto),
 	}}
+	if os.Getenv("UPDATE_CLOUD_V1_DESCRIPTOR") == "1" {
+		payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile("testdata/cloud-v1.pb", payload, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	if !proto.Equal(baseline, current) {
 		t.Fatal("Cloud v1 descriptor differs from testdata/cloud-v1.pb")
 	}
@@ -253,6 +263,13 @@ func TestEnrollmentAndDirectoryExcludeRemovedHotPathRPCs(t *testing.T) {
 	complete := enrollment.Methods().ByName("CompleteDaemonEnrollment")
 	if field := complete.Input().Fields().ByName("edge_measurements"); field == nil || field.Number() != 3 || !field.IsList() {
 		t.Fatalf("CompleteDaemonEnrollment.edge_measurements = %v", field)
+	}
+	if field := complete.Output().Fields().ByName("edge_selection"); field == nil || field.Number() != 6 || field.Message() != (&DaemonEdgeSelection{}).ProtoReflect().Descriptor() {
+		t.Fatalf("CompleteDaemonEnrollment.edge_selection = %v", field)
+	}
+	candidate := (&DaemonEdgeCandidate{}).ProtoReflect().Descriptor()
+	if candidate.Fields().ByName("agent_count") != nil || candidate.Fields().ByName("capacity") != nil {
+		t.Fatal("daemon owner Edge candidates expose private load or capacity")
 	}
 	directory := File_cloud_v1_directory_proto.Services().ByName("DirectoryService")
 	if directory == nil || directory.Methods().Len() != 2 || directory.Methods().ByName("BeginClientRoute") == nil || directory.Methods().ByName("ResolveClientRoute") == nil {

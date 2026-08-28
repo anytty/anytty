@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	clouddaemon "github.com/anytty/anytty/cloud/daemon"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
@@ -69,6 +70,27 @@ func TestCloudEnrollDoesNotExposeControllerFlags(t *testing.T) {
 	for _, name := range []string{"controller", "controller-address", "controller-server-name"} {
 		if command.Flags().Lookup(name) != nil {
 			t.Fatalf("cloud enroll still exposes --%s", name)
+		}
+	}
+}
+
+func TestCloudEnrollmentProgressShowsRoutingWithoutPrivateCapacity(t *testing.T) {
+	var output bytes.Buffer
+	locator := &cloudv1.EdgeLocator{EdgeId: "edge-cn2", Name: "CN2", Region: "CN2", PublicEndpoint: "cn2.example.com:41102"}
+	measurement := &cloudv1.DaemonEdgeMeasurement{EdgeId: locator.GetEdgeId(), Reachable: true, ConnectLatencyMs: 42, SampleCount: 3}
+	candidate := &cloudv1.DaemonEdgeCandidate{Locator: locator, Online: true, Eligible: true, Measurement: measurement, Score: 1000, Status: "available"}
+	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressCandidates, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}})
+	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressMeasured, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}, Measurements: []*cloudv1.DaemonEdgeMeasurement{measurement}})
+	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressSelected, Selection: &cloudv1.DaemonEdgeSelection{SelectedEdgeId: locator.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}}, SelectedEdge: locator})
+	logged := output.String()
+	for _, expected := range []string{"CN2", "cn2.example.com:41102", "latency=42 ms", "score=1000.0", "selected CN2"} {
+		if !strings.Contains(logged, expected) {
+			t.Fatalf("enrollment progress %q does not contain %q", logged, expected)
+		}
+	}
+	for _, private := range []string{"capacity", "agent_count", "load"} {
+		if strings.Contains(strings.ToLower(logged), private) {
+			t.Fatalf("enrollment progress exposed %q: %s", private, logged)
 		}
 	}
 }

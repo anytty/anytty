@@ -387,7 +387,7 @@ func cloudSelectionToCore(selection *cloudv1.DaemonEdgeSelection) corev2.RemoteC
 	}
 	for _, candidate := range selection.GetCandidates() {
 		locator := candidate.GetLocator()
-		value := corev2.RemoteCloudEdgeCandidate{EdgeID: locator.GetEdgeId(), Name: locator.GetName(), Region: locator.GetRegion(), PublicEndpoint: locator.GetPublicEndpoint(), Status: candidate.GetStatus(), Online: candidate.GetOnline(), Eligible: candidate.GetEligible(), Preferred: candidate.GetPreferred(), Current: candidate.GetCurrent(), AgentCount: candidate.GetAgentCount(), Capacity: candidate.GetCapacity(), Score: candidate.GetScore()}
+		value := corev2.RemoteCloudEdgeCandidate{EdgeID: locator.GetEdgeId(), Name: locator.GetName(), Region: locator.GetRegion(), PublicEndpoint: locator.GetPublicEndpoint(), Status: candidate.GetStatus(), Online: candidate.GetOnline(), Eligible: candidate.GetEligible(), Preferred: candidate.GetPreferred(), Current: candidate.GetCurrent(), Score: candidate.GetScore()}
 		if measured := candidate.GetMeasurement(); measured != nil {
 			measurement := &corev2.RemoteCloudEdgeMeasurement{Reachable: measured.GetReachable(), ConnectLatencyMS: measured.GetConnectLatencyMs(), ConnectionFailureRate: measured.GetConnectionFailureRate(), SampleCount: measured.GetSampleCount()}
 			if measured.GetMeasuredAt() != nil {
