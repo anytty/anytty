@@ -122,7 +122,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 ### macOS and Linux
 
-The installer selects x64 or ARM64, downloads the matching GitHub Release archive, verifies `SHA256SUMS`, and installs to `~/.local/bin` by default. On first install it also writes the website's recommended `coralline-candy` profile to `~/.config/anytty/tui-v3.yaml` (or `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`); reinstalls and upgrades preserve an existing configuration.
+The installer selects x64 or ARM64, downloads the matching GitHub Release archive, verifies `SHA256SUMS`, and installs to `~/.local/bin` by default. On first install it also writes the website's recommended [`coralline-candy` example profile](tui/docs/tui-v3.recommended.yaml) to `~/.config/anytty/tui-v3.yaml` (or `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`); reinstalls and upgrades preserve an existing configuration.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh

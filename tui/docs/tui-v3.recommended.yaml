@@ -132,6 +132,11 @@ tui:
         label: "PICK"
         style: footer-key-picker
 
+      terminal-picker-tags:
+        icon: "󰱼"
+        label: "TAGS"
+        style: footer-key-picker
+
       workbench-tree:
         icon: "󰙅"
         label: "WORKBENCH"
@@ -720,6 +725,27 @@ tui:
         show: false
 
     terminal_picker:
+      "left":
+        action: terminal_picker.endpoint_previous
+        label: "←/→ ENDPOINT"
+      "right":
+        action: terminal_picker.endpoint_next
+        label: "←/→ ENDPOINT"
+      "shift-left":
+        action: terminal_picker.status_previous
+        label: "SHIFT+←/→ STATUS"
+      "shift-right":
+        action: terminal_picker.status_next
+        label: "SHIFT+←/→ STATUS"
+      "up":
+        action: terminal_picker.select_previous
+        label: "↑/↓ SELECT"
+      "down":
+        action: terminal_picker.select_next
+        label: "↑/↓ SELECT"
+      "ctrl-t":
+        action: terminal_picker.tags
+        label: "CTRL+T TAGS"
       "enter":
         action: terminal_picker.attach
         label: "ENTER 󰋺 ATTACH"
@@ -735,6 +761,20 @@ tui:
       "ctrl-x":
         action: terminal_picker.delete
         label: "CTRL+X 󰅖 REMOVE"
+
+    terminal_picker_tags:
+      "up":
+        action: terminal_picker.select_previous
+        label: "↑/↓ SELECT"
+      "down":
+        action: terminal_picker.select_next
+        label: "↑/↓ SELECT"
+      "space":
+        action: terminal_picker.tag_toggle
+        label: "SPACE TOGGLE"
+      "ctrl-t":
+        action: terminal_picker.tags
+        label: "CTRL+T DONE"
 
     terminal_pool:
       "enter":

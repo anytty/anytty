@@ -48,6 +48,17 @@ func TestParseRecommendedConfig(t *testing.T) {
 	if cfg.Profile != "coralline-candy" || cfg.Theme.Palette != "builtin" || cfg.Chrome.PanelPresentation != "card" {
 		t.Fatalf("recommended visual profile changed unexpectedly: %#v", cfg)
 	}
+	if mode := cfg.Footer.Modes["terminal-picker-tags"]; mode.Label != "TAGS" || mode.Style != "footer-key-picker" {
+		t.Fatalf("recommended terminal picker tags mode changed unexpectedly: %#v", mode)
+	}
+	picker := cfg.Shortcuts.Scenes["terminal_picker"].Bindings
+	tags := cfg.Shortcuts.Scenes["terminal_picker_tags"].Bindings
+	if picker["left"].Action != "terminal_picker.endpoint_previous" ||
+		picker["ctrl-t"].Action != "terminal_picker.tags" ||
+		tags["space"].Action != "terminal_picker.tag_toggle" ||
+		tags["ctrl-t"].Action != "terminal_picker.tags" {
+		t.Fatalf("recommended terminal picker shortcuts changed unexpectedly: picker=%#v tags=%#v", picker, tags)
+	}
 }
 
 func TestDefaultVisibleChromeUsesPortableText(t *testing.T) {

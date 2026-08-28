@@ -122,7 +122,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 ### macOS 与 Linux
 
-安装脚本会自动选择 x64 或 ARM64，下载对应 GitHub Release，校验 `SHA256SUMS`，并默认安装到 `~/.local/bin`。首次安装还会把官网使用的 `coralline-candy` 推荐配置写入 `~/.config/anytty/tui-v3.yaml`（或 `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`）；再次安装或升级不会覆盖已有配置。
+安装脚本会自动选择 x64 或 ARM64，下载对应 GitHub Release，校验 `SHA256SUMS`，并默认安装到 `~/.local/bin`。首次安装还会把官网使用的 [`coralline-candy` 示例配置](tui/docs/tui-v3.recommended.yaml)写入 `~/.config/anytty/tui-v3.yaml`（或 `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`）；再次安装或升级不会覆盖已有配置。
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
