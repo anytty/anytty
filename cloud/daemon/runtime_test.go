@@ -18,6 +18,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -356,6 +357,58 @@ func TestRefreshBindingReplacesStaleLocatorBeforePairing(t *testing.T) {
 	}
 }
 
+func TestBindingRefreshRunsBeforeExpiryWithoutWaitingForEdgeFailure(t *testing.T) {
+	identity, err := remoteauth.NewIdentity("device-proactive-refresh", ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x32}, ed25519.SeedSize)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &daemonTestEnrollmentService{identity: identity, challenge: bytes.Repeat([]byte{0x71}, remoteauth.DeviceIdentityChallengeBytes)}
+	controller := startDaemonTestEnrollmentService(t, service)
+	const daemonID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	const accountID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	service.response = daemonRefreshResponse(t, daemonID, accountID, identity, controller, cloudv1.DaemonState_DAEMON_STATE_ACTIVE, 2)
+	now := time.Now().UTC().Truncate(time.Second)
+	record := daemonEnrollmentRecord(t, daemonID, accountID, identity, controller)
+	record = withBindingValidity(t, record, now.Add(-time.Hour), now.Add(time.Hour))
+	recordPath := filepath.Join(t.TempDir(), "cloud.json")
+	if err := SaveRecord(recordPath, record); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &Runtime{
+		config: Config{
+			Identity: identity, RecordPath: recordPath, ControllerAddress: controller.GetPublicEndpoint(), ControllerServerName: controller.GetServerName(), ControllerCAPEM: controller.GetCaCertificatePem(),
+			BindingRefreshBefore: 30 * 24 * time.Hour, BindingRefreshMinimum: time.Millisecond, Now: func() time.Time { return now },
+		},
+		record: record, recordChanges: make(chan struct{}, 1), cloudSessions: make(map[string]*cloudSession),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		runtime.maintainBinding(ctx)
+	}()
+	eventuallyDaemon(t, 5*time.Second, func() bool { return service.refreshes.Load() > 0 })
+	cancel()
+	<-done
+	if delay := runtime.bindingRefreshDelay(now); delay < 300*24*time.Hour {
+		t.Fatalf("refreshed binding delay = %s, want a long-lived replacement", delay)
+	}
+}
+
+func TestBindingRefreshDelayAdvancesAcrossYears(t *testing.T) {
+	runtime, _ := daemonRuntimeFixture(t, webrtc.Answerer{Handler: daemonBlockingHandler{}})
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	record := withBindingValidity(t, runtime.currentRecord(), now, now.Add(365*24*time.Hour))
+	runtime.replaceRecord(record)
+	runtime.config.BindingRefreshBefore = 30 * 24 * time.Hour
+	if delay := runtime.bindingRefreshDelay(now); delay != 335*24*time.Hour {
+		t.Fatalf("initial binding refresh delay = %s", delay)
+	}
+	if delay := runtime.bindingRefreshDelay(now.Add(336 * 24 * time.Hour)); delay != 0 {
+		t.Fatalf("advanced binding refresh delay = %s, want immediate", delay)
+	}
+}
+
 func TestRunRefreshesLifecycleBeforeUsingSavedEdge(t *testing.T) {
 	identity, err := remoteauth.NewIdentity("device-startup-refresh", ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x23}, ed25519.SeedSize)))
 	if err != nil {
@@ -502,6 +555,7 @@ type daemonTestEnrollmentService struct {
 	challenge     []byte
 	response      *cloudv1.RefreshDaemonBindingResponse
 	proofVerified bool
+	refreshes     atomic.Int32
 }
 
 type daemonFailoverEnrollmentService struct {
@@ -599,6 +653,7 @@ func (service *daemonTestEnrollmentService) CompleteDaemonBindingRefresh(_ conte
 		return nil, status.Error(codes.Unauthenticated, "invalid DeviceIdentity proof")
 	}
 	service.proofVerified = true
+	service.refreshes.Add(1)
 	return proto.Clone(service.response).(*cloudv1.RefreshDaemonBindingResponse), nil
 }
 
@@ -624,6 +679,42 @@ func daemonEnrollmentRecord(t *testing.T, daemonID, accountID string, identity r
 	return EnrollmentRecord{Version: recordVersion, DaemonID: daemonID, AccountID: accountID, DisplayName: "Office Mac", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC()}
 }
 
+func withBindingValidity(t *testing.T, record EnrollmentRecord, issuedAt, expiresAt time.Time) EnrollmentRecord {
+	t.Helper()
+	envelope := &cloudv1.SignedEnvelope{}
+	if err := proto.Unmarshal(record.DaemonBinding, envelope); err != nil {
+		t.Fatal(err)
+	}
+	claims := &cloudv1.DaemonBindingClaims{}
+	if err := proto.Unmarshal(envelope.GetPayload(), claims); err != nil {
+		t.Fatal(err)
+	}
+	claims.IssuedAt = timestamppb.New(issuedAt)
+	claims.ExpiresAt = timestamppb.New(expiresAt)
+	payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope.Payload = payload
+	record.DaemonBinding, err = proto.MarshalOptions{Deterministic: true}.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return record
+}
+
+func eventuallyDaemon(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition did not become true before timeout")
+}
+
 func daemonBindingEnvelope(t *testing.T, daemonID, accountID string, identity remoteauth.Identity, locator *cloudv1.EdgeLocator) *cloudv1.SignedEnvelope {
 	t.Helper()
 	locatorPayload, err := proto.MarshalOptions{Deterministic: true}.Marshal(locator)
@@ -631,9 +722,11 @@ func daemonBindingEnvelope(t *testing.T, daemonID, accountID string, identity re
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(locatorPayload)
+	now := time.Now().UTC()
 	claims, err := proto.MarshalOptions{Deterministic: true}.Marshal(&cloudv1.DaemonBindingClaims{
 		BindingId: "binding-test", DaemonId: daemonID, AccountId: accountID, EdgeId: locator.GetEdgeId(),
 		DeviceId: identity.DeviceID, DevicePublicKey: append([]byte(nil), identity.PublicKey...), EdgeLocatorSha256: digest[:],
+		IssuedAt: timestamppb.New(now), ExpiresAt: timestamppb.New(now.Add(365 * 24 * time.Hour)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -647,9 +740,11 @@ func daemonBindingEnvelopeForService(daemonID, accountID string, identity remote
 		return nil, err
 	}
 	digest := sha256.Sum256(locatorPayload)
+	now := time.Now().UTC()
 	claims, err := proto.MarshalOptions{Deterministic: true}.Marshal(&cloudv1.DaemonBindingClaims{
 		BindingId: "binding-test", DaemonId: daemonID, AccountId: accountID, EdgeId: locator.GetEdgeId(),
 		DeviceId: identity.DeviceID, DevicePublicKey: append([]byte(nil), identity.PublicKey...), EdgeLocatorSha256: digest[:],
+		IssuedAt: timestamppb.New(now), ExpiresAt: timestamppb.New(now.Add(365 * 24 * time.Hour)),
 	})
 	if err != nil {
 		return nil, err

@@ -2,8 +2,8 @@
 // @generated from file cloud/v1/certificate.proto (package anytty.cloud.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,359 +12,180 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file cloud/v1/certificate.proto.
  */
 export const file_cloud_v1_certificate: GenFile = /*@__PURE__*/
-  fileDesc("ChpjbG91ZC92MS9jZXJ0aWZpY2F0ZS5wcm90bxIPYW55dHR5LmNsb3VkLnYxIpEDChJDZXJ0aWZpY2F0ZUJpbmRpbmcSDwoHZWRnZV9pZBgBIAEoCRIRCgllZGdlX25hbWUYAiABKAkSFwoPcHVibGljX2VuZHBvaW50GAMgASgJEh4KFmNlcnRpZmljYXRlX3Byb2ZpbGVfaWQYBCABKAkSIAoYY2VydGlmaWNhdGVfcHJvZmlsZV9uYW1lGAUgASgJEhgKEGJpbmRpbmdfcmV2aXNpb24YBiABKAQSGAoQZGVzaXJlZF9yZXZpc2lvbhgHIAEoBBIYChBhcHBsaWVkX3JldmlzaW9uGAggASgEEjkKCnN5bmNfc3RhdGUYCSABKA4yJS5hbnl0dHkuY2xvdWQudjEuQ2VydGlmaWNhdGVTeW5jU3RhdGUSFwoPbGFzdF9lcnJvcl9jb2RlGAogASgJEhoKEmxhc3RfZXJyb3JfbWVzc2FnZRgLIAEoCRIuCgphcHBsaWVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZvbmxpbmUYDSABKAgi+QIKEkNlcnRpZmljYXRlUHJvZmlsZRIeChZjZXJ0aWZpY2F0ZV9wcm9maWxlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEQoJZG5zX25hbWVzGAMgAygJEhoKEnNoYTI1Nl9maW5nZXJwcmludBgEIAEoCRIuCgpub3RfYmVmb3JlGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBItCglub3RfYWZ0ZXIYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhAKCHJldmlzaW9uGAcgASgEEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjUKCGJpbmRpbmdzGAogAygLMiMuYW55dHR5LmNsb3VkLnYxLkNlcnRpZmljYXRlQmluZGluZyIgCh5MaXN0Q2VydGlmaWNhdGVQcm9maWxlc1JlcXVlc3QiWAofTGlzdENlcnRpZmljYXRlUHJvZmlsZXNSZXNwb25zZRI1Cghwcm9maWxlcxgBIAMoCzIjLmFueXR0eS5jbG91ZC52MS5DZXJ0aWZpY2F0ZVByb2ZpbGUiogEKH1VwbG9hZENlcnRpZmljYXRlUHJvZmlsZVJlcXVlc3QSHgoWY2VydGlmaWNhdGVfcHJvZmlsZV9pZBgBIAEoCRIZChFleHBlY3RlZF9yZXZpc2lvbhgCIAEoBBIMCgRuYW1lGAMgASgJEh0KFWNlcnRpZmljYXRlX2NoYWluX3BlbRgEIAEoDBIXCg9wcml2YXRlX2tleV9wZW0YBSABKAwiWAogVXBsb2FkQ2VydGlmaWNhdGVQcm9maWxlUmVzcG9uc2USNAoHcHJvZmlsZRgBIAEoCzIjLmFueXR0eS5jbG91ZC52MS5DZXJ0aWZpY2F0ZVByb2ZpbGUicwodQmluZENlcnRpZmljYXRlUHJvZmlsZVJlcXVlc3QSDwoHZWRnZV9pZBgBIAEoCRIeChZjZXJ0aWZpY2F0ZV9wcm9maWxlX2lkGAIgASgJEiEKGWV4cGVjdGVkX2JpbmRpbmdfcmV2aXNpb24YAyABKAQiVgoeQmluZENlcnRpZmljYXRlUHJvZmlsZVJlc3BvbnNlEjQKB2JpbmRpbmcYASABKAsyIy5hbnl0dHkuY2xvdWQudjEuQ2VydGlmaWNhdGVCaW5kaW5nIrIBChVFZGdlQ2VydGlmaWNhdGVCdW5kbGUSFgoOdGFyZ2V0X2VkZ2VfaWQYASABKAkSHgoWY2VydGlmaWNhdGVfcHJvZmlsZV9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoBBIXCg9wdWJsaWNfZW5kcG9pbnQYBCABKAkSHQoVY2VydGlmaWNhdGVfY2hhaW5fcGVtGAUgASgMEhcKD3ByaXZhdGVfa2V5X3BlbRgGIAEoDCqpAQoUQ2VydGlmaWNhdGVTeW5jU3RhdGUSJgoiQ0VSVElGSUNBVEVfU1lOQ19TVEFURV9VTlNQRUNJRklFRBAAEiIKHkNFUlRJRklDQVRFX1NZTkNfU1RBVEVfUEVORElORxABEiIKHkNFUlRJRklDQVRFX1NZTkNfU1RBVEVfQVBQTElFRBACEiEKHUNFUlRJRklDQVRFX1NZTkNfU1RBVEVfRkFJTEVEEANCMVovZ2l0aHViLmNvbS9hbnl0dHkvYW55dHR5L3Byb3RvL2Nsb3VkL3YxO2Nsb3VkdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("ChpjbG91ZC92MS9jZXJ0aWZpY2F0ZS5wcm90bxIPYW55dHR5LmNsb3VkLnYxIuQCChtFZGdlUHVibGljQ2VydGlmaWNhdGVTdGF0dXMSFwoPcHVibGljX2VuZHBvaW50GAEgASgJEhoKEmNlcnRpZmljYXRlX3NoYTI1NhgCIAEoDBIuCgpub3RfYmVmb3JlGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBItCglub3RfYWZ0ZXIYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKD3JlbmV3YWxfcGVuZGluZxgFIAEoCBIXCg9sYXN0X2Vycm9yX2NvZGUYBiABKAkSGgoSbGFzdF9lcnJvcl9tZXNzYWdlGAcgASgJEjMKD2xhc3RfYXR0ZW1wdF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKYXBwbGllZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAingEKIUVkZ2VQdWJsaWNDZXJ0aWZpY2F0ZVJlbmV3UmVxdWVzdBISCgpyZXF1ZXN0X2lkGAEgASgJEg8KB2Nzcl9wZW0YAiABKAwSIgoaY3VycmVudF9jZXJ0aWZpY2F0ZV9zaGEyNTYYAyABKAwSMAoMcmVxdWVzdGVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCLMAQoiRWRnZVB1YmxpY0NlcnRpZmljYXRlUmVuZXdSZXNwb25zZRISCgpyZXF1ZXN0X2lkGAEgASgJEhcKD2NlcnRpZmljYXRlX3BlbRgCIAEoDBIaChJjZXJ0aWZpY2F0ZV9zaGEyNTYYAyABKAwSLgoKbm90X2JlZm9yZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoJbm90X2FmdGVyGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKsAQocRWRnZVB1YmxpY0NlcnRpZmljYXRlQXBwbGllZBISCgpyZXF1ZXN0X2lkGAEgASgJEjwKBnN0YXR1cxgCIAEoCzIsLmFueXR0eS5jbG91ZC52MS5FZGdlUHVibGljQ2VydGlmaWNhdGVTdGF0dXMSDwoHYXBwbGllZBgDIAEoCBISCgplcnJvcl9jb2RlGAQgASgJEhUKDWVycm9yX21lc3NhZ2UYBSABKAlCMVovZ2l0aHViLmNvbS9hbnl0dHkvYW55dHR5L3Byb3RvL2Nsb3VkL3YxO2Nsb3VkdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
- * CertificateBinding 是一个 Edge 的持久证书绑定及最近应用结果。
- * online 仍由纯内存 Directory 投影，不写入证书表。
+ * EdgePublicCertificateStatus is the current automatically managed TLS
+ * credential presented by an Edge public endpoint. Private key material never
+ * leaves the Edge and is never part of this projection.
  *
- * @generated from message anytty.cloud.v1.CertificateBinding
+ * @generated from message anytty.cloud.v1.EdgePublicCertificateStatus
  */
-export type CertificateBinding = Message<"anytty.cloud.v1.CertificateBinding"> & {
+export type EdgePublicCertificateStatus = Message<"anytty.cloud.v1.EdgePublicCertificateStatus"> & {
   /**
-   * @generated from field: string edge_id = 1;
-   */
-  edgeId: string;
-
-  /**
-   * @generated from field: string edge_name = 2;
-   */
-  edgeName: string;
-
-  /**
-   * @generated from field: string public_endpoint = 3;
+   * @generated from field: string public_endpoint = 1;
    */
   publicEndpoint: string;
 
   /**
-   * @generated from field: string certificate_profile_id = 4;
+   * @generated from field: bytes certificate_sha256 = 2;
    */
-  certificateProfileId: string;
+  certificateSha256: Uint8Array;
 
   /**
-   * @generated from field: string certificate_profile_name = 5;
-   */
-  certificateProfileName: string;
-
-  /**
-   * @generated from field: uint64 binding_revision = 6;
-   */
-  bindingRevision: bigint;
-
-  /**
-   * @generated from field: uint64 desired_revision = 7;
-   */
-  desiredRevision: bigint;
-
-  /**
-   * @generated from field: uint64 applied_revision = 8;
-   */
-  appliedRevision: bigint;
-
-  /**
-   * @generated from field: anytty.cloud.v1.CertificateSyncState sync_state = 9;
-   */
-  syncState: CertificateSyncState;
-
-  /**
-   * @generated from field: string last_error_code = 10;
-   */
-  lastErrorCode: string;
-
-  /**
-   * @generated from field: string last_error_message = 11;
-   */
-  lastErrorMessage: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp applied_at = 12;
-   */
-  appliedAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: bool online = 13;
-   */
-  online: boolean;
-};
-
-/**
- * Describes the message anytty.cloud.v1.CertificateBinding.
- * Use `create(CertificateBindingSchema)` to create a new message.
- */
-export const CertificateBindingSchema: GenMessage<CertificateBinding> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 0);
-
-/**
- * CertificateProfile 是运营 API 可见的当前证书元数据，不包含 PEM 或 secret 引用。
- *
- * @generated from message anytty.cloud.v1.CertificateProfile
- */
-export type CertificateProfile = Message<"anytty.cloud.v1.CertificateProfile"> & {
-  /**
-   * @generated from field: string certificate_profile_id = 1;
-   */
-  certificateProfileId: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
-
-  /**
-   * @generated from field: repeated string dns_names = 3;
-   */
-  dnsNames: string[];
-
-  /**
-   * @generated from field: string sha256_fingerprint = 4;
-   */
-  sha256Fingerprint: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp not_before = 5;
+   * @generated from field: google.protobuf.Timestamp not_before = 3;
    */
   notBefore?: Timestamp | undefined;
 
   /**
-   * @generated from field: google.protobuf.Timestamp not_after = 6;
+   * @generated from field: google.protobuf.Timestamp not_after = 4;
    */
   notAfter?: Timestamp | undefined;
 
   /**
-   * @generated from field: uint64 revision = 7;
+   * @generated from field: bool renewal_pending = 5;
    */
-  revision: bigint;
+  renewalPending: boolean;
 
   /**
-   * @generated from field: google.protobuf.Timestamp created_at = 8;
+   * @generated from field: string last_error_code = 6;
    */
-  createdAt?: Timestamp | undefined;
+  lastErrorCode: string;
 
   /**
-   * @generated from field: google.protobuf.Timestamp updated_at = 9;
+   * @generated from field: string last_error_message = 7;
    */
-  updatedAt?: Timestamp | undefined;
+  lastErrorMessage: string;
 
   /**
-   * @generated from field: repeated anytty.cloud.v1.CertificateBinding bindings = 10;
+   * @generated from field: google.protobuf.Timestamp last_attempt_at = 8;
    */
-  bindings: CertificateBinding[];
+  lastAttemptAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp applied_at = 9;
+   */
+  appliedAt?: Timestamp | undefined;
 };
 
 /**
- * Describes the message anytty.cloud.v1.CertificateProfile.
- * Use `create(CertificateProfileSchema)` to create a new message.
+ * Describes the message anytty.cloud.v1.EdgePublicCertificateStatus.
+ * Use `create(EdgePublicCertificateStatusSchema)` to create a new message.
  */
-export const CertificateProfileSchema: GenMessage<CertificateProfile> = /*@__PURE__*/
+export const EdgePublicCertificateStatusSchema: GenMessage<EdgePublicCertificateStatus> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_certificate, 0);
+
+/**
+ * EdgePublicCertificateRenewRequest is sent only inside an authenticated
+ * EdgeControl stream. The new private key is generated and retained by Edge.
+ *
+ * @generated from message anytty.cloud.v1.EdgePublicCertificateRenewRequest
+ */
+export type EdgePublicCertificateRenewRequest = Message<"anytty.cloud.v1.EdgePublicCertificateRenewRequest"> & {
+  /**
+   * @generated from field: string request_id = 1;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: bytes csr_pem = 2;
+   */
+  csrPem: Uint8Array;
+
+  /**
+   * @generated from field: bytes current_certificate_sha256 = 3;
+   */
+  currentCertificateSha256: Uint8Array;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp requested_at = 4;
+   */
+  requestedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message anytty.cloud.v1.EdgePublicCertificateRenewRequest.
+ * Use `create(EdgePublicCertificateRenewRequestSchema)` to create a new message.
+ */
+export const EdgePublicCertificateRenewRequestSchema: GenMessage<EdgePublicCertificateRenewRequest> = /*@__PURE__*/
   messageDesc(file_cloud_v1_certificate, 1);
 
 /**
- * @generated from message anytty.cloud.v1.ListCertificateProfilesRequest
+ * EdgePublicCertificateRenewResponse contains a serverAuth chain signed for
+ * the Controller-owned public_endpoint of the authenticated Edge.
+ *
+ * @generated from message anytty.cloud.v1.EdgePublicCertificateRenewResponse
  */
-export type ListCertificateProfilesRequest = Message<"anytty.cloud.v1.ListCertificateProfilesRequest"> & {
+export type EdgePublicCertificateRenewResponse = Message<"anytty.cloud.v1.EdgePublicCertificateRenewResponse"> & {
+  /**
+   * @generated from field: string request_id = 1;
+   */
+  requestId: string;
+
+  /**
+   * @generated from field: bytes certificate_pem = 2;
+   */
+  certificatePem: Uint8Array;
+
+  /**
+   * @generated from field: bytes certificate_sha256 = 3;
+   */
+  certificateSha256: Uint8Array;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp not_before = 4;
+   */
+  notBefore?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp not_after = 5;
+   */
+  notAfter?: Timestamp | undefined;
 };
 
 /**
- * Describes the message anytty.cloud.v1.ListCertificateProfilesRequest.
- * Use `create(ListCertificateProfilesRequestSchema)` to create a new message.
+ * Describes the message anytty.cloud.v1.EdgePublicCertificateRenewResponse.
+ * Use `create(EdgePublicCertificateRenewResponseSchema)` to create a new message.
  */
-export const ListCertificateProfilesRequestSchema: GenMessage<ListCertificateProfilesRequest> = /*@__PURE__*/
+export const EdgePublicCertificateRenewResponseSchema: GenMessage<EdgePublicCertificateRenewResponse> = /*@__PURE__*/
   messageDesc(file_cloud_v1_certificate, 2);
 
 /**
- * @generated from message anytty.cloud.v1.ListCertificateProfilesResponse
+ * EdgePublicCertificateApplied reports atomic persistence and TLS hot reload.
+ * A failed application leaves the previously loaded credential untouched.
+ *
+ * @generated from message anytty.cloud.v1.EdgePublicCertificateApplied
  */
-export type ListCertificateProfilesResponse = Message<"anytty.cloud.v1.ListCertificateProfilesResponse"> & {
+export type EdgePublicCertificateApplied = Message<"anytty.cloud.v1.EdgePublicCertificateApplied"> & {
   /**
-   * @generated from field: repeated anytty.cloud.v1.CertificateProfile profiles = 1;
+   * @generated from field: string request_id = 1;
    */
-  profiles: CertificateProfile[];
+  requestId: string;
+
+  /**
+   * @generated from field: anytty.cloud.v1.EdgePublicCertificateStatus status = 2;
+   */
+  status?: EdgePublicCertificateStatus | undefined;
+
+  /**
+   * @generated from field: bool applied = 3;
+   */
+  applied: boolean;
+
+  /**
+   * @generated from field: string error_code = 4;
+   */
+  errorCode: string;
+
+  /**
+   * @generated from field: string error_message = 5;
+   */
+  errorMessage: string;
 };
 
 /**
- * Describes the message anytty.cloud.v1.ListCertificateProfilesResponse.
- * Use `create(ListCertificateProfilesResponseSchema)` to create a new message.
+ * Describes the message anytty.cloud.v1.EdgePublicCertificateApplied.
+ * Use `create(EdgePublicCertificateAppliedSchema)` to create a new message.
  */
-export const ListCertificateProfilesResponseSchema: GenMessage<ListCertificateProfilesResponse> = /*@__PURE__*/
+export const EdgePublicCertificateAppliedSchema: GenMessage<EdgePublicCertificateApplied> = /*@__PURE__*/
   messageDesc(file_cloud_v1_certificate, 3);
-
-/**
- * UploadCertificateProfileRequest 同时携带证书链和私钥；响应永远不回显这两个字段。
- * certificate_profile_id 为空表示创建，非空表示替换当前档案内容。
- *
- * @generated from message anytty.cloud.v1.UploadCertificateProfileRequest
- */
-export type UploadCertificateProfileRequest = Message<"anytty.cloud.v1.UploadCertificateProfileRequest"> & {
-  /**
-   * @generated from field: string certificate_profile_id = 1;
-   */
-  certificateProfileId: string;
-
-  /**
-   * @generated from field: uint64 expected_revision = 2;
-   */
-  expectedRevision: bigint;
-
-  /**
-   * @generated from field: string name = 3;
-   */
-  name: string;
-
-  /**
-   * @generated from field: bytes certificate_chain_pem = 4;
-   */
-  certificateChainPem: Uint8Array;
-
-  /**
-   * @generated from field: bytes private_key_pem = 5;
-   */
-  privateKeyPem: Uint8Array;
-};
-
-/**
- * Describes the message anytty.cloud.v1.UploadCertificateProfileRequest.
- * Use `create(UploadCertificateProfileRequestSchema)` to create a new message.
- */
-export const UploadCertificateProfileRequestSchema: GenMessage<UploadCertificateProfileRequest> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 4);
-
-/**
- * @generated from message anytty.cloud.v1.UploadCertificateProfileResponse
- */
-export type UploadCertificateProfileResponse = Message<"anytty.cloud.v1.UploadCertificateProfileResponse"> & {
-  /**
-   * @generated from field: anytty.cloud.v1.CertificateProfile profile = 1;
-   */
-  profile?: CertificateProfile | undefined;
-};
-
-/**
- * Describes the message anytty.cloud.v1.UploadCertificateProfileResponse.
- * Use `create(UploadCertificateProfileResponseSchema)` to create a new message.
- */
-export const UploadCertificateProfileResponseSchema: GenMessage<UploadCertificateProfileResponse> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 5);
-
-/**
- * BindCertificateProfileRequest 把一个 Edge 绑定到一个档案；空档案 ID 表示解除绑定。
- *
- * @generated from message anytty.cloud.v1.BindCertificateProfileRequest
- */
-export type BindCertificateProfileRequest = Message<"anytty.cloud.v1.BindCertificateProfileRequest"> & {
-  /**
-   * @generated from field: string edge_id = 1;
-   */
-  edgeId: string;
-
-  /**
-   * @generated from field: string certificate_profile_id = 2;
-   */
-  certificateProfileId: string;
-
-  /**
-   * @generated from field: uint64 expected_binding_revision = 3;
-   */
-  expectedBindingRevision: bigint;
-};
-
-/**
- * Describes the message anytty.cloud.v1.BindCertificateProfileRequest.
- * Use `create(BindCertificateProfileRequestSchema)` to create a new message.
- */
-export const BindCertificateProfileRequestSchema: GenMessage<BindCertificateProfileRequest> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 6);
-
-/**
- * @generated from message anytty.cloud.v1.BindCertificateProfileResponse
- */
-export type BindCertificateProfileResponse = Message<"anytty.cloud.v1.BindCertificateProfileResponse"> & {
-  /**
-   * @generated from field: anytty.cloud.v1.CertificateBinding binding = 1;
-   */
-  binding?: CertificateBinding | undefined;
-};
-
-/**
- * Describes the message anytty.cloud.v1.BindCertificateProfileResponse.
- * Use `create(BindCertificateProfileResponseSchema)` to create a new message.
- */
-export const BindCertificateProfileResponseSchema: GenMessage<BindCertificateProfileResponse> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 7);
-
-/**
- * EdgeCertificateBundle 只允许通过已认证的 mTLS EdgeControl 下发给 target_edge_id。
- * 它不是运营 HTTP API 的响应类型，也不得写入 PostgreSQL。
- *
- * @generated from message anytty.cloud.v1.EdgeCertificateBundle
- */
-export type EdgeCertificateBundle = Message<"anytty.cloud.v1.EdgeCertificateBundle"> & {
-  /**
-   * @generated from field: string target_edge_id = 1;
-   */
-  targetEdgeId: string;
-
-  /**
-   * @generated from field: string certificate_profile_id = 2;
-   */
-  certificateProfileId: string;
-
-  /**
-   * @generated from field: uint64 revision = 3;
-   */
-  revision: bigint;
-
-  /**
-   * @generated from field: string public_endpoint = 4;
-   */
-  publicEndpoint: string;
-
-  /**
-   * @generated from field: bytes certificate_chain_pem = 5;
-   */
-  certificateChainPem: Uint8Array;
-
-  /**
-   * @generated from field: bytes private_key_pem = 6;
-   */
-  privateKeyPem: Uint8Array;
-};
-
-/**
- * Describes the message anytty.cloud.v1.EdgeCertificateBundle.
- * Use `create(EdgeCertificateBundleSchema)` to create a new message.
- */
-export const EdgeCertificateBundleSchema: GenMessage<EdgeCertificateBundle> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_certificate, 8);
-
-/**
- * CertificateSyncState 是持久 desired revision 与 Edge applied revision 的对账结果。
- *
- * @generated from enum anytty.cloud.v1.CertificateSyncState
- */
-export enum CertificateSyncState {
-  /**
-   * @generated from enum value: CERTIFICATE_SYNC_STATE_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: CERTIFICATE_SYNC_STATE_PENDING = 1;
-   */
-  PENDING = 1,
-
-  /**
-   * @generated from enum value: CERTIFICATE_SYNC_STATE_APPLIED = 2;
-   */
-  APPLIED = 2,
-
-  /**
-   * @generated from enum value: CERTIFICATE_SYNC_STATE_FAILED = 3;
-   */
-  FAILED = 3,
-}
-
-/**
- * Describes the enum anytty.cloud.v1.CertificateSyncState.
- */
-export const CertificateSyncStateSchema: GenEnum<CertificateSyncState> = /*@__PURE__*/
-  enumDesc(file_cloud_v1_certificate, 0);

@@ -44,7 +44,7 @@ message ManagedEdge {
   EdgeDesiredConfig config = 1;
   uint64 config_revision = 2;
   EdgeRuntimeProjection runtime = 3;
-  CertificateBinding certificate = 4;
+  EdgePublicCertificateStatus public_certificate = 4;
 }
 
 message ListEdgesRequest {}
@@ -107,7 +107,7 @@ message RegisterEdgeResponse {
   bytes identity_certificate_pem = 2;
   bytes public_certificate_pem = 3;
   bytes edge_ca_certificate_pem = 4;
-  bytes controller_ca_certificate_pem = 5;
+  reserved 5;
   string controller_address = 6;
   string controller_server_name = 7;
   SignedEdgeDesiredConfig desired_config = 8;

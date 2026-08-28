@@ -30,7 +30,7 @@ const (
 	EdgeCapability_EDGE_CAPABILITY_CONTROL_STREAM                EdgeCapability = 1
 	EdgeCapability_EDGE_CAPABILITY_RELAY                         EdgeCapability = 2
 	EdgeCapability_EDGE_CAPABILITY_RESERVATION_JOURNAL           EdgeCapability = 3
-	EdgeCapability_EDGE_CAPABILITY_CERTIFICATE_HOT_RELOAD        EdgeCapability = 4
+	EdgeCapability_EDGE_CAPABILITY_PUBLIC_CERTIFICATE_ROTATION   EdgeCapability = 4
 	EdgeCapability_EDGE_CAPABILITY_DAEMON_LIFECYCLE_POLICY       EdgeCapability = 5
 	EdgeCapability_EDGE_CAPABILITY_DAEMON_EDGE_RESELECTION       EdgeCapability = 6
 	EdgeCapability_EDGE_CAPABILITY_IDENTITY_CERTIFICATE_ROTATION EdgeCapability = 7
@@ -47,7 +47,7 @@ var (
 		1:  "EDGE_CAPABILITY_CONTROL_STREAM",
 		2:  "EDGE_CAPABILITY_RELAY",
 		3:  "EDGE_CAPABILITY_RESERVATION_JOURNAL",
-		4:  "EDGE_CAPABILITY_CERTIFICATE_HOT_RELOAD",
+		4:  "EDGE_CAPABILITY_PUBLIC_CERTIFICATE_ROTATION",
 		5:  "EDGE_CAPABILITY_DAEMON_LIFECYCLE_POLICY",
 		6:  "EDGE_CAPABILITY_DAEMON_EDGE_RESELECTION",
 		7:  "EDGE_CAPABILITY_IDENTITY_CERTIFICATE_ROTATION",
@@ -61,7 +61,7 @@ var (
 		"EDGE_CAPABILITY_CONTROL_STREAM":                1,
 		"EDGE_CAPABILITY_RELAY":                         2,
 		"EDGE_CAPABILITY_RESERVATION_JOURNAL":           3,
-		"EDGE_CAPABILITY_CERTIFICATE_HOT_RELOAD":        4,
+		"EDGE_CAPABILITY_PUBLIC_CERTIFICATE_ROTATION":   4,
 		"EDGE_CAPABILITY_DAEMON_LIFECYCLE_POLICY":       5,
 		"EDGE_CAPABILITY_DAEMON_EDGE_RESELECTION":       6,
 		"EDGE_CAPABILITY_IDENTITY_CERTIFICATE_ROTATION": 7,
@@ -212,13 +212,12 @@ func (CommandResultCode) EnumDescriptor() ([]byte, []int) {
 // EdgeHello 是 EdgeControl 新连接的第一个且唯一一个注册消息。
 // edge_id 必须与 mTLS 客户端证书中的 Edge URI SAN 一致。
 type EdgeHello struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	EdgeId               string                 `protobuf:"bytes,1,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
-	SoftwareVersion      string                 `protobuf:"bytes,2,opt,name=software_version,json=softwareVersion,proto3" json:"software_version,omitempty"`
-	Capabilities         []EdgeCapability       `protobuf:"varint,3,rep,packed,name=capabilities,proto3,enum=anytty.cloud.v1.EdgeCapability" json:"capabilities,omitempty"`
-	DesiredConfigVersion uint64                 `protobuf:"varint,4,opt,name=desired_config_version,json=desiredConfigVersion,proto3" json:"desired_config_version,omitempty"`
-	CertificateVersion   uint64                 `protobuf:"varint,5,opt,name=certificate_version,json=certificateVersion,proto3" json:"certificate_version,omitempty"`
-	CertificateProfileId string                 `protobuf:"bytes,6,opt,name=certificate_profile_id,json=certificateProfileId,proto3" json:"certificate_profile_id,omitempty"`
+	state                protoimpl.MessageState       `protogen:"open.v1"`
+	EdgeId               string                       `protobuf:"bytes,1,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
+	SoftwareVersion      string                       `protobuf:"bytes,2,opt,name=software_version,json=softwareVersion,proto3" json:"software_version,omitempty"`
+	Capabilities         []EdgeCapability             `protobuf:"varint,3,rep,packed,name=capabilities,proto3,enum=anytty.cloud.v1.EdgeCapability" json:"capabilities,omitempty"`
+	DesiredConfigVersion uint64                       `protobuf:"varint,4,opt,name=desired_config_version,json=desiredConfigVersion,proto3" json:"desired_config_version,omitempty"`
+	PublicCertificate    *EdgePublicCertificateStatus `protobuf:"bytes,5,opt,name=public_certificate,json=publicCertificate,proto3" json:"public_certificate,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -281,18 +280,11 @@ func (x *EdgeHello) GetDesiredConfigVersion() uint64 {
 	return 0
 }
 
-func (x *EdgeHello) GetCertificateVersion() uint64 {
+func (x *EdgeHello) GetPublicCertificate() *EdgePublicCertificateStatus {
 	if x != nil {
-		return x.CertificateVersion
+		return x.PublicCertificate
 	}
-	return 0
-}
-
-func (x *EdgeHello) GetCertificateProfileId() string {
-	if x != nil {
-		return x.CertificateProfileId
-	}
-	return ""
+	return nil
 }
 
 // EdgeWelcome 表示 Controller 已接受当前 mTLS 连接和协议版本。
@@ -760,84 +752,6 @@ func (x *ConfigApplied) GetErrorCode() string {
 	return ""
 }
 
-// CertificateApplied 是 Edge 对证书包完成校验、落盘和热切换后的结果。
-// applied=false 时 Edge 必须继续使用此前已加载的证书。
-type CertificateApplied struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	CertificateProfileId string                 `protobuf:"bytes,1,opt,name=certificate_profile_id,json=certificateProfileId,proto3" json:"certificate_profile_id,omitempty"`
-	Revision             uint64                 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
-	Applied              bool                   `protobuf:"varint,3,opt,name=applied,proto3" json:"applied,omitempty"`
-	ErrorCode            string                 `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorMessage         string                 `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *CertificateApplied) Reset() {
-	*x = CertificateApplied{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CertificateApplied) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CertificateApplied) ProtoMessage() {}
-
-func (x *CertificateApplied) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CertificateApplied.ProtoReflect.Descriptor instead.
-func (*CertificateApplied) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *CertificateApplied) GetCertificateProfileId() string {
-	if x != nil {
-		return x.CertificateProfileId
-	}
-	return ""
-}
-
-func (x *CertificateApplied) GetRevision() uint64 {
-	if x != nil {
-		return x.Revision
-	}
-	return 0
-}
-
-func (x *CertificateApplied) GetApplied() bool {
-	if x != nil {
-		return x.Applied
-	}
-	return false
-}
-
-func (x *CertificateApplied) GetErrorCode() string {
-	if x != nil {
-		return x.ErrorCode
-	}
-	return ""
-}
-
-func (x *CertificateApplied) GetErrorMessage() string {
-	if x != nil {
-		return x.ErrorMessage
-	}
-	return ""
-}
-
 // EdgeIdentityRenewRequest 只允许在已通过当前 EdgeIdentity mTLS 认证的控制流内发送。
 // CSR 必须绑定同一 Edge URI SAN；新私钥始终留在 Edge 本机。
 type EdgeIdentityRenewRequest struct {
@@ -852,7 +766,7 @@ type EdgeIdentityRenewRequest struct {
 
 func (x *EdgeIdentityRenewRequest) Reset() {
 	*x = EdgeIdentityRenewRequest{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[10]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -864,7 +778,7 @@ func (x *EdgeIdentityRenewRequest) String() string {
 func (*EdgeIdentityRenewRequest) ProtoMessage() {}
 
 func (x *EdgeIdentityRenewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[10]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -877,7 +791,7 @@ func (x *EdgeIdentityRenewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeIdentityRenewRequest.ProtoReflect.Descriptor instead.
 func (*EdgeIdentityRenewRequest) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{10}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EdgeIdentityRenewRequest) GetRequestId() string {
@@ -921,7 +835,7 @@ type EdgeIdentityRenewResponse struct {
 
 func (x *EdgeIdentityRenewResponse) Reset() {
 	*x = EdgeIdentityRenewResponse{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[11]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -933,7 +847,7 @@ func (x *EdgeIdentityRenewResponse) String() string {
 func (*EdgeIdentityRenewResponse) ProtoMessage() {}
 
 func (x *EdgeIdentityRenewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[11]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -946,7 +860,7 @@ func (x *EdgeIdentityRenewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeIdentityRenewResponse.ProtoReflect.Descriptor instead.
 func (*EdgeIdentityRenewResponse) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{11}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EdgeIdentityRenewResponse) GetRequestId() string {
@@ -992,7 +906,7 @@ type EdgeIdentityApplied struct {
 
 func (x *EdgeIdentityApplied) Reset() {
 	*x = EdgeIdentityApplied{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[12]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +918,7 @@ func (x *EdgeIdentityApplied) String() string {
 func (*EdgeIdentityApplied) ProtoMessage() {}
 
 func (x *EdgeIdentityApplied) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[12]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +931,7 @@ func (x *EdgeIdentityApplied) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeIdentityApplied.ProtoReflect.Descriptor instead.
 func (*EdgeIdentityApplied) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{12}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *EdgeIdentityApplied) GetRequestId() string {
@@ -1072,7 +986,7 @@ type DaemonStateSnapshot struct {
 
 func (x *DaemonStateSnapshot) Reset() {
 	*x = DaemonStateSnapshot{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[13]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1084,7 +998,7 @@ func (x *DaemonStateSnapshot) String() string {
 func (*DaemonStateSnapshot) ProtoMessage() {}
 
 func (x *DaemonStateSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[13]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1097,7 +1011,7 @@ func (x *DaemonStateSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateSnapshot.ProtoReflect.Descriptor instead.
 func (*DaemonStateSnapshot) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{13}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DaemonStateSnapshot) GetDaemons() []*DaemonStateRecord {
@@ -1120,7 +1034,7 @@ type DaemonStateSyncRequest struct {
 
 func (x *DaemonStateSyncRequest) Reset() {
 	*x = DaemonStateSyncRequest{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[14]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1132,7 +1046,7 @@ func (x *DaemonStateSyncRequest) String() string {
 func (*DaemonStateSyncRequest) ProtoMessage() {}
 
 func (x *DaemonStateSyncRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[14]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1059,7 @@ func (x *DaemonStateSyncRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateSyncRequest.ProtoReflect.Descriptor instead.
 func (*DaemonStateSyncRequest) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{14}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DaemonStateSyncRequest) GetSyncId() string {
@@ -1173,7 +1087,7 @@ type DaemonStateSyncChunk struct {
 
 func (x *DaemonStateSyncChunk) Reset() {
 	*x = DaemonStateSyncChunk{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[15]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1185,7 +1099,7 @@ func (x *DaemonStateSyncChunk) String() string {
 func (*DaemonStateSyncChunk) ProtoMessage() {}
 
 func (x *DaemonStateSyncChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[15]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1198,7 +1112,7 @@ func (x *DaemonStateSyncChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateSyncChunk.ProtoReflect.Descriptor instead.
 func (*DaemonStateSyncChunk) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{15}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DaemonStateSyncChunk) GetSyncId() string {
@@ -1232,7 +1146,7 @@ type DaemonStateSyncEnd struct {
 
 func (x *DaemonStateSyncEnd) Reset() {
 	*x = DaemonStateSyncEnd{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[16]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1244,7 +1158,7 @@ func (x *DaemonStateSyncEnd) String() string {
 func (*DaemonStateSyncEnd) ProtoMessage() {}
 
 func (x *DaemonStateSyncEnd) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[16]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1257,7 +1171,7 @@ func (x *DaemonStateSyncEnd) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateSyncEnd.ProtoReflect.Descriptor instead.
 func (*DaemonStateSyncEnd) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{16}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DaemonStateSyncEnd) GetSyncId() string {
@@ -1283,7 +1197,7 @@ type DaemonStateDelta struct {
 
 func (x *DaemonStateDelta) Reset() {
 	*x = DaemonStateDelta{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[17]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1295,7 +1209,7 @@ func (x *DaemonStateDelta) String() string {
 func (*DaemonStateDelta) ProtoMessage() {}
 
 func (x *DaemonStateDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[17]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1308,7 +1222,7 @@ func (x *DaemonStateDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateDelta.ProtoReflect.Descriptor instead.
 func (*DaemonStateDelta) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{17}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DaemonStateDelta) GetDaemon() *DaemonStateRecord {
@@ -1328,7 +1242,7 @@ type DaemonStateQuery struct {
 
 func (x *DaemonStateQuery) Reset() {
 	*x = DaemonStateQuery{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[18]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1340,7 +1254,7 @@ func (x *DaemonStateQuery) String() string {
 func (*DaemonStateQuery) ProtoMessage() {}
 
 func (x *DaemonStateQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[18]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1353,7 +1267,7 @@ func (x *DaemonStateQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateQuery.ProtoReflect.Descriptor instead.
 func (*DaemonStateQuery) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{18}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DaemonStateQuery) GetRequestId() string {
@@ -1382,7 +1296,7 @@ type DaemonStateQueryResult struct {
 
 func (x *DaemonStateQueryResult) Reset() {
 	*x = DaemonStateQueryResult{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[19]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1394,7 +1308,7 @@ func (x *DaemonStateQueryResult) String() string {
 func (*DaemonStateQueryResult) ProtoMessage() {}
 
 func (x *DaemonStateQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[19]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1407,7 +1321,7 @@ func (x *DaemonStateQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonStateQueryResult.ProtoReflect.Descriptor instead.
 func (*DaemonStateQueryResult) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{19}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DaemonStateQueryResult) GetRequestId() string {
@@ -1454,7 +1368,7 @@ type DaemonConnectionAdmissionRequest struct {
 
 func (x *DaemonConnectionAdmissionRequest) Reset() {
 	*x = DaemonConnectionAdmissionRequest{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[20]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1466,7 +1380,7 @@ func (x *DaemonConnectionAdmissionRequest) String() string {
 func (*DaemonConnectionAdmissionRequest) ProtoMessage() {}
 
 func (x *DaemonConnectionAdmissionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[20]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1479,7 +1393,7 @@ func (x *DaemonConnectionAdmissionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DaemonConnectionAdmissionRequest.ProtoReflect.Descriptor instead.
 func (*DaemonConnectionAdmissionRequest) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{20}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *DaemonConnectionAdmissionRequest) GetRequestId() string {
@@ -1538,7 +1452,7 @@ type DaemonConnectionAdmissionResponse struct {
 
 func (x *DaemonConnectionAdmissionResponse) Reset() {
 	*x = DaemonConnectionAdmissionResponse{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[21]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1550,7 +1464,7 @@ func (x *DaemonConnectionAdmissionResponse) String() string {
 func (*DaemonConnectionAdmissionResponse) ProtoMessage() {}
 
 func (x *DaemonConnectionAdmissionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[21]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1563,7 +1477,7 @@ func (x *DaemonConnectionAdmissionResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use DaemonConnectionAdmissionResponse.ProtoReflect.Descriptor instead.
 func (*DaemonConnectionAdmissionResponse) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{21}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *DaemonConnectionAdmissionResponse) GetRequestId() string {
@@ -1622,7 +1536,7 @@ type CloseDaemonConnection struct {
 
 func (x *CloseDaemonConnection) Reset() {
 	*x = CloseDaemonConnection{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[22]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1634,7 +1548,7 @@ func (x *CloseDaemonConnection) String() string {
 func (*CloseDaemonConnection) ProtoMessage() {}
 
 func (x *CloseDaemonConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[22]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1647,7 +1561,7 @@ func (x *CloseDaemonConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseDaemonConnection.ProtoReflect.Descriptor instead.
 func (*CloseDaemonConnection) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{22}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CloseDaemonConnection) GetCommandId() string {
@@ -1706,7 +1620,7 @@ type CloseClientSession struct {
 
 func (x *CloseClientSession) Reset() {
 	*x = CloseClientSession{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[23]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1718,7 +1632,7 @@ func (x *CloseClientSession) String() string {
 func (*CloseClientSession) ProtoMessage() {}
 
 func (x *CloseClientSession) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[23]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1731,7 +1645,7 @@ func (x *CloseClientSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseClientSession.ProtoReflect.Descriptor instead.
 func (*CloseClientSession) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{23}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CloseClientSession) GetCommandId() string {
@@ -1790,7 +1704,7 @@ type ReselectDaemonEdge struct {
 
 func (x *ReselectDaemonEdge) Reset() {
 	*x = ReselectDaemonEdge{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[24]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1802,7 +1716,7 @@ func (x *ReselectDaemonEdge) String() string {
 func (*ReselectDaemonEdge) ProtoMessage() {}
 
 func (x *ReselectDaemonEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[24]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1815,7 +1729,7 @@ func (x *ReselectDaemonEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReselectDaemonEdge.ProtoReflect.Descriptor instead.
 func (*ReselectDaemonEdge) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{24}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ReselectDaemonEdge) GetCommandId() string {
@@ -1873,7 +1787,7 @@ type EdgeCommandResult struct {
 
 func (x *EdgeCommandResult) Reset() {
 	*x = EdgeCommandResult{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[25]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1885,7 +1799,7 @@ func (x *EdgeCommandResult) String() string {
 func (*EdgeCommandResult) ProtoMessage() {}
 
 func (x *EdgeCommandResult) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[25]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1898,7 +1812,7 @@ func (x *EdgeCommandResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeCommandResult.ProtoReflect.Descriptor instead.
 func (*EdgeCommandResult) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{25}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *EdgeCommandResult) GetCommandId() string {
@@ -1958,7 +1872,7 @@ type EdgeEvent struct {
 	//	*EdgeEvent_ConfigApplied
 	//	*EdgeEvent_RelayReserve
 	//	*EdgeEvent_CommandResult
-	//	*EdgeEvent_CertificateApplied
+	//	*EdgeEvent_PublicCertificateApplied
 	//	*EdgeEvent_RelayRenew
 	//	*EdgeEvent_RelaySettle
 	//	*EdgeEvent_RelayQuery
@@ -1969,6 +1883,7 @@ type EdgeEvent struct {
 	//	*EdgeEvent_RelayAuthorize
 	//	*EdgeEvent_RelayUsageBatch
 	//	*EdgeEvent_DaemonStateSync
+	//	*EdgeEvent_PublicCertificateRenew
 	Payload       isEdgeEvent_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1976,7 +1891,7 @@ type EdgeEvent struct {
 
 func (x *EdgeEvent) Reset() {
 	*x = EdgeEvent{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[26]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1988,7 +1903,7 @@ func (x *EdgeEvent) String() string {
 func (*EdgeEvent) ProtoMessage() {}
 
 func (x *EdgeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[26]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2001,7 +1916,7 @@ func (x *EdgeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeEvent.ProtoReflect.Descriptor instead.
 func (*EdgeEvent) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{26}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EdgeEvent) GetProtocolVersion() uint32 {
@@ -2141,10 +2056,10 @@ func (x *EdgeEvent) GetCommandResult() *EdgeCommandResult {
 	return nil
 }
 
-func (x *EdgeEvent) GetCertificateApplied() *CertificateApplied {
+func (x *EdgeEvent) GetPublicCertificateApplied() *EdgePublicCertificateApplied {
 	if x != nil {
-		if x, ok := x.Payload.(*EdgeEvent_CertificateApplied); ok {
-			return x.CertificateApplied
+		if x, ok := x.Payload.(*EdgeEvent_PublicCertificateApplied); ok {
+			return x.PublicCertificateApplied
 		}
 	}
 	return nil
@@ -2240,6 +2155,15 @@ func (x *EdgeEvent) GetDaemonStateSync() *DaemonStateSyncRequest {
 	return nil
 }
 
+func (x *EdgeEvent) GetPublicCertificateRenew() *EdgePublicCertificateRenewRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*EdgeEvent_PublicCertificateRenew); ok {
+			return x.PublicCertificateRenew
+		}
+	}
+	return nil
+}
+
 type isEdgeEvent_Payload interface {
 	isEdgeEvent_Payload()
 }
@@ -2280,8 +2204,8 @@ type EdgeEvent_CommandResult struct {
 	CommandResult *EdgeCommandResult `protobuf:"bytes,29,opt,name=command_result,json=commandResult,proto3,oneof"`
 }
 
-type EdgeEvent_CertificateApplied struct {
-	CertificateApplied *CertificateApplied `protobuf:"bytes,30,opt,name=certificate_applied,json=certificateApplied,proto3,oneof"`
+type EdgeEvent_PublicCertificateApplied struct {
+	PublicCertificateApplied *EdgePublicCertificateApplied `protobuf:"bytes,30,opt,name=public_certificate_applied,json=publicCertificateApplied,proto3,oneof"`
 }
 
 type EdgeEvent_RelayRenew struct {
@@ -2324,6 +2248,10 @@ type EdgeEvent_DaemonStateSync struct {
 	DaemonStateSync *DaemonStateSyncRequest `protobuf:"bytes,40,opt,name=daemon_state_sync,json=daemonStateSync,proto3,oneof"`
 }
 
+type EdgeEvent_PublicCertificateRenew struct {
+	PublicCertificateRenew *EdgePublicCertificateRenewRequest `protobuf:"bytes,41,opt,name=public_certificate_renew,json=publicCertificateRenew,proto3,oneof"`
+}
+
 func (*EdgeEvent_Hello) isEdgeEvent_Payload() {}
 
 func (*EdgeEvent_SnapshotBegin) isEdgeEvent_Payload() {}
@@ -2342,7 +2270,7 @@ func (*EdgeEvent_RelayReserve) isEdgeEvent_Payload() {}
 
 func (*EdgeEvent_CommandResult) isEdgeEvent_Payload() {}
 
-func (*EdgeEvent_CertificateApplied) isEdgeEvent_Payload() {}
+func (*EdgeEvent_PublicCertificateApplied) isEdgeEvent_Payload() {}
 
 func (*EdgeEvent_RelayRenew) isEdgeEvent_Payload() {}
 
@@ -2363,6 +2291,8 @@ func (*EdgeEvent_RelayAuthorize) isEdgeEvent_Payload() {}
 func (*EdgeEvent_RelayUsageBatch) isEdgeEvent_Payload() {}
 
 func (*EdgeEvent_DaemonStateSync) isEdgeEvent_Payload() {}
+
+func (*EdgeEvent_PublicCertificateRenew) isEdgeEvent_Payload() {}
 
 // ControllerCommand 是 Controller 向 Edge 发送的单调序列 envelope。
 // welcome 之后由 snapshot_accepted 或 resync_required 驱动同步状态机。
@@ -2385,7 +2315,7 @@ type ControllerCommand struct {
 	//	*ControllerCommand_RelayReserve
 	//	*ControllerCommand_CloseDaemon
 	//	*ControllerCommand_CloseSession
-	//	*ControllerCommand_CertificateBundle
+	//	*ControllerCommand_PublicCertificateRenew
 	//	*ControllerCommand_RelayRenew
 	//	*ControllerCommand_RelaySettle
 	//	*ControllerCommand_RelayQuery
@@ -2406,7 +2336,7 @@ type ControllerCommand struct {
 
 func (x *ControllerCommand) Reset() {
 	*x = ControllerCommand{}
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[27]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2418,7 +2348,7 @@ func (x *ControllerCommand) String() string {
 func (*ControllerCommand) ProtoMessage() {}
 
 func (x *ControllerCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_edge_control_proto_msgTypes[27]
+	mi := &file_cloud_v1_edge_control_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2431,7 +2361,7 @@ func (x *ControllerCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControllerCommand.ProtoReflect.Descriptor instead.
 func (*ControllerCommand) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{27}
+	return file_cloud_v1_edge_control_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ControllerCommand) GetProtocolVersion() uint32 {
@@ -2562,10 +2492,10 @@ func (x *ControllerCommand) GetCloseSession() *CloseClientSession {
 	return nil
 }
 
-func (x *ControllerCommand) GetCertificateBundle() *EdgeCertificateBundle {
+func (x *ControllerCommand) GetPublicCertificateRenew() *EdgePublicCertificateRenewResponse {
 	if x != nil {
-		if x, ok := x.Payload.(*ControllerCommand_CertificateBundle); ok {
-			return x.CertificateBundle
+		if x, ok := x.Payload.(*ControllerCommand_PublicCertificateRenew); ok {
+			return x.PublicCertificateRenew
 		}
 	}
 	return nil
@@ -2724,8 +2654,8 @@ type ControllerCommand_CloseSession struct {
 	CloseSession *CloseClientSession `protobuf:"bytes,27,opt,name=close_session,json=closeSession,proto3,oneof"`
 }
 
-type ControllerCommand_CertificateBundle struct {
-	CertificateBundle *EdgeCertificateBundle `protobuf:"bytes,28,opt,name=certificate_bundle,json=certificateBundle,proto3,oneof"`
+type ControllerCommand_PublicCertificateRenew struct {
+	PublicCertificateRenew *EdgePublicCertificateRenewResponse `protobuf:"bytes,28,opt,name=public_certificate_renew,json=publicCertificateRenew,proto3,oneof"`
 }
 
 type ControllerCommand_RelayRenew struct {
@@ -2796,7 +2726,7 @@ func (*ControllerCommand_CloseDaemon) isControllerCommand_Payload() {}
 
 func (*ControllerCommand_CloseSession) isControllerCommand_Payload() {}
 
-func (*ControllerCommand_CertificateBundle) isControllerCommand_Payload() {}
+func (*ControllerCommand_PublicCertificateRenew) isControllerCommand_Payload() {}
 
 func (*ControllerCommand_RelayRenew) isControllerCommand_Payload() {}
 
@@ -2828,14 +2758,13 @@ var File_cloud_v1_edge_control_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\n" +
-	"\x1bcloud/v1/edge_control.proto\x12\x0fanytty.cloud.v1\x1a\x15cloud/v1/common.proto\x1a\x1acloud/v1/certificate.proto\x1a\x1acloud/v1/edge_config.proto\x1a\x19cloud/v1/enrollment.proto\x1a\x16cloud/v1/runtime.proto\x1a\x14cloud/v1/usage.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb1\x02\n" +
+	"\x1bcloud/v1/edge_control.proto\x12\x0fanytty.cloud.v1\x1a\x15cloud/v1/common.proto\x1a\x1acloud/v1/certificate.proto\x1a\x1acloud/v1/edge_config.proto\x1a\x19cloud/v1/enrollment.proto\x1a\x16cloud/v1/runtime.proto\x1a\x14cloud/v1/usage.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xad\x02\n" +
 	"\tEdgeHello\x12\x17\n" +
 	"\aedge_id\x18\x01 \x01(\tR\x06edgeId\x12)\n" +
 	"\x10software_version\x18\x02 \x01(\tR\x0fsoftwareVersion\x12C\n" +
 	"\fcapabilities\x18\x03 \x03(\x0e2\x1f.anytty.cloud.v1.EdgeCapabilityR\fcapabilities\x124\n" +
-	"\x16desired_config_version\x18\x04 \x01(\x04R\x14desiredConfigVersion\x12/\n" +
-	"\x13certificate_version\x18\x05 \x01(\x04R\x12certificateVersion\x124\n" +
-	"\x16certificate_profile_id\x18\x06 \x01(\tR\x14certificateProfileId\"\xd9\x01\n" +
+	"\x16desired_config_version\x18\x04 \x01(\x04R\x14desiredConfigVersion\x12[\n" +
+	"\x12public_certificate\x18\x05 \x01(\v2,.anytty.cloud.v1.EdgePublicCertificateStatusR\x11publicCertificateJ\x04\b\x06\x10\a\"\xd9\x01\n" +
 	"\vEdgeWelcome\x12:\n" +
 	"\x19accepted_protocol_version\x18\x01 \x01(\rR\x17acceptedProtocolVersion\x12>\n" +
 	"\theartbeat\x18\x02 \x01(\v2 .anytty.cloud.v1.HeartbeatPolicyR\theartbeat\x12H\n" +
@@ -2871,14 +2800,7 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\x04R\aversion\x12\x18\n" +
 	"\aapplied\x18\x02 \x01(\bR\aapplied\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x03 \x01(\tR\terrorCode\"\xc4\x01\n" +
-	"\x12CertificateApplied\x124\n" +
-	"\x16certificate_profile_id\x18\x01 \x01(\tR\x14certificateProfileId\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision\x12\x18\n" +
-	"\aapplied\x18\x03 \x01(\bR\aapplied\x12\x1d\n" +
-	"\n" +
-	"error_code\x18\x04 \x01(\tR\terrorCode\x12#\n" +
-	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\"\xcf\x01\n" +
+	"error_code\x18\x03 \x01(\tR\terrorCode\"\xcf\x01\n" +
 	"\x18EdgeIdentityRenewRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x17\n" +
@@ -2981,7 +2903,7 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\x0ecorrelation_id\x18\x02 \x01(\tR\rcorrelationId\x126\n" +
 	"\x04code\x18\x03 \x01(\x0e2\".anytty.cloud.v1.CommandResultCodeR\x04code\x12\x18\n" +
 	"\amessage\x18\x04 \x01(\tR\amessage\x12=\n" +
-	"\fcompleted_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\"\x97\x0e\n" +
+	"\fcompleted_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\"\x9e\x0f\n" +
 	"\tEdgeEvent\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -3000,8 +2922,8 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\theartbeat\x18\x19 \x01(\v2\x1e.anytty.cloud.v1.EdgeHeartbeatH\x00R\theartbeat\x12G\n" +
 	"\x0econfig_applied\x18\x1a \x01(\v2\x1e.anytty.cloud.v1.ConfigAppliedH\x00R\rconfigApplied\x12K\n" +
 	"\rrelay_reserve\x18\x1c \x01(\v2$.anytty.cloud.v1.RelayReserveRequestH\x00R\frelayReserve\x12K\n" +
-	"\x0ecommand_result\x18\x1d \x01(\v2\".anytty.cloud.v1.EdgeCommandResultH\x00R\rcommandResult\x12V\n" +
-	"\x13certificate_applied\x18\x1e \x01(\v2#.anytty.cloud.v1.CertificateAppliedH\x00R\x12certificateApplied\x12E\n" +
+	"\x0ecommand_result\x18\x1d \x01(\v2\".anytty.cloud.v1.EdgeCommandResultH\x00R\rcommandResult\x12m\n" +
+	"\x1apublic_certificate_applied\x18\x1e \x01(\v2-.anytty.cloud.v1.EdgePublicCertificateAppliedH\x00R\x18publicCertificateApplied\x12E\n" +
 	"\vrelay_renew\x18\x1f \x01(\v2\".anytty.cloud.v1.RelayRenewRequestH\x00R\n" +
 	"relayRenew\x12E\n" +
 	"\frelay_settle\x18  \x01(\v2 .anytty.cloud.v1.RelaySettlementH\x00R\vrelaySettle\x12E\n" +
@@ -3013,8 +2935,9 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\x1bdaemon_connection_admission\x18% \x01(\v21.anytty.cloud.v1.DaemonConnectionAdmissionRequestH\x00R\x19daemonConnectionAdmission\x12Q\n" +
 	"\x0frelay_authorize\x18& \x01(\v2&.anytty.cloud.v1.RelayAuthorizeRequestH\x00R\x0erelayAuthorize\x12N\n" +
 	"\x11relay_usage_batch\x18' \x01(\v2 .anytty.cloud.v1.RelayUsageBatchH\x00R\x0frelayUsageBatch\x12U\n" +
-	"\x11daemon_state_sync\x18( \x01(\v2'.anytty.cloud.v1.DaemonStateSyncRequestH\x00R\x0fdaemonStateSyncB\t\n" +
-	"\apayload\"\xb6\x10\n" +
+	"\x11daemon_state_sync\x18( \x01(\v2'.anytty.cloud.v1.DaemonStateSyncRequestH\x00R\x0fdaemonStateSync\x12n\n" +
+	"\x18public_certificate_renew\x18) \x01(\v22.anytty.cloud.v1.EdgePublicCertificateRenewRequestH\x00R\x16publicCertificateRenewB\t\n" +
+	"\apayload\"\xce\x10\n" +
 	"\x11ControllerCommand\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12\x1d\n" +
 	"\n" +
@@ -3032,8 +2955,8 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\x12binding_key_bundle\x18\x18 \x01(\v2\x1a.anytty.cloud.v1.KeyBundleH\x00R\x10bindingKeyBundle\x12L\n" +
 	"\rrelay_reserve\x18\x19 \x01(\v2%.anytty.cloud.v1.RelayReserveResponseH\x00R\frelayReserve\x12K\n" +
 	"\fclose_daemon\x18\x1a \x01(\v2&.anytty.cloud.v1.CloseDaemonConnectionH\x00R\vcloseDaemon\x12J\n" +
-	"\rclose_session\x18\x1b \x01(\v2#.anytty.cloud.v1.CloseClientSessionH\x00R\fcloseSession\x12W\n" +
-	"\x12certificate_bundle\x18\x1c \x01(\v2&.anytty.cloud.v1.EdgeCertificateBundleH\x00R\x11certificateBundle\x12F\n" +
+	"\rclose_session\x18\x1b \x01(\v2#.anytty.cloud.v1.CloseClientSessionH\x00R\fcloseSession\x12o\n" +
+	"\x18public_certificate_renew\x18\x1c \x01(\v23.anytty.cloud.v1.EdgePublicCertificateRenewResponseH\x00R\x16publicCertificateRenew\x12F\n" +
 	"\vrelay_renew\x18\x1d \x01(\v2#.anytty.cloud.v1.RelayRenewResponseH\x00R\n" +
 	"relayRenew\x12H\n" +
 	"\frelay_settle\x18\x1e \x01(\v2#.anytty.cloud.v1.RelaySettlementAckH\x00R\vrelaySettle\x12F\n" +
@@ -3049,13 +2972,13 @@ const file_cloud_v1_edge_control_proto_rawDesc = "" +
 	"\x14relay_account_action\x18' \x01(\v2#.anytty.cloud.v1.RelayAccountActionH\x00R\x12relayAccountAction\x12^\n" +
 	"\x17daemon_state_sync_chunk\x18( \x01(\v2%.anytty.cloud.v1.DaemonStateSyncChunkH\x00R\x14daemonStateSyncChunk\x12X\n" +
 	"\x15daemon_state_sync_end\x18) \x01(\v2#.anytty.cloud.v1.DaemonStateSyncEndH\x00R\x12daemonStateSyncEndB\t\n" +
-	"\apayload*\x89\x04\n" +
+	"\apayload*\x8e\x04\n" +
 	"\x0eEdgeCapability\x12\x1f\n" +
 	"\x1bEDGE_CAPABILITY_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eEDGE_CAPABILITY_CONTROL_STREAM\x10\x01\x12\x19\n" +
 	"\x15EDGE_CAPABILITY_RELAY\x10\x02\x12'\n" +
-	"#EDGE_CAPABILITY_RESERVATION_JOURNAL\x10\x03\x12*\n" +
-	"&EDGE_CAPABILITY_CERTIFICATE_HOT_RELOAD\x10\x04\x12+\n" +
+	"#EDGE_CAPABILITY_RESERVATION_JOURNAL\x10\x03\x12/\n" +
+	"+EDGE_CAPABILITY_PUBLIC_CERTIFICATE_ROTATION\x10\x04\x12+\n" +
 	"'EDGE_CAPABILITY_DAEMON_LIFECYCLE_POLICY\x10\x05\x12+\n" +
 	"'EDGE_CAPABILITY_DAEMON_EDGE_RESELECTION\x10\x06\x121\n" +
 	"-EDGE_CAPABILITY_IDENTITY_CERTIFICATE_ROTATION\x10\a\x12/\n" +
@@ -3092,134 +3015,138 @@ func file_cloud_v1_edge_control_proto_rawDescGZIP() []byte {
 }
 
 var file_cloud_v1_edge_control_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_cloud_v1_edge_control_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_cloud_v1_edge_control_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_cloud_v1_edge_control_proto_goTypes = []any{
-	(EdgeCapability)(0),                       // 0: anytty.cloud.v1.EdgeCapability
-	(DaemonConnectionAdmissionResult)(0),      // 1: anytty.cloud.v1.DaemonConnectionAdmissionResult
-	(CommandResultCode)(0),                    // 2: anytty.cloud.v1.CommandResultCode
-	(*EdgeHello)(nil),                         // 3: anytty.cloud.v1.EdgeHello
-	(*EdgeWelcome)(nil),                       // 4: anytty.cloud.v1.EdgeWelcome
-	(*SnapshotBegin)(nil),                     // 5: anytty.cloud.v1.SnapshotBegin
-	(*SnapshotChunk)(nil),                     // 6: anytty.cloud.v1.SnapshotChunk
-	(*SnapshotEnd)(nil),                       // 7: anytty.cloud.v1.SnapshotEnd
-	(*EdgeHeartbeat)(nil),                     // 8: anytty.cloud.v1.EdgeHeartbeat
-	(*SnapshotAccepted)(nil),                  // 9: anytty.cloud.v1.SnapshotAccepted
-	(*ResyncRequired)(nil),                    // 10: anytty.cloud.v1.ResyncRequired
-	(*ConfigApplied)(nil),                     // 11: anytty.cloud.v1.ConfigApplied
-	(*CertificateApplied)(nil),                // 12: anytty.cloud.v1.CertificateApplied
-	(*EdgeIdentityRenewRequest)(nil),          // 13: anytty.cloud.v1.EdgeIdentityRenewRequest
-	(*EdgeIdentityRenewResponse)(nil),         // 14: anytty.cloud.v1.EdgeIdentityRenewResponse
-	(*EdgeIdentityApplied)(nil),               // 15: anytty.cloud.v1.EdgeIdentityApplied
-	(*DaemonStateSnapshot)(nil),               // 16: anytty.cloud.v1.DaemonStateSnapshot
-	(*DaemonStateSyncRequest)(nil),            // 17: anytty.cloud.v1.DaemonStateSyncRequest
-	(*DaemonStateSyncChunk)(nil),              // 18: anytty.cloud.v1.DaemonStateSyncChunk
-	(*DaemonStateSyncEnd)(nil),                // 19: anytty.cloud.v1.DaemonStateSyncEnd
-	(*DaemonStateDelta)(nil),                  // 20: anytty.cloud.v1.DaemonStateDelta
-	(*DaemonStateQuery)(nil),                  // 21: anytty.cloud.v1.DaemonStateQuery
-	(*DaemonStateQueryResult)(nil),            // 22: anytty.cloud.v1.DaemonStateQueryResult
-	(*DaemonConnectionAdmissionRequest)(nil),  // 23: anytty.cloud.v1.DaemonConnectionAdmissionRequest
-	(*DaemonConnectionAdmissionResponse)(nil), // 24: anytty.cloud.v1.DaemonConnectionAdmissionResponse
-	(*CloseDaemonConnection)(nil),             // 25: anytty.cloud.v1.CloseDaemonConnection
-	(*CloseClientSession)(nil),                // 26: anytty.cloud.v1.CloseClientSession
-	(*ReselectDaemonEdge)(nil),                // 27: anytty.cloud.v1.ReselectDaemonEdge
-	(*EdgeCommandResult)(nil),                 // 28: anytty.cloud.v1.EdgeCommandResult
-	(*EdgeEvent)(nil),                         // 29: anytty.cloud.v1.EdgeEvent
-	(*ControllerCommand)(nil),                 // 30: anytty.cloud.v1.ControllerCommand
-	(*HeartbeatPolicy)(nil),                   // 31: anytty.cloud.v1.HeartbeatPolicy
-	(*KeyBundle)(nil),                         // 32: anytty.cloud.v1.KeyBundle
-	(*AgentPresence)(nil),                     // 33: anytty.cloud.v1.AgentPresence
-	(*ClientSessionSummary)(nil),              // 34: anytty.cloud.v1.ClientSessionSummary
-	(*timestamppb.Timestamp)(nil),             // 35: google.protobuf.Timestamp
-	(*DaemonStateRecord)(nil),                 // 36: anytty.cloud.v1.DaemonStateRecord
-	(*CloudEntitlementFailure)(nil),           // 37: anytty.cloud.v1.CloudEntitlementFailure
-	(*RuntimeDelta)(nil),                      // 38: anytty.cloud.v1.RuntimeDelta
-	(*RelayReserveRequest)(nil),               // 39: anytty.cloud.v1.RelayReserveRequest
-	(*RelayRenewRequest)(nil),                 // 40: anytty.cloud.v1.RelayRenewRequest
-	(*RelaySettlement)(nil),                   // 41: anytty.cloud.v1.RelaySettlement
-	(*RelayQueryRequest)(nil),                 // 42: anytty.cloud.v1.RelayQueryRequest
-	(*RelayAuthorizeRequest)(nil),             // 43: anytty.cloud.v1.RelayAuthorizeRequest
-	(*RelayUsageBatch)(nil),                   // 44: anytty.cloud.v1.RelayUsageBatch
-	(*SignedEdgeDesiredConfig)(nil),           // 45: anytty.cloud.v1.SignedEdgeDesiredConfig
-	(*RelayReserveResponse)(nil),              // 46: anytty.cloud.v1.RelayReserveResponse
-	(*EdgeCertificateBundle)(nil),             // 47: anytty.cloud.v1.EdgeCertificateBundle
-	(*RelayRenewResponse)(nil),                // 48: anytty.cloud.v1.RelayRenewResponse
-	(*RelaySettlementAck)(nil),                // 49: anytty.cloud.v1.RelaySettlementAck
-	(*RelayQueryResponse)(nil),                // 50: anytty.cloud.v1.RelayQueryResponse
-	(*RelayAuthorizeResponse)(nil),            // 51: anytty.cloud.v1.RelayAuthorizeResponse
-	(*RelayUsageAck)(nil),                     // 52: anytty.cloud.v1.RelayUsageAck
-	(*RelayAccountAction)(nil),                // 53: anytty.cloud.v1.RelayAccountAction
+	(EdgeCapability)(0),                        // 0: anytty.cloud.v1.EdgeCapability
+	(DaemonConnectionAdmissionResult)(0),       // 1: anytty.cloud.v1.DaemonConnectionAdmissionResult
+	(CommandResultCode)(0),                     // 2: anytty.cloud.v1.CommandResultCode
+	(*EdgeHello)(nil),                          // 3: anytty.cloud.v1.EdgeHello
+	(*EdgeWelcome)(nil),                        // 4: anytty.cloud.v1.EdgeWelcome
+	(*SnapshotBegin)(nil),                      // 5: anytty.cloud.v1.SnapshotBegin
+	(*SnapshotChunk)(nil),                      // 6: anytty.cloud.v1.SnapshotChunk
+	(*SnapshotEnd)(nil),                        // 7: anytty.cloud.v1.SnapshotEnd
+	(*EdgeHeartbeat)(nil),                      // 8: anytty.cloud.v1.EdgeHeartbeat
+	(*SnapshotAccepted)(nil),                   // 9: anytty.cloud.v1.SnapshotAccepted
+	(*ResyncRequired)(nil),                     // 10: anytty.cloud.v1.ResyncRequired
+	(*ConfigApplied)(nil),                      // 11: anytty.cloud.v1.ConfigApplied
+	(*EdgeIdentityRenewRequest)(nil),           // 12: anytty.cloud.v1.EdgeIdentityRenewRequest
+	(*EdgeIdentityRenewResponse)(nil),          // 13: anytty.cloud.v1.EdgeIdentityRenewResponse
+	(*EdgeIdentityApplied)(nil),                // 14: anytty.cloud.v1.EdgeIdentityApplied
+	(*DaemonStateSnapshot)(nil),                // 15: anytty.cloud.v1.DaemonStateSnapshot
+	(*DaemonStateSyncRequest)(nil),             // 16: anytty.cloud.v1.DaemonStateSyncRequest
+	(*DaemonStateSyncChunk)(nil),               // 17: anytty.cloud.v1.DaemonStateSyncChunk
+	(*DaemonStateSyncEnd)(nil),                 // 18: anytty.cloud.v1.DaemonStateSyncEnd
+	(*DaemonStateDelta)(nil),                   // 19: anytty.cloud.v1.DaemonStateDelta
+	(*DaemonStateQuery)(nil),                   // 20: anytty.cloud.v1.DaemonStateQuery
+	(*DaemonStateQueryResult)(nil),             // 21: anytty.cloud.v1.DaemonStateQueryResult
+	(*DaemonConnectionAdmissionRequest)(nil),   // 22: anytty.cloud.v1.DaemonConnectionAdmissionRequest
+	(*DaemonConnectionAdmissionResponse)(nil),  // 23: anytty.cloud.v1.DaemonConnectionAdmissionResponse
+	(*CloseDaemonConnection)(nil),              // 24: anytty.cloud.v1.CloseDaemonConnection
+	(*CloseClientSession)(nil),                 // 25: anytty.cloud.v1.CloseClientSession
+	(*ReselectDaemonEdge)(nil),                 // 26: anytty.cloud.v1.ReselectDaemonEdge
+	(*EdgeCommandResult)(nil),                  // 27: anytty.cloud.v1.EdgeCommandResult
+	(*EdgeEvent)(nil),                          // 28: anytty.cloud.v1.EdgeEvent
+	(*ControllerCommand)(nil),                  // 29: anytty.cloud.v1.ControllerCommand
+	(*EdgePublicCertificateStatus)(nil),        // 30: anytty.cloud.v1.EdgePublicCertificateStatus
+	(*HeartbeatPolicy)(nil),                    // 31: anytty.cloud.v1.HeartbeatPolicy
+	(*KeyBundle)(nil),                          // 32: anytty.cloud.v1.KeyBundle
+	(*AgentPresence)(nil),                      // 33: anytty.cloud.v1.AgentPresence
+	(*ClientSessionSummary)(nil),               // 34: anytty.cloud.v1.ClientSessionSummary
+	(*timestamppb.Timestamp)(nil),              // 35: google.protobuf.Timestamp
+	(*DaemonStateRecord)(nil),                  // 36: anytty.cloud.v1.DaemonStateRecord
+	(*CloudEntitlementFailure)(nil),            // 37: anytty.cloud.v1.CloudEntitlementFailure
+	(*RuntimeDelta)(nil),                       // 38: anytty.cloud.v1.RuntimeDelta
+	(*RelayReserveRequest)(nil),                // 39: anytty.cloud.v1.RelayReserveRequest
+	(*EdgePublicCertificateApplied)(nil),       // 40: anytty.cloud.v1.EdgePublicCertificateApplied
+	(*RelayRenewRequest)(nil),                  // 41: anytty.cloud.v1.RelayRenewRequest
+	(*RelaySettlement)(nil),                    // 42: anytty.cloud.v1.RelaySettlement
+	(*RelayQueryRequest)(nil),                  // 43: anytty.cloud.v1.RelayQueryRequest
+	(*RelayAuthorizeRequest)(nil),              // 44: anytty.cloud.v1.RelayAuthorizeRequest
+	(*RelayUsageBatch)(nil),                    // 45: anytty.cloud.v1.RelayUsageBatch
+	(*EdgePublicCertificateRenewRequest)(nil),  // 46: anytty.cloud.v1.EdgePublicCertificateRenewRequest
+	(*SignedEdgeDesiredConfig)(nil),            // 47: anytty.cloud.v1.SignedEdgeDesiredConfig
+	(*RelayReserveResponse)(nil),               // 48: anytty.cloud.v1.RelayReserveResponse
+	(*EdgePublicCertificateRenewResponse)(nil), // 49: anytty.cloud.v1.EdgePublicCertificateRenewResponse
+	(*RelayRenewResponse)(nil),                 // 50: anytty.cloud.v1.RelayRenewResponse
+	(*RelaySettlementAck)(nil),                 // 51: anytty.cloud.v1.RelaySettlementAck
+	(*RelayQueryResponse)(nil),                 // 52: anytty.cloud.v1.RelayQueryResponse
+	(*RelayAuthorizeResponse)(nil),             // 53: anytty.cloud.v1.RelayAuthorizeResponse
+	(*RelayUsageAck)(nil),                      // 54: anytty.cloud.v1.RelayUsageAck
+	(*RelayAccountAction)(nil),                 // 55: anytty.cloud.v1.RelayAccountAction
 }
 var file_cloud_v1_edge_control_proto_depIdxs = []int32{
 	0,  // 0: anytty.cloud.v1.EdgeHello.capabilities:type_name -> anytty.cloud.v1.EdgeCapability
-	31, // 1: anytty.cloud.v1.EdgeWelcome.heartbeat:type_name -> anytty.cloud.v1.HeartbeatPolicy
-	32, // 2: anytty.cloud.v1.EdgeWelcome.binding_key_bundle:type_name -> anytty.cloud.v1.KeyBundle
-	33, // 3: anytty.cloud.v1.SnapshotChunk.agents:type_name -> anytty.cloud.v1.AgentPresence
-	34, // 4: anytty.cloud.v1.SnapshotChunk.sessions:type_name -> anytty.cloud.v1.ClientSessionSummary
-	35, // 5: anytty.cloud.v1.EdgeIdentityRenewRequest.requested_at:type_name -> google.protobuf.Timestamp
-	35, // 6: anytty.cloud.v1.EdgeIdentityRenewResponse.not_after:type_name -> google.protobuf.Timestamp
-	35, // 7: anytty.cloud.v1.EdgeIdentityApplied.not_after:type_name -> google.protobuf.Timestamp
-	36, // 8: anytty.cloud.v1.DaemonStateSnapshot.daemons:type_name -> anytty.cloud.v1.DaemonStateRecord
-	36, // 9: anytty.cloud.v1.DaemonStateSyncChunk.daemons:type_name -> anytty.cloud.v1.DaemonStateRecord
-	36, // 10: anytty.cloud.v1.DaemonStateDelta.daemon:type_name -> anytty.cloud.v1.DaemonStateRecord
-	36, // 11: anytty.cloud.v1.DaemonStateQueryResult.daemon:type_name -> anytty.cloud.v1.DaemonStateRecord
-	1,  // 12: anytty.cloud.v1.DaemonConnectionAdmissionResponse.result:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionResult
-	37, // 13: anytty.cloud.v1.DaemonConnectionAdmissionResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	35, // 14: anytty.cloud.v1.CloseDaemonConnection.deadline:type_name -> google.protobuf.Timestamp
-	35, // 15: anytty.cloud.v1.CloseClientSession.deadline:type_name -> google.protobuf.Timestamp
-	35, // 16: anytty.cloud.v1.ReselectDaemonEdge.deadline:type_name -> google.protobuf.Timestamp
-	2,  // 17: anytty.cloud.v1.EdgeCommandResult.code:type_name -> anytty.cloud.v1.CommandResultCode
-	35, // 18: anytty.cloud.v1.EdgeCommandResult.completed_at:type_name -> google.protobuf.Timestamp
-	35, // 19: anytty.cloud.v1.EdgeEvent.sent_at:type_name -> google.protobuf.Timestamp
-	3,  // 20: anytty.cloud.v1.EdgeEvent.hello:type_name -> anytty.cloud.v1.EdgeHello
-	5,  // 21: anytty.cloud.v1.EdgeEvent.snapshot_begin:type_name -> anytty.cloud.v1.SnapshotBegin
-	6,  // 22: anytty.cloud.v1.EdgeEvent.snapshot_chunk:type_name -> anytty.cloud.v1.SnapshotChunk
-	7,  // 23: anytty.cloud.v1.EdgeEvent.snapshot_end:type_name -> anytty.cloud.v1.SnapshotEnd
-	38, // 24: anytty.cloud.v1.EdgeEvent.runtime_delta:type_name -> anytty.cloud.v1.RuntimeDelta
-	8,  // 25: anytty.cloud.v1.EdgeEvent.heartbeat:type_name -> anytty.cloud.v1.EdgeHeartbeat
-	11, // 26: anytty.cloud.v1.EdgeEvent.config_applied:type_name -> anytty.cloud.v1.ConfigApplied
-	39, // 27: anytty.cloud.v1.EdgeEvent.relay_reserve:type_name -> anytty.cloud.v1.RelayReserveRequest
-	28, // 28: anytty.cloud.v1.EdgeEvent.command_result:type_name -> anytty.cloud.v1.EdgeCommandResult
-	12, // 29: anytty.cloud.v1.EdgeEvent.certificate_applied:type_name -> anytty.cloud.v1.CertificateApplied
-	40, // 30: anytty.cloud.v1.EdgeEvent.relay_renew:type_name -> anytty.cloud.v1.RelayRenewRequest
-	41, // 31: anytty.cloud.v1.EdgeEvent.relay_settle:type_name -> anytty.cloud.v1.RelaySettlement
-	42, // 32: anytty.cloud.v1.EdgeEvent.relay_query:type_name -> anytty.cloud.v1.RelayQueryRequest
-	21, // 33: anytty.cloud.v1.EdgeEvent.daemon_state_query:type_name -> anytty.cloud.v1.DaemonStateQuery
-	13, // 34: anytty.cloud.v1.EdgeEvent.identity_renew:type_name -> anytty.cloud.v1.EdgeIdentityRenewRequest
-	15, // 35: anytty.cloud.v1.EdgeEvent.identity_applied:type_name -> anytty.cloud.v1.EdgeIdentityApplied
-	23, // 36: anytty.cloud.v1.EdgeEvent.daemon_connection_admission:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionRequest
-	43, // 37: anytty.cloud.v1.EdgeEvent.relay_authorize:type_name -> anytty.cloud.v1.RelayAuthorizeRequest
-	44, // 38: anytty.cloud.v1.EdgeEvent.relay_usage_batch:type_name -> anytty.cloud.v1.RelayUsageBatch
-	17, // 39: anytty.cloud.v1.EdgeEvent.daemon_state_sync:type_name -> anytty.cloud.v1.DaemonStateSyncRequest
-	35, // 40: anytty.cloud.v1.ControllerCommand.sent_at:type_name -> google.protobuf.Timestamp
-	4,  // 41: anytty.cloud.v1.ControllerCommand.welcome:type_name -> anytty.cloud.v1.EdgeWelcome
-	9,  // 42: anytty.cloud.v1.ControllerCommand.snapshot_accepted:type_name -> anytty.cloud.v1.SnapshotAccepted
-	10, // 43: anytty.cloud.v1.ControllerCommand.resync_required:type_name -> anytty.cloud.v1.ResyncRequired
-	45, // 44: anytty.cloud.v1.ControllerCommand.desired_config:type_name -> anytty.cloud.v1.SignedEdgeDesiredConfig
-	32, // 45: anytty.cloud.v1.ControllerCommand.binding_key_bundle:type_name -> anytty.cloud.v1.KeyBundle
-	46, // 46: anytty.cloud.v1.ControllerCommand.relay_reserve:type_name -> anytty.cloud.v1.RelayReserveResponse
-	25, // 47: anytty.cloud.v1.ControllerCommand.close_daemon:type_name -> anytty.cloud.v1.CloseDaemonConnection
-	26, // 48: anytty.cloud.v1.ControllerCommand.close_session:type_name -> anytty.cloud.v1.CloseClientSession
-	47, // 49: anytty.cloud.v1.ControllerCommand.certificate_bundle:type_name -> anytty.cloud.v1.EdgeCertificateBundle
-	48, // 50: anytty.cloud.v1.ControllerCommand.relay_renew:type_name -> anytty.cloud.v1.RelayRenewResponse
-	49, // 51: anytty.cloud.v1.ControllerCommand.relay_settle:type_name -> anytty.cloud.v1.RelaySettlementAck
-	50, // 52: anytty.cloud.v1.ControllerCommand.relay_query:type_name -> anytty.cloud.v1.RelayQueryResponse
-	20, // 53: anytty.cloud.v1.ControllerCommand.daemon_state_delta:type_name -> anytty.cloud.v1.DaemonStateDelta
-	22, // 54: anytty.cloud.v1.ControllerCommand.daemon_state_query_result:type_name -> anytty.cloud.v1.DaemonStateQueryResult
-	27, // 55: anytty.cloud.v1.ControllerCommand.reselect_daemon_edge:type_name -> anytty.cloud.v1.ReselectDaemonEdge
-	14, // 56: anytty.cloud.v1.ControllerCommand.identity_renew:type_name -> anytty.cloud.v1.EdgeIdentityRenewResponse
-	24, // 57: anytty.cloud.v1.ControllerCommand.daemon_connection_admission:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionResponse
-	51, // 58: anytty.cloud.v1.ControllerCommand.relay_authorize:type_name -> anytty.cloud.v1.RelayAuthorizeResponse
-	52, // 59: anytty.cloud.v1.ControllerCommand.relay_usage_ack:type_name -> anytty.cloud.v1.RelayUsageAck
-	53, // 60: anytty.cloud.v1.ControllerCommand.relay_account_action:type_name -> anytty.cloud.v1.RelayAccountAction
-	18, // 61: anytty.cloud.v1.ControllerCommand.daemon_state_sync_chunk:type_name -> anytty.cloud.v1.DaemonStateSyncChunk
-	19, // 62: anytty.cloud.v1.ControllerCommand.daemon_state_sync_end:type_name -> anytty.cloud.v1.DaemonStateSyncEnd
-	29, // 63: anytty.cloud.v1.EdgeControl.Connect:input_type -> anytty.cloud.v1.EdgeEvent
-	30, // 64: anytty.cloud.v1.EdgeControl.Connect:output_type -> anytty.cloud.v1.ControllerCommand
-	64, // [64:65] is the sub-list for method output_type
-	63, // [63:64] is the sub-list for method input_type
-	63, // [63:63] is the sub-list for extension type_name
-	63, // [63:63] is the sub-list for extension extendee
-	0,  // [0:63] is the sub-list for field type_name
+	30, // 1: anytty.cloud.v1.EdgeHello.public_certificate:type_name -> anytty.cloud.v1.EdgePublicCertificateStatus
+	31, // 2: anytty.cloud.v1.EdgeWelcome.heartbeat:type_name -> anytty.cloud.v1.HeartbeatPolicy
+	32, // 3: anytty.cloud.v1.EdgeWelcome.binding_key_bundle:type_name -> anytty.cloud.v1.KeyBundle
+	33, // 4: anytty.cloud.v1.SnapshotChunk.agents:type_name -> anytty.cloud.v1.AgentPresence
+	34, // 5: anytty.cloud.v1.SnapshotChunk.sessions:type_name -> anytty.cloud.v1.ClientSessionSummary
+	35, // 6: anytty.cloud.v1.EdgeIdentityRenewRequest.requested_at:type_name -> google.protobuf.Timestamp
+	35, // 7: anytty.cloud.v1.EdgeIdentityRenewResponse.not_after:type_name -> google.protobuf.Timestamp
+	35, // 8: anytty.cloud.v1.EdgeIdentityApplied.not_after:type_name -> google.protobuf.Timestamp
+	36, // 9: anytty.cloud.v1.DaemonStateSnapshot.daemons:type_name -> anytty.cloud.v1.DaemonStateRecord
+	36, // 10: anytty.cloud.v1.DaemonStateSyncChunk.daemons:type_name -> anytty.cloud.v1.DaemonStateRecord
+	36, // 11: anytty.cloud.v1.DaemonStateDelta.daemon:type_name -> anytty.cloud.v1.DaemonStateRecord
+	36, // 12: anytty.cloud.v1.DaemonStateQueryResult.daemon:type_name -> anytty.cloud.v1.DaemonStateRecord
+	1,  // 13: anytty.cloud.v1.DaemonConnectionAdmissionResponse.result:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionResult
+	37, // 14: anytty.cloud.v1.DaemonConnectionAdmissionResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	35, // 15: anytty.cloud.v1.CloseDaemonConnection.deadline:type_name -> google.protobuf.Timestamp
+	35, // 16: anytty.cloud.v1.CloseClientSession.deadline:type_name -> google.protobuf.Timestamp
+	35, // 17: anytty.cloud.v1.ReselectDaemonEdge.deadline:type_name -> google.protobuf.Timestamp
+	2,  // 18: anytty.cloud.v1.EdgeCommandResult.code:type_name -> anytty.cloud.v1.CommandResultCode
+	35, // 19: anytty.cloud.v1.EdgeCommandResult.completed_at:type_name -> google.protobuf.Timestamp
+	35, // 20: anytty.cloud.v1.EdgeEvent.sent_at:type_name -> google.protobuf.Timestamp
+	3,  // 21: anytty.cloud.v1.EdgeEvent.hello:type_name -> anytty.cloud.v1.EdgeHello
+	5,  // 22: anytty.cloud.v1.EdgeEvent.snapshot_begin:type_name -> anytty.cloud.v1.SnapshotBegin
+	6,  // 23: anytty.cloud.v1.EdgeEvent.snapshot_chunk:type_name -> anytty.cloud.v1.SnapshotChunk
+	7,  // 24: anytty.cloud.v1.EdgeEvent.snapshot_end:type_name -> anytty.cloud.v1.SnapshotEnd
+	38, // 25: anytty.cloud.v1.EdgeEvent.runtime_delta:type_name -> anytty.cloud.v1.RuntimeDelta
+	8,  // 26: anytty.cloud.v1.EdgeEvent.heartbeat:type_name -> anytty.cloud.v1.EdgeHeartbeat
+	11, // 27: anytty.cloud.v1.EdgeEvent.config_applied:type_name -> anytty.cloud.v1.ConfigApplied
+	39, // 28: anytty.cloud.v1.EdgeEvent.relay_reserve:type_name -> anytty.cloud.v1.RelayReserveRequest
+	27, // 29: anytty.cloud.v1.EdgeEvent.command_result:type_name -> anytty.cloud.v1.EdgeCommandResult
+	40, // 30: anytty.cloud.v1.EdgeEvent.public_certificate_applied:type_name -> anytty.cloud.v1.EdgePublicCertificateApplied
+	41, // 31: anytty.cloud.v1.EdgeEvent.relay_renew:type_name -> anytty.cloud.v1.RelayRenewRequest
+	42, // 32: anytty.cloud.v1.EdgeEvent.relay_settle:type_name -> anytty.cloud.v1.RelaySettlement
+	43, // 33: anytty.cloud.v1.EdgeEvent.relay_query:type_name -> anytty.cloud.v1.RelayQueryRequest
+	20, // 34: anytty.cloud.v1.EdgeEvent.daemon_state_query:type_name -> anytty.cloud.v1.DaemonStateQuery
+	12, // 35: anytty.cloud.v1.EdgeEvent.identity_renew:type_name -> anytty.cloud.v1.EdgeIdentityRenewRequest
+	14, // 36: anytty.cloud.v1.EdgeEvent.identity_applied:type_name -> anytty.cloud.v1.EdgeIdentityApplied
+	22, // 37: anytty.cloud.v1.EdgeEvent.daemon_connection_admission:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionRequest
+	44, // 38: anytty.cloud.v1.EdgeEvent.relay_authorize:type_name -> anytty.cloud.v1.RelayAuthorizeRequest
+	45, // 39: anytty.cloud.v1.EdgeEvent.relay_usage_batch:type_name -> anytty.cloud.v1.RelayUsageBatch
+	16, // 40: anytty.cloud.v1.EdgeEvent.daemon_state_sync:type_name -> anytty.cloud.v1.DaemonStateSyncRequest
+	46, // 41: anytty.cloud.v1.EdgeEvent.public_certificate_renew:type_name -> anytty.cloud.v1.EdgePublicCertificateRenewRequest
+	35, // 42: anytty.cloud.v1.ControllerCommand.sent_at:type_name -> google.protobuf.Timestamp
+	4,  // 43: anytty.cloud.v1.ControllerCommand.welcome:type_name -> anytty.cloud.v1.EdgeWelcome
+	9,  // 44: anytty.cloud.v1.ControllerCommand.snapshot_accepted:type_name -> anytty.cloud.v1.SnapshotAccepted
+	10, // 45: anytty.cloud.v1.ControllerCommand.resync_required:type_name -> anytty.cloud.v1.ResyncRequired
+	47, // 46: anytty.cloud.v1.ControllerCommand.desired_config:type_name -> anytty.cloud.v1.SignedEdgeDesiredConfig
+	32, // 47: anytty.cloud.v1.ControllerCommand.binding_key_bundle:type_name -> anytty.cloud.v1.KeyBundle
+	48, // 48: anytty.cloud.v1.ControllerCommand.relay_reserve:type_name -> anytty.cloud.v1.RelayReserveResponse
+	24, // 49: anytty.cloud.v1.ControllerCommand.close_daemon:type_name -> anytty.cloud.v1.CloseDaemonConnection
+	25, // 50: anytty.cloud.v1.ControllerCommand.close_session:type_name -> anytty.cloud.v1.CloseClientSession
+	49, // 51: anytty.cloud.v1.ControllerCommand.public_certificate_renew:type_name -> anytty.cloud.v1.EdgePublicCertificateRenewResponse
+	50, // 52: anytty.cloud.v1.ControllerCommand.relay_renew:type_name -> anytty.cloud.v1.RelayRenewResponse
+	51, // 53: anytty.cloud.v1.ControllerCommand.relay_settle:type_name -> anytty.cloud.v1.RelaySettlementAck
+	52, // 54: anytty.cloud.v1.ControllerCommand.relay_query:type_name -> anytty.cloud.v1.RelayQueryResponse
+	19, // 55: anytty.cloud.v1.ControllerCommand.daemon_state_delta:type_name -> anytty.cloud.v1.DaemonStateDelta
+	21, // 56: anytty.cloud.v1.ControllerCommand.daemon_state_query_result:type_name -> anytty.cloud.v1.DaemonStateQueryResult
+	26, // 57: anytty.cloud.v1.ControllerCommand.reselect_daemon_edge:type_name -> anytty.cloud.v1.ReselectDaemonEdge
+	13, // 58: anytty.cloud.v1.ControllerCommand.identity_renew:type_name -> anytty.cloud.v1.EdgeIdentityRenewResponse
+	23, // 59: anytty.cloud.v1.ControllerCommand.daemon_connection_admission:type_name -> anytty.cloud.v1.DaemonConnectionAdmissionResponse
+	53, // 60: anytty.cloud.v1.ControllerCommand.relay_authorize:type_name -> anytty.cloud.v1.RelayAuthorizeResponse
+	54, // 61: anytty.cloud.v1.ControllerCommand.relay_usage_ack:type_name -> anytty.cloud.v1.RelayUsageAck
+	55, // 62: anytty.cloud.v1.ControllerCommand.relay_account_action:type_name -> anytty.cloud.v1.RelayAccountAction
+	17, // 63: anytty.cloud.v1.ControllerCommand.daemon_state_sync_chunk:type_name -> anytty.cloud.v1.DaemonStateSyncChunk
+	18, // 64: anytty.cloud.v1.ControllerCommand.daemon_state_sync_end:type_name -> anytty.cloud.v1.DaemonStateSyncEnd
+	28, // 65: anytty.cloud.v1.EdgeControl.Connect:input_type -> anytty.cloud.v1.EdgeEvent
+	29, // 66: anytty.cloud.v1.EdgeControl.Connect:output_type -> anytty.cloud.v1.ControllerCommand
+	66, // [66:67] is the sub-list for method output_type
+	65, // [65:66] is the sub-list for method input_type
+	65, // [65:65] is the sub-list for extension type_name
+	65, // [65:65] is the sub-list for extension extendee
+	0,  // [0:65] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_edge_control_proto_init() }
@@ -3233,7 +3160,7 @@ func file_cloud_v1_edge_control_proto_init() {
 	file_cloud_v1_enrollment_proto_init()
 	file_cloud_v1_runtime_proto_init()
 	file_cloud_v1_usage_proto_init()
-	file_cloud_v1_edge_control_proto_msgTypes[26].OneofWrappers = []any{
+	file_cloud_v1_edge_control_proto_msgTypes[25].OneofWrappers = []any{
 		(*EdgeEvent_Hello)(nil),
 		(*EdgeEvent_SnapshotBegin)(nil),
 		(*EdgeEvent_SnapshotChunk)(nil),
@@ -3243,7 +3170,7 @@ func file_cloud_v1_edge_control_proto_init() {
 		(*EdgeEvent_ConfigApplied)(nil),
 		(*EdgeEvent_RelayReserve)(nil),
 		(*EdgeEvent_CommandResult)(nil),
-		(*EdgeEvent_CertificateApplied)(nil),
+		(*EdgeEvent_PublicCertificateApplied)(nil),
 		(*EdgeEvent_RelayRenew)(nil),
 		(*EdgeEvent_RelaySettle)(nil),
 		(*EdgeEvent_RelayQuery)(nil),
@@ -3254,8 +3181,9 @@ func file_cloud_v1_edge_control_proto_init() {
 		(*EdgeEvent_RelayAuthorize)(nil),
 		(*EdgeEvent_RelayUsageBatch)(nil),
 		(*EdgeEvent_DaemonStateSync)(nil),
+		(*EdgeEvent_PublicCertificateRenew)(nil),
 	}
-	file_cloud_v1_edge_control_proto_msgTypes[27].OneofWrappers = []any{
+	file_cloud_v1_edge_control_proto_msgTypes[26].OneofWrappers = []any{
 		(*ControllerCommand_Welcome)(nil),
 		(*ControllerCommand_SnapshotAccepted)(nil),
 		(*ControllerCommand_ResyncRequired)(nil),
@@ -3264,7 +3192,7 @@ func file_cloud_v1_edge_control_proto_init() {
 		(*ControllerCommand_RelayReserve)(nil),
 		(*ControllerCommand_CloseDaemon)(nil),
 		(*ControllerCommand_CloseSession)(nil),
-		(*ControllerCommand_CertificateBundle)(nil),
+		(*ControllerCommand_PublicCertificateRenew)(nil),
 		(*ControllerCommand_RelayRenew)(nil),
 		(*ControllerCommand_RelaySettle)(nil),
 		(*ControllerCommand_RelayQuery)(nil),
@@ -3285,7 +3213,7 @@ func file_cloud_v1_edge_control_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cloud_v1_edge_control_proto_rawDesc), len(file_cloud_v1_edge_control_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   28,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

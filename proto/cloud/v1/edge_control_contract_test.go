@@ -122,10 +122,10 @@ func TestEdgeControlIsBidirectionalStreaming(t *testing.T) {
 		t.Fatalf("EdgeControl.Connect must be bidirectional streaming: %#v", method)
 	}
 	assertEnvelopeFields(t, (&EdgeEvent{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{
-		"hello": 20, "snapshot_begin": 21, "snapshot_chunk": 22, "snapshot_end": 23, "runtime_delta": 24, "heartbeat": 25, "config_applied": 26, "relay_reserve": 28, "command_result": 29, "certificate_applied": 30, "relay_renew": 31, "relay_settle": 32, "relay_query": 33, "daemon_state_query": 34, "identity_renew": 35, "identity_applied": 36, "daemon_connection_admission": 37, "relay_authorize": 38, "relay_usage_batch": 39, "daemon_state_sync": 40,
+		"hello": 20, "snapshot_begin": 21, "snapshot_chunk": 22, "snapshot_end": 23, "runtime_delta": 24, "heartbeat": 25, "config_applied": 26, "relay_reserve": 28, "command_result": 29, "public_certificate_applied": 30, "relay_renew": 31, "relay_settle": 32, "relay_query": 33, "daemon_state_query": 34, "identity_renew": 35, "identity_applied": 36, "daemon_connection_admission": 37, "relay_authorize": 38, "relay_usage_batch": 39, "daemon_state_sync": 40, "public_certificate_renew": 41,
 	})
 	assertEnvelopeFields(t, (&ControllerCommand{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{
-		"welcome": 20, "snapshot_accepted": 21, "resync_required": 22, "desired_config": 23, "binding_key_bundle": 24, "relay_reserve": 25, "close_daemon": 26, "close_session": 27, "certificate_bundle": 28, "relay_renew": 29, "relay_settle": 30, "relay_query": 31, "daemon_state_delta": 32, "daemon_state_query_result": 33, "reselect_daemon_edge": 34, "identity_renew": 35, "daemon_connection_admission": 36, "relay_authorize": 37, "relay_usage_ack": 38, "relay_account_action": 39, "daemon_state_sync_chunk": 40, "daemon_state_sync_end": 41,
+		"welcome": 20, "snapshot_accepted": 21, "resync_required": 22, "desired_config": 23, "binding_key_bundle": 24, "relay_reserve": 25, "close_daemon": 26, "close_session": 27, "public_certificate_renew": 28, "relay_renew": 29, "relay_settle": 30, "relay_query": 31, "daemon_state_delta": 32, "daemon_state_query_result": 33, "reselect_daemon_edge": 34, "identity_renew": 35, "daemon_connection_admission": 36, "relay_authorize": 37, "relay_usage_ack": 38, "relay_account_action": 39, "daemon_state_sync_chunk": 40, "daemon_state_sync_end": 41,
 	})
 }
 
@@ -192,15 +192,24 @@ func TestDaemonLifecycleProtocol(t *testing.T) {
 	}
 }
 
-// TestR8CertificateContracts 锁定简化后的证书双文件上传、单一 revision 和控制流回执。
-func TestR8CertificateContracts(t *testing.T) {
-	profile := (&CertificateProfile{}).ProtoReflect().Descriptor()
-	if profile.Fields().ByName("private_key_pem") != nil || profile.Fields().ByName("certificate_chain_pem") != nil {
-		t.Fatal("operator-visible CertificateProfile must not expose certificate secret bytes")
+// TestEdgePublicCertificateContracts locks automatic CSR-based renewal. Private
+// keys must never appear in the public protocol or Controller projections.
+func TestEdgePublicCertificateContracts(t *testing.T) {
+	request := (&EdgePublicCertificateRenewRequest{}).ProtoReflect().Descriptor()
+	if request.Fields().ByName("csr_pem") == nil || request.Fields().ByName("private_key_pem") != nil {
+		t.Fatal("Edge public certificate renewal must send only a CSR")
 	}
-	bundle := (&EdgeCertificateBundle{}).ProtoReflect().Descriptor()
-	if bundle.Fields().ByName("target_edge_id") == nil || bundle.Fields().ByName("private_key_pem") == nil {
-		t.Fatal("EdgeCertificateBundle must carry an explicit target and private key over mTLS")
+	response := (&EdgePublicCertificateRenewResponse{}).ProtoReflect().Descriptor()
+	if response.Fields().ByName("certificate_pem") == nil || response.Fields().ByName("private_key_pem") != nil {
+		t.Fatal("Controller renewal response must contain a certificate without private key material")
+	}
+	hello := (&EdgeHello{}).ProtoReflect().Descriptor()
+	if field := hello.Fields().ByName("public_certificate"); field == nil || field.Message() != (&EdgePublicCertificateStatus{}).ProtoReflect().Descriptor() {
+		t.Fatalf("EdgeHello.public_certificate = %v", field)
+	}
+	managed := (&ManagedEdge{}).ProtoReflect().Descriptor()
+	if field := managed.Fields().ByName("public_certificate"); field == nil || field.Message() != (&EdgePublicCertificateStatus{}).ProtoReflect().Descriptor() {
+		t.Fatalf("ManagedEdge.public_certificate = %v", field)
 	}
 }
 

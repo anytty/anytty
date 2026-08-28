@@ -144,8 +144,9 @@ type ClientOptions struct {
 	GetClientCertificate func(*tls.CertificateRequestInfo) (*tls.Certificate, error)
 }
 
-// NewClientTLSConfig 加载 EdgeIdentity 客户端证书与 Controller CA。
-// ServerName 是必填信任边界，禁止 InsecureSkipVerify 或系统 CA fallback。
+// NewClientTLSConfig loads an EdgeIdentity client credential. Controller TLS
+// uses the operating-system trust store unless RootCAFile explicitly overrides
+// it for private deployments and tests.
 func NewClientTLSConfig(options ClientOptions) (*tls.Config, error) {
 	serverName := strings.TrimSpace(options.ServerName)
 	if serverName == "" {
@@ -159,9 +160,13 @@ func NewClientTLSConfig(options ClientOptions) (*tls.Config, error) {
 		}
 		certificates = []tls.Certificate{certificate}
 	}
-	pool, err := loadCertPool(options.RootCAFile)
-	if err != nil {
-		return nil, fmt.Errorf("load controller CA: %w", err)
+	var pool *x509.CertPool
+	if strings.TrimSpace(options.RootCAFile) != "" {
+		var err error
+		pool, err = loadCertPool(options.RootCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("load controller CA: %w", err)
+		}
 	}
 	return &tls.Config{
 		MinVersion:           tls.VersionTLS13,

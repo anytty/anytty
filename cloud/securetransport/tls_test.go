@@ -19,6 +19,21 @@ import (
 	"github.com/anytty/anytty/shared/timepolicy"
 )
 
+func TestNewClientTLSConfigUsesSystemRootsWithoutOverride(t *testing.T) {
+	config, err := NewClientTLSConfig(ClientOptions{
+		ServerName: "cloud.example.com",
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &tls.Certificate{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.RootCAs != nil || config.ServerName != "cloud.example.com" {
+		t.Fatalf("RootCAs=%v ServerName=%q", config.RootCAs, config.ServerName)
+	}
+}
+
 func TestValidateServerPairRejectsMalformedTrailingCertificate(t *testing.T) {
 	now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
 	certificatePEM, privateKeyPEM := testServerPair(t, now, "edge.example.com")

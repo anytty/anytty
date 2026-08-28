@@ -47,7 +47,9 @@ type Config struct {
 	RetryMinimum          time.Duration
 	RetryMaximum          time.Duration
 	BindingRefreshMinimum time.Duration
+	BindingRefreshBefore  time.Duration
 	ConnectAttemptTimeout time.Duration
+	Now                   func() time.Time
 }
 
 // Runtime 持有可刷新的 enrollment 路由材料和当前 AgentGateway 在线状态。
@@ -66,6 +68,7 @@ type Runtime struct {
 	cloudSessions       map[string]*cloudSession
 	enrollmentDeleted   bool
 	operationMu         sync.Mutex
+	recordChanges       chan struct{}
 	attemptMu           sync.Mutex
 	activeAttemptID     string
 	activeCancel        context.CancelFunc
@@ -74,6 +77,8 @@ type Runtime struct {
 }
 
 var errEdgeReselected = errors.New("daemon Edge reselection requested")
+
+const defaultBindingRefreshBefore = 30 * 24 * time.Hour
 
 type agentDiagnosticStage string
 
@@ -186,12 +191,19 @@ func NewRuntime(config Config) (*Runtime, error) {
 	if config.BindingRefreshMinimum <= 0 {
 		config.BindingRefreshMinimum = 10 * time.Second
 	}
+	if config.BindingRefreshBefore <= 0 {
+		config.BindingRefreshBefore = defaultBindingRefreshBefore
+	}
+	if config.Now == nil {
+		config.Now = func() time.Time { return time.Now().UTC() }
+	}
 	if config.ConnectAttemptTimeout <= 0 {
 		config.ConnectAttemptTimeout = 15 * time.Second
 	}
 	return &Runtime{
 		config: config, bootID: uuid.NewString(),
 		record:        cloneEnrollmentRecord(config.Record),
+		recordChanges: make(chan struct{}, 1),
 		cloudSessions: make(map[string]*cloudSession),
 	}, nil
 }
@@ -201,10 +213,25 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 	delay := runtime.config.RetryMinimum
 	var lastRefresh time.Time
 	if runtime.config.ControllerAddress != "" {
-		lastRefresh = time.Now()
+		lastRefresh = runtime.now()
 		if err := runtime.refreshBinding(ctx); err == nil && runtime.daemonDeleted() {
 			return nil
 		}
+	}
+	var stopBindingMaintenance context.CancelFunc
+	var bindingMaintenanceDone chan struct{}
+	if runtime.config.ControllerAddress != "" {
+		maintenanceContext, cancelMaintenance := context.WithCancel(ctx)
+		stopBindingMaintenance = cancelMaintenance
+		bindingMaintenanceDone = make(chan struct{})
+		go func() {
+			defer close(bindingMaintenanceDone)
+			runtime.maintainBinding(maintenanceContext)
+		}()
+		defer func() {
+			stopBindingMaintenance()
+			<-bindingMaintenanceDone
+		}()
 	}
 	for ctx.Err() == nil {
 		readySequence := runtime.agentReadySequence.Load()
@@ -223,8 +250,8 @@ func (runtime *Runtime) Run(ctx context.Context) error {
 			return nil
 		}
 		failedBeforeReady := runtime.agentReadySequence.Load() == readySequence
-		if err != nil && failedBeforeReady && runtime.config.ControllerAddress != "" && (lastRefresh.IsZero() || time.Since(lastRefresh) >= runtime.config.BindingRefreshMinimum) {
-			lastRefresh = time.Now()
+		if err != nil && failedBeforeReady && runtime.config.ControllerAddress != "" && (lastRefresh.IsZero() || runtime.now().Sub(lastRefresh) >= runtime.config.BindingRefreshMinimum) {
+			lastRefresh = runtime.now()
 			if _, refreshErr := runtime.reselect(ctx, false, "", 0, true, runtime.currentRecordEdgeID()); refreshErr == nil {
 				if runtime.daemonDeleted() {
 					return nil
@@ -779,6 +806,10 @@ func (runtime *Runtime) replaceRecord(record EnrollmentRecord) {
 	runtime.recordMu.Lock()
 	runtime.record = cloneEnrollmentRecord(record)
 	runtime.recordMu.Unlock()
+	select {
+	case runtime.recordChanges <- struct{}{}:
+	default:
+	}
 }
 
 func (runtime *Runtime) activeRecord() (EnrollmentRecord, error) {
@@ -835,8 +866,86 @@ func (runtime *Runtime) managedPairingBootstrap() (*remoteauthpb.PairingManagedR
 }
 
 func (runtime *Runtime) refreshBinding(ctx context.Context) error {
+	runtime.operationMu.Lock()
+	defer runtime.operationMu.Unlock()
 	_, err := runtime.refreshBindingRequest(ctx, nil, false, "", 0, true)
 	return err
+}
+
+func (runtime *Runtime) maintainBinding(ctx context.Context) {
+	retryDelay := runtime.config.BindingRefreshMinimum
+	if retryDelay <= 0 {
+		retryDelay = 10 * time.Second
+	}
+	for ctx.Err() == nil {
+		delay := runtime.bindingRefreshDelay(runtime.now())
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-runtime.recordChanges:
+				timer.Stop()
+				continue
+			case <-timer.C:
+			}
+		}
+		previousEdgeID := runtime.currentRecordEdgeID()
+		err := runtime.refreshBinding(ctx)
+		if err == nil {
+			retryDelay = runtime.config.BindingRefreshMinimum
+			if runtime.daemonDeleted() {
+				runtime.interruptActiveAttempt()
+				return
+			}
+			if currentEdgeID := runtime.currentRecordEdgeID(); currentEdgeID != "" && currentEdgeID != previousEdgeID {
+				runtime.interruptActiveAttempt()
+			}
+			continue
+		}
+		timer := time.NewTimer(retryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-runtime.recordChanges:
+			timer.Stop()
+			continue
+		case <-timer.C:
+		}
+		if retryDelay < time.Hour {
+			retryDelay *= 2
+			if retryDelay > time.Hour {
+				retryDelay = time.Hour
+			}
+		}
+	}
+}
+
+func (runtime *Runtime) bindingRefreshDelay(now time.Time) time.Duration {
+	record := runtime.currentRecord()
+	envelope := &cloudv1.SignedEnvelope{}
+	claims := &cloudv1.DaemonBindingClaims{}
+	if proto.Unmarshal(record.DaemonBinding, envelope) != nil || proto.Unmarshal(envelope.GetPayload(), claims) != nil || claims.GetExpiresAt() == nil || claims.GetExpiresAt().CheckValid() != nil {
+		return 0
+	}
+	refreshBefore := runtime.config.BindingRefreshBefore
+	if refreshBefore <= 0 {
+		refreshBefore = defaultBindingRefreshBefore
+	}
+	deadline := claims.GetExpiresAt().AsTime().Add(-refreshBefore)
+	if !now.Before(deadline) {
+		return 0
+	}
+	return deadline.Sub(now)
+}
+
+func (runtime *Runtime) now() time.Time {
+	if runtime.config.Now != nil {
+		return runtime.config.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 func (runtime *Runtime) refreshBindingRequest(ctx context.Context, measurements []*cloudv1.DaemonEdgeMeasurement, changePreference bool, preferredEdgeID string, expectedPreferenceRevision uint64, persistBinding bool) (*cloudv1.DaemonEdgeSelection, error) {

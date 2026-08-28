@@ -18,7 +18,7 @@ enum EdgeCapability {
   EDGE_CAPABILITY_CONTROL_STREAM = 1;
   EDGE_CAPABILITY_RELAY = 2;
   EDGE_CAPABILITY_RESERVATION_JOURNAL = 3;
-  EDGE_CAPABILITY_CERTIFICATE_HOT_RELOAD = 4;
+  EDGE_CAPABILITY_PUBLIC_CERTIFICATE_ROTATION = 4;
   EDGE_CAPABILITY_DAEMON_LIFECYCLE_POLICY = 5;
   EDGE_CAPABILITY_DAEMON_EDGE_RESELECTION = 6;
   EDGE_CAPABILITY_IDENTITY_CERTIFICATE_ROTATION = 7;
@@ -35,8 +35,8 @@ message EdgeHello {
   string software_version = 2;
   repeated EdgeCapability capabilities = 3;
   uint64 desired_config_version = 4;
-  uint64 certificate_version = 5;
-  string certificate_profile_id = 6;
+  EdgePublicCertificateStatus public_certificate = 5;
+  reserved 6;
 }
 
 // EdgeWelcome 表示 Controller 已接受当前 mTLS 连接和协议版本。
@@ -93,16 +93,6 @@ message ConfigApplied {
   uint64 version = 1;
   bool applied = 2;
   string error_code = 3;
-}
-
-// CertificateApplied 是 Edge 对证书包完成校验、落盘和热切换后的结果。
-// applied=false 时 Edge 必须继续使用此前已加载的证书。
-message CertificateApplied {
-  string certificate_profile_id = 1;
-  uint64 revision = 2;
-  bool applied = 3;
-  string error_code = 4;
-  string error_message = 5;
 }
 
 // EdgeIdentityRenewRequest 只允许在已通过当前 EdgeIdentity mTLS 认证的控制流内发送。
@@ -261,7 +251,7 @@ message EdgeEvent {
     ConfigApplied config_applied = 26;
     RelayReserveRequest relay_reserve = 28;
     EdgeCommandResult command_result = 29;
-    CertificateApplied certificate_applied = 30;
+    EdgePublicCertificateApplied public_certificate_applied = 30;
     RelayRenewRequest relay_renew = 31;
     RelaySettlement relay_settle = 32;
     RelayQueryRequest relay_query = 33;
@@ -272,6 +262,7 @@ message EdgeEvent {
     RelayAuthorizeRequest relay_authorize = 38;
     RelayUsageBatch relay_usage_batch = 39;
     DaemonStateSyncRequest daemon_state_sync = 40;
+    EdgePublicCertificateRenewRequest public_certificate_renew = 41;
   }
 }
 
@@ -294,7 +285,7 @@ message ControllerCommand {
     RelayReserveResponse relay_reserve = 25;
     CloseDaemonConnection close_daemon = 26;
     CloseClientSession close_session = 27;
-    EdgeCertificateBundle certificate_bundle = 28;
+    EdgePublicCertificateRenewResponse public_certificate_renew = 28;
     RelayRenewResponse relay_renew = 29;
     RelaySettlementAck relay_settle = 30;
     RelayQueryResponse relay_query = 31;
