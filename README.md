@@ -122,7 +122,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 ### macOS and Linux
 
-The installer selects x64 or ARM64, downloads the matching GitHub Release archive, verifies `SHA256SUMS`, and installs to `~/.local/bin` by default.
+The installer selects x64 or ARM64, downloads the matching GitHub Release archive, verifies `SHA256SUMS`, and installs to `~/.local/bin` by default. On first install it also writes the website's recommended `coralline-candy` profile to `~/.config/anytty/tui-v3.yaml` (or `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`); reinstalls and upgrades preserve an existing configuration.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
@@ -142,7 +142,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 .\install.ps1
 ```
 
-The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. Pass `-NoModifyPath` to leave `PATH` unchanged.
+The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. On first install it also writes the recommended `coralline-candy` profile to `%APPDATA%\anytty\tui-v3.yaml`; an existing configuration is preserved. Pass `-NoModifyPath` to leave `PATH` unchanged.
 
 You can also download CLI archives and signed per-ABI or universal Android Beta APKs directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.5). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
 

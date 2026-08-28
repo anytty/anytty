@@ -1,0 +1,833 @@
+# AnyTTY TUI v3 coralline-candy configuration.
+# Save as: ~/.config/anytty/tui-v3.yaml
+# This file overrides presentation and a few layout preferences. Settings not
+# listed here continue to use the runtime defaults.
+
+version: 1
+
+tui:
+  # profile names this configuration so it can be distinguished from other themes.
+  profile: coralline-candy
+
+  theme:
+    # builtin starts from AnyTTY's built-in baseline before applying the
+    # coralline-candy tokens below.
+    palette: builtin
+    mode: dark
+
+    # Primary color for the active pane, selection, focus marker, and primary keys.
+    primary: "#f0abfc"
+
+    # Secondary color for rails, inactive panes, and supporting chrome.
+    secondary: "#3b2f63"
+
+    # Base foreground/background for TUI chrome. Terminal ANSI colors are unchanged.
+    foreground: "#f8f4ff"
+    background: "#070611"
+
+    # Semantic colors keep states distinct instead of reducing the UI to one hue.
+    muted: "#9ca3c9"
+    success: "#86efac"
+    warning: "#fde68a"
+    danger: "#fb7185"
+    info: "#7dd3fc"
+
+    border:
+      # panel is the normal border, active marks focus, and inactive/muted are
+      # subdued dividers.
+      panel: "#3b2f63"
+      active: "#f0abfc"
+      inactive: "#3b2f63"
+      muted: "#17132a"
+
+    surface:
+      # These surfaces provide sufficient dark contrast for the candy header.
+      chrome_bg: "#070611"
+      status_bg: "#17132a"
+      overlay_bg: "#261b44"
+      toast_bg: "#3b2f63"
+
+  chrome:
+    header: true
+    footer: true
+    panel_presentation: card
+    tab_create_icon: "󰐕"
+    tab_create_template: "[fg:#3b2f63;bg:#fde68a][fg:#1b1230;bg:#fde68a;font:bold] {{create_icon}} [fg:#fde68a;bg:#070611]"
+    workspace_template: "[fg:#f0abfc;bg:#070611][fg:#1b1230;bg:#f0abfc;font:bold] 󰙅 {{workspace | truncate 18}} [fg:#f0abfc;bg:#3b2f63]"
+    tab_template: "{{if active}}[fg:#3b2f63;bg:#f0abfc][fg:#1b1230;bg:#f0abfc;font:bold] ⎇ {{title | truncate 14}} · T{{index}} [fg:#f0abfc;bg:#3b2f63][fg:#f8f4ff;bg:#3b2f63] [action:tab.close][fg:#fb7185;bg:#3b2f63]{{close_icon}}[/action] {{else}}[fg:#3b2f63;bg:#261b44][fg:#c4b5fd;bg:#261b44;font:bold] ⎇ {{title | truncate 14}} · T{{index}} [fg:#261b44;bg:#3b2f63][fg:#c4b5fd;bg:#3b2f63] [action:tab.close][fg:#9ca3c9;bg:#3b2f63]{{close_icon}}[/action] {{end}}"
+    pane_title_template: "{{terminal | truncate 18}}@{{endpoint}}"
+    pane_glyphs:
+      action_left: " "
+      action_right: " "
+      action_separator: ""
+      action_group_left: "[fg:{{if active}}#f0abfc{{else}}#3b2f63{{end}}][fg:{{if active}}#1b1230{{else}}#c4b5fd{{end}};bg:{{if active}}#f0abfc{{else}}#3b2f63{{end}};font:bold]"
+      action_group_right: "[reset][fg:{{if active}}#f0abfc{{else}}#3b2f63{{end}}][reset]"
+      owner_left: "[fg:#f0abfc]"
+      owner_right: "[reset]"
+      owner: "owner"
+      owner_pending: "owner?"
+      take_owner: "follow"
+      zoom: "󰁌"
+      split_vertical: ""
+      split_horizontal: ""
+      close: "󰅖"
+      overflow_left: "◂"
+      overflow_right: "▸"
+      overflow_top: "▴"
+      overflow_bottom: "▾"
+      overflow_style: "#9ca3c9"
+      extent_placeholder: "·"
+      extent_placeholder_style: "#3b2f63"
+
+  footer:
+    templates:
+      # mode_badge is the mode marker on the left. live renders as "󰌌 CTRL".
+      mode_badge: "{{mode_icon}} {{mode_label}}"
+
+      # The normal footer promotes the shared Ctrl modifier into the mode badge;
+      # each action label shows only the remaining key.
+      key: ""
+
+      # action decorates each command; this profile keeps the icon and label.
+      action: "{{key}} {{icon}} {{label}}"
+
+      # Separator between footer actions.
+      separator: " · "
+
+      # Summary items on the right.
+      workspace_summary: "󰙅 {{workspace}}"
+      floating_summary: "󰹙 {{count}}"
+      floating_collapsed_summary: "󰃄 {{count}}"
+      terminals_summary: " {{count}}"
+      tabs_summary: "󰓩 {{count}}"
+      panes_summary: " {{count}}"
+
+      # Right-side summary shown while the global key lock is enabled.
+      keylock_on: "󰌾 KEYLOCK"
+      keylock_off: ""
+
+    modes:
+      live:
+        icon: "󰌌"
+        label: "CTRL"
+        style: footer-accent
+
+      copy:
+        icon: "󰆏"
+        label: "COPY"
+        style: footer-key-copy
+
+      pane:
+        icon: ""
+        label: "PANE"
+        style: footer-key-pane
+
+      resize:
+        icon: "󰙖"
+        label: "SIZE"
+        style: footer-key-resize
+
+      terminal-picker:
+        icon: "󰱼"
+        label: "PICK"
+        style: footer-key-picker
+
+      workbench-tree:
+        icon: "󰙅"
+        label: "WORKBENCH"
+        style: footer-key-workspace
+
+  interaction:
+    mouse: true
+    sticky_prefix_timeout_ms: 3000
+    confirm_destructive: true
+
+    clipboard_history:
+      max_items: 200
+      name_width: 40
+      preview_width_ratio: 0.68
+
+    picker:
+      fuzzy_match: subsequence
+      highlight_matches: true
+
+  # Shortcuts are configured here; key hints and input routing share this catalog.
+  # Once any scene is present, the listed scenes become the complete binding
+  # source of truth, so this profile preserves every built-in scene.
+  shortcuts:
+    actions:
+      # Menu entries use an icon and short label. These entries change
+      # presentation only, not bindings.
+      menu.panel:
+        label: " PANE"
+        style: footer-key-pane
+      menu.resize:
+        label: "󰙖 SIZE"
+        style: footer-key-resize
+      menu.system:
+        label: "󰒓 SYSTEM"
+        style: footer-key-global
+      menu.floating:
+        label: "󰹙 FLOAT"
+        style: footer-key-float
+      menu.tab:
+        label: "󰓩 TAB"
+        style: footer-key-tab
+      menu.workspace:
+        label: "󰙅 WORKSPACE"
+        style: footer-key-workspace
+      menu.copy:
+        label: "󰆏 COPY"
+        style: footer-key-copy
+      menu.terminal_picker:
+        label: "󰱼 PICK"
+        style: footer-key-picker
+      menu.terminal_pool:
+        label: " TERMINALS"
+        style: footer-key-picker
+      menu.connections:
+        label: "󰌷 CONNECTIONS"
+        style: info
+      menu.workbench_tree:
+        label: "󰙅 TREE"
+        style: footer-key-workspace
+      menu.prompt:
+        label: " COMMAND"
+        style: footer-key-global
+      menu.help:
+        label: "󰋖 HELP"
+        style: footer-key-tab
+      system.toggle_header:
+        label: "󰘶 HEADER"
+        style: info
+      system.toggle_footer:
+        label: "󰘵 FOOTER"
+        style: success
+      system.quit:
+        label: "󰩈 QUIT"
+        style: danger-strong
+      panel.close:
+        label: close pane
+        style: danger
+      panel.kill:
+        label: kill terminal
+        style: danger-strong
+      panel.kill_and_close:
+        label: kill + close
+        style: danger-strong
+      clipboard.paste_latest:
+        label: "PASTE"
+        style: success
+      clipboard.paste_system:
+        label: "PASTE SYS"
+        style: info
+      menu.clipboard_history:
+        label: "󰅌 CLIPBOARD"
+        style: footer-key-copy
+
+    global:
+      # The actual bindings remain Ctrl+letter; labels move the shared Ctrl
+      # modifier to the far-left footer badge.
+      "ctrl-p":
+        action: menu.panel
+        label: "P  PANE"
+        show: true
+      "ctrl-r":
+        action: menu.resize
+        label: "R 󰙖 SIZE"
+        show: true
+      "ctrl-o":
+        action: menu.floating
+        label: "O 󰹙 FLOAT"
+        show: true
+      "ctrl-t":
+        action: menu.tab
+        label: "T 󰓩 TAB"
+        show: true
+      "ctrl-w":
+        action: menu.workspace
+        label: "W 󰙅 WORKSPACE"
+        show: true
+      "ctrl-f":
+        action: terminal_picker.open
+        label: "F 󰱼 PICK"
+        show: true
+      "ctrl-shift-c":
+        action: copy.enter
+        label: "⇧C 󰒉 SELECT"
+        show: true
+      "ctrl-shift-h":
+        action: menu.clipboard_history
+        label: "⇧H 󰅌 CLIPBOARD"
+        show: true
+      "ctrl-shift-v":
+        action: clipboard.paste_system
+        label: "⇧V 󰆏 PASTE"
+        show: true
+      # Ghostty maps Command+1...5 to these private CSI-u bindings.
+      "ctrl-alt+[1...5]":
+        action: tab.jump.{key}
+        label: TAB
+        show: false
+      "ctrl-g":
+        action: menu.system
+        label: "G 󰒓 SYSTEM"
+        show: true
+
+    panel:
+      "x":
+        action: panel.close
+        label: "X 󰅖 CLOSE"
+        show: true
+      "d":
+        action: panel.detach
+        label: "D 󰆴 DETACH"
+      "r":
+        action: panel.reconnect
+        label: "R 󰑐 RECONNECT"
+      "a":
+        action: panel.take_owner
+        show: false
+      "s":
+        action: panel.size_lock
+        show: false
+      "ctrl-d":
+        action: panel.split_right
+        label: "CTRL+D  VSPLIT"
+        show: true
+      "ctrl-e":
+        action: panel.split_down
+        label: "CTRL+E  HSPLIT"
+        show: true
+      "z":
+        action: panel.toggle_zoom
+        label: "Z 󰁌 ZOOM"
+      "b":
+        action: panel.balance
+        show: false
+      "c":
+        action: panel.presentation_card
+        show: false
+      "p":
+        action: panel.presentation_split_line
+        show: false
+      "h":
+        action: panel.focus_prev
+        label: "H/L 󰜴 FOCUS"
+        show: true
+      "l":
+        action: panel.focus_next
+        label: "H/L 󰜴 FOCUS"
+        show: true
+      "left":
+        action: panel.focus_prev
+        show: false
+      "up":
+        action: panel.focus_prev
+        show: false
+      "right":
+        action: panel.focus_next
+        show: false
+      "down":
+        action: panel.focus_next
+        show: false
+      "t":
+        action: panel.restart
+        show: false
+      "k":
+        action: panel.kill
+        show: false
+      "q":
+        action: panel.kill_and_close
+        label: "Q 󰩈 KILL+CLOSE"
+        show: true
+
+    resize:
+      "left":
+        action: resize.left
+        show: false
+      "right":
+        action: resize.right
+        show: false
+      "up":
+        action: resize.up
+        show: false
+      "down":
+        action: resize.down
+        show: false
+      "h":
+        action: resize.left
+        label: "H ← LEFT"
+        show: true
+      "l":
+        action: resize.right
+        label: "L → RIGHT"
+        show: true
+      "k":
+        action: resize.up
+        label: "K ↑ UP"
+        show: true
+      "j":
+        action: resize.down
+        label: "J ↓ DOWN"
+        show: true
+      "a":
+        action: panel.take_owner
+        show: false
+      "s":
+        action: panel.size_lock
+        label: "S 󰌾 LOCK"
+        show: true
+      "space":
+        action: resize.layout_toggle
+        label: "SPACE 󰘶 LAYOUT"
+        show: true
+      "shift-left":
+        action: resize.align_left
+        show: false
+      "shift-down":
+        action: resize.align_bottom
+        show: false
+      "shift-up":
+        action: resize.align_top
+        show: false
+      "shift-right":
+        action: resize.align_right
+        show: false
+      "0":
+        action: resize.align_left
+        show: false
+      "m":
+        action: resize.center
+        show: false
+      "r":
+        action: resize.layout_reset
+        label: "R 󰑐 RESET"
+        show: true
+      "b":
+        action: panel.balance
+        show: false
+      "=":
+        action: panel.balance
+        label: "= 󰕕 BALANCE"
+        show: true
+      "alt-h":
+        action: resize.pan_left
+        show: false
+      "alt-j":
+        action: resize.pan_down
+        show: false
+      "alt-k":
+        action: resize.pan_up
+        show: false
+      "alt-l":
+        action: resize.pan_right
+        show: false
+      "ctrl-left":
+        action: resize.pan_left
+        label: "CTRL+← PAN"
+        show: true
+      "ctrl-right":
+        action: resize.pan_right
+        label: "CTRL+→ PAN"
+        show: true
+      "ctrl-up":
+        action: resize.pan_up
+        label: "CTRL+↑ PAN"
+        show: true
+      "ctrl-down":
+        action: resize.pan_down
+        label: "CTRL+↓ PAN"
+        show: true
+      "x":
+        action: resize.center_x
+        show: false
+      "y":
+        action: resize.center_y
+        show: false
+
+    system:
+      "h":
+        action: system.toggle_header
+        label: "H 󰘶 HEADER"
+      "f":
+        action: system.toggle_footer
+        label: "F 󰘵 FOOTER"
+      "c":
+        action: system.clear_toasts
+        show: false
+      "p":
+        action: system.open_terminal_pool
+        label: "P  TERMINALS"
+        show: true
+      "e":
+        action: system.open_connections
+        label: "E 󰌷 CONNECTIONS"
+        show: true
+      "m":
+        action: system.open_terminal_pool
+        show: false
+      "t":
+        action: system.open_terminal_pool
+        show: false
+      "w":
+        action: system.open_workbench_tree
+        label: "W 󰙅 TREE"
+        show: true
+      "l":
+        action: system.toggle_shortcut_lock
+        show: false
+      "o":
+        action: system.open_prompt
+        label: "O  COMMAND"
+        show: true
+      "?":
+        action: system.open_help
+        label: "? 󰋖 HELP"
+      "q":
+        action: system.quit
+        label: "Q 󰩈 QUIT"
+      "x":
+        action: system.close_toast
+        show: false
+
+    floating:
+      "n":
+        action: floating.new
+        label: "N 󰐕 NEW"
+        show: true
+      "o":
+        action: floating.overview
+        label: "O 󰹙 OVERVIEW"
+        show: true
+      "[1...9]":
+        action: floating.summon.{key}
+        label: "1-9 󰓩 SUMMON"
+        show: true
+      "f":
+        action: system.open_terminal_picker
+        label: "F 󰱼 PICK"
+        show: true
+      "a":
+        action: floating.take_owner
+        show: false
+      "x":
+        action: floating.close
+        label: "X 󰅖 CLOSE"
+        show: true
+      "z":
+        action: floating.collapse
+        label: "Z 󰘕 HIDE"
+        show: true
+      "m":
+        action: floating.collapse
+        show: false
+      "c":
+        action: floating.center
+        show: false
+      "v":
+        action: floating.toggle_all
+        show: false
+      "=":
+        action: floating.fit
+        show: false
+      "s":
+        action: floating.auto_fit
+        show: false
+      "h":
+        action: floating.move_left
+        show: false
+      "l":
+        action: floating.move_right
+        show: false
+      "k":
+        action: floating.move_up
+        show: false
+      "j":
+        action: floating.move_down
+        show: false
+      "left":
+        action: floating.move_left
+        show: false
+      "right":
+        action: floating.move_right
+        show: false
+      "up":
+        action: floating.move_up
+        show: false
+      "down":
+        action: floating.move_down
+        show: false
+      ",":
+        action: floating.narrow
+        show: false
+      ".":
+        action: floating.wide
+        show: false
+      ";":
+        action: floating.short
+        show: false
+      "/":
+        action: floating.tall
+        show: false
+
+    tab:
+      "c":
+        action: tab.create
+        label: "C 󰐕 NEW"
+      "n":
+        action: tab.next
+        label: "N 󰒭 NEXT"
+        show: true
+      "l":
+        action: tab.next
+        show: false
+      "]":
+        action: tab.next
+        show: false
+      "p":
+        action: tab.previous
+        label: "P 󰒮 PREV"
+        show: true
+      "h":
+        action: tab.previous
+        show: false
+      "[":
+        action: tab.previous
+        show: false
+      "[1...9]":
+        action: tab.jump.{key}
+        label: "1-9 󰓩 JUMP"
+        show: true
+      "r":
+        action: tab.rename
+        label: "R 󰑕 RENAME"
+      "x":
+        action: tab.close
+        label: "X 󰅖 CLOSE"
+      "k":
+        action: tab.kill
+        show: false
+
+    workspace:
+      "c":
+        action: workspace.create
+        label: "C 󰐕 NEW"
+      "n":
+        action: workspace.next
+        label: "N 󰒭 NEXT"
+        show: true
+      "l":
+        action: workspace.next
+        show: false
+      "]":
+        action: workspace.next
+        show: false
+      "p":
+        action: workspace.previous
+        label: "P 󰒮 PREV"
+        show: true
+      "h":
+        action: workspace.previous
+        show: false
+      "[":
+        action: workspace.previous
+        show: false
+      "r":
+        action: workspace.rename
+        label: "R 󰑕 RENAME"
+      "x":
+        action: workspace.delete
+        label: "X 󰩈 DELETE"
+      "t":
+        action: system.open_workbench_tree
+        label: "T 󰙅 TREE"
+        show: true
+      "f":
+        action: system.open_workbench_tree
+        show: false
+      "s":
+        action: system.open_workbench_tree
+        show: false
+
+    copy:
+      "page-up":
+        action: copy.request_older
+        label: "PGUP 󰁝 OLDER"
+      "page-down":
+        action: copy.request_newer
+        label: "PGDN 󰁅 NEWER"
+      "home":
+        action: copy.line_start
+        show: false
+      "end":
+        action: copy.line_end
+        show: false
+      "left":
+        action: copy.cursor_left
+        show: false
+      "right":
+        action: copy.cursor_right
+        show: false
+      "down":
+        action: copy.cursor_down
+        show: false
+      "up":
+        action: copy.cursor_up
+        show: false
+      "enter": copy.accept
+      "h":
+        action: copy.cursor_left
+        show: false
+      "l":
+        action: copy.cursor_right
+        show: false
+      "j":
+        action: copy.cursor_down
+        show: false
+      "k":
+        action: copy.cursor_up
+        show: false
+      "g":
+        action: copy.oldest
+        label: "G 󰁞 OLDEST"
+        show: true
+      "G":
+        action: copy.newest
+        show: false
+      "u": copy.half_page_older
+      "d": copy.half_page_newer
+      "space":
+        action: copy.mark
+        label: "SPACE 󰆏 MARK"
+        show: true
+      "y":
+        action: copy.copy_selection
+        label: "Y 󰆏 COPY"
+        show: true
+      "/":
+        action: copy.search_start
+        label: "/ 󰍉 SEARCH"
+        show: true
+      "tab":
+        action: copy.search_mode
+        show: false
+      "n":
+        action: copy.search_next
+        show: false
+      "N":
+        action: copy.search_previous
+        show: false
+
+    terminal_picker:
+      "enter":
+        action: terminal_picker.attach
+        label: "ENTER 󰋺 ATTACH"
+      "tab":
+        action: terminal_picker.split
+        label: "TAB  SPLIT"
+      "ctrl-e":
+        action: terminal_picker.edit
+        label: "CTRL+E 󰏫 RENAME"
+      "ctrl-k":
+        action: terminal_picker.kill
+        label: "CTRL+K 󰩈 KILL"
+      "ctrl-x":
+        action: terminal_picker.delete
+        label: "CTRL+X 󰅖 REMOVE"
+
+    terminal_pool:
+      "enter":
+        action: terminal_pool.attach
+        label: "ENTER 󰋺 ATTACH"
+      "ctrl-t":
+        action: terminal_pool.attach_tab
+        label: "CTRL+T 󰓩 TAB"
+      "ctrl-o":
+        action: terminal_pool.attach_float
+        label: "CTRL+O 󰹙 FLOAT"
+      "ctrl-r":
+        action: terminal_pool.restart
+        label: "CTRL+R 󰑐 RESTART"
+      "ctrl-e":
+        action: terminal_pool.edit
+        label: "CTRL+E 󰏫 RENAME"
+      "ctrl-k":
+        action: terminal_pool.kill
+        label: "CTRL+K 󰩈 KILL"
+      "ctrl-x":
+        action: terminal_pool.delete
+        label: "CTRL+X 󰅖 REMOVE"
+
+    connections:
+      "enter":
+        action: connections.edit
+        label: "ENTER 󰒓 SETTINGS"
+      "space":
+        action: connections.toggle
+        label: "SPACE 󰨚 TOGGLE"
+      "r":
+        action: connections.refresh
+        label: "R 󰑐 REFRESH"
+
+    workbench_tree:
+      "enter":
+        action: workbench_tree.open
+        label: "ENTER 󰏌 OPEN"
+      "ctrl-n":
+        action: workbench_tree.new
+        label: "CTRL+N 󰐕 NEW"
+      "ctrl-r":
+        action: workbench_tree.rename
+        label: "CTRL+R 󰏫 RENAME"
+      "ctrl-x":
+        action: workbench_tree.delete
+        label: "CTRL+X 󰅖 DELETE"
+      "ctrl-d":
+        action: workbench_tree.detach
+        label: "CTRL+D 󰆴 DETACH"
+      "ctrl-z":
+        action: workbench_tree.zoom
+        label: "CTRL+Z 󰁌 ZOOM"
+
+    clipboard_history:
+      "enter":
+        action: clipboard_history.paste
+        label: "ENTER 󰆒 PASTE"
+      "ctrl-n":
+        action: clipboard_history.new
+        label: "CTRL+N 󰐕 NEW"
+      "ctrl-e":
+        action: clipboard_history.edit
+        label: "CTRL+E 󰏫 EDIT"
+      "ctrl-x":
+        action: clipboard_history.delete
+        label: "CTRL+X 󰅖 DELETE"
+
+    floating_overview:
+      "enter":
+        action: floating_overview.open
+        label: "ENTER 󰏌 OPEN"
+      "[1...9]":
+        action: floating.summon.{key}
+        label: "1-9 󰓩 SUMMON"
+        show: true
+      "s":
+        action: floating_overview.show_all
+        label: "S 󰘖 SHOW ALL"
+      "c":
+        action: floating_overview.collapse_all
+        label: "C 󰘕 HIDE ALL"
+      "x":
+        action: floating.close
+        label: "X 󰅖 CLOSE"
+
+    prompt:
+      "enter":
+        action: prompt.submit
+        label: "ENTER 󰘧 RUN"
+
+    help:
+      "enter":
+        action: help.close
+        show: false

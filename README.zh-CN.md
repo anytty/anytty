@@ -122,7 +122,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 
 ### macOS 与 Linux
 
-安装脚本会自动选择 x64 或 ARM64，下载对应 GitHub Release，校验 `SHA256SUMS`，并默认安装到 `~/.local/bin`。
+安装脚本会自动选择 x64 或 ARM64，下载对应 GitHub Release，校验 `SHA256SUMS`，并默认安装到 `~/.local/bin`。首次安装还会把官网使用的 `coralline-candy` 推荐配置写入 `~/.config/anytty/tui-v3.yaml`（或 `$XDG_CONFIG_HOME/anytty/tui-v3.yaml`）；再次安装或升级不会覆盖已有配置。
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
@@ -142,7 +142,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 .\install.ps1
 ```
 
-PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\bin`，并把目录加入当前用户的 `PATH`。如不希望修改 `PATH`，可传入 `-NoModifyPath`。
+PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\bin`，并把目录加入当前用户的 `PATH`。首次安装还会把 `coralline-candy` 推荐配置写入 `%APPDATA%\anytty\tui-v3.yaml`；已有配置不会被覆盖。如不希望修改 `PATH`，可传入 `-NoModifyPath`。
 
 你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.5) 下载各平台 CLI 压缩包，以及签名的单 ABI 或 universal Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
 

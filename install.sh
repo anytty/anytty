@@ -8,7 +8,7 @@ install_dir="${ANYTTY_INSTALL_DIR:-${HOME}/.local/bin}"
 
 usage() {
   cat <<'EOF'
-Install the AnyTTY CLI from GitHub Releases.
+Install the AnyTTY CLI and recommended TUI configuration from GitHub Releases.
 
 Usage: install.sh [--version VERSION] [--bin-dir DIRECTORY]
 
@@ -92,11 +92,29 @@ fi
 
 tar -xzf "$work_dir/$archive_name" -C "$work_dir"
 [ -f "$work_dir/$archive_base/anytty" ] || { echo "release archive does not contain anytty" >&2; exit 1; }
+[ -f "$work_dir/$archive_base/tui-v3.yaml" ] || { echo "release archive does not contain tui-v3.yaml" >&2; exit 1; }
 mkdir -p "$install_dir"
 cp "$work_dir/$archive_base/anytty" "$install_dir/anytty"
 chmod 0755 "$install_dir/anytty"
 
+config_home="${XDG_CONFIG_HOME:-}"
+case "$config_home" in
+  *[![:space:]]*) ;;
+  *) config_home="${HOME}/.config" ;;
+esac
+config_dir="$config_home/anytty"
+config_path="$config_dir/tui-v3.yaml"
+if [ -e "$config_path" ]; then
+  config_status="Preserved existing AnyTTY configuration at $config_path"
+else
+  mkdir -p "$config_dir"
+  cp "$work_dir/$archive_base/tui-v3.yaml" "$config_path"
+  chmod 0600 "$config_path"
+  config_status="Installed recommended AnyTTY configuration to $config_path"
+fi
+
 printf 'Installed AnyTTY %s to %s/anytty\n' "$version" "$install_dir"
+printf '%s\n' "$config_status"
 case ":${PATH:-}:" in
   *":$install_dir:"*) ;;
   *) printf 'Add %s to PATH to run anytty from any directory.\n' "$install_dir" ;;

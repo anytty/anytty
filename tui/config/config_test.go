@@ -36,6 +36,20 @@ func TestParseLocalizedExampleConfigsMatchDefaults(t *testing.T) {
 	}
 }
 
+func TestParseRecommendedConfig(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "docs", "tui-v3.recommended.yaml"))
+	if err != nil {
+		t.Fatalf("read recommended config: %v", err)
+	}
+	cfg, err := Parse(data)
+	if err != nil {
+		t.Fatalf("parse recommended config: %v", err)
+	}
+	if cfg.Profile != "coralline-candy" || cfg.Theme.Palette != "builtin" || cfg.Chrome.PanelPresentation != "card" {
+		t.Fatalf("recommended visual profile changed unexpectedly: %#v", cfg)
+	}
+}
+
 func TestDefaultVisibleChromeUsesPortableText(t *testing.T) {
 	cfg := Default()
 	if cfg.Chrome.TabCreateIcon != "+" || cfg.Footer.Templates.KeylockOn != "LOCK" {

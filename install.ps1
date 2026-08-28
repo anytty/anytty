@@ -61,8 +61,32 @@ try {
     if (-not (Test-Path -LiteralPath $SourceBinary -PathType Leaf)) {
         throw 'Release archive does not contain anytty.exe'
     }
+    $SourceConfig = Join-Path $WorkDir "$ArchiveBase\tui-v3.yaml"
+    if (-not (Test-Path -LiteralPath $SourceConfig -PathType Leaf)) {
+        throw 'Release archive does not contain tui-v3.yaml'
+    }
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     Copy-Item -LiteralPath $SourceBinary -Destination (Join-Path $InstallDir 'anytty.exe') -Force
+
+    $ConfigHome = if ($env:XDG_CONFIG_HOME -and $env:XDG_CONFIG_HOME.Trim()) {
+        $env:XDG_CONFIG_HOME.Trim()
+    } elseif ($env:APPDATA -and $env:APPDATA.Trim()) {
+        $env:APPDATA.Trim()
+    } else {
+        [Environment]::GetFolderPath('ApplicationData')
+    }
+    if (-not $ConfigHome) {
+        throw 'Could not resolve the user configuration directory'
+    }
+    $ConfigDir = Join-Path $ConfigHome 'anytty'
+    $ConfigPath = Join-Path $ConfigDir 'tui-v3.yaml'
+    if (Test-Path -LiteralPath $ConfigPath) {
+        $ConfigStatus = "Preserved existing AnyTTY configuration at $ConfigPath"
+    } else {
+        New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+        Copy-Item -LiteralPath $SourceConfig -Destination $ConfigPath
+        $ConfigStatus = "Installed recommended AnyTTY configuration to $ConfigPath"
+    }
 } finally {
     if (Test-Path -LiteralPath $WorkDir) {
         Remove-Item -LiteralPath $WorkDir -Recurse -Force
@@ -81,3 +105,4 @@ if (-not $NoModifyPath) {
 }
 
 Write-Host "Installed AnyTTY $Version to $(Join-Path $InstallDir 'anytty.exe')"
+Write-Host $ConfigStatus

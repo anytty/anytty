@@ -19,6 +19,7 @@ release:
 	scripts/build-release-artifacts.sh "$(RELEASE_VERSION)"
 
 test:
+	scripts/test-install.sh
 	GOWORK=off go test ./... -count=1
 
 test-clients:

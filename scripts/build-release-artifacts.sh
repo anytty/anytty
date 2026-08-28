@@ -47,6 +47,7 @@ for target in "${targets[@]}"; do
   install -m 0644 "$repo_root/LICENSE" "$package_dir/LICENSE"
   install -m 0644 "$repo_root/NOTICE" "$package_dir/NOTICE"
   install -m 0644 "$repo_root/cmd/anytty/THIRD_PARTY_NOTICES.txt" "$package_dir/THIRD_PARTY_NOTICES.txt"
+  install -m 0644 "$repo_root/tui/docs/tui-v3.recommended.yaml" "$package_dir/tui-v3.yaml"
 
   if [[ "$goos" == windows ]]; then
     (cd "$work_dir" && zip -q -r "$output_dir/$artifact_base.zip" "$artifact_base")
