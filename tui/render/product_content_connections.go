@@ -36,12 +36,12 @@ func buildConnectionsContent(root state.Root, shell state.ShellStore) ContentVM 
 		selected = items[selectedIndex]
 		selectedActiveViews = root.TerminalViews.AttachedBindingCountForEndpoint(selected.ID)
 	}
-	details := connectionsDetailLines(selected, selectedOK, layout.DetailWidth, selectedActiveViews)
+	statusConfig := root.Config.Chrome.Picker.EndpointStatus
+	details := connectionsDetailLines(selected, selectedOK, layout.DetailWidth, selectedActiveViews, statusConfig)
 	for row := 0; row < layout.BodyRows; row++ {
 		left := Line{}
 		if row < len(items) {
-			activeViews := root.TerminalViews.AttachedBindingCountForEndpoint(items[row].ID)
-			left = connectionsEndpointLine(items[row], row == selectedIndex, activeViews, endpointLastOutputActivityLabel(root, items[row].ID))
+			left = connectionsEndpointLine(items[row], row == selectedIndex, endpointLastOutputActivityLabel(root, items[row].ID), statusConfig)
 		}
 		right := Line{}
 		if row < len(details) {
@@ -55,7 +55,7 @@ func buildConnectionsContent(root state.Root, shell state.ShellStore) ContentVM 
 	}
 }
 
-func connectionsEndpointLine(item state.EndpointItem, selected bool, activeViews int, activity string) Line {
+func connectionsEndpointLine(item state.EndpointItem, selected bool, activity string, statusConfig state.TUIPickerEndpointStatusConfig) Line {
 	marker, markerStyle, labelStyle := "  ", StyleMuted, StyleForeground
 	if selected {
 		marker, markerStyle, labelStyle = "▸ ", StyleAccent, StyleAccent
@@ -64,17 +64,9 @@ func connectionsEndpointLine(item state.EndpointItem, selected bool, activeViews
 	if item.Enabled {
 		checkbox, checkboxStyle = "[x] ", StyleSuccess
 	}
-	status := string(item.DisplayStatus())
-	statusStyle := endpointStatusStyle(item.DisplayStatus())
-	if !item.Enabled && activeViews > 0 {
-		status = fmt.Sprintf("draining %d view(s)", activeViews)
-		statusStyle = StyleWarning
-	}
-	if status == "" {
-		status = "unknown"
-	}
+	status := statusConfig.Appearance(item.DisplayStatus())
 	cells := []Cell{
-		styledCell(marker, markerStyle), styledCell(checkbox, checkboxStyle), styledCell(item.DisplayLabel(), labelStyle), NewCell(" "), tokenCell(status, statusStyle),
+		styledCell(marker, markerStyle), styledCell(checkbox, checkboxStyle), styledCell(item.DisplayLabel(), labelStyle), NewCell(" "), styledCell(status.Glyph, StyleToken(status.Style)),
 	}
 	if activity != "" {
 		cells = append(cells, NewCell(" "), styledCell(activity, TerminalOutputActivityStyle(activity)))
@@ -98,7 +90,7 @@ func endpointLastOutputActivityLabel(root state.Root, endpointID state.EndpointI
 	return TerminalOutputActivityLabel(latest, time.Now())
 }
 
-func connectionsDetailLines(item state.EndpointItem, ok bool, width int, activeViews int) []Line {
+func connectionsDetailLines(item state.EndpointItem, ok bool, width int, activeViews int, statusConfig state.TUIPickerEndpointStatusConfig) []Line {
 	if !ok {
 		return []Line{NewLine("No endpoint configured")}
 	}
@@ -121,10 +113,11 @@ func connectionsDetailLines(item state.EndpointItem, ok bool, width int, activeV
 		routeHeader = "ROUTES"
 	}
 	snapshot := item.ConnectionSnapshot
+	status := statusConfig.Appearance(item.DisplayStatus())
 	lines := []Line{
 		terminalManagerHeaderLine("CURRENT CONNECTION"),
 		value("Enabled", map[bool]string{true: "yes", false: "no"}[item.Enabled]),
-		value("Status", string(item.DisplayStatus())),
+		{Cells: []Cell{styledCell("Status: ", StyleMuted), styledCell(status.Glyph, StyleToken(status.Style))}},
 		value("Route", string(item.ActiveRouteID)),
 		value("Path", item.ObservedPath),
 		value("Generation", generation),

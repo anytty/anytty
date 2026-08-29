@@ -48,7 +48,7 @@ func buildWorkbenchTreeContent(root state.Root, shell state.ShellStore) ContentV
 	}
 }
 
-func workbenchTreeRowLine(row state.WorkbenchTreeItem) Line {
+func workbenchTreeRowLine(root state.Root, row state.WorkbenchTreeItem) Line {
 	prefixStyle := StyleMuted
 	if row.Selected {
 		prefixStyle = StyleForeground
@@ -65,7 +65,7 @@ func workbenchTreeRowLine(row state.WorkbenchTreeItem) Line {
 	}
 	// 中文说明：左侧树只表达 workbench 结构和当前选择；terminal id、runtime
 	// 状态与资源采样属于右侧 detail，避免 pane title 后面堆出第二套调试信息。
-	cells = append(cells, workbenchTreeInlineMetaCells(row)...)
+	cells = append(cells, workbenchTreeInlineMetaCells(row, root.Config.Chrome.Picker.EndpointStatus)...)
 	return Line{Cells: cells}
 }
 
@@ -102,7 +102,7 @@ func workbenchNavigatorLines(root state.Root, rows []state.WorkbenchTreeItem, qu
 	for row := 0; row < layout.BodyRows; row++ {
 		left := Line{}
 		if row < len(rows) {
-			left = workbenchTreeRowLine(rows[row])
+			left = workbenchTreeRowLine(root, rows[row])
 		}
 		lines = append(lines, workbenchNavigatorBodyLine(left, Line{}, layout))
 	}
@@ -218,20 +218,25 @@ func workbenchNavigatorDetailTitleLine(row state.WorkbenchTreeItem) Line {
 	}}
 }
 
-func workbenchNavigatorBadgeLine(badges []string) Line {
+type workbenchNavigatorBadge struct {
+	Text  string
+	Style StyleToken
+}
+
+func workbenchNavigatorBadgeLine(badges []workbenchNavigatorBadge) Line {
 	if len(badges) == 0 {
 		return NewLine("")
 	}
 	cells := []Cell{}
 	for index, badge := range badges {
-		badge = strings.TrimSpace(badge)
-		if badge == "" {
+		badge.Text = strings.TrimSpace(badge.Text)
+		if badge.Text == "" {
 			continue
 		}
 		if len(cells) > 0 || index > 0 {
 			cells = append(cells, NewCell("  "))
 		}
-		cells = append(cells, styledCell(badge, workbenchNavigatorBadgeStyle(badge)))
+		cells = append(cells, styledCell(badge.Text, badge.Style))
 	}
 	if len(cells) == 0 {
 		return NewLine("")
@@ -252,43 +257,66 @@ func workbenchNavigatorBadgeStyle(badge string) StyleToken {
 	}
 }
 
-func workbenchNavigatorBadges(root state.Root, row state.WorkbenchTreeItem) []string {
-	badges := []string{workbenchTreeKindLabel(row)}
+func workbenchNavigatorBadges(root state.Root, row state.WorkbenchTreeItem) []workbenchNavigatorBadge {
+	badges := []workbenchNavigatorBadge{workbenchNavigatorTextBadge(workbenchTreeKindLabel(row))}
 	if row.Active {
-		badges = append(badges, "active")
+		badges = append(badges, workbenchNavigatorTextBadge("active"))
 	}
 	switch row.Kind {
 	case state.WorkbenchTreeKindPane:
-		badges = append(badges, workbenchPaneStateLabel(root, row))
-		badges = append(badges, workbenchEndpointBadges(row)...)
+		badges = append(badges, workbenchNavigatorTextBadge(workbenchPaneStateLabel(root, row)))
+		badges = append(badges, workbenchEndpointBadges(root, row)...)
 		if role := workbenchPaneRoleLabel(root, row); role != "" {
-			badges = append(badges, role)
+			badges = append(badges, workbenchNavigatorTextBadge(role))
 		}
 	case state.WorkbenchTreeKindFloating:
 		if row.PaneKind == state.PaneEmpty {
-			badges = append(badges, "empty")
+			badges = append(badges, workbenchNavigatorTextBadge("empty"))
 		} else if row.PaneKind != "" {
-			badges = append(badges, "live")
+			badges = append(badges, workbenchNavigatorTextBadge("live"))
 		}
 		if strings.Contains(strings.ToLower(row.Summary), "collapsed") {
-			badges = append(badges, "collapsed")
+			badges = append(badges, workbenchNavigatorTextBadge("collapsed"))
 		}
-		badges = append(badges, workbenchEndpointBadges(row)...)
+		badges = append(badges, workbenchEndpointBadges(root, row)...)
 	}
-	return compactStringTokens(badges)
+	return compactWorkbenchNavigatorBadges(badges)
 }
 
-func workbenchEndpointBadges(row state.WorkbenchTreeItem) []string {
+func workbenchNavigatorTextBadge(text string) workbenchNavigatorBadge {
+	return workbenchNavigatorBadge{Text: text, Style: workbenchNavigatorBadgeStyle(text)}
+}
+
+func compactWorkbenchNavigatorBadges(badges []workbenchNavigatorBadge) []workbenchNavigatorBadge {
+	out := make([]workbenchNavigatorBadge, 0, len(badges))
+	seen := map[string]struct{}{}
+	for _, badge := range badges {
+		badge.Text = strings.TrimSpace(badge.Text)
+		if badge.Text == "" {
+			continue
+		}
+		key := strings.ToLower(badge.Text)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, badge)
+	}
+	return out
+}
+
+func workbenchEndpointBadges(root state.Root, row state.WorkbenchTreeItem) []workbenchNavigatorBadge {
 	if row.EndpointID == "" || row.TerminalID == "" {
 		return nil
 	}
-	badges := []string{}
+	badges := []workbenchNavigatorBadge{}
 	switch row.EndpointStatus {
 	case state.EndpointStatusOffline, state.EndpointStatusDisabled, state.EndpointStatusReconnectRequired, state.EndpointStatusUnregistered:
-		badges = append(badges, string(row.EndpointStatus))
+		status := root.Config.Chrome.Picker.EndpointStatus.Appearance(row.EndpointStatus)
+		badges = append(badges, workbenchNavigatorBadge{Text: status.Glyph, Style: StyleToken(status.Style)})
 	}
 	if row.EndpointErrorKind != state.EndpointErrorUnknown {
-		badges = append(badges, string(row.EndpointErrorKind))
+		badges = append(badges, workbenchNavigatorTextBadge(string(row.EndpointErrorKind)))
 	}
 	return badges
 }
@@ -304,7 +332,12 @@ func workbenchNavigatorDetailLine(label string, value string) Line {
 	}}
 }
 
-func workbenchTreeInlineMetaCells(row state.WorkbenchTreeItem) []Cell {
+func workbenchTreeInlineMetaCells(row state.WorkbenchTreeItem, statusConfig state.TUIPickerEndpointStatusConfig) []Cell {
+	if (row.Kind == state.WorkbenchTreeKindPane || row.Kind == state.WorkbenchTreeKindFloating) &&
+		row.EndpointStatus == state.EndpointStatusOffline && row.EndpointErrorKind == state.EndpointErrorUnknown {
+		status := statusConfig.Appearance(row.EndpointStatus)
+		return []Cell{styledCell(status.Glyph, StyleToken(status.Style))}
+	}
 	meta := workbenchTreeInlineMeta(row)
 	if meta == "" {
 		return nil
@@ -325,7 +358,7 @@ func workbenchTreeInlineMeta(row state.WorkbenchTreeItem) string {
 			if row.EndpointErrorKind != state.EndpointErrorUnknown {
 				return string(row.EndpointErrorKind)
 			}
-			return string(row.EndpointStatus)
+			return ""
 		}
 		meta := ""
 		if row.Active {
@@ -412,7 +445,7 @@ func workbenchNavigatorResourceLines(root state.Root, selected state.WorkbenchTr
 	if !ok {
 		lines := []Line{
 			workbenchNavigatorConnectionLine(root, selected, state.TerminalPoolPageItem{}),
-			workbenchNavigatorEndpointLine(selected, state.TerminalPoolPageItem{}),
+			workbenchNavigatorEndpointLine(root, selected, state.TerminalPoolPageItem{}),
 		}
 		if activity != "" {
 			lines = append(lines, workbenchNavigatorDetailLine("last output", activity))
@@ -424,7 +457,7 @@ func workbenchNavigatorResourceLines(root state.Root, selected state.WorkbenchTr
 		lines = append(lines, terminalManagerResourceGaugeLines(row)...)
 	}
 	lines = append(lines, workbenchNavigatorConnectionLine(root, selected, row))
-	lines = append(lines, workbenchNavigatorEndpointLine(selected, row))
+	lines = append(lines, workbenchNavigatorEndpointLine(root, selected, row))
 	if activity != "" {
 		lines = append(lines, workbenchNavigatorDetailLine("last output", activity))
 	}
@@ -443,7 +476,7 @@ func workbenchNavigatorConnectionLine(root state.Root, selected state.WorkbenchT
 	return workbenchNavigatorDetailLine("views", viewCountLabel(maxInt(0, count)))
 }
 
-func workbenchNavigatorEndpointLine(selected state.WorkbenchTreeItem, row state.TerminalPoolPageItem) Line {
+func workbenchNavigatorEndpointLine(root state.Root, selected state.WorkbenchTreeItem, row state.TerminalPoolPageItem) Line {
 	label := selected.EndpointLabel
 	if label == "" {
 		label = row.EndpointLabel
@@ -460,8 +493,20 @@ func workbenchNavigatorEndpointLine(selected state.WorkbenchTreeItem, row state.
 	if errText == "" {
 		errText = row.EndpointLastError
 	}
-	parts := compactStringTokens([]string{label, string(status), endpointErrorLabel(kind, errText)})
-	return workbenchNavigatorDetailLine("endpoint", strings.Join(parts, " "))
+	cells := []Cell{styledCell("ENDPOINT ", StyleAccent)}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = "-"
+	}
+	cells = append(cells, styledCell(label, StyleForeground))
+	if status != "" {
+		appearance := root.Config.Chrome.Picker.EndpointStatus.Appearance(status)
+		cells = append(cells, NewCell(" "), styledCell(appearance.Glyph, StyleToken(appearance.Style)))
+	}
+	if detail := endpointErrorLabel(kind, errText); detail != "" {
+		cells = append(cells, NewCell(" "), styledCell(detail, StyleDanger))
+	}
+	return Line{Cells: cells}
 }
 
 func workbenchTerminalPoolItem(root state.Root, selected state.WorkbenchTreeItem) (state.TerminalPoolPageItem, bool) {

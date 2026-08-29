@@ -93,7 +93,7 @@ type TUIPickerChromeConfig struct {
 	Width        string
 	Density      string
 	EndpointTabs string
-	// EndpointStatus 只配置 Terminal Picker 中 endpoint 状态的视觉投影。
+	// EndpointStatus 配置 endpoint picker 与 Connections 页面共享的状态视觉投影。
 	// reducer-owned EndpointStatusKind 仍是状态真值，glyph/style 不能改变连接行为。
 	EndpointStatus TUIPickerEndpointStatusConfig
 }

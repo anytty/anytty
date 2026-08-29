@@ -223,8 +223,8 @@ tui:
       # 默认值：underline。可选值：underline、plain。
       endpoint_tabs: underline
 
-      # endpoint_status 控制 endpoint tab 和 endpoint 选择列表中的状态标记。
-      # style 可使用下面这些语义 token，也可直接写 #RRGGBB；glyph/style 留空时
+      # endpoint_status 控制 endpoint tab、endpoint 选择列表和 Connections 中的状态标记。
+      # style 可使用下面这些语义 token，也可直接写 "#RRGGBB"；glyph/style 留空时
       # 分别回退到对应状态的默认值。
       endpoint_status:
         unknown:

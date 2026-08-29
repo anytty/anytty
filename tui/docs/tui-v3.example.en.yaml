@@ -238,8 +238,8 @@ tui:
       # Default: underline. Allowed: underline, plain.
       endpoint_tabs: underline
 
-      # Endpoint status markers used by both the endpoint tabs and the endpoint
-      # chooser. style accepts the semantic tokens shown below or #RRGGBB.
+      # Endpoint status markers used by endpoint tabs, the endpoint chooser,
+      # and Connections. style accepts the semantic tokens below or "#RRGGBB".
       # Empty glyph/style values fall back to these defaults.
       endpoint_status:
         unknown:

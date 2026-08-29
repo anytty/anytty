@@ -38,6 +38,9 @@ func TestConnectionsOverlayProjectsActualRouteGenerationAndPriorityAtNarrowWidth
 				t.Fatalf("%d-column frame missing %q:\n%s", cols, want, text)
 			}
 		}
+		if strings.Contains(text, "connected") {
+			t.Fatalf("%d-column frame should render endpoint status as an icon:\n%s", cols, text)
+		}
 	}
 }
 
@@ -75,10 +78,73 @@ func TestConnectionsOverlayShowsEnabledCheckboxAndDrainingState(t *testing.T) {
 		"studio", "pane-1", "term-1", 7, 80, 24, state.TerminalResizeRoleFollower, "surface", state.TerminalPaneViewID("pane-1"), false,
 	))
 	text := frameText(NewRenderer(DefaultTheme()).Render(NewRenderVMBuilder().Build(root)))
-	for _, want := range []string{"[ ] Studio", "draining 1 view(s)", "Enabled: no", "Drain: 1 active view(s)"} {
+	for _, want := range []string{"[ ] Studio ○", "Enabled: no", "Drain: 1 active view(s)"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("connections frame missing %q:\n%s", want, text)
 		}
+	}
+	for _, hidden := range []string{"connected", "disabled", "draining"} {
+		if strings.Contains(text, hidden) {
+			t.Fatalf("connections frame should hide endpoint status text %q:\n%s", hidden, text)
+		}
+	}
+}
+
+func TestConnectionsOverlayUsesConfiguredEndpointStatusAppearance(t *testing.T) {
+	root := state.Root{
+		Viewport: state.ViewportStore{Valid: true, Cols: 100, Rows: 30},
+		Shell:    state.DefaultShell().OpenConnections(),
+		Config: state.TUIConfigStore{Chrome: state.TUIChromeConfig{Picker: state.TUIPickerChromeConfig{
+			EndpointStatus: state.TUIPickerEndpointStatusConfig{
+				Connected: state.TUIEndpointStatusAppearanceConfig{Glyph: "+", Style: "danger"},
+			},
+		}}},
+		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{
+			ID: "studio", Label: "Studio", Enabled: true, Status: state.EndpointStatusConnected,
+		}),
+	}
+
+	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	styledStatusCount := 0
+	for _, line := range content.Lines {
+		for _, cell := range line.Cells {
+			if cell.Text == "+" && cell.Style == StyleDanger {
+				styledStatusCount++
+			}
+		}
+	}
+	if styledStatusCount < 2 || strings.Contains(plainLines(content.Lines), "connected") {
+		t.Fatalf("connections list and details should use configured status icons, lines=%#v", content.Lines)
+	}
+}
+
+func TestWorkbenchNavigatorUsesEndpointStatusIcons(t *testing.T) {
+	statusConfig := state.TUIPickerEndpointStatusConfig{
+		Connected: state.TUIEndpointStatusAppearanceConfig{Glyph: "+", Style: "success"},
+		Offline:   state.TUIEndpointStatusAppearanceConfig{Glyph: "!", Style: "danger"},
+	}
+	root := state.Root{Config: state.TUIConfigStore{Chrome: state.TUIChromeConfig{Picker: state.TUIPickerChromeConfig{
+		EndpointStatus: statusConfig,
+	}}}}
+
+	connected := state.WorkbenchTreeItem{
+		Kind: state.WorkbenchTreeKindPane, EndpointID: "studio", EndpointLabel: "Studio", TerminalID: "term-1",
+		EndpointStatus: state.EndpointStatusConnected,
+	}
+	detail := workbenchNavigatorEndpointLine(root, connected, state.TerminalPoolPageItem{})
+	if !lineHasStyledCell(detail, "+", StyleSuccess) || strings.Contains(detail.PlainString(), "connected") {
+		t.Fatalf("workbench endpoint detail should use the configured status icon, got %#v", detail)
+	}
+
+	offline := connected
+	offline.EndpointStatus = state.EndpointStatusOffline
+	badges := workbenchEndpointBadges(root, offline)
+	if len(badges) != 1 || badges[0].Text != "!" || badges[0].Style != StyleDanger {
+		t.Fatalf("workbench endpoint badge should use the configured status icon, got %#v", badges)
+	}
+	meta := workbenchTreeInlineMetaCells(offline, statusConfig)
+	if len(meta) != 1 || meta[0].Text != "!" || meta[0].Style != StyleDanger {
+		t.Fatalf("workbench inline endpoint state should use the configured status icon, got %#v", meta)
 	}
 }
 
