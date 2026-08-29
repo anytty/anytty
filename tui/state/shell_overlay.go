@@ -275,6 +275,16 @@ func (store ShellStore) SetTerminalPickerTagQuery(query string) ShellStore {
 	return store
 }
 
+func (store ShellStore) SetTerminalPickerEndpointQuery(query string) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || store.Overlay.TerminalPickerView != TerminalPickerViewEndpoints {
+		return store
+	}
+	store.Overlay.TerminalPickerEndpointQuery = query
+	store.Overlay.TerminalPickerEndpointIndex = 0
+	return store
+}
+
 func (store ShellStore) SetTerminalPickerEndpoint(endpointID EndpointID) ShellStore {
 	store = store.EnsureDefaults()
 	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
@@ -305,6 +315,55 @@ func (store ShellStore) OpenTerminalPickerTags() ShellStore {
 	store.Overlay.TerminalPickerView = TerminalPickerViewTags
 	store.Overlay.TerminalPickerTagQuery = ""
 	store.Overlay.TerminalPickerTagIndex = 0
+	return store
+}
+
+func (store ShellStore) OpenTerminalPickerEndpoints() ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerView = TerminalPickerViewEndpoints
+	store.Overlay.TerminalPickerEndpointQuery = ""
+	store.Overlay.TerminalPickerEndpointIndex = 0
+	return store
+}
+
+func (store ShellStore) CloseTerminalPickerEndpoints() ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open {
+		return store
+	}
+	store.Overlay.TerminalPickerView = TerminalPickerViewList
+	store.Overlay.TerminalPickerEndpointQuery = ""
+	return store
+}
+
+func (store ShellStore) SetTerminalPickerEndpointIndex(index int, endpointCount int) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || endpointCount <= 0 {
+		return store
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index >= endpointCount {
+		index = endpointCount - 1
+	}
+	store.Overlay.TerminalPickerEndpointIndex = index
+	return store
+}
+
+func (store ShellStore) MoveTerminalPickerEndpointIndex(delta int, endpointCount int) ShellStore {
+	store = store.EnsureDefaults()
+	if store.Overlay.Kind != OverlayTerminalPicker || !store.Overlay.Open || endpointCount <= 0 || delta == 0 {
+		return store
+	}
+	next := (store.Overlay.TerminalPickerEndpointIndex + delta) % endpointCount
+	if next < 0 {
+		next += endpointCount
+	}
+	store.Overlay.TerminalPickerEndpointIndex = next
 	return store
 }
 

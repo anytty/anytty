@@ -654,7 +654,9 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 		return root, nil
 	}
 	scene := "terminal_picker"
-	if terminalPickerTagsOpen(root) {
+	if terminalPickerEndpointsOpen(root) {
+		scene = "terminal_picker_endpoints"
+	} else if terminalPickerTagsOpen(root) {
 		scene = "terminal_picker_tags"
 	}
 	if entry, ok := input.ShortcutEntryForEvent(root.Config.Shortcuts, scene, event); ok {
@@ -669,7 +671,7 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 		root = moveTerminalPickerSelection(root, 1)
 		return root.Advance(), []Effect{handledEffect{}}
 	case input.KeyLeft:
-		if !terminalPickerTagsOpen(root) {
+		if !terminalPickerTagsOpen(root) && !terminalPickerEndpointsOpen(root) {
 			if event.Shift {
 				root = moveTerminalPickerStatus(root, -1)
 			} else {
@@ -678,7 +680,7 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 		}
 		return root.Advance(), []Effect{handledEffect{}}
 	case input.KeyRight:
-		if !terminalPickerTagsOpen(root) {
+		if !terminalPickerTagsOpen(root) && !terminalPickerEndpointsOpen(root) {
 			if event.Shift {
 				root = moveTerminalPickerStatus(root, 1)
 			} else {
@@ -697,7 +699,9 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 		if event.Ctrl || event.Alt || event.Char == "" {
 			return root, []Effect{handledEffect{}}
 		}
-		if terminalPickerTagsOpen(root) {
+		if terminalPickerEndpointsOpen(root) {
+			root.Shell = root.Shell.SetTerminalPickerEndpointQuery(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerEndpointQuery + event.Char)
+		} else if terminalPickerTagsOpen(root) {
 			root.Shell = root.Shell.SetTerminalPickerTagQuery(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagQuery + event.Char)
 		} else {
 			root.Shell = root.Shell.SetTerminalPickerQuery(root.Shell.ReadonlyDefaults().Overlay.Query + event.Char)
@@ -709,6 +713,10 @@ func reduceTerminalPickerInput(root state.Root, event input.InputEvent) (state.R
 }
 
 func moveTerminalPickerSelection(root state.Root, delta int) state.Root {
+	if terminalPickerEndpointsOpen(root) {
+		root.Shell = root.Shell.MoveTerminalPickerEndpointIndex(delta, len(state.TerminalPickerVisibleEndpointOptions(root)))
+		return root
+	}
 	if terminalPickerTagsOpen(root) {
 		root.Shell = root.Shell.MoveTerminalPickerTagIndex(delta, len(state.TerminalPickerVisibleTagOptions(root)))
 		return root
@@ -774,11 +782,48 @@ func toggleTerminalPickerTag(root state.Root, row int) state.Root {
 }
 
 func deleteTerminalPickerQueryRune(root state.Root) state.Root {
+	if terminalPickerEndpointsOpen(root) {
+		root.Shell = root.Shell.SetTerminalPickerEndpointQuery(trimLastRune(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerEndpointQuery))
+		return root
+	}
 	if terminalPickerTagsOpen(root) {
 		root.Shell = root.Shell.SetTerminalPickerTagQuery(trimLastRune(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerTagQuery))
 		return root
 	}
 	root.Shell = root.Shell.SetTerminalPickerQuery(trimLastRune(root.Shell.ReadonlyDefaults().Overlay.Query))
+	return root
+}
+
+func terminalPickerEndpointsOpen(root state.Root) bool {
+	overlay := root.Shell.ReadonlyDefaults().Overlay
+	return overlay.Kind == state.OverlayTerminalPicker && overlay.Open && overlay.TerminalPickerView == state.TerminalPickerViewEndpoints
+}
+
+func openTerminalPickerEndpoints(root state.Root) state.Root {
+	root.Shell = root.Shell.OpenTerminalPickerEndpoints()
+	options := state.TerminalPickerVisibleEndpointOptions(root)
+	for index, option := range options {
+		if option.Selected {
+			root.Shell = root.Shell.SetTerminalPickerEndpointIndex(index, len(options))
+			break
+		}
+	}
+	return root
+}
+
+func selectTerminalPickerEndpoint(root state.Root, row int) state.Root {
+	options := state.TerminalPickerVisibleEndpointOptions(root)
+	if len(options) == 0 {
+		return root
+	}
+	index := root.Shell.ReadonlyDefaults().Overlay.TerminalPickerEndpointIndex
+	if row >= 0 {
+		index = row
+	}
+	if index < 0 || index >= len(options) {
+		index = 0
+	}
+	root.Shell = root.Shell.SetTerminalPickerEndpoint(options[index].EndpointID).CloseTerminalPickerEndpoints()
 	return root
 }
 

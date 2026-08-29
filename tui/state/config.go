@@ -1,5 +1,7 @@
 package state
 
+import "strings"
+
 // TUIConfigStore 是当前配置文件的已验证快照。Daemon 保存服务端物理策略；
 // 其余字段仍只保存当前客户端视觉、交互和 shortcuts 偏好。
 type TUIConfigStore struct {
@@ -91,6 +93,83 @@ type TUIPickerChromeConfig struct {
 	Width        string
 	Density      string
 	EndpointTabs string
+	// EndpointStatus 只配置 Terminal Picker 中 endpoint 状态的视觉投影。
+	// reducer-owned EndpointStatusKind 仍是状态真值，glyph/style 不能改变连接行为。
+	EndpointStatus TUIPickerEndpointStatusConfig
+}
+
+type TUIPickerEndpointStatusConfig struct {
+	Unknown           TUIEndpointStatusAppearanceConfig
+	Connected         TUIEndpointStatusAppearanceConfig
+	Connecting        TUIEndpointStatusAppearanceConfig
+	Idle              TUIEndpointStatusAppearanceConfig
+	Disabled          TUIEndpointStatusAppearanceConfig
+	Offline           TUIEndpointStatusAppearanceConfig
+	ReconnectRequired TUIEndpointStatusAppearanceConfig
+	Unregistered      TUIEndpointStatusAppearanceConfig
+}
+
+type TUIEndpointStatusAppearanceConfig struct {
+	Glyph string
+	Style string
+}
+
+func DefaultTUIPickerEndpointStatusConfig() TUIPickerEndpointStatusConfig {
+	return TUIPickerEndpointStatusConfig{
+		Unknown:           TUIEndpointStatusAppearanceConfig{Glyph: "○", Style: "muted"},
+		Connected:         TUIEndpointStatusAppearanceConfig{Glyph: "●", Style: "success"},
+		Connecting:        TUIEndpointStatusAppearanceConfig{Glyph: "◐", Style: "accent"},
+		Idle:              TUIEndpointStatusAppearanceConfig{Glyph: "○", Style: "muted"},
+		Disabled:          TUIEndpointStatusAppearanceConfig{Glyph: "○", Style: "muted"},
+		Offline:           TUIEndpointStatusAppearanceConfig{Glyph: "×", Style: "warning"},
+		ReconnectRequired: TUIEndpointStatusAppearanceConfig{Glyph: "!", Style: "warning"},
+		Unregistered:      TUIEndpointStatusAppearanceConfig{Glyph: "?", Style: "warning"},
+	}
+}
+
+func (config TUIPickerEndpointStatusConfig) WithDefaults() TUIPickerEndpointStatusConfig {
+	defaults := DefaultTUIPickerEndpointStatusConfig()
+	config.Unknown = endpointStatusAppearanceWithDefault(config.Unknown, defaults.Unknown)
+	config.Connected = endpointStatusAppearanceWithDefault(config.Connected, defaults.Connected)
+	config.Connecting = endpointStatusAppearanceWithDefault(config.Connecting, defaults.Connecting)
+	config.Idle = endpointStatusAppearanceWithDefault(config.Idle, defaults.Idle)
+	config.Disabled = endpointStatusAppearanceWithDefault(config.Disabled, defaults.Disabled)
+	config.Offline = endpointStatusAppearanceWithDefault(config.Offline, defaults.Offline)
+	config.ReconnectRequired = endpointStatusAppearanceWithDefault(config.ReconnectRequired, defaults.ReconnectRequired)
+	config.Unregistered = endpointStatusAppearanceWithDefault(config.Unregistered, defaults.Unregistered)
+	return config
+}
+
+func (config TUIPickerEndpointStatusConfig) Appearance(status EndpointStatusKind) TUIEndpointStatusAppearanceConfig {
+	config = config.WithDefaults()
+	switch status {
+	case EndpointStatusConnected:
+		return config.Connected
+	case EndpointStatusConnecting:
+		return config.Connecting
+	case EndpointStatusAuto, EndpointStatusOnDemand, EndpointStatusManual:
+		return config.Idle
+	case EndpointStatusDisabled:
+		return config.Disabled
+	case EndpointStatusOffline:
+		return config.Offline
+	case EndpointStatusReconnectRequired:
+		return config.ReconnectRequired
+	case EndpointStatusUnregistered:
+		return config.Unregistered
+	default:
+		return config.Unknown
+	}
+}
+
+func endpointStatusAppearanceWithDefault(value TUIEndpointStatusAppearanceConfig, fallback TUIEndpointStatusAppearanceConfig) TUIEndpointStatusAppearanceConfig {
+	if strings.TrimSpace(value.Glyph) == "" {
+		value.Glyph = fallback.Glyph
+	}
+	if strings.TrimSpace(value.Style) == "" {
+		value.Style = fallback.Style
+	}
+	return value
 }
 
 // TUIPaneChromeGlyphsConfig 描述 pane/floating chrome 可点击动作、状态标记和左右装饰模板。

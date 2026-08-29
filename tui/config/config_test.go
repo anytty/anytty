@@ -51,9 +51,16 @@ func TestParseRecommendedConfig(t *testing.T) {
 	if mode := cfg.Footer.Modes["terminal-picker-tags"]; mode.Label != "TAGS" || mode.Style != "footer-key-picker" {
 		t.Fatalf("recommended terminal picker tags mode changed unexpectedly: %#v", mode)
 	}
+	if mode := cfg.Footer.Modes["terminal-picker-endpoints"]; mode.Label != "ENDPOINTS" || mode.Style != "footer-key-picker" {
+		t.Fatalf("recommended terminal picker endpoints mode changed unexpectedly: %#v", mode)
+	}
 	picker := cfg.Shortcuts.Scenes["terminal_picker"].Bindings
+	endpoints := cfg.Shortcuts.Scenes["terminal_picker_endpoints"].Bindings
 	tags := cfg.Shortcuts.Scenes["terminal_picker_tags"].Bindings
 	if picker["left"].Action != "terminal_picker.endpoint_previous" ||
+		picker["ctrl-o"].Action != "terminal_picker.endpoints" ||
+		endpoints["enter"].Action != "terminal_picker.endpoint_choose" ||
+		endpoints["ctrl-o"].Action != "terminal_picker.endpoints" ||
 		picker["ctrl-t"].Action != "terminal_picker.tags" ||
 		tags["space"].Action != "terminal_picker.tag_toggle" ||
 		tags["ctrl-t"].Action != "terminal_picker.tags" {
@@ -70,6 +77,59 @@ func TestDefaultVisibleChromeUsesPortableText(t *testing.T) {
 		!strings.Contains(cfg.Chrome.TabTemplate, "{{marker}}") ||
 		!strings.Contains(cfg.Chrome.TabTemplate, "{{close_icon}}") {
 		t.Fatalf("default header templates must keep visible workspace/tab actions, chrome=%#v", cfg.Chrome)
+	}
+}
+
+func TestPickerEndpointStatusAppearanceConfig(t *testing.T) {
+	defaults := Default().Chrome.Picker.EndpointStatus
+	for status, want := range map[state.EndpointStatusKind]state.TUIEndpointStatusAppearanceConfig{
+		state.EndpointStatusUnknown:           {Glyph: "○", Style: "muted"},
+		state.EndpointStatusConnected:         {Glyph: "●", Style: "success"},
+		state.EndpointStatusConnecting:        {Glyph: "◐", Style: "accent"},
+		state.EndpointStatusAuto:              {Glyph: "○", Style: "muted"},
+		state.EndpointStatusDisabled:          {Glyph: "○", Style: "muted"},
+		state.EndpointStatusOffline:           {Glyph: "×", Style: "warning"},
+		state.EndpointStatusReconnectRequired: {Glyph: "!", Style: "warning"},
+		state.EndpointStatusUnregistered:      {Glyph: "?", Style: "warning"},
+	} {
+		if got := defaults.Appearance(status); got != want {
+			t.Fatalf("default endpoint status appearance mismatch for %q: got=%#v want=%#v", status, got, want)
+		}
+	}
+
+	cfg, err := Parse([]byte(`tui:
+  chrome:
+    picker:
+      endpoint_status:
+        connected:
+          glyph: "+"
+          style: "#12abef"
+        offline:
+          glyph: "!"
+          style: danger
+`))
+	if err != nil {
+		t.Fatalf("parse endpoint status appearance overrides: %v", err)
+	}
+	if got := cfg.Chrome.Picker.EndpointStatus.Appearance(state.EndpointStatusConnected); got.Glyph != "+" || got.Style != "#12abef" {
+		t.Fatalf("connected endpoint appearance override not applied: %#v", got)
+	}
+	if got := cfg.Chrome.Picker.EndpointStatus.Appearance(state.EndpointStatusOffline); got.Glyph != "!" || got.Style != "danger" {
+		t.Fatalf("offline endpoint appearance override not applied: %#v", got)
+	}
+	if got := cfg.Chrome.Picker.EndpointStatus.Appearance(state.EndpointStatusConnecting); got.Glyph != "◐" || got.Style != "accent" {
+		t.Fatalf("unspecified endpoint appearance must retain defaults: %#v", got)
+	}
+
+	invalid := Default()
+	invalid.Chrome.Picker.EndpointStatus.Offline.Style = "flashing-red"
+	if err := Validate(invalid); err == nil || !strings.Contains(err.Error(), "endpoint_status.offline.style") {
+		t.Fatalf("unknown endpoint status style must be rejected, got %v", err)
+	}
+	invalid = Default()
+	invalid.Chrome.Picker.EndpointStatus.Offline.Glyph = "x\n!"
+	if err := Validate(invalid); err == nil || !strings.Contains(err.Error(), "endpoint_status.offline.glyph") {
+		t.Fatalf("multiline endpoint status glyph must be rejected, got %v", err)
 	}
 }
 

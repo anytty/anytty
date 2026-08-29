@@ -15,15 +15,21 @@ const (
 type TerminalPickerView string
 
 const (
-	TerminalPickerViewList TerminalPickerView = "list"
-	TerminalPickerViewTags TerminalPickerView = "tags"
+	TerminalPickerViewList      TerminalPickerView = "list"
+	TerminalPickerViewEndpoints TerminalPickerView = "endpoints"
+	TerminalPickerViewTags      TerminalPickerView = "tags"
 )
 
 type TerminalPickerEndpointTab struct {
-	EndpointID EndpointID
-	Label      string
-	Count      int
-	Selected   bool
+	EndpointID  EndpointID
+	Label       string
+	Count       int
+	Selected    bool
+	Transport   EndpointTransportKind
+	ConnectMode EndpointConnectMode
+	Status      EndpointStatusKind
+	LastError   string
+	ErrorKind   EndpointErrorKind
 }
 
 type TerminalPickerStatusOption struct {

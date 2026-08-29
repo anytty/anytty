@@ -215,12 +215,20 @@ func buildEmptyWorkspaceContent(workspace state.WorkspaceState) ContentVM {
 // Terminal Picker 只消费 reducer-owned root；服务端 terminal list 必须先回投 TerminalPoolStore。
 func buildTerminalPickerContent(root state.Root, shell state.ShellStore) ContentVM {
 	shell = shell.ReadonlyDefaults()
+	if shell.Overlay.TerminalPickerView == state.TerminalPickerViewEndpoints {
+		return buildTerminalPickerEndpointsContent(root, shell)
+	}
 	if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
 		return buildTerminalPickerTagsContent(root, shell)
 	}
 	query := strings.TrimSpace(shell.Overlay.Query)
 	contentWidth := terminalPickerContentWidth(root)
-	endpointLines, endpointRegions := terminalPickerEndpointLines(state.TerminalPickerEndpointTabs(root), contentWidth, terminalPickerEndpointTabStyle(root))
+	endpointLines, endpointRegions := terminalPickerEndpointLines(
+		state.TerminalPickerEndpointTabs(root),
+		contentWidth,
+		terminalPickerEndpointTabStyle(root),
+		root.Config.Chrome.Picker.EndpointStatus,
+	)
 	toolbarLine, toolbarRegions, cursorCol := terminalPickerToolbarLine(query, state.TerminalPickerStatusOptions(root), shell.Overlay.TerminalPickerTagFilters, contentWidth, len(endpointLines))
 	lines := append([]Line(nil), endpointLines...)
 	lines = append(lines, toolbarLine)
@@ -244,6 +252,40 @@ func buildTerminalPickerContent(root state.Root, shell state.ShellStore) Content
 		Status:     terminalPickerStatus(terminalPickerSelectableCount(rows), selected, len(rows), query),
 		Cursor:     Cursor{Visible: true, Row: len(endpointLines), Col: cursorCol, Shape: CursorShapeBar},
 		HitRegions: hitRegions,
+	}
+}
+
+func buildTerminalPickerEndpointsContent(root state.Root, shell state.ShellStore) ContentVM {
+	query := strings.TrimSpace(shell.Overlay.TerminalPickerEndpointQuery)
+	contentWidth := terminalPickerContentWidth(root)
+	searchLine, cursorCol := terminalPickerFilterSearchLine(query, contentWidth)
+	lines := []Line{searchLine}
+	options := state.TerminalPickerVisibleEndpointOptions(root)
+	selected := shell.Overlay.TerminalPickerEndpointIndex
+	if len(options) == 0 {
+		lines = append(lines, Line{Cells: []Cell{styledCell("No matching endpoints", StylePickerMuted)}})
+		selected = -1
+	} else {
+		selected = clampInt(selected, 0, len(options)-1)
+	}
+	visibleRowLimit := terminalPickerVisibleRowLimit(root, shell, len(lines)+len(options), 1)
+	start, end := terminalPickerRowWindow(selected, len(options), visibleRowLimit)
+	visibleOptions := options[start:end]
+	for index, option := range visibleOptions {
+		lines = append(lines, terminalPickerEndpointOptionLine(
+			option,
+			start+index == selected,
+			query,
+			contentWidth,
+			root.Config.Chrome.Picker.EndpointStatus,
+		))
+	}
+	return ContentVM{
+		Kind:       ContentTerminalPicker,
+		Lines:      lines,
+		Status:     terminalPickerEndpointsStatus(options, selected, query),
+		Cursor:     Cursor{Visible: true, Row: 0, Col: cursorCol, Shape: CursorShapeBar},
+		HitRegions: terminalPickerEndpointOptionHitRegions(visibleOptions, 1, start, contentWidth),
 	}
 }
 
@@ -733,17 +775,32 @@ func terminalPickerSizeLabel(row state.TerminalPickerItem) string {
 	return fmt.Sprintf("%dx%d", row.Cols, row.Rows)
 }
 
-func terminalPickerEndpointLines(tabs []state.TerminalPickerEndpointTab, width int, tabStyle string) ([]Line, []HitRegion) {
+func terminalPickerEndpointLines(tabs []state.TerminalPickerEndpointTab, width int, tabStyle string, statusConfig state.TUIPickerEndpointStatusConfig) ([]Line, []HitRegion) {
 	labels := make([]string, len(tabs))
+	markers := make([]string, len(tabs))
+	statusGlyphs := make([]string, len(tabs))
+	bodies := make([]string, len(tabs))
 	widths := make([]int, len(tabs))
 	target := 0
+	tabBudget := width
+	if len(tabs) > 1 {
+		tabBudget = maxInt(1, width-4)
+	}
 	for index, tab := range tabs {
 		marker := "  "
 		if tab.Selected {
-			marker = "● "
+			marker = "▸ "
 			target = index
 		}
-		labels[index] = marker + TruncateCells(tab.Label, 22) + " " + strconv.Itoa(tab.Count)
+		statusAppearance := statusConfig.Appearance(tab.Status)
+		statusGlyph := statusAppearance.Glyph
+		count := strconv.Itoa(tab.Count)
+		labelWidth := minInt(22, maxInt(1, tabBudget-DisplayWidth(marker)-DisplayWidth(statusGlyph)-DisplayWidth(count)-2))
+		markers[index] = marker
+		statusGlyphs[index] = statusGlyph
+		bodyBudget := maxInt(0, tabBudget-DisplayWidth(marker)-DisplayWidth(statusGlyph))
+		bodies[index] = TruncateCells(" "+TruncateCells(tab.Label, labelWidth)+" "+count, bodyBudget)
+		labels[index] = markers[index] + statusGlyphs[index] + bodies[index]
 		widths[index] = DisplayWidth(labels[index])
 	}
 	start, end := terminalPickerOptionWindow(widths, target, width, 3)
@@ -761,25 +818,93 @@ func terminalPickerEndpointLines(tabs []state.TerminalPickerEndpointTab, width i
 			cells = append(cells, pickerSpace("   "))
 			x += 3
 		}
-		style := StylePickerMuted
+		markerStyle := StylePickerMuted
+		bodyStyle := StylePickerMuted
 		if tabs[index].Selected {
-			style = StylePickerAccent
+			markerStyle = StylePickerAccent
+			bodyStyle = StylePickerAccent
 			activeX, activeWidth = x, widths[index]
 		}
-		cells = append(cells, styledCell(labels[index], style))
-		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, widths[index], index, true))
+		cells = append(cells,
+			styledCell(markers[index], markerStyle),
+			styledCell(statusGlyphs[index], StyleToken(statusConfig.Appearance(tabs[index].Status).Style)),
+			styledCell(bodies[index], bodyStyle),
+		)
+		regionWidth := minInt(widths[index], maxInt(0, width-x))
+		if regionWidth > 0 {
+			regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, regionWidth, index, true))
+		}
 		x += widths[index]
 	}
 	if end < len(tabs) {
 		cells = append(cells, styledCell(" ›", StylePickerMuted))
 		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, x, 0, 2, end, true))
 	}
-	lines := []Line{{Cells: cells}}
+	lines := []Line{fitContentLine(Line{Cells: cells}, width, StylePicker)}
 	if tabStyle == "underline" && activeWidth > 2 {
 		underline := strings.Repeat(" ", activeX+2) + strings.Repeat("━", activeWidth-2)
-		lines = append(lines, Line{Cells: []Cell{styledCell(underline, StylePickerAccent)}})
+		lines = append(lines, fitContentLine(Line{Cells: []Cell{styledCell(underline, StylePickerAccent)}}, width, StylePicker))
 	}
 	return lines, regions
+}
+
+func terminalPickerEndpointOptionLine(option state.TerminalPickerEndpointTab, selected bool, query string, width int, statusConfig state.TUIPickerEndpointStatusConfig) Line {
+	marker, markerStyle := "  ", StylePicker
+	if selected {
+		marker, markerStyle = "▸ ", StylePickerAccent
+	}
+	activeMarker, activeStyle := "○ ", StylePickerMuted
+	if option.Selected {
+		activeMarker, activeStyle = "● ", StylePickerAccent
+	}
+	statusAppearance := statusConfig.Appearance(option.Status)
+	count := strconv.Itoa(option.Count) + " terminal"
+	if option.Count != 1 {
+		count += "s"
+	}
+	identity := option.Label
+	if string(option.EndpointID) != strings.TrimSpace(option.Label) {
+		identity += " · " + string(option.EndpointID)
+	}
+	cells := []Cell{
+		styledCell(marker, markerStyle),
+		styledCell(activeMarker, activeStyle),
+		styledCell(statusAppearance.Glyph, StyleToken(statusAppearance.Style)),
+		pickerSpace("  "),
+	}
+	detail := terminalPickerEndpointErrorLabel(option)
+	detailMatchesQuery := query != "" && detail != "" && state.TerminalPickerQueryMatchIndexes(detail, query) != nil
+	if detailMatchesQuery {
+		cells = append(cells, highlightPickerText(detail, query, StyleWarning)...)
+		cells = append(cells, pickerSpace("  "))
+	}
+	cells = append(cells, highlightPickerText(identity, query, StylePicker)...)
+	cells = append(cells, pickerSpace("  "), styledCell(count, StylePickerMuted))
+	if detail != "" && !detailMatchesQuery {
+		cells = append(cells, pickerSpace("  "))
+		cells = append(cells, highlightPickerText(detail, query, StyleWarning)...)
+	}
+	return fitContentLine(Line{Cells: cells}, width, StylePicker)
+}
+
+func terminalPickerEndpointOptionHitRegions(options []state.TerminalPickerEndpointTab, rowOffset int, itemOffset int, width int) []HitRegion {
+	regions := make([]HitRegion, 0, len(options))
+	for index := range options {
+		regions = append(regions, terminalPickerControlRegion(ActionPickerEndpointSelect, 0, rowOffset+index, width, itemOffset+index, true))
+	}
+	return regions
+}
+
+func terminalPickerEndpointErrorLabel(option state.TerminalPickerEndpointTab) string {
+	kind := state.NormalizeEndpointErrorKind(option.ErrorKind)
+	detail := strings.TrimSpace(option.LastError)
+	if kind == state.EndpointErrorUnknown {
+		return detail
+	}
+	if detail == "" {
+		return string(kind)
+	}
+	return string(kind) + ": " + detail
 }
 
 func terminalPickerToolbarLine(query string, options []state.TerminalPickerStatusOption, filters []string, width int, row int) (Line, []HitRegion, int) {
@@ -977,6 +1102,18 @@ func terminalPickerTagsStatus(options []state.TerminalPickerTagOption, selected 
 		filter = " query:" + query
 	}
 	return fmt.Sprintf("terminal picker tags: %d items · %d active%s%s", len(options), selectedCount, position, filter)
+}
+
+func terminalPickerEndpointsStatus(options []state.TerminalPickerEndpointTab, selected int, query string) string {
+	position := ""
+	if selected >= 0 && len(options) > 0 {
+		position = fmt.Sprintf(" selected:%d/%d", selected+1, len(options))
+	}
+	filter := ""
+	if query != "" {
+		filter = " query:" + query
+	}
+	return fmt.Sprintf("terminal picker endpoints: %d items%s%s", len(options), position, filter)
 }
 
 func highlightPickerText(value string, query string, baseStyle StyleToken) []Cell {
@@ -1331,7 +1468,7 @@ func endpointStatusStyle(status state.EndpointStatusKind) StyleToken {
 	switch status {
 	case state.EndpointStatusConnected:
 		return StyleSuccess
-	case state.EndpointStatusOffline, state.EndpointStatusDisabled, state.EndpointStatusReconnectRequired, state.EndpointStatusUnregistered:
+	case state.EndpointStatusOffline, state.EndpointStatusReconnectRequired, state.EndpointStatusUnregistered:
 		return StyleWarning
 	case state.EndpointStatusConnecting:
 		return StyleAccent

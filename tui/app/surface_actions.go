@@ -125,8 +125,12 @@ func reduceCanonicalSurfaceAction(root state.Root, msg ShellShortcutActionMsg) (
 		root.Shell = root.Shell.SetTerminalPoolSelectedIndex(target.Row, len(items))
 		return root.Advance(), []Effect{handledEffect{}, FuncEffect{Run: func(context.Context) Msg { return TerminalPoolPreviewRefreshMsg{} }}}, true
 	case actiondomain.ActionTerminalPickerEndpointSelect:
-		tabs := state.TerminalPickerEndpointTabs(root)
-		root.Shell = root.Shell.SetTerminalPickerEndpoint(tabs[target.Row].EndpointID)
+		if terminalPickerEndpointsOpen(root) {
+			root = selectTerminalPickerEndpoint(root, target.Row)
+		} else {
+			tabs := state.TerminalPickerEndpointTabs(root)
+			root.Shell = root.Shell.SetTerminalPickerEndpoint(tabs[target.Row].EndpointID)
+		}
 		return root.Advance(), []Effect{handledEffect{}}, true
 	case actiondomain.ActionTerminalPickerStatusSelect:
 		options := state.TerminalPickerStatusOptions(root)
@@ -394,6 +398,9 @@ func surfaceActionRowValid(root state.Root, id actiondomain.ID, row int) bool {
 		items := state.TerminalPickerItems(root)
 		return row >= 0 && row < len(items) && items[row].CreateNew && items[row].EndpointID != ""
 	case actiondomain.ActionTerminalPickerEndpointSelect:
+		if terminalPickerEndpointsOpen(root) {
+			return row >= 0 && row < len(state.TerminalPickerVisibleEndpointOptions(root))
+		}
 		return row >= 0 && row < len(state.TerminalPickerEndpointTabs(root))
 	case actiondomain.ActionTerminalPickerStatusSelect:
 		return row >= 0 && row < len(state.TerminalPickerStatusOptions(root))

@@ -238,6 +238,35 @@ tui:
       # Default: underline. Allowed: underline, plain.
       endpoint_tabs: underline
 
+      # Endpoint status markers used by both the endpoint tabs and the endpoint
+      # chooser. style accepts the semantic tokens shown below or #RRGGBB.
+      # Empty glyph/style values fall back to these defaults.
+      endpoint_status:
+        unknown:
+          glyph: "○"
+          style: muted
+        connected:
+          glyph: "●"
+          style: success
+        connecting:
+          glyph: "◐"
+          style: accent
+        idle:
+          glyph: "○"
+          style: muted
+        disabled:
+          glyph: "○"
+          style: muted
+        offline:
+          glyph: "×"
+          style: warning
+        reconnect_required:
+          glyph: "!"
+          style: warning
+        unregistered:
+          glyph: "?"
+          style: warning
+
     # Icon for creating a tab from the tab strip.
     # Default: "+". Any short text or glyph supported by the terminal is valid.
     # Nerd Font opt-in, only after confirming font support:

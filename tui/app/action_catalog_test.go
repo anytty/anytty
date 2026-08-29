@@ -60,8 +60,8 @@ func TestDefaultShortcutActionsReachObservableOwnerBoundary(t *testing.T) {
 			assertDefaultActionServiceOwner(t, invocation, execution)
 		})
 	}
-	if len(seen) != 167 {
-		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=167", len(seen))
+	if len(seen) != 169 {
+		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=169", len(seen))
 	}
 }
 

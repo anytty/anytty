@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -3099,7 +3100,7 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 		t.Fatalf("expected terminal picker content, got %#v", vm.Shell.Overlay)
 	}
 	plain := plainLines(content.Lines)
-	for _, want := range []string{"● local 2", "⌕ term", "● All 2", "Running 2", "Exited 0", "Tags", "backend", "production", "▸ + New terminal", "● shell · backend · production", "running", "80x24", "● 日志🚀", "100x30"} {
+	for _, want := range []string{"▸ ○ local 2", "⌕ term", "● All 2", "Running 2", "Exited 0", "Tags", "backend", "production", "▸ + New terminal", "● shell · backend · production", "running", "80x24", "● 日志🚀", "100x30"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("expected compact picker marker %q, got %#v", want, content.Lines)
 		}
@@ -3291,8 +3292,8 @@ func TestRenderVMBuilderTerminalPickerCreateRowUsesSelectedEndpointTab(t *testin
 	root.Shell.TerminalCreateDraft = state.TerminalCreateDraft{EndpointID: "us-west"}
 
 	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
-	if len(content.Lines) < 4 || !strings.Contains(content.Lines[0].PlainString(), "This Mac") || !strings.Contains(content.Lines[0].PlainString(), "US West") ||
-		!lineHasStyledCell(content.Lines[0], "● US West 0", StylePickerAccent) || !strings.Contains(plainLines(content.Lines), "+ New terminal") {
+	if len(content.Lines) < 4 || !strings.Contains(content.Lines[0].PlainString(), "This Mac") || !strings.Contains(content.Lines[0].PlainString(), "▸ ○ US West 0") ||
+		!lineHasStyledCell(content.Lines[0], " US West 0", StylePickerAccent) || !strings.Contains(plainLines(content.Lines), "+ New terminal") {
 		t.Fatalf("endpoint tabs should identify the selected create-row owner, got %#v", content.Lines)
 	}
 }
@@ -3320,12 +3321,17 @@ func TestRenderVMBuilderProjectsTerminalPickerEndpointLabels(t *testing.T) {
 			t.Fatalf("expected endpoint tabs and local collection %q in:\n%s", want, plain)
 		}
 	}
+	for glyph, style := range map[string]StyleToken{"●": StyleSuccess, "○": StyleMuted, "×": StyleWarning} {
+		if !lineHasStyledCell(content.Lines[0], glyph, style) {
+			t.Fatalf("expected endpoint status glyph %q with style %q, got %#v", glyph, style, content.Lines[0])
+		}
+	}
 	if strings.Contains(plain, "west shell") {
 		t.Fatalf("inactive endpoint collection must not leak into local tab:\n%s", plain)
 	}
-	for _, notWant := range []string{"manual connect", "ssh timeout"} {
+	for _, notWant := range []string{"connected", "offline", "on-demand", "ssh timeout"} {
 		if strings.Contains(plain, notWant) {
-			t.Fatalf("terminal picker tabs should hide endpoint connection details %q in:\n%s", notWant, plain)
+			t.Fatalf("terminal picker tabs should hide endpoint status text and connection details %q in:\n%s", notWant, plain)
 		}
 	}
 	endpointHits := 0
@@ -3346,7 +3352,53 @@ func TestRenderVMBuilderProjectsTerminalPickerEndpointLabels(t *testing.T) {
 	}
 }
 
-func TestRenderVMBuilderTerminalPickerHidesManagedEndpointConnectionState(t *testing.T) {
+func TestRenderVMBuilderKeepsSelectedEndpointReachableInNarrowPicker(t *testing.T) {
+	root := state.Root{
+		Shell:    state.DefaultShell().OpenTerminalPicker().SetTerminalPickerEndpoint("endpoint-17"),
+		Viewport: state.ViewportStore{Valid: true, Cols: 32, Rows: 18},
+	}
+	for index := 0; index < 24; index++ {
+		id := state.EndpointID(fmt.Sprintf("endpoint-%02d", index))
+		status := state.EndpointStatusConnected
+		if id == "endpoint-17" {
+			status = state.EndpointStatusOffline
+		}
+		root.Endpoints = root.Endpoints.Upsert(state.EndpointItem{
+			ID: id, Label: "Long endpoint label " + strconv.Itoa(index), Enabled: true, Status: status,
+		})
+	}
+
+	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	plain := plainLines(content.Lines)
+	if !strings.Contains(content.Lines[0].PlainString(), "×") || !lineHasStyledCell(content.Lines[0], "×", StyleWarning) || !strings.Contains(plain, "‹") || !strings.Contains(plain, "›") {
+		t.Fatalf("narrow endpoint tabs should keep the selected state and overflow controls visible, got:\n%s", plain)
+	}
+	contentWidth := terminalPickerContentWidth(root)
+	for _, line := range content.Lines {
+		if line.Width() > contentWidth {
+			t.Fatalf("narrow picker line exceeds content width %d: %q (%d)", contentWidth, line.PlainString(), line.Width())
+		}
+	}
+	selectedIndex := -1
+	for index, tab := range state.TerminalPickerEndpointTabs(root) {
+		if tab.EndpointID == "endpoint-17" {
+			selectedIndex = index
+			break
+		}
+	}
+	selectedClickable := false
+	for _, region := range content.HitRegions {
+		if region.ActionID == ActionPickerEndpointSelect.String() && region.Row == selectedIndex && region.Rect.W > 0 {
+			selectedClickable = true
+			break
+		}
+	}
+	if !selectedClickable {
+		t.Fatalf("selected endpoint must retain a clipped click target, hits=%#v", content.HitRegions)
+	}
+}
+
+func TestRenderVMBuilderTerminalPickerUsesVisualEndpointConnectionState(t *testing.T) {
 	root := state.Root{
 		Shell: state.DefaultShell().OpenTerminalPicker(),
 		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{
@@ -3366,16 +3418,67 @@ func TestRenderVMBuilderTerminalPickerHidesManagedEndpointConnectionState(t *tes
 			t.Fatalf("terminal picker should retain terminal facts %q, got:\n%s", want, plain)
 		}
 	}
-	for _, forbidden := range []string{"offline", "on_demand", "managed-webrtc", "failed", "single_relay", "relay unavailable", "1 terminal"} {
+	if !lineHasStyledCell(content.Lines[0], "×", StyleWarning) {
+		t.Fatalf("terminal picker should show offline state as a warning glyph, got %#v", content.Lines[0])
+	}
+	for _, forbidden := range []string{"offline", "managed-webrtc", "failed", "single_relay", "relay unavailable", "1 terminal"} {
 		if strings.Contains(plain, forbidden) {
 			t.Fatalf("terminal picker should hide endpoint connection metadata %q, got:\n%s", forbidden, plain)
 		}
 	}
 
-	root.Shell = root.Shell.SetTerminalPickerQuery("offline")
+	root.Shell = root.Shell.OpenTerminalPickerEndpoints()
+	vm := NewRenderVMBuilder().Build(root)
+	plain = plainLines(vm.Shell.Overlay.Content.Lines)
+	for _, want := range []string{"Studio · studio", "1 terminal", "×", "relay unavailable"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("endpoint chooser should expose connection state %q, got:\n%s", want, plain)
+		}
+	}
+	hasWarningGlyph := false
+	for _, line := range vm.Shell.Overlay.Content.Lines {
+		hasWarningGlyph = hasWarningGlyph || lineHasStyledCell(line, "×", StyleWarning)
+	}
+	if strings.Contains(plain, "offline") || !hasWarningGlyph {
+		t.Fatalf("endpoint chooser should use a warning glyph instead of status text, got %#v", vm.Shell.Overlay.Content.Lines)
+	}
+	if vm.Shell.Overlay.Title != "Terminal Picker / Endpoints" || vm.Shell.Footer.Mode != "terminal-picker-endpoints" {
+		t.Fatalf("endpoint chooser should own its title and shortcut scene, overlay=%#v footer=%#v", vm.Shell.Overlay, vm.Shell.Footer)
+	}
+
+	root.Shell = root.Shell.CloseTerminalPickerEndpoints().SetTerminalPickerQuery("offline")
 	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
 	if len(content.Lines) != 3 || contentHasAction(content, ActionPickerAttach.String()) || contentHasAction(content, ActionPickerNew.String()) {
 		t.Fatalf("hidden endpoint status should not produce terminal rows, lines=%#v hits=%#v", content.Lines, content.HitRegions)
+	}
+}
+
+func TestRenderVMBuilderTerminalPickerUsesConfiguredEndpointStatusAppearance(t *testing.T) {
+	root := state.Root{
+		Shell: state.DefaultShell().OpenTerminalPicker(),
+		Config: state.TUIConfigStore{Chrome: state.TUIChromeConfig{Picker: state.TUIPickerChromeConfig{
+			EndpointStatus: state.TUIPickerEndpointStatusConfig{
+				Offline: state.TUIEndpointStatusAppearanceConfig{Glyph: "!", Style: "danger"},
+			},
+		}}},
+		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{
+			ID: "studio", Label: "Studio", Enabled: true, Status: state.EndpointStatusOffline,
+		}),
+	}
+
+	content := NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	if !lineHasStyledCell(content.Lines[0], "!", StyleDanger) || strings.Contains(content.Lines[0].PlainString(), "×") {
+		t.Fatalf("endpoint tab should use configured status glyph and style, got %#v", content.Lines[0])
+	}
+
+	root.Shell = root.Shell.OpenTerminalPickerEndpoints()
+	content = NewRenderVMBuilder().Build(root).Shell.Overlay.Content
+	found := false
+	for _, line := range content.Lines {
+		found = found || lineHasStyledCell(line, "!", StyleDanger)
+	}
+	if !found || strings.Contains(plainLines(content.Lines), "×") {
+		t.Fatalf("endpoint chooser should use configured status glyph and style, got %#v", content.Lines)
 	}
 }
 

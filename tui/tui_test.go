@@ -81,7 +81,7 @@ func TestSmokeRunDetailedCoversUIFramework(t *testing.T) {
 	}
 	assertNoASCIIChrome(t, "split-hidden-toast", cases["split-hidden-toast"])
 	if !frameContains(cases["terminal-picker"].Lines, "⌕") ||
-		!frameContains(cases["terminal-picker"].Lines, "● local 1") ||
+		!frameContains(cases["terminal-picker"].Lines, "▸ ○ local 1") ||
 		!frameContains(cases["terminal-picker"].Lines, "● All 1") ||
 		!frameContains(cases["terminal-picker"].Lines, "Running 1") ||
 		!frameContains(cases["terminal-picker"].Lines, "Exited 0") ||

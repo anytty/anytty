@@ -223,6 +223,35 @@ tui:
       # 默认值：underline。可选值：underline、plain。
       endpoint_tabs: underline
 
+      # endpoint_status 控制 endpoint tab 和 endpoint 选择列表中的状态标记。
+      # style 可使用下面这些语义 token，也可直接写 #RRGGBB；glyph/style 留空时
+      # 分别回退到对应状态的默认值。
+      endpoint_status:
+        unknown:
+          glyph: "○"
+          style: muted
+        connected:
+          glyph: "●"
+          style: success
+        connecting:
+          glyph: "◐"
+          style: accent
+        idle:
+          glyph: "○"
+          style: muted
+        disabled:
+          glyph: "○"
+          style: muted
+        offline:
+          glyph: "×"
+          style: warning
+        reconnect_required:
+          glyph: "!"
+          style: warning
+        unregistered:
+          glyph: "?"
+          style: warning
+
     # tab_create_icon 是 tab strip 上创建新 tab 的图标。
     # 默认值："+"；也可以显式配置终端可显示的短文本或任意字形。
     # Nerd Font opt-in（仅在用户确认字体支持时）：tab_create_icon: "󰐕"

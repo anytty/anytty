@@ -5,12 +5,13 @@ package state
 type BackNavigationLayer string
 
 const (
-	BackNavigationNone             BackNavigationLayer = ""
-	BackNavigationPromptSuggestion BackNavigationLayer = "prompt-suggestion"
-	BackNavigationTerminalTags     BackNavigationLayer = "terminal-picker-tags"
-	BackNavigationOverlay          BackNavigationLayer = "overlay"
-	BackNavigationCopy             BackNavigationLayer = "copy"
-	BackNavigationInteraction      BackNavigationLayer = "interaction"
+	BackNavigationNone              BackNavigationLayer = ""
+	BackNavigationPromptSuggestion  BackNavigationLayer = "prompt-suggestion"
+	BackNavigationTerminalEndpoints BackNavigationLayer = "terminal-picker-endpoints"
+	BackNavigationTerminalTags      BackNavigationLayer = "terminal-picker-tags"
+	BackNavigationOverlay           BackNavigationLayer = "overlay"
+	BackNavigationCopy              BackNavigationLayer = "copy"
+	BackNavigationInteraction       BackNavigationLayer = "interaction"
 )
 
 // CurrentBackNavigationLayer 返回全局 Esc 当前应退出的唯一层级。
@@ -24,6 +25,9 @@ func (r Root) CurrentBackNavigationLayer() BackNavigationLayer {
 		}
 		if shell.Overlay.Kind == OverlayTerminalPicker && shell.Overlay.TerminalPickerView == TerminalPickerViewTags {
 			return BackNavigationTerminalTags
+		}
+		if shell.Overlay.Kind == OverlayTerminalPicker && shell.Overlay.TerminalPickerView == TerminalPickerViewEndpoints {
+			return BackNavigationTerminalEndpoints
 		}
 		return BackNavigationOverlay
 	}

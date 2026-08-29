@@ -51,6 +51,32 @@ tui:
     header: true
     footer: true
     panel_presentation: card
+    picker:
+      endpoint_status:
+        unknown:
+          glyph: "○"
+          style: muted
+        connected:
+          glyph: "●"
+          style: success
+        connecting:
+          glyph: "◐"
+          style: accent
+        idle:
+          glyph: "○"
+          style: muted
+        disabled:
+          glyph: "○"
+          style: muted
+        offline:
+          glyph: "×"
+          style: warning
+        reconnect_required:
+          glyph: "!"
+          style: warning
+        unregistered:
+          glyph: "?"
+          style: warning
     tab_create_icon: "󰐕"
     tab_create_template: "[fg:#3b2f63;bg:#fde68a][fg:#1b1230;bg:#fde68a;font:bold] {{create_icon}} [fg:#fde68a;bg:#070611]"
     workspace_template: "[fg:#f0abfc;bg:#070611][fg:#1b1230;bg:#f0abfc;font:bold] 󰙅 {{workspace | truncate 18}} [fg:#f0abfc;bg:#3b2f63]"
@@ -130,6 +156,11 @@ tui:
       terminal-picker:
         icon: "󰱼"
         label: "PICK"
+        style: footer-key-picker
+
+      terminal-picker-endpoints:
+        icon: "󰱼"
+        label: "ENDPOINTS"
         style: footer-key-picker
 
       terminal-picker-tags:
@@ -743,6 +774,9 @@ tui:
       "down":
         action: terminal_picker.select_next
         label: "↑/↓ SELECT"
+      "ctrl-o":
+        action: terminal_picker.endpoints
+        label: "CTRL+O ENDPOINTS"
       "ctrl-t":
         action: terminal_picker.tags
         label: "CTRL+T TAGS"
@@ -761,6 +795,20 @@ tui:
       "ctrl-x":
         action: terminal_picker.delete
         label: "CTRL+X 󰅖 REMOVE"
+
+    terminal_picker_endpoints:
+      "up":
+        action: terminal_picker.select_previous
+        label: "↑/↓ SELECT"
+      "down":
+        action: terminal_picker.select_next
+        label: "↑/↓ SELECT"
+      "enter":
+        action: terminal_picker.endpoint_choose
+        label: "ENTER CHOOSE"
+      "ctrl-o":
+        action: terminal_picker.endpoints
+        label: "CTRL+O DONE"
 
     terminal_picker_tags:
       "up":

@@ -245,6 +245,9 @@ func floatingSummary(shell state.ShellStore) string {
 
 func footerMode(root state.Root, shell state.ShellStore) string {
 	if shell.Overlay.Open {
+		if shell.Overlay.Kind == state.OverlayTerminalPicker && shell.Overlay.TerminalPickerView == state.TerminalPickerViewEndpoints {
+			return "terminal-picker-endpoints"
+		}
 		if shell.Overlay.Kind == state.OverlayTerminalPicker && shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
 			return "terminal-picker-tags"
 		}
@@ -406,16 +409,21 @@ func footerActionAvailable(action FooterActionVM, mode string, root state.Root, 
 		}
 		return len(root.TerminalPool.Items) > 0
 	case "terminal_picker.select_previous", "terminal_picker.select_next":
+		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewEndpoints {
+			return len(state.TerminalPickerVisibleEndpointOptions(root)) > 1
+		}
 		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
 			return len(state.TerminalPickerVisibleTagOptions(root)) > 1
 		}
 		return len(state.TerminalPickerItems(root)) > 1
 	case "terminal_picker.tag_toggle":
 		return shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags && len(state.TerminalPickerVisibleTagOptions(root)) > 0
+	case "terminal_picker.endpoint_choose":
+		return shell.Overlay.TerminalPickerView == state.TerminalPickerViewEndpoints && len(state.TerminalPickerVisibleEndpointOptions(root)) > 0
 	case "terminal_picker.attach":
-		return shell.Overlay.TerminalPickerView != state.TerminalPickerViewTags && len(state.TerminalPickerItems(root)) > 0
+		return shell.Overlay.TerminalPickerView == state.TerminalPickerViewList && len(state.TerminalPickerItems(root)) > 0
 	case "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete":
-		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+		if shell.Overlay.TerminalPickerView != state.TerminalPickerViewList {
 			return false
 		}
 		items := state.TerminalPickerItems(root)
@@ -1360,7 +1368,9 @@ func (projector ShellProjector) buildOverlayVM(root state.Root, shell state.Shel
 	switch shell.Overlay.Kind {
 	case state.OverlayTerminalPicker:
 		title := "Terminal Picker"
-		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
+		if shell.Overlay.TerminalPickerView == state.TerminalPickerViewEndpoints {
+			title = "Terminal Picker / Endpoints"
+		} else if shell.Overlay.TerminalPickerView == state.TerminalPickerViewTags {
 			title = "Terminal Picker / Tags"
 		}
 		overlay = OverlayVM{

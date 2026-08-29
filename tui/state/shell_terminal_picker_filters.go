@@ -39,13 +39,48 @@ func TerminalPickerEndpointTabs(root Root) []TerminalPickerEndpointTab {
 			label = string(group.EndpointID)
 		}
 		tabs = append(tabs, TerminalPickerEndpointTab{
-			EndpointID: group.EndpointID,
-			Label:      label,
-			Count:      group.TerminalCount,
-			Selected:   group.EndpointID == selectedID,
+			EndpointID:  group.EndpointID,
+			Label:       label,
+			Count:       group.TerminalCount,
+			Selected:    group.EndpointID == selectedID,
+			Transport:   group.Transport,
+			ConnectMode: group.ConnectMode,
+			Status:      group.Status,
+			LastError:   group.LastError,
+			ErrorKind:   group.ErrorKind,
 		})
 	}
 	return tabs
+}
+
+// TerminalPickerVisibleEndpointOptions returns endpoint choices filtered only by
+// the endpoint subview query. Terminal search remains in Overlay.Query.
+func TerminalPickerVisibleEndpointOptions(root Root) []TerminalPickerEndpointTab {
+	tabs := TerminalPickerEndpointTabs(root)
+	query := strings.TrimSpace(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerEndpointQuery)
+	if query == "" {
+		return tabs
+	}
+	filtered := make([]TerminalPickerEndpointTab, 0, len(tabs))
+	for _, tab := range tabs {
+		values := []string{
+			tab.Label,
+			string(tab.EndpointID),
+			string(tab.Transport),
+			string(tab.ConnectMode),
+			string(tab.Status),
+			strings.ReplaceAll(string(tab.Status), "_", "-"),
+			string(tab.ErrorKind),
+			tab.LastError,
+		}
+		for _, value := range values {
+			if TerminalPickerQueryMatchIndexes(value, query) != nil {
+				filtered = append(filtered, tab)
+				break
+			}
+		}
+	}
+	return filtered
 }
 
 func TerminalPickerActiveEndpointID(root Root) EndpointID {

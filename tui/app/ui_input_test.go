@@ -4317,6 +4317,34 @@ func TestTerminalPickerMouseControlsUseCanonicalSurfaceActions(t *testing.T) {
 	}
 }
 
+func TestTerminalPickerEndpointChooserSearchPreservesTerminalQuery(t *testing.T) {
+	root := state.Root{
+		Shell: state.DefaultShell().OpenTerminalPicker().SetTerminalPickerQuery("shell"),
+		Endpoints: (state.EndpointStore{}).
+			Upsert(state.EndpointItem{ID: state.DefaultEndpointID, Label: "This Mac", Enabled: true, Status: state.EndpointStatusConnected}).
+			Upsert(state.EndpointItem{ID: "west", Label: "US West", Enabled: true, Status: state.EndpointStatusOffline, LastError: "ssh timeout"}),
+	}
+	reducer := NewUIInputReducer()
+	send := func(event input.InputEvent) {
+		root, _ = reducer(root, InputMsg{Event: event})
+	}
+
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x0f", Ctrl: true})
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewEndpoints {
+		t.Fatalf("ctrl-o should open endpoint chooser, overlay=%#v", root.Shell.Overlay)
+	}
+	for _, char := range []string{"w", "e", "s", "t"} {
+		send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: char})
+	}
+	if root.Shell.Overlay.TerminalPickerEndpointQuery != "west" || root.Shell.Overlay.Query != "shell" {
+		t.Fatalf("endpoint typing must not overwrite terminal query, overlay=%#v", root.Shell.Overlay)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyEnter})
+	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewList || state.TerminalPickerActiveEndpointID(root) != "west" || root.Shell.Overlay.Query != "shell" {
+		t.Fatalf("enter should choose the filtered endpoint and restore terminal search, overlay=%#v", root.Shell.Overlay)
+	}
+}
+
 func TestTerminalPickerEditUsesUnfilteredEndpointMetadataAndPreservesTags(t *testing.T) {
 	root := state.Root{Shell: state.DefaultShell().OpenTerminalPicker().SetTerminalPickerEndpoint("west").SetTerminalPickerQuery("mn")}
 	root.TerminalPool, _ = root.TerminalPool.ApplyList(0, []state.TerminalPoolItem{{

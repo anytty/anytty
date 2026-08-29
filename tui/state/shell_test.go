@@ -890,6 +890,23 @@ func TestTerminalPickerFiltersStatusAndPublicTagsWithinEndpoint(t *testing.T) {
 	}
 }
 
+func TestTerminalPickerEndpointSearchHasIndependentQueryAndStatusMetadata(t *testing.T) {
+	root := Root{
+		Shell: DefaultShell().OpenTerminalPicker().SetTerminalPickerQuery("shell"),
+		Endpoints: (EndpointStore{}).
+			Upsert(EndpointItem{ID: DefaultEndpointID, Label: "This Mac", Enabled: true, Status: EndpointStatusConnected}).
+			Upsert(EndpointItem{ID: "west", Label: "US West", Enabled: true, Status: EndpointStatusOffline, LastErrorKind: EndpointErrorTransportDial, LastError: "ssh timeout"}),
+	}
+	root.Shell = root.Shell.OpenTerminalPickerEndpoints().SetTerminalPickerEndpointQuery("timeout")
+	options := TerminalPickerVisibleEndpointOptions(root)
+	if len(options) != 1 || options[0].EndpointID != "west" || options[0].Status != EndpointStatusOffline || options[0].ErrorKind != EndpointErrorTransportDial {
+		t.Fatalf("endpoint query should search endpoint status and error metadata, got %#v", options)
+	}
+	if root.Shell.Overlay.Query != "shell" || root.Shell.Overlay.TerminalPickerEndpointQuery != "timeout" {
+		t.Fatalf("endpoint and terminal search must remain isolated, overlay=%#v", root.Shell.Overlay)
+	}
+}
+
 func TestReplacePublicTerminalTagsPreservesOnlyInternalMetadata(t *testing.T) {
 	tags := ReplacePublicTerminalTags(map[string]string{
 		"role": "build", "tag1": "old", "cwd": "/srv", "anytty.owner": "system",

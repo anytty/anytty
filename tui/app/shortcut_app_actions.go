@@ -18,6 +18,16 @@ func reduceAppShortcutAction(root state.Root, invocation actiondomain.Invocation
 	case "terminal_picker.endpoint_next":
 		root = moveTerminalPickerEndpoint(root, 1)
 		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.endpoints":
+		if terminalPickerEndpointsOpen(root) {
+			root.Shell = root.Shell.CloseTerminalPickerEndpoints()
+		} else {
+			root = openTerminalPickerEndpoints(root)
+		}
+		return root.Advance(), []Effect{handledEffect{}}
+	case "terminal_picker.endpoint_choose":
+		root = selectTerminalPickerEndpoint(root, row)
+		return root.Advance(), []Effect{handledEffect{}}
 	case "terminal_picker.status_previous":
 		root = moveTerminalPickerStatus(root, -1)
 		return root.Advance(), []Effect{handledEffect{}}

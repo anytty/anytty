@@ -193,12 +193,18 @@ var defaultBindings = []DefaultBinding{
 	{Scene: "terminal_picker", Key: "shift-right", Action: "terminal_picker.status_next"},
 	{Scene: "terminal_picker", Key: "up", Action: "terminal_picker.select_previous"},
 	{Scene: "terminal_picker", Key: "down", Action: "terminal_picker.select_next"},
+	{Scene: "terminal_picker", Key: "ctrl-o", Action: "terminal_picker.endpoints"},
 	{Scene: "terminal_picker", Key: "ctrl-t", Action: "terminal_picker.tags"},
 	{Scene: "terminal_picker", Key: "enter", Action: "terminal_picker.attach"},
 	{Scene: "terminal_picker", Key: "tab", Action: "terminal_picker.split"},
 	{Scene: "terminal_picker", Key: "ctrl-e", Action: "terminal_picker.edit"},
 	{Scene: "terminal_picker", Key: "ctrl-k", Action: "terminal_picker.kill"},
 	{Scene: "terminal_picker", Key: "ctrl-x", Action: "terminal_picker.delete"},
+
+	{Scene: "terminal_picker_endpoints", Key: "up", Action: "terminal_picker.select_previous"},
+	{Scene: "terminal_picker_endpoints", Key: "down", Action: "terminal_picker.select_next"},
+	{Scene: "terminal_picker_endpoints", Key: "enter", Action: "terminal_picker.endpoint_choose"},
+	{Scene: "terminal_picker_endpoints", Key: "ctrl-o", Action: "terminal_picker.endpoints"},
 
 	{Scene: "terminal_picker_tags", Key: "up", Action: "terminal_picker.select_previous"},
 	{Scene: "terminal_picker_tags", Key: "down", Action: "terminal_picker.select_next"},

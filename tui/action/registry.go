@@ -143,6 +143,8 @@ var defaultLabels = map[string]string{
 	"terminal_pool.delete":              "REMOVE",
 	"terminal_picker.endpoint_previous": "ENDPOINT",
 	"terminal_picker.endpoint_next":     "ENDPOINT",
+	"terminal_picker.endpoints":         "ENDPOINTS",
+	"terminal_picker.endpoint_choose":   "CHOOSE",
 	"terminal_picker.status_previous":   "STATUS",
 	"terminal_picker.status_next":       "STATUS",
 	"terminal_picker.select_previous":   "SELECT",
@@ -232,7 +234,7 @@ func buildSpecs() map[string]Spec {
 	add(Spec{ID: "tab.jump", Param: &ParamSpec{Name: "index", Min: 1, Max: 9}})
 	add(Spec{ID: "floating.summon", Param: &ParamSpec{Name: "index", Min: 1, Max: 9}})
 	addFixed("workspace.create", "workspace.next", "workspace.previous", "workspace.rename", "workspace.delete")
-	addFixed("terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.status_previous", "terminal_picker.status_next", "terminal_picker.select_previous", "terminal_picker.select_next", "terminal_picker.tags", "terminal_picker.tag_toggle", "terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close")
+	addFixed("terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.endpoints", "terminal_picker.endpoint_choose", "terminal_picker.status_previous", "terminal_picker.status_next", "terminal_picker.select_previous", "terminal_picker.select_next", "terminal_picker.tags", "terminal_picker.tag_toggle", "terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close")
 	addFixed("terminal_pool.attach", "terminal_pool.attach_tab", "terminal_pool.attach_float", "terminal_pool.restart", "terminal_pool.edit", "terminal_pool.kill", "terminal_pool.delete", "terminal_pool.close")
 	addFixed("connections.edit", "connections.toggle", "connections.refresh", "connections.close")
 	addFixed("workbench_tree.open", "workbench_tree.new", "workbench_tree.rename", "workbench_tree.delete", "workbench_tree.detach", "workbench_tree.zoom", "workbench_tree.close")

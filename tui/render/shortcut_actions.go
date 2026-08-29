@@ -275,9 +275,15 @@ func compactShortcutFooterActions(scene string, actions []FooterActionVM) []Foot
 		actions = compactFooterActionGroup(actions, "terminal_picker.status_previous", "terminal_picker.status_next")
 		actions = compactFooterActionGroup(actions, "terminal_picker.select_previous", "terminal_picker.select_next")
 		actions = orderShortcutFooterActions(actions, []actiondomain.ID{
-			"terminal_picker.select_previous", "terminal_picker.attach", "terminal_picker.tags",
+			"terminal_picker.select_previous", "terminal_picker.attach", "terminal_picker.endpoints", "terminal_picker.tags",
 			"terminal_picker.endpoint_previous", "terminal_picker.status_previous", "terminal_picker.split",
 			"terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete",
+		})
+	}
+	if scene == "terminal_picker_endpoints" {
+		actions = compactFooterActionGroup(actions, "terminal_picker.select_previous", "terminal_picker.select_next")
+		actions = orderShortcutFooterActions(actions, []actiondomain.ID{
+			"terminal_picker.select_previous", "terminal_picker.endpoint_choose", "terminal_picker.endpoints",
 		})
 	}
 	if scene == "terminal_picker_tags" {

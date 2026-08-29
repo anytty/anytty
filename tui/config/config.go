@@ -53,10 +53,11 @@ func Default() state.TUIConfigStore {
 			Footer:            true,
 			PanelPresentation: "split-line",
 			Picker: state.TUIPickerChromeConfig{
-				Presentation: "card",
-				Width:        "adaptive",
-				Density:      "compact",
-				EndpointTabs: "underline",
+				Presentation:   "card",
+				Width:          "adaptive",
+				Density:        "compact",
+				EndpointTabs:   "underline",
+				EndpointStatus: state.DefaultTUIPickerEndpointStatusConfig(),
 			},
 			TabCreateIcon:     "+",
 			TabCreateTemplate: "",
@@ -367,6 +368,15 @@ func knownSection(path string) bool {
 		"tui.theme.surface",
 		"tui.chrome",
 		"tui.chrome.picker",
+		"tui.chrome.picker.endpoint_status",
+		"tui.chrome.picker.endpoint_status.unknown",
+		"tui.chrome.picker.endpoint_status.connected",
+		"tui.chrome.picker.endpoint_status.connecting",
+		"tui.chrome.picker.endpoint_status.idle",
+		"tui.chrome.picker.endpoint_status.disabled",
+		"tui.chrome.picker.endpoint_status.offline",
+		"tui.chrome.picker.endpoint_status.reconnect_required",
+		"tui.chrome.picker.endpoint_status.unregistered",
 		"tui.chrome.pane_glyphs",
 		"tui.footer",
 		"tui.footer.templates",
@@ -463,7 +473,55 @@ var scalarSetters = map[string]scalarSetter{
 	"tui.chrome.picker.width":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
 	"tui.chrome.picker.density":        setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
 	"tui.chrome.picker.endpoint_tabs":  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
-	"tui.chrome.tab_create_icon":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.TabCreateIcon = value }),
+	"tui.chrome.picker.endpoint_status.unknown.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Unknown.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.unknown.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Unknown.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.connected.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Connected.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.connected.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Connected.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.connecting.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Connecting.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.connecting.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Connecting.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.idle.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Idle.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.idle.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Idle.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.disabled.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Disabled.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.disabled.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Disabled.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.offline.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Offline.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.offline.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Offline.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.reconnect_required.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.ReconnectRequired.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.reconnect_required.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.ReconnectRequired.Style = value
+	}),
+	"tui.chrome.picker.endpoint_status.unregistered.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Unregistered.Glyph = value
+	}),
+	"tui.chrome.picker.endpoint_status.unregistered.style": setString(func(cfg *state.TUIConfigStore, value string) {
+		cfg.Chrome.Picker.EndpointStatus.Unregistered.Style = value
+	}),
+	"tui.chrome.tab_create_icon": setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.TabCreateIcon = value }),
 	"tui.chrome.tab_create_template": setString(func(cfg *state.TUIConfigStore, value string) {
 		cfg.Chrome.TabCreateTemplate = value
 	}),
@@ -987,6 +1045,9 @@ func Validate(cfg state.TUIConfigStore) error {
 	if !oneOf(cfg.Chrome.Picker.EndpointTabs, "underline", "plain") {
 		return fmt.Errorf("tui.chrome.picker.endpoint_tabs must be underline or plain, got %q", cfg.Chrome.Picker.EndpointTabs)
 	}
+	if err := validatePickerEndpointStatus(cfg.Chrome.Picker.EndpointStatus); err != nil {
+		return err
+	}
 	if strings.TrimSpace(cfg.Chrome.TabCreateIcon) == "" {
 		return fmt.Errorf("tui.chrome.tab_create_icon must not be empty")
 	}
@@ -1066,6 +1127,61 @@ func validatePaneChromeGlyphs(glyphs state.TUIPaneChromeGlyphsConfig) error {
 		}
 	}
 	return nil
+}
+
+func validatePickerEndpointStatus(status state.TUIPickerEndpointStatusConfig) error {
+	for _, item := range []struct {
+		name       string
+		appearance state.TUIEndpointStatusAppearanceConfig
+	}{
+		{"unknown", status.Unknown},
+		{"connected", status.Connected},
+		{"connecting", status.Connecting},
+		{"idle", status.Idle},
+		{"disabled", status.Disabled},
+		{"offline", status.Offline},
+		{"reconnect_required", status.ReconnectRequired},
+		{"unregistered", status.Unregistered},
+	} {
+		path := "tui.chrome.picker.endpoint_status." + item.name
+		if err := validateSingleLine(path+".glyph", item.appearance.Glyph); err != nil {
+			return err
+		}
+		if err := validateSingleLine(path+".style", item.appearance.Style); err != nil {
+			return err
+		}
+		if !validEndpointStatusStyleToken(item.appearance.Style) {
+			return fmt.Errorf("%s.style has unknown style token %q", path, item.appearance.Style)
+		}
+	}
+	return nil
+}
+
+func validEndpointStatusStyleToken(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return true
+	}
+	if strings.HasPrefix(value, "#") {
+		return validOptionalHexColor(value)
+	}
+	return oneOf(value,
+		"accent",
+		"foreground",
+		"strong-foreground",
+		"muted",
+		"info",
+		"success",
+		"warning",
+		"danger",
+		"danger-strong",
+		"picker",
+		"picker-muted",
+		"picker-accent",
+		"picker-info",
+		"picker-success",
+		"picker-match",
+	)
 }
 
 func oneOf(value string, allowed ...string) bool {

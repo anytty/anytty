@@ -103,7 +103,7 @@ func buildActionHandlerRegistry() map[actiondomain.ID]actionHandler {
 		}
 	}
 	for _, id := range []actiondomain.ID{
-		"terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.status_previous", "terminal_picker.status_next",
+		"terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.endpoints", "terminal_picker.endpoint_choose", "terminal_picker.status_previous", "terminal_picker.status_next",
 		"terminal_picker.select_previous", "terminal_picker.select_next", "terminal_picker.tags", "terminal_picker.tag_toggle",
 		"terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close",
 		"terminal_pool.attach", "terminal_pool.attach_tab", "terminal_pool.attach_float", "terminal_pool.restart", "terminal_pool.edit", "terminal_pool.kill", "terminal_pool.delete", "terminal_pool.close",

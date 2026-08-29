@@ -225,17 +225,19 @@ type SplitNode struct {
 }
 
 type OverlayState struct {
-	Kind                     OverlayKind
-	Open                     bool
-	TargetID                 string
-	Query                    string
-	SelectedIndex            int
-	TerminalPickerEndpointID EndpointID
-	TerminalPickerStatus     TerminalPickerStatusFilter
-	TerminalPickerTagFilters []string
-	TerminalPickerView       TerminalPickerView
-	TerminalPickerTagQuery   string
-	TerminalPickerTagIndex   int
+	Kind                        OverlayKind
+	Open                        bool
+	TargetID                    string
+	Query                       string
+	SelectedIndex               int
+	TerminalPickerEndpointID    EndpointID
+	TerminalPickerStatus        TerminalPickerStatusFilter
+	TerminalPickerTagFilters    []string
+	TerminalPickerView          TerminalPickerView
+	TerminalPickerEndpointQuery string
+	TerminalPickerEndpointIndex int
+	TerminalPickerTagQuery      string
+	TerminalPickerTagIndex      int
 	// WorkbenchCollapsed 保存 Workbench Navigator 当前 overlay 的折叠节点。
 	// 它只影响树投影可见性，不改变 workspace/tab/pane 的真实布局状态。
 	WorkbenchCollapsed map[string]bool
