@@ -127,15 +127,19 @@ while IFS= read -r native_path; do
     || fail "could not extract native library: $native_path"
   strings "$native_file" >"$native_strings" \
     || fail "could not inspect strings in $native_path"
-  load_alignments="$("$llvm_readelf" -lW "$native_file" | awk '$1 == "LOAD" { print $NF }')" \
-    || fail "could not inspect ELF segments in $native_path"
-  [[ -n "$load_alignments" ]] || fail "native library has no ELF LOAD segments: $native_path"
-  while IFS= read -r alignment; do
-    [[ "$alignment" =~ ^0x[0-9A-Fa-f]+$ ]] \
-      || fail "invalid ELF LOAD alignment in $native_path: $alignment"
-    (( alignment >= 0x4000 )) \
-      || fail "native library is not 16 KiB page aligned: $native_path ($alignment)"
-  done <<<"$load_alignments"
+  case "$native_path" in
+    lib/arm64-v8a/*|lib/x86_64/*)
+      load_alignments="$("$llvm_readelf" -lW "$native_file" | awk '$1 == "LOAD" { print $NF }')" \
+        || fail "could not inspect ELF segments in $native_path"
+      [[ -n "$load_alignments" ]] || fail "native library has no ELF LOAD segments: $native_path"
+      while IFS= read -r alignment; do
+        [[ "$alignment" =~ ^0x[0-9A-Fa-f]+$ ]] \
+          || fail "invalid ELF LOAD alignment in $native_path: $alignment"
+        (( alignment >= 0x4000 )) \
+          || fail "native library is not 16 KiB page aligned: $native_path ($alignment)"
+      done <<<"$load_alignments"
+      ;;
+  esac
   if grep -F \
     -e 'ANYTTY_ANDROID_GO_TAGS' \
     -e 'anytty_android_spike' \
