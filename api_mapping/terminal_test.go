@@ -31,7 +31,7 @@ func TestTerminalInfoToProtoAddsEndpointWithoutMutatingCore(t *testing.T) {
 	exitCode := 23
 	now := time.Date(2026, 7, 17, 8, 0, 0, 0, time.UTC)
 	info := corev2.TerminalInfo{ID: "term-1", Name: "demo", Command: []string{"sh"}, Tags: map[string]string{"role": "dev"}, Size: corev2.Size{Cols: 80, Rows: 24}, State: corev2.TerminalStateExited, CreatedAt: now.Add(-time.Minute), ExitedAt: now, ExitCode: &exitCode,
-		ForegroundProcess: "codex", LastOutputAt: now.Add(-2 * time.Second),
+		ForegroundProcess: "codex", ForegroundCWD: "/workspaces/anytty", LastOutputAt: now.Add(-2 * time.Second),
 		Resources:       corev2.TerminalResourceUsage{PID: 42, CPUPercentX100: 1250, MemoryBytes: 4096, SampledAt: now},
 		ResourceHistory: []corev2.TerminalResourceUsage{{PID: 42, CPUPercentX100: 750, MemoryBytes: 2048, SampledAt: now.Add(-time.Second)}, {PID: 42, CPUPercentX100: 1250, MemoryBytes: 4096, SampledAt: now}},
 	}
@@ -45,7 +45,7 @@ func TestTerminalInfoToProtoAddsEndpointWithoutMutatingCore(t *testing.T) {
 	if got := projection.GetResourceHistory(); len(got) != 2 || got[0].GetCpuPercentX100() != 750 || got[1].GetMemoryBytes() != 4096 {
 		t.Fatalf("resource history projection=%#v", got)
 	}
-	if projection.GetForegroundProcess() != "codex" || projection.GetLastOutputAtUnixNano() != now.Add(-2*time.Second).UnixNano() {
+	if projection.GetForegroundProcess() != "codex" || projection.GetForegroundCwd() != "/workspaces/anytty" || projection.GetLastOutputAtUnixNano() != now.Add(-2*time.Second).UnixNano() {
 		t.Fatalf("runtime summary projection=%#v", projection)
 	}
 	projection.Command[0] = "mutated"

@@ -78,10 +78,12 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	if strings.TrimSpace(route.ProxyJump) != "" {
 		return nil, fmt.Errorf("SSH ProxyJump is unavailable until jump host identity pins are modeled")
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCredentialResolving)
 	credential, err := dialer.options.Credentials.ResolveSSHCredential(ctx, route.SSHCredentialRef, route.CredentialDescriptor)
 	if err != nil {
 		return nil, fmt.Errorf("resolve SSH credential: %w", err)
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageSSHConnecting)
 	sshClient, err := dialSSHClient(ctx, route, credential.AuthMethods, dialer.options.ConnectTimeout, dialer.options.NetworkDialer)
 	releaseErr := credential.Release()
 	if err != nil {
@@ -96,6 +98,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		_ = sshClient.Close()
 		return nil, err
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageSSHTunnelReady)
 	base, err := (&direct.Dialer{
 		Peers:           dialer.options.Peers,
 		Signaling:       direct.TCPSignalingClient{Dialer: sshClientDialer{client: sshClient}},

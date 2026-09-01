@@ -605,7 +605,9 @@ func (server *Server) ListTerminals() []TerminalInfo {
 	}
 	foregroundProcesses := foregroundProcessSnapshot(processIDs)
 	for index := range items {
-		items[index].ForegroundProcess = foregroundProcesses[items[index].Resources.PID]
+		snapshot := foregroundProcesses[items[index].Resources.PID]
+		items[index].ForegroundProcess = snapshot.Process
+		items[index].ForegroundCWD = snapshot.CWD
 	}
 	return items
 }

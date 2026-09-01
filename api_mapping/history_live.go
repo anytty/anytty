@@ -313,7 +313,9 @@ func NativeScreenToProto(endpointID string, snapshot corev2.NativeScreenSnapshot
 		})
 	}
 	for _, row := range snapshot.Rows {
-		result.RowReplacements = append(result.RowReplacements, &apipb.ScreenRowReplace{RowIndex: int32(row.Index), Row: vtermRowToProto(row.Cells)})
+		result.RowReplacements = append(result.RowReplacements, &apipb.ScreenRowReplace{
+			RowIndex: int32(row.Index), Row: vtermRowToProto(row.Cells, row.Wrapped),
+		})
 	}
 	return result
 }
@@ -389,8 +391,10 @@ func historySegmentToProto(segment history.HistorySegment) apipb.HistoryCursorSe
 }
 
 func historyRowToProto(row history.HistoryRow) *apipb.HistoryRow {
+	screenRow := historyCellsToProto(row.Cells)
+	screenRow.Wrapped = row.Wrapped
 	return &apipb.HistoryRow{
-		Row: historyCellsToProto(row.Cells), RowKind: string(row.Kind), Wrapped: row.Wrapped,
+		Row: screenRow, RowKind: string(row.Kind), Wrapped: row.Wrapped,
 		Ownership: historyRowOwnershipToProto(row), Segment: historySegmentToProto(row.Segment),
 		SessionId: uint64(row.SessionID), FrameId: uint64(row.FrameID), FixedGrid: row.FixedGrid,
 		ScreenCols: int32(row.ScreenCols), ScreenRows: int32(row.ScreenRow), ScreenRowSet: row.ScreenRowSet,
@@ -446,8 +450,8 @@ func historyRowOwnershipToProto(row history.HistoryRow) apipb.RowOwnership {
 	return apipb.RowOwnership_ROW_OWNERSHIP_SCREEN
 }
 
-func vtermRowToProto(cells []vterm.Cell) *apipb.ScreenRow {
-	row := &apipb.ScreenRow{}
+func vtermRowToProto(cells []vterm.Cell, wrapped bool) *apipb.ScreenRow {
+	row := &apipb.ScreenRow{Wrapped: wrapped}
 	var previous vterm.Cell
 	hasPrevious := false
 	for _, cell := range cells {

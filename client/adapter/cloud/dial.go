@@ -62,6 +62,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	if request.Route().Kind != endpoint.RouteManagedWebRTC {
 		return nil, fmt.Errorf("route %q is not managed WebRTC", request.Route().ID)
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageAuthorizationPreparing)
 	prepared, err := dialer.Authorization.Prepare(ctx, request)
 	if err != nil {
 		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureAuthorization, err)
@@ -76,6 +77,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	discovered := false
 	var opened *openedCloudPeer
 	if cachedErr == nil {
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudCachedEdge)
 		opened, err = openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, resolved, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
 		if err == nil {
 			reportTiming("cached_edge_ready")
@@ -87,6 +89,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}
 	}
 	if opened == nil {
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
 		resolved, err = dialer.Cloud.Resolve(ctx, signaling.CloudRouteGrant(), signaling)
 		if err != nil {
 			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureController, cloudConnectionError(err))
@@ -104,12 +107,14 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
 	}
 	dialer.report(clientruntime.EndpointPhaseAuthorizing)
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
 	connection := opened.Transport()
 	if _, err := prepared.Authenticate(ctx, connection, fingerprint); err != nil {
 		_ = opened.Close()
 		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
 	}
 	reportTiming("datachannel_authenticated")
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 	protocolClient := internalprotocol.NewClient(connection)
 	clientName := strings.TrimSpace(dialer.ClientName)
 	if clientName == "" {

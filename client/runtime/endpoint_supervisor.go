@@ -102,13 +102,14 @@ type EndpointSupervisor struct {
 	cancel     context.CancelFunc
 	options    EndpointSupervisorOptions
 
-	mu             sync.Mutex
-	closed         bool
-	demandRevision uint64
-	hostRevision   uint64
-	connected      bool
-	endpoints      map[endpoint.EndpointID]*endpointControl
-	changed        chan struct{}
+	mu                 sync.Mutex
+	closed             bool
+	demandAttachmentID string
+	demandRevision     uint64
+	hostRevision       uint64
+	connected          bool
+	endpoints          map[endpoint.EndpointID]*endpointControl
+	changed            chan struct{}
 }
 
 type endpointControl struct {
@@ -174,6 +175,13 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 	if supervisor == nil {
 		return runtimeError(ErrorUnavailable, "endpoint supervisor is unavailable", nil)
 	}
+	attachmentID := strings.TrimSpace(snapshot.AttachmentID)
+	if attachmentID == "" {
+		return runtimeError(ErrorInvalidRequest, "endpoint supervisor demand attachment_id is required", nil)
+	}
+	if snapshot.DemandRevision == 0 {
+		return runtimeError(ErrorInvalidRequest, "endpoint supervisor demand revision is required", nil)
+	}
 	seen := make(map[endpoint.EndpointID]EndpointSupervisorMode, len(snapshot.Endpoints))
 	for _, demand := range snapshot.Endpoints {
 		id := endpoint.EndpointID(strings.TrimSpace(string(demand.EndpointID)))
@@ -194,6 +202,10 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 		supervisor.mu.Unlock()
 		return runtimeError(ErrorUnavailable, "endpoint supervisor is closed", nil)
 	}
+	if supervisor.demandAttachmentID != "" && supervisor.demandAttachmentID != attachmentID {
+		supervisor.mu.Unlock()
+		return runtimeError(ErrorStaleResource, "endpoint supervisor demand belongs to a different attachment", nil)
+	}
 	if snapshot.DemandRevision < supervisor.demandRevision {
 		supervisor.mu.Unlock()
 		return runtimeError(ErrorStaleResource, "endpoint supervisor demand revision is stale", nil)
@@ -206,6 +218,7 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 		supervisor.mu.Unlock()
 		return nil
 	}
+	supervisor.demandAttachmentID = attachmentID
 	supervisor.demandRevision = snapshot.DemandRevision
 	for id, control := range supervisor.endpoints {
 		mode, demanded := seen[id]

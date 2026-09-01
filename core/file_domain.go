@@ -54,6 +54,7 @@ type FilePreviewResult struct {
 	MIMEType  string
 	Content   []byte
 	Truncated bool
+	SHA256    []byte
 }
 
 // FileRenameRequest 表达单个原子重命名请求。

@@ -168,7 +168,7 @@ func FileListToProto(result corev2.FileListResult) *apipb.FileListResult {
 
 // FilePreviewToProto 映射有界预览。
 func FilePreviewToProto(result corev2.FilePreviewResult) *apipb.FilePreviewResult {
-	return &apipb.FilePreviewResult{Entry: FileEntryToProto(result.Entry), MimeType: result.MIMEType, Content: cloneBytes(result.Content), Truncated: result.Truncated}
+	return &apipb.FilePreviewResult{Entry: FileEntryToProto(result.Entry), MimeType: result.MIMEType, Content: cloneBytes(result.Content), Truncated: result.Truncated, Sha256: cloneBytes(result.SHA256)}
 }
 
 // FileOperationToProto 映射单项 mutation 结果。

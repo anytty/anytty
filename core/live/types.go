@@ -532,6 +532,16 @@ func (surface *SurfaceTrack) VisitTrimmedScreenRows(visit func(rowIndex int, cel
 	return surface.vt.VisitTrimmedScreenRows(visit)
 }
 
+// ScreenWrapped returns the soft-wrap marker for each current physical row.
+// The caller owns the returned slice.
+func (surface *SurfaceTrack) ScreenWrapped() []bool {
+	surface.ensureVTerm()
+	if len(surface.presentationOverlay) > 0 {
+		return make([]bool, surface.size.Rows)
+	}
+	return surface.vt.ScreenWrapped()
+}
+
 // VisualRowHashes returns the compact current-screen baseline used by a
 // protocol session to compare the next client-confirmed frame.
 func (surface *SurfaceTrack) VisualRowHashes() []uint64 {

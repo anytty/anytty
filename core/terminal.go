@@ -540,11 +540,15 @@ func (terminal *Terminal) nativeScreenSnapshotSinceBaseline(terminalID string, o
 		}
 	}
 	rows := make([]NativeScreenRow, 0, size.Rows)
+	screenWrapped := terminal.live.ScreenWrapped()
 	info := terminal.live.VisitTrimmedScreenRows(func(rowIndex int, cellCount int, cellAt func(int) vterm.Cell) {
 		if rowIndex < 0 || rowIndex >= len(replaced) || !replaced[rowIndex] {
 			return
 		}
 		row := NativeScreenRow{Index: rowIndex}
+		if rowIndex < len(screenWrapped) {
+			row.Wrapped = screenWrapped[rowIndex]
+		}
 		if cellCount > 0 {
 			row.Cells = make([]vterm.Cell, cellCount)
 			for index := 0; index < cellCount; index++ {

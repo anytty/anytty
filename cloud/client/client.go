@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -150,23 +151,84 @@ func (resolution *RouteResolution) Locator() *cloudv1.EdgeLocator {
 // SignalSession 持有一个已经完成 offer/answer 的 ClientGateway 流。
 // 该流跟随 ReadyPeerSession 存活，使 Edge 的纯内存客户端投影与真实 P2P 生命周期一致；terminal 数据仍只走 DataChannel。
 type SignalSession struct {
-	answer     *cloudv1.EdgeAnswer
-	connection *grpc.ClientConn
-	stream     cloudv1.ClientGateway_ConnectClient
-	cancel     context.CancelFunc
-	senderID   string
-	bootID     string
-	edgeID     string
-	edgeBootID string
-	sessionID  string
-	pathOnce   sync.Once
-	pathErr    error
-	closeOnce  sync.Once
-	closeErr   error
-	done       chan struct{}
-	doneOnce   sync.Once
-	errMu      sync.Mutex
-	err        error
+	answer      *cloudv1.EdgeAnswer
+	connection  *grpc.ClientConn
+	stream      cloudv1.ClientGateway_ConnectClient
+	cancel      context.CancelFunc
+	senderID    string
+	bootID      string
+	edgeID      string
+	edgeBootID  string
+	sessionID   string
+	sendMu      sync.Mutex
+	nextSendSeq uint64
+	decisionMu  sync.Mutex
+	decision    *signalPathDecision
+	releaseMu   sync.Mutex
+	release     *signalSessionRelease
+	closeOnce   sync.Once
+	closeErr    error
+	done        chan struct{}
+	doneOnce    sync.Once
+	errMu       sync.Mutex
+	err         error
+}
+
+const signalPathDecisionRetryInterval = 250 * time.Millisecond
+const signalTransportKeepaliveTime = 15 * time.Second
+const signalTransportKeepaliveTimeout = 5 * time.Second
+
+type signalStreamOwner struct {
+	parent                 context.Context
+	cancel                 context.CancelFunc
+	stopParentCancellation func() bool
+}
+
+func newSignalStreamOwner(parent context.Context) (context.Context, *signalStreamOwner) {
+	streamContext, cancel := context.WithCancel(context.WithoutCancel(parent))
+	return streamContext, &signalStreamOwner{
+		parent:                 parent,
+		cancel:                 cancel,
+		stopParentCancellation: context.AfterFunc(parent, cancel),
+	}
+}
+
+// Retain transfers the stream from the route attempt to the returned physical session.
+// A cancellation already in flight wins this fence and prevents a stale winner publish.
+func (owner *signalStreamOwner) Retain() error {
+	if owner == nil || owner.parent == nil || owner.cancel == nil || owner.stopParentCancellation == nil {
+		return errors.New("Cloud signaling stream owner is unavailable")
+	}
+	if !owner.stopParentCancellation() || owner.parent.Err() != nil {
+		owner.cancel()
+		return context.Cause(owner.parent)
+	}
+	return nil
+}
+
+func (owner *signalStreamOwner) Close() {
+	if owner == nil {
+		return
+	}
+	if owner.stopParentCancellation != nil {
+		_ = owner.stopParentCancellation()
+	}
+	if owner.cancel != nil {
+		owner.cancel()
+	}
+}
+
+type signalPathDecision struct {
+	id       string
+	decision cloudv1.CloudPathDecision
+	acked    bool
+	ack      chan struct{}
+}
+
+type signalSessionRelease struct {
+	id    string
+	acked bool
+	ack   chan struct{}
 }
 
 // SignalSessionCloseError is a typed, authenticated Edge decision. Transient
@@ -208,20 +270,75 @@ func (session *SignalSession) Err() error {
 }
 
 func (session *SignalSession) watch() {
-	event, err := session.stream.Recv()
-	if err == nil {
-		if closedErr, closed := signalSessionCloseError(event, session.edgeID, session.edgeBootID, session.sessionID); closed {
-			err = closedErr
-		} else {
-			err = errors.New("Cloud signaling stream returned an unexpected post-answer message")
+	expectedSequence := uint64(4)
+	var err error
+	for {
+		var event *cloudv1.EdgeSignal
+		event, err = session.stream.Recv()
+		if err != nil {
+			break
 		}
+		if event.GetProtocolVersion() != cloudprotocol.ClientGatewayVersion || strings.TrimSpace(event.GetMessageId()) == "" ||
+			event.GetSenderId() != session.edgeID || event.GetBootId() != session.edgeBootID || event.GetConnectionId() != session.sessionID ||
+			event.GetStreamSeq() != expectedSequence || event.GetSentAt() == nil || event.GetSentAt().CheckValid() != nil {
+			err = errors.New("Cloud signaling post-answer envelope is invalid")
+			break
+		}
+		expectedSequence++
+		if closedErr, closed := signalSessionCloseErrorAtSequence(event, session.edgeID, session.edgeBootID, session.sessionID, event.GetStreamSeq()); closed {
+			err = closedErr
+			break
+		}
+		if ack := event.GetPathDecisionAck(); ack != nil {
+			if err = session.acceptPathDecisionAck(ack); err != nil {
+				break
+			}
+			continue
+		}
+		if ack := event.GetSessionReleaseAck(); ack != nil {
+			if err = session.acceptSessionReleaseAck(ack); err != nil {
+				break
+			}
+			continue
+		}
+		err = errors.New("Cloud signaling stream returned an unexpected post-answer message")
+		break
 	}
+	log.Printf(
+		"anytty cloud signaling session=%s stage=stream_ended cause=%s grpc_code=%s error=%q",
+		session.sessionID,
+		signalStreamEndCause(err),
+		status.Code(err),
+		signalStreamErrorText(err),
+	)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 		session.errMu.Lock()
 		session.err = err
 		session.errMu.Unlock()
 	}
 	session.doneOnce.Do(func() { close(session.done) })
+}
+
+func signalStreamEndCause(err error) string {
+	switch {
+	case err == nil:
+		return "nil"
+	case errors.Is(err, io.EOF):
+		return "eof"
+	case errors.Is(err, context.Canceled):
+		return "context_canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	default:
+		return "grpc_error"
+	}
+}
+
+func signalStreamErrorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // Answer 返回 daemon 生成的不可变 SDP answer 投影。
@@ -232,45 +349,338 @@ func (session *SignalSession) Answer() *cloudv1.EdgeAnswer {
 	return proto.Clone(session.answer).(*cloudv1.EdgeAnswer)
 }
 
-// ConfirmPath reports the authenticated ICE winner so Edge can release an unused Relay hold.
-func (session *SignalSession) ConfirmPath(path cloudv1.SelectedCloudPath) error {
+// ConfirmPath commits the authenticated ICE winner only after Edge acknowledges
+// every release side effect associated with that decision.
+func (session *SignalSession) ConfirmPath(ctx context.Context, path cloudv1.SelectedCloudPath) error {
+	decision := cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_UNSPECIFIED
+	switch path {
+	case cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_DIRECT:
+		decision = cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_DIRECT
+	case cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_RELAY:
+		decision = cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_RELAY
+	default:
+		return errors.New("selected Cloud path is invalid")
+	}
+	return session.decidePath(ctx, decision)
+}
+
+// AbandonPath releases a provisional Relay reservation and runtime session.
+// EOF and Done never satisfy this barrier; only a matching authenticated ACK does.
+func (session *SignalSession) AbandonPath(ctx context.Context) error {
+	return session.decidePath(ctx, cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_ABANDON)
+}
+
+func (session *SignalSession) decidePath(ctx context.Context, decision cloudv1.CloudPathDecision) error {
 	if session == nil || session.stream == nil || strings.TrimSpace(session.sessionID) == "" {
 		return errors.New("Cloud signaling session is unavailable")
 	}
-	session.pathOnce.Do(func() {
-		if path != cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_DIRECT && path != cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_RELAY {
-			session.pathErr = errors.New("selected Cloud path is invalid")
-			return
+	if ctx == nil {
+		return errors.New("Cloud path decision context is required")
+	}
+	state, err := session.beginPathDecision(decision)
+	if err != nil {
+		return err
+	}
+	stopCancellation := func() bool { return true }
+	if session.cancel != nil {
+		stopCancellation = context.AfterFunc(ctx, session.cancel)
+	}
+	defer stopCancellation()
+	for {
+		if session.pathDecisionAcknowledged(state) {
+			return nil
 		}
-		session.pathErr = session.stream.Send(&cloudv1.ClientSignal{
-			ProtocolVersion: cloudprotocol.ClientGatewayVersion, MessageId: uuid.NewString(), SenderId: session.senderID, BootId: session.bootID,
-			ConnectionId: session.sessionID, StreamSeq: 3, SentAt: timestamppb.Now(),
-			Payload: &cloudv1.ClientSignal_PathSelected{PathSelected: &cloudv1.ClientPathSelected{SessionId: session.sessionID, Path: path}},
-		})
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for Cloud path decision acknowledgment: %w", context.Cause(ctx))
+		case <-session.Done():
+			if session.pathDecisionAcknowledged(state) {
+				return nil
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return fmt.Errorf("wait for Cloud path decision acknowledgment: %w", cause)
+			}
+			return session.pathDecisionTerminalError()
+		default:
+		}
+		if err := session.sendPathDecision(state); err != nil {
+			if session.pathDecisionAcknowledged(state) {
+				return nil
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return fmt.Errorf("wait for Cloud path decision acknowledgment: %w", cause)
+			}
+			return fmt.Errorf("send Cloud path decision: %w", err)
+		}
+		timer := time.NewTimer(signalPathDecisionRetryInterval)
+		select {
+		case <-state.ack:
+			stopSignalDecisionTimer(timer)
+			return nil
+		case <-session.Done():
+			stopSignalDecisionTimer(timer)
+			if session.pathDecisionAcknowledged(state) {
+				return nil
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return fmt.Errorf("wait for Cloud path decision acknowledgment: %w", cause)
+			}
+			return session.pathDecisionTerminalError()
+		case <-ctx.Done():
+			stopSignalDecisionTimer(timer)
+			return fmt.Errorf("wait for Cloud path decision acknowledgment: %w", context.Cause(ctx))
+		case <-timer.C:
+		}
+	}
+}
+
+func stopSignalDecisionTimer(timer *time.Timer) {
+	if timer == nil || timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C:
+	default:
+	}
+}
+
+func (session *SignalSession) beginPathDecision(decision cloudv1.CloudPathDecision) (*signalPathDecision, error) {
+	if decision != cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_DIRECT &&
+		decision != cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_RELAY &&
+		decision != cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_ABANDON {
+		return nil, errors.New("Cloud path decision is invalid")
+	}
+	session.decisionMu.Lock()
+	defer session.decisionMu.Unlock()
+	if session.decision == nil {
+		session.decision = &signalPathDecision{id: uuid.NewString(), decision: decision, ack: make(chan struct{})}
+	} else if session.decision.decision != decision {
+		return nil, errors.New("Cloud path decision is already committed to another outcome")
+	}
+	return session.decision, nil
+}
+
+func (session *SignalSession) sendPathDecision(state *signalPathDecision) error {
+	session.sendMu.Lock()
+	defer session.sendMu.Unlock()
+	sequence := session.nextSendSeq
+	if sequence < 3 {
+		sequence = 3
+	}
+	session.nextSendSeq = sequence + 1
+	return session.stream.Send(&cloudv1.ClientSignal{
+		ProtocolVersion: cloudprotocol.ClientGatewayVersion, MessageId: uuid.NewString(), SenderId: session.senderID, BootId: session.bootID,
+		ConnectionId: session.sessionID, StreamSeq: sequence, SentAt: timestamppb.Now(),
+		Payload: &cloudv1.ClientSignal_PathDecision{PathDecision: &cloudv1.ClientPathDecision{
+			SessionId: session.sessionID, DecisionId: state.id, Decision: state.decision,
+		}},
 	})
-	return session.pathErr
+}
+
+func (session *SignalSession) acceptPathDecisionAck(ack *cloudv1.EdgePathDecisionAck) error {
+	session.decisionMu.Lock()
+	defer session.decisionMu.Unlock()
+	state := session.decision
+	if state == nil || ack.GetSessionId() != session.sessionID || ack.GetDecisionId() != state.id || ack.GetDecision() != state.decision {
+		return errors.New("Cloud path decision acknowledgment is invalid")
+	}
+	if !state.acked {
+		state.acked = true
+		close(state.ack)
+	}
+	return nil
+}
+
+func (session *SignalSession) pathDecisionAcknowledged(state *signalPathDecision) bool {
+	session.decisionMu.Lock()
+	defer session.decisionMu.Unlock()
+	return session.decision == state && state.acked
+}
+
+func (session *SignalSession) pathDecisionTerminalError() error {
+	if err := session.Err(); err != nil {
+		return fmt.Errorf("Cloud signaling ended before path decision acknowledgment: %w", err)
+	}
+	return errors.New("Cloud signaling ended before path decision acknowledgment")
+}
+
+// ReleaseAndWait tears down a path that already received its confirmation ACK.
+// It closes the local stream only after Edge acknowledges Relay and runtime cleanup.
+func (session *SignalSession) ReleaseAndWait(ctx context.Context) error {
+	if session == nil || session.stream == nil || strings.TrimSpace(session.sessionID) == "" {
+		return errors.New("Cloud signaling session is unavailable")
+	}
+	if ctx == nil {
+		return errors.New("Cloud session release context is required")
+	}
+	state, err := session.beginSessionRelease()
+	if err != nil {
+		return err
+	}
+	stopCancellation := func() bool { return true }
+	if session.cancel != nil {
+		stopCancellation = context.AfterFunc(ctx, session.cancel)
+	}
+	defer stopCancellation()
+	for {
+		if session.sessionReleaseAcknowledged(state) {
+			return session.close()
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(fmt.Errorf("wait for Cloud session release acknowledgment: %w", context.Cause(ctx)), session.close())
+		case <-session.Done():
+			if session.sessionReleaseAcknowledged(state) {
+				return session.close()
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return errors.Join(fmt.Errorf("wait for Cloud session release acknowledgment: %w", cause), session.close())
+			}
+			return errors.Join(session.sessionReleaseTerminalError(), session.close())
+		default:
+		}
+		if err := session.sendSessionRelease(state); err != nil {
+			if session.sessionReleaseAcknowledged(state) {
+				return session.close()
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return errors.Join(fmt.Errorf("wait for Cloud session release acknowledgment: %w", cause), session.close())
+			}
+			return errors.Join(fmt.Errorf("send Cloud session release: %w", err), session.close())
+		}
+		timer := time.NewTimer(signalPathDecisionRetryInterval)
+		select {
+		case <-state.ack:
+			stopSignalDecisionTimer(timer)
+			return session.close()
+		case <-session.Done():
+			stopSignalDecisionTimer(timer)
+			if session.sessionReleaseAcknowledged(state) {
+				return session.close()
+			}
+			if cause := context.Cause(ctx); cause != nil {
+				return errors.Join(fmt.Errorf("wait for Cloud session release acknowledgment: %w", cause), session.close())
+			}
+			return errors.Join(session.sessionReleaseTerminalError(), session.close())
+		case <-ctx.Done():
+			stopSignalDecisionTimer(timer)
+			return errors.Join(fmt.Errorf("wait for Cloud session release acknowledgment: %w", context.Cause(ctx)), session.close())
+		case <-timer.C:
+		}
+	}
+}
+
+func (session *SignalSession) beginSessionRelease() (*signalSessionRelease, error) {
+	session.decisionMu.Lock()
+	confirmed := session.decision != nil && session.decision.acked &&
+		(session.decision.decision == cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_DIRECT ||
+			session.decision.decision == cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_RELAY)
+	session.decisionMu.Unlock()
+	if !confirmed {
+		return nil, errors.New("Cloud session cannot be released before path confirmation")
+	}
+	session.releaseMu.Lock()
+	defer session.releaseMu.Unlock()
+	if session.release == nil {
+		session.release = &signalSessionRelease{id: uuid.NewString(), ack: make(chan struct{})}
+	}
+	return session.release, nil
+}
+
+func (session *SignalSession) sendSessionRelease(state *signalSessionRelease) error {
+	session.sendMu.Lock()
+	defer session.sendMu.Unlock()
+	sequence := session.nextSendSeq
+	if sequence < 3 {
+		sequence = 3
+	}
+	session.nextSendSeq = sequence + 1
+	return session.stream.Send(&cloudv1.ClientSignal{
+		ProtocolVersion: cloudprotocol.ClientGatewayVersion, MessageId: uuid.NewString(), SenderId: session.senderID, BootId: session.bootID,
+		ConnectionId: session.sessionID, StreamSeq: sequence, SentAt: timestamppb.Now(),
+		Payload: &cloudv1.ClientSignal_SessionRelease{SessionRelease: &cloudv1.ClientSessionRelease{
+			SessionId: session.sessionID, ReleaseId: state.id,
+		}},
+	})
+}
+
+func (session *SignalSession) acceptSessionReleaseAck(ack *cloudv1.EdgeSessionReleaseAck) error {
+	session.releaseMu.Lock()
+	defer session.releaseMu.Unlock()
+	state := session.release
+	if state == nil || ack.GetSessionId() != session.sessionID || ack.GetReleaseId() != state.id {
+		return errors.New("Cloud session release acknowledgment is invalid")
+	}
+	if !state.acked {
+		state.acked = true
+		close(state.ack)
+	}
+	return nil
+}
+
+func (session *SignalSession) sessionReleaseAcknowledged(state *signalSessionRelease) bool {
+	session.releaseMu.Lock()
+	defer session.releaseMu.Unlock()
+	return session.release == state && state.acked
+}
+
+func (session *SignalSession) sessionReleaseTerminalError() error {
+	if err := session.Err(); err != nil {
+		return fmt.Errorf("Cloud signaling ended before session release acknowledgment: %w", err)
+	}
+	return errors.New("Cloud signaling ended before session release acknowledgment")
 }
 
 // Close 结束 ClientGateway 观察流并释放 Edge gRPC 连接；可以重复调用。
 func (session *SignalSession) Close() error {
+	return session.close()
+}
+
+// AbandonAndWait explicitly abandons the candidate and waits for its cleanup
+// ACK before releasing the underlying gRPC connection.
+func (session *SignalSession) AbandonAndWait(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("Cloud signaling close context is required")
+	}
+	decisionErr := session.AbandonPath(ctx)
+	return errors.Join(decisionErr, session.close())
+}
+
+// CloseAndWait is the ownership-close spelling of AbandonAndWait.
+func (session *SignalSession) CloseAndWait(ctx context.Context) error {
+	return session.AbandonAndWait(ctx)
+}
+
+func (session *SignalSession) close() error {
 	if session == nil {
 		return nil
 	}
 	session.closeOnce.Do(func() {
-		if session.stream != nil {
-			session.closeErr = session.stream.CloseSend()
-		}
+		// Cancel first: an in-flight gRPC Send owns sendMu and may otherwise wait
+		// forever on a dead network, preventing CloseSend from ever acquiring it.
 		if session.cancel != nil {
 			session.cancel()
 		}
+		if session.stream != nil {
+			session.sendMu.Lock()
+			session.closeErr = normalizeActiveSignalCloseError(session.stream.CloseSend())
+			session.sendMu.Unlock()
+		}
 		if session.connection != nil {
-			if err := session.connection.Close(); session.closeErr == nil {
+			if err := normalizeActiveSignalCloseError(session.connection.Close()); session.closeErr == nil {
 				session.closeErr = err
 			}
 		}
 		session.doneOnce.Do(func() { close(session.done) })
 	})
 	return session.closeErr
+}
+
+func normalizeActiveSignalCloseError(err error) error {
+	if err == nil || errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled {
+		return nil
+	}
+	return err
 }
 
 // NewClient 验证 Controller TLS locator；账号 session 在 R7 接入，但 R5 不允许使用明文或跳过证书校验。
@@ -502,13 +912,11 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	}()
 	// route racer 会在 winner 发布后取消 attempt context；ClientGateway 需要在 answer 前响应该取消，
 	// 成功后则改由 ReadyPeerSession lifecycle 持有，不能被 winner 自己的 attempt cancel 误关。
-	streamContext, cancelStream := context.WithCancel(context.WithoutCancel(ctx))
-	stopParentCancellation := context.AfterFunc(ctx, cancelStream)
+	streamContext, streamOwner := newSignalStreamOwner(ctx)
 	keepStream := false
 	defer func() {
 		if !keepStream {
-			_ = stopParentCancellation()
-			cancelStream()
+			streamOwner.Close()
 		}
 	}()
 	stream, err := cloudv1.NewClientGatewayClient(connection).Connect(streamContext)
@@ -637,14 +1045,13 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 		return nil, errors.New("Edge signaling answer is invalid")
 	}
 	reportTiming("edge_answer")
-	if !stopParentCancellation() || ctx.Err() != nil {
-		cancelStream()
-		return nil, ctx.Err()
+	if err := streamOwner.Retain(); err != nil {
+		return nil, err
 	}
 	closeConnection = false
 	keepStream = true
 	session := &SignalSession{
-		answer: proto.Clone(response.GetAnswer()).(*cloudv1.EdgeAnswer), connection: connection, stream: stream, cancel: cancelStream,
+		answer: proto.Clone(response.GetAnswer()).(*cloudv1.EdgeAnswer), connection: connection, stream: stream, cancel: streamOwner.cancel,
 		senderID: identity.Fingerprint, bootID: client.bootID, edgeID: challenge.GetEdgeId(), edgeBootID: challenge.GetEdgeBootId(), sessionID: sessionID, done: make(chan struct{}),
 	}
 	go session.watch()
@@ -657,13 +1064,17 @@ type edgeSignalReceiveResult struct {
 }
 
 func signalSessionCloseError(signal *cloudv1.EdgeSignal, edgeID, edgeBootID, sessionID string) (error, bool) {
+	return signalSessionCloseErrorAtSequence(signal, edgeID, edgeBootID, sessionID, 4)
+}
+
+func signalSessionCloseErrorAtSequence(signal *cloudv1.EdgeSignal, edgeID, edgeBootID, sessionID string, expectedSequence uint64) (error, bool) {
 	if signal == nil || signal.GetClosed() == nil {
 		return nil, false
 	}
 	closed := signal.GetClosed()
 	if signal.GetProtocolVersion() != cloudprotocol.ClientGatewayVersion || strings.TrimSpace(signal.GetMessageId()) == "" ||
 		signal.GetSenderId() != edgeID || signal.GetBootId() != edgeBootID || signal.GetConnectionId() != sessionID ||
-		signal.GetStreamSeq() != 4 || signal.GetSentAt() == nil || signal.GetSentAt().CheckValid() != nil ||
+		signal.GetStreamSeq() != expectedSequence || signal.GetSentAt() == nil || signal.GetSentAt().CheckValid() != nil ||
 		closed.GetSessionId() != sessionID || closed.GetCode() != cloudv1.SignalSessionCloseCode_SIGNAL_SESSION_CLOSE_CODE_ADMIN_DISCONNECT {
 		return errors.New("Cloud signaling session close is invalid"), true
 	}
@@ -768,7 +1179,11 @@ func (client *Client) dial(address, serverName string, caPEM []byte) (*grpc.Clie
 		}
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, ServerName: strings.TrimSpace(serverName), RootCAs: roots}
-	return grpc.NewClient(strings.TrimSpace(address), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	return grpc.NewClient(
+		strings.TrimSpace(address),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithKeepaliveParams(signalClientKeepaliveParameters()),
+	)
 }
 
 func (client *Client) dialPinned(address, serverName string, caCertificateDERFingerprint []byte) (*grpc.ClientConn, error) {
@@ -776,5 +1191,17 @@ func (client *Client) dialPinned(address, serverName string, caCertificateDERFin
 	if err != nil {
 		return nil, err
 	}
-	return grpc.NewClient(strings.TrimSpace(address), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	return grpc.NewClient(
+		strings.TrimSpace(address),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithKeepaliveParams(signalClientKeepaliveParameters()),
+	)
+}
+
+func signalClientKeepaliveParameters() keepalive.ClientParameters {
+	return keepalive.ClientParameters{
+		Time:                signalTransportKeepaliveTime,
+		Timeout:             signalTransportKeepaliveTimeout,
+		PermitWithoutStream: false,
+	}
 }

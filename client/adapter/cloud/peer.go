@@ -103,6 +103,7 @@ func openResolvedCloudPeerAttempt(
 	if report != nil {
 		report(clientruntime.EndpointPhaseConnecting)
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseSignaling, clientruntime.EndpointStageSignaling)
 	signalSession, err := cloud.Exchange(ctx, resolved, identity, signer, product, uint64(request.Stamp().Generation), attempt.preference, func(ctx context.Context, ready *cloudv1.ClientReady) (string, error) {
 		peerConfig := port.WebRTCConfig{Policy: attempt.icePolicy}
 		if relay := ready.GetRelay(); relay != nil {
@@ -117,6 +118,7 @@ func openResolvedCloudPeerAttempt(
 		if attempt.icePolicy == port.ICETransportRelayOnly && !hasManagedTURNServer(peerConfig.Servers) {
 			return "", errors.New("Cloud Relay-only attempt did not receive TURN material")
 		}
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStagePeerOpening)
 		openedPeer, openErr := peers.OpenCloudPeer(ctx, peerConfig)
 		if openErr != nil {
 			return "", fmt.Errorf("create Cloud WebRTC peer: %w", openErr)
@@ -127,6 +129,7 @@ func openResolvedCloudPeerAttempt(
 			closePeer()
 			return "", errors.New("Cloud WebRTC peer has no protocol DataChannel")
 		}
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageICEGathering)
 		offer, offerErr := peer.CreateOffer(ctx)
 		return offer, offerErr
 	})
@@ -148,6 +151,11 @@ func openResolvedCloudPeerAttempt(
 		if candidate != nil {
 			candidates = append(candidates, port.ICECandidate{Candidate: candidate.GetCandidate(), SDPMid: candidate.GetSdpMid(), SDPMLineIndex: candidate.GetSdpMlineIndex(), UsernameFragment: candidate.GetUsernameFragment()})
 		}
+	}
+	if attempt.icePolicy == port.ICETransportRelayOnly {
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageCloudRelayAttempt)
+	} else {
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageCloudP2PAttempt)
 	}
 	if err := peer.ApplyAnswer(peerContext, answer.GetAnswerSdp(), candidates); err != nil {
 		if signalErr, ended := cloudSignalTerminalError(signalSession); ended {
@@ -174,12 +182,19 @@ func openResolvedCloudPeerAttempt(
 	selectedPath := cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_DIRECT
 	if opened.path == endpoint.PathSingleRelay {
 		selectedPath = cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_RELAY
+		if attempt.icePolicy == port.ICETransportRelayOnly {
+			clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageCloudRelaySelected)
+		} else {
+			clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageCloudRelayFallback)
+		}
+	} else {
+		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageCloudDirectSelected)
 	}
 	if signalErr, ended := cloudSignalTerminalError(signalSession); ended {
 		_ = opened.Close()
 		return nil, signalErr
 	}
-	if err := signalSession.ConfirmPath(selectedPath); err != nil {
+	if err := signalSession.ConfirmPath(peerContext, selectedPath); err != nil {
 		if signalErr, ended := cloudSignalTerminalError(signalSession); ended {
 			_ = opened.Close()
 			return nil, signalErr

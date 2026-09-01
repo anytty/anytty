@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/sha256"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,6 +64,46 @@ func TestFileEntryResolvesSymlinkTargetTypeAndMetadata(t *testing.T) {
 	}
 	if string(preview.Content) != "hello" {
 		t.Fatalf("preview content = %q", preview.Content)
+	}
+	wantDigest := sha256.Sum256([]byte("hello"))
+	if string(preview.SHA256) != string(wantDigest[:]) {
+		t.Fatalf("preview digest = %x, want %x", preview.SHA256, wantDigest)
+	}
+}
+
+func TestFilePreviewResolvesSymlinkChainsAndRejectsLoops(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symbolic links requires additional Windows privileges")
+	}
+
+	root := t.TempDir()
+	target := filepath.Join(root, "target.txt")
+	second := filepath.Join(root, "second")
+	first := filepath.Join(root, "first")
+	if err := os.WriteFile(target, []byte("chain"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target.txt", second); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("second", first); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := filePreview(FilePreviewRequest{Path: first, MaxBytes: 32})
+	if err != nil || string(preview.Content) != "chain" {
+		t.Fatalf("chain preview = %#v, %v", preview, err)
+	}
+
+	loopA := filepath.Join(root, "loop-a")
+	loopB := filepath.Join(root, "loop-b")
+	if err := os.Symlink("loop-b", loopA); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("loop-a", loopB); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := filePreview(FilePreviewRequest{Path: loopA, MaxBytes: 32}); err == nil {
+		t.Fatal("symlink loop unexpectedly opened")
 	}
 }
 

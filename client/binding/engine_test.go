@@ -149,7 +149,13 @@ func TestEngineForwardsGoOwnedEndpointLifecycleBeforeOpenResult(t *testing.T) {
 	}
 	<-started
 	host.events <- clientruntime.EndpointEvent{EndpointID: "studio", Stamp: clientruntime.EndpointSessionStamp{EndpointID: "studio", Generation: 3}, Phase: clientruntime.EndpointPhasePlanning}
-	host.events <- clientruntime.EndpointEvent{EndpointID: "studio", Stamp: session.Stamp(), Phase: clientruntime.EndpointPhaseConnecting}
+	host.events <- clientruntime.EndpointEvent{
+		EndpointID:         "studio",
+		Stamp:              session.Stamp(),
+		Phase:              clientruntime.EndpointPhaseConnecting,
+		AttemptedRouteKind: endpoint.RouteManagedWebRTC,
+		ConnectionStage:    clientruntime.EndpointStageCloudP2PAttempt,
+	}
 	host.events <- clientruntime.EndpointEvent{EndpointID: "studio", Stamp: session.Stamp(), Phase: clientruntime.EndpointPhaseReady, ObservedPath: string(endpoint.PathSingleRelay), RouteSelectionReason: "only_viable"}
 
 	for _, want := range []bindingpb.EndpointConnectionPhase{
@@ -160,6 +166,10 @@ func TestEngineForwardsGoOwnedEndpointLifecycleBeforeOpenResult(t *testing.T) {
 		event := nextBindingEvent(t, engine).GetEndpointConnection()
 		if event.GetOperationHandle() != operation || event.GetRequestId() != "lifecycle" || event.GetEndpointId() != "studio" || event.GetPhase() != want {
 			t.Fatalf("endpoint lifecycle event = %#v, want phase %v", event, want)
+		}
+		if want == bindingpb.EndpointConnectionPhase_ENDPOINT_CONNECTION_PHASE_CONNECTING &&
+			(event.GetAttemptedRouteKind() != bindingpb.ConnectionRouteKind_CONNECTION_ROUTE_KIND_CLOUD || event.GetConnectionStage() != string(clientruntime.EndpointStageCloudP2PAttempt)) {
+			t.Fatalf("connecting lifecycle event = %#v", event)
 		}
 		if want == bindingpb.EndpointConnectionPhase_ENDPOINT_CONNECTION_PHASE_READY &&
 			(event.GetSession().GetGeneration() != 3 || event.GetObservedPath() != bindingpb.ConnectionObservedPath_CONNECTION_OBSERVED_PATH_SINGLE_RELAY || event.GetRouteSelectionReason() != "only_viable") {

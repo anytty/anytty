@@ -6,6 +6,10 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -21,7 +25,7 @@ type ptyProcessPlatform interface {
 	Close() error
 }
 
-func foregroundProcessSnapshot(rootPIDs []int) map[int]string {
+func foregroundProcessSnapshot(rootPIDs []int) map[int]foregroundProcessInfo {
 	if len(rootPIDs) == 0 {
 		return nil
 	}
@@ -29,7 +33,89 @@ func foregroundProcessSnapshot(rootPIDs []int) map[int]string {
 	if err != nil {
 		return nil
 	}
-	return parseForegroundProcesses(rootPIDs, out)
+	snapshots := parseForegroundProcessSnapshots(rootPIDs, out)
+	foregroundPIDs := make([]int, 0, len(snapshots))
+	for _, snapshot := range snapshots {
+		foregroundPIDs = append(foregroundPIDs, snapshot.PID)
+	}
+	workingDirectories := foregroundWorkingDirectories(foregroundPIDs)
+	for rootPID, snapshot := range snapshots {
+		snapshot.CWD = workingDirectories[snapshot.PID]
+		snapshots[rootPID] = snapshot
+	}
+	return snapshots
+}
+
+func foregroundWorkingDirectories(pids []int) map[int]string {
+	result := make(map[int]string, len(pids))
+	switch runtime.GOOS {
+	case "linux":
+		for _, pid := range pids {
+			path, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
+			if err == nil {
+				if normalized, ok := normalizeForegroundWorkingDirectory(path); ok {
+					result[pid] = normalized
+				}
+			}
+		}
+	case "darwin":
+		arguments := make([]string, 0, len(pids))
+		for _, pid := range pids {
+			if pid > 0 {
+				arguments = append(arguments, strconv.Itoa(pid))
+			}
+		}
+		if len(arguments) == 0 {
+			return result
+		}
+		out, err := exec.Command(
+			"lsof",
+			"-a",
+			"-p", strings.Join(arguments, ","),
+			"-d", "cwd",
+			"-Fpn",
+		).Output()
+		if err == nil {
+			return parseForegroundWorkingDirectories(out)
+		}
+	}
+	return result
+}
+
+func parseForegroundWorkingDirectories(output []byte) map[int]string {
+	result := make(map[int]string)
+	currentPID := 0
+	for _, line := range strings.Split(string(output), "\n") {
+		if len(line) < 2 {
+			continue
+		}
+		switch line[0] {
+		case 'p':
+			pid, err := strconv.Atoi(line[1:])
+			if err != nil || pid <= 0 {
+				currentPID = 0
+				continue
+			}
+			currentPID = pid
+		case 'n':
+			if currentPID == 0 {
+				continue
+			}
+			if normalized, ok := normalizeForegroundWorkingDirectory(line[1:]); ok {
+				result[currentPID] = normalized
+			}
+		}
+	}
+	return result
+}
+
+func normalizeForegroundWorkingDirectory(value string) (string, bool) {
+	if value == "" || len(value) > 4096 ||
+		strings.IndexFunc(value, func(r rune) bool { return r < 0x20 }) >= 0 ||
+		!filepath.IsAbs(value) {
+		return "", false
+	}
+	return filepath.Clean(value), true
 }
 
 type unixPTYProcessPlatform struct {

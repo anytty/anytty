@@ -135,7 +135,7 @@ func TestNativeScreenToProtoCoalescesAdjacentStyleRuns(t *testing.T) {
 	green := vterm.CellStyle{FG: "ansi:2"}
 	screen := NativeScreenToProto("machine", corev2.NativeScreenSnapshot{
 		TerminalID: "terminal",
-		Rows: []corev2.NativeScreenRow{{Cells: []vterm.Cell{
+		Rows: []corev2.NativeScreenRow{{Wrapped: true, Cells: []vterm.Cell{
 			{Content: "x", Width: 1, Style: green},
 			{Content: "y", Width: 1, Style: green},
 			{Content: "z", Width: 1},
@@ -144,6 +144,9 @@ func TestNativeScreenToProtoCoalescesAdjacentStyleRuns(t *testing.T) {
 	cells := screen.GetRowReplacements()[0].GetRow().GetCells()
 	if len(cells) != 2 || cells[0].GetContent() != "xy" || cells[0].GetWidth() != 2 || cells[1].GetContent() != "z" {
 		t.Fatalf("coalesced live runs = %#v", cells)
+	}
+	if !screen.GetRowReplacements()[0].GetRow().GetWrapped() {
+		t.Fatal("live soft-wrap marker was lost")
 	}
 }
 

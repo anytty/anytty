@@ -20,8 +20,9 @@ type NativeScreenSize struct {
 // NativeScreenRow 是 core-v2 对外暴露的 native screen 单行 cell matrix。
 // 这里保留 vterm cell 语义属性，protocol/TUI 只能把它当实时屏幕 projection，不能当 history truth。
 type NativeScreenRow struct {
-	Index int
-	Cells []vterm.Cell
+	Index   int
+	Cells   []vterm.Cell
+	Wrapped bool
 }
 
 // NativeScreenRowCopy reuses exact rows from the client's base screen. All

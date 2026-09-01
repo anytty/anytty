@@ -219,12 +219,44 @@ func TestEndpointSupervisorRejectsConflictingDemandAtSameRevision(t *testing.T) 
 	defer supervisor.Close()
 	replaceTestDemand(t, supervisor, 1, EndpointSupervisorShadow)
 	err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
-		AttachmentID:   "replacement",
+		AttachmentID:   "renderer",
 		DemandRevision: 1,
 		Endpoints:      []EndpointDemand{{EndpointID: "studio", Mode: EndpointSupervisorTakeover}},
 	})
 	if CodeOf(err) != ErrorStaleResource {
 		t.Fatalf("ReplaceDemand error = %v", err)
+	}
+}
+
+func TestEndpointSupervisorRejectsLateDemandFromDifferentAttachment(t *testing.T) {
+	supervisor := newTestEndpointSupervisor(t, newSupervisorController("studio", 0), nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 2, EndpointSupervisorTakeover)
+
+	err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
+		AttachmentID:   "retired-renderer",
+		DemandRevision: 99,
+		Endpoints:      nil,
+	})
+	if CodeOf(err) != ErrorStaleResource {
+		t.Fatalf("ReplaceDemand error = %v", err)
+	}
+	if mode := supervisor.Mode("studio"); mode != EndpointSupervisorTakeover {
+		t.Fatalf("mode = %q, want %q", mode, EndpointSupervisorTakeover)
+	}
+}
+
+func TestEndpointSupervisorRequiresDemandIdentity(t *testing.T) {
+	supervisor := newTestEndpointSupervisor(t, newSupervisorController("studio", 0), nil)
+	defer supervisor.Close()
+
+	for _, snapshot := range []EndpointDemandSnapshot{
+		{DemandRevision: 1},
+		{AttachmentID: "renderer"},
+	} {
+		if err := supervisor.ReplaceDemand(snapshot); CodeOf(err) != ErrorInvalidRequest {
+			t.Fatalf("ReplaceDemand(%#v) error = %v", snapshot, err)
+		}
 	}
 }
 

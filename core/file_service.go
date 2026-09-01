@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 const fileListLimitMax = 500
 const filePreviewMaxBytes = 4 << 20
+const filePreviewMaxSourceBytes = 64 << 20
 
 func fileList(params FileListRequest) (FileListResult, error) {
 	if result, handled, err := fileSystemRootList(params); handled {
@@ -74,6 +76,10 @@ func filePreview(params FilePreviewRequest) (FilePreviewResult, error) {
 	if err != nil {
 		return FilePreviewResult{}, err
 	}
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return FilePreviewResult{}, fmt.Errorf("resolve preview path: %w", err)
+	}
 	entry, err := fileEntry(path)
 	if err != nil {
 		return FilePreviewResult{}, err
@@ -85,11 +91,21 @@ func filePreview(params FilePreviewRequest) (FilePreviewResult, error) {
 	if limit <= 0 || limit > filePreviewMaxBytes {
 		limit = filePreviewMaxBytes
 	}
-	file, err := os.Open(path)
+	file, err := os.Open(resolvedPath)
 	if err != nil {
 		return FilePreviewResult{}, err
 	}
 	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return FilePreviewResult{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return FilePreviewResult{}, fmt.Errorf("preview requires a regular file")
+	}
+	if info.Size() < 0 || info.Size() > filePreviewMaxSourceBytes {
+		return FilePreviewResult{}, fmt.Errorf("preview source exceeds %d bytes", filePreviewMaxSourceBytes)
+	}
 	content, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
 		return FilePreviewResult{}, err
@@ -98,11 +114,44 @@ func filePreview(params FilePreviewRequest) (FilePreviewResult, error) {
 	if truncated {
 		content = content[:limit]
 	}
-	mimeType := mime.TypeByExtension(strings.ToLower(filepath.Ext(path)))
-	if mimeType == "" {
-		mimeType = http.DetectContentType(content)
+	mimeType := previewMIMEType(path, content)
+	if !supportedPreviewMIMEType(mimeType) {
+		return FilePreviewResult{}, fmt.Errorf("preview type %q is not supported", mimeType)
 	}
-	return FilePreviewResult{Entry: entry, MIMEType: mimeType, Content: content, Truncated: truncated}, nil
+	if strings.HasPrefix(mimeType, "image/") && truncated {
+		return FilePreviewResult{}, fmt.Errorf("image preview exceeds %d bytes", limit)
+	}
+	digest := sha256.Sum256(content)
+	return FilePreviewResult{Entry: entry, MIMEType: mimeType, Content: content, Truncated: truncated, SHA256: digest[:]}, nil
+}
+
+func previewMIMEType(path string, content []byte) string {
+	detected := normalizedMIMEType(http.DetectContentType(content))
+	extension := normalizedMIMEType(mime.TypeByExtension(strings.ToLower(filepath.Ext(path))))
+	if detected == "text/plain" && supportedPreviewMIMEType(extension) && !strings.HasPrefix(extension, "image/") {
+		return extension
+	}
+	return detected
+}
+
+func normalizedMIMEType(value string) string {
+	if separator := strings.IndexByte(value, ';'); separator >= 0 {
+		value = value[:separator]
+	}
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func supportedPreviewMIMEType(value string) bool {
+	if strings.HasPrefix(value, "text/") {
+		return true
+	}
+	switch value {
+	case "application/json", "application/xml", "application/yaml", "application/x-yaml",
+		"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp":
+		return true
+	default:
+		return false
+	}
 }
 
 func fileMkdir(params FilePathRequest) FileOperationResult {

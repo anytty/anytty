@@ -71,6 +71,8 @@ message TerminalInfo {
   string foreground_process = 15;
   // last_output_at_unix_nano 是该 terminal 最近一次产生非空 PTY 输出的时间。
   int64 last_output_at_unix_nano = 16;
+  // foreground_cwd 是 daemon 在查询时从 PTY 前台进程读取的真实工作目录。
+  string foreground_cwd = 17;
 }
 
 message TerminalCreateSpec {

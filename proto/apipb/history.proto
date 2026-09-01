@@ -79,6 +79,8 @@ message ScreenCell {
 message ScreenRow {
   repeated ScreenCell cells = 1;
   CellStyle tail_fill = 2;
+  // wrapped 表示本物理行通过终端软换行继续到下一行。
+  bool wrapped = 3;
 }
 
 message TerminalCursor {

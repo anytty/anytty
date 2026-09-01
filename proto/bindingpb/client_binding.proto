@@ -451,6 +451,12 @@ message EndpointConnectionEvent {
   ConnectionObservedPath observed_path = 6;
   string route_selection_reason = 7;
   anytty.api.v1.ApiError error = 8;
+  // attempted_route_kind identifies the concrete route whose live stage is
+  // being reported. It may differ between adjacent events in an AUTO race.
+  ConnectionRouteKind attempted_route_kind = 9;
+  // connection_stage is a stable runtime stage identifier. Display text and
+  // localization remain owned by the client UI.
+  string connection_stage = 10;
 }
 
 message EventEnvelope {

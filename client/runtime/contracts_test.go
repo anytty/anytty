@@ -37,6 +37,26 @@ func TestAttemptRequestBindsOneRouteAndGeneration(t *testing.T) {
 	}
 }
 
+func TestEndpointProgressReporterForwardsConcreteStages(t *testing.T) {
+	type reported struct {
+		phase EndpointPhase
+		stage EndpointConnectionStage
+	}
+	reports := make(chan reported, 1)
+	ctx := withEndpointProgressReporter(context.Background(), func(phase EndpointPhase, stage EndpointConnectionStage) {
+		reports <- reported{phase: phase, stage: stage}
+	})
+
+	ReportEndpointProgress(ctx, EndpointPhaseConnecting, EndpointStageCloudP2PAttempt)
+	got := <-reports
+	if got.phase != EndpointPhaseConnecting || got.stage != EndpointStageCloudP2PAttempt {
+		t.Fatalf("reported progress = %#v", got)
+	}
+
+	// Adapter helpers may also run outside SessionOwner-owned connection attempts.
+	ReportEndpointProgress(context.Background(), EndpointPhaseConnecting, EndpointStagePeerOpening)
+}
+
 func TestAttemptRequestDoesNotExposeMutableRegistryRoute(t *testing.T) {
 	target := endpoint.NewSSHEndpoint("studio", "Studio", "studio.example", "ssh:studio", "127.0.0.1:41120", "127.0.0.1:41121", endpoint.ConnectOnDemand)
 	request, err := NewAttemptRequest(target, "ssh", 3, ConnectIntentBackground)

@@ -8,6 +8,10 @@ func TestParseForegroundProcessUsesPTYForegroundGroupAndNormalizesAgent(t *testi
 	if !ok || process != "codex" {
 		t.Fatalf("foreground process = %q, %v", process, ok)
 	}
+	snapshot := parseForegroundProcessSnapshots([]int{100}, output)[100]
+	if snapshot.PID != 220 || snapshot.Process != "codex" {
+		t.Fatalf("foreground snapshot = %#v", snapshot)
+	}
 }
 
 func TestNormalizeForegroundProcessNameReturnsOnlyExecutableIdentity(t *testing.T) {

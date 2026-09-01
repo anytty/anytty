@@ -47,7 +47,13 @@ message FileTransferCancelCommand {
 
 message FileListResult { string path = 1; repeated FileEntry entries = 2; string next_cursor = 3; }
 message FileStatResult { FileEntry entry = 1; }
-message FilePreviewResult { FileEntry entry = 1; string mime_type = 2; bytes content = 3; bool truncated = 4; }
+message FilePreviewResult {
+  FileEntry entry = 1;
+  string mime_type = 2;
+  bytes content = 3;
+  bool truncated = 4;
+  bytes sha256 = 5;
+}
 message FileOperationResult { string path = 1; string target_path = 2; bool success = 3; string error_code = 4; string error_message = 5; }
 message FileBatchResult { repeated FileOperationResult results = 1; }
 

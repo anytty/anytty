@@ -394,7 +394,8 @@ func TerminalInfoToProto(endpointID string, info corev2.TerminalInfo, attachment
 		Tags: cloneStringMap(info.Tags), Size: TerminalSizeToProto(info.Size), State: state, Cwd: info.CWD, LiveCwd: info.LiveCWD,
 		CreatedAtUnixNano: unixNanoOrZero(info.CreatedAt), ExitedAtUnixNano: unixNanoOrZero(info.ExitedAt), AttachmentCount: int32(attachmentCount),
 		Resources: resources, ResourceHistory: resourceHistory,
-		ForegroundProcess: info.ForegroundProcess, LastOutputAtUnixNano: unixNanoOrZero(info.LastOutputAt),
+		ForegroundProcess: info.ForegroundProcess, ForegroundCwd: info.ForegroundCWD,
+		LastOutputAtUnixNano: unixNanoOrZero(info.LastOutputAt),
 	}
 	if info.ExitCode != nil {
 		if *info.ExitCode < math.MinInt32 || *info.ExitCode > math.MaxInt32 {

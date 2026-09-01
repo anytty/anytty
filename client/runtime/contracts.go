@@ -114,16 +114,68 @@ const (
 	EndpointPhaseOffline     EndpointPhase = "offline"
 )
 
+// EndpointConnectionStage describes a concrete, user-observable step inside a
+// single route attempt. Values are stable wire identifiers, not display text.
+type EndpointConnectionStage string
+
+const (
+	EndpointStageAttemptStarting        EndpointConnectionStage = "attempt_starting"
+	EndpointStageAttemptFailed          EndpointConnectionStage = "attempt_failed"
+	EndpointStageAuthorizationPreparing EndpointConnectionStage = "authorization_preparing"
+	EndpointStageCredentialResolving    EndpointConnectionStage = "credential_resolving"
+	EndpointStageSSHConnecting          EndpointConnectionStage = "ssh_connecting"
+	EndpointStageSSHTunnelReady         EndpointConnectionStage = "ssh_tunnel_ready"
+	EndpointStagePeerOpening            EndpointConnectionStage = "peer_opening"
+	EndpointStageICEGathering           EndpointConnectionStage = "ice_gathering"
+	EndpointStageSignaling              EndpointConnectionStage = "signaling"
+	EndpointStageICEConnecting          EndpointConnectionStage = "ice_connecting"
+	EndpointStageCloudCachedEdge        EndpointConnectionStage = "cloud_cached_edge"
+	EndpointStageCloudDiscovering       EndpointConnectionStage = "cloud_discovering"
+	EndpointStageCloudP2PAttempt        EndpointConnectionStage = "cloud_p2p_attempt"
+	EndpointStageCloudRelayAttempt      EndpointConnectionStage = "cloud_relay_attempt"
+	EndpointStageCloudDirectSelected    EndpointConnectionStage = "cloud_direct_selected"
+	EndpointStageCloudRelayFallback     EndpointConnectionStage = "cloud_relay_fallback"
+	EndpointStageCloudRelaySelected     EndpointConnectionStage = "cloud_relay_selected"
+	EndpointStageTransportAuthorizing   EndpointConnectionStage = "transport_authorizing"
+	EndpointStageProtocolOpening        EndpointConnectionStage = "protocol_opening"
+)
+
 // EndpointEvent 是 runtime lifecycle mailbox 发布的 endpoint-scoped 事件。
 // 事件不携带 credential、transport、protocol payload 或 terminal 内容。
 type EndpointEvent struct {
 	EndpointID           endpoint.EndpointID
 	Stamp                EndpointSessionStamp
 	Phase                EndpointPhase
+	AttemptedRouteKind   endpoint.RouteKind
+	ConnectionStage      EndpointConnectionStage
 	ObservedPath         string
 	RouteSelectionReason string
 	ErrorCode            ErrorCode
 	Message              string
+}
+
+type endpointProgressReporter func(EndpointPhase, EndpointConnectionStage)
+
+type endpointProgressReporterContextKey struct{}
+
+func withEndpointProgressReporter(ctx context.Context, reporter endpointProgressReporter) context.Context {
+	if ctx == nil || reporter == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, endpointProgressReporterContextKey{}, reporter)
+}
+
+// ReportEndpointProgress lets a route adapter publish a concrete stage through
+// the SessionOwner that created its attempt. Calls outside an owned attempt are
+// intentionally ignored.
+func ReportEndpointProgress(ctx context.Context, phase EndpointPhase, stage EndpointConnectionStage) {
+	if ctx == nil || stage == "" {
+		return
+	}
+	reporter, _ := ctx.Value(endpointProgressReporterContextKey{}).(endpointProgressReporter)
+	if reporter != nil {
+		reporter(phase, stage)
+	}
 }
 
 // Runtime 是 TUI、CLI 和未来平台 binding 消费的连接控制面 application interface。

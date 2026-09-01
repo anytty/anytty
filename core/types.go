@@ -106,6 +106,7 @@ type TerminalInfo struct {
 	Resources         TerminalResourceUsage
 	ResourceHistory   []TerminalResourceUsage
 	ForegroundProcess string
+	ForegroundCWD     string
 	LastOutputAt      time.Time
 }
 

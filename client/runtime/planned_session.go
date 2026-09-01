@@ -400,13 +400,34 @@ func (owner *SessionOwner) executeScheduledAttempt(ctx context.Context, index, g
 	if !ok || connector == nil {
 		return routeAttemptResult{index: index, group: group, request: request, err: runtimeError(ErrorUnsupportedRoute, fmt.Sprintf("route kind %q has no adapter", request.Route().Kind), nil)}
 	}
-	owner.publishEndpointEvent(EndpointEvent{EndpointID: request.EndpointID(), Stamp: request.Stamp(), Phase: EndpointPhaseConnecting})
+	routeKind := request.Route().Kind
+	publishProgress := func(phase EndpointPhase, stage EndpointConnectionStage) {
+		owner.publishEndpointEvent(EndpointEvent{
+			EndpointID:         request.EndpointID(),
+			Stamp:              request.Stamp(),
+			Phase:              phase,
+			AttemptedRouteKind: routeKind,
+			ConnectionStage:    stage,
+		})
+	}
+	publishProgress(EndpointPhaseConnecting, EndpointStageAttemptStarting)
+	ctx = withEndpointProgressReporter(ctx, publishProgress)
 	ready, err := connector.Connect(ctx, request)
 	if err != nil {
 		if ready != nil {
 			_ = ready.Close()
 		}
-		return routeAttemptResult{index: index, group: group, request: request, err: attemptedRuntimeError(err)}
+		attemptErr := attemptedRuntimeError(err)
+		owner.publishEndpointEvent(EndpointEvent{
+			EndpointID:         request.EndpointID(),
+			Stamp:              request.Stamp(),
+			Phase:              EndpointPhaseConnecting,
+			AttemptedRouteKind: routeKind,
+			ConnectionStage:    EndpointStageAttemptFailed,
+			ErrorCode:          CodeOf(attemptErr),
+			Message:            errorMessage(attemptErr),
+		})
+		return routeAttemptResult{index: index, group: group, request: request, err: attemptErr}
 	}
 	if err := ValidateReadyPeerSession(request, ready); err != nil {
 		if ready != nil {

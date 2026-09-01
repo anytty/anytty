@@ -65,8 +65,8 @@ func TestS2GatewayContracts(t *testing.T) {
 			t.Fatalf("%s.Connect must be bidirectional streaming", service.FullName())
 		}
 	}
-	assertEnvelopeFields(t, (&ClientSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "offer": 21, "path_selected": 22})
-	assertEnvelopeFields(t, (&EdgeSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "answer": 21, "rejected": 22, "challenge": 23, "closed": 24, "presence": 25})
+	assertEnvelopeFields(t, (&ClientSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "offer": 21, "path_decision": 22, "session_release": 23})
+	assertEnvelopeFields(t, (&EdgeSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "answer": 21, "rejected": 22, "challenge": 23, "closed": 24, "presence": 25, "path_decision_ack": 26, "session_release_ack": 27})
 	assertEnvelopeFields(t, (&AgentEvent{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "heartbeat": 21, "answer": 22, "rejected": 23, "authorization": 24, "lifecycle_result": 25})
 	assertEnvelopeFields(t, (&EdgeCommand{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "offer": 21, "authorize": 22, "challenge": 23, "lifecycle": 24, "edge_reselect": 25})
 	challenge := (&EdgeChallenge{}).ProtoReflect().Descriptor()

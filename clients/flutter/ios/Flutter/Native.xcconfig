@@ -1,0 +1,2 @@
+OTHER_LDFLAGS = $(inherited) -Wl,-u,_anytty_client_abi_version -Wl,-u,_anytty_terminal_input_abi_version -lresolv
+EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64

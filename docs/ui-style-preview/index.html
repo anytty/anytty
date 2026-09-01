@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#eef2f0" />
+    <title>AnyTTY UI Style Preview</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-theme="light">
+    <header class="preview-bar" aria-label="Preview controls">
+      <div class="preview-brand">
+        <span class="preview-mark"><i data-lucide="terminal-square"></i></span>
+        <span>AnyTTY <strong>UI Study</strong></span>
+      </div>
+      <nav class="preview-nav" aria-label="Preview pages">
+        <button class="preview-nav-item is-active" type="button" data-preview-nav="devices">设备</button>
+        <button class="preview-nav-item" type="button" data-preview-nav="terminals">终端</button>
+        <button class="preview-nav-item" type="button" data-preview-nav="console">工作区</button>
+        <button class="preview-nav-item" type="button" data-preview-nav="settings">设置</button>
+      </nav>
+      <div class="preview-actions">
+        <button class="icon-button" type="button" data-open-tuner aria-label="打开主题调色台" title="主题调色台">
+          <i data-lucide="palette"></i>
+        </button>
+        <button class="icon-button preview-theme" type="button" data-theme-toggle aria-label="切换深浅主题" title="切换深浅主题">
+          <i data-lucide="moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <div class="preview-stage">
+      <div class="phone" aria-label="AnyTTY mobile interface preview">
+        <div class="status-bar" aria-hidden="true">
+          <span>9:41</span>
+          <span class="status-icons">
+            <i data-lucide="signal"></i>
+            <i data-lucide="wifi"></i>
+            <i data-lucide="battery-full"></i>
+          </span>
+        </div>
+
+        <main class="app-shell">
+          <section class="screen is-active" data-screen="devices" aria-labelledby="devices-title">
+            <header class="app-header app-header-large">
+              <div>
+                <p class="eyebrow">ANYTTY</p>
+                <h1 id="devices-title">设备</h1>
+                <p class="header-subtitle">随时回到你的工作现场</p>
+              </div>
+              <div class="header-actions">
+                <button class="icon-button" type="button" data-refresh aria-label="刷新设备状态" title="刷新设备状态">
+                  <i data-lucide="refresh-cw"></i>
+                </button>
+                <button class="icon-button" type="button" data-nav="settings" aria-label="打开设置" title="设置">
+                  <i data-lucide="settings-2"></i>
+                </button>
+              </div>
+            </header>
+
+            <div class="screen-scroll devices-scroll">
+              <section class="connection-summary" aria-label="连接概况">
+                <div class="summary-leading">
+                  <span class="pulse-bars" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></span>
+                  <span><strong>2 台在线</strong><small>刚刚同步</small></span>
+                </div>
+                <button class="text-action" type="button" data-refresh>刷新</button>
+              </section>
+
+              <div class="section-heading">
+                <h2>我的设备</h2>
+                <span>3</span>
+              </div>
+
+              <div class="device-list">
+                <article class="device-card is-online" tabindex="0" role="button" data-nav="terminals" aria-label="打开 Studio Mac mini 的终端">
+                  <div class="activity-track" aria-hidden="true">
+                    <span class="device-icon"><i data-lucide="monitor"></i></span>
+                    <span class="track-line"></span>
+                    <span class="state-dot"></span>
+                  </div>
+                  <div class="device-content">
+                    <div class="device-title-row">
+                      <h3>Studio Mac mini</h3>
+                      <span class="status-label"><i data-lucide="circle-check"></i>在线</span>
+                    </div>
+                    <p>macOS · Cloud + Direct</p>
+                    <div class="device-stats">
+                      <span><b>6</b> 个终端</span>
+                      <span>CPU 18%</span>
+                      <span>内存 7.2 GB</span>
+                    </div>
+                  </div>
+                  <button class="more-button" type="button" data-more="Studio Mac mini" aria-label="Studio Mac mini 更多操作" title="更多操作">
+                    <i data-lucide="ellipsis"></i>
+                  </button>
+                </article>
+
+                <article class="device-card is-online" tabindex="0" role="button" data-nav="terminals" aria-label="打开 Office Linux 的终端">
+                  <div class="activity-track" aria-hidden="true">
+                    <span class="device-icon"><i data-lucide="server"></i></span>
+                    <span class="track-line"></span>
+                    <span class="state-dot"></span>
+                  </div>
+                  <div class="device-content">
+                    <div class="device-title-row">
+                      <h3>Office Linux</h3>
+                      <span class="status-label"><i data-lucide="circle-check"></i>在线</span>
+                    </div>
+                    <p>Ubuntu · SSH</p>
+                    <div class="device-stats">
+                      <span><b>3</b> 个终端</span>
+                      <span>CPU 7%</span>
+                      <span>内存 3.8 GB</span>
+                    </div>
+                  </div>
+                  <button class="more-button" type="button" data-more="Office Linux" aria-label="Office Linux 更多操作" title="更多操作">
+                    <i data-lucide="ellipsis"></i>
+                  </button>
+                </article>
+
+                <article class="device-card is-offline" tabindex="0" role="button" data-nav="terminals" aria-label="打开 Home PC 的终端">
+                  <div class="activity-track" aria-hidden="true">
+                    <span class="device-icon"><i data-lucide="monitor-dot"></i></span>
+                    <span class="track-line"></span>
+                    <span class="state-dot"></span>
+                  </div>
+                  <div class="device-content">
+                    <div class="device-title-row">
+                      <h3>Home PC</h3>
+                      <span class="status-label"><i data-lucide="circle-off"></i>离线</span>
+                    </div>
+                    <p>Windows · Cloud</p>
+                    <div class="device-stats">
+                      <span>上次在线 2 小时前</span>
+                    </div>
+                  </div>
+                  <button class="more-button" type="button" data-more="Home PC" aria-label="Home PC 更多操作" title="更多操作">
+                    <i data-lucide="ellipsis"></i>
+                  </button>
+                </article>
+              </div>
+            </div>
+
+            <button class="primary-fab" type="button" data-open-sheet="pair" aria-label="配对新设备">
+              <i data-lucide="scan-line"></i><span>配对设备</span>
+            </button>
+          </section>
+
+          <section class="screen" data-screen="terminals" aria-labelledby="terminals-title">
+            <header class="app-header compact-header">
+              <button class="icon-button" type="button" data-nav="devices" aria-label="返回设备列表" title="返回">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <button class="header-identity" type="button" data-nav="devices">
+                <span id="terminals-title">Studio Mac mini</span>
+                <small><i data-lucide="circle"></i>在线 · 6 个终端</small>
+              </button>
+              <div class="header-actions">
+                <button class="icon-button" type="button" data-refresh aria-label="刷新终端" title="刷新终端">
+                  <i data-lucide="refresh-cw"></i>
+                </button>
+                <button class="icon-button emphasized" type="button" data-open-sheet="terminal" aria-label="新建终端" title="新建终端">
+                  <i data-lucide="plus"></i>
+                </button>
+              </div>
+            </header>
+
+            <div class="screen-scroll terminal-list-scroll">
+              <section class="resource-strip" aria-label="资源概况">
+                <div class="resource-count"><span>运行中</span><strong>4</strong></div>
+                <button class="resource-cell" type="button" data-open-resources data-resource-name="Studio Mac mini" data-resource-cpu="18.4%" data-resource-memory="7.2 GB" aria-label="查看 CPU 采样曲线"><span>CPU</span><strong>18.4%</strong></button>
+                <button class="resource-cell" type="button" data-open-resources data-resource-name="Studio Mac mini" data-resource-cpu="18.4%" data-resource-memory="7.2 GB" aria-label="查看内存采样曲线"><span>内存</span><strong>7.2 GB</strong></button>
+              </section>
+
+              <div class="terminal-toolbar">
+                <div class="segmented compact-segmented" role="group" aria-label="终端状态筛选">
+                  <button class="is-selected" type="button" data-filter="running" aria-pressed="true">运行中 <b>4</b></button>
+                  <button type="button" data-filter="exited" aria-pressed="false">已结束 <b>2</b></button>
+                  <button type="button" data-filter="all" aria-pressed="false">全部</button>
+                </div>
+                <button class="icon-button filter-button" type="button" data-more="标签筛选" aria-label="按标签筛选" title="按标签筛选">
+                  <i data-lucide="list-filter"></i>
+                </button>
+              </div>
+
+              <div class="terminal-list">
+                <article class="terminal-card" tabindex="0" role="button" data-terminal-state="running" data-nav="console" aria-label="打开 api-server 终端">
+                  <div class="terminal-icon icon-coral"><i data-lucide="boxes"></i><span></span></div>
+                  <div class="terminal-content">
+                    <div class="terminal-title"><h3>api-server</h3><i data-lucide="pin"></i></div>
+                    <p>go · ~/work/anytty</p>
+                    <div class="terminal-foot"><span class="live-label">运行中</span><button class="terminal-resource-link" type="button" data-open-resources data-resource-name="api-server" data-resource-cpu="12.6%" data-resource-memory="1.8 GB">CPU 12.6% · 1.8 GB</button></div>
+                  </div>
+                  <button class="more-button" type="button" data-more="api-server" aria-label="api-server 更多操作" title="更多操作"><i data-lucide="ellipsis-vertical"></i></button>
+                </article>
+
+                <article class="terminal-card" tabindex="0" role="button" data-terminal-state="running" data-nav="console" aria-label="打开 codex 终端">
+                  <div class="terminal-icon icon-teal"><i data-lucide="sparkles"></i><span></span></div>
+                  <div class="terminal-content">
+                    <div class="terminal-title"><h3>codex</h3></div>
+                    <p>codex · ~/work/anytty</p>
+                    <div class="terminal-foot"><span class="live-label">运行中</span><button class="terminal-resource-link" type="button" data-open-resources data-resource-name="codex" data-resource-cpu="3.2%" data-resource-memory="620 MB">CPU 3.2% · 620 MB</button></div>
+                  </div>
+                  <button class="more-button" type="button" data-more="codex" aria-label="codex 更多操作" title="更多操作"><i data-lucide="ellipsis-vertical"></i></button>
+                </article>
+
+                <article class="terminal-card" tabindex="0" role="button" data-terminal-state="running" data-nav="console" aria-label="打开 logs 终端">
+                  <div class="terminal-icon icon-amber"><i data-lucide="scroll-text"></i><span></span></div>
+                  <div class="terminal-content">
+                    <div class="terminal-title"><h3>logs</h3></div>
+                    <p>tail · /var/log/anytty.log</p>
+                    <div class="terminal-foot"><span class="live-label">运行中</span><button class="terminal-resource-link" type="button" data-open-resources data-resource-name="logs" data-resource-cpu="0.4%" data-resource-memory="86 MB">CPU 0.4% · 86 MB</button></div>
+                  </div>
+                  <button class="more-button" type="button" data-more="logs" aria-label="logs 更多操作" title="更多操作"><i data-lucide="ellipsis-vertical"></i></button>
+                </article>
+
+                <article class="terminal-card is-exited" tabindex="0" role="button" data-terminal-state="exited" data-nav="console" aria-label="打开 build 终端">
+                  <div class="terminal-icon icon-neutral"><i data-lucide="hammer"></i><span></span></div>
+                  <div class="terminal-content">
+                    <div class="terminal-title"><h3>release-build</h3></div>
+                    <p>flutter · ~/work/anytty/clients</p>
+                    <div class="terminal-foot"><span class="exited-label">已结束 · 0</span><span>18 分钟前</span></div>
+                  </div>
+                  <button class="more-button" type="button" data-more="release-build" aria-label="release-build 更多操作" title="更多操作"><i data-lucide="ellipsis-vertical"></i></button>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section class="screen console-screen" data-screen="console" aria-labelledby="console-title">
+            <header class="console-header">
+              <button class="icon-button console-button" type="button" data-nav="terminals" aria-label="返回终端列表" title="返回">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <button class="console-identity" type="button" data-nav="terminals">
+                <span id="console-title">api-server <i data-lucide="chevron-down"></i></span>
+                <small>Studio Mac mini · ~/work/anytty</small>
+              </button>
+              <div class="console-actions">
+                <button class="icon-button console-button" type="button" data-more="文件" aria-label="打开文件管理器" title="文件"><i data-lucide="folder-open"></i></button>
+                <button class="icon-button console-button" type="button" data-more="终端工具" aria-label="打开终端工具" title="终端工具"><i data-lucide="panels-top-left"></i></button>
+              </div>
+            </header>
+
+            <div class="terminal-surface" aria-label="终端输出">
+              <div class="terminal-output" data-terminal-output>
+                <p><span class="prompt">lozzow@studio</span> <span class="path">~/work/anytty</span> $ go test ./core/...</p>
+                <p class="dim">ok&nbsp;&nbsp;&nbsp;github.com/anytty/anytty/core&nbsp;&nbsp;&nbsp;2.842s</p>
+                <p><span class="prompt">lozzow@studio</span> <span class="path">~/work/anytty</span> $ go run ./cmd/anytty serve</p>
+                <p><span class="cyan">INFO</span>&nbsp; control plane ready <span class="dim">addr=127.0.0.1:8022</span></p>
+                <p><span class="cyan">INFO</span>&nbsp; cloud route connected <span class="dim">region=sin1</span></p>
+                <p><span class="amber">WARN</span>&nbsp; direct route retrying <span class="dim">attempt=2</span></p>
+                <p><span class="cyan">INFO</span>&nbsp; direct route ready <span class="dim">latency=18ms</span></p>
+                <p class="spacer-line"></p>
+                <p><span class="prompt">lozzow@studio</span> <span class="path">~/work/anytty</span> $ <span class="cursor-block" aria-hidden="true"></span></p>
+              </div>
+              <div class="edge-history" aria-hidden="true"><span></span></div>
+            </div>
+
+            <div class="quick-keys" aria-label="快捷键">
+              <button type="button">esc</button><button type="button">tab</button><button type="button">ctrl</button><button type="button">alt</button><button type="button"><i data-lucide="arrow-up"></i></button><button type="button"><i data-lucide="arrow-down"></i></button><button type="button"><i data-lucide="more-horizontal"></i></button>
+            </div>
+            <form class="command-bar" data-command-form>
+              <button class="icon-button command-tool" type="button" data-more="快捷命令" aria-label="快捷命令" title="快捷命令"><i data-lucide="command"></i></button>
+              <label class="sr-only" for="command-input">终端命令</label>
+              <input id="command-input" name="command" autocomplete="off" placeholder="输入命令" />
+              <button class="send-button" type="submit" aria-label="发送命令" title="发送命令"><i data-lucide="arrow-up"></i></button>
+            </form>
+
+            <div class="petal-overlay" data-petal-menu hidden aria-label="终端花瓣菜单">
+              <div class="petal-canvas" data-petal-canvas>
+                <svg class="petal-guides" viewBox="0 0 220 220" aria-hidden="true">
+                  <line x1="110" y1="110" x2="110" y2="26"></line>
+                  <line x1="110" y1="110" x2="190" y2="84"></line>
+                  <line x1="110" y1="110" x2="159" y2="178"></line>
+                  <line x1="110" y1="110" x2="61" y2="178"></line>
+                  <line x1="110" y1="110" x2="30" y2="84"></line>
+                </svg>
+                <button class="petal-node petal-history" type="button" data-petal-action="History"><i data-lucide="history"></i><span>History</span></button>
+                <button class="petal-node petal-search" type="button" data-petal-action="Search"><i data-lucide="search"></i><span>Search</span></button>
+                <button class="petal-node petal-more" type="button" data-petal-action="More"><i data-lucide="ellipsis"></i><span>More</span><b aria-hidden="true"></b></button>
+                <button class="petal-node petal-select" type="button" data-petal-action="Select"><i data-lucide="scan-text"></i><span>Select</span></button>
+                <button class="petal-node petal-paste" type="button" data-petal-action="Paste"><i data-lucide="clipboard-paste"></i><span>Paste</span></button>
+                <button class="petal-cancel" type="button" data-close-petal aria-label="关闭花瓣菜单"><i data-lucide="x"></i></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="screen" data-screen="settings" aria-labelledby="settings-title">
+            <header class="app-header compact-header">
+              <button class="icon-button" type="button" data-nav="devices" aria-label="返回设备列表" title="返回">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <div class="header-identity static-identity">
+                <span id="settings-title">设置</span>
+                <small>外观与终端</small>
+              </div>
+              <span class="header-spacer"></span>
+            </header>
+
+            <div class="screen-scroll settings-scroll">
+              <section class="settings-section">
+                <div class="section-heading settings-heading"><h2>外观</h2></div>
+                <div class="segmented appearance-picker" role="group" aria-label="外观模式">
+                  <button type="button" data-appearance="light" aria-pressed="true"><i data-lucide="sun"></i><span>浅色</span></button>
+                  <button class="is-selected" type="button" data-appearance="system" aria-pressed="false"><i data-lucide="smartphone"></i><span>跟随系统</span></button>
+                  <button type="button" data-appearance="dark" aria-pressed="false"><i data-lucide="moon"></i><span>深色</span></button>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <div class="section-heading settings-heading"><h2>终端</h2></div>
+                <div class="terminal-preview" aria-label="终端外观预览">
+                  <div class="preview-window-bar"><span></span><span></span><span></span><b>~/work/anytty</b></div>
+                  <div class="preview-code"><p><i>~</i> anytty connect studio</p><p><b>connected</b> via direct · 18ms</p><p><i>~</i> <span class="cursor-block"></span></p></div>
+                </div>
+                <div class="settings-group">
+                  <button class="settings-row" type="button" data-more="终端字体">
+                    <span class="settings-icon"><i data-lucide="type"></i></span><span class="settings-copy"><strong>终端字体</strong><small>JetBrains Mono Nerd</small></span><span class="row-value">14</span><i data-lucide="chevron-right"></i>
+                  </button>
+                  <button class="settings-row" type="button" data-more="终端主题">
+                    <span class="settings-icon"><i data-lucide="palette"></i></span><span class="settings-copy"><strong>终端主题</strong><small>AnyTTY Graphite</small></span><span class="theme-swatches" aria-hidden="true"><b></b><b></b><b></b><b></b></span><i data-lucide="chevron-right"></i>
+                  </button>
+                  <button class="settings-row" type="button" data-nav="petal-settings">
+                    <span class="settings-icon"><i data-lucide="flower-2"></i></span><span class="settings-copy"><strong>花瓣菜单</strong><small data-petal-settings-status>已启用 10 个操作</small></span><i data-lucide="chevron-right"></i>
+                  </button>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <div class="section-heading settings-heading"><h2>连接</h2></div>
+                <div class="settings-group">
+                  <div class="settings-row non-button-row">
+                    <span class="settings-icon"><i data-lucide="radio-tower"></i></span><span class="settings-copy"><strong>后台连接</strong><small>切换应用时保持会话</small></span>
+                    <button class="toggle is-on" type="button" role="switch" aria-checked="true" aria-label="后台连接"><span></span></button>
+                  </div>
+                  <div class="settings-row non-button-row">
+                    <span class="settings-icon"><i data-lucide="bell"></i></span><span class="settings-copy"><strong>终端通知</strong><small>进程结束时提醒</small></span>
+                    <button class="toggle" type="button" role="switch" aria-checked="false" aria-label="终端通知"><span></span></button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="screen petal-settings-screen" data-screen="petal-settings" aria-labelledby="petal-settings-title">
+            <header class="app-header compact-header petal-settings-header">
+              <button class="icon-button" type="button" data-nav="settings" aria-label="返回设置" title="返回">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <div class="header-identity static-identity">
+                <span id="petal-settings-title">花瓣菜单</span>
+                <small>终端长按操作</small>
+              </div>
+              <button class="icon-button" type="button" data-reset-petal-layout aria-label="恢复花瓣菜单默认布局" title="恢复默认">
+                <i data-lucide="rotate-ccw"></i>
+              </button>
+            </header>
+
+            <div class="screen-scroll petal-settings-scroll">
+              <section class="petal-preferences" aria-label="花瓣菜单偏好">
+                <div class="petal-preference-row">
+                  <span class="settings-icon"><i data-lucide="flower-2"></i></span>
+                  <span class="settings-copy"><strong>长按花瓣菜单</strong><small>终端区域内启用</small></span>
+                  <button class="toggle is-on" type="button" role="switch" aria-checked="true" aria-label="长按花瓣菜单"><span></span></button>
+                </div>
+                <div class="petal-preference-row">
+                  <span class="settings-icon"><i data-lucide="vibrate"></i></span>
+                  <span class="settings-copy"><strong>触觉反馈</strong><small>拖动和放置时反馈</small></span>
+                  <button class="toggle is-on" type="button" role="switch" aria-checked="true" aria-label="花瓣菜单触觉反馈"><span></span></button>
+                </div>
+              </section>
+
+              <section class="petal-editor-section" aria-labelledby="active-petals-title">
+                <div class="petal-section-heading">
+                  <h2 id="active-petals-title">当前菜单</h2>
+                  <span data-petal-ring-count>5 / 8</span>
+                </div>
+                <div class="petal-layout-panel">
+                  <header class="petal-layout-header">
+                    <span class="petal-ring-mark"><i data-lucide="flower-2"></i></span>
+                    <span><strong data-petal-ring-title>主菜单</strong><small data-petal-ring-level>第 1 层</small></span>
+                  </header>
+                  <div class="petal-editor-stage" data-petal-editor-stage>
+                    <svg class="petal-editor-guides" data-petal-editor-guides viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+                    <div class="petal-editor-slots" data-petal-editor-slots></div>
+                    <div class="petal-editor-nodes" data-petal-editor-nodes></div>
+                    <button class="petal-editor-hub" type="button" data-petal-editor-hub aria-label="主菜单">
+                      <i data-lucide="flower-2"></i><span>主菜单</span>
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="petal-library" data-petal-library-drop aria-labelledby="petal-library-title">
+                <div class="petal-section-heading">
+                  <h2 id="petal-library-title">可用动作</h2>
+                  <span data-petal-library-count>6</span>
+                </div>
+                <div class="petal-action-grid" data-petal-action-library></div>
+              </section>
+            </div>
+          </section>
+        </main>
+
+        <div class="home-indicator" aria-hidden="true"></div>
+
+        <div class="sheet-backdrop" data-sheet-backdrop hidden>
+          <section class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <header class="sheet-header">
+              <div><p class="eyebrow">安全连接</p><h2 id="sheet-title" data-sheet-title>配对设备</h2></div>
+              <button class="icon-button" type="button" data-close-sheet aria-label="关闭" title="关闭"><i data-lucide="x"></i></button>
+            </header>
+            <div data-sheet-pair>
+              <div class="pair-visual" aria-hidden="true"><i data-lucide="scan-qr-code"></i><span class="scan-corner c1"></span><span class="scan-corner c2"></span><span class="scan-corner c3"></span><span class="scan-corner c4"></span></div>
+              <p class="sheet-copy">扫描设备上的配对码，或粘贴一次性连接代码。</p>
+              <label class="field-label" for="pair-code">连接代码</label>
+              <div class="input-row"><input id="pair-code" inputmode="text" placeholder="ANYT-7K2M-9Q4P" /><button class="secondary-button" type="button" data-sheet-action>连接</button></div>
+            </div>
+            <div data-sheet-terminal hidden>
+              <label class="field-label" for="terminal-name">终端名称</label>
+              <input class="full-input" id="terminal-name" value="new-session" />
+              <label class="field-label" for="terminal-command">启动命令</label>
+              <input class="full-input mono-input" id="terminal-command" value="zsh -l" />
+              <button class="primary-button" type="button" data-sheet-action>创建终端</button>
+            </div>
+          </section>
+        </div>
+
+        <div class="resource-backdrop" data-resource-backdrop hidden>
+          <section class="resource-sheet" role="dialog" aria-modal="true" aria-labelledby="resource-title">
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <header class="resource-header">
+              <div><p class="eyebrow">64 次采样</p><h2 id="resource-title" data-resource-title>api-server</h2><small>资源快照 · 最近 60 秒</small></div>
+              <button class="icon-button" type="button" data-close-resources aria-label="关闭资源采样曲线" title="关闭"><i data-lucide="x"></i></button>
+            </header>
+            <div class="resource-current" aria-label="当前资源使用情况">
+              <div><span><i data-lucide="cpu"></i>CPU</span><strong data-current-cpu>12.6%</strong><small>process 8421</small></div>
+              <div><span><i data-lucide="memory-stick"></i>内存</span><strong data-current-memory>1.8 GB</strong><small>resident usage</small></div>
+            </div>
+            <section class="chart-section cpu-chart" aria-labelledby="cpu-chart-title">
+              <header><span id="cpu-chart-title">CPU 历史</span><strong data-chart-cpu>12.6%</strong></header>
+              <svg class="resource-chart" viewBox="0 0 340 106" role="img" aria-label="CPU 最近 60 秒采样曲线">
+                <defs><linearGradient id="cpu-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"></stop><stop offset="1" stop-color="currentColor" stop-opacity="0"></stop></linearGradient></defs>
+                <g class="chart-grid"><line x1="0" y1="18" x2="340" y2="18"></line><line x1="0" y1="51" x2="340" y2="51"></line><line x1="0" y1="84" x2="340" y2="84"></line></g>
+                <path class="chart-area" d="M0 80 L14 75 L28 77 L42 68 L56 72 L70 64 L84 67 L98 55 L112 61 L126 48 L140 57 L154 52 L168 65 L182 58 L196 62 L210 43 L224 51 L238 47 L252 55 L266 40 L280 49 L294 42 L308 46 L322 35 L340 39 L340 96 L0 96 Z"></path>
+                <path class="chart-line" d="M0 80 L14 75 L28 77 L42 68 L56 72 L70 64 L84 67 L98 55 L112 61 L126 48 L140 57 L154 52 L168 65 L182 58 L196 62 L210 43 L224 51 L238 47 L252 55 L266 40 L280 49 L294 42 L308 46 L322 35 L340 39"></path>
+                <circle class="chart-point" cx="340" cy="39" r="3.5"></circle>
+              </svg>
+              <div class="chart-axis" aria-hidden="true"><span>-60s</span><span>-30s</span><span>现在</span></div>
+            </section>
+            <section class="chart-section memory-chart" aria-labelledby="memory-chart-title">
+              <header><span id="memory-chart-title">内存历史</span><strong data-chart-memory>1.8 GB</strong></header>
+              <svg class="resource-chart" viewBox="0 0 340 106" role="img" aria-label="内存最近 60 秒采样曲线">
+                <defs><linearGradient id="memory-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".24"></stop><stop offset="1" stop-color="currentColor" stop-opacity="0"></stop></linearGradient></defs>
+                <g class="chart-grid"><line x1="0" y1="18" x2="340" y2="18"></line><line x1="0" y1="51" x2="340" y2="51"></line><line x1="0" y1="84" x2="340" y2="84"></line></g>
+                <path class="chart-area" d="M0 76 L14 74 L28 73 L42 69 L56 70 L70 67 L84 66 L98 63 L112 64 L126 60 L140 59 L154 57 L168 55 L182 53 L196 49 L210 48 L224 44 L238 43 L252 40 L266 38 L280 37 L294 34 L308 31 L322 30 L340 27 L340 96 L0 96 Z"></path>
+                <path class="chart-line" d="M0 76 L14 74 L28 73 L42 69 L56 70 L70 67 L84 66 L98 63 L112 64 L126 60 L140 59 L154 57 L168 55 L182 53 L196 49 L210 48 L224 44 L238 43 L252 40 L266 38 L280 37 L294 34 L308 31 L322 30 L340 27"></path>
+                <circle class="chart-point" cx="340" cy="27" r="3.5"></circle>
+              </svg>
+              <div class="chart-axis" aria-hidden="true"><span>-60s</span><span>-30s</span><span>现在</span></div>
+            </section>
+            <p class="resource-note"><i data-lucide="info"></i>数值来自最近一次终端清单快照</p>
+          </section>
+        </div>
+
+        <div class="toast" role="status" aria-live="polite" hidden><i data-lucide="circle-check"></i><span></span><button type="button" data-undo-petal hidden>撤销</button></div>
+      </div>
+    </div>
+
+    <button class="mobile-tuner-button" type="button" data-open-tuner aria-label="打开主题调色台" title="主题调色台">
+      <i data-lucide="palette"></i>
+    </button>
+
+    <div class="tuner-backdrop" data-tuner-backdrop hidden></div>
+    <aside class="theme-tuner" data-theme-tuner hidden aria-labelledby="tuner-title">
+      <header class="tuner-header">
+        <div><p class="eyebrow">LIVE TOKENS</p><h2 id="tuner-title">主题调色台</h2></div>
+        <button class="icon-button" type="button" data-close-tuner aria-label="关闭主题调色台" title="关闭"><i data-lucide="x"></i></button>
+      </header>
+
+      <div class="tuner-mode segmented" role="group" aria-label="预览模式">
+        <button type="button" data-tuner-theme="light" aria-pressed="true"><i data-lucide="sun"></i>浅色</button>
+        <button class="is-selected" type="button" data-tuner-theme="dark" aria-pressed="false"><i data-lucide="moon"></i>深色</button>
+      </div>
+
+      <section class="tuner-section">
+        <div class="tuner-section-title"><h3>颜色方向</h3><span>点击立即预览</span></div>
+        <div class="preset-grid" role="group" aria-label="主题颜色预设">
+          <button class="preset is-selected" type="button" data-preset="cyan" aria-pressed="true"><span style="--swatch:#32d5d0"></span><b>亮青</b></button>
+          <button class="preset" type="button" data-preset="sky" aria-pressed="false"><span style="--swatch:#32b9ef"></span><b>天蓝</b></button>
+          <button class="preset" type="button" data-preset="mint" aria-pressed="false"><span style="--swatch:#42ddb0"></span><b>薄荷</b></button>
+          <button class="preset" type="button" data-preset="iris" aria-pressed="false"><span style="--swatch:#819cff"></span><b>蓝紫</b></button>
+        </div>
+      </section>
+
+      <section class="tuner-section tuner-fields">
+        <div class="tuner-section-title"><h3>颜色令牌</h3><span>可自由微调</span></div>
+        <div class="token-switch segmented" role="group" aria-label="选择要调整的颜色令牌">
+          <button class="is-selected" type="button" data-rgb-token="accent" aria-pressed="true">强调色</button>
+          <button type="button" data-rgb-token="background" aria-pressed="false">背景</button>
+          <button type="button" data-rgb-token="surface" aria-pressed="false">表面</button>
+        </div>
+        <div class="rgb-editor">
+          <div class="rgb-summary">
+            <span class="rgb-preview" data-rgb-preview aria-hidden="true"></span>
+            <span><b data-rgb-name>强调色</b><small data-rgb-hex>#32D5D0</small></span>
+          </div>
+          <div class="color-plane" data-color-plane role="slider" tabindex="0" aria-label="颜色饱和度和明度" aria-valuetext="#32D5D0">
+            <span class="color-plane-thumb" data-color-plane-thumb aria-hidden="true"></span>
+          </div>
+          <label class="hue-control"><span class="sr-only">色相</span><input type="range" min="0" max="360" step="1" value="178" data-hue-range aria-label="色相" /></label>
+          <div class="rgb-numbers" aria-label="RGB 精确数值">
+            <label><b>R</b><input type="number" min="0" max="255" step="1" value="50" inputmode="numeric" data-rgb-channel="r" aria-label="红色通道" /></label>
+            <label><b>G</b><input type="number" min="0" max="255" step="1" value="213" inputmode="numeric" data-rgb-channel="g" aria-label="绿色通道" /></label>
+            <label><b>B</b><input type="number" min="0" max="255" step="1" value="208" inputmode="numeric" data-rgb-channel="b" aria-label="蓝色通道" /></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="tuner-section">
+        <div class="range-heading"><label for="radius-range">整体圆角</label><output for="radius-range" data-radius-output>14 px</output></div>
+        <input class="range-control" id="radius-range" type="range" min="8" max="22" step="1" value="14" data-radius-range />
+        <div class="range-scale" aria-hidden="true"><span>利落</span><span>柔和</span></div>
+      </section>
+
+      <footer class="tuner-footer">
+        <button class="export-button" type="button" data-export-config><i data-lucide="copy"></i>导出配置</button>
+        <pre class="config-output" data-config-output hidden tabindex="0" aria-label="已导出的主题配置"></pre>
+        <button class="reset-button" type="button" data-tuner-reset><i data-lucide="rotate-ccw"></i>恢复当前方案</button>
+        <p>导出后直接把配置文本发给我。</p>
+      </footer>
+    </aside>
+
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

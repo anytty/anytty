@@ -313,6 +313,21 @@ func parseForegroundProcess(rootPID int, output []byte) (string, bool) {
 }
 
 func parseForegroundProcesses(rootPIDs []int, output []byte) map[int]string {
+	snapshots := parseForegroundProcessSnapshots(rootPIDs, output)
+	result := make(map[int]string, len(snapshots))
+	for rootPID, snapshot := range snapshots {
+		result[rootPID] = snapshot.Process
+	}
+	return result
+}
+
+type foregroundProcessInfo struct {
+	PID     int
+	Process string
+	CWD     string
+}
+
+func parseForegroundProcessSnapshots(rootPIDs []int, output []byte) map[int]foregroundProcessInfo {
 	type row struct {
 		pid     int
 		tpgid   int
@@ -342,7 +357,7 @@ func parseForegroundProcesses(rootPIDs []int, output []byte) map[int]string {
 			rootForegroundGroups[pid] = tpgid
 		}
 	}
-	result := make(map[int]string, len(rootForegroundGroups))
+	result := make(map[int]foregroundProcessInfo, len(rootForegroundGroups))
 	for rootPID, group := range rootForegroundGroups {
 		if group <= 0 {
 			continue
@@ -352,7 +367,10 @@ func parseForegroundProcesses(rootPIDs []int, output []byte) map[int]string {
 			continue
 		}
 		if process, ok := normalizeForegroundProcessName(foreground.command); ok {
-			result[rootPID] = process
+			result[rootPID] = foregroundProcessInfo{
+				PID:     foreground.pid,
+				Process: process,
+			}
 		}
 	}
 	return result

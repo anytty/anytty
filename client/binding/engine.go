@@ -825,6 +825,8 @@ func endpointConnectionEvent(handle uint64, requestID string, event clientruntim
 		RequestId: requestID, OperationHandle: handle, EndpointId: string(event.EndpointID),
 		Phase: endpointConnectionPhase(event.Phase), ObservedPath: bindingObservedPath(event.ObservedPath),
 		RouteSelectionReason: event.RouteSelectionReason,
+		AttemptedRouteKind:   bindingRouteKind(event.AttemptedRouteKind),
+		ConnectionStage:      string(event.ConnectionStage),
 	}
 	if event.Stamp.Generation.Valid() {
 		value.Session = runtimeStampToProto(event.Stamp)

@@ -24,7 +24,7 @@ type ptyProcessPlatform interface {
 	Close() error
 }
 
-func foregroundProcessSnapshot([]int) map[int]string { return nil }
+func foregroundProcessSnapshot([]int) map[int]foregroundProcessInfo { return nil }
 
 type windowsPTYProcessPlatform struct {
 	process     *os.Process

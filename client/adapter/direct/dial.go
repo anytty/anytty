@@ -99,6 +99,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		log.Printf("anytty direct connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, name, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
 		lastAt = now
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageAuthorizationPreparing)
 	prepared, err := dialer.Authorization.Prepare(ctx, request)
 	if err != nil {
 		return nil, reportDirectFailure(request.Stamp().Generation, directFailureAuthorization, fmt.Errorf("prepare direct endpoint authorization: %w", err))
@@ -107,6 +108,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, fmt.Errorf("direct endpoint authorizer returned no transaction")
 	}
 	stage("authorization_prepared")
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStagePeerOpening)
 	opened, err := openDirectPeer(ctx, request, directPeerOptions{
 		Peers: dialer.Peers, Signaling: dialer.Signaling, Locators: dialer.Locators, TransformAnswer: dialer.TransformAnswer,
 		Random: dialer.Random, Now: dialer.Now, Phase: dialer.Phase, Timing: stage,
@@ -125,11 +127,13 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	}
 	stage("dtls_fingerprint")
 	dialer.reportPhase(clientruntime.EndpointPhaseAuthorizing)
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
 	if _, err := prepared.Authenticate(ctx, connection, fingerprint); err != nil {
 		closeAttempt()
 		return nil, reportDirectFailure(request.Stamp().Generation, directFailureDataChannelAuth, fmt.Errorf("authenticate direct endpoint DataChannel: %w", err))
 	}
 	stage("authorization")
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 	protocolClient := internalprotocol.NewClient(connection)
 	clientName := strings.TrimSpace(dialer.ClientName)
 	if clientName == "" {
@@ -215,6 +219,7 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 		options.Timing("peer_open")
 	}
 	opened := &openedDirectPeer{peer: peer, connection: datachannel.New(peer.Channel())}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageICEGathering)
 	offer, err := peer.CreateOffer(ctx)
 	if err != nil {
 		_ = opened.Close()
@@ -250,6 +255,7 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 	if options.Phase != nil {
 		options.Phase(clientruntime.EndpointPhaseSignaling)
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseSignaling, clientruntime.EndpointStageSignaling)
 	signaling := options.Signaling
 	if signaling == nil {
 		if routed, ok := options.Peers.(RouteNetworkPeerFactory); ok {
@@ -305,6 +311,7 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 			Candidate: candidate.GetCandidate(), SDPMid: candidate.GetSdpMid(), SDPMLineIndex: candidate.GetSdpMlineIndex(), UsernameFragment: candidate.GetUsernameFragment(),
 		})
 	}
+	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageICEConnecting)
 	if err := peer.ApplyAnswer(ctx, answer.GetAnswerSdp(), candidates); err != nil {
 		_ = opened.Close()
 		return nil, fmt.Errorf("apply direct endpoint answer: %w", err)

@@ -42,6 +42,16 @@ func TestPublicAPIDescriptorBaseline(t *testing.T) {
 		}
 		current.File = append(current.File, protodesc.ToFileDescriptorProto(descriptor))
 	}
+	if os.Getenv("UPDATE_PUBLIC_API_DESCRIPTOR") == "1" {
+		payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile("testdata/public-api-v1.pb", payload, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
 	if !proto.Equal(&baseline, current) {
 		t.Fatal("public API descriptor differs from testdata/public-api-v1.pb; update the baseline only after schema compatibility review")
 	}
