@@ -14,7 +14,10 @@ import (
 	"github.com/anytty/anytty/tui/render"
 )
 
-const v3TmuxDaemonReadyTimeout = 10 * time.Second
+const (
+	v3TmuxDaemonReadyTimeout  = 10 * time.Second
+	v3TmuxSurfaceReadyTimeout = 10 * time.Second
+)
 
 type v3TmuxSmokeResult struct {
 	Session     string
@@ -279,13 +282,13 @@ func runV3TmuxTerminalSmoke(ctx context.Context, anyttyBin string) (v3TmuxTermin
 		return v3TmuxTerminalSmokeResult{}, err
 	}
 	appendTimeline("tmux session=%s", session)
-	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, 5*time.Second)
+	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, v3TmuxSurfaceReadyTimeout)
 	if err != nil {
 		return v3TmuxTerminalSmokeResult{}, fmt.Errorf("read terminal id artifact: %w", err)
 	}
 	terminalID := strings.TrimSpace(string(terminalIDBytes))
 	appendTimeline("terminal created id=%s", terminalID)
-	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", v3TmuxSurfaceReadyTimeout); err != nil {
 		removeArtifacts = false
 		return v3TmuxTerminalSmokeResult{}, fmt.Errorf("%w; artifacts=%s", err, artifactDir)
 	}
@@ -296,7 +299,7 @@ func runV3TmuxTerminalSmoke(ctx context.Context, anyttyBin string) (v3TmuxTermin
 		return v3TmuxTerminalSmokeResult{}, err
 	}
 	appendTimeline("tmux send-keys input=%s", sent)
-	if err := waitForTmuxCapture(ctx, target, "anytty-pty-echo:"+sent, 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "anytty-pty-echo:"+sent, v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxTerminalSmokeResult{}, err
 	}
 	appendTimeline("live surface echoed input")
@@ -438,13 +441,13 @@ func runV3TmuxResizeSmoke(ctx context.Context, anyttyBin string) (v3TmuxResizeSm
 		return v3TmuxResizeSmokeResult{}, err
 	}
 	appendTimeline("tmux session=%s initial=100x30", session)
-	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, 5*time.Second)
+	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, v3TmuxSurfaceReadyTimeout)
 	if err != nil {
 		return v3TmuxResizeSmokeResult{}, fmt.Errorf("read terminal id artifact: %w", err)
 	}
 	terminalID := strings.TrimSpace(string(terminalIDBytes))
 	appendTimeline("terminal created id=%s", terminalID)
-	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxResizeSmokeResult{}, err
 	}
 
@@ -452,7 +455,7 @@ func runV3TmuxResizeSmoke(ctx context.Context, anyttyBin string) (v3TmuxResizeSm
 		return v3TmuxResizeSmokeResult{}, err
 	}
 	beforeMarker := "anytty-pty-size:size-before:"
-	if err := waitForTmuxCapture(ctx, target, beforeMarker+"98x26", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, beforeMarker+"98x26", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxResizeSmokeResult{}, err
 	}
 	beforeCapture, _ := captureTmuxPane(ctx, target, false)
@@ -469,7 +472,7 @@ func runV3TmuxResizeSmoke(ctx context.Context, anyttyBin string) (v3TmuxResizeSm
 		return v3TmuxResizeSmokeResult{}, err
 	}
 	afterMarker := "anytty-pty-size:size-after:"
-	if err := waitForTmuxCapture(ctx, target, afterMarker+"118x36", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, afterMarker+"118x36", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxResizeSmokeResult{}, err
 	}
 	afterCapture, _ := captureTmuxPane(ctx, target, false)
@@ -615,14 +618,14 @@ func runV3TmuxANSISmoke(ctx context.Context, anyttyBin string) (v3TmuxANSISmokeR
 		return v3TmuxANSISmokeResult{}, err
 	}
 	appendTimeline("tmux session=%s", session)
-	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, 5*time.Second)
+	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, v3TmuxSurfaceReadyTimeout)
 	if err != nil {
 		return v3TmuxANSISmokeResult{}, fmt.Errorf("read terminal id artifact: %w", err)
 	}
 	terminalID := strings.TrimSpace(string(terminalIDBytes))
 	appendTimeline("terminal created id=%s", terminalID)
 	for _, marker := range []string{"anytty-ansi-ready", "ANSI16_RED", "ANSI256_ORANGE", "TRUECOLOR_MINT", "CR_REPLACED", "PRIMARY_AFTER_ALT"} {
-		if err := waitForTmuxCapture(ctx, target, marker, 5*time.Second); err != nil {
+		if err := waitForTmuxCapture(ctx, target, marker, v3TmuxSurfaceReadyTimeout); err != nil {
 			return v3TmuxANSISmokeResult{}, err
 		}
 		appendTimeline("marker rendered=%s", marker)
@@ -765,13 +768,13 @@ func runV3TmuxEmojiDotsSmoke(ctx context.Context, anyttyBin string) (v3TmuxEmoji
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	appendTimeline("tmux session=%s initial=180x32", session)
-	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, 5*time.Second)
+	terminalIDBytes, err := waitForFileContent(ctx, terminalIDPath, v3TmuxSurfaceReadyTimeout)
 	if err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, fmt.Errorf("read terminal id artifact: %w", err)
 	}
 	terminalID := strings.TrimSpace(string(terminalIDBytes))
 	appendTimeline("terminal created id=%s", terminalID)
-	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "anytty-pty-ready", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 
@@ -818,10 +821,10 @@ func runV3TmuxEmojiDotsSmoke(ctx context.Context, anyttyBin string) (v3TmuxEmoji
 		appendTimeline("send-keys %s keys=%q", action.label, action.keys)
 		time.Sleep(action.wait)
 	}
-	if err := waitForTmuxCapture(ctx, target, "owner", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "owner", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
-	if err := waitForTmuxCapture(ctx, target, "follow", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "follow", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	appendTimeline("owner and follower chrome visible")
@@ -833,7 +836,7 @@ func runV3TmuxEmojiDotsSmoke(ctx context.Context, anyttyBin string) (v3TmuxEmoji
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	beforeMarker := "anytty-pty-size:size-before:"
-	if err := waitForTmuxCapture(ctx, target, beforeMarker, 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, beforeMarker, v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	beforeCapture, _ := captureTmuxPane(ctx, target, false)
@@ -864,7 +867,7 @@ func runV3TmuxEmojiDotsSmoke(ctx context.Context, anyttyBin string) (v3TmuxEmoji
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	afterMarker := "anytty-pty-size:size-after:"
-	if err := waitForTmuxCapture(ctx, target, afterMarker, 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, afterMarker, v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	afterCapture, _ := captureTmuxPane(ctx, target, false)
@@ -883,7 +886,7 @@ func runV3TmuxEmojiDotsSmoke(ctx context.Context, anyttyBin string) (v3TmuxEmoji
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 	appendTimeline("submit emoji burst")
-	if err := waitForTmuxCapture(ctx, target, "anytty-pty-echo:", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "anytty-pty-echo:", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxEmojiDotsSmokeResult{}, err
 	}
 
@@ -975,7 +978,7 @@ func runV3TmuxVisualCompare(ctx context.Context, anyttyBin string) (v3TmuxVisual
 		return v3TmuxVisualCompareResult{}, err
 	}
 	glyphs := render.DefaultPaneChromeGlyphs()
-	if err := waitForTmuxCapture(ctx, target, "["+glyphs.Zoom+"]─["+glyphs.Close+"]", 5*time.Second); err != nil {
+	if err := waitForTmuxCapture(ctx, target, "["+glyphs.Zoom+"]─["+glyphs.Close+"]", v3TmuxSurfaceReadyTimeout); err != nil {
 		return v3TmuxVisualCompareResult{}, err
 	}
 	currentANSI, err := captureTmuxPane(ctx, target, true)
