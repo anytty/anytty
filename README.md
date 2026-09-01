@@ -62,46 +62,46 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 - **Terminals and files share one connection.** AnyTTY also supports file browsing, upload, download, rename, and selection. After connecting to a remote machine, you can work with authorized files on that machine just as you work with its terminals.
 - **Mobile file management and rich previews.** The mobile app includes a file manager that browses remote directories and previews common text, document, image, media, and 3D formats. Logs, configuration, build results, and downloads can be inspected without switching apps.
 
-### Mobile terminals
+### Native Flutter mobile app
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_1.jpg" alt="AnyTTY mobile terminal list with status and recent activity" width="230"></td>
-    <td align="center"><img src="docs/assets/app_6.jpg" alt="AnyTTY mobile app highlighting terminals with recent output" width="230"></td>
-    <td align="center"><img src="docs/assets/app_7.jpg" alt="AnyTTY mobile app controlling a remote terminal with the extra-key bar" width="230"></td>
+    <td align="center"><img src="docs/assets/app_1.jpg" alt="AnyTTY Flutter app device list" width="230"></td>
+    <td align="center"><img src="docs/assets/app_2.jpg" alt="AnyTTY Flutter app QR scanner and pairing input" width="230"></td>
+    <td align="center"><img src="docs/assets/app_3.jpg" alt="AnyTTY Flutter app settings screen" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Multi-terminal status and recent activity</strong></td>
-    <td align="center"><strong>Quickly find terminals with fresh output</strong></td>
-    <td align="center"><strong>Take control with the extra-key bar</strong></td>
+    <td align="center"><strong>Pair and manage endpoints</strong></td>
+    <td align="center"><strong>Scan or paste to pair</strong></td>
+    <td align="center"><strong>Native app and terminal settings</strong></td>
   </tr>
 </table>
 
 > **Install the app:** The mobile app supports both Android and iOS. Download a signed Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.6), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
 
-### Connections and file management
+### Appearance and touch controls
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_4.jpg" alt="AnyTTY mobile device and P2P connection status" width="260"></td>
-    <td align="center"><img src="docs/assets/app_5.jpg" alt="AnyTTY mobile remote file manager" width="260"></td>
+    <td align="center"><img src="docs/assets/app_4.jpg" alt="AnyTTY Flutter app theme color settings" width="260"></td>
+    <td align="center"><img src="docs/assets/app_5.jpg" alt="AnyTTY Flutter app petal menu action editor" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Local, Cloud, and P2P paths</strong></td>
-    <td align="center"><strong>Remote file management</strong></td>
+    <td align="center"><strong>Choose the app color palette</strong></td>
+    <td align="center"><strong>Configure the long-press petal menu</strong></td>
   </tr>
 </table>
 
-### Rich online file previews
+### Terminal presentation
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_2.jpg" alt="AnyTTY mobile app previewing a remote document" width="260"></td>
-    <td align="center"><img src="docs/assets/app_3.jpg" alt="AnyTTY mobile app previewing a remote 3D model" width="260"></td>
+    <td align="center"><img src="docs/assets/app_6.jpg" alt="AnyTTY Flutter app terminal font picker" width="260"></td>
+    <td align="center"><img src="docs/assets/app_7.jpg" alt="AnyTTY Flutter app terminal theme picker" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Document preview, search, and zoom</strong></td>
-    <td align="center"><strong>Interactive 3D model preview</strong></td>
+    <td align="center"><strong>Pick a terminal font</strong></td>
+    <td align="center"><strong>Preview terminal themes</strong></td>
   </tr>
 </table>
 

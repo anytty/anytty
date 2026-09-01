@@ -62,46 +62,46 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 - **终端和文件走同一条连接。** AnyTTY 不只传输终端画面，还支持文件浏览、上传、下载、重命名和选择。连接远程机器后，可以像处理终端一样处理经过授权的文件。
 - **手机端文件管理和在线预览。** 手机 App 内置文件管理器，可浏览远程目录并预览常见文本、文档、图片、媒体和 3D 格式。查看日志、配置、构建结果或下载内容时，不用切换其他工具。
 
-### 移动端终端
+### 原生 Flutter 移动客户端
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_1.jpg" alt="AnyTTY 手机 App 的终端列表与活动状态" width="230"></td>
-    <td align="center"><img src="docs/assets/app_6.jpg" alt="AnyTTY 手机 App 快速定位刚有输出的终端" width="230"></td>
-    <td align="center"><img src="docs/assets/app_7.jpg" alt="AnyTTY 手机 App 使用扩展键盘接管远程终端" width="230"></td>
+    <td align="center"><img src="docs/assets/app_1.jpg" alt="AnyTTY Flutter App 的设备列表" width="230"></td>
+    <td align="center"><img src="docs/assets/app_2.jpg" alt="AnyTTY Flutter App 的扫码与粘贴配对入口" width="230"></td>
+    <td align="center"><img src="docs/assets/app_3.jpg" alt="AnyTTY Flutter App 的设置页面" width="230"></td>
   </tr>
   <tr>
-    <td align="center"><strong>多终端状态与近期活动</strong></td>
-    <td align="center"><strong>快速定位刚有输出的终端</strong></td>
-    <td align="center"><strong>通过扩展键盘直接接管</strong></td>
+    <td align="center"><strong>配对并管理 endpoint</strong></td>
+    <td align="center"><strong>扫码或粘贴完成配对</strong></td>
+    <td align="center"><strong>原生 App 与终端设置</strong></td>
   </tr>
 </table>
 
 > **下载安装：** 手机 App 同时支持 Android 与 iOS。签名 Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.6) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。
 
-### 连接与文件管理
+### 外观与触控操作
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_4.jpg" alt="AnyTTY 手机 App 的设备与 P2P 连接状态" width="260"></td>
-    <td align="center"><img src="docs/assets/app_5.jpg" alt="AnyTTY 手机 App 的远程文件管理器" width="260"></td>
+    <td align="center"><img src="docs/assets/app_4.jpg" alt="AnyTTY Flutter App 的主题颜色设置" width="260"></td>
+    <td align="center"><img src="docs/assets/app_5.jpg" alt="AnyTTY Flutter App 的花瓣菜单操作编辑器" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><strong>Local、Cloud 与 P2P 路径</strong></td>
-    <td align="center"><strong>远程文件管理</strong></td>
+    <td align="center"><strong>选择 App 配色</strong></td>
+    <td align="center"><strong>配置长按花瓣菜单</strong></td>
   </tr>
 </table>
 
-### 丰富的文件在线预览
+### 终端显示
 
 <table>
   <tr>
-    <td align="center"><img src="docs/assets/app_2.jpg" alt="AnyTTY 手机 App 在线预览远程文档" width="260"></td>
-    <td align="center"><img src="docs/assets/app_3.jpg" alt="AnyTTY 手机 App 在线预览远程 3D 模型" width="260"></td>
+    <td align="center"><img src="docs/assets/app_6.jpg" alt="AnyTTY Flutter App 的终端字体选择器" width="260"></td>
+    <td align="center"><img src="docs/assets/app_7.jpg" alt="AnyTTY Flutter App 的终端主题选择器" width="260"></td>
   </tr>
   <tr>
-    <td align="center"><strong>文档预览、搜索与缩放</strong></td>
-    <td align="center"><strong>3D 模型预览与交互</strong></td>
+    <td align="center"><strong>选择终端字体</strong></td>
+    <td align="center"><strong>预览终端主题</strong></td>
   </tr>
 </table>
 
