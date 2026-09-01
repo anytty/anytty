@@ -6,6 +6,30 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.6] - 2026-09-01
+
+### Added
+
+- Added a native Flutter client for Android and iOS, backed directly by the AnyTTY Go client engine and pinned `libghostty-vt` terminal input adapter.
+- Added searchable endpoint and terminal pickers, native terminal history and file workflows, configurable quick keys, touch petal menus, appearance controls, and route management to the mobile client.
+- Added automatic installation of the recommended `coralline-candy` TUI profile on first CLI install while preserving existing user configuration.
+
+### Changed
+
+- Replaced the Capacitor/WebView mobile application with the Flutter client while retaining the `com.anytty.app` Android package identity and release signing path.
+- Made endpoint route scoring preserve device labels, made Cloud route selection measurement-driven, and automated client certificate renewal.
+- Updated Android and iOS launcher assets to the AnyTTY application icon, including Android adaptive and round icons.
+
+### Fixed
+
+- Improved endpoint connectivity recovery and made endpoint state projections consistent across terminal pickers and device lists.
+- Corrected Flutter release version metadata so beta.6 Android packages upgrade monotonically from beta.5.
+- Corrected the iOS CI build order so required native XCFrameworks are generated before the Flutter simulator build.
+
+### Upgrade notes
+
+- The Flutter client uses a new local registry and secure credential store. Android users upgrading from the Capacitor beta must pair their endpoints again; uninstalling first is not required when the existing app was signed with the official release key.
+
 ## [0.0.1-beta.5] - 2026-08-26
 
 ### Added

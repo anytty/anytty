@@ -6,6 +6,30 @@
 
 ## Unreleased
 
+## [0.0.1-beta.6] - 2026-09-01
+
+### 新增
+
+- 新增 Android 与 iOS 原生 Flutter 客户端，直接使用 AnyTTY Go Client Engine 与固定版本的 `libghostty-vt` 终端输入适配层。
+- 手机端新增可搜索的 endpoint 与 terminal 选择器、原生终端历史和文件流程、可配置快捷键、触控花瓣菜单、外观设置与 route 管理。
+- CLI 首次安装时自动写入推荐的 `coralline-candy` TUI 配置，同时保留用户已有配置。
+
+### 变更
+
+- 使用 Flutter 客户端替换 Capacitor/WebView 手机 App，同时保留 Android 包名 `com.anytty.app` 与原有正式签名发布路径。
+- endpoint route 评分现在保留设备标签，Cloud 路径选择改为测量驱动，并自动完成客户端证书续期。
+- Android 与 iOS 启动图标替换为 AnyTTY 正式图标，并补齐 Android 自适应与圆形图标。
+
+### 修复
+
+- 改进 endpoint 连接恢复，并统一 terminal 选择器与设备列表中的 endpoint 状态表达。
+- 修正 Flutter 发布版本信息，确保 beta.6 Android 安装包可以按递增版本号从 beta.5 升级。
+- 修正 iOS CI 构建顺序，在 Flutter 模拟器构建前生成所需的原生 XCFramework。
+
+### 升级说明
+
+- Flutter 客户端使用新的本地 registry 与安全凭据存储。从 Capacitor beta 升级的 Android 用户需要重新配对 endpoint；若现有 App 使用官方 release key 签名，则不需要先卸载。
+
 ## [0.0.1-beta.5] - 2026-08-26
 
 ### 新增

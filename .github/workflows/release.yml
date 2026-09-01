@@ -76,6 +76,13 @@ jobs:
           channel: stable
           flutter-version: 3.47.2
           cache: true
+      - name: Validate mobile release version
+        working-directory: clients/flutter
+        run: |
+          app_version="$(sed -n 's/^version: //p' pubspec.yaml)"
+          test "${app_version%%+*}" = "${RELEASE_TAG#v}"
+          build_number="${app_version##*+}"
+          test "$build_number" -gt 0
       - name: Configure Android release signing
         env:
           ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64 }}

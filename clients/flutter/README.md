@@ -31,11 +31,13 @@ flutter build apk --release --target-platform android-arm64 --split-per-abi
 ../../scripts/verify-flutter-android-apk-boundary.sh \
   build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  ../../scripts/build-flutter-ios-native.sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   flutter build ios --simulator --debug
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   flutter build ios --debug --no-codesign
 ```
 
-Native libraries are built by the Flutter platform build hooks through
-`scripts/build-flutter-android-native.sh` and
-`scripts/build-flutter-ios-native.sh` at the repository root.
+Android native libraries are built by the Flutter Gradle hook through
+`scripts/build-flutter-android-native.sh`. Build the iOS XCFrameworks with
+`scripts/build-flutter-ios-native.sh` before invoking Flutter or Xcode.

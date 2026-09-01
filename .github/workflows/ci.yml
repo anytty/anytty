@@ -93,6 +93,8 @@ jobs:
           channel: stable
           flutter-version: 3.47.2
           cache: true
+      - name: Build iOS native frameworks
+        run: scripts/build-flutter-ios-native.sh
       - name: Build iOS simulator application
         working-directory: clients/flutter
         run: flutter build ios --simulator --debug
