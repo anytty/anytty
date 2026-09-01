@@ -292,6 +292,65 @@ describe('FileManager overlays', () => {
     expect(screen.queryByRole('textbox', { name: 'Rename entry' })).toBeNull()
   })
 
+  it('captures one transfer intent before awaiting the native download offset', async () => {
+    useFileManagerMock.mockReturnValue(createManager({
+      entries: [fileEntry],
+      visibleEntries: [fileEntry],
+      total: 1,
+    }))
+    const offset = deferred<number>()
+    const intent = {}
+    const order: string[] = []
+    const fileTransfer = createFileTransferContext(vi.fn())
+    fileTransfer.beginTransferIntent = vi.fn(() => {
+      order.push('begin')
+      return intent
+    })
+    fileTransfer.getDownloadResumeOffset = vi.fn(async () => {
+      order.push('offset')
+      return await offset.promise
+    })
+    fileTransfer.startDownload = vi.fn(async () => undefined)
+    render(<FileManagerTransferHarness fileTransfer={fileTransfer} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for notes.txt' }))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'notes.txt' })).getByRole('button', { name: 'Download' }))
+
+    expect(order).toEqual(['begin', 'offset'])
+    expect(fileTransfer.startDownload).not.toHaveBeenCalled()
+    offset.resolve(12)
+    await waitFor(() => expect(fileTransfer.startDownload).toHaveBeenCalledWith(
+      'machine-1',
+      'notes.txt',
+      42,
+      '/notes.txt',
+      12,
+      intent,
+    ))
+    expect(fileTransfer.beginTransferIntent).toHaveBeenCalledOnce()
+  })
+
+  it('discards a captured transfer intent when download preflight fails', async () => {
+    useFileManagerMock.mockReturnValue(createManager({
+      entries: [fileEntry],
+      visibleEntries: [fileEntry],
+      total: 1,
+    }))
+    const intent = {}
+    const fileTransfer = createFileTransferContext(vi.fn())
+    fileTransfer.beginTransferIntent = vi.fn(() => intent)
+    fileTransfer.discardTransferIntent = vi.fn()
+    fileTransfer.getDownloadResumeOffset = vi.fn(async () => { throw new Error('offset unavailable') })
+    fileTransfer.startDownload = vi.fn()
+    render(<FileManagerTransferHarness fileTransfer={fileTransfer} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for notes.txt' }))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'notes.txt' })).getByRole('button', { name: 'Download' }))
+
+    await waitFor(() => expect(fileTransfer.discardTransferIntent).toHaveBeenCalledWith('machine-1', intent))
+    expect(fileTransfer.startDownload).not.toHaveBeenCalled()
+  })
+
   it('closes only the latest visible inline state at the shared workspace priority', async () => {
     useFileManagerMock.mockImplementation(() => {
       const [newDirName, setNewDirName] = useState('')
@@ -600,4 +659,14 @@ function createManager(overrides: Partial<UseFileManagerResult> = {}): UseFileMa
     refreshPathBookmarks: vi.fn(async () => undefined),
     ...overrides,
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((accept, decline) => {
+    resolve = accept
+    reject = decline
+  })
+  return { promise, resolve, reject }
 }

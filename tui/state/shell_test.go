@@ -395,6 +395,9 @@ func TestShellTerminalPickerOverlayTargetsActivePane(t *testing.T) {
 	if shell.Overlay.TargetID != DefaultPaneID {
 		t.Fatalf("expected overlay target active pane, got %#v", shell.Overlay)
 	}
+	if shell.Overlay.TerminalPickerStatus != TerminalPickerStatusRunning {
+		t.Fatalf("terminal picker should default to running terminals, got %#v", shell.Overlay)
+	}
 	shell = shell.CloseOverlay()
 	if shell.Overlay.Open || shell.Overlay.Kind != OverlayNone {
 		t.Fatalf("expected closed overlay, got %#v", shell.Overlay)
@@ -526,7 +529,7 @@ func TestTerminalTagsTextHidesSequentialTransportKeys(t *testing.T) {
 
 func TestTerminalPickerItemsKeepSameTerminalIDAcrossEndpoints(t *testing.T) {
 	root := Root{
-		Shell: DefaultShell().OpenTerminalPicker(),
+		Shell: DefaultShell().OpenTerminalPicker().SetTerminalPickerStatus(TerminalPickerStatusAll),
 		TerminalPool: TerminalPoolStore{
 			Status: TerminalPoolReady,
 			Items: []TerminalPoolItem{
@@ -588,7 +591,7 @@ func TestTerminalPickerItemsUseCurrentViewBindingForAttachedState(t *testing.T) 
 
 func TestTerminalPickerAndPoolRowsSortByName(t *testing.T) {
 	root := Root{
-		Shell: DefaultShell().OpenTerminalPicker(),
+		Shell: DefaultShell().OpenTerminalPicker().SetTerminalPickerStatus(TerminalPickerStatusAll),
 		Endpoints: (EndpointStore{}).
 			Upsert(EndpointItem{ID: DefaultEndpointID, Label: "This Mac", Transport: EndpointTransportLocal, ConnectMode: EndpointConnectAuto, Enabled: true}).
 			Upsert(EndpointItem{ID: "west", Label: "US West", Transport: EndpointTransportSSH, ConnectMode: EndpointConnectOnDemand, Enabled: true}),
@@ -798,7 +801,7 @@ func TestEndpointScopedTerminalListFailurePreservesOtherEndpoints(t *testing.T) 
 
 func TestTerminalPickerGroupsExposeEndpointMetadataAndSearch(t *testing.T) {
 	root := Root{
-		Shell: DefaultShell().OpenTerminalPicker(),
+		Shell: DefaultShell().OpenTerminalPicker().SetTerminalPickerStatus(TerminalPickerStatusAll),
 		Endpoints: (EndpointStore{}).
 			Upsert(EndpointItem{ID: DefaultEndpointID, Label: "This Mac", Transport: EndpointTransportLocal, ConnectMode: EndpointConnectAuto, Enabled: true, Status: EndpointStatusConnected}).
 			Upsert(EndpointItem{ID: "disabled", Label: "Disabled Box", Transport: EndpointTransportSSH, ConnectMode: EndpointConnectAuto, Enabled: false}).
@@ -868,6 +871,21 @@ func TestTerminalPickerFiltersStatusAndPublicTagsWithinEndpoint(t *testing.T) {
 			{EndpointID: "west", TerminalID: "west-prod", Title: "west prod", State: "running", Tags: map[string]string{"tag1": "production", "tag2": "backend"}},
 		}},
 	}
+	statuses := TerminalPickerStatusOptions(root)
+	if len(statuses) != 3 || statuses[0].Status != TerminalPickerStatusRunning || !statuses[0].Selected ||
+		statuses[1].Status != TerminalPickerStatusExited || statuses[2].Status != TerminalPickerStatusAll {
+		t.Fatalf("status filters must default to running and keep all last, got %#v", statuses)
+	}
+	defaultItems := TerminalPickerItems(root)
+	if len(defaultItems) != 3 || !defaultItems[0].CreateNew || defaultItems[1].PoolState != "running" || defaultItems[2].PoolState != "running" {
+		t.Fatalf("terminal picker should initially hide non-running terminals, got %#v", defaultItems)
+	}
+	root.Shell = root.Shell.SetTerminalPickerStatus(TerminalPickerStatusAll)
+	allItems := TerminalPickerItems(root)
+	if len(allItems) != 4 || allItems[3].TerminalID != "job-prod" {
+		t.Fatalf("all status should remain available as the last option, got %#v", allItems)
+	}
+	root.Shell = root.Shell.SetTerminalPickerStatus(TerminalPickerStatusRunning)
 
 	tags := TerminalPickerTagOptions(root)
 	if len(tags) != 4 || tags[0].Label != "backend" || tags[0].Count != 2 {
@@ -1013,11 +1031,11 @@ func TestTerminalPoolStoreAppliesListWithStaleGuardAndError(t *testing.T) {
 	}
 }
 
-func TestTerminalPoolStoreKeepsBoundedResourceHistoryPerProcess(t *testing.T) {
+func TestTerminalPoolStoreKeepsBoundedFallbackResourceHistoryPerProcess(t *testing.T) {
 	ref := LocalTerminalRef("term-1")
 	pool := TerminalPoolStore{}
 	base := time.Date(2026, 8, 10, 3, 0, 0, 0, time.UTC)
-	for index := 0; index < terminalResourceHistoryLimit+5; index++ {
+	for index := 0; index < terminalResourceHistoryFallbackLimit+5; index++ {
 		pool = pool.RequestRefresh()
 		var applied bool
 		pool, applied = pool.ApplyList(pool.RequestSeq, []TerminalPoolItem{{
@@ -1032,13 +1050,13 @@ func TestTerminalPoolStoreKeepsBoundedResourceHistoryPerProcess(t *testing.T) {
 		}
 	}
 	samples := pool.ResourceSamples(ref)
-	if len(samples) != terminalResourceHistoryLimit || samples[0].CPUPercentX100 != 500 || samples[len(samples)-1].CPUPercentX100 != (terminalResourceHistoryLimit+4)*100 {
+	if len(samples) != terminalResourceHistoryFallbackLimit || samples[0].CPUPercentX100 != 500 || samples[len(samples)-1].CPUPercentX100 != (terminalResourceHistoryFallbackLimit+4)*100 {
 		t.Fatalf("resource history should retain the latest bounded window, got %#v", samples)
 	}
 
 	latest := samples[len(samples)-1]
 	pool, _ = pool.ApplyList(pool.RequestSeq, []TerminalPoolItem{{TerminalID: ref.TerminalID, Resources: latest}}, "")
-	if got := len(pool.ResourceSamples(ref)); got != terminalResourceHistoryLimit {
+	if got := len(pool.ResourceSamples(ref)); got != terminalResourceHistoryFallbackLimit {
 		t.Fatalf("duplicate sample timestamp should not extend history, got %d", got)
 	}
 
@@ -1059,7 +1077,7 @@ func TestTerminalPoolStoreKeepsBoundedResourceHistoryPerProcess(t *testing.T) {
 func TestTerminalPoolStoreSeedsResourceHistoryFromFirstDaemonList(t *testing.T) {
 	ref := NewTerminalRef("west", "term-1")
 	base := time.Date(2026, 8, 10, 4, 0, 0, 0, time.UTC)
-	history := make([]TerminalResourceUsage, terminalResourceHistoryLimit)
+	history := make([]TerminalResourceUsage, terminalResourceHistoryFallbackLimit+5)
 	for index := range history {
 		history[index] = TerminalResourceUsage{
 			PID: 100, CPUPercentX100: index * 100, MemoryBytes: uint64(index+1) * 1024,
@@ -1075,7 +1093,7 @@ func TestTerminalPoolStoreSeedsResourceHistoryFromFirstDaemonList(t *testing.T) 
 		t.Fatal("first daemon list was not applied")
 	}
 	samples := pool.ResourceSamples(ref)
-	if len(samples) != terminalResourceHistoryLimit || samples[0] != history[0] || samples[len(samples)-1] != history[len(history)-1] {
+	if len(samples) != len(history) || samples[0] != history[0] || samples[len(samples)-1] != history[len(history)-1] {
 		t.Fatalf("first list should seed the complete daemon history, got %#v", samples)
 	}
 	history[0].CPUPercentX100 = -1

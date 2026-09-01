@@ -36,7 +36,7 @@ func NewCopyModeResizeRebindReducer(deps CopyModeDeps) Reducer {
 			return root, nil
 		}
 		cols, rows := copyModeRebindViewportSize(root, binding, hasBinding, rect)
-		if cols == root.CopyMode.BoundCols {
+		if cols == root.CopyMode.BoundCols && root.History.Cols == cols {
 			if rows == root.CopyMode.ViewRows {
 				return root, nil
 			}

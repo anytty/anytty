@@ -1345,10 +1345,11 @@ func (x *RelayQueryResponse) GetEntitlementFailure() *CloudEntitlementFailure {
 // RelayRuntimePolicy is a versioned commercial policy snapshot used by an
 // Edge for local Relay admission. It does not reserve bytes or require renewal.
 type RelayRuntimePolicy struct {
-	state                      protoimpl.MessageState `protogen:"open.v1"`
-	AccountId                  string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	SubscriptionId             string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	PlanId                     string                 `protobuf:"bytes,3,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AccountId      string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	SubscriptionId string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	PlanId         string                 `protobuf:"bytes,3,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
+	// policy_revision is the subscription revision used to derive this policy.
 	PolicyRevision             uint64                 `protobuf:"varint,4,opt,name=policy_revision,json=policyRevision,proto3" json:"policy_revision,omitempty"`
 	RelayEnabled               bool                   `protobuf:"varint,5,opt,name=relay_enabled,json=relayEnabled,proto3" json:"relay_enabled,omitempty"`
 	RelayMaxRateBytesPerSecond uint64                 `protobuf:"varint,6,opt,name=relay_max_rate_bytes_per_second,json=relayMaxRateBytesPerSecond,proto3" json:"relay_max_rate_bytes_per_second,omitempty"`
@@ -1356,8 +1357,10 @@ type RelayRuntimePolicy struct {
 	RelayQuotaBytes            uint64                 `protobuf:"varint,8,opt,name=relay_quota_bytes,json=relayQuotaBytes,proto3" json:"relay_quota_bytes,omitempty"`
 	PeriodStart                *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
 	PeriodEnd                  *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	// account_revision separately fences account state changes such as disable/re-enable.
+	AccountRevision uint64 `protobuf:"varint,11,opt,name=account_revision,json=accountRevision,proto3" json:"account_revision,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RelayRuntimePolicy) Reset() {
@@ -1458,6 +1461,13 @@ func (x *RelayRuntimePolicy) GetPeriodEnd() *timestamppb.Timestamp {
 		return x.PeriodEnd
 	}
 	return nil
+}
+
+func (x *RelayRuntimePolicy) GetAccountRevision() uint64 {
+	if x != nil {
+		return x.AccountRevision
+	}
+	return 0
 }
 
 // RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
@@ -1722,8 +1732,13 @@ type RelayAccountAction struct {
 	PeriodStart    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
 	PeriodEnd      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
 	Reason         string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// policy_revision is the subscription revision used to decide this action.
+	// An Edge must not apply a stale DENY to another subscription revision.
+	PolicyRevision uint64 `protobuf:"varint,9,opt,name=policy_revision,json=policyRevision,proto3" json:"policy_revision,omitempty"`
+	// account_revision identifies the account state revision used to decide this action.
+	AccountRevision uint64 `protobuf:"varint,10,opt,name=account_revision,json=accountRevision,proto3" json:"account_revision,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RelayAccountAction) Reset() {
@@ -1810,6 +1825,20 @@ func (x *RelayAccountAction) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *RelayAccountAction) GetPolicyRevision() uint64 {
+	if x != nil {
+		return x.PolicyRevision
+	}
+	return 0
+}
+
+func (x *RelayAccountAction) GetAccountRevision() uint64 {
+	if x != nil {
+		return x.AccountRevision
+	}
+	return 0
 }
 
 type RelayUsageAck struct {
@@ -2142,7 +2171,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\x05grant\x18\x03 \x01(\v2\x1b.anytty.cloud.v1.RelayGrantR\x05grant\x12?\n" +
 	"\bterminal\x18\x04 \x01(\v2#.anytty.cloud.v1.RelaySettlementAckR\bterminal\x12#\n" +
 	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x12Y\n" +
-	"\x13entitlement_failure\x18\x06 \x01(\v2(.anytty.cloud.v1.CloudEntitlementFailureR\x12entitlementFailure\"\xe2\x03\n" +
+	"\x13entitlement_failure\x18\x06 \x01(\v2(.anytty.cloud.v1.CloudEntitlementFailureR\x12entitlementFailure\"\x8d\x04\n" +
 	"\x12RelayRuntimePolicy\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12'\n" +
@@ -2156,7 +2185,8 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\fperiod_start\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vperiodStart\x129\n" +
 	"\n" +
 	"period_end\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\"\xce\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x12)\n" +
+	"\x10account_revision\x18\v \x01(\x04R\x0faccountRevision\"\xce\x01\n" +
 	"\x15RelayAuthorizeRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
@@ -2180,7 +2210,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"sampled_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tsampledAt\"u\n" +
 	"\x0fRelayUsageBatch\x12%\n" +
 	"\x0ebatch_sequence\x18\x01 \x01(\x04R\rbatchSequence\x12;\n" +
-	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\"\xef\x02\n" +
+	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\"\xc3\x03\n" +
 	"\x12RelayAccountAction\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12?\n" +
@@ -2193,7 +2223,10 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\fperiod_start\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vperiodStart\x129\n" +
 	"\n" +
 	"period_end\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x12\x16\n" +
-	"\x06reason\x18\b \x01(\tR\x06reason\"\xb4\x01\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12'\n" +
+	"\x0fpolicy_revision\x18\t \x01(\x04R\x0epolicyRevision\x12)\n" +
+	"\x10account_revision\x18\n" +
+	" \x01(\x04R\x0faccountRevision\"\xb4\x01\n" +
 	"\rRelayUsageAck\x12%\n" +
 	"\x0ebatch_sequence\x18\x01 \x01(\x04R\rbatchSequence\x12=\n" +
 	"\aactions\x18\x02 \x03(\v2#.anytty.cloud.v1.RelayAccountActionR\aactions\x12=\n" +

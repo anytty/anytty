@@ -107,7 +107,8 @@ func New(options Options) (*Host, error) {
 	return host, nil
 }
 
-// OpenSession 从 generated EndpointConfigV1 建立 Go-owned generation；平台 UI 状态不能参与 endpoint、Route、auth 或协议判断。
+// OpenSession acquires the supervisor-owned endpoint winner. An explicit Route
+// override is the diagnostic escape hatch that may establish a direct session.
 func (host *Host) OpenSession(ctx context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
 	if request == nil {
 		return nil, fmt.Errorf("open session request is required")
@@ -116,13 +117,16 @@ func (host *Host) OpenSession(ctx context.Context, request *bindingpb.OpenSessio
 	if endpointID == "" {
 		return nil, fmt.Errorf("open session endpoint_id is required")
 	}
-	if strings.TrimSpace(request.GetRouteOverride()) == "" && host.supervisor.Mode(endpointID) == clientruntime.EndpointSupervisorTakeover {
-		managed, err := host.supervisor.Acquire(ctx, endpointID)
-		if err == nil || !errors.Is(err, clientruntime.ErrEndpointNotManaged) {
-			return managed, err
-		}
+	if strings.TrimSpace(request.GetRouteOverride()) == "" {
+		return host.supervisor.Acquire(ctx, endpointID)
 	}
 	return host.openSessionDirect(ctx, request)
+}
+
+// AdvanceEndpointIntent records OpenSession acceptance before binding schedules
+// its asynchronous host call.
+func (host *Host) AdvanceEndpointIntent(endpointID endpoint.EndpointID) error {
+	return host.owner.AdvanceEndpointIntent(endpointID)
 }
 
 func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
@@ -156,6 +160,10 @@ func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.Open
 }
 
 type endpointSupervisorController struct{ host *Host }
+
+func (controller endpointSupervisorController) AdvanceEndpointIntent(endpointID endpoint.EndpointID) error {
+	return controller.host.owner.AdvanceEndpointIntent(endpointID)
+}
 
 func (controller endpointSupervisorController) AcquireCurrent(endpointID endpoint.EndpointID) (clientruntime.ApplicationReadyPeerSession, error) {
 	return controller.host.owner.AcquireCurrent(endpointID)
@@ -204,6 +212,11 @@ func (host *Host) SignalEndpointHost(signal clientruntime.EndpointHostSignal) er
 	return host.supervisor.Signal(signal)
 }
 
+// RepairEndpoint forces a fresh application probe for one demanded endpoint.
+func (host *Host) RepairEndpoint(endpointID endpoint.EndpointID) error {
+	return host.supervisor.Repair(endpointID)
+}
+
 func (host *Host) WaitEndpointDemandReady(ctx context.Context) error {
 	return host.supervisor.WaitReady(ctx)
 }
@@ -222,10 +235,10 @@ func (host *Host) InvalidateSession(ctx context.Context, stamp clientruntime.End
 	return host.owner.InvalidateSessionFast(stamp, nil)
 }
 
-// DisconnectEndpoint serializes an explicit user disconnect with any in-flight
-// endpoint acquisition, then closes and fences the pooled physical session.
-func (host *Host) DisconnectEndpoint(ctx context.Context, endpointID endpoint.EndpointID) error {
-	return host.owner.DisconnectEndpoint(ctx, endpointID)
+// PrepareEndpointDisconnect captures the endpoint intent before the binding
+// schedules its asynchronous physical disconnect.
+func (host *Host) PrepareEndpointDisconnect(endpointID endpoint.EndpointID) (binding.EndpointDisconnectOperation, error) {
+	return host.owner.PrepareEndpointDisconnect(endpointID)
 }
 
 // GetEndpointCloudPresence prefers the endpoint's cached Edge locator, then

@@ -16,6 +16,7 @@ import (
 
 	"github.com/anytty/anytty/client/binding"
 	"github.com/anytty/anytty/client/endpoint"
+	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/proto/bindingpb"
 	"github.com/anytty/anytty/proto/remoteauthpb"
@@ -109,6 +110,67 @@ func TestConnectionPolicyUsesGoRegistryTransactionAndAvailability(t *testing.T) 
 	}
 	if got := registry.GetRegistry().GetEndpoints()[0].GetSelectionPolicy().GetRoutePreference(); got != remoteauthpb.EndpointRoutePreference_ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD {
 		t.Fatalf("persisted Cloud route preference = %v", got)
+	}
+}
+
+func TestApplyConnectionPolicyInvalidatesCurrentGeneration(t *testing.T) {
+	platform := newRegistryPlatform(t)
+	host := platform.host()
+	host.owner = clientruntime.NewSessionOwner()
+	t.Cleanup(func() { _ = host.owner.Close() })
+	if _, err := host.UpsertEndpoint(context.Background(), &bindingpb.EndpointUpsertRequest{
+		Endpoint: testManagedEndpointProto(t, "studio", "daemon-studio", "grant-studio"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	target, err := host.registryEndpoint(context.Background(), "studio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connector := &connectionPolicyTestConnector{}
+	oldLease, err := host.owner.AcquireRoute(
+		context.Background(), target, "direct", clientruntime.ConnectIntentInteractive, "policy-before", connector,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStamp := oldLease.Stamp()
+
+	if _, err := host.ApplyConnectionPolicy(context.Background(), &bindingpb.ConnectionPolicyApplyRequest{
+		EndpointId: "studio",
+		Policy: &bindingpb.ConnectionPolicy{
+			RoutePreference: remoteauthpb.EndpointRoutePreference_ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD,
+			CloudRelayMode:  remoteauthpb.ManagedWebRTCRelayMode_MANAGED_WEBRTC_RELAY_MODE_RELAY_ONLY,
+			RelayTransport:  remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-oldLease.Done():
+	case <-time.After(time.Second):
+		t.Fatal("old connection-policy generation remained reusable")
+	}
+	if clientruntime.CodeOf(oldLease.Err()) != clientruntime.ErrorStaleSession || !clientruntime.IsRetryable(oldLease.Err()) {
+		t.Fatalf("old lease failure = %#v, want retryable stale_session", oldLease.Err())
+	}
+	if _, err := host.owner.AcquireCurrent("studio"); clientruntime.CodeOf(err) != clientruntime.ErrorNotFound {
+		t.Fatalf("current generation survived policy apply: %v", err)
+	}
+
+	updated, err := host.registryEndpoint(context.Background(), "studio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := host.owner.AcquireRoute(
+		context.Background(), updated, "cloud", clientruntime.ConnectIntentInteractive, "policy-after", &connectionPolicyTestConnector{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if fresh.Stamp().Generation <= oldStamp.Generation || fresh.Stamp().RouteID != "cloud" {
+		t.Fatalf("replacement generation = %#v, old = %#v", fresh.Stamp(), oldStamp)
 	}
 }
 
@@ -466,6 +528,54 @@ func testSSHEndpointProto(t *testing.T, id string) *remoteauthpb.EndpointConfigV
 		t.Fatal(err)
 	}
 	return wire
+}
+
+type connectionPolicyTestConnector struct{}
+
+func (*connectionPolicyTestConnector) Connect(_ context.Context, request clientruntime.AttemptRequest) (clientruntime.ReadyPeerSession, error) {
+	return &connectionPolicyTestSession{
+		stamp:    request.Stamp(),
+		identity: request.DaemonIdentity(),
+		done:     make(chan struct{}),
+	}, nil
+}
+
+type connectionPolicyTestSession struct {
+	stamp    clientruntime.EndpointSessionStamp
+	identity endpoint.DaemonIdentity
+	done     chan struct{}
+	close    sync.Once
+}
+
+func (session *connectionPolicyTestSession) Stamp() clientruntime.EndpointSessionStamp {
+	return session.stamp
+}
+func (*connectionPolicyTestSession) ObservedPath() string { return "direct" }
+func (session *connectionPolicyTestSession) Readiness() clientruntime.ReadyPeerSessionEvidence {
+	return clientruntime.ReadyPeerSessionEvidence{
+		Identity:              session.identity,
+		IdentityVerified:      true,
+		AuthorizationVerified: true,
+		ProtocolVersion:       1,
+	}
+}
+func (session *connectionPolicyTestSession) Done() <-chan struct{} { return session.done }
+func (*connectionPolicyTestSession) Err() error                    { return nil }
+func (session *connectionPolicyTestSession) Close() error {
+	session.close.Do(func() { close(session.done) })
+	return nil
+}
+func (*connectionPolicyTestSession) ExecuteApplication(_ context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return &apipb.ResultEnvelope{
+		RequestId:     command.GetContext().GetRequestId(),
+		OriginSession: proto.Clone(command.GetContext().GetSession()).(*apipb.EndpointSessionStamp),
+		Result:        &apipb.ResultEnvelope_Acknowledge{Acknowledge: &apipb.AcknowledgeResult{}},
+	}, nil
+}
+func (*connectionPolicyTestSession) ApplicationEvents(context.Context) (<-chan *apipb.EventEnvelope, error) {
+	events := make(chan *apipb.EventEnvelope)
+	close(events)
+	return events, nil
 }
 
 type registryPlatform struct {

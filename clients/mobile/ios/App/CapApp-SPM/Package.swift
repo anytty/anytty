@@ -46,6 +46,10 @@ let package = Package(
                 .linkedFramework("Security"),
                 .linkedLibrary("resolv")
             ]
+        ),
+        .testTarget(
+            name: "CapApp-SPMTests",
+            dependencies: ["CapApp-SPM"]
         )
     ]
 )

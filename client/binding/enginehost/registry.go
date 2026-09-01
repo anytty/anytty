@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/anytty/anytty/client/binding"
@@ -53,7 +55,8 @@ func (host *Host) GetConnectionPolicy(ctx context.Context, request *bindingpb.Co
 }
 
 // ApplyConnectionPolicy 在 Go-owned registry 事务内更新 route preference 和 managed Relay 约束。
-// 该操作只影响下一代 session；当前 ReadySession 的关闭和重连仍由调用方显式编排。
+// 持久化成功后立即撤销旧 generation；否则只重建 renderer lease 会继续复用旧路径，
+// 让“应用并重连”表面成功但实际策略直到下一次物理断线才生效。
 func (host *Host) ApplyConnectionPolicy(ctx context.Context, request *bindingpb.ConnectionPolicyApplyRequest) (*bindingpb.ConnectionPolicyApplyResult, error) {
 	preference, relayMode, relayTransport, err := connectionPolicyFromProto(request.GetPolicy())
 	if err != nil {
@@ -69,6 +72,13 @@ func (host *Host) ApplyConnectionPolicy(ctx context.Context, request *bindingpb.
 	next, err := endpoint.SetConnectionPolicy(current, id, endpoint.ConnectionPolicy{
 		RoutePreference: preference, CloudRelayMode: relayMode, RelayTransport: relayTransport,
 	})
+	var state *bindingpb.ConnectionPolicyState
+	if err == nil {
+		// Availability is part of the Apply response, so resolve it before the
+		// registry commit. Once store succeeds this operation must not report a
+		// failure for a policy that is already durable.
+		state, err = host.connectionPolicyState(ctx, next.Endpoints[id])
+	}
 	if err == nil {
 		_, err = host.storeRegistryLocked(ctx, next, nil)
 	}
@@ -76,11 +86,41 @@ func (host *Host) ApplyConnectionPolicy(ctx context.Context, request *bindingpb.
 	if err != nil {
 		return nil, err
 	}
-	state, err := host.connectionPolicyState(ctx, next.Endpoints[id])
-	if err != nil {
-		return nil, err
-	}
+	host.replaceConnectionPolicyGeneration(id)
 	return &bindingpb.ConnectionPolicyApplyResult{State: state}, nil
+}
+
+// replaceConnectionPolicyGeneration first advances the process supervisor so
+// an in-flight dial planned from the old registry cannot publish after the
+// policy commit. It then invalidates the exact current winner. No current
+// winner is a valid state: the next demanded acquisition will sample the new
+// registry policy.
+func (host *Host) replaceConnectionPolicyGeneration(id endpoint.EndpointID) {
+	// Registry-only hosts are used by persistence tests and have no runtime
+	// session owner. Production hosts are always constructed through New.
+	if host.owner == nil {
+		return
+	}
+	if host.supervisor != nil {
+		if err := host.supervisor.Repair(id); err != nil && !errors.Is(err, clientruntime.ErrEndpointNotManaged) {
+			log.Printf("anytty connection policy endpoint=%s stage=advance_revision error=%v", id, err)
+		}
+	}
+	current, err := host.owner.AcquireCurrent(id)
+	if err != nil {
+		if clientruntime.CodeOf(err) != clientruntime.ErrorNotFound {
+			log.Printf("anytty connection policy endpoint=%s stage=read_generation error=%v", id, err)
+		}
+		return
+	}
+	stamp := current.Stamp()
+	_ = current.Close()
+	cause := &clientruntime.Error{
+		Code: clientruntime.ErrorStaleSession, Message: "connection policy changed", Retryable: true,
+	}
+	if err := host.owner.InvalidateSessionFast(stamp, cause); err != nil && clientruntime.CodeOf(err) != clientruntime.ErrorStaleSession {
+		log.Printf("anytty connection policy endpoint=%s stage=replace_generation error=%v", id, err)
+	}
 }
 
 func (host *Host) connectionPolicyState(ctx context.Context, target endpoint.Endpoint) (*bindingpb.ConnectionPolicyState, error) {

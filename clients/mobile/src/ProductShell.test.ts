@@ -3,6 +3,8 @@ import mobileAppSource from './AnyTTYApp.tsx?raw'
 import remoteControlSource from '../../ui/src/app/RemoteControlApp.tsx?raw'
 import nativeConnectionSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionPlugin.kt?raw'
 import iosNativeConnectionSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/NativeConnectionPlugin.swift?raw'
+import iosNativeRuntimeOwnerSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/IOSConnectionRuntimeOwner.swift?raw'
+import iosClientPlatformSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/IOSClientPlatform.swift?raw'
 import iosBridgeViewControllerSource from '../ios/App/CapApp-SPM/Sources/CapApp-SPM/AnyTTYBridgeViewController.swift?raw'
 import nativeRuntimeCoordinatorSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionRuntimeCoordinator.kt?raw'
 import nativeRuntimeOwnerSource from '../android/app/src/main/java/com/anytty/app/NativeConnectionRuntimeOwner.kt?raw'
@@ -48,9 +50,12 @@ describe('mobile product shell', () => {
     expect(nativeConnectionSource).not.toContain('ACTION_SCREEN_OFF')
     expect(nativeConnectionSource).toContain('NativeConnectionRuntimeOwner.ensureStarted')
     expect(nativeRuntimeCoordinatorSource).toMatch(/fun ensureForForeground[\s\S]*if \(!isRuntimeStarted\(\)\) startRuntime\(\)/)
+    expect(nativeConnectionSource).toMatch(
+      /fun getBridgeEndpoint[\s\S]*runtimeCoordinator\.ensureForBridgeEndpoint\(\)[\s\S]*NativeConnectionRuntimeOwner\.endpoint\(\)/,
+    )
     expect(nativeRuntimeOwnerSource).toContain('private var goEngine')
     expect(nativeRuntimeOwnerSource).toContain('GoClientNative.startBridge')
-    expect(iosNativeConnectionSource).toContain('GoClientNative.startBridge')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.startBridge')
     expect(nativeRuntimeOwnerSource).toContain('replaceRendererDemand')
     expect(nativeRuntimeOwnerSource).toContain('baseDemandRevision')
     expect(nativeConnectionSource).toContain('nativeNetworkChangedPayload(epoch, connected, reason)')
@@ -59,8 +64,12 @@ describe('mobile product shell', () => {
     expect(mobileAppSource).toContain('networkChanged(event.connected, event.reason)')
     expect(mobileAppSource).toContain('NativeConnection.getNetworkSnapshot()')
     expect(mobileAppSource).toContain('heartbeatGap >= rendererStallReconcileMs')
+    expect(mobileAppSource).not.toContain('verifyOnFirstAcquire')
+    expect(mobileAppSource).not.toContain('isGoManaged')
+    expect(mobileAppSource).toContain('NativeConnection.requestEndpointRecovery({ endpointId: machine.id })')
+    expect(mobileAppSource).toContain('createResumeIntent: () => nativeSessionDemand.createResumeIntent()')
     expect(mobileAppSource).toMatch(
-      /async verify\(session, signal\)[\s\S]*case: 'terminalDefaults'[\s\S]*response\.result\.case !== 'terminalDefaults'/,
+      /stage = 'endpoint_resume'[\s\S]*withNativeRecoveryTimeout\([\s\S]*foregroundResume\(stepSignal\)/,
     )
     expect(mobileAppSource).toContain('initializeNetworkState(status.connected)')
     expect(mobileAppSource).toContain('connectionStateEvents: createNativeConnectionStateEvents(machine.id, sessionManager)')
@@ -75,19 +84,81 @@ describe('mobile product shell', () => {
       /successfulRecoveryRevision === 0 \|\| connectionState !== 'ready'[\s\S]*new CustomEvent\('anytty:resume'/,
     )
     expect(mobileAppSource).toMatch(
-      /intent === 'repair'[\s\S]*goBindingClient\.getEndpointRegistry\(\)[\s\S]*catch/,
+      /intent === 'repair'[\s\S]*goBindingClient\.getEndpointRegistry\(stepSignal\)[\s\S]*catch/,
     )
     expect(mobileAppSource).toContain('connectionState={nativeConnectionRecovery.connectionState}')
     expect(mobileAppSource).toContain('onRetryConnectionRecovery={nativeConnectionRecovery.retryConnectionRecovery}')
   })
 
   it('exports the session activity contract on Android and iOS', () => {
+    const androidResumeMethod = nativeConnectionSource.slice(
+      nativeConnectionSource.indexOf('fun resumeSessionDemand'),
+      nativeConnectionSource.indexOf('fun replaceSessionDemand'),
+    )
+    const iosResumeMethod = iosNativeConnectionSource.slice(
+      iosNativeConnectionSource.indexOf('@objc func resumeSessionDemand'),
+      iosNativeConnectionSource.indexOf('@objc func isLocalEndpointDiscovered'),
+    )
+    expect(nativeConnectionSource).toContain('fun getSessionDemandLease(call: PluginCall)')
+    expect(nativeConnectionSource).toContain('fun resumeSessionDemand(call: PluginCall)')
     expect(nativeConnectionSource).toContain('fun replaceSessionDemand(call: PluginCall)')
+    expect(nativeConnectionSource).toContain('call.getString("attachmentId")')
+    expect(nativeConnectionSource).toContain('call.getString("baseDemandRevision")')
     expect(nativeConnectionSource).toContain('NativeConnectionRuntimeOwner.replaceRendererDemand')
+    expect(androidResumeMethod).toContain('call.getString("intentId")')
+    expect(androidResumeMethod).toContain('call.getString("baseStopEpoch")')
+    expect(androidResumeMethod).not.toContain('baseDemandRevision')
+    expect(nativeRuntimeOwnerSource).toContain('resumeRendererDemand')
+    expect(nativeRuntimeOwnerSource).toContain('maintainForegroundServiceForDemandLocked')
+    expect(nativeConnectionSource).not.toContain('goManagedEndpointIds')
+    expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "getSessionDemandLease"')
+    expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "resumeSessionDemand"')
     expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "replaceSessionDemand"')
     expect(iosNativeConnectionSource).toMatch(
-      /@objc func replaceSessionDemand[\s\S]*getArray\("endpointIds", String\.self\)[\s\S]*call\.resolve\(\["goManagedEndpointIds": \[\]\]\)/,
+      /@objc func replaceSessionDemand[\s\S]*getString\("attachmentId"\)[\s\S]*getString\("baseDemandRevision"\)[\s\S]*runtimeOwner\.replaceDemand/,
     )
+    expect(iosResumeMethod).toContain('call.getString("intentId")')
+    expect(iosResumeMethod).toContain('call.getString("baseStopEpoch")')
+    expect(iosResumeMethod).not.toContain('baseDemandRevision')
+    expect(iosNativeConnectionSource).not.toContain('goManagedEndpointIds')
+    expect(iosNativeRuntimeOwnerSource).toContain('endpoint.mode = .takeover')
+    expect(iosNativeRuntimeOwnerSource).toContain('baseDemandRevision: UInt64')
+    expect(iosNativeRuntimeOwnerSource).toContain('case demandStopped')
+  })
+
+  it('keeps iOS endpoint recovery process-owned and revisioned', () => {
+    expect(iosNativeRuntimeOwnerSource).toContain('static let shared = IOSConnectionRuntimeOwner()')
+    expect(iosNativeRuntimeOwnerSource).toContain('private var hostRevision: UInt64 = 1')
+    expect(iosNativeRuntimeOwnerSource).toContain('private var networkEpoch: UInt64 = 1')
+    expect(iosNativeRuntimeOwnerSource).toContain('UIApplication.willEnterForegroundNotification')
+    expect(iosNativeRuntimeOwnerSource).toContain('UIApplication.didEnterBackgroundNotification')
+    expect(iosNativeRuntimeOwnerSource).toContain('private let foregroundFence: IOSForegroundResumeFence')
+    expect(iosNativeRuntimeOwnerSource).toContain('lastSignaledForegroundLease === lease')
+    expect(iosNativeRuntimeOwnerSource).toContain('foregroundFence.performIfAccepted(lease)')
+    expect(iosNativeRuntimeOwnerSource).toContain('resampleNetworkLocked()')
+    expect(iosNativeRuntimeOwnerSource).toContain('guard let reason = iosNetworkTransitionReason')
+    expect(iosNativeRuntimeOwnerSource).toContain('path.availableInterfaces')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.signalSupervisor')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.replaceSupervisorDemand')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.awaitSupervisorReady')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.supervisorSnapshot')
+    expect(iosNativeRuntimeOwnerSource).toContain('GoClientNative.repairSupervisorEndpoint')
+    expect(iosNativeConnectionSource).toContain('CAPPluginMethod(name: "requestEndpointRecovery"')
+    expect(iosNativeRuntimeOwnerSource).toContain('"process-retained-demand"')
+    expect(iosNativeConnectionSource).toContain('runtimeOwner.detachRenderer')
+    expect(iosNativeConnectionSource).not.toContain('stopRuntime()')
+    expect(iosClientPlatformSource).toContain('if isActive() { onFatalError(error) }')
+    expect(iosNativeRuntimeOwnerSource).toContain('platformPumpFailed(generation: generation, error: error)')
+  })
+
+  it('routes iOS manual retry to one demanded Go supervisor endpoint', () => {
+    expect(iosNativeConnectionSource).toMatch(
+      /@objc func requestEndpointRecovery[\s\S]*getString\("endpointId"\)[\s\S]*runtimeOwner\.requestEndpointRecovery\(endpointID: endpointID\)/,
+    )
+    expect(iosNativeRuntimeOwnerSource).toMatch(
+      /func requestEndpointRecovery[\s\S]*canonicalSnapshot\(\)\.endpointIDs\.contains\(endpointID\)[\s\S]*GoClientNative\.repairSupervisorEndpoint/,
+    )
+    expect(iosNativeRuntimeOwnerSource).toContain('lastSignaledForegroundLease === lease')
   })
 
   it('uses actual iOS keyboard occlusion instead of floating-keyboard height', () => {
@@ -102,6 +173,21 @@ describe('mobile product shell', () => {
     expect(mainActivitySource).toContain('WebViewCompat.setWebViewRenderProcessClient')
     expect(mainActivitySource).toContain('WEB_VIEW_RENDERER_TERMINATE')
     expect(mainActivitySource).toContain('Build.VERSION.SDK_INT >= Build.VERSION_CODES.O')
+    expect(mainActivitySource).toContain('RENDERER_JAVASCRIPT_PROBE_INTERVAL_MS = 2_000L')
+    expect(mainActivitySource).toContain('RENDERER_JAVASCRIPT_CALLBACK_TIMEOUT_MS = 10_000L')
+    expect(mainActivitySource).toContain('webView.evaluateJavascript("void 0"')
+    expect(mainActivitySource).toMatch(
+      /rendererJavascriptWatchdogEnabled = true;[\s\S]*WEB_VIEW_RENDERER_CLIENT_BASIC_USAGE[\s\S]*setWebViewRenderProcessClient/,
+    )
+    expect(mainActivitySource).toContain('WEBVIEW_JAVASCRIPT_UNRESPONSIVE')
+    expect(mainActivitySource).toContain('WebViewCompat.getWebViewRenderProcess(webView)')
+    expect(mainActivitySource).toContain('if (rendererTerminationPending) return;')
+    expect(mainActivitySource).toMatch(
+      /if \(terminateRenderer\([^)]+\)\) \{\s*rendererTerminationPending = true;/,
+    )
+    expect(mainActivitySource).toContain(
+      'if (rendererRecoveryScheduled || !rendererTerminationPending) return;',
+    )
     expect(mainActivitySource).toContain('webView.destroy()')
     expect(mainActivitySource).toContain('mainHandler.post(this::recreate)')
   })
@@ -151,7 +237,20 @@ describe('mobile product shell', () => {
     expect(foregroundServiceSource).toContain('ACTION_DISCONNECT_ALL')
     expect(foregroundServiceSource).toContain('connection_notification_stop')
     expect(nativeConnectionSource).toContain('notifyDisconnectAllRequested')
+    expect(nativeConnectionSource).toContain('NativeConnectionRuntimeOwner.observeDisconnectAll')
+    expect(nativeConnectionSource).toContain('fun acknowledgeDisconnectAll(call: PluginCall)')
+    expect(nativeConnectionSource).toContain('nativeDisconnectAllRequestedPayload(snapshot)')
+    expect(nativeConnectionSource).toContain('.put("stopEpoch", snapshot.stopEpoch.toString())')
+    expect(nativeRuntimeOwnerSource).toMatch(
+      /val stopped = rendererDemand\.clearDemand\(\) \?: rendererDemand\.canonicalSnapshot\(\)[\s\S]*disconnectAllEvents\.publish\(stopped\)/,
+    )
+    expect(nativeRuntimeOwnerSource).toContain('disconnectAllEvents.acknowledge(stopEpoch)')
     expect(mobileAppSource).toContain("NativeConnection.addListener('disconnectAllRequested'")
+    expect(mobileAppSource).toContain('nativeSessionDemand.handleDisconnectAllRequested(event)')
+    expect(mobileAppSource).toContain('await NativeConnection.acknowledgeDisconnectAll({ stopEpoch })')
+    expect(mobileAppSource).toMatch(
+      /await NativeConnection\.acknowledgeDisconnectAll\(\{ stopEpoch \}\)[\s\S]*nativeSessionDemand\.commitDisconnectAllCleanup\(stopEpoch\)/,
+    )
   })
 
   it('does not emit endpoint identifiers or Edge addresses in Android allowlisted logs', () => {

@@ -262,16 +262,6 @@ public nonisolated struct Anytty_Cloud_V1_DaemonEdgeCandidate: @unchecked Sendab
     set {_uniqueStorage()._eligible = newValue}
   }
 
-  public var agentCount: UInt64 {
-    get {_storage._agentCount}
-    set {_uniqueStorage()._agentCount = newValue}
-  }
-
-  public var capacity: UInt64 {
-    get {_storage._capacity}
-    set {_uniqueStorage()._capacity = newValue}
-  }
-
   public var preferred: Bool {
     get {_storage._preferred}
     set {_uniqueStorage()._preferred = newValue}
@@ -654,6 +644,29 @@ public nonisolated struct Anytty_Cloud_V1_IdentityChallenge: Sendable {
   fileprivate var _expiresAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
+public nonisolated struct Anytty_Cloud_V1_DaemonEnrollmentChallenge: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var identityChallenge: Anytty_Cloud_V1_IdentityChallenge {
+    get {_identityChallenge ?? Anytty_Cloud_V1_IdentityChallenge()}
+    set {_identityChallenge = newValue}
+  }
+  /// Returns true if `identityChallenge` has been explicitly set.
+  public var hasIdentityChallenge: Bool {self._identityChallenge != nil}
+  /// Clears the value of `identityChallenge`. Subsequent reads from it will return its default value.
+  public mutating func clearIdentityChallenge() {self._identityChallenge = nil}
+
+  public var edgeCandidates: [Anytty_Cloud_V1_DaemonEdgeCandidate] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _identityChallenge: Anytty_Cloud_V1_IdentityChallenge? = nil
+}
+
 public nonisolated struct Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -662,6 +675,8 @@ public nonisolated struct Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest: Senda
   public var challengeID: String = String()
 
   public var deviceProof: Data = Data()
+
+  public var edgeMeasurements: [Anytty_Cloud_V1_DaemonEdgeMeasurement] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -734,6 +749,15 @@ public nonisolated struct Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: @unc
     get {_storage._daemonLimit}
     set {_uniqueStorage()._daemonLimit = newValue}
   }
+
+  public var edgeSelection: Anytty_Cloud_V1_DaemonEdgeSelection {
+    get {_storage._edgeSelection ?? Anytty_Cloud_V1_DaemonEdgeSelection()}
+    set {_uniqueStorage()._edgeSelection = newValue}
+  }
+  /// Returns true if `edgeSelection` has been explicitly set.
+  public var hasEdgeSelection: Bool {_storage._edgeSelection != nil}
+  /// Clears the value of `edgeSelection`. Subsequent reads from it will return its default value.
+  public mutating func clearEdgeSelection() {_uniqueStorage()._edgeSelection = nil}
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1172,14 +1196,12 @@ nonisolated extension Anytty_Cloud_V1_DaemonEdgeMeasurement: SwiftProtobuf.Messa
 
 nonisolated extension Anytty_Cloud_V1_DaemonEdgeCandidate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".DaemonEdgeCandidate"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}locator\0\u{1}online\0\u{1}eligible\0\u{3}agent_count\0\u{1}capacity\0\u{1}preferred\0\u{1}current\0\u{1}measurement\0\u{1}score\0\u{1}status\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}locator\0\u{1}online\0\u{1}eligible\0\u{2}\u{3}preferred\0\u{1}current\0\u{1}measurement\0\u{1}score\0\u{1}status\0\u{b}agent_count\0\u{b}capacity\0\u{c}\u{4}\u{1}\u{c}\u{5}\u{1}")
 
   fileprivate class _StorageClass {
     var _locator: Anytty_Cloud_V1_EdgeLocator? = nil
     var _online: Bool = false
     var _eligible: Bool = false
-    var _agentCount: UInt64 = 0
-    var _capacity: UInt64 = 0
     var _preferred: Bool = false
     var _current: Bool = false
     var _measurement: Anytty_Cloud_V1_DaemonEdgeMeasurement? = nil
@@ -1198,8 +1220,6 @@ nonisolated extension Anytty_Cloud_V1_DaemonEdgeCandidate: SwiftProtobuf.Message
       _locator = source._locator
       _online = source._online
       _eligible = source._eligible
-      _agentCount = source._agentCount
-      _capacity = source._capacity
       _preferred = source._preferred
       _current = source._current
       _measurement = source._measurement
@@ -1226,8 +1246,6 @@ nonisolated extension Anytty_Cloud_V1_DaemonEdgeCandidate: SwiftProtobuf.Message
         case 1: try { try decoder.decodeSingularMessageField(value: &_storage._locator) }()
         case 2: try { try decoder.decodeSingularBoolField(value: &_storage._online) }()
         case 3: try { try decoder.decodeSingularBoolField(value: &_storage._eligible) }()
-        case 4: try { try decoder.decodeSingularUInt64Field(value: &_storage._agentCount) }()
-        case 5: try { try decoder.decodeSingularUInt64Field(value: &_storage._capacity) }()
         case 6: try { try decoder.decodeSingularBoolField(value: &_storage._preferred) }()
         case 7: try { try decoder.decodeSingularBoolField(value: &_storage._current) }()
         case 8: try { try decoder.decodeSingularMessageField(value: &_storage._measurement) }()
@@ -1253,12 +1271,6 @@ nonisolated extension Anytty_Cloud_V1_DaemonEdgeCandidate: SwiftProtobuf.Message
       }
       if _storage._eligible != false {
         try visitor.visitSingularBoolField(value: _storage._eligible, fieldNumber: 3)
-      }
-      if _storage._agentCount != 0 {
-        try visitor.visitSingularUInt64Field(value: _storage._agentCount, fieldNumber: 4)
-      }
-      if _storage._capacity != 0 {
-        try visitor.visitSingularUInt64Field(value: _storage._capacity, fieldNumber: 5)
       }
       if _storage._preferred != false {
         try visitor.visitSingularBoolField(value: _storage._preferred, fieldNumber: 6)
@@ -1287,8 +1299,6 @@ nonisolated extension Anytty_Cloud_V1_DaemonEdgeCandidate: SwiftProtobuf.Message
         if _storage._locator != rhs_storage._locator {return false}
         if _storage._online != rhs_storage._online {return false}
         if _storage._eligible != rhs_storage._eligible {return false}
-        if _storage._agentCount != rhs_storage._agentCount {return false}
-        if _storage._capacity != rhs_storage._capacity {return false}
         if _storage._preferred != rhs_storage._preferred {return false}
         if _storage._current != rhs_storage._current {return false}
         if _storage._measurement != rhs_storage._measurement {return false}
@@ -2030,9 +2040,48 @@ nonisolated extension Anytty_Cloud_V1_IdentityChallenge: SwiftProtobuf.Message, 
   }
 }
 
+nonisolated extension Anytty_Cloud_V1_DaemonEnrollmentChallenge: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".DaemonEnrollmentChallenge"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}identity_challenge\0\u{3}edge_candidates\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularMessageField(value: &self._identityChallenge) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.edgeCandidates) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._identityChallenge {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 1)
+    } }()
+    if !self.edgeCandidates.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.edgeCandidates, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: Anytty_Cloud_V1_DaemonEnrollmentChallenge, rhs: Anytty_Cloud_V1_DaemonEnrollmentChallenge) -> Bool {
+    if lhs._identityChallenge != rhs._identityChallenge {return false}
+    if lhs.edgeCandidates != rhs.edgeCandidates {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
 nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CompleteDaemonEnrollmentRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}challenge_id\0\u{3}device_proof\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}challenge_id\0\u{3}device_proof\0\u{3}edge_measurements\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2042,6 +2091,7 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest: SwiftProt
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.challengeID) }()
       case 2: try { try decoder.decodeSingularBytesField(value: &self.deviceProof) }()
+      case 3: try { try decoder.decodeRepeatedMessageField(value: &self.edgeMeasurements) }()
       default: break
       }
     }
@@ -2054,12 +2104,16 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest: SwiftProt
     if !self.deviceProof.isEmpty {
       try visitor.visitSingularBytesField(value: self.deviceProof, fieldNumber: 2)
     }
+    if !self.edgeMeasurements.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.edgeMeasurements, fieldNumber: 3)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest, rhs: Anytty_Cloud_V1_CompleteDaemonEnrollmentRequest) -> Bool {
     if lhs.challengeID != rhs.challengeID {return false}
     if lhs.deviceProof != rhs.deviceProof {return false}
+    if lhs.edgeMeasurements != rhs.edgeMeasurements {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2127,7 +2181,7 @@ nonisolated extension Anytty_Cloud_V1_EdgeLocator: SwiftProtobuf.Message, SwiftP
 
 nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CompleteDaemonEnrollmentResponse"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}daemon\0\u{3}daemon_binding\0\u{3}edge_locator\0\u{3}daemon_count\0\u{3}daemon_limit\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}daemon\0\u{3}daemon_binding\0\u{3}edge_locator\0\u{3}daemon_count\0\u{3}daemon_limit\0\u{3}edge_selection\0")
 
   fileprivate class _StorageClass {
     var _daemon: Anytty_Cloud_V1_DaemonRecord? = nil
@@ -2135,6 +2189,7 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftPro
     var _edgeLocator: Anytty_Cloud_V1_EdgeLocator? = nil
     var _daemonCount: UInt32 = 0
     var _daemonLimit: UInt32 = 0
+    var _edgeSelection: Anytty_Cloud_V1_DaemonEdgeSelection? = nil
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -2150,6 +2205,7 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftPro
       _edgeLocator = source._edgeLocator
       _daemonCount = source._daemonCount
       _daemonLimit = source._daemonLimit
+      _edgeSelection = source._edgeSelection
     }
   }
 
@@ -2173,6 +2229,7 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftPro
         case 3: try { try decoder.decodeSingularMessageField(value: &_storage._edgeLocator) }()
         case 4: try { try decoder.decodeSingularUInt32Field(value: &_storage._daemonCount) }()
         case 5: try { try decoder.decodeSingularUInt32Field(value: &_storage._daemonLimit) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._edgeSelection) }()
         default: break
         }
       }
@@ -2200,6 +2257,9 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftPro
       if _storage._daemonLimit != 0 {
         try visitor.visitSingularUInt32Field(value: _storage._daemonLimit, fieldNumber: 5)
       }
+      try { if let v = _storage._edgeSelection {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2214,6 +2274,7 @@ nonisolated extension Anytty_Cloud_V1_CompleteDaemonEnrollmentResponse: SwiftPro
         if _storage._edgeLocator != rhs_storage._edgeLocator {return false}
         if _storage._daemonCount != rhs_storage._daemonCount {return false}
         if _storage._daemonLimit != rhs_storage._daemonLimit {return false}
+        if _storage._edgeSelection != rhs_storage._edgeSelection {return false}
         return true
       }
       if !storagesAreEqual {return false}

@@ -18,6 +18,7 @@ export interface ConnectionRecoveryOverlayAction {
   label: string
   onClick: () => void | Promise<void>
   pending?: boolean | undefined
+  testId?: string | undefined
 }
 
 /** A layer publishes only the user-facing outcome it needs; the root owns placement and priority. */
@@ -173,6 +174,7 @@ export function ConnectionRecoveryOverlay({ intent }: { intent: ConnectionRecove
           <Button
             aria-busy={intent.action.pending || undefined}
             className="mt-5 min-h-11 w-full max-w-56 shrink-0 gap-2 px-4 text-sm"
+            data-testid={intent.action.testId}
             disabled={intent.action.pending}
             onClick={intent.action.onClick}
             variant="secondary"

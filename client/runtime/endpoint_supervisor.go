@@ -28,6 +28,7 @@ type EndpointSupervisorPhase string
 const (
 	EndpointSupervisorNoDemand       EndpointSupervisorPhase = "no_demand"
 	EndpointSupervisorShadowDecision EndpointSupervisorPhase = "shadow_decision"
+	EndpointSupervisorReconciling    EndpointSupervisorPhase = "reconciling"
 	EndpointSupervisorWaitingNetwork EndpointSupervisorPhase = "waiting_network"
 	EndpointSupervisorVerifying      EndpointSupervisorPhase = "verifying"
 	EndpointSupervisorConnecting     EndpointSupervisorPhase = "connecting"
@@ -83,6 +84,14 @@ type EndpointSupervisorController interface {
 	Invalidate(EndpointSessionStamp, error) error
 }
 
+// EndpointSupervisorIntentController records a newly accepted takeover Demand
+// before its worker can reuse or dial a physical session. Implementations use
+// this boundary to supersede endpoint-wide disconnects queued by an older user
+// intent; background retries within the same Demand must not advance it.
+type EndpointSupervisorIntentController interface {
+	AdvanceEndpointIntent(endpoint.EndpointID) error
+}
+
 type EndpointSupervisorFaultInjector interface {
 	Before(EndpointSupervisorAction, endpoint.EndpointID, uint64) error
 }
@@ -119,6 +128,7 @@ type endpointControl struct {
 	mode            EndpointSupervisorMode
 	demanded        bool
 	controlRevision uint64
+	phaseRevision   uint64
 	attemptID       uint64
 	phase           EndpointSupervisorPhase
 	stamp           EndpointSessionStamp
@@ -129,6 +139,8 @@ type endpointControl struct {
 	backoffCount    uint64
 	backoffIndex    int
 	maintenance     ApplicationReadyPeerSession
+	retireThrough   uint64
+	pendingRetire   []EndpointSessionStamp
 	attemptCancel   context.CancelFunc
 	changed         chan struct{}
 }
@@ -206,11 +218,30 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 		supervisor.mu.Unlock()
 		return nil
 	}
+	if intentController, ok := supervisor.controller.(EndpointSupervisorIntentController); ok {
+		newTakeovers := make([]endpoint.EndpointID, 0, len(seen))
+		for id, mode := range seen {
+			control := supervisor.endpoints[id]
+			if mode == EndpointSupervisorTakeover && (control == nil || !control.demanded || control.mode != EndpointSupervisorTakeover) {
+				newTakeovers = append(newTakeovers, id)
+			}
+		}
+		sort.Slice(newTakeovers, func(left, right int) bool { return newTakeovers[left] < newTakeovers[right] })
+		for _, id := range newTakeovers {
+			if err := intentController.AdvanceEndpointIntent(id); err != nil {
+				supervisor.mu.Unlock()
+				return err
+			}
+		}
+	}
 	supervisor.demandRevision = snapshot.DemandRevision
 	for id, control := range supervisor.endpoints {
 		mode, demanded := seen[id]
 		if control.demanded == demanded && (!demanded || control.mode == mode) {
 			continue
+		}
+		if control.demanded && !demanded {
+			supervisor.markNoDemandRetirementLocked(control)
 		}
 		control.demanded = demanded
 		if demanded {
@@ -229,9 +260,9 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 			mode:            mode,
 			demanded:        true,
 			controlRevision: 1,
-			phase:           EndpointSupervisorNoDemand,
 			changed:         make(chan struct{}),
 		}
+		supervisor.beginControlRevisionLocked(control)
 		supervisor.endpoints[id] = control
 		go supervisor.runEndpoint(control)
 		supervisor.wakeLocked(control)
@@ -260,6 +291,30 @@ func (supervisor *EndpointSupervisor) Signal(signal EndpointHostSignal) error {
 		}
 		supervisor.advanceControlLocked(control)
 	}
+	return nil
+}
+
+// Repair forces one demanded endpoint through a fresh application probe. It is
+// independent of host lifecycle revisions so explicit repair cannot be lost to
+// foreground-signal deduplication.
+func (supervisor *EndpointSupervisor) Repair(endpointID endpoint.EndpointID) error {
+	if supervisor == nil {
+		return runtimeError(ErrorUnavailable, "endpoint supervisor is unavailable", nil)
+	}
+	endpointID = endpoint.EndpointID(strings.TrimSpace(string(endpointID)))
+	if endpointID == "" {
+		return runtimeError(ErrorInvalidRequest, "endpoint supervisor repair requires an endpoint ID", nil)
+	}
+	supervisor.mu.Lock()
+	defer supervisor.mu.Unlock()
+	if supervisor.closed {
+		return runtimeError(ErrorUnavailable, "endpoint supervisor is closed", nil)
+	}
+	control := supervisor.endpoints[endpointID]
+	if control == nil || !control.demanded || control.mode != EndpointSupervisorTakeover {
+		return ErrEndpointNotManaged
+	}
+	supervisor.advanceControlLocked(control)
 	return nil
 }
 
@@ -292,17 +347,23 @@ func (supervisor *EndpointSupervisor) Acquire(ctx context.Context, endpointID en
 			return nil, ErrEndpointNotManaged
 		}
 		phase := control.phase
+		controlRevision := control.controlRevision
+		phaseIsCurrent := control.phaseRevision == control.controlRevision
 		failure := controlFailure(control)
 		changed := control.changed
 		supervisor.mu.Unlock()
-		if phase == EndpointSupervisorReady {
+		if phaseIsCurrent && phase == EndpointSupervisorReady {
 			lease, err := supervisor.controller.AcquireCurrent(endpointID)
 			if err == nil {
-				return lease, nil
+				if supervisor.readyRevisionIsCurrent(control, controlRevision, lease.Stamp()) {
+					return lease, nil
+				}
+				_ = lease.Close()
+				continue
 			}
 			supervisor.wake(endpointID)
 		}
-		if phase == EndpointSupervisorBlocked {
+		if phaseIsCurrent && phase == EndpointSupervisorBlocked {
 			return nil, failure
 		}
 		select {
@@ -313,6 +374,18 @@ func (supervisor *EndpointSupervisor) Acquire(ctx context.Context, endpointID en
 		case <-changed:
 		}
 	}
+}
+
+func (supervisor *EndpointSupervisor) readyRevisionIsCurrent(control *endpointControl, revision uint64, stamp EndpointSessionStamp) bool {
+	supervisor.mu.Lock()
+	defer supervisor.mu.Unlock()
+	return !supervisor.closed &&
+		control.demanded &&
+		control.mode == EndpointSupervisorTakeover &&
+		control.controlRevision == revision &&
+		control.phaseRevision == revision &&
+		control.phase == EndpointSupervisorReady &&
+		control.stamp == stamp
 }
 
 func (supervisor *EndpointSupervisor) WaitReady(ctx context.Context) error {
@@ -332,8 +405,12 @@ func (supervisor *EndpointSupervisor) WaitReady(ctx context.Context) error {
 			if !control.demanded || control.mode != EndpointSupervisorTakeover {
 				continue
 			}
+			if control.phaseRevision != control.controlRevision {
+				pending = true
+				continue
+			}
 			switch control.phase {
-			case EndpointSupervisorReady, EndpointSupervisorWaitingNetwork:
+			case EndpointSupervisorReady:
 				continue
 			case EndpointSupervisorBlocked:
 				failure = controlFailure(control)
@@ -428,8 +505,8 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 			return
 		default:
 		}
-		supervisor.drainWake(control)
-		snapshot := supervisor.controlSnapshot(control)
+		snapshot := supervisor.controlSnapshotAndDrainWake(control)
+		supervisor.invalidatePendingRetirements(control)
 		if !snapshot.demanded {
 			supervisor.releaseMaintenance(control)
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorNoDemand, EndpointSessionStamp{}, nil)
@@ -473,7 +550,9 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 				}
 				continue
 			}
-			supervisor.setMaintenance(control, snapshot.controlRevision, lease)
+			if !supervisor.setMaintenance(control, snapshot.controlRevision, lease) {
+				continue
+			}
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorReady, lease.Stamp(), nil)
 			if !supervisor.waitWake(control, lease.Done(), -1) {
 				return
@@ -492,7 +571,9 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 				}
 				continue
 			}
-			supervisor.setMaintenance(control, snapshot.controlRevision, connected)
+			if !supervisor.setMaintenance(control, snapshot.controlRevision, connected) {
+				continue
+			}
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorReady, connected.Stamp(), nil)
 			if !supervisor.waitWake(control, connected.Done(), -1) {
 				return
@@ -508,7 +589,7 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 func (supervisor *EndpointSupervisor) verify(control *endpointControl, snapshot endpointControlSnapshot, lease ApplicationReadyPeerSession) (bool, error) {
 	attemptID, ctx, cancel, ok := supervisor.beginAttempt(control, snapshot.controlRevision, EndpointSupervisorActionProbe)
 	if !ok {
-		_ = lease.Close()
+		supervisor.releaseSupersededLease(control, snapshot.controlRevision, lease)
 		return false, runtimeError(ErrorCanceled, "endpoint supervisor probe was superseded", nil)
 	}
 	supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorVerifying, lease.Stamp(), nil)
@@ -523,7 +604,7 @@ func (supervisor *EndpointSupervisor) verify(control *endpointControl, snapshot 
 		return true, nil
 	}
 	if !supervisor.isCurrent(control, snapshot.controlRevision) {
-		_ = lease.Close()
+		supervisor.releaseSupersededLease(control, snapshot.controlRevision, lease)
 		return false, runtimeError(ErrorCanceled, "endpoint supervisor probe completed after control changed", failure)
 	}
 	stamp := lease.Stamp()
@@ -610,9 +691,12 @@ func (supervisor *EndpointSupervisor) endAttempt(control *endpointControl, attem
 	supervisor.mu.Unlock()
 }
 
-func (supervisor *EndpointSupervisor) controlSnapshot(control *endpointControl) endpointControlSnapshot {
+func (supervisor *EndpointSupervisor) controlSnapshotAndDrainWake(control *endpointControl) endpointControlSnapshot {
 	supervisor.mu.Lock()
 	defer supervisor.mu.Unlock()
+	// Every wake sender holds supervisor.mu. Draining under the same lock makes
+	// the snapshot and its consumed wake one atomic worker transition.
+	supervisor.drainWakeLocked(control)
 	return endpointControlSnapshot{
 		mode:            control.mode,
 		demanded:        control.demanded,
@@ -647,16 +731,21 @@ func (supervisor *EndpointSupervisor) takeOrAcquireCurrent(control *endpointCont
 	return lease
 }
 
-func (supervisor *EndpointSupervisor) setMaintenance(control *endpointControl, revision uint64, lease ApplicationReadyPeerSession) {
+func (supervisor *EndpointSupervisor) setMaintenance(control *endpointControl, revision uint64, lease ApplicationReadyPeerSession) bool {
 	supervisor.mu.Lock()
 	if !supervisor.closed && control.demanded && control.controlRevision == revision {
 		control.maintenance = lease
 		control.stamp = lease.Stamp()
 		supervisor.mu.Unlock()
-		return
+		return true
 	}
+	retired := revision <= control.retireThrough
 	supervisor.mu.Unlock()
+	if retired {
+		supervisor.invalidateStamp(control, lease.Stamp())
+	}
 	_ = lease.Close()
+	return false
 }
 
 func (supervisor *EndpointSupervisor) clearMaintenance(control *endpointControl, lease ApplicationReadyPeerSession) {
@@ -676,6 +765,46 @@ func (supervisor *EndpointSupervisor) releaseMaintenance(control *endpointContro
 	supervisor.mu.Unlock()
 	if lease != nil {
 		_ = lease.Close()
+	}
+}
+
+func (supervisor *EndpointSupervisor) markNoDemandRetirementLocked(control *endpointControl) {
+	control.retireThrough = control.controlRevision
+	if control.stamp.Generation == 0 {
+		return
+	}
+	for _, stamp := range control.pendingRetire {
+		if stamp == control.stamp {
+			return
+		}
+	}
+	control.pendingRetire = append(control.pendingRetire, control.stamp)
+}
+
+func (supervisor *EndpointSupervisor) invalidatePendingRetirements(control *endpointControl) {
+	supervisor.mu.Lock()
+	stamps := append([]EndpointSessionStamp(nil), control.pendingRetire...)
+	control.pendingRetire = nil
+	supervisor.mu.Unlock()
+	for _, stamp := range stamps {
+		supervisor.invalidateStamp(control, stamp)
+	}
+}
+
+func (supervisor *EndpointSupervisor) releaseSupersededLease(control *endpointControl, revision uint64, lease ApplicationReadyPeerSession) {
+	supervisor.mu.Lock()
+	retired := revision <= control.retireThrough
+	supervisor.mu.Unlock()
+	if retired {
+		supervisor.invalidateStamp(control, lease.Stamp())
+	}
+	_ = lease.Close()
+}
+
+func (supervisor *EndpointSupervisor) invalidateStamp(control *endpointControl, stamp EndpointSessionStamp) {
+	failure := runtimeError(ErrorCanceled, "endpoint demand was released", nil)
+	if err := supervisor.controller.Invalidate(stamp, failure); err != nil && CodeOf(err) != ErrorStaleSession {
+		supervisor.options.Logf("anytty endpoint_supervisor endpoint=%s no_demand_invalidate_error=%v", control.endpointID, err)
 	}
 }
 
@@ -746,10 +875,11 @@ func (supervisor *EndpointSupervisor) waitWake(control *endpointControl, session
 func (supervisor *EndpointSupervisor) publish(control *endpointControl, revision uint64, phase EndpointSupervisorPhase, stamp EndpointSessionStamp, failure error) {
 	supervisor.mu.Lock()
 	defer supervisor.mu.Unlock()
-	if control.controlRevision != revision && phase != EndpointSupervisorNoDemand {
+	if control.controlRevision != revision {
 		return
 	}
 	control.phase = phase
+	control.phaseRevision = revision
 	control.stamp = stamp
 	control.errorCode = CodeOf(failure)
 	control.message = errorMessage(failure)
@@ -763,6 +893,7 @@ func (supervisor *EndpointSupervisor) advanceControlLocked(control *endpointCont
 	if control.attemptCancel != nil {
 		control.attemptCancel()
 	}
+	supervisor.beginControlRevisionLocked(control)
 	supervisor.notifyLocked(control)
 	supervisor.wakeLocked(control)
 }
@@ -774,7 +905,26 @@ func (supervisor *EndpointSupervisor) advanceRetryRevision(control *endpointCont
 		return
 	}
 	control.controlRevision++
+	supervisor.beginControlRevisionLocked(control)
 	supervisor.notifyLocked(control)
+}
+
+func (supervisor *EndpointSupervisor) beginControlRevisionLocked(control *endpointControl) {
+	control.phaseRevision = control.controlRevision
+	control.errorCode = ""
+	control.message = ""
+	switch {
+	case !control.demanded:
+		control.phase = EndpointSupervisorNoDemand
+		control.stamp = EndpointSessionStamp{}
+	case control.mode == EndpointSupervisorShadow:
+		control.phase = EndpointSupervisorReconciling
+		control.stamp = EndpointSessionStamp{}
+	case !supervisor.connected:
+		control.phase = EndpointSupervisorWaitingNetwork
+	default:
+		control.phase = EndpointSupervisorReconciling
+	}
 }
 
 func (supervisor *EndpointSupervisor) notifyLocked(control *endpointControl) {
@@ -799,7 +949,7 @@ func (supervisor *EndpointSupervisor) wake(endpointID endpoint.EndpointID) {
 	supervisor.mu.Unlock()
 }
 
-func (supervisor *EndpointSupervisor) drainWake(control *endpointControl) {
+func (supervisor *EndpointSupervisor) drainWakeLocked(control *endpointControl) {
 	for {
 		select {
 		case <-control.wake:
@@ -853,7 +1003,7 @@ func recoverableSupervisorFailure(err error) bool {
 		return true
 	}
 	switch CodeOf(err) {
-	case ErrorInvalidRequest, ErrorUnsupportedRoute, ErrorIdentity, ErrorAuthorization, ErrorNotFound,
+	case ErrorInvalidRequest, ErrorUnsupportedRoute, ErrorIdentity, ErrorAuthorization, ErrorNotFound, ErrorUserStopped,
 		ErrorResourceExhausted, ErrorEntitlement,
 		ErrorDaemonBlocked, ErrorDaemonDeleted, ErrorRelayNotInPlan,
 		ErrorRelayQuotaExhausted, ErrorRelayConcurrencyExhausted,

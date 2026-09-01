@@ -42,28 +42,32 @@ func MeasureLayout(shell ShellVM, viewport Rect) LayoutPlan {
 
 	body := viewport
 	plan := LayoutPlan{Viewport: viewport}
-	if shell.Header.Visible && body.H > 0 {
+	if !shell.Layout.Zoomed && shell.Header.Visible && body.H > 0 {
 		headerH := shellBandHeight(viewport.H)
 		headerH = minInt(headerH, body.H)
 		plan.Header = Rect{X: 0, Y: 0, W: viewport.W, H: headerH}
 		body.Y += headerH
 		body.H -= headerH
 	}
-	if shell.Footer.Visible && body.H > 0 {
+	if !shell.Layout.Zoomed && shell.Footer.Visible && body.H > 0 {
 		footerH := shellBandHeight(viewport.H)
 		footerH = minInt(footerH, body.H)
 		body.H -= footerH
 		plan.Footer = Rect{X: 0, Y: body.Y + body.H, W: viewport.W, H: footerH}
 	}
-	// 中文说明：header/footer 可见时是顶层产品 chrome；所有 pane、floating 和 overlay 只能使用剩余 body。
-	chromeSafeBody := body
-	body = layoutBodyOverride(body, shell.Layout.Body, viewport)
-	body = intersectRect(body, chromeSafeBody)
+	if !shell.Layout.Zoomed {
+		// 中文说明：header/footer 可见时是顶层产品 chrome；所有 pane、floating 和 overlay 只能使用剩余 body。
+		chromeSafeBody := body
+		body = layoutBodyOverride(body, shell.Layout.Body, viewport)
+		body = intersectRect(body, chromeSafeBody)
+	}
 	plan.Body = body
-	plan.ShellFrame = shellFrameRect(body, shell.Layout.ShellFrame, viewport)
-	plan.HeaderTopFrame = footerFrameRect(plan.ShellFrame, shell.Layout.HeaderTopFrame, viewport)
-	plan.HeaderDividerFrame = footerFrameRect(plan.ShellFrame, shell.Layout.HeaderDividerFrame, viewport)
-	plan.FooterFrame = footerFrameRect(plan.ShellFrame, shell.Layout.FooterFrame, viewport)
+	if !shell.Layout.Zoomed {
+		plan.ShellFrame = shellFrameRect(body, shell.Layout.ShellFrame, viewport)
+		plan.HeaderTopFrame = footerFrameRect(plan.ShellFrame, shell.Layout.HeaderTopFrame, viewport)
+		plan.HeaderDividerFrame = footerFrameRect(plan.ShellFrame, shell.Layout.HeaderDividerFrame, viewport)
+		plan.FooterFrame = footerFrameRect(plan.ShellFrame, shell.Layout.FooterFrame, viewport)
+	}
 	plan.Panels = measurePanels(shell.Layout, body, plan.ShellFrame)
 	plan.Floatings = measureFloatings(shell.Layout.Floating, body)
 	plan.Overlay = measureOverlayInRect(shell.Overlay, body)
@@ -158,13 +162,16 @@ func measurePanels(layout LayoutVM, body Rect, shellFrame Rect) []PanelLayoutPla
 		if rect.W == 0 || rect.H == 0 {
 			rect = body
 		}
-		contentRect := measurePanelContentRect(panel, rect, body)
+		contentRect := measurePanelContentRect(panel, rect, body, layout.Zoomed)
 		out[i] = PanelLayoutPlan{Panel: panel, Rect: rect, Body: body, ShellFrame: shellFrame, ContentRect: contentRect}
 	}
 	return out
 }
 
-func measurePanelContentRect(panel PanelVM, rect Rect, body Rect) Rect {
+func measurePanelContentRect(panel PanelVM, rect Rect, body Rect, zoomed bool) Rect {
+	if zoomed {
+		return rect
+	}
 	if panel.Presentation == PanelPresentationCard {
 		return Rect{X: rect.X + 1, Y: rect.Y + 1, W: maxInt(0, rect.W-2), H: maxInt(0, rect.H-2)}
 	}

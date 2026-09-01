@@ -385,7 +385,7 @@ func expectedDefaultActionTerminalMutations(invocation actiondomain.Invocation) 
 		return terminalMutationVector{Attaches: []state.TerminalRef{term2}, Resizes: resizeTerm1}
 	case "panel.take_owner", "floating.take_owner", "resize.left", "resize.right", "resize.up", "resize.down", "resize.left_large", "resize.right_large", "resize.up_large", "resize.down_large":
 		return terminalMutationVector{Resizes: resizeTerm1}
-	case "panel.split_right", "panel.split_down", "panel.balance", "panel.presentation_card", "panel.presentation_split_line",
+	case "panel.split_right", "panel.split_down", "panel.toggle_zoom", "panel.balance", "panel.presentation_card", "panel.presentation_split_line",
 		"system.toggle_header", "system.toggle_footer", "floating.center", "floating.fit", "floating.auto_fit",
 		"floating.move_left", "floating.move_right", "floating.move_up", "floating.move_down", "floating.narrow", "floating.wide", "floating.short", "floating.tall":
 		return terminalMutationVector{Resizes: resizeTerm1}

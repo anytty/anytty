@@ -16,6 +16,7 @@ type mouseDragState struct {
 	Active             bool
 	Kind               mouseDragKind
 	PaneID             string
+	ViewID             string
 	FloatingID         string
 	Direction          state.PaneResizeDirection
 	SplitPath          string
@@ -56,6 +57,7 @@ const (
 	mouseDragFloatingMove     mouseDragKind = "floating-move"
 	mouseDragFloatingResize   mouseDragKind = "floating-resize"
 	mouseDragClipboardDivider mouseDragKind = "clipboard-divider"
+	mouseDragCopySelection    mouseDragKind = "copy-selection"
 )
 
 func (runtime *AppRuntime) dispatchMouseHitRegion(msg Msg) Msg {
@@ -168,6 +170,14 @@ func (runtime *AppRuntime) dispatchMouseHitRegion(msg Msg) Msg {
 			return NoopMsg{}
 		}
 		col := historyHitRegionDisplayColumn(inputMsg.Event, resolution.HistoryRow)
+		runtime.mouseDrag = mouseDragState{
+			Active:  true,
+			Kind:    mouseDragCopySelection,
+			PaneID:  resolution.HistoryRow.PaneID,
+			ViewID:  runtime.copyHistoryViewIDForRegion(resolution.HistoryRow),
+			LastCol: inputMsg.Event.Col,
+			LastRow: inputMsg.Event.Row,
+		}
 		return CopyModeMouseSelectMsg{Position: state.CopyPosition{Row: resolution.HistoryRow.Row, Col: col}, PaneID: resolution.HistoryRow.PaneID, ViewID: runtime.copyHistoryViewIDForRegion(resolution.HistoryRow)}
 	}
 	if command, ok := PaneCommandFromHitRegion(region); ok {
@@ -767,12 +777,42 @@ func (runtime *AppRuntime) dispatchMouseDrag(event input.InputEvent) (Msg, bool)
 			runtime.mouseDrag.LastCol = event.Col
 			runtime.mouseDrag.LastRow = event.Row
 			return ShellMoveClipboardHistoryDividerMsg{Delta: delta}, true
+		case mouseDragCopySelection:
+			if event.Col == runtime.mouseDrag.LastCol && event.Row == runtime.mouseDrag.LastRow {
+				return NoopMsg{}, true
+			}
+			runtime.mouseDrag.LastCol = event.Col
+			runtime.mouseDrag.LastRow = event.Row
+			region, ok := runtime.copyModeSelectionDragTarget(event)
+			if !ok {
+				return NoopMsg{}, true
+			}
+			return CopyModeMouseSelectMsg{
+				Position: state.CopyPosition{Row: region.Row, Col: historyHitRegionDisplayColumn(event, region)},
+				PaneID:   region.PaneID,
+				ViewID:   runtime.mouseDrag.ViewID,
+				Extend:   true,
+			}, true
 		default:
 			return NoopMsg{}, true
 		}
 	default:
 		return nil, false
 	}
+}
+
+func (runtime *AppRuntime) copyModeSelectionDragTarget(event input.InputEvent) (render.HitRegion, bool) {
+	_, row := mouseEventPoint(event)
+	for _, region := range runtime.lastHitRegions {
+		if region.Kind != render.HitRegionHistoryRow || row < region.Rect.Y || row >= region.Rect.Y+region.Rect.H {
+			continue
+		}
+		if region.PaneID != runtime.mouseDrag.PaneID || runtime.copyHistoryViewIDForRegion(region) != runtime.mouseDrag.ViewID {
+			continue
+		}
+		return region, true
+	}
+	return render.HitRegion{}, false
 }
 
 func clipboardHistoryDividerDragState(region render.HitRegion, event input.InputEvent) (mouseDragState, bool) {

@@ -57,6 +57,7 @@ type FreshCleanupOwner = {
 type ActiveTransfer = {
   epoch: number
   storeEpoch: number
+  connectionIntentEpoch: number
   machineId: string
   direction: TransferInfo['direction']
   cancel: AbortController
@@ -86,6 +87,8 @@ export class NativeFileTransferStore {
   private readonly pendingDismissals = new Set<string>()
   private readonly resumeTransitions = new Map<string, Promise<void>>()
   private readonly transitionEpochs = new Map<string, number>()
+  private readonly connectionIntentEpochs = new Map<string, number>()
+  private readonly stoppedMachines = new Set<string>()
   private readonly progressSamples = new Map<string, { at: number; bytes: number; speed: number; notifiedAt: number }>()
   private readonly storage: Storage | null
   private resolver: NativeTransferSessionResolver | null = null
@@ -187,7 +190,7 @@ export class NativeFileTransferStore {
   async resumeTransfer(id: string): Promise<void> {
     if (this.discarding) return
     const transfer = this.transfers.find((item) => item.id === id)
-    if (!transfer || !canResume(transfer.status)) return
+    if (!transfer || !canResume(transfer.status) || (transfer.machineId && this.stoppedMachines.has(transfer.machineId))) return
     const requestEpoch = this.transitionEpochs.get(id) ?? 0
     const storeEpoch = this.storeEpoch
     const previous = this.resumeTransitions.get(id) ?? Promise.resolve()
@@ -235,10 +238,13 @@ export class NativeFileTransferStore {
     await NativeFilePicker.openFile({ uri: transfer.savedUri, name: transfer.name })
   }
 
-  async suspendForRuntimeReset(): Promise<void> {
+  async suspendForRuntimeReset(
+    shouldSuspendTask: (machineId: string, connectionIntentEpoch: number) => boolean = () => true,
+  ): Promise<void> {
     if (this.discardPromise) await this.discardPromise
     const teardowns = new Set<Promise<unknown>>()
     for (const task of this.taskOwners) {
+      if (!shouldSuspendTask(task.machineId, task.connectionIntentEpoch)) continue
       const freshCleanup = task.freshCleanup
       if (!freshCleanup) continue
       freshCleanup.cancel.abort()
@@ -246,6 +252,7 @@ export class NativeFileTransferStore {
       if (task.teardown) teardowns.add(task.teardown)
     }
     for (const [id, task] of this.active) {
+      if (!shouldSuspendTask(task.machineId, task.connectionIntentEpoch)) continue
       this.advanceTransition(id)
       task.cancel.abort()
       const transfer = this.transfers.find((item) => item.id === id)
@@ -254,17 +261,70 @@ export class NativeFileTransferStore {
       }
       teardowns.add(this.closeTask(id, task))
     }
-    await Promise.allSettled(teardowns)
+    for (const [id, task] of this.failedCleanupOwners) {
+      if (!shouldSuspendTask(task.machineId, task.connectionIntentEpoch)) continue
+      teardowns.add(this.closeTask(id, task))
+    }
+    const results = await Promise.allSettled(teardowns)
+    const failures = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) throw new AggregateError(failures, 'Native file transfer cleanup failed')
   }
 
-  async suspendForUserStop(): Promise<void> {
-    const resumableTransferIDs = this.transfers
-      .filter((transfer) => !transfer.pausedByUser && canResume(transfer.status))
-      .map((transfer) => transfer.id)
-    await this.suspendForRuntimeReset()
-    for (const id of resumableTransferIDs) {
-      this.update(id, { status: 'paused', pausedByUser: true, error: undefined, updatedAt: Date.now(), bytesPerSecond: 0 })
+  async suspendForUserStop(protectedMachineIds: ReadonlySet<string> = new Set<string>()): Promise<void> {
+    const stopIntentEpochs = new Map<string, number>()
+    for (const transfer of this.transfers) {
+      if (transfer.machineId && !stopIntentEpochs.has(transfer.machineId)) {
+        stopIntentEpochs.set(transfer.machineId, this.connectionIntentEpochs.get(transfer.machineId) ?? 0)
+      }
     }
+    for (const task of this.taskOwners) {
+      if (!stopIntentEpochs.has(task.machineId)) {
+        stopIntentEpochs.set(task.machineId, this.connectionIntentEpochs.get(task.machineId) ?? 0)
+      }
+    }
+    const resumableTransfers = this.transfers
+      .filter((transfer) => (
+        (!transfer.pausedByUser || this.resumeTransitions.has(transfer.id)) &&
+        isUserStopResumable(transfer.status)
+      ))
+      .map((transfer) => ({
+        id: transfer.id,
+        machineId: transfer.machineId,
+        connectionIntentEpoch: transfer.machineId
+          ? this.connectionIntentEpochs.get(transfer.machineId) ?? 0
+          : 0,
+      }))
+    for (const transfer of resumableTransfers) {
+      if (transfer.machineId && !protectedMachineIds.has(transfer.machineId)) {
+        this.stoppedMachines.add(transfer.machineId)
+        this.advanceTransition(transfer.id)
+      }
+    }
+    await this.suspendForRuntimeReset((machineId, taskIntentEpoch) => {
+      const stopIntentEpoch = stopIntentEpochs.get(machineId) ?? 0
+      return protectedMachineIds.has(machineId)
+        ? taskIntentEpoch < stopIntentEpoch
+        : taskIntentEpoch <= stopIntentEpoch
+    })
+    const resumeMachines = new Set(protectedMachineIds)
+    for (const transfer of resumableTransfers) {
+      if (transfer.machineId && protectedMachineIds.has(transfer.machineId)) continue
+      if (transfer.machineId && (this.connectionIntentEpochs.get(transfer.machineId) ?? 0) !== transfer.connectionIntentEpoch) {
+        resumeMachines.add(transfer.machineId)
+        continue
+      }
+      const current = this.transfers.find((candidate) => candidate.id === transfer.id)
+      if (!current || !isUserStopResumable(current.status)) continue
+      this.advanceTransition(transfer.id)
+      this.update(transfer.id, { status: 'paused', pausedByUser: true, error: undefined, updatedAt: Date.now(), bytesPerSecond: 0 })
+    }
+    for (const machineId of resumeMachines) void this.resumeInterruptedTransfers(machineId)
+  }
+
+  markFreshConnectionIntent(machineId: string): void {
+    this.connectionIntentEpochs.set(machineId, (this.connectionIntentEpochs.get(machineId) ?? 0) + 1)
+    this.stoppedMachines.delete(machineId)
   }
 
   discardForLocalReset(): Promise<void> {
@@ -316,6 +376,8 @@ export class NativeFileTransferStore {
     this.pendingDismissals.clear()
     this.resumeTransitions.clear()
     this.transitionEpochs.clear()
+    this.connectionIntentEpochs.clear()
+    this.stoppedMachines.clear()
     this.progressSamples.clear()
     this.taskTeardowns = new WeakMap<ActiveTransfer, Promise<void>>()
     removePersistedTransfers(this.storage)
@@ -323,7 +385,11 @@ export class NativeFileTransferStore {
 
   async resumeInterruptedTransfers(machineId?: string): Promise<void> {
     if (this.discarding) return
-    const transfers = this.transfers.filter((transfer) => (!machineId || transfer.machineId === machineId) && !transfer.pausedByUser && canResume(transfer.status))
+    const transfers = this.transfers.filter((transfer) => (
+      (!machineId || transfer.machineId === machineId) &&
+      (!transfer.machineId || !this.stoppedMachines.has(transfer.machineId)) &&
+      !transfer.pausedByUser && canResume(transfer.status)
+    ))
     await Promise.allSettled(transfers.map((transfer) => this.resumeTransfer(transfer.id)))
   }
 
@@ -587,6 +653,7 @@ export class NativeFileTransferStore {
       },
       () => {
         if (task.teardown === teardown) task.teardown = undefined
+        if (this.taskTeardowns.get(task) === teardown) this.taskTeardowns.delete(task)
       },
     )
     return teardown
@@ -795,6 +862,7 @@ export class NativeFileTransferStore {
     const task: ActiveTransfer = {
       epoch: this.transitionEpochs.get(id) ?? 0,
       storeEpoch: this.storeEpoch,
+      connectionIntentEpoch: this.connectionIntentEpochs.get(transfer.machineId) ?? 0,
       machineId: transfer.machineId,
       direction: transfer.direction,
       cancel: new AbortController(),
@@ -1364,6 +1432,10 @@ function command(caseName: string, value: object) {
 }
 
 function canResume(status: TransferStatus): boolean { return status === 'paused' || status === 'failed' || status === 'missing' }
+
+function isUserStopResumable(status: TransferStatus): boolean {
+  return status === 'pending' || status === 'transferring' || canResume(status)
+}
 
 async function awaitAbortable<T>(promise: Promise<T>, signal: AbortSignal, onLate: (value: T) => void): Promise<T> {
   if (signal.aborted) {

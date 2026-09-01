@@ -23,7 +23,7 @@ import (
 const (
 	// ABIVersion 是 C/JNI/WASM binding 符号与 EventEnvelope 语义版本。
 	// 不兼容的 handle ownership、函数签名或事件 oneof 变更必须递增该值。
-	ABIVersion uint32 = 6
+	ABIVersion uint32 = 7
 	// MaxPayloadBytes 限制跨语言单次 protobuf 输入，防止 JNI/WASM 分配无界内存。
 	MaxPayloadBytes      = 4 << 20
 	defaultEventCapacity = 256
@@ -50,6 +50,10 @@ type Host interface {
 
 type endpointLifecycleHost interface {
 	WatchEndpoint(context.Context, endpoint.EndpointID) (<-chan clientruntime.EndpointEvent, error)
+}
+
+type endpointIntentHost interface {
+	AdvanceEndpointIntent(endpoint.EndpointID) error
 }
 
 // Engine 持有当前跨语言实例的 operation/session handle registry 和有界事件队列。
@@ -449,6 +453,16 @@ func (engine *Engine) OpenSession(payload []byte) (uint64, error) {
 	handle, operationContext, err := engine.startOperation()
 	if err != nil {
 		return 0, err
+	}
+	// Process-owned Demand is the intent fence for ordinary managed opens. Only
+	// an explicit diagnostic Route bypasses that supervisor boundary and needs
+	// to advance the endpoint intent here. A rejected stale managed open must
+	// not supersede a user-stop disconnect prepared for the current winner.
+	if host, ok := engine.host.(endpointIntentHost); ok && strings.TrimSpace(request.GetRouteOverride()) != "" {
+		if err := host.AdvanceEndpointIntent(endpoint.EndpointID(request.GetEndpointId())); err != nil {
+			engine.discardStartedOperation(handle)
+			return 0, err
+		}
 	}
 	go engine.runOpen(handle, operationContext, request)
 	return handle, nil
@@ -1107,6 +1121,16 @@ func (engine *Engine) startOperation() (uint64, context.Context, error) {
 	ctx, cancel := context.WithCancel(renderer.ctx)
 	engine.operations[handle] = &operation{cancel: cancel, rendererID: engine.activeRenderer}
 	return handle, ctx, nil
+}
+
+func (engine *Engine) discardStartedOperation(handle uint64) {
+	engine.mu.Lock()
+	operation := engine.operations[handle]
+	delete(engine.operations, handle)
+	engine.mu.Unlock()
+	if operation != nil {
+		operation.cancel()
+	}
 }
 
 func (engine *Engine) startSessionOperation(sessionHandle uint64) (uint64, context.Context, clientruntime.ApplicationReadyPeerSession, error) {

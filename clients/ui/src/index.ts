@@ -162,6 +162,11 @@ export type {
 } from './state/appMachine'
 export { MACHINE_ICON_NAMES } from './state/appMachine'
 export { createMachineStore } from './state/machineStore'
+export {
+  ACTIVE_WORKSPACE_STORAGE_KEY,
+  readActiveWorkspaceMachineId,
+  writeActiveWorkspaceMachineId,
+} from './state/activeWorkspace'
 export type {
   MachineStore,
   MachineStoreOptions,

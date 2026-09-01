@@ -2997,9 +2997,9 @@ export const EndpointConnectionPhaseSchema: GenEnum<EndpointConnectionPhase> = /
   enumDesc(file_bindingpb_client_binding, 7);
 
 /**
- * EndpointSupervisorMode is selected by the Android rollout policy for each
- * demanded endpoint. Shadow records decisions while TS remains authoritative;
- * takeover moves probe/dial/backoff ownership into Go.
+ * EndpointSupervisorMode controls whether Go observes or owns a demanded
+ * endpoint. Mobile production hosts submit takeover for every endpoint;
+ * shadow remains available only for supervisor diagnostics.
  *
  * @generated from enum anytty.client.binding.v1.EndpointSupervisorMode
  */

@@ -29,6 +29,8 @@
     "daemonBlocked": "此设备的 Cloud 连接已被停用，恢复后即可重试。Direct 和 SSH 连接不受影响。",
     "daemonDeletedTitle": "Cloud 注册已删除",
     "daemonDeleted": "此设备的 Cloud 注册已永久删除。Direct 和 SSH 连接仍然可用；如需继续使用 Cloud，请先重新注册 daemon，再扫描新的配对二维码。",
+    "connectionStoppedTitle": "连接已停止",
+    "connectionStopped": "你已主动停止此连接，可在当前页面重新连接。",
     "identityMismatchTitle": "无法确认设备身份",
     "identityMismatch": "为保护设备安全，请返回设备列表并重新配对。",
     "connectionProblemTitle": "连接已中断",

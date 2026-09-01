@@ -11,7 +11,6 @@ package main
 import "C"
 
 import (
-	"bytes"
 	"log"
 	"os"
 	"strconv"
@@ -24,16 +23,6 @@ const (
 	androidDiagnosticMaxFileBytes  = int64(512 * 1024)
 	androidDiagnosticRetainedFiles = 4
 	androidDiagnosticMaxEntryBytes = 4 * 1024
-)
-
-var (
-	cloudTimingPrefix        = []byte("anytty cloud connect ")
-	cloudFailurePrefix       = []byte("anytty cloud failure ")
-	cloudPresencePrefix      = []byte("anytty cloud presence ")
-	directTimingPrefix       = []byte("anytty direct connect ")
-	directFailurePrefix      = []byte("anytty direct failure ")
-	webRTCDiagnosticPrefix   = []byte("anytty webrtc ")
-	endpointSupervisorPrefix = []byte("anytty endpoint_supervisor ")
 )
 
 type androidTimingWriter struct{}
@@ -51,16 +40,13 @@ func anytty_debug_log_set_path(value *C.char) {
 }
 
 func (androidTimingWriter) Write(payload []byte) (int, error) {
-	if !bytes.HasPrefix(payload, cloudTimingPrefix) &&
-		!bytes.HasPrefix(payload, cloudFailurePrefix) &&
-		!bytes.HasPrefix(payload, cloudPresencePrefix) &&
-		!bytes.HasPrefix(payload, directTimingPrefix) &&
-		!bytes.HasPrefix(payload, directFailurePrefix) &&
-		!bytes.HasPrefix(payload, webRTCDiagnosticPrefix) &&
-		!bytes.HasPrefix(payload, endpointSupervisorPrefix) {
+	if !androidDiagnosticAllowed(payload) {
 		return len(payload), nil
 	}
 	privatePayload := sanitizeAndroidDiagnostic(payload)
+	if len(privatePayload) == 0 {
+		return len(payload), nil
+	}
 	if len(privatePayload) > androidDiagnosticMaxEntryBytes {
 		privatePayload = privatePayload[:androidDiagnosticMaxEntryBytes]
 	}
@@ -93,25 +79,6 @@ func rotateAndroidDiagnosticLog(path string, incomingBytes int64) {
 		_ = os.Rename(path+"."+strconv.Itoa(index), path+"."+strconv.Itoa(index+1))
 	}
 	_ = os.Rename(path, path+".1")
-}
-
-func sanitizeAndroidDiagnostic(payload []byte) []byte {
-	trimmed := bytes.TrimSpace(payload)
-	if !bytes.HasPrefix(payload, endpointSupervisorPrefix) {
-		return bytes.Join(bytes.Fields(trimmed), []byte(" "))
-	}
-	if index := bytes.Index(trimmed, []byte(" invalidate_error=")); index >= 0 {
-		trimmed = append(bytes.Clone(trimmed[:index]), []byte(" invalidate_failed=true")...)
-	}
-	fields := bytes.Fields(trimmed)
-	filtered := fields[:0]
-	for _, field := range fields {
-		if bytes.HasPrefix(field, []byte("endpoint=")) {
-			continue
-		}
-		filtered = append(filtered, field)
-	}
-	return bytes.Join(filtered, []byte(" "))
 }
 
 // Android emits only structured, allowlisted connection diagnostics. Raw errors,

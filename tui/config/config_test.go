@@ -16,6 +16,9 @@ func TestParseLocalizedExampleConfigsMatchDefaults(t *testing.T) {
 	if want.Daemon.OutputBuffer.Overflow != "block" || want.Daemon.OutputBuffer.CapacityBytes != 32<<20 || want.Daemon.OutputBuffer.ResidentBudgetBytes != 512<<20 {
 		t.Fatalf("production output buffer defaults changed: %#v", want.Daemon.OutputBuffer)
 	}
+	if want.Daemon.ResourceSampling.IntervalMS != 500 || want.Daemon.ResourceSampling.MaxSamples != 512 {
+		t.Fatalf("production resource sampling defaults changed: %#v", want.Daemon.ResourceSampling)
+	}
 	for _, name := range []string{"tui-v3.example.yaml", "tui-v3.example.en.yaml"} {
 		t.Run(name, func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join("..", "docs", name))
@@ -411,6 +414,8 @@ func TestLoadAppliesEnvOverrides(t *testing.T) {
 		"ANYTTY_HISTORY_MAX_AGE_DAYS":                 "30",
 		"ANYTTY_HISTORY_COMPRESSION":                  "none",
 		"ANYTTY_HISTORY_COMPRESSION_LEVEL":            "best",
+		"ANYTTY_RESOURCE_SAMPLING_INTERVAL_MS":        "750",
+		"ANYTTY_RESOURCE_SAMPLING_MAX_SAMPLES":        "1024",
 		"ANYTTY_TUI_THEME_PRIMARY":                    "#010203",
 		"ANYTTY_TUI_THEME_PALETTE":                    "builtin",
 		"ANYTTY_TUI_CHROME_HEADER":                    "false",
@@ -435,6 +440,8 @@ func TestLoadAppliesEnvOverrides(t *testing.T) {
 		cfg.Daemon.History.MaxAgeDays != 30 ||
 		cfg.Daemon.History.Compression != "none" ||
 		cfg.Daemon.History.CompressionLevel != "best" ||
+		cfg.Daemon.ResourceSampling.IntervalMS != 750 ||
+		cfg.Daemon.ResourceSampling.MaxSamples != 1024 ||
 		cfg.Theme.Palette != "builtin" ||
 		cfg.Chrome.Header ||
 		cfg.Chrome.Picker.Presentation != "flat" ||
@@ -468,6 +475,30 @@ func TestOutputBufferYAMLAndValidation(t *testing.T) {
 			mutate(&invalid)
 			if err := Validate(invalid); err == nil {
 				t.Fatal("invalid output buffer config was accepted")
+			}
+		})
+	}
+}
+
+func TestResourceSamplingYAMLAndValidation(t *testing.T) {
+	cfg, err := Parse([]byte("version: 1\ndaemon:\n  resource_sampling:\n    interval_ms: 750\n    max_samples: 1024\n"))
+	if err != nil {
+		t.Fatalf("parse resource sampling config: %v", err)
+	}
+	if cfg.Daemon.ResourceSampling.IntervalMS != 750 || cfg.Daemon.ResourceSampling.MaxSamples != 1024 {
+		t.Fatalf("resource sampling config not applied: %#v", cfg.Daemon.ResourceSampling)
+	}
+	for name, mutate := range map[string]func(*state.TUIConfigStore){
+		"interval below minimum": func(cfg *state.TUIConfigStore) { cfg.Daemon.ResourceSampling.IntervalMS = 99 },
+		"interval above maximum": func(cfg *state.TUIConfigStore) { cfg.Daemon.ResourceSampling.IntervalMS = 60001 },
+		"samples below minimum":  func(cfg *state.TUIConfigStore) { cfg.Daemon.ResourceSampling.MaxSamples = 511 },
+		"samples above maximum":  func(cfg *state.TUIConfigStore) { cfg.Daemon.ResourceSampling.MaxSamples = 65537 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := Default()
+			mutate(&invalid)
+			if err := Validate(invalid); err == nil {
+				t.Fatal("invalid resource sampling config was accepted")
 			}
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/anytty/anytty/client/endpoint"
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/bindingpb"
 	"google.golang.org/protobuf/proto"
@@ -41,6 +42,12 @@ func TestEndpointSupervisorControlPlaneUsesDeterministicProtoSnapshots(t *testin
 	if host.signal.Revision != 11 || !host.signal.Connected || !host.signal.Foreground {
 		t.Fatalf("signal = %#v", host.signal)
 	}
+	if err := RepairEndpointSupervisor(host, " studio "); err != nil {
+		t.Fatal(err)
+	}
+	if host.repaired != "studio" {
+		t.Fatalf("repaired endpoint = %q", host.repaired)
+	}
 
 	host.projections = []clientruntime.EndpointSupervisorProjection{
 		{EndpointID: "studio", Mode: clientruntime.EndpointSupervisorTakeover, Phase: clientruntime.EndpointSupervisorReady, ControlRevision: 4, AttemptID: 8, ProbeCount: 2},
@@ -62,6 +69,7 @@ func TestEndpointSupervisorControlPlaneUsesDeterministicProtoSnapshots(t *testin
 type supervisorBindingHost struct {
 	demand      clientruntime.EndpointDemandSnapshot
 	signal      clientruntime.EndpointHostSignal
+	repaired    endpoint.EndpointID
 	projections []clientruntime.EndpointSupervisorProjection
 }
 
@@ -72,6 +80,11 @@ func (host *supervisorBindingHost) ReplaceEndpointDemand(snapshot clientruntime.
 
 func (host *supervisorBindingHost) SignalEndpointHost(signal clientruntime.EndpointHostSignal) error {
 	host.signal = signal
+	return nil
+}
+
+func (host *supervisorBindingHost) RepairEndpoint(endpointID endpoint.EndpointID) error {
+	host.repaired = endpointID
 	return nil
 }
 

@@ -72,6 +72,7 @@ function abortError(signal: AbortSignal): Error {
 export async function runAcrossNativePicker<T>(
   barrier: NativeForegroundBarrier,
   pick: () => Promise<T>,
+  validateContinuation?: (result: T) => void | Promise<void>,
 ): Promise<T> {
   const generation = barrier.markBackground()
   let result: T
@@ -82,5 +83,6 @@ export async function runAcrossNativePicker<T>(
     throw failure
   }
   await barrier.wait()
+  await validateContinuation?.(result)
   return result
 }

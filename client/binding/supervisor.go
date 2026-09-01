@@ -18,8 +18,20 @@ import (
 type EndpointSupervisorHost interface {
 	ReplaceEndpointDemand(clientruntime.EndpointDemandSnapshot) error
 	SignalEndpointHost(clientruntime.EndpointHostSignal) error
+	RepairEndpoint(endpoint.EndpointID) error
 	WaitEndpointDemandReady(context.Context) error
 	EndpointSupervisorSnapshot() []clientruntime.EndpointSupervisorProjection
+}
+
+func RepairEndpointSupervisor(host EndpointSupervisorHost, endpointID string) error {
+	if host == nil {
+		return ErrInvalidHandle
+	}
+	id := endpoint.EndpointID(strings.TrimSpace(endpointID))
+	if id == "" {
+		return fmt.Errorf("endpoint supervisor repair requires an endpoint ID")
+	}
+	return host.RepairEndpoint(id)
 }
 
 func ReplaceEndpointSupervisorDemand(host EndpointSupervisorHost, payload []byte) error {

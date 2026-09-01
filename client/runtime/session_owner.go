@@ -38,6 +38,14 @@ type endpointAcquireEntry struct {
 	refs  int
 }
 
+// EndpointDisconnectFence binds one endpoint-wide disconnect to the connection
+// intent revision observed when the outer binding request was accepted.
+type EndpointDisconnectFence struct {
+	owner          *SessionOwner
+	endpointID     endpoint.EndpointID
+	intentRevision uint64
+}
+
 // stickyRouteSelection 只在产生显式选择时的连接配置仍未变化时复用 route。
 // configKey 由 Endpoint、策略和平台能力共同生成，配置变化后必须回到 planner，不能让旧测试连接覆盖用户的新策略。
 type stickyRouteSelection struct {
@@ -48,14 +56,19 @@ type stickyRouteSelection struct {
 // SessionGenerationAuthority 是 Go Client Engine 进程级的 endpoint generation 真值。
 // engine/host 可以重建，但同一进程内后创建的 owner 必须继续递增；平台层只能持有该对象引用，不能读取或生成数值。
 type SessionGenerationAuthority struct {
-	mu          sync.Mutex
-	generations map[endpoint.EndpointID]SessionGeneration
-	current     map[endpoint.EndpointID]ApplicationReadyPeerSession
+	mu              sync.Mutex
+	generations     map[endpoint.EndpointID]SessionGeneration
+	intentRevisions map[endpoint.EndpointID]uint64
+	current         map[endpoint.EndpointID]ApplicationReadyPeerSession
 }
 
 // NewSessionGenerationAuthority 创建空的进程级 generation authority。
 func NewSessionGenerationAuthority() *SessionGenerationAuthority {
-	return &SessionGenerationAuthority{generations: make(map[endpoint.EndpointID]SessionGeneration), current: make(map[endpoint.EndpointID]ApplicationReadyPeerSession)}
+	return &SessionGenerationAuthority{
+		generations:     make(map[endpoint.EndpointID]SessionGeneration),
+		intentRevisions: make(map[endpoint.EndpointID]uint64),
+		current:         make(map[endpoint.EndpointID]ApplicationReadyPeerSession),
+	}
 }
 
 // NewSessionOwner 创建空的客户端 session owner。
@@ -405,14 +418,64 @@ func (owner *SessionOwner) Disconnect(_ context.Context, request DisconnectReque
 	return session.Close()
 }
 
-// DisconnectEndpoint is the explicit user disconnect boundary. It serializes
-// behind an in-flight acquire so a late ready winner cannot remain pooled, then
-// advances the endpoint generation before closing the physical session.
-func (owner *SessionOwner) DisconnectEndpoint(ctx context.Context, endpointID endpoint.EndpointID) error {
-	if owner == nil || ctx == nil || strings.TrimSpace(string(endpointID)) == "" {
-		return runtimeError(ErrorInvalidRequest, "session owner, context, and endpoint_id are required", nil)
+// AdvanceEndpointIntent fences endpoint-wide operations that started before a
+// newer connection request. Callers must advance at the outer request boundary,
+// before waiting for a pooled or newly dialed session.
+func (owner *SessionOwner) AdvanceEndpointIntent(endpointID endpoint.EndpointID) error {
+	if owner == nil || strings.TrimSpace(string(endpointID)) == "" {
+		return runtimeError(ErrorInvalidRequest, "session owner and endpoint_id are required", nil)
 	}
-	unlock, err := owner.acquireEndpoint(ctx, endpointID)
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.closed {
+		return runtimeError(ErrorUnavailable, "session owner is closed", nil)
+	}
+	owner.authority.mu.Lock()
+	defer owner.authority.mu.Unlock()
+	revision := owner.authority.intentRevisions[endpointID]
+	if revision == math.MaxUint64 {
+		return runtimeError(ErrorUnavailable, "endpoint intent revision is exhausted", nil)
+	}
+	owner.authority.intentRevisions[endpointID] = revision + 1
+	return nil
+}
+
+// PrepareEndpointDisconnect captures the endpoint intent before the asynchronous
+// binding operation is scheduled. The returned fence cannot be retargeted.
+func (owner *SessionOwner) PrepareEndpointDisconnect(endpointID endpoint.EndpointID) (EndpointDisconnectFence, error) {
+	if owner == nil || strings.TrimSpace(string(endpointID)) == "" {
+		return EndpointDisconnectFence{}, runtimeError(ErrorInvalidRequest, "session owner and endpoint_id are required", nil)
+	}
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	if owner.closed {
+		return EndpointDisconnectFence{}, runtimeError(ErrorUnavailable, "session owner is closed", nil)
+	}
+	owner.authority.mu.Lock()
+	intentRevision := owner.authority.intentRevisions[endpointID]
+	owner.authority.mu.Unlock()
+	return EndpointDisconnectFence{owner: owner, endpointID: endpointID, intentRevision: intentRevision}, nil
+}
+
+// DisconnectEndpoint is the explicit user disconnect boundary. It serializes
+// behind an in-flight acquire so a late ready winner cannot remain pooled. A
+// newer endpoint intent supersedes the queued disconnect before it can advance
+// the generation or close the physical session.
+func (owner *SessionOwner) DisconnectEndpoint(ctx context.Context, endpointID endpoint.EndpointID) error {
+	fence, err := owner.PrepareEndpointDisconnect(endpointID)
+	if err != nil {
+		return err
+	}
+	return fence.Disconnect(ctx)
+}
+
+// Disconnect executes a previously captured endpoint-wide disconnect fence.
+func (fence EndpointDisconnectFence) Disconnect(ctx context.Context) error {
+	owner := fence.owner
+	if owner == nil || ctx == nil || strings.TrimSpace(string(fence.endpointID)) == "" {
+		return runtimeError(ErrorInvalidRequest, "endpoint disconnect fence and context are required", nil)
+	}
+	unlock, err := owner.acquireEndpoint(ctx, fence.endpointID)
 	if err != nil {
 		return err
 	}
@@ -420,21 +483,26 @@ func (owner *SessionOwner) DisconnectEndpoint(ctx context.Context, endpointID en
 
 	owner.mu.Lock()
 	owner.authority.mu.Lock()
-	generation := owner.authority.generations[endpointID]
+	if owner.authority.intentRevisions[fence.endpointID] != fence.intentRevision {
+		owner.authority.mu.Unlock()
+		owner.mu.Unlock()
+		return nil
+	}
+	generation := owner.authority.generations[fence.endpointID]
 	if generation == SessionGeneration(math.MaxUint64) {
 		owner.authority.mu.Unlock()
 		owner.mu.Unlock()
 		return runtimeError(ErrorUnavailable, "endpoint session generation is exhausted", nil)
 	}
-	session := owner.current[endpointID]
-	globalSession := owner.authority.current[endpointID]
-	owner.authority.generations[endpointID] = generation + 1
-	delete(owner.authority.current, endpointID)
+	session := owner.current[fence.endpointID]
+	globalSession := owner.authority.current[fence.endpointID]
+	owner.authority.generations[fence.endpointID] = generation + 1
+	delete(owner.authority.current, fence.endpointID)
 	owner.authority.mu.Unlock()
-	delete(owner.current, endpointID)
-	delete(owner.configs, endpointID)
-	delete(owner.selections, endpointID)
-	shared := owner.takeSharedLeasesLocked(endpointID)
+	delete(owner.current, fence.endpointID)
+	delete(owner.configs, fence.endpointID)
+	delete(owner.selections, fence.endpointID)
+	shared := owner.takeSharedLeasesLocked(fence.endpointID)
 	owner.mu.Unlock()
 
 	cause := runtimeError(ErrorCanceled, "endpoint was disconnected by the user", nil)

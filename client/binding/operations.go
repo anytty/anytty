@@ -104,11 +104,15 @@ func (engine *Engine) startEndpointDisconnect(request *bindingpb.EndpointDisconn
 	if err != nil {
 		return 0, err
 	}
+	disconnect, err := host.PrepareEndpointDisconnect(endpoint.EndpointID(request.GetEndpointId()))
+	if err != nil {
+		return 0, err
+	}
 	handle, operationContext, err := engine.startOperation()
 	if err != nil {
 		return 0, err
 	}
-	go engine.runEndpointDisconnect(handle, operationContext, host, proto.Clone(request).(*bindingpb.EndpointDisconnectRequest))
+	go engine.runEndpointDisconnect(handle, operationContext, disconnect, proto.Clone(request).(*bindingpb.EndpointDisconnectRequest))
 	return handle, nil
 }
 
@@ -521,7 +525,10 @@ func (engine *Engine) runConnectionPolicyGet(handle uint64, ctx context.Context,
 
 func (engine *Engine) runConnectionPolicyApply(handle uint64, ctx context.Context, host ConnectionPolicyHost, request *bindingpb.ConnectionPolicyApplyRequest) {
 	result, err := host.ApplyConnectionPolicy(ctx, request)
-	if ctx.Err() != nil {
+	// A non-nil result is the host's commit acknowledgement. Cancellation that
+	// races after that point must not turn a durable policy into an apparent
+	// failure and tempt callers to submit the mutation again.
+	if ctx.Err() != nil && result == nil {
 		result, err = nil, ctx.Err()
 	}
 	engine.markOperationDone(handle)
@@ -575,8 +582,8 @@ func (engine *Engine) runSessionInvalidate(handle uint64, ctx context.Context, h
 	engine.emitForHandle(handle, &bindingpb.EventEnvelope{Event: &bindingpb.EventEnvelope_SessionInvalidate{SessionInvalidate: result}})
 }
 
-func (engine *Engine) runEndpointDisconnect(handle uint64, ctx context.Context, host EndpointDisconnectionHost, request *bindingpb.EndpointDisconnectRequest) {
-	err := host.DisconnectEndpoint(ctx, endpoint.EndpointID(request.GetEndpointId()))
+func (engine *Engine) runEndpointDisconnect(handle uint64, ctx context.Context, disconnect EndpointDisconnectOperation, request *bindingpb.EndpointDisconnectRequest) {
+	err := disconnect.Disconnect(ctx)
 	if ctx.Err() != nil {
 		err = ctx.Err()
 	}

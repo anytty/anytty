@@ -429,9 +429,9 @@ public nonisolated enum Anytty_Client_Binding_V1_EndpointConnectionPhase: SwiftP
 
 }
 
-/// EndpointSupervisorMode is selected by the Android rollout policy for each
-/// demanded endpoint. Shadow records decisions while TS remains authoritative;
-/// takeover moves probe/dial/backoff ownership into Go.
+/// EndpointSupervisorMode controls whether Go observes or owns a demanded
+/// endpoint. Mobile production hosts submit takeover for every endpoint;
+/// shadow remains available only for supervisor diagnostics.
 public nonisolated enum Anytty_Client_Binding_V1_EndpointSupervisorMode: SwiftProtobuf.Enum, Swift.CaseIterable {
   public typealias RawValue = Int
   case unspecified // = 0

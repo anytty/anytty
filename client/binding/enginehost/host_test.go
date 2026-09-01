@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -20,6 +21,27 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestOpenSessionWithoutSupervisorDemandDoesNotFallbackDirect(t *testing.T) {
+	host, err := New(Options{
+		Broker:           binding.NewPlatformBroker(),
+		DirectPeers:      fakeDirectPeerFactory{},
+		ClientName:       "enginehost-test",
+		CredentialPrefix: "enginehost-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = host.Close() })
+
+	_, err = host.OpenSession(context.Background(), &bindingpb.OpenSessionRequest{
+		EndpointId: "studio",
+		Intent:     bindingpb.ConnectIntent_CONNECT_INTENT_INTERACTIVE,
+	})
+	if !errors.Is(err, clientruntime.ErrEndpointNotManaged) {
+		t.Fatalf("OpenSession error = %v, want ErrEndpointNotManaged", err)
+	}
+}
 
 func TestDecodeBootstrapAcceptsManualPairingClaimCode(t *testing.T) {
 	payload := []byte{0x01, 0x02, 0x03, 0x04}

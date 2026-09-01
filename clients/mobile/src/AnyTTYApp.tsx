@@ -14,6 +14,8 @@ import {
   normalizeTerminalInventory,
   openProtoEventSubscription,
   readAppTheme,
+  readActiveWorkspaceMachineId,
+  writeActiveWorkspaceMachineId,
   AnyTTYClientBinding,
   AnyTTYApiApplication,
   AnyTTYApiEvents,
@@ -39,19 +41,24 @@ import type {
   ProtoClientSession,
   AppConnectionState,
 } from '@anytty/ui'
-import { NativeConnection, type NativeNetworkChangedEvent } from './plugins/nativeConnection'
+import {
+  NativeConnection,
+  type NativeDisconnectAllRequestedEvent,
+  type NativeNetworkChangedEvent,
+} from './plugins/nativeConnection'
 import { NativeFileTransferStore } from './NativeFileTransferStore'
 import { GoBindingClient, GoBindingConnector } from './GoBindingClient'
 import { settleBindingGeneration } from './BindingGeneration'
+import { NativeBindingGenerationReplacement, drainNativeGenerationReset } from './NativeBindingGenerationReplacement'
 import { NativeSessionManager, type NativeSessionConnector } from './NativeSessionManager'
-import { nativeSessionDemand } from './NativeSessionDemand'
+import { nativeSessionDemand, type NativeDisconnectAllCleanupRequest } from './NativeSessionDemand'
 import NativeFilePicker from './plugins/nativeFilePicker'
 import { useNativeStatusBarSync } from './nativeStatusBar'
 import { NativeForegroundBarrier, runAcrossNativePicker } from './NativeForegroundBarrier'
 import { NativeGenerationRecoveryFence } from './NativeGenerationRecoveryFence'
 import {
   NativeRecoveryCoordinator,
-  resumeNativeForegroundTargets,
+  startNativeForegroundWork,
   type NativeRecoveryRequest,
   type NativeRecoveryWork,
 } from './NativeRecoveryCoordinator'
@@ -74,6 +81,8 @@ const cloudPresenceProbeTimeoutMs = 15_000
 const cloudPresenceRefreshIntervalMs = 20_000
 const nativeRecoveryStepTimeoutMs = 20_000
 const rendererStallReconcileMs = 10_000
+const nativeRecoveryRetryDelaysMs = [250, 500, 1_000, 2_000, 5_000, 15_000] as const
+const nativeDisconnectAllRetryDelaysMs = [250, 500, 1_000, 2_000, 5_000, 15_000] as const
 const privacyPolicyUrl = 'https://anytty.com/privacy/'
 let goBindingClient = new GoBindingClient()
 const nativeSystemClipboard = {
@@ -93,6 +102,305 @@ type NativeSessionEntry = {
   manager: NativeSessionManager
 }
 type NativeSessionLease = ProtoClientSession
+
+/** Prevents delayed user-stop cleanup from overwriting newer connection intent. */
+export class NativeDeferredDisconnectFence {
+  private readonly endpointGenerations = new Map<string, number>()
+
+  markFreshIntent(endpointId: string): void {
+    this.endpointGenerations.set(endpointId, this.generation(endpointId) + 1)
+  }
+
+  async run(
+    endpointIds: readonly string[],
+    suspend: () => Promise<void>,
+    disconnect: (endpointId: string) => Promise<void>,
+  ): Promise<number> {
+    const stopGenerations = new Map(endpointIds.map((endpointId) => [endpointId, this.generation(endpointId)]))
+    await suspend()
+    let disconnected = 0
+    const results = await Promise.allSettled(endpointIds.map(async (endpointId) => {
+      if (stopGenerations.get(endpointId) !== this.generation(endpointId)) return
+      await disconnect(endpointId)
+      disconnected += 1
+    }))
+    throwNativeCleanupFailures('Native endpoint Stop cleanup failed', results)
+    return disconnected
+  }
+
+  private generation(endpointId: string): number {
+    return this.endpointGenerations.get(endpointId) ?? 0
+  }
+}
+
+/** Serializes retained Stop notifications and retries until JS cleanup is committed. */
+export class NativeDisconnectAllRequestProcessor {
+  private cleanup: ((request: NativeDisconnectAllCleanupRequest) => Promise<void>) | null = null
+  private pendingEvent: NativeDisconnectAllRequestedEvent | null = null
+  private active = false
+  private retryAttempt = 0
+  private retryTimer: ReturnType<typeof globalThis.setTimeout> | null = null
+
+  constructor(
+    private readonly canonicalize: (event: NativeDisconnectAllRequestedEvent) => Promise<NativeDisconnectAllCleanupRequest | null>,
+    private readonly commit: (stopEpoch: string) => Promise<void>,
+    private readonly retryDelays: readonly number[] = nativeDisconnectAllRetryDelaysMs,
+  ) {}
+
+  setCleanup(cleanup: ((request: NativeDisconnectAllCleanupRequest) => Promise<void>) | null): void {
+    this.cleanup = cleanup
+    if (cleanup === null) {
+      this.cancelRetry()
+      return
+    }
+    this.pump()
+  }
+
+  enqueue(event: NativeDisconnectAllRequestedEvent): void {
+    const incomingEpoch = disconnectAllEventEpoch(event)
+    const pendingEpoch = this.pendingEvent ? disconnectAllEventEpoch(this.pendingEvent) : null
+    if (this.pendingEvent === null || incomingEpoch === null || pendingEpoch === null || incomingEpoch >= pendingEpoch) {
+      this.pendingEvent = event
+    }
+    this.pump()
+  }
+
+  private pump(): void {
+    if (this.active || this.retryTimer !== null || this.cleanup === null || this.pendingEvent === null) return
+    const event = this.pendingEvent
+    const cleanup = this.cleanup
+    this.active = true
+    void this.canonicalize(event).then(async (request) => {
+      if (request !== null) {
+        await cleanup(request)
+        await this.commit(request.stopEpoch)
+      }
+      this.dropPendingThrough(request?.stopEpoch ?? event.stopEpoch, event)
+      this.retryAttempt = 0
+    }).then(() => {
+      this.active = false
+      this.pump()
+    }, () => {
+      this.active = false
+      if (this.cleanup === null) return
+      const delay = this.retryDelays[Math.min(this.retryAttempt, this.retryDelays.length - 1)] ?? 1_000
+      this.retryAttempt += 1
+      this.retryTimer = globalThis.setTimeout(() => {
+        this.retryTimer = null
+        this.pump()
+      }, delay)
+    })
+  }
+
+  private dropPendingThrough(stopEpoch: string, processedEvent: NativeDisconnectAllRequestedEvent): void {
+    if (this.pendingEvent === null) return
+    const completed = /^\d+$/.test(stopEpoch) ? BigInt(stopEpoch) : null
+    const pending = disconnectAllEventEpoch(this.pendingEvent)
+    if (this.pendingEvent === processedEvent || completed !== null && pending !== null && pending <= completed) {
+      this.pendingEvent = null
+    }
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimer === null) return
+    globalThis.clearTimeout(this.retryTimer)
+    this.retryTimer = null
+  }
+}
+
+function throwNativeCleanupFailures(label: string, results: readonly PromiseSettledResult<unknown>[]): void {
+  const failures = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
+  if (failures.length === 0) return
+  if (failures.length === 1) throw failures[0]
+  throw new AggregateError(failures, label)
+}
+
+function disconnectAllEventEpoch(event: NativeDisconnectAllRequestedEvent): bigint | null {
+  const value = event?.stopEpoch?.trim()
+  return value && /^\d+$/.test(value) ? BigInt(value) : null
+}
+
+type NativeEndpointStopCleanupEntry = {
+  machineId: string
+  resumeIntent: object | null
+  isCurrent(): boolean
+  adoptUserStop(): Promise<void>
+}
+
+/** Persists per-endpoint Stop state after another endpoint reopens the process-wide native gate. */
+export class NativeEndpointStopRegistry {
+  private readonly stoppedEpochs = new Map<string, string>()
+
+  constructor(
+    private readonly resumeIntentCoversStopEpoch: (intent: object | null, stopEpoch: string) => boolean,
+  ) {}
+
+  latchStop(
+    stopEpoch: string,
+    entries: readonly Pick<NativeEndpointStopCleanupEntry, 'machineId' | 'resumeIntent'>[],
+    canonicalProtectedMachineIds: ReadonlySet<string> = new Set<string>(),
+  ): ReadonlySet<string> {
+    const protectedMachineIds = new Set(canonicalProtectedMachineIds)
+    for (const entry of entries) {
+      if (canonicalProtectedMachineIds.has(entry.machineId)) {
+        this.stoppedEpochs.delete(entry.machineId)
+        continue
+      }
+      const latchedEpoch = this.stoppedEpochs.get(entry.machineId)
+      const effectiveStopEpoch = latchedEpoch && BigInt(latchedEpoch) > BigInt(stopEpoch)
+        ? latchedEpoch
+        : stopEpoch
+      if (
+        this.resumeIntentCoversStopEpoch(entry.resumeIntent, stopEpoch) &&
+        this.resumeIntentCoversStopEpoch(entry.resumeIntent, effectiveStopEpoch)
+      ) {
+        protectedMachineIds.add(entry.machineId)
+        this.stoppedEpochs.delete(entry.machineId)
+        continue
+      }
+      this.stoppedEpochs.set(entry.machineId, effectiveStopEpoch)
+    }
+    return protectedMachineIds
+  }
+
+  adoptIfStopped(machineId: string, adoptUserStop: () => Promise<void>): Promise<void> | null {
+    if (!this.stoppedEpochs.has(machineId)) return null
+    let operation: Promise<void>
+    try {
+      operation = adoptUserStop()
+    } catch (failure) {
+      operation = Promise.reject(failure)
+    }
+    void operation.catch(() => undefined)
+    return operation
+  }
+
+  acceptUserResume(machineId: string, intent: object): void {
+    const stopEpoch = this.stoppedEpochs.get(machineId)
+    if (stopEpoch && this.resumeIntentCoversStopEpoch(intent, stopEpoch)) {
+      this.stoppedEpochs.delete(machineId)
+    }
+  }
+
+  isStopped(machineId: string): boolean { return this.stoppedEpochs.has(machineId) }
+}
+
+type NativeWorkspaceResumeIntentManager = Pick<NativeSessionManager, 'beginUserConnectionIntent'>
+
+/** Bridges the eager device-list action to a manager that may be created behind React Suspense. */
+export class NativeWorkspaceResumeIntentRegistry {
+  private readonly pendingIntents = new Map<string, object>()
+  private readonly registeredIntents = new WeakMap<object, string>()
+
+  constructor(private readonly markFreshConnectionIntent: (machineId: string) => void) {}
+
+  register(machineId: string, intent: object, manager?: NativeWorkspaceResumeIntentManager): void {
+    const registeredMachineId = this.registeredIntents.get(intent)
+    if (registeredMachineId !== undefined && registeredMachineId !== machineId) {
+      throw new Error('Native resume intent cannot move between endpoints')
+    }
+    if (registeredMachineId === undefined) {
+      this.registeredIntents.set(intent, machineId)
+      this.markFreshConnectionIntent(machineId)
+    }
+    this.pendingIntents.set(machineId, intent)
+    manager?.beginUserConnectionIntent(intent)
+  }
+
+  attachManager(machineId: string, manager: NativeWorkspaceResumeIntentManager): void {
+    const intent = this.pendingIntents.get(machineId)
+    if (intent) manager.beginUserConnectionIntent(intent)
+  }
+
+  consume(machineId: string, intent: object): void {
+    if (this.pendingIntents.get(machineId) === intent) this.pendingIntents.delete(machineId)
+  }
+
+  clear(machineId?: string): void {
+    if (machineId) this.pendingIntents.delete(machineId)
+    else this.pendingIntents.clear()
+  }
+
+  entries(): Array<{ machineId: string; resumeIntent: object }> {
+    return [...this.pendingIntents].map(([machineId, resumeIntent]) => ({ machineId, resumeIntent }))
+  }
+
+  currentIntent(machineId: string): object | null {
+    return this.pendingIntents.get(machineId) ?? null
+  }
+
+  isRegistered(machineId: string, intent: object): boolean {
+    return this.registeredIntents.get(intent) === machineId
+  }
+
+  isPending(machineId: string, intent: object): boolean {
+    return this.pendingIntents.get(machineId) === intent
+  }
+}
+
+/** Owns one exact native resume intent across an asynchronous transfer UI flow. */
+export class NativeTransferIntentCoordinator {
+  private readonly owners = new WeakMap<object, string>()
+
+  constructor(
+    private readonly beginIntent: (machineId: string) => object,
+    private readonly confirmIntent: (machineId: string, intent: object) => Promise<void>,
+    private readonly finishIntent: (machineId: string, intent: object) => void,
+  ) {}
+
+  begin(machineId: string): object {
+    const intent = this.beginIntent(machineId)
+    this.owners.set(intent, machineId)
+    return intent
+  }
+
+  async confirm(machineId: string, intent: object): Promise<void> {
+    if (this.owners.get(intent) !== machineId) throw new Error('Native transfer intent is stale')
+    await this.confirmIntent(machineId, intent)
+  }
+
+  finish(machineId: string, intent: object): void {
+    if (this.owners.get(intent) !== machineId) return
+    this.owners.delete(intent)
+    this.finishIntent(machineId, intent)
+  }
+
+  async run<T>(machineId: string, intent: object, commit: () => T | Promise<T>): Promise<T> {
+    try {
+      await this.confirm(machineId, intent)
+      return await commit()
+    } finally {
+      this.finish(machineId, intent)
+    }
+  }
+}
+
+export async function runNativeEndpointStopCleanup(
+  stopEpoch: string,
+  entries: readonly NativeEndpointStopCleanupEntry[],
+  endpointStops: NativeEndpointStopRegistry,
+  suspendTransfers: (protectedMachineIds: ReadonlySet<string>) => Promise<void>,
+  disconnectFence: NativeDeferredDisconnectFence,
+  canonicalProtectedMachineIds: ReadonlySet<string> = new Set<string>(),
+): Promise<void> {
+  const protectedMachineIds = endpointStops.latchStop(stopEpoch, entries, canonicalProtectedMachineIds)
+  const stoppedEntries = new Map(entries
+    .filter((entry) => !protectedMachineIds.has(entry.machineId))
+    .map((entry) => [entry.machineId, entry]))
+  const adoptions = new Map([...stoppedEntries].map(([machineId, entry]) => [
+    machineId,
+    endpointStops.adoptIfStopped(machineId, () => entry.adoptUserStop()),
+  ]))
+  await disconnectFence.run(
+    [...stoppedEntries.keys()],
+    () => suspendTransfers(protectedMachineIds),
+    async (machineId) => {
+      const entry = stoppedEntries.get(machineId)
+      if (!entry?.isCurrent()) return
+      await adoptions.get(machineId)
+    },
+  )
+}
 
 export function AnyTTYApp() {
   const initialAppThemeStyle = useMemo(
@@ -151,24 +459,39 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
   const networkRuntime = useMemo(() => createNativeNetworkRuntime(), [])
   const endpointRegistry = useMemo(() => new NativeEndpointRegistryProjection(), [])
   const nativeAppRuntime = useMemo(() => createNativeAppRuntime(endpointRegistry), [endpointRegistry])
-  useNativeDisconnectAll(nativeAppRuntime.disconnectAll)
   const [registryReady, setRegistryReady] = useState(false)
   const [registryError, setRegistryError] = useState<string | null>(null)
+  const rendererDemandRestoredRef = useRef(false)
   const directReachability = useNativeDirectReachability(endpointRegistry, registryReady)
   const cloudPresenceByMachineId = useNativeCloudPresence(endpointRegistry, registryReady)
-  const refreshRegistry = useCallback(async (client: GoBindingClient = goBindingClient) => {
+  const refreshRegistry = useCallback(async (
+    client: GoBindingClient = goBindingClient,
+    signal?: AbortSignal,
+  ) => {
     try {
+      throwIfAborted(signal)
       const loaded = await settleBindingGeneration(
         client,
         () => goBindingClient,
-        () => client.getEndpointRegistry(),
+        () => client.getEndpointRegistry(signal),
       )
+      throwIfAborted(signal)
       if (!loaded.current) return
       endpointRegistry.replace(loaded.value)
       if (networkRuntime.storage) syncRegistryMachineProjection(networkRuntime.storage, endpointRegistry.snapshot())
+      if (!rendererDemandRestoredRef.current) {
+        rendererDemandRestoredRef.current = true
+        const restoredMachineId = restorableNativeWorkspaceMachineId(networkRuntime.storage, endpointRegistry)
+        if (!restoredMachineId) writeActiveWorkspaceMachineId(networkRuntime.storage, null)
+        await nativeSessionDemand.restoreRenderer(restoredMachineId ? [restoredMachineId] : []).catch((failure) => {
+          nativeDiagnostic('renderer_demand_restore_deferred', { failure: diagnosticFailureCode(failure) })
+        })
+      }
+      throwIfAborted(signal)
       setRegistryError(null)
       setRegistryReady(true)
     } catch (error) {
+      if (signal?.aborted) throw abortError(signal)
       setRegistryError(error instanceof Error ? error.message : String(error))
       throw error
     }
@@ -190,6 +513,7 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
     nativeAppRuntime.networkChanged,
     nativeAppRuntime.initializeNetworkState,
   )
+  useNativeDisconnectAll(nativeAppRuntime.disconnectAll, nativeConnectionRecovery.cancelForStop)
   const externalPairingAdapter = useMemo(
     () => createNativeExternalPairingAdapter(endpointRegistry),
     [endpointRegistry],
@@ -205,8 +529,14 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
   const retryRegistry = useCallback(async () => {
     setRegistryError(null)
     try {
-      await NativeConnection.handleForegroundResume()
-      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration)
+      await withNativeRecoveryTimeout(
+        async () => await NativeConnection.handleForegroundResume(),
+        'Native runtime recovery',
+      )
+      await withNativeRecoveryTimeout(
+        (signal) => replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration, signal),
+        'Native binding replacement',
+      )
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : String(failure)
       setRegistryError(message)
@@ -218,8 +548,13 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
       await nativeAppRuntime.discardLocalState()
       await NativeConnection.resetLocalPairings()
       networkRuntime.storage?.removeItem('anytty.app.machines.v2')
+      writeActiveWorkspaceMachineId(networkRuntime.storage, null)
+      await nativeSessionDemand.setWorkspaceEndpoint(null)
       endpointRegistry.replace(create(AnyTTYRemoteAuth.EndpointRegistryV1Schema, { schemaVersion: 1 }))
-      await replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration)
+      await withNativeRecoveryTimeout(
+        (signal) => replaceNativeGeneration(refreshRegistry, nativeAppRuntime.resetGeneration, signal),
+        'Native binding replacement',
+      )
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : String(failure)
       setRegistryError(message)
@@ -253,6 +588,12 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
         cloudPresenceByMachineId={cloudPresenceByMachineId}
         connectionState={nativeConnectionRecovery.connectionState}
         onRetryConnectionRecovery={nativeConnectionRecovery.retryConnectionRecovery}
+        createWorkspaceResumeIntent={() => nativeSessionDemand.createResumeIntent()}
+        onWorkspaceResumeIntent={(machineId, intent) => nativeAppRuntime.registerWorkspaceResumeIntent(machineId, intent)}
+        onActiveWorkspaceChange={(machineId) => {
+          if (machineId === null) nativeAppRuntime.clearPendingWorkspaceResumeIntents()
+          return nativeSessionDemand.setWorkspaceEndpoint(machineId)
+        }}
         onRefreshMachines={() => refreshRegistry()}
         pickMachineIconImage={pickNativeMachineIconImage}
         scanPairingCode={scanNativePairingCode}
@@ -269,6 +610,19 @@ function NativeAnyTTYApp({ initialAppThemeStyle }: { initialAppThemeStyle: CSSPr
 
 function scanNativePairingCode(options?: NativeQrScannerOptions): Promise<string | null> {
   return import('./nativeQrScanner').then(({ scanPairingCode }) => scanPairingCode(options))
+}
+
+function restorableNativeWorkspaceMachineId(
+  storage: RemoteRuntimeStorage | undefined,
+  endpointRegistry: NativeEndpointRegistryProjection,
+): string | null {
+  const machineId = readActiveWorkspaceMachineId(storage)
+  if (!machineId || !storage || !endpointRegistry.has(machineId) || !endpointRegistry.isAuthorized(machineId)) return null
+  try {
+    return createMachineStore({ storage }).getMachine(machineId) ? machineId : null
+  } catch {
+    return null
+  }
 }
 
 async function pickNativeMachineIconImage(): Promise<File | null> {
@@ -688,45 +1042,81 @@ function diagnosticToken(value: string): string {
   return value.trim().replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) || 'none'
 }
 
-let nativeGenerationReplacement: Promise<void> = Promise.resolve()
+const nativeGenerationReplacement = new NativeBindingGenerationReplacement(
+  () => goBindingClient,
+  (client) => { goBindingClient = client },
+  () => new GoBindingClient(),
+)
 
 function replaceNativeGeneration(
-  refreshRegistry: (client?: GoBindingClient) => Promise<void>,
-  resetRuntime: () => Promise<void>,
+  refreshRegistry: (client?: GoBindingClient, signal?: AbortSignal) => Promise<void>,
+  resetRuntime: (signal?: AbortSignal) => Promise<void>,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const replacement = nativeGenerationReplacement.catch(() => undefined).then(async () => {
-    const staleClient = goBindingClient
-    const currentClient = new GoBindingClient()
-    goBindingClient = currentClient
-    // Endpoint runtime 仍被 React workspace 缓存；必须先清除其旧 binding session，下一次操作才会
-    // 通过动态 connector 进入 currentClient，而不是继续返回已失效的 generation。
-    await resetRuntime()
-    await staleClient.close()
-    await refreshRegistry(currentClient)
-  })
-  nativeGenerationReplacement = replacement
-  return replacement
+  return nativeGenerationReplacement.replace(
+    resetRuntime,
+    (client, replacementSignal) => refreshRegistry(client, replacementSignal),
+    signal,
+  )
 }
 
-async function withNativeRecoveryTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+export async function withNativeRecoveryTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  label: string,
+  parentSignal?: AbortSignal,
+  timeoutMs = nativeRecoveryStepTimeoutMs,
+): Promise<T> {
+  const controller = new AbortController()
   let timeout: ReturnType<typeof globalThis.setTimeout> | undefined
+  let removeParentAbort: (() => void) | undefined
   try {
+    throwIfAborted(parentSignal)
     return await Promise.race([
-      operation,
+      Promise.resolve().then(() => operation(controller.signal)),
       new Promise<never>((_, reject) => {
-        timeout = globalThis.setTimeout(() => reject(new Error(`${label} timed out`)), nativeRecoveryStepTimeoutMs)
+        const abortFromParent = () => {
+          const failure = parentSignal ? abortError(parentSignal) : new DOMException('Aborted', 'AbortError')
+          controller.abort(failure)
+          reject(failure)
+        }
+        if (parentSignal) {
+          parentSignal.addEventListener('abort', abortFromParent, { once: true })
+          removeParentAbort = () => parentSignal.removeEventListener('abort', abortFromParent)
+        }
+        timeout = globalThis.setTimeout(() => {
+          const failure = Object.assign(new Error(`${label} timed out`), {
+            code: 'unavailable',
+            retryable: true,
+          })
+          controller.abort(failure)
+          reject(failure)
+        }, timeoutMs)
       }),
     ])
   } finally {
     if (timeout !== undefined) globalThis.clearTimeout(timeout)
+    removeParentAbort?.()
   }
+}
+
+function nativeRecoveryRetryDelay(failure: unknown, retryAttempt: number): number | null {
+  const value = failure as { code?: unknown; retryable?: unknown } | null
+  const code = typeof value?.code === 'string' ? value.code.trim().toLowerCase() : ''
+  if (value?.retryable === false || code === 'user_stopped') return null
+  return nativeRecoveryRetryDelaysMs[
+    Math.min(Math.max(retryAttempt, 0), nativeRecoveryRetryDelaysMs.length - 1)
+  ] ?? 15_000
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError(signal)
 }
 
 /** Keep the native generation across backgrounding; replace only a bridge that actually failed. */
 function useNativeNetworkRecovery(
-  refreshRegistry: (client?: GoBindingClient) => Promise<void>,
-  resetRuntime: () => Promise<void>,
-  foregroundResume: () => Promise<void>,
+  refreshRegistry: (client?: GoBindingClient, signal?: AbortSignal) => Promise<void>,
+  resetRuntime: (signal?: AbortSignal) => Promise<void>,
+  foregroundResume: (signal?: AbortSignal) => Promise<void>,
   resumeInterruptedTransfers: () => void,
   networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>,
   initializeNetworkState: (connected: boolean) => Promise<void>,
@@ -734,6 +1124,7 @@ function useNativeNetworkRecovery(
   phoneOnline: boolean
   connectionState: AppConnectionState
   retryConnectionRecovery: () => Promise<void>
+  cancelForStop: () => void
 } {
   const [phoneOnline, setPhoneOnline] = useState(true)
   const [connectionState, dispatchRecoveryStatus] = useReducer(reduceNativeRecoveryStatus, 'ready')
@@ -782,8 +1173,8 @@ function useNativeNetworkRecovery(
     }))
   }, [connectionState, successfulRecoveryRevision])
 
-  const executeRecovery = useCallback(async ({ attempt, intent, trigger }: NativeRecoveryWork) => {
-    if (!recoveryFence.isCurrent(attempt)) {
+  const executeRecovery = useCallback(async ({ attempt, intent, trigger, signal }: NativeRecoveryWork) => {
+    if (!recoveryFence.isCurrent(attempt) || signal.aborted) {
       nativeDiagnostic('foreground_recovery_skipped', { attempt, intent, trigger, reason: 'superseded' })
       return
     }
@@ -792,31 +1183,41 @@ function useNativeNetworkRecovery(
     nativeDiagnostic('foreground_recovery_start', { attempt, intent, trigger })
     markNativeBackground()
     try {
-      await withNativeRecoveryTimeout(NativeConnection.handleForegroundResume(), 'Native runtime recovery')
+      await withNativeRecoveryTimeout(
+        async () => await NativeConnection.handleForegroundResume(),
+        'Native runtime recovery',
+        signal,
+      )
       nativeDiagnostic('foreground_recovery_stage', {
         attempt,
         stage,
         status: 'done',
         elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
       })
-      if (!recoveryFence.isCurrent(attempt)) return
+      if (!recoveryFence.isCurrent(attempt) || signal.aborted) return
       stage = intent === 'repair' ? 'binding_replacement' : 'binding_health'
       if (intent === 'repair') {
         await withNativeRecoveryTimeout(
-          replaceNativeGeneration(refreshRegistry, resetRuntime),
+          (stepSignal) => replaceNativeGeneration(refreshRegistry, resetRuntime, stepSignal),
           'Native binding replacement',
+          signal,
         )
       } else {
         try {
           // Resume only probes the existing bridge. Replacing an unchanged registry increments
           // its projection version and makes healthy machine runtimes look stale, which would
           // unnecessarily tear down their live sessions on every foreground transition.
-          await withNativeRecoveryTimeout(goBindingClient.getEndpointRegistry(), 'Native binding health check')
-        } catch {
-          if (!recoveryFence.isCurrent(attempt)) return
           await withNativeRecoveryTimeout(
-            replaceNativeGeneration(refreshRegistry, resetRuntime),
+            (stepSignal) => goBindingClient.getEndpointRegistry(stepSignal),
+            'Native binding health check',
+            signal,
+          )
+        } catch {
+          if (!recoveryFence.isCurrent(attempt) || signal.aborted) return
+          await withNativeRecoveryTimeout(
+            (stepSignal) => replaceNativeGeneration(refreshRegistry, resetRuntime, stepSignal),
             'Native binding replacement',
+            signal,
           )
         }
       }
@@ -826,17 +1227,21 @@ function useNativeNetworkRecovery(
         status: 'done',
         elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
       })
-      if (!recoveryFence.isCurrent(attempt)) return
+      if (!recoveryFence.isCurrent(attempt) || signal.aborted) return
       lastHeartbeatRef.current = globalThis.performance.now()
       stage = 'endpoint_resume'
-      await foregroundResume()
+      await withNativeRecoveryTimeout(
+        (stepSignal) => foregroundResume(stepSignal),
+        'Native endpoint recovery',
+        signal,
+      )
       nativeDiagnostic('foreground_recovery_stage', {
         attempt,
         stage,
         status: 'done',
         elapsed_ms: Math.round(globalThis.performance.now() - startedAt),
       })
-      if (!recoveryFence.isCurrent(attempt)) return
+      if (!recoveryFence.isCurrent(attempt) || signal.aborted) return
       resumeInterruptedTransfers()
       finishRecoveryStatus({ type: 'recovery.succeeded' })
       finishNativeForeground()
@@ -846,16 +1251,14 @@ function useNativeNetworkRecovery(
         duration_ms: Math.round(globalThis.performance.now() - startedAt),
       })
     } catch (failure) {
-      if (!recoveryFence.isCurrent(attempt)) return
-      finishRecoveryStatus({ type: 'recovery.failed' })
-      nativeDiagnostic('foreground_recovery_failed', {
+      if (!recoveryFence.isCurrent(attempt) || signal.aborted) return
+      nativeDiagnostic('foreground_recovery_attempt_failed', {
         attempt,
         stage,
         duration_ms: Math.round(globalThis.performance.now() - startedAt),
         failure: diagnosticFailureCode(failure),
       })
       reportNativeGenerationFailure(failure)
-      finishNativeForeground(failure)
       throw failure
     }
   }, [finishRecoveryStatus, foregroundResume, recoveryFence, refreshRegistry, resetRuntime, resumeInterruptedTransfers])
@@ -865,8 +1268,33 @@ function useNativeNetworkRecovery(
       beginAttempt: () => recoveryFence.beginAttempt(),
       isCurrent: (attempt) => recoveryFence.isCurrent(attempt),
       execute: executeRecovery,
+      retryDelay: (failure, retryAttempt) => nativeRecoveryRetryDelay(failure, retryAttempt),
+      onRetryScheduled: (failure, delay, retryAttempt, work) => {
+        nativeDiagnostic('foreground_recovery_retry_scheduled', {
+          attempt: work.attempt,
+          retry_attempt: retryAttempt,
+          delay_ms: delay,
+          failure: diagnosticFailureCode(failure),
+        })
+      },
+      onTerminalFailure: (failure, work) => {
+        if (!recoveryFence.isCurrent(work.attempt) || work.signal.aborted) return
+        finishRecoveryStatus({ type: 'recovery.failed' })
+        finishNativeForeground(failure)
+      },
     })
-  }, [beginRecoveryStatus, executeRecovery, recoveryCoordinator, recoveryFence])
+  }, [beginRecoveryStatus, executeRecovery, finishRecoveryStatus, recoveryCoordinator, recoveryFence])
+
+  const cancelForStop = useCallback(() => {
+    recoveryFence.invalidate()
+    recoveryCoordinator.cancel(Object.assign(new Error('Native recovery was stopped by the user'), {
+      code: 'user_stopped',
+      retryable: false,
+    }))
+    dismissRecoveryStatus()
+    markNativeBackground()
+    finishNativeForeground()
+  }, [dismissRecoveryStatus, recoveryCoordinator, recoveryFence])
 
   const retryConnectionRecovery = useCallback(async () => {
     await runRecovery({
@@ -880,6 +1308,7 @@ function useNativeNetworkRecovery(
       if (!state.isActive) {
         nativeDiagnostic('app_state', { state: 'background' })
         recoveryFence.invalidate()
+        recoveryCoordinator.cancel()
         dismissRecoveryStatus()
         markNativeBackground()
         return
@@ -901,7 +1330,7 @@ function useNativeNetworkRecovery(
       void promise.then((sub) => sub.remove())
       document.removeEventListener('anytty:binding-closed', handleBindingClosed)
     }
-  }, [dismissRecoveryStatus, recoveryFence, runRecovery])
+  }, [dismissRecoveryStatus, recoveryCoordinator, recoveryFence, runRecovery])
 
   useEffect(() => {
     let latestEpoch = -1
@@ -951,6 +1380,7 @@ function useNativeNetworkRecovery(
     const synchronizeVisiblePage = () => {
       if (document.visibilityState === 'hidden') {
         recoveryFence.invalidate()
+        recoveryCoordinator.cancel()
         dismissRecoveryStatus()
         markNativeBackground()
         return
@@ -976,12 +1406,15 @@ function useNativeNetworkRecovery(
       document.removeEventListener('visibilitychange', synchronizeVisiblePage)
       void listener.then((subscription) => subscription.remove())
     }
-  }, [dismissRecoveryStatus, initializeNetworkState, networkChanged, recoveryFence, runRecovery])
+  }, [dismissRecoveryStatus, initializeNetworkState, networkChanged, recoveryCoordinator, recoveryFence, runRecovery])
+
+  useEffect(() => () => recoveryCoordinator.cancel(), [recoveryCoordinator])
 
   return {
     phoneOnline,
     connectionState,
     retryConnectionRecovery,
+    cancelForStop,
   }
 }
 
@@ -1058,23 +1491,51 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
   createMachineRuntime: MachineRuntimeFactory
   fileTransfer: FileTransferContext
   discardLocalState: () => Promise<void>
-  resetGeneration: () => Promise<void>
-  foregroundResume: () => Promise<void>
+  resetGeneration: (signal?: AbortSignal) => Promise<void>
+  foregroundResume: (signal?: AbortSignal) => Promise<void>
   initializeNetworkState: (connected: boolean) => Promise<void>
   networkChanged: (connected: boolean, reason: NativeNetworkChangedEvent['reason']) => Promise<void>
-  disconnectAll: () => Promise<void>
+  disconnectAll: (request: NativeDisconnectAllCleanupRequest) => Promise<void>
+  registerWorkspaceResumeIntent: (machineId: string, intent: object) => void
+  clearPendingWorkspaceResumeIntents: () => void
   resumeInterruptedTransfers: () => void
 } {
   const transferStore = new NativeFileTransferStore()
   const sessionManagers = new Map<string, NativeSessionEntry>()
-  let networkRevision = 0
+  const disconnectFence = new NativeDeferredDisconnectFence()
+  const endpointStops = new NativeEndpointStopRegistry(
+    (intent, stopEpoch) => nativeSessionDemand.resumeIntentCoversStopEpoch(intent, stopEpoch),
+  )
   let networkConnected = true
+  const markFreshConnectionIntent = (machineId: string) => {
+    disconnectFence.markFreshIntent(machineId)
+    transferStore.markFreshConnectionIntent(machineId)
+  }
+  const workspaceResumeIntents = new NativeWorkspaceResumeIntentRegistry(markFreshConnectionIntent)
+  const transferIntents = new NativeTransferIntentCoordinator(
+    (machineId) => {
+      const intent = nativeSessionDemand.createResumeIntent()
+      workspaceResumeIntents.register(machineId, intent, sessionManagers.get(machineId)?.manager)
+      return intent
+    },
+    async (machineId, intent) => {
+      await nativeSessionDemand.confirmResumeIntent(intent)
+      sessionManagers.get(machineId)?.manager.beginUserConnectionIntent(intent)
+    },
+    (machineId, intent) => workspaceResumeIntents.consume(machineId, intent),
+  )
   transferStore.setSessionResolver(async (machineId, signal) => {
     return await sessionManagers.get(machineId)?.manager.get({ signal }) ?? null
   })
 
   return {
-    fileTransfer: createFileTransferContext(undefined, transferStore),
+    registerWorkspaceResumeIntent(machineId, intent) {
+      workspaceResumeIntents.register(machineId, intent, sessionManagers.get(machineId)?.manager)
+    },
+    clearPendingWorkspaceResumeIntents() {
+      workspaceResumeIntents.clear()
+    },
+    fileTransfer: createFileTransferContext(undefined, transferStore, transferIntents),
     discardLocalState() {
       return transferStore.discardForLocalReset()
     },
@@ -1085,64 +1546,124 @@ function createNativeAppRuntime(endpointRegistry: NativeEndpointRegistryProjecti
         if (entry.manager.hasConnectionDemand()) void transferStore.resumeInterruptedTransfers(machineId)
       }
     },
-    async resetGeneration() {
+    async resetGeneration(signal) {
+      throwIfAborted(signal)
       await transferStore.suspendForRuntimeReset()
-      await Promise.all([...sessionManagers.values()].map(async (entry) => {
-        await entry.manager.reset()
-        await entry.connector.release?.(entry.manager.machineID())
-      }))
+      throwIfAborted(signal)
+      await drainNativeGenerationReset([...sessionManagers.values()].map((entry) => ({
+        reset: () => entry.manager.resetBindingGeneration(),
+        release: entry.connector.release
+          ? () => entry.connector.release!(entry.manager.machineID())
+          : undefined,
+      })), signal)
+      throwIfAborted(signal)
     },
-    async foregroundResume() {
-      await nativeSessionDemand.reconcileRenderer()
-      const targets = [...sessionManagers].map(([endpointId, entry]) => ({
-        endpointId,
-        resume: () => entry.manager.foregroundResume(),
-      }))
-      nativeDiagnostic('endpoint_resume_started', { total: targets.length })
-      // Each manager owns its retry loop and publishes its own state. App readiness must
-      // not stay blocked for up to a full dial timeout because one endpoint is offline.
-      void resumeNativeForegroundTargets(targets).then((result) => {
+    async foregroundResume(signal) {
+      const targets = [...sessionManagers]
+        .filter(([, entry]) => entry.manager.hasConnectionDemand())
+        .map(([endpointId, entry]) => ({
+          endpointId,
+          resume: () => entry.manager.foregroundResume(signal),
+        }))
+      const work = startNativeForegroundWork(
+        () => nativeSessionDemand.reconcileRenderer(),
+        targets,
+      )
+      void work.demand.catch((failure) => {
+        nativeDiagnostic('demand_reconcile_failed', { failure: diagnosticFailureCode(failure) })
+      })
+      const batch = work.endpoints
+      nativeDiagnostic('endpoint_resume_started', { total: batch.total })
+      const result = await batch.settled
+      if (!signal?.aborted) {
         nativeDiagnostic('endpoint_resume_settled', {
           total: result.total,
           resumed: result.resumed,
           failed: result.failures.length,
         })
-        for (const failure of result.failures) {
-          nativeDiagnostic('endpoint_resume_failed', { failure: diagnosticFailureCode(failure) })
+        for (const item of result.failures) {
+          nativeDiagnostic('endpoint_resume_failed', {
+            endpoint: diagnosticToken(item.endpointId),
+            failure: diagnosticFailureCode(item.failure),
+          })
         }
-      })
+      }
     },
     async initializeNetworkState(connected) {
       networkConnected = connected
       await Promise.all([...sessionManagers.values()].map((entry) => entry.manager.initializeNetworkState(connected)))
     },
     async networkChanged(connected, reason) {
-      networkRevision += 1
       networkConnected = connected
       await Promise.all([...sessionManagers.values()].map((entry) => entry.manager.networkChanged(connected, reason)))
     },
-    async disconnectAll() {
-      await transferStore.suspendForUserStop()
-      await Promise.allSettled([...sessionManagers.values()].map((entry) => entry.manager.disconnect()))
+    async disconnectAll(request: NativeDisconnectAllCleanupRequest) {
+      const stoppedEntries = [...sessionManagers].map(([machineId, entry]) => ({
+        machineId,
+        resumeIntent: entry.manager.latestUserResumeIntent() ?? workspaceResumeIntents.currentIntent(machineId),
+        isCurrent: () => sessionManagers.get(machineId) === entry,
+        adoptUserStop: () => entry.manager.adoptUserStop(),
+      }))
+      for (const pending of workspaceResumeIntents.entries()) {
+        if (sessionManagers.has(pending.machineId)) continue
+        stoppedEntries.push({
+          ...pending,
+          isCurrent: () => (
+            !sessionManagers.has(pending.machineId) &&
+            workspaceResumeIntents.isPending(pending.machineId, pending.resumeIntent)
+          ),
+          adoptUserStop: async () => undefined,
+        })
+      }
+      await runNativeEndpointStopCleanup(
+        request.stopEpoch,
+        stoppedEntries,
+        endpointStops,
+        (protectedMachineIds) => transferStore.suspendForUserStop(protectedMachineIds),
+        disconnectFence,
+        new Set(request.protectedEndpointIds),
+      )
     },
     createMachineRuntime(input) {
       return createNativeMachineRuntime(input.machine, input.storage, endpointRegistry, {
         sessionManagers,
         transferStore,
         networkConnected: () => networkConnected,
+        markFreshConnectionIntent,
+        endpointStops,
+        workspaceResumeIntents,
+        transferIntents,
       })
     },
   }
 }
 
-function useNativeDisconnectAll(disconnectAll: () => Promise<void>): void {
+function useNativeDisconnectAll(
+  disconnectAll: (request: NativeDisconnectAllCleanupRequest) => Promise<void>,
+  cancelRecovery: () => void,
+): void {
+  const processorRef = useRef<NativeDisconnectAllRequestProcessor | null>(null)
+  if (processorRef.current === null) {
+    processorRef.current = new NativeDisconnectAllRequestProcessor(
+      (event) => nativeSessionDemand.handleDisconnectAllRequested(event),
+      async (stopEpoch) => {
+        await NativeConnection.acknowledgeDisconnectAll({ stopEpoch })
+        nativeSessionDemand.commitDisconnectAllCleanup(stopEpoch)
+      },
+    )
+  }
   useEffect(() => {
-    const listener = NativeConnection.addListener('disconnectAllRequested', () => {
-      void nativeSessionDemand.clearForUserStop().catch(() => undefined)
-      void disconnectAll().catch(() => undefined)
+    const processor = processorRef.current!
+    processor.setCleanup(disconnectAll)
+    const listener = NativeConnection.addListener('disconnectAllRequested', (event) => {
+      cancelRecovery()
+      processor.enqueue(event)
     })
-    return () => { void listener.then((subscription) => subscription.remove()) }
-  }, [disconnectAll])
+    return () => {
+      processor.setCleanup(null)
+      void listener.then((subscription) => subscription.remove())
+    }
+  }, [cancelRecovery, disconnectAll])
 }
 
 function createNativeMachineRuntime(
@@ -1153,6 +1674,10 @@ function createNativeMachineRuntime(
     sessionManagers: Map<string, NativeSessionEntry>
     transferStore: NativeFileTransferStore
     networkConnected: () => boolean
+    markFreshConnectionIntent: (machineId: string) => void
+    endpointStops: NativeEndpointStopRegistry
+    workspaceResumeIntents: NativeWorkspaceResumeIntentRegistry
+    transferIntents: NativeTransferIntentCoordinator
   },
 ): MachineRuntime {
   const machineStore = createMachineStore({ storage })
@@ -1165,28 +1690,27 @@ function createNativeMachineRuntime(
   if (!entry || entry.endpointIdentity !== endpointIdentity) {
     void entry?.manager.reset().catch(() => {})
     void entry?.connector.release?.(machine.id).catch(() => {})
-    const connector = createNativeConnector(machine, endpointRegistry, (platform) => {
-      const normalized = normalizeDaemonPlatform(platform)
-      if (!normalized) return
-      const current = machineStore.getMachine(machine.id)
-      if (!current || current.osInfo === normalized) return
-      machineStore.saveMachine({ ...current, osInfo: normalized, updatedAt: new Date().toISOString() })
+    const normalizedPlatform = normalizeDaemonPlatform(machine.osInfo ?? '')
+    const currentMachine = machineStore.getMachine(machine.id)
+    if (normalizedPlatform && currentMachine && currentMachine.osInfo !== normalizedPlatform) {
+      machineStore.saveMachine({ ...currentMachine, osInfo: normalizedPlatform, updatedAt: new Date().toISOString() })
       globalThis.dispatchEvent(new CustomEvent('anytty:machine-metadata-changed', { detail: { machineId: machine.id } }))
+    }
+    const connector = createNativeConnector(machine, endpointRegistry)
+    const manager = new NativeSessionManager(machine.id, connector, {
+      initiallyConnected: shared.networkConnected(),
+      waitForForeground: (signal) => nativeForegroundBarrier.wait(signal),
+      writeDiagnostic: writeNativeDiagnostic,
+      onUserResumeAccepted: (intent) => shared.endpointStops.acceptUserResume(machine.id, intent),
     })
     entry = {
       endpointIdentity,
       connector,
-      manager: new NativeSessionManager(machine.id, connector, {
-        // Android keeps the Go engine alive across WebView recreation. The first
-        // JS lease may therefore be a retained physical session even with no new
-        // native network event; verify it with one lightweight RPC before reuse.
-        verifyOnFirstAcquire: true,
-        initiallyConnected: shared.networkConnected(),
-        waitForForeground: (signal) => nativeForegroundBarrier.wait(signal),
-        writeDiagnostic: writeNativeDiagnostic,
-      }),
+      manager,
     }
     shared.sessionManagers.set(machine.id, entry)
+    shared.endpointStops.adoptIfStopped(machine.id, () => manager.adoptUserStop())
+    shared.workspaceResumeIntents.attachManager(machine.id, manager)
   }
   const sessionManager = entry.manager
   const connector = entry.connector
@@ -1256,7 +1780,10 @@ function createNativeMachineRuntime(
         return sessionPromise
       },
       reconnect(options) {
-    return sessionManager.resetClientOnly(options)
+        shared.markFreshConnectionIntent(machine.id)
+        return sessionManager.resetClientOnly(options).then(() => {
+          if (sessionManager.hasConnectionDemand()) void transferStore.resumeInterruptedTransfers(machine.id)
+        })
       },
       getConnectionPolicy: (signal) => connector.getConnectionPolicy?.(signal) ?? Promise.reject(new Error('Connection policy is unavailable')),
       applyConnectionPolicy: (policy, signal) => connector.applyConnectionPolicy?.(policy, signal) ?? Promise.reject(new Error('Connection policy is unavailable')),
@@ -1291,8 +1818,14 @@ function createNativeMachineRuntime(
     inventoryEvents: createNativeInventoryEvents(machine.id, sessionManager),
     connectionStateEvents: createNativeConnectionStateEvents(machine.id, sessionManager),
     listConnectionState: sessionManager.connectionState,
-    retainConnectionDemand: () => {
-      const releaseDemand = sessionManager.retainConnectionDemand()
+    retainConnectionDemand: (resumeIntent = null) => {
+      if (resumeIntent) {
+        if (!shared.workspaceResumeIntents.isRegistered(machine.id, resumeIntent)) {
+          shared.workspaceResumeIntents.register(machine.id, resumeIntent, sessionManager)
+        }
+        shared.workspaceResumeIntents.consume(machine.id, resumeIntent)
+      }
+      const releaseDemand = sessionManager.retainConnectionDemand(resumeIntent)
       // Entering this workspace is the user-intent boundary for persisted transfers.
       queueMicrotask(() => {
         if (sessionManager.hasConnectionDemand()) void transferStore.resumeInterruptedTransfers(machine.id)
@@ -1300,8 +1833,9 @@ function createNativeMachineRuntime(
       return releaseDemand
     },
     probeConnection: () => sessionManager.probe(),
-    fileTransfer: createFileTransferContext(machine.id, transferStore),
+    fileTransfer: createFileTransferContext(machine.id, transferStore, shared.transferIntents),
     async disconnect() {
+      shared.workspaceResumeIntents.clear(machine.id)
       await sessionManager.disconnect()
     },
     dispose: () => {
@@ -1352,7 +1886,19 @@ function createNativeConnectionStateEvents(
   }
 }
 
-function createFileTransferContext(machineId: string | undefined, store: NativeFileTransferStore): FileTransferContext {
+export function createFileTransferContext(
+  machineId: string | undefined,
+  store: NativeFileTransferStore,
+  transferIntents: NativeTransferIntentCoordinator,
+): FileTransferContext {
+  const beginTransferIntent = (requestedMachineId: string | undefined, transferId?: string) => {
+    const transfer = transferId
+      ? store.getSnapshot().transfers.find((candidate) => candidate.id === transferId)
+      : undefined
+    if (transferId && (!transfer || !isResumableTransferStatus(transfer.status))) return null
+    const endpointId = requestedMachineId ?? machineId ?? transfer?.machineId
+    return endpointId ? { endpointId, intent: transferIntents.begin(endpointId) } : null
+  }
   return {
     subscribe: (listener) => store.subscribe(listener),
     getSnapshot: () => store.getSnapshot(machineId),
@@ -1360,35 +1906,71 @@ function createFileTransferContext(machineId: string | undefined, store: NativeF
     getDownloadResumeOffset(mid, filePath, fileSize) {
       return store.getDownloadResumeOffset(mid, filePath, fileSize)
     },
-    startDownload(mid, fileName, fileSize, filePath, offset) {
-      store.startDownload(mid, fileName, fileSize, filePath, offset)
+    beginTransferIntent(mid) {
+      return transferIntents.begin(mid)
     },
-    startUpload(mid, files, targetDir) {
-      for (const f of files) {
-        store.startUpload(mid, f.uri, f.name, f.size, targetDir)
-      }
+    discardTransferIntent(mid, intent) {
+      transferIntents.finish(mid, intent)
     },
-    pickAndUpload(mid, targetDir) {
-      runAcrossNativePicker(nativeForegroundBarrier, () => NativeFilePicker.pickFiles({ multiple: true })).then((result) => {
-        // SAF 返回后只保存平台 URI；upload session 必须在新 foreground generation 上重新取得。
+    async startDownload(mid, fileName, fileSize, filePath, offset, intent) {
+      const currentIntent = intent ?? transferIntents.begin(mid)
+      await transferIntents.run(mid, currentIntent, () => {
+        store.startDownload(mid, fileName, fileSize, filePath, offset)
+      })
+    },
+    async startUpload(mid, files, targetDir, intent) {
+      const currentIntent = intent ?? transferIntents.begin(mid)
+      await transferIntents.run(mid, currentIntent, () => {
+        for (const f of files) store.startUpload(mid, f.uri, f.name, f.size, targetDir)
+      })
+    },
+    async pickAndUpload(mid, targetDir) {
+      const intent = transferIntents.begin(mid)
+      try {
+        const result = await runAcrossNativePicker(
+          nativeForegroundBarrier,
+          () => NativeFilePicker.pickFiles({ multiple: true }),
+          () => transferIntents.confirm(mid, intent),
+        )
         for (const f of result.files) {
           store.startUpload(mid, f.uri, f.name, f.size, targetDir)
         }
-      }).catch(() => {})
+      } catch {
+        // Picker cancellation and a Stop-fenced continuation both leave no task.
+      } finally {
+        transferIntents.finish(mid, intent)
+      }
     },
     pauseTransfer(id) { store.pauseTransfer(id) },
-    resumeTransfer(id) { store.resumeTransfer(id) },
-    resumeAllTransfers(machineId) { store.resumeAllTransfers(machineId) },
+    resumeTransfer(id) {
+      const action = beginTransferIntent(undefined, id)
+      if (action === null) return
+      return store.resumeTransfer(id).finally(() => {
+        transferIntents.finish(action.endpointId, action.intent)
+      })
+    },
+    resumeAllTransfers(requestedMachineId) {
+      const endpointIds = new Set(store.getSnapshot(requestedMachineId ?? machineId).transfers.flatMap((transfer) => (
+        transfer.machineId && isResumableTransferStatus(transfer.status) ? [transfer.machineId] : []
+      )))
+      const actions = [...endpointIds].map((endpointId) => ({ endpointId, intent: transferIntents.begin(endpointId) }))
+      return store.resumeAllTransfers(requestedMachineId ?? machineId).finally(() => {
+        for (const action of actions) transferIntents.finish(action.endpointId, action.intent)
+      })
+    },
     openDownloadedFile(id) { return store.openDownloadedFile(id) },
     cancelTransfer(id) { store.cancelTransfer(id) },
     dismissTransfer(id) { store.dismissTransfer(id) },
   }
 }
 
+function isResumableTransferStatus(status: string): boolean {
+  return status === 'paused' || status === 'failed' || status === 'missing'
+}
+
 function createNativeConnector(
   machine: RemoteMachine,
   endpointRegistry: NativeEndpointRegistryProjection,
-  onPlatform: (platform: string) => void,
 ): NativeSessionConnector {
   if (!endpointRegistry.has(machine.id)) {
     return {
@@ -1401,27 +1983,22 @@ function createNativeConnector(
     }
   }
 
+  const demandOwner = Symbol(machine.id)
   const connector = new GoBindingConnector(() => goBindingClient, {
   endpointId: machine.id,
   })
   return {
     connect: (target, options) => connector.connect(target, options),
-    async verify(session, signal) {
-      const response = await session.execute(create(AnyTTYApiApplication.CommandEnvelopeSchema, {
-        command: { case: 'terminalDefaults', value: create(AnyTTYApiTerminal.TerminalDefaultsCommandSchema) },
-      }), { signal })
-      if (response.result.case !== 'terminalDefaults') throw new Error('session verification returned no terminal defaults')
-      onPlatform(response.result.value.defaults?.platform ?? '')
-    },
     getConnectionPolicy: (signal) => connector.getConnectionPolicy(signal),
     applyConnectionPolicy: (policy, signal) => connector.applyConnectionPolicy(policy, signal),
     disconnect: (machineId) => {
       if (machineId !== machine.id) return Promise.reject(new Error('endpoint identity mismatch'))
       return goBindingClient.disconnectEndpoint(machine.id)
     },
-    setActive: (machineId, active) => nativeSessionDemand.setActive(machineId, active),
-    isGoManaged: (machineId) => nativeSessionDemand.isGoManaged(machineId),
-    requestGoRecovery: () => NativeConnection.handleForegroundResume(),
+    setActive: (machineId, active) => nativeSessionDemand.setActive(machineId, active, demandOwner),
+    createResumeIntent: () => nativeSessionDemand.createResumeIntent(),
+    resumeDemand: (intent) => nativeSessionDemand.resumeForUserIntent(intent),
+    requestRecovery: () => NativeConnection.requestEndpointRecovery({ endpointId: machine.id }),
   }
 }
 

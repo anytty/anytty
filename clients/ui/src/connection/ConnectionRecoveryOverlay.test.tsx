@@ -64,7 +64,7 @@ describe('ConnectionRecoveryOverlay', () => {
     render(
       <ConnectionRecoveryOverlayProvider appIntent={null}>
         <IntentSource intent={{ kind: 'recovering', title: 'Reconnecting' }} />
-        <IntentSource intent={{ kind: 'failed', title: 'Connection failed', action: { label: 'Retry', onClick: retry } }} />
+        <IntentSource intent={{ kind: 'failed', title: 'Connection failed', action: { label: 'Retry', onClick: retry, testId: 'stable-retry' } }} />
         <div className="relative h-80"><ConnectionRecoveryOverlayHost /></div>
       </ConnectionRecoveryOverlayProvider>,
     )
@@ -72,7 +72,9 @@ describe('ConnectionRecoveryOverlay', () => {
     const overlay = await screen.findByRole('alert')
     expect(screen.getAllByTestId('anytty-connection-recovery-overlay')).toHaveLength(1)
     expect(overlay.textContent).toContain('Connection failed')
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    const action = screen.getByTestId('stable-retry')
+    expect(action).toBe(screen.getByRole('button', { name: 'Retry' }))
+    fireEvent.click(action)
     expect(retry).toHaveBeenCalledOnce()
   })
 

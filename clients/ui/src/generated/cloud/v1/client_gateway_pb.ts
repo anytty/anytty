@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file cloud/v1/client_gateway.proto.
  */
 export const file_cloud_v1_client_gateway: GenFile = /*@__PURE__*/
-  fileDesc("Ch1jbG91ZC92MS9jbGllbnRfZ2F0ZXdheS5wcm90bxIPYW55dHR5LmNsb3VkLnYxImsKEUNsb3VkSUNFQ2FuZGlkYXRlEhEKCWNhbmRpZGF0ZRgBIAEoCRIPCgdzZHBfbWlkGAIgASgJEhcKD3NkcF9tbGluZV9pbmRleBgDIAEoDRIZChF1c2VybmFtZV9mcmFnbWVudBgEIAEoCSKPAQoQUGFpcmluZ0FkbWlzc2lvbhIRCglkYWVtb25faWQYASABKAkSEQoJZGV2aWNlX2lkGAIgASgJEhkKEWRldmljZV9wdWJsaWNfa2V5GAMgASgMEhwKFHBhaXJpbmdfY2xhaW1fc2hhMjU2GAQgASgMEhwKFGV4cGlyZXNfYXRfdW5peF9uYW5vGAUgASgDIogDCgtDbGllbnRIZWxsbxIZChFjbGllbnRfcHVibGljX2tleRgCIAEoDBIUCgxjbGllbnRfcHJvb2YYAyABKAwSLwoHcHJvZHVjdBgEIAEoDjIeLmFueXR0eS5jbG91ZC52MS5DbGllbnRQcm9kdWN0EhgKEHNvZnR3YXJlX3ZlcnNpb24YBSABKAkSGgoSYXR0ZW1wdF9nZW5lcmF0aW9uGAYgASgEEjoKEHJlbGF5X3ByZWZlcmVuY2UYByABKA4yIC5hbnl0dHkuY2xvdWQudjEuUmVsYXlQcmVmZXJlbmNlEhYKDnByZXNlbmNlX3Byb2JlGAggASgIEjwKEWNsb3VkX3JvdXRlX2dyYW50GAogASgLMh8uYW55dHR5LmNsb3VkLnYxLlNpZ25lZEVudmVsb3BlSAASPgoRcGFpcmluZ19hZG1pc3Npb24YCyABKAsyIS5hbnl0dHkuY2xvdWQudjEuUGFpcmluZ0FkbWlzc2lvbkgAQg8KDWF1dGhvcml6YXRpb24ipgEKC0NsaWVudFJlYWR5EhIKCnNlc3Npb25faWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIuCgVyZWxheRgDIAEoCzIfLmFueXR0eS5jbG91ZC52MS5SZWxheUlDRUNvbmZpZxI/Cg1yZWxheV9mYWlsdXJlGAQgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlIloKEkNsaWVudFBhdGhTZWxlY3RlZBISCgpzZXNzaW9uX2lkGAEgASgJEjAKBHBhdGgYAiABKA4yIi5hbnl0dHkuY2xvdWQudjEuU2VsZWN0ZWRDbG91ZFBhdGgibAoLQ2xpZW50T2ZmZXISEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglvZmZlcl9zZHAYAiABKAkSNgoKY2FuZGlkYXRlcxgDIAMoCzIiLmFueXR0eS5jbG91ZC52MS5DbG91ZElDRUNhbmRpZGF0ZSJsCgpFZGdlQW5zd2VyEhIKCnNlc3Npb25faWQYASABKAkSEgoKYW5zd2VyX3NkcBgCIAEoCRI2CgpjYW5kaWRhdGVzGAMgAygLMiIuYW55dHR5LmNsb3VkLnYxLkNsb3VkSUNFQ2FuZGlkYXRlIooBCg5TaWduYWxSZWplY3RlZBISCgpzZXNzaW9uX2lkGAEgASgJEgwKBGNvZGUYAiABKAkSDwoHbWVzc2FnZRgDIAEoCRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAQgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlInEKE1NpZ25hbFNlc3Npb25DbG9zZWQSEgoKc2Vzc2lvbl9pZBgBIAEoCRI1CgRjb2RlGAIgASgOMicuYW55dHR5LmNsb3VkLnYxLlNpZ25hbFNlc3Npb25DbG9zZUNvZGUSDwoHbWVzc2FnZRgDIAEoCSIgCg5EYWVtb25QcmVzZW5jZRIOCgZvbmxpbmUYASABKAgi3wIKDENsaWVudFNpZ25hbBIYChBwcm90b2NvbF92ZXJzaW9uGAEgASgNEhIKCm1lc3NhZ2VfaWQYAiABKAkSEQoJc2VuZGVyX2lkGAMgASgJEg8KB2Jvb3RfaWQYBCABKAkSFQoNY29ubmVjdGlvbl9pZBgFIAEoCRISCgpzdHJlYW1fc2VxGAYgASgEEisKB3NlbnRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi0KBWhlbGxvGBQgASgLMhwuYW55dHR5LmNsb3VkLnYxLkNsaWVudEhlbGxvSAASLQoFb2ZmZXIYFSABKAsyHC5hbnl0dHkuY2xvdWQudjEuQ2xpZW50T2ZmZXJIABI8Cg1wYXRoX3NlbGVjdGVkGBYgASgLMiMuYW55dHR5LmNsb3VkLnYxLkNsaWVudFBhdGhTZWxlY3RlZEgAQgkKB3BheWxvYWQi9gMKCkVkZ2VTaWduYWwSGAoQcHJvdG9jb2xfdmVyc2lvbhgBIAEoDRISCgptZXNzYWdlX2lkGAIgASgJEhEKCXNlbmRlcl9pZBgDIAEoCRIPCgdib290X2lkGAQgASgJEhUKDWNvbm5lY3Rpb25faWQYBSABKAkSEgoKc3RyZWFtX3NlcRgGIAEoBBIrCgdzZW50X2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBItCgVyZWFkeRgUIAEoCzIcLmFueXR0eS5jbG91ZC52MS5DbGllbnRSZWFkeUgAEi0KBmFuc3dlchgVIAEoCzIbLmFueXR0eS5jbG91ZC52MS5FZGdlQW5zd2VySAASMwoIcmVqZWN0ZWQYFiABKAsyHy5hbnl0dHkuY2xvdWQudjEuU2lnbmFsUmVqZWN0ZWRIABIzCgljaGFsbGVuZ2UYFyABKAsyHi5hbnl0dHkuY2xvdWQudjEuRWRnZUNoYWxsZW5nZUgAEjYKBmNsb3NlZBgYIAEoCzIkLmFueXR0eS5jbG91ZC52MS5TaWduYWxTZXNzaW9uQ2xvc2VkSAASMwoIcHJlc2VuY2UYGSABKAsyHy5hbnl0dHkuY2xvdWQudjEuRGFlbW9uUHJlc2VuY2VIAEIJCgdwYXlsb2FkKncKEVNlbGVjdGVkQ2xvdWRQYXRoEiMKH1NFTEVDVEVEX0NMT1VEX1BBVEhfVU5TUEVDSUZJRUQQABIeChpTRUxFQ1RFRF9DTE9VRF9QQVRIX0RJUkVDVBABEh0KGVNFTEVDVEVEX0NMT1VEX1BBVEhfUkVMQVkQAipzChZTaWduYWxTZXNzaW9uQ2xvc2VDb2RlEikKJVNJR05BTF9TRVNTSU9OX0NMT1NFX0NPREVfVU5TUEVDSUZJRUQQABIuCipTSUdOQUxfU0VTU0lPTl9DTE9TRV9DT0RFX0FETUlOX0RJU0NPTk5FQ1QQATJaCg1DbGllbnRHYXRld2F5EkkKB0Nvbm5lY3QSHS5hbnl0dHkuY2xvdWQudjEuQ2xpZW50U2lnbmFsGhsuYW55dHR5LmNsb3VkLnYxLkVkZ2VTaWduYWwoATABQjFaL2dpdGh1Yi5jb20vYW55dHR5L2FueXR0eS9wcm90by9jbG91ZC92MTtjbG91ZHYxYgZwcm90bzM", [file_cloud_v1_common, file_cloud_v1_runtime, file_cloud_v1_usage, file_google_protobuf_timestamp]);
+  fileDesc("Ch1jbG91ZC92MS9jbGllbnRfZ2F0ZXdheS5wcm90bxIPYW55dHR5LmNsb3VkLnYxImsKEUNsb3VkSUNFQ2FuZGlkYXRlEhEKCWNhbmRpZGF0ZRgBIAEoCRIPCgdzZHBfbWlkGAIgASgJEhcKD3NkcF9tbGluZV9pbmRleBgDIAEoDRIZChF1c2VybmFtZV9mcmFnbWVudBgEIAEoCSKPAQoQUGFpcmluZ0FkbWlzc2lvbhIRCglkYWVtb25faWQYASABKAkSEQoJZGV2aWNlX2lkGAIgASgJEhkKEWRldmljZV9wdWJsaWNfa2V5GAMgASgMEhwKFHBhaXJpbmdfY2xhaW1fc2hhMjU2GAQgASgMEhwKFGV4cGlyZXNfYXRfdW5peF9uYW5vGAUgASgDIogDCgtDbGllbnRIZWxsbxIZChFjbGllbnRfcHVibGljX2tleRgCIAEoDBIUCgxjbGllbnRfcHJvb2YYAyABKAwSLwoHcHJvZHVjdBgEIAEoDjIeLmFueXR0eS5jbG91ZC52MS5DbGllbnRQcm9kdWN0EhgKEHNvZnR3YXJlX3ZlcnNpb24YBSABKAkSGgoSYXR0ZW1wdF9nZW5lcmF0aW9uGAYgASgEEjoKEHJlbGF5X3ByZWZlcmVuY2UYByABKA4yIC5hbnl0dHkuY2xvdWQudjEuUmVsYXlQcmVmZXJlbmNlEhYKDnByZXNlbmNlX3Byb2JlGAggASgIEjwKEWNsb3VkX3JvdXRlX2dyYW50GAogASgLMh8uYW55dHR5LmNsb3VkLnYxLlNpZ25lZEVudmVsb3BlSAASPgoRcGFpcmluZ19hZG1pc3Npb24YCyABKAsyIS5hbnl0dHkuY2xvdWQudjEuUGFpcmluZ0FkbWlzc2lvbkgAQg8KDWF1dGhvcml6YXRpb24ipgEKC0NsaWVudFJlYWR5EhIKCnNlc3Npb25faWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIuCgVyZWxheRgDIAEoCzIfLmFueXR0eS5jbG91ZC52MS5SZWxheUlDRUNvbmZpZxI/Cg1yZWxheV9mYWlsdXJlGAQgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlInMKEkNsaWVudFBhdGhEZWNpc2lvbhISCgpzZXNzaW9uX2lkGAEgASgJEhMKC2RlY2lzaW9uX2lkGAIgASgJEjQKCGRlY2lzaW9uGAMgASgOMiIuYW55dHR5LmNsb3VkLnYxLkNsb3VkUGF0aERlY2lzaW9uInQKE0VkZ2VQYXRoRGVjaXNpb25BY2sSEgoKc2Vzc2lvbl9pZBgBIAEoCRITCgtkZWNpc2lvbl9pZBgCIAEoCRI0CghkZWNpc2lvbhgDIAEoDjIiLmFueXR0eS5jbG91ZC52MS5DbG91ZFBhdGhEZWNpc2lvbiI+ChRDbGllbnRTZXNzaW9uUmVsZWFzZRISCgpzZXNzaW9uX2lkGAEgASgJEhIKCnJlbGVhc2VfaWQYAiABKAkiPwoVRWRnZVNlc3Npb25SZWxlYXNlQWNrEhIKCnNlc3Npb25faWQYASABKAkSEgoKcmVsZWFzZV9pZBgCIAEoCSJsCgtDbGllbnRPZmZlchISCgpzZXNzaW9uX2lkGAEgASgJEhEKCW9mZmVyX3NkcBgCIAEoCRI2CgpjYW5kaWRhdGVzGAMgAygLMiIuYW55dHR5LmNsb3VkLnYxLkNsb3VkSUNFQ2FuZGlkYXRlImwKCkVkZ2VBbnN3ZXISEgoKc2Vzc2lvbl9pZBgBIAEoCRISCgphbnN3ZXJfc2RwGAIgASgJEjYKCmNhbmRpZGF0ZXMYAyADKAsyIi5hbnl0dHkuY2xvdWQudjEuQ2xvdWRJQ0VDYW5kaWRhdGUiigEKDlNpZ25hbFJlamVjdGVkEhIKCnNlc3Npb25faWQYASABKAkSDAoEY29kZRgCIAEoCRIPCgdtZXNzYWdlGAMgASgJEkUKE2VudGl0bGVtZW50X2ZhaWx1cmUYBCABKAsyKC5hbnl0dHkuY2xvdWQudjEuQ2xvdWRFbnRpdGxlbWVudEZhaWx1cmUicQoTU2lnbmFsU2Vzc2lvbkNsb3NlZBISCgpzZXNzaW9uX2lkGAEgASgJEjUKBGNvZGUYAiABKA4yJy5hbnl0dHkuY2xvdWQudjEuU2lnbmFsU2Vzc2lvbkNsb3NlQ29kZRIPCgdtZXNzYWdlGAMgASgJIiAKDkRhZW1vblByZXNlbmNlEg4KBm9ubGluZRgBIAEoCCKhAwoMQ2xpZW50U2lnbmFsEhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SEgoKbWVzc2FnZV9pZBgCIAEoCRIRCglzZW5kZXJfaWQYAyABKAkSDwoHYm9vdF9pZBgEIAEoCRIVCg1jb25uZWN0aW9uX2lkGAUgASgJEhIKCnN0cmVhbV9zZXEYBiABKAQSKwoHc2VudF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLQoFaGVsbG8YFCABKAsyHC5hbnl0dHkuY2xvdWQudjEuQ2xpZW50SGVsbG9IABItCgVvZmZlchgVIAEoCzIcLmFueXR0eS5jbG91ZC52MS5DbGllbnRPZmZlckgAEjwKDXBhdGhfZGVjaXNpb24YFiABKAsyIy5hbnl0dHkuY2xvdWQudjEuQ2xpZW50UGF0aERlY2lzaW9uSAASQAoPc2Vzc2lvbl9yZWxlYXNlGBcgASgLMiUuYW55dHR5LmNsb3VkLnYxLkNsaWVudFNlc3Npb25SZWxlYXNlSABCCQoHcGF5bG9hZCKABQoKRWRnZVNpZ25hbBIYChBwcm90b2NvbF92ZXJzaW9uGAEgASgNEhIKCm1lc3NhZ2VfaWQYAiABKAkSEQoJc2VuZGVyX2lkGAMgASgJEg8KB2Jvb3RfaWQYBCABKAkSFQoNY29ubmVjdGlvbl9pZBgFIAEoCRISCgpzdHJlYW1fc2VxGAYgASgEEisKB3NlbnRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi0KBXJlYWR5GBQgASgLMhwuYW55dHR5LmNsb3VkLnYxLkNsaWVudFJlYWR5SAASLQoGYW5zd2VyGBUgASgLMhsuYW55dHR5LmNsb3VkLnYxLkVkZ2VBbnN3ZXJIABIzCghyZWplY3RlZBgWIAEoCzIfLmFueXR0eS5jbG91ZC52MS5TaWduYWxSZWplY3RlZEgAEjMKCWNoYWxsZW5nZRgXIAEoCzIeLmFueXR0eS5jbG91ZC52MS5FZGdlQ2hhbGxlbmdlSAASNgoGY2xvc2VkGBggASgLMiQuYW55dHR5LmNsb3VkLnYxLlNpZ25hbFNlc3Npb25DbG9zZWRIABIzCghwcmVzZW5jZRgZIAEoCzIfLmFueXR0eS5jbG91ZC52MS5EYWVtb25QcmVzZW5jZUgAEkEKEXBhdGhfZGVjaXNpb25fYWNrGBogASgLMiQuYW55dHR5LmNsb3VkLnYxLkVkZ2VQYXRoRGVjaXNpb25BY2tIABJFChNzZXNzaW9uX3JlbGVhc2VfYWNrGBsgASgLMiYuYW55dHR5LmNsb3VkLnYxLkVkZ2VTZXNzaW9uUmVsZWFzZUFja0gAQgkKB3BheWxvYWQqdwoRU2VsZWN0ZWRDbG91ZFBhdGgSIwofU0VMRUNURURfQ0xPVURfUEFUSF9VTlNQRUNJRklFRBAAEh4KGlNFTEVDVEVEX0NMT1VEX1BBVEhfRElSRUNUEAESHQoZU0VMRUNURURfQ0xPVURfUEFUSF9SRUxBWRACKqgBChFDbG91ZFBhdGhEZWNpc2lvbhIjCh9DTE9VRF9QQVRIX0RFQ0lTSU9OX1VOU1BFQ0lGSUVEEAASJgoiQ0xPVURfUEFUSF9ERUNJU0lPTl9DT05GSVJNX0RJUkVDVBABEiUKIUNMT1VEX1BBVEhfREVDSVNJT05fQ09ORklSTV9SRUxBWRACEh8KG0NMT1VEX1BBVEhfREVDSVNJT05fQUJBTkRPThADKnMKFlNpZ25hbFNlc3Npb25DbG9zZUNvZGUSKQolU0lHTkFMX1NFU1NJT05fQ0xPU0VfQ09ERV9VTlNQRUNJRklFRBAAEi4KKlNJR05BTF9TRVNTSU9OX0NMT1NFX0NPREVfQURNSU5fRElTQ09OTkVDVBABMloKDUNsaWVudEdhdGV3YXkSSQoHQ29ubmVjdBIdLmFueXR0eS5jbG91ZC52MS5DbGllbnRTaWduYWwaGy5hbnl0dHkuY2xvdWQudjEuRWRnZVNpZ25hbCgBMAFCMVovZ2l0aHViLmNvbS9hbnl0dHkvYW55dHR5L3Byb3RvL2Nsb3VkL3YxO2Nsb3VkdjFiBnByb3RvMw", [file_cloud_v1_common, file_cloud_v1_runtime, file_cloud_v1_usage, file_google_protobuf_timestamp]);
 
 /**
  * CloudICECandidate 是 Cloud 信令的中性 candidate；不携带授权或 terminal 数据。
@@ -200,28 +200,117 @@ export const ClientReadySchema: GenMessage<ClientReady> = /*@__PURE__*/
   messageDesc(file_cloud_v1_client_gateway, 3);
 
 /**
- * ClientPathSelected 在 ICE/DataChannel ready 后确认实际路径，使 Edge 能立即释放未使用的 Relay 预留。
+ * ClientPathDecision commits or abandons one authenticated candidate. The
+ * decision_id is stable across same-stream retries and cannot be reused for a
+ * different decision.
  *
- * @generated from message anytty.cloud.v1.ClientPathSelected
+ * @generated from message anytty.cloud.v1.ClientPathDecision
  */
-export type ClientPathSelected = Message<"anytty.cloud.v1.ClientPathSelected"> & {
+export type ClientPathDecision = Message<"anytty.cloud.v1.ClientPathDecision"> & {
   /**
    * @generated from field: string session_id = 1;
    */
   sessionId: string;
 
   /**
-   * @generated from field: anytty.cloud.v1.SelectedCloudPath path = 2;
+   * @generated from field: string decision_id = 2;
    */
-  path: SelectedCloudPath;
+  decisionId: string;
+
+  /**
+   * @generated from field: anytty.cloud.v1.CloudPathDecision decision = 3;
+   */
+  decision: CloudPathDecision;
 };
 
 /**
- * Describes the message anytty.cloud.v1.ClientPathSelected.
- * Use `create(ClientPathSelectedSchema)` to create a new message.
+ * Describes the message anytty.cloud.v1.ClientPathDecision.
+ * Use `create(ClientPathDecisionSchema)` to create a new message.
  */
-export const ClientPathSelectedSchema: GenMessage<ClientPathSelected> = /*@__PURE__*/
+export const ClientPathDecisionSchema: GenMessage<ClientPathDecision> = /*@__PURE__*/
   messageDesc(file_cloud_v1_client_gateway, 4);
+
+/**
+ * EdgePathDecisionAck is the only decision barrier accepted by the client.
+ * Confirm freezes the chosen path without destructively releasing standby
+ * Relay state because peer-reflexive ICE candidates cannot prove that TURN is
+ * unused. ABANDON is acknowledged only after Relay and runtime cleanup.
+ *
+ * @generated from message anytty.cloud.v1.EdgePathDecisionAck
+ */
+export type EdgePathDecisionAck = Message<"anytty.cloud.v1.EdgePathDecisionAck"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string decision_id = 2;
+   */
+  decisionId: string;
+
+  /**
+   * @generated from field: anytty.cloud.v1.CloudPathDecision decision = 3;
+   */
+  decision: CloudPathDecision;
+};
+
+/**
+ * Describes the message anytty.cloud.v1.EdgePathDecisionAck.
+ * Use `create(EdgePathDecisionAckSchema)` to create a new message.
+ */
+export const EdgePathDecisionAckSchema: GenMessage<EdgePathDecisionAck> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_client_gateway, 5);
+
+/**
+ * ClientSessionRelease is a separate teardown transaction for a path that was
+ * already confirmed. It must not reuse or mutate the immutable PathDecision.
+ *
+ * @generated from message anytty.cloud.v1.ClientSessionRelease
+ */
+export type ClientSessionRelease = Message<"anytty.cloud.v1.ClientSessionRelease"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string release_id = 2;
+   */
+  releaseId: string;
+};
+
+/**
+ * Describes the message anytty.cloud.v1.ClientSessionRelease.
+ * Use `create(ClientSessionReleaseSchema)` to create a new message.
+ */
+export const ClientSessionReleaseSchema: GenMessage<ClientSessionRelease> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_client_gateway, 6);
+
+/**
+ * EdgeSessionReleaseAck is emitted only after Relay and runtime session
+ * cleanup completed. EOF and administrative close are not release ACKs.
+ *
+ * @generated from message anytty.cloud.v1.EdgeSessionReleaseAck
+ */
+export type EdgeSessionReleaseAck = Message<"anytty.cloud.v1.EdgeSessionReleaseAck"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string release_id = 2;
+   */
+  releaseId: string;
+};
+
+/**
+ * Describes the message anytty.cloud.v1.EdgeSessionReleaseAck.
+ * Use `create(EdgeSessionReleaseAckSchema)` to create a new message.
+ */
+export const EdgeSessionReleaseAckSchema: GenMessage<EdgeSessionReleaseAck> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_client_gateway, 7);
 
 /**
  * @generated from message anytty.cloud.v1.ClientOffer
@@ -248,7 +337,7 @@ export type ClientOffer = Message<"anytty.cloud.v1.ClientOffer"> & {
  * Use `create(ClientOfferSchema)` to create a new message.
  */
 export const ClientOfferSchema: GenMessage<ClientOffer> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 5);
+  messageDesc(file_cloud_v1_client_gateway, 8);
 
 /**
  * @generated from message anytty.cloud.v1.EdgeAnswer
@@ -275,7 +364,7 @@ export type EdgeAnswer = Message<"anytty.cloud.v1.EdgeAnswer"> & {
  * Use `create(EdgeAnswerSchema)` to create a new message.
  */
 export const EdgeAnswerSchema: GenMessage<EdgeAnswer> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 6);
+  messageDesc(file_cloud_v1_client_gateway, 9);
 
 /**
  * @generated from message anytty.cloud.v1.SignalRejected
@@ -307,7 +396,7 @@ export type SignalRejected = Message<"anytty.cloud.v1.SignalRejected"> & {
  * Use `create(SignalRejectedSchema)` to create a new message.
  */
 export const SignalRejectedSchema: GenMessage<SignalRejected> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 7);
+  messageDesc(file_cloud_v1_client_gateway, 10);
 
 /**
  * @generated from message anytty.cloud.v1.SignalSessionClosed
@@ -334,7 +423,7 @@ export type SignalSessionClosed = Message<"anytty.cloud.v1.SignalSessionClosed">
  * Use `create(SignalSessionClosedSchema)` to create a new message.
  */
 export const SignalSessionClosedSchema: GenMessage<SignalSessionClosed> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 8);
+  messageDesc(file_cloud_v1_client_gateway, 11);
 
 /**
  * DaemonPresence is returned only after an authenticated presence probe.
@@ -355,7 +444,7 @@ export type DaemonPresence = Message<"anytty.cloud.v1.DaemonPresence"> & {
  * Use `create(DaemonPresenceSchema)` to create a new message.
  */
 export const DaemonPresenceSchema: GenMessage<DaemonPresence> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 9);
+  messageDesc(file_cloud_v1_client_gateway, 12);
 
 /**
  * @generated from message anytty.cloud.v1.ClientSignal
@@ -413,10 +502,16 @@ export type ClientSignal = Message<"anytty.cloud.v1.ClientSignal"> & {
     case: "offer";
   } | {
     /**
-     * @generated from field: anytty.cloud.v1.ClientPathSelected path_selected = 22;
+     * @generated from field: anytty.cloud.v1.ClientPathDecision path_decision = 22;
      */
-    value: ClientPathSelected;
-    case: "pathSelected";
+    value: ClientPathDecision;
+    case: "pathDecision";
+  } | {
+    /**
+     * @generated from field: anytty.cloud.v1.ClientSessionRelease session_release = 23;
+     */
+    value: ClientSessionRelease;
+    case: "sessionRelease";
   } | { case: undefined; value?: undefined };
 };
 
@@ -425,7 +520,7 @@ export type ClientSignal = Message<"anytty.cloud.v1.ClientSignal"> & {
  * Use `create(ClientSignalSchema)` to create a new message.
  */
 export const ClientSignalSchema: GenMessage<ClientSignal> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 10);
+  messageDesc(file_cloud_v1_client_gateway, 13);
 
 /**
  * @generated from message anytty.cloud.v1.EdgeSignal
@@ -505,6 +600,18 @@ export type EdgeSignal = Message<"anytty.cloud.v1.EdgeSignal"> & {
      */
     value: DaemonPresence;
     case: "presence";
+  } | {
+    /**
+     * @generated from field: anytty.cloud.v1.EdgePathDecisionAck path_decision_ack = 26;
+     */
+    value: EdgePathDecisionAck;
+    case: "pathDecisionAck";
+  } | {
+    /**
+     * @generated from field: anytty.cloud.v1.EdgeSessionReleaseAck session_release_ack = 27;
+     */
+    value: EdgeSessionReleaseAck;
+    case: "sessionReleaseAck";
   } | { case: undefined; value?: undefined };
 };
 
@@ -513,7 +620,7 @@ export type EdgeSignal = Message<"anytty.cloud.v1.EdgeSignal"> & {
  * Use `create(EdgeSignalSchema)` to create a new message.
  */
 export const EdgeSignalSchema: GenMessage<EdgeSignal> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_client_gateway, 11);
+  messageDesc(file_cloud_v1_client_gateway, 14);
 
 /**
  * @generated from enum anytty.cloud.v1.SelectedCloudPath
@@ -542,6 +649,37 @@ export const SelectedCloudPathSchema: GenEnum<SelectedCloudPath> = /*@__PURE__*/
   enumDesc(file_cloud_v1_client_gateway, 0);
 
 /**
+ * @generated from enum anytty.cloud.v1.CloudPathDecision
+ */
+export enum CloudPathDecision {
+  /**
+   * @generated from enum value: CLOUD_PATH_DECISION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CLOUD_PATH_DECISION_CONFIRM_DIRECT = 1;
+   */
+  CONFIRM_DIRECT = 1,
+
+  /**
+   * @generated from enum value: CLOUD_PATH_DECISION_CONFIRM_RELAY = 2;
+   */
+  CONFIRM_RELAY = 2,
+
+  /**
+   * @generated from enum value: CLOUD_PATH_DECISION_ABANDON = 3;
+   */
+  ABANDON = 3,
+}
+
+/**
+ * Describes the enum anytty.cloud.v1.CloudPathDecision.
+ */
+export const CloudPathDecisionSchema: GenEnum<CloudPathDecision> = /*@__PURE__*/
+  enumDesc(file_cloud_v1_client_gateway, 1);
+
+/**
  * @generated from enum anytty.cloud.v1.SignalSessionCloseCode
  */
 export enum SignalSessionCloseCode {
@@ -560,7 +698,7 @@ export enum SignalSessionCloseCode {
  * Describes the enum anytty.cloud.v1.SignalSessionCloseCode.
  */
 export const SignalSessionCloseCodeSchema: GenEnum<SignalSessionCloseCode> = /*@__PURE__*/
-  enumDesc(file_cloud_v1_client_gateway, 1);
+  enumDesc(file_cloud_v1_client_gateway, 2);
 
 /**
  * ClientGateway 只承载 Cloud WebRTC 信令；DataChannel 建立后业务流量完全绕过该 stream。

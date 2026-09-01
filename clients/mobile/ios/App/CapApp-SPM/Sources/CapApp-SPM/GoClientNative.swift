@@ -11,6 +11,15 @@ enum GoClientNativeError: Error, LocalizedError {
         case .invalidBuffer: return "AnyTTY native returned an invalid buffer"
         }
     }
+
+    var invalidatesRuntimeGeneration: Bool {
+        switch self {
+        case .status(let value):
+            return value != Int32(ANYTTY_STATUS_INVALID_ARGUMENT.rawValue)
+        case .invalidBuffer:
+            return true
+        }
+    }
 }
 
 enum GoClientNative {
@@ -49,6 +58,32 @@ enum GoClientNative {
             try check(anytty_direct_probe(bytes, count, &reachable))
         }
         return reachable != 0
+    }
+
+    static func replaceSupervisorDemand(engine: UInt64, payload: Data) throws {
+        try withPayload(payload) { bytes, count in
+            try check(anytty_supervisor_replace_demand(engine, bytes, count))
+        }
+    }
+
+    static func signalSupervisor(engine: UInt64, payload: Data) throws {
+        try withPayload(payload) { bytes, count in
+            try check(anytty_supervisor_signal(engine, bytes, count))
+        }
+    }
+
+    static func repairSupervisorEndpoint(engine: UInt64, endpointID: String) throws {
+        try withPayload(Data(endpointID.utf8)) { bytes, count in
+            try check(anytty_supervisor_repair(engine, bytes, count))
+        }
+    }
+
+    static func awaitSupervisorReady(engine: UInt64, timeoutMillis: UInt32) throws {
+        try check(anytty_supervisor_wait_ready(engine, timeoutMillis))
+    }
+
+    static func supervisorSnapshot(engine: UInt64) throws -> Data {
+        try readBuffer { anytty_supervisor_snapshot(engine, $0) }
     }
 
     static func openSession(engine: UInt64, payload: Data) throws -> UInt64 {

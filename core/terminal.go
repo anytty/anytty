@@ -17,14 +17,16 @@ import (
 )
 
 type Terminal struct {
-	mu              sync.Mutex
-	info            TerminalInfo
-	options         TerminalCreateOptions
-	process         TerminalProcess
-	resourceMu      sync.Mutex
-	resourceHistory []TerminalResourceUsage
-	resourceCancel  context.CancelFunc
-	live            *live.SurfaceTrack
+	mu                   sync.Mutex
+	info                 TerminalInfo
+	options              TerminalCreateOptions
+	process              TerminalProcess
+	resourceMu           sync.Mutex
+	resourceHistory      []TerminalResourceUsage
+	resourceHistoryStart int
+	resourceSampling     TerminalResourceSamplingConfig
+	resourceCancel       context.CancelFunc
+	live                 *live.SurfaceTrack
 	// 中文说明：liveOpMu 串行化 live SurfaceTrack 的 PTY 输出与 resize/restart 操作。
 	// live 是唯一 response owner；resize 期间产生的新输出必须等 live 调整到新尺寸后再写入。
 	liveOpMu       sync.Mutex
@@ -60,24 +62,20 @@ type Terminal struct {
 	update             func(TerminalInfo)
 }
 
-const (
-	terminalResourceSampleInterval = time.Second
-	terminalResourceHistoryLimit   = 64
-)
-
-func newTerminal(info TerminalInfo, options TerminalCreateOptions, process TerminalProcess, events *eventBroker, update func(TerminalInfo), historyStore history.HistoryStore, historyEnabled bool, outputConfig TerminalOutputBufferConfig, outputBudget *terminalOutputResidentBudget, logger *slog.Logger) *Terminal {
+func newTerminal(info TerminalInfo, options TerminalCreateOptions, process TerminalProcess, events *eventBroker, update func(TerminalInfo), historyStore history.HistoryStore, historyEnabled bool, outputConfig TerminalOutputBufferConfig, resourceSampling TerminalResourceSamplingConfig, outputBudget *terminalOutputResidentBudget, logger *slog.Logger) *Terminal {
 	terminal := &Terminal{
-		info:           info.Clone(),
-		options:        cloneTerminalCreateOptions(options),
-		process:        process,
-		events:         events,
-		update:         update,
-		historyEnabled: historyEnabled,
-		outputConfig:   outputConfig.normalized(),
-		outputBudget:   outputBudget,
-		logger:         logger,
-		rawPTYProcess:  process,
-		rawPTY:         newRawPTYBroadcaster(),
+		info:             info.Clone(),
+		options:          cloneTerminalCreateOptions(options),
+		process:          process,
+		resourceSampling: resourceSampling.normalized(),
+		events:           events,
+		update:           update,
+		historyEnabled:   historyEnabled,
+		outputConfig:     outputConfig.normalized(),
+		outputBudget:     outputBudget,
+		logger:           logger,
+		rawPTYProcess:    process,
+		rawPTY:           newRawPTYBroadcaster(),
 	}
 	terminal.live = live.NewSurfaceTrackWithOptions(live.SurfaceSize{Cols: int(info.Size.Cols), Rows: int(info.Size.Rows)}, live.SurfaceTrackOptions{
 		CaptureLineHistory: historyEnabled,
@@ -136,14 +134,21 @@ func (terminal *Terminal) ResourceUsage() (TerminalResourceUsage, bool) {
 }
 
 // ResourceSnapshot 返回 Terminal 对象持续维护的资源采样快照。历史按时间升序排列，
-// 最多保留 64 个样本；调用方拿到的是副本，不能修改 Terminal 内部状态。
+// 最多保留配置指定数量的样本；调用方拿到的是副本，不能修改 Terminal 内部状态。
 func (terminal *Terminal) ResourceSnapshot() (TerminalResourceUsage, []TerminalResourceUsage) {
 	terminal.resourceMu.Lock()
 	defer terminal.resourceMu.Unlock()
 	if len(terminal.resourceHistory) == 0 {
 		return TerminalResourceUsage{}, nil
 	}
-	history := append([]TerminalResourceUsage(nil), terminal.resourceHistory...)
+	history := make([]TerminalResourceUsage, len(terminal.resourceHistory))
+	start := terminal.resourceHistoryStart
+	if start == 0 {
+		copy(history, terminal.resourceHistory)
+	} else {
+		n := copy(history, terminal.resourceHistory[start:])
+		copy(history[n:], terminal.resourceHistory[:start])
+	}
 	return history[len(history)-1], history
 }
 
@@ -155,7 +160,7 @@ func (terminal *Terminal) LastOutputAt() time.Time {
 }
 
 func (terminal *Terminal) runResourceSampler(ctx context.Context) {
-	ticker := time.NewTicker(terminalResourceSampleInterval)
+	ticker := time.NewTicker(terminal.resourceSampling.normalized().Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -180,16 +185,22 @@ func (terminal *Terminal) recordResourceUsage(usage TerminalResourceUsage) {
 	defer terminal.resourceMu.Unlock()
 	history := terminal.resourceHistory
 	if len(history) > 0 {
-		latest := history[len(history)-1]
+		latestIndex := len(history) - 1
+		if terminal.resourceHistoryStart > 0 {
+			latestIndex = (terminal.resourceHistoryStart + len(history) - 1) % len(history)
+		}
+		latest := history[latestIndex]
 		if latest.PID > 0 && usage.PID > 0 && latest.PID != usage.PID {
 			history = nil
+			terminal.resourceHistoryStart = 0
 		} else if !usage.SampledAt.After(latest.SampledAt) {
 			return
 		}
 	}
-	if len(history) == terminalResourceHistoryLimit {
-		copy(history, history[1:])
-		history[len(history)-1] = usage
+	limit := terminal.resourceSampling.normalized().MaxSamples
+	if len(history) >= limit {
+		history[terminal.resourceHistoryStart] = usage
+		terminal.resourceHistoryStart = (terminal.resourceHistoryStart + 1) % limit
 	} else {
 		history = append(history, usage)
 	}
@@ -199,6 +210,7 @@ func (terminal *Terminal) recordResourceUsage(usage TerminalResourceUsage) {
 func (terminal *Terminal) resetResourceHistory() {
 	terminal.resourceMu.Lock()
 	terminal.resourceHistory = nil
+	terminal.resourceHistoryStart = 0
 	terminal.resourceMu.Unlock()
 }
 

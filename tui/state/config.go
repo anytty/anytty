@@ -17,14 +17,20 @@ type TUIConfigStore struct {
 }
 
 type DaemonConfig struct {
-	History      DaemonHistoryConfig
-	OutputBuffer DaemonOutputBufferConfig
+	History          DaemonHistoryConfig
+	OutputBuffer     DaemonOutputBufferConfig
+	ResourceSampling DaemonResourceSamplingConfig
 }
 
 type DaemonOutputBufferConfig struct {
 	CapacityBytes       int64
 	Overflow            string
 	ResidentBudgetBytes int64
+}
+
+type DaemonResourceSamplingConfig struct {
+	IntervalMS int
+	MaxSamples int
 }
 
 // DaemonHistoryConfig 只控制 history 的物理存储，不改变 terminal/history

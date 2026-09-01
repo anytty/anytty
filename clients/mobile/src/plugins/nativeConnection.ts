@@ -15,10 +15,32 @@ export interface NativeNetworkChangedEvent {
 
 export interface NativeLocalDiscoveryChangedEvent {}
 
-export interface NativeDisconnectAllRequestedEvent {}
+export interface NativeDisconnectAllRequestedEvent {
+  stopEpoch: string
+  stopped: boolean
+}
 
-export interface NativeSessionDemandResult {
-  goManagedEndpointIds: string[]
+export interface NativeSessionDemandLease {
+  attachmentId: string
+  demandRevision: string
+  stopEpoch: string
+  endpointIds: string[]
+  stopped: boolean
+}
+
+export interface NativeSessionDemandInput {
+  attachmentId: string
+  baseDemandRevision: string
+  endpointIds: string[]
+}
+
+export interface NativeSessionDemandResumeInput {
+  intentId: string
+  baseStopEpoch: string
+}
+
+export interface NativeSessionDemandResumeResult extends NativeSessionDemandLease {
+  outcome: 'resumed' | 'stopped'
 }
 
 export interface NativeDiagnosticBundleResult {
@@ -35,10 +57,14 @@ export interface NativeConnectionPlugin extends Plugin {
   writeDebugDiagnostic(input: { value: string }): Promise<void>
   shareDiagnosticBundle(): Promise<NativeDiagnosticBundleResult>
   handleForegroundResume(): Promise<void>
+  requestEndpointRecovery(input: { endpointId: string }): Promise<void>
   getNetworkSnapshot(): Promise<NativeNetworkChangedEvent>
   resetLocalPairings(): Promise<void>
   getBridgeEndpoint(): Promise<NativeBridgeEndpoint>
-  replaceSessionDemand(input: { endpointIds: string[] }): Promise<NativeSessionDemandResult>
+  getSessionDemandLease(): Promise<NativeSessionDemandLease>
+  acknowledgeDisconnectAll(input: { stopEpoch: string }): Promise<void>
+  resumeSessionDemand(input: NativeSessionDemandResumeInput): Promise<NativeSessionDemandResumeResult>
+  replaceSessionDemand(input: NativeSessionDemandInput): Promise<NativeSessionDemandLease>
   isLocalEndpointDiscovered(input: { deviceId: string; fingerprint: string }): Promise<{ discovered: boolean }>
   isDirectRouteReachable(input: { routeProtoBase64: string }): Promise<{ reachable: boolean }>
 }

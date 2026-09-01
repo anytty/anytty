@@ -39,6 +39,15 @@ daemon:
     # Default: 536870912 (512 MiB). Allowed: 65536 through 2147483648.
     resident_budget_bytes: 536870912
 
+  resource_sampling:
+    # Sampling interval for terminal-process CPU and memory, in milliseconds.
+    # Default: 500. Allowed: 100 through 60000.
+    interval_ms: 500
+
+    # Resource-history samples retained in memory for each terminal.
+    # Default and minimum: 512. Maximum: 65536.
+    max_samples: 512
+
   history:
     # Physical history-file limit for each terminal, in MiB. The oldest
     # compressed blocks are evicted when the limit is exceeded.

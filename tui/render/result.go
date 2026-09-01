@@ -968,7 +968,10 @@ type ChromeActionVM struct {
 }
 
 type LayoutVM struct {
-	Viewport           Rect
+	Viewport Rect
+	// Zoomed 表示 tiled pane 正以沉浸式全屏布局展示。该状态只影响投影：
+	// header/footer、pane chrome 和其命中区不占空间，业务 zoom truth 仍由 ShellStore 持有。
+	Zoomed             bool
 	Body               Rect
 	ShellFrame         Rect
 	HeaderTopFrame     Rect

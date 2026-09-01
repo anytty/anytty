@@ -520,8 +520,14 @@ func NewLiveReducer(deps LiveDeps) Reducer {
 						viewRows = copyModeVisibleRows(rows, rect.H)
 					}
 				}
-				if root.CopyMode.Active && root.CopyMode.BoundCols != cols {
+				if root.CopyMode.Active && (root.CopyMode.BoundCols != cols || root.History.Cols != cols) {
+					beforeHistory := root.History
+					root.History = root.History.EnsureSourceLines()
+					root.History.Cols = cols
+					root.History.Rows, root.History.Lines = state.ReflowHistoryLogicalLines(root.History.SourceLines, cols)
 					root.CopyMode = root.CopyMode.Resize(cols, viewRows)
+					root.CopyMode = root.CopyMode.RebindToReflowedHistory(beforeHistory, root.History)
+					root.CopyMode = root.CopyMode.Scroll(0, len(root.History.Rows))
 					root = saveCopyHistorySessionForView(root, resizeViewID)
 				} else if root.CopyMode.Active {
 					root.CopyMode = root.CopyMode.SetViewRows(viewRows)

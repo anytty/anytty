@@ -10,17 +10,27 @@ internal class NativeConnectionRuntimeCoordinator(
     private val monitor = Any()
     private var state = State.NEW
 
-    fun load() = synchronized(monitor) {
+    /** Plugin registration must survive a transient native start failure; the owner retries it. */
+    fun load(): Exception? = synchronized(monitor) {
         check(state == State.NEW) { "native runtime cannot be loaded after destruction" }
-        if (!isRuntimeStarted()) startRuntime()
         state = State.READY
+        if (isRuntimeStarted()) return@synchronized null
+        try {
+            startRuntime()
+            null
+        } catch (failure: Exception) {
+            failure
+        }
     }
 
     fun isReady(): Boolean = synchronized(monitor) { state == State.READY }
 
     fun ensureForForeground() = synchronized(monitor) {
-        requireReadyLocked()
-        if (!isRuntimeStarted()) startRuntime()
+        ensureRuntimeStartedLocked()
+    }
+
+    fun ensureForBridgeEndpoint() = synchronized(monitor) {
+        ensureRuntimeStartedLocked()
     }
 
     fun resetLocalPairings() = synchronized(monitor) {
@@ -35,5 +45,10 @@ internal class NativeConnectionRuntimeCoordinator(
 
     private fun requireReadyLocked() {
         check(state == State.READY) { "native runtime is not available" }
+    }
+
+    private fun ensureRuntimeStartedLocked() {
+        requireReadyLocked()
+        if (!isRuntimeStarted()) startRuntime()
     }
 }

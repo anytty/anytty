@@ -26,4 +26,5 @@ protoc -I proto --swift_out="${output}" \
   proto/remoteauthpb/remote_auth.proto \
   proto/bindingpb/client_binding.proto \
   proto/cloud/v1/common.proto \
-  proto/cloud/v1/enrollment.proto
+  proto/cloud/v1/enrollment.proto \
+  proto/cloud/v1/usage.proto

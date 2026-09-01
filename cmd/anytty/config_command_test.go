@@ -25,6 +25,8 @@ func TestConfigCommandsAtomicallyUseRuntimeParser(t *testing.T) {
 	runConfigCommand(t, nil, "config", "set", "daemon.output_buffer.capacity_bytes", "1048576")
 	runConfigCommand(t, nil, "config", "set", "daemon.output_buffer.overflow", "block")
 	runConfigCommand(t, nil, "config", "set", "daemon.output_buffer.resident_budget_bytes", "268435456")
+	runConfigCommand(t, nil, "config", "set", "daemon.resource_sampling.interval_ms", "750")
+	runConfigCommand(t, nil, "config", "set", "daemon.resource_sampling.max_samples", "1024")
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -56,8 +58,14 @@ func TestConfigCommandsAtomicallyUseRuntimeParser(t *testing.T) {
 	if output := runConfigCommand(t, nil, "config", "get", "daemon.output_buffer.overflow"); strings.TrimSpace(output) != "block" {
 		t.Fatalf("output buffer overflow config get = %q", output)
 	}
+	if output := runConfigCommand(t, nil, "config", "get", "daemon.resource_sampling.interval_ms"); strings.TrimSpace(output) != "750" {
+		t.Fatalf("resource sampling interval config get = %q", output)
+	}
+	if output := runConfigCommand(t, nil, "config", "get", "daemon.resource_sampling.max_samples"); strings.TrimSpace(output) != "1024" {
+		t.Fatalf("resource sampling max samples config get = %q", output)
+	}
 	effective := runConfigCommand(t, nil, "config", "show", "--effective")
-	if !strings.Contains(effective, `"Mode": "light"`) || !strings.Contains(effective, `"MaxSizeMB": 256`) || !strings.Contains(effective, `"Overflow": "block"`) {
+	if !strings.Contains(effective, `"Mode": "light"`) || !strings.Contains(effective, `"MaxSizeMB": 256`) || !strings.Contains(effective, `"Overflow": "block"`) || !strings.Contains(effective, `"IntervalMS": 750`) || !strings.Contains(effective, `"MaxSamples": 1024`) {
 		t.Fatalf("effective config did not use updated runtime value: %s", effective)
 	}
 	runConfigCommand(t, nil, "config", "validate")

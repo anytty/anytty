@@ -1,10 +1,13 @@
 import { create, toBinary } from '@bufbuild/protobuf'
 import { CommandEnvelopeSchema, ReleaseResourceCommandSchema } from '../generated/apipb/application_pb'
-import { EventSubscribeCommandSchema, type EventSubscribeCommand } from '../generated/apipb/events_pb'
+import { ResourceKind } from '../generated/apipb/common_pb'
+import { ApplicationEventType, EventSubscribeCommandSchema, type EventSubscribeCommand } from '../generated/apipb/events_pb'
+import { StorageScope } from '../generated/apipb/storage_pb'
 import type { ProtoClientSession, ProtoClientSubscription } from './protoClientSession'
 import type { EventEnvelope } from '../generated/apipb/application_pb'
 
-const MAX_EARLY_SUBSCRIPTION_EVENTS = 64
+const MAX_EARLY_SUBSCRIPTION_RESOURCES = 64
+const MAX_EARLY_UNPROJECTED_EVENTS_PER_RESOURCE = 64
 
 type SubscriptionResource = NonNullable<EventEnvelope['subscription']>
 
@@ -16,6 +19,15 @@ type SharedEventSubscription = {
   listeners: Set<(event: EventEnvelope) => void>
   replay: Map<string, EventEnvelope>
 }
+
+type EarlySubscriptionEvents = {
+  stateEvents: Map<string, SequencedEvent>
+  unprojectedEvents: SequencedEvent[]
+  nextSequence: number
+  overflowed: boolean
+}
+
+type SequencedEvent = { event: EventEnvelope; sequence: number }
 
 const sessionSubscriptionPools = new WeakMap<ProtoClientSession, Map<string, SharedEventSubscription>>()
 
@@ -74,8 +86,9 @@ function createSharedSubscription(
   session: ProtoClientSession,
   command: EventSubscribeCommand,
 ): SharedEventSubscription {
-  const early: EventEnvelope[] = []
-  let earlyError: Error | null = null
+  const earlyByResource = new Map<string, EarlySubscriptionEvents>()
+  const droppedResourceKeys = new Set<string>()
+  let droppedResourceKeysOverflowed = false
   const shared: SharedEventSubscription = {
     consumers: 0,
     resource: undefined,
@@ -86,11 +99,25 @@ function createSharedSubscription(
   }
   shared.local = poolOwner.subscribeEvents((event) => {
     if (!shared.resource) {
-      if (early.length >= MAX_EARLY_SUBSCRIPTION_EVENTS) {
-        earlyError = new Error('event subscription correlation buffer overflow')
-        return
+      if (!eventMatchesSubscriptionCommand(event, command)) return
+      const resourceKey = subscriptionResourceKey(event.subscription, poolOwner.stamp)
+      if (!resourceKey) return
+      let early = earlyByResource.get(resourceKey)
+      if (!early) {
+        if (earlyByResource.size >= MAX_EARLY_SUBSCRIPTION_RESOURCES) {
+          if (droppedResourceKeys.size < MAX_EARLY_SUBSCRIPTION_RESOURCES) droppedResourceKeys.add(resourceKey)
+          else droppedResourceKeysOverflowed = true
+          return
+        }
+        early = {
+          stateEvents: new Map(),
+          unprojectedEvents: [],
+          nextSequence: 0,
+          overflowed: false,
+        }
+        earlyByResource.set(resourceKey, early)
       }
-      early.push(event)
+      bufferEarlySubscriptionEvent(early, event)
       return
     }
     if (sameResourceHandle(event.subscription, shared.resource)) publishSharedEvent(shared, event)
@@ -102,11 +129,14 @@ function createSharedSubscription(
       throw new Error('event subscribe returned no subscription resource')
     }
     shared.resource = result.result.value.subscription
-    if (earlyError) throw earlyError
-    for (const event of early) {
-      if (sameResourceHandle(event.subscription, shared.resource)) publishSharedEvent(shared, event)
+    const resourceKey = subscriptionResourceKey(shared.resource, poolOwner.stamp)
+    if (!resourceKey) throw new Error('event subscribe returned an invalid subscription resource')
+    const early = earlyByResource.get(resourceKey)
+    if (droppedResourceKeys.has(resourceKey) || (!early && droppedResourceKeysOverflowed) || early?.overflowed) {
+      throw new Error('event subscription correlation buffer overflow')
     }
-    early.length = 0
+    for (const event of orderedEarlySubscriptionEvents(early)) publishSharedEvent(shared, event)
+    earlyByResource.clear()
     return shared.resource
   }).catch((error: unknown) => {
     shared.local.close()
@@ -115,15 +145,90 @@ function createSharedSubscription(
   return shared
 }
 
+function bufferEarlySubscriptionEvent(early: EarlySubscriptionEvents, event: EventEnvelope): void {
+  const sequence = early.nextSequence
+  early.nextSequence += 1
+  const stateKey = earlyEventStateKey(event)
+  if (stateKey) {
+    const existing = early.stateEvents.get(stateKey)
+    if (!existing || eventStateShouldReplace(existing.event, event)) {
+      early.stateEvents.set(stateKey, { event, sequence })
+    }
+    return
+  }
+  if (early.unprojectedEvents.length >= MAX_EARLY_UNPROJECTED_EVENTS_PER_RESOURCE) {
+    early.overflowed = true
+    return
+  }
+  early.unprojectedEvents.push({ event, sequence })
+}
+
+function orderedEarlySubscriptionEvents(early: EarlySubscriptionEvents | undefined): EventEnvelope[] {
+  if (!early) return []
+  return [...early.stateEvents.values(), ...early.unprojectedEvents]
+    .sort((left, right) => left.sequence - right.sequence)
+    .map(({ event }) => event)
+}
+
 function publishSharedEvent(shared: SharedEventSubscription, event: EventEnvelope): void {
   const replayKey = attachmentProjectionReplayKey(event)
-  if (replayKey) shared.replay.set(replayKey, event)
+  const replayed = replayKey ? shared.replay.get(replayKey) : undefined
+  if (replayKey && (!replayed || eventStateShouldReplace(replayed, event))) shared.replay.set(replayKey, event)
   for (const listener of shared.listeners) listener(event)
 }
 
 function attachmentProjectionReplayKey(event: EventEnvelope): string | undefined {
   if (event.event.case !== 'terminalLifecycle' || !event.event.value.attachmentProjection) return undefined
   return event.event.value.terminal?.ref?.terminalId || undefined
+}
+
+function earlyEventStateKey(event: EventEnvelope): string | undefined {
+  if (event.event.case === 'terminalLifecycle') {
+    const terminalId = event.event.value.terminal?.ref?.terminalId
+    if (!terminalId) return undefined
+    return `${event.event.value.attachmentProjection ? 'terminal.attachment' : 'terminal.lifecycle'}\0${terminalId}`
+  }
+  if (event.event.case === 'storageChanged') {
+    const key = event.event.value.key
+    if (!key) return undefined
+    return `storage\0${JSON.stringify([key.appId, key.scope, key.ownerId, key.key])}`
+  }
+  return undefined
+}
+
+function eventStateShouldReplace(existing: EventEnvelope, incoming: EventEnvelope): boolean {
+  if (existing.event.case === 'terminalLifecycle' && incoming.event.case === 'terminalLifecycle') {
+    if (existing.event.value.attachmentProjection && incoming.event.value.attachmentProjection) {
+      return incoming.event.value.resizeEpoch >= existing.event.value.resizeEpoch
+    }
+    return true
+  }
+  if (existing.event.case === 'storageChanged' && incoming.event.case === 'storageChanged') {
+    return incoming.event.value.version >= existing.event.value.version
+  }
+  return true
+}
+
+function eventMatchesSubscriptionCommand(event: EventEnvelope, command: EventSubscribeCommand): boolean {
+  if (event.event.case === 'terminalLifecycle') {
+    if (!commandAcceptsType(command, ApplicationEventType.TERMINAL_LIFECYCLE)) return false
+    const targetTerminalId = command.terminal?.terminalId
+    return !targetTerminalId || event.event.value.terminal?.ref?.terminalId === targetTerminalId
+  }
+  if (event.event.case === 'storageChanged') {
+    if (!commandAcceptsType(command, ApplicationEventType.STORAGE_CHANGED)) return false
+    const key = event.event.value.key
+    if (!key) return true
+    return (!command.storageAppId || key.appId === command.storageAppId) &&
+      (command.storageScope === StorageScope.UNSPECIFIED || key.scope === command.storageScope) &&
+      (!command.storageOwnerId || key.ownerId === command.storageOwnerId) &&
+      (!command.storageKeyPrefix || key.key.startsWith(command.storageKeyPrefix))
+  }
+  return false
+}
+
+function commandAcceptsType(command: EventSubscribeCommand, eventType: ApplicationEventType): boolean {
+  return command.types.length === 0 || command.types.includes(eventType)
 }
 
 function releaseSharedSubscription(
@@ -176,6 +281,26 @@ function sameResourceHandle(left: EventEnvelope['subscription'], right: NonNulla
     leftSession.endpointId === rightSession.endpointId &&
     leftSession.routeId === rightSession.routeId &&
     leftSession.generation === rightSession.generation)
+}
+
+function subscriptionResourceKey(
+  resource: EventEnvelope['subscription'],
+  owner: ProtoClientSession['stamp'],
+): string | undefined {
+  const session = resource?.session
+  if (!resource || resource.kind !== ResourceKind.SUBSCRIPTION || !session || !sameSessionStamp(session, owner)) return undefined
+  return JSON.stringify([
+    resource.kind,
+    resource.generation.toString(),
+    bytesKey(resource.opaqueToken),
+    session.endpointId,
+    session.routeId,
+    session.generation.toString(),
+  ])
+}
+
+function sameSessionStamp(left: ProtoClientSession['stamp'], right: ProtoClientSession['stamp']): boolean {
+  return left.endpointId === right.endpointId && left.routeId === right.routeId && left.generation === right.generation
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {

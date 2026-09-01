@@ -114,9 +114,9 @@ func TerminalPickerStatusOptions(root Root) []TerminalPickerStatusOption {
 	}
 	selected := normalizeTerminalPickerStatus(root.Shell.ReadonlyDefaults().Overlay.TerminalPickerStatus)
 	return []TerminalPickerStatusOption{
-		{Status: TerminalPickerStatusAll, Label: "All", Count: counts[TerminalPickerStatusAll], Selected: selected == TerminalPickerStatusAll},
 		{Status: TerminalPickerStatusRunning, Label: "Running", Count: counts[TerminalPickerStatusRunning], Selected: selected == TerminalPickerStatusRunning},
 		{Status: TerminalPickerStatusExited, Label: "Exited", Count: counts[TerminalPickerStatusExited], Selected: selected == TerminalPickerStatusExited},
+		{Status: TerminalPickerStatusAll, Label: "All", Count: counts[TerminalPickerStatusAll], Selected: selected == TerminalPickerStatusAll},
 	}
 }
 

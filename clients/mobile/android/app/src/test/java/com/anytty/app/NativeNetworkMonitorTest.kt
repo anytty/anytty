@@ -2,6 +2,9 @@ package com.anytty.app
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,6 +74,110 @@ class NativeNetworkMonitorTest {
     }
 
     @Test
+    fun `transport change on the same vpn requires session recovery`() {
+        val vpnOnWifi = signature(
+            handle = 42L,
+            validated = true,
+            transports = listOf(1, 4),
+        )
+        val vpnOnCellular = vpnOnWifi.copy(transports = listOf(0, 4))
+
+        assertTrue(requiresSessionRecovery(vpnOnWifi, vpnOnCellular))
+        assertEquals("network_replaced", networkChangeReason(vpnOnWifi, vpnOnCellular))
+    }
+
+    @Test
+    fun `cellular bearer replacement under the same vpn advances exactly once`() {
+        val vpn = signature(
+            handle = 42L,
+            validated = true,
+            address = "10.8.0.2",
+            transports = listOf(0, 4),
+            underlyingNetworks = listOf(underlying(handle = 100L, transports = listOf(0))),
+        )
+        val replacement = vpn.copy(
+            underlyingNetworks = listOf(underlying(handle = 101L, transports = listOf(0))),
+        )
+        val state = NativeStableNetworkState(vpn, initialEpoch = 11L)
+
+        val changed = state.observe(replacement)
+
+        assertNotNull(changed)
+        assertEquals(12L, changed?.epoch)
+        assertEquals("network_replaced", changed?.reason)
+        repeat(20) {
+            assertNull(state.observe(replacement.copy()))
+        }
+        assertEquals(12L, state.currentEpoch())
+    }
+
+    @Test
+    fun `ambiguous vpn fallback retains one bearer without fingerprinting every network`() {
+        val cellular = underlying(handle = 100L, transports = listOf(0))
+        val wifi = underlying(handle = 200L, transports = listOf(1))
+        val candidates = listOf(
+            NativeUnderlyingNetworkCandidate(cellular, validated = true),
+            NativeUnderlyingNetworkCandidate(wifi, validated = true),
+        )
+
+        assertEquals(listOf(cellular), selectUnderlyingNetworks(candidates, preferredHandle = 100L))
+        assertEquals(emptyList<NativeNetworkMonitor.UnderlyingNetworkIdentity>(), selectUnderlyingNetworks(candidates, null))
+        assertEquals(
+            listOf(wifi),
+            selectUnderlyingNetworks(candidates.drop(1), preferredHandle = 100L),
+        )
+    }
+
+    @Test
+    fun `a unique validated bearer replaces an unvalidated preferred bearer exactly once`() {
+        val stale = underlying(handle = 100L, transports = listOf(0))
+        val replacement = underlying(handle = 101L, transports = listOf(0))
+        val candidates = listOf(
+            NativeUnderlyingNetworkCandidate(stale, validated = false),
+            NativeUnderlyingNetworkCandidate(replacement, validated = true),
+        )
+
+        val selected = selectUnderlyingNetwork(candidates, preferredHandle = stale.networkHandle)
+        assertEquals(listOf(replacement), selected.identities)
+        assertNull(selected.ambiguousCandidates)
+
+        val before = signature(
+            handle = 42L,
+            validated = true,
+            address = "10.8.0.2",
+            transports = listOf(4),
+            underlyingNetworks = listOf(stale),
+        )
+        val after = before.copy(underlyingNetworks = selected.identities)
+        val state = NativeStableNetworkState(before, initialEpoch = 21L)
+        assertEquals(22L, state.observe(after)?.epoch)
+        repeat(20) { assertNull(state.observe(after.copy())) }
+        assertEquals(22L, state.currentEpoch())
+    }
+
+    @Test
+    fun `ambiguous bearer preference expires after bounded resampling`() {
+        val cellular = NativeUnderlyingNetworkCandidate(
+            underlying(handle = 100L, transports = listOf(0)),
+            validated = true,
+        )
+        val wifi = NativeUnderlyingNetworkCandidate(
+            underlying(handle = 200L, transports = listOf(1)),
+            validated = true,
+        )
+        val ambiguity = listOf(cellular, wifi)
+        val state = NativeBoundedNetworkResampleState(longArrayOf(10L, 20L))
+
+        assertEquals(NativeBoundedNetworkResampleDecision(true, 10L), state.observe(ambiguity))
+        assertEquals(NativeBoundedNetworkResampleDecision(true, 20L), state.observe(ambiguity))
+        assertEquals(NativeBoundedNetworkResampleDecision(false, null), state.observe(ambiguity))
+        assertEquals(NativeBoundedNetworkResampleDecision(false, null), state.observe(ambiguity))
+
+        assertEquals(NativeBoundedNetworkResampleDecision(true, null), state.observe(null))
+        assertEquals(NativeBoundedNetworkResampleDecision(true, 10L), state.observe(ambiguity))
+    }
+
+    @Test
     fun `plugin payload is session scoped and preserves connectivity`() {
         val offline = nativeNetworkChangedPayload(epoch = 9L, connected = false, reason = "offline")
 
@@ -101,11 +208,75 @@ class NativeNetworkMonitorTest {
         assertFalse(requiresSessionRecovery(captive, captive.copy(validated = true)))
     }
 
+    @Test
+    fun `cached offline state publishes available when foreground resamples active network`() {
+        val offline = signature(0L, internet = false)
+        val wifi = signature(42L, validated = true, address = "192.0.2.10")
+        val state = NativeStableNetworkState(offline)
+
+        val recovered = state.observe(wifi)
+
+        assertNotNull(recovered)
+        assertEquals(1L, recovered?.epoch)
+        assertEquals(true, recovered?.current?.connected)
+        assertEquals("available", recovered?.reason)
+        assertEquals(wifi, state.currentSignature())
+    }
+
+    @Test
+    fun `repeated callbacks for the same stable path do not advance the epoch`() {
+        val wifi = signature(
+            handle = 42L,
+            validated = true,
+            address = "192.0.2.10",
+            transports = listOf(1),
+        )
+        val state = NativeStableNetworkState(wifi, initialEpoch = 7L)
+
+        assertNull(state.observe(wifi))
+        assertNull(state.observe(wifi.copy()))
+        assertEquals(7L, state.currentEpoch())
+
+        val changed = state.observe(wifi.copy(addresses = listOf("192.0.2.11")))
+        assertEquals(8L, changed?.epoch)
+        assertNull(state.observe(wifi.copy(addresses = listOf("192.0.2.11"))))
+        assertEquals(8L, state.currentEpoch())
+    }
+
+    @Test
+    fun `process monitor remains active when renderer detaches with retained demand`() {
+        val monitorSlot = NativeProcessNetworkMonitorSlot<FakeMonitor>()
+        var starts = 0
+        val monitor = monitorSlot.ensure(create = {
+            starts += 1
+            FakeMonitor()
+        })
+        val demand = NativeRendererDemandState { "renderer-a" }
+        val renderer = demand.attachRenderer()
+        demand.replaceDemand(renderer.attachmentId, renderer.demandRevision, setOf("machine-a"))
+
+        demand.detachRenderer(renderer.attachmentId)
+        val retained = monitorSlot.ensure(create = {
+            starts += 1
+            FakeMonitor()
+        })
+
+        assertTrue(demand.hasDemand())
+        assertSame(monitor, retained)
+        assertEquals(1, starts)
+        assertFalse(monitor.closed)
+
+        monitorSlot.close()
+        assertTrue(monitor.closed)
+    }
+
     private fun signature(
         handle: Long,
         internet: Boolean = true,
         validated: Boolean = false,
         address: String? = null,
+        transports: List<Int> = emptyList(),
+        underlyingNetworks: List<NativeNetworkMonitor.UnderlyingNetworkIdentity> = emptyList(),
     ) = NativeNetworkMonitor.Signature(
         networkHandle = handle,
         internet = internet,
@@ -113,5 +284,20 @@ class NativeNetworkMonitorTest {
         addresses = listOfNotNull(address),
         dnsServers = emptyList(),
         routes = emptyList(),
+        transports = transports,
+        underlyingNetworks = underlyingNetworks,
     )
+
+    private fun underlying(
+        handle: Long,
+        transports: List<Int>,
+    ) = NativeNetworkMonitor.UnderlyingNetworkIdentity(handle, transports)
+
+    private class FakeMonitor : AutoCloseable {
+        var closed = false
+
+        override fun close() {
+            closed = true
+        }
+    }
 }

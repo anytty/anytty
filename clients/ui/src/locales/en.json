@@ -29,6 +29,8 @@
     "daemonBlocked": "Cloud access for this device is disabled. Try again after it is restored. Direct and SSH connections are unchanged.",
     "daemonDeletedTitle": "Cloud enrollment was deleted",
     "daemonDeleted": "This device's Cloud enrollment was permanently deleted. Direct and SSH connections remain available. To use Cloud again, re-enroll the daemon, then scan a new pairing QR code.",
+    "connectionStoppedTitle": "Connection stopped",
+    "connectionStopped": "You stopped this connection. You can reconnect from this screen.",
     "identityMismatchTitle": "Device identity could not be verified",
     "identityMismatch": "For your security, return to the device list and pair this device again.",
     "connectionProblemTitle": "Connection interrupted",

@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next'
 import { Apple, ArrowLeft, Camera, Check, ChevronDown, ChevronRight, ClipboardPaste, Cloud, Copy, Cpu, Download, ExternalLink, FileText, HardDrive, ImagePlus, Laptop, LoaderCircle, Monitor, Moon, MoreHorizontal, PanelsTopLeft, Pencil, QrCode, RefreshCw, Router, Save, Server, Settings, Smartphone, SquareTerminal, Sun, Tablet, Undo2, Upload, WifiOff, X, type LucideIcon } from 'lucide-react'
 import type { MachineWorkspaceInventoryApi, MachineWorkspaceConnector, MachineWorkspaceSwitcherMachine, SystemClipboard } from './MachineWorkspace'
 import { createMachineStore, type StoredMachineRecord } from '../state/machineStore'
+import { readActiveWorkspaceMachineId, writeActiveWorkspaceMachineId } from '../state/activeWorkspace'
 import type { MachineConnectionSnapshot } from '../connection/machineConnectionSnapshot'
 import { FileTransferPanel } from '../files/FileTransferPanel'
 import { hapticError, hapticImpact, hapticSelection, hapticSuccess } from '../platform/haptics'
@@ -211,7 +212,7 @@ export interface MachineRuntime {
     subscribe(listener: () => void): () => void
   } | undefined
   fileTransfer?: FileTransferContext | undefined
-  retainConnectionDemand?(): () => void
+  retainConnectionDemand?(resumeIntent?: object | null): () => void
   probeConnection?(): Promise<ConnectionInfo | null | void>
   disconnect?(): void | Promise<void>
   dispose?(): void | Promise<void>
@@ -237,6 +238,9 @@ export interface RemoteControlAppProps {
   cloudPresenceByMachineId?: ReadonlyMap<string, CloudPresenceInput> | undefined
   connectionState?: AppConnectionState | undefined
   onRetryConnectionRecovery?: (() => void | Promise<void>) | undefined
+  createWorkspaceResumeIntent?: (() => object) | undefined
+  onWorkspaceResumeIntent?: ((machineId: string, intent: object) => void) | undefined
+  onActiveWorkspaceChange?: ((machineId: string | null) => void | Promise<void>) | undefined
   singlePaneWorkspace?: boolean | undefined
   pickMachineIconImage?: (() => Promise<File | null>) | undefined
   privacyPolicyUrl?: string | undefined
@@ -262,6 +266,9 @@ export function RemoteControlApp({
   cloudPresenceByMachineId,
   connectionState = 'ready',
   onRetryConnectionRecovery,
+  createWorkspaceResumeIntent,
+  onWorkspaceResumeIntent,
+  onActiveWorkspaceChange,
   singlePaneWorkspace = false,
   pickMachineIconImage,
   privacyPolicyUrl,
@@ -271,9 +278,14 @@ export function RemoteControlApp({
   const { t } = useTranslation()
   const networkRuntime = networkRuntimeProp ?? unavailableNetworkRuntime
   const storage = storageProp ?? networkRuntime.storage
+  const restoredWorkspaceMachineId = useMemo(
+    () => restorableWorkspaceMachineId(storage, externalPairingAdapter),
+    [externalPairingAdapter, storage],
+  )
   const nativeDirectReachableMachineIds = directReachableMachineIds ?? locallyDiscoveredMachineIds
   const nativeDirectCheckingMachineIds = directCheckingMachineIds ?? locallyDiscoveringMachineIds
-  const [view, setView] = useState<AppView>('home')
+  const [view, setView] = useState<AppView>(() => restoredWorkspaceMachineId ? 'machine' : 'home')
+  const [workspaceResumeIntent, setWorkspaceResumeIntent] = useState<object | null>(null)
   const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>(() => readTerminalSettings(storage))
   const [appTheme, setAppTheme] = useState<AppTheme>(() => (
     readAppTheme(storage, resolveTerminalThemeOption(terminalSettings.themeId).group)
@@ -282,7 +294,7 @@ export function RemoteControlApp({
     return storage ? createMachineStore({ storage }).listMachines() : []
   })
   const [localHubReachability, setLocalHubReachability] = useState<Map<string, LocalHubReachabilitySnapshot>>(() => new Map())
-  const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null)
+  const [selectedMachineId, setSelectedMachineId] = useState<string | null>(restoredWorkspaceMachineId)
   const [pendingTerminalIntent, setPendingTerminalIntent] = useState<{ machineId: string; terminalId: string } | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [pairIntent, setPairIntent] = useState<PairIntent>('add-local')
@@ -312,6 +324,23 @@ export function RemoteControlApp({
     ? 'checking'
     : connectionState
   const effectiveConnectionReady = appConnectionIsReady(effectiveConnectionState)
+  const enterMachineWorkspace = useCallback((machineId: string) => {
+    const resumeIntent = createWorkspaceResumeIntent?.() ?? {}
+    onWorkspaceResumeIntent?.(machineId, resumeIntent)
+    writeActiveWorkspaceMachineId(storage, machineId)
+    void Promise.resolve(onActiveWorkspaceChange?.(machineId)).catch(() => undefined)
+    setWorkspaceResumeIntent(resumeIntent)
+    setSelectedMachineId(machineId)
+    setView('machine')
+  }, [createWorkspaceResumeIntent, onActiveWorkspaceChange, onWorkspaceResumeIntent, storage])
+  const leaveMachineWorkspace = useCallback(() => {
+    writeActiveWorkspaceMachineId(storage, null)
+    void Promise.resolve(onActiveWorkspaceChange?.(null)).catch(() => undefined)
+    setWorkspaceResumeIntent(null)
+    setPendingTerminalIntent(null)
+    setView('home')
+    setError(null)
+  }, [onActiveWorkspaceChange, storage])
   const appConnectionOverlayIntent = useMemo<ConnectionRecoveryOverlayIntent | null>(() => {
     if (!phoneOnline) {
       return {
@@ -442,7 +471,7 @@ export function RemoteControlApp({
 
   useEffect(() => {
     setLocalHubReachability((current) => pruneLocalHubReachability(current, localHubReachabilityTargets))
-    if (localHubReachabilityTargets.length === 0) return
+    if (localHubReachabilityTargets.length === 0 || !phoneOnline || !effectiveConnectionReady) return
     const controller = new AbortController()
     for (const target of localHubReachabilityTargets) {
       void probeLocalHubReachability(networkRuntime.fetch, target, controller.signal).then((snapshot) => {
@@ -457,7 +486,7 @@ export function RemoteControlApp({
       })
     }
     return () => controller.abort()
-  }, [localHubReachabilityTargets, networkRuntime.fetch, reachabilityRefreshToken])
+  }, [effectiveConnectionReady, localHubReachabilityTargets, networkRuntime.fetch, phoneOnline, reachabilityRefreshToken])
 
   const displayMachines = useMemo(() => {
     const map = new Map<string, DisplayMachine>()
@@ -503,6 +532,17 @@ export function RemoteControlApp({
   }, [cloudPresenceByMachineId, localHubReachability, localHubReachabilityTargets, localMachines, nativeDirectCheckingMachineIds, nativeDirectReachableMachineIds, t])
 
   const selectedMachine = displayMachines.find((machine) => machine.id === selectedMachineId) ?? null
+  useEffect(() => {
+    const persistedMachineId = readActiveWorkspaceMachineId(storage)
+    if (persistedMachineId && restoredWorkspaceMachineId === null && view === 'home') {
+      writeActiveWorkspaceMachineId(storage, null)
+    }
+  }, [restoredWorkspaceMachineId, storage, view])
+  useEffect(() => {
+    if (view !== 'machine') return
+    if (selectedMachine && authorizedMachineIds.has(selectedMachine.id)) return
+    leaveMachineWorkspace()
+  }, [authorizedMachineIds, leaveMachineWorkspace, selectedMachine, view])
   const terminalSwitcherMachines = useMemo<MachineWorkspaceSwitcherMachine[]>(() => displayMachines
     .filter((machine) => authorizedMachineIds.has(machine.id))
     .map((machine) => ({
@@ -522,10 +562,9 @@ export function RemoteControlApp({
   const switchWorkspaceTerminal = useCallback((intent: { machineId: string; terminalId: string }) => {
     if (!authorizedMachineIds.has(intent.machineId)) return
     setPendingTerminalIntent(intent)
-    setSelectedMachineId(intent.machineId)
-    setView('machine')
+    enterMachineWorkspace(intent.machineId)
     setError(null)
-  }, [authorizedMachineIds])
+  }, [authorizedMachineIds, enterMachineWorkspace])
   const clearOpenedTerminalIntent = useCallback((machineId: string, terminalId: string) => {
     setPendingTerminalIntent((current) => current?.machineId === machineId && current.terminalId === terminalId ? null : current)
   }, [])
@@ -574,12 +613,12 @@ export function RemoteControlApp({
   }, [storage])
 
   const performMachineRefresh = useCallback(async () => {
-    if (!remoteNetworkStateManager.state.phoneOnline) throw Object.assign(new Error('phone offline'), { code: 'offline' })
+    if (!phoneOnline) throw Object.assign(new Error('phone offline'), { code: 'offline' })
     if (!effectiveConnectionReady) throw Object.assign(new Error('connection generation is not ready'), { code: 'cancelled' })
     await onRefreshMachines?.()
     refreshMachines()
     setReachabilityRefreshToken((current) => current + 1)
-  }, [effectiveConnectionReady, onRefreshMachines, refreshMachines, remoteNetworkStateManager])
+  }, [effectiveConnectionReady, onRefreshMachines, phoneOnline, refreshMachines])
 
   const prepareTransferMachineRuntime = useCallback((transferId?: string) => {
     if (!globalFileTransfer || !transferId) return
@@ -669,9 +708,9 @@ export function RemoteControlApp({
       openMachinePairSheet(machine)
       return
     }
-    setView('machine')
+    enterMachineWorkspace(machine.id)
     setError(null)
-  }, [openMachinePairSheet, authorizedMachineIds])
+  }, [openMachinePairSheet, authorizedMachineIds, enterMachineWorkspace])
 
   const storeImportedMachine = useCallback((external: ExternalPairingImportResult) => {
     if (!storage) throw new Error('Local storage is required before importing a AnyTTY QR')
@@ -711,9 +750,14 @@ export function RemoteControlApp({
     const sshCredentials = external.sshCredentials?.filter((credential) => credential.authorizedKey.trim() !== '') ?? []
     setSSHCredentialNotice(sshCredentials.length > 0 ? sshCredentials : null)
     setScanOpen(sshCredentials.length > 0)
-    setView(external.authorizationRequired ? 'home' : 'machine')
+    if (external.authorizationRequired) {
+      writeActiveWorkspaceMachineId(storage, null)
+      setView('home')
+    } else {
+      enterMachineWorkspace(external.machine.id)
+    }
     hapticSuccess()
-  }, [dropMachineRuntime, externalPairingAdapter, selectedMachine, storage])
+  }, [dropMachineRuntime, enterMachineWorkspace, externalPairingAdapter, selectedMachine, storage])
 
   const pairScannedValue = useCallback(async (rawValue: string) => {
     if (!storage) {
@@ -831,9 +875,9 @@ export function RemoteControlApp({
     setAuthorizationExpiries(readAuthorizationExpiries(storage, externalPairingAdapter))
     setPairVersion((current) => current + 1)
     setSelectedMachineId((current) => current === machine.id ? null : current)
-    setView((current) => current === 'machine' && selectedMachineId === machine.id ? 'home' : current)
+    if (view === 'machine' && selectedMachineId === machine.id) leaveMachineWorkspace()
     setError(null)
-  }, [dropMachineRuntime, externalPairingAdapter, selectedMachineId, storage])
+  }, [dropMachineRuntime, externalPairingAdapter, leaveMachineWorkspace, selectedMachineId, storage, view])
 
   const disconnectMachineConnection = useCallback(async (machine: RemoteMachine) => {
     const runtime = runtimeCacheRef.current?.runtimes.get(machine.id)
@@ -851,8 +895,7 @@ export function RemoteControlApp({
       return
     }
     if (view === 'machine') {
-      setView('home')
-      setError(null)
+      leaveMachineWorkspace()
     }
   }, NATIVE_BACK_PRIORITY.ROOT, view !== 'home')
 
@@ -885,6 +928,7 @@ export function RemoteControlApp({
           runtime={getMachineRuntime(selectedMachine)}
           phoneOnline={phoneOnline}
           connectionState={effectiveConnectionState}
+          connectionResumeIntent={workspaceResumeIntent}
           singlePaneWorkspace={singlePaneWorkspace}
           initialTerminalId={pendingTerminalIntent?.machineId === selectedMachine.id ? pendingTerminalIntent.terminalId : undefined}
           terminalSwitcherMachines={terminalSwitcherMachines}
@@ -893,9 +937,7 @@ export function RemoteControlApp({
           onInitialTerminalOpened={clearOpenedTerminalIntent}
           onBack={() => {
             hapticSelection()
-            setPendingTerminalIntent(null)
-            setView('home')
-            setError(null)
+            leaveMachineWorkspace()
           }}
           onNeedsReauthorization={handleMachineNeedsReauthorization}
           onTerminalSettingsChange={updateTerminalSettings}
@@ -1009,6 +1051,7 @@ function MachineTerminalListView({
   runtime,
   phoneOnline,
   connectionState,
+  connectionResumeIntent,
   singlePaneWorkspace,
   initialTerminalId,
   terminalSwitcherMachines,
@@ -1026,6 +1069,7 @@ function MachineTerminalListView({
   runtime: MachineRuntime | null
   phoneOnline: boolean
   connectionState: AppConnectionState
+  connectionResumeIntent: object | null
   singlePaneWorkspace: boolean
   initialTerminalId?: string | undefined
   terminalSwitcherMachines: readonly MachineWorkspaceSwitcherMachine[]
@@ -1053,6 +1097,7 @@ function MachineTerminalListView({
           api={runtime.api}
           connector={runtime.connector}
           retainConnectionDemand={runtime.retainConnectionDemand}
+          connectionResumeIntent={connectionResumeIntent}
           className="min-h-0 flex-1"
           cloudPresence={machine.cloudPresence}
           initialMachine={{
@@ -3017,6 +3062,22 @@ function machineAuthorizationState(
 function isExpiredAuthorization(value: string): boolean {
   const date = new Date(value)
   return !Number.isNaN(date.getTime()) && date.getTime() <= Date.now()
+}
+
+function restorableWorkspaceMachineId(
+  storage: RemoteRuntimeStorage | undefined,
+  externalPairingAdapter?: ExternalPairingAdapter,
+): string | null {
+  const machineId = readActiveWorkspaceMachineId(storage)
+  if (!machineId || !storage || !externalPairingAdapter) return null
+  try {
+    if (!createMachineStore({ storage }).getMachine(machineId)) return null
+    if (!externalPairingAdapter.isAuthorized(machineId)) return null
+    const expiresAt = externalPairingAdapter.authorizationExpiresAt?.(machineId)
+    return expiresAt && isExpiredAuthorization(expiresAt) ? null : machineId
+  } catch {
+    return null
+  }
 }
 
 function readAuthorizedMachineIds(

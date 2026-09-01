@@ -28,6 +28,9 @@ import (
 const defaultClientName = "anytty-go-cloud"
 
 const cloudLocatorStoreTimeout = 2 * time.Second
+const cloudSessionReleaseTimeout = 5 * time.Second
+const cloudApplicationProbeTimeout = 4 * time.Second
+const cloudApplicationProbeRounds = 2
 
 // PeerFactory 根据本次 Controller/Edge 决策创建 direct 或 single-Relay WebRTC primitive。
 type PeerFactory interface {
@@ -98,52 +101,46 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}
 		discovered = true
 	}
-	fingerprint, err := opened.RemoteCertificateFingerprint()
+	application, failureStage, err := dialer.prepareConfirmedCloudApplication(ctx, request, prepared, opened, reportTiming)
 	if err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
-	}
-	dialer.report(clientruntime.EndpointPhaseAuthorizing)
-	connection := opened.Transport()
-	if _, err := prepared.Authenticate(ctx, connection, fingerprint); err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
-	}
-	reportTiming("datachannel_authenticated")
-	protocolClient := internalprotocol.NewClient(connection)
-	clientName := strings.TrimSpace(dialer.ClientName)
-	if clientName == "" {
-		clientName = defaultClientName
-	}
-	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
-		_ = protocolClient.Close()
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
-	}
-	reportTiming("protocol_ready")
-	application, err := protocoladapter.NewApplicationClientWithObservedPath(protocolClient, request.Stamp(), string(opened.ObservedPath()))
-	if err != nil {
-		_ = protocolClient.Close()
-		_ = opened.Close()
-		return nil, err
+		fallback, retry := cloudApplicationFallback(ctx, request.Route(), opened, failureStage, err)
+		if !retry {
+			return nil, reportCloudFailure(request.Stamp().Generation, failureStage, errors.Join(err, abandonOpenedCloudPeer(ctx, opened)))
+		}
+		releaseContext, cancelRelease := context.WithTimeout(ctx, cloudPeerCleanupTimeout)
+		releaseErr := opened.AbandonAndWait(releaseContext)
+		cancelRelease()
+		if releaseErr != nil {
+			if ctx.Err() != nil {
+				return nil, reportCloudFailure(request.Stamp().Generation, failureStage, context.Cause(ctx))
+			}
+			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureEdgeExchange, fmt.Errorf("release provisional Cloud path before fallback: %w", releaseErr))
+		}
+		reportTiming("provisional_path_abandoned")
+		log.Printf("anytty cloud connect generation=%d stage=relay_tcp_fallback", request.Stamp().Generation)
+		opened, err = openResolvedCloudPeerAttempt(ctx, request, dialer.Peers, dialer.Cloud, resolved, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report, fallback)
+		if err != nil {
+			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureEdgeExchange, cloudConnectionError(err))
+		}
+		application, failureStage, err = dialer.prepareConfirmedCloudApplication(ctx, request, prepared, opened, reportTiming)
+		if err != nil {
+			return nil, reportCloudFailure(request.Stamp().Generation, failureStage, errors.Join(err, abandonOpenedCloudPeer(ctx, opened)))
+		}
 	}
 	if err := application.MarkReady(clientruntime.ReadyPeerSessionEvidence{Identity: request.DaemonIdentity(), IdentityVerified: true, AuthorizationVerified: true, ProtocolVersion: wire.Version}); err != nil {
-		_ = application.Close()
-		_ = opened.Close()
-		return nil, err
+		return nil, errors.Join(err, application.Close(), releaseConfirmedCloudPeer(opened))
 	}
 	var locatorToStore []byte
 	if discovered {
 		locatorToStore, err = cloudclient.EncodeEdgeLocator(resolved.Locator())
 		if err != nil {
-			_ = application.Close()
-			_ = opened.Close()
-			return nil, fmt.Errorf("encode authenticated Cloud Edge locator: %w", err)
+			return nil, errors.Join(fmt.Errorf("encode authenticated Cloud Edge locator: %w", err), application.Close(), releaseConfirmedCloudPeer(opened))
 		}
 	}
 	dialer.report(clientruntime.EndpointPhaseReady)
+	confirmedPath := opened.path
 	peer, signalSession := opened.Release()
-	session := newSession(application, peer, signalSession)
+	session := newSession(application, peer, signalSession, confirmedPath)
 	if len(locatorToStore) > 0 {
 		// Locator is only a public optimization. Disk persistence must not delay a session that
 		// already completed end-to-end authentication and protocol Hello.
@@ -154,6 +151,143 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}(append([]byte(nil), locatorToStore...))
 	}
 	return session, nil
+}
+
+type confirmedCloudPeerReleaser interface {
+	ReleaseAndWait(context.Context) error
+}
+
+func releaseConfirmedCloudPeer(opened confirmedCloudPeerReleaser) error {
+	if opened == nil {
+		return nil
+	}
+	releaseContext, cancelRelease := context.WithTimeout(context.Background(), cloudSessionReleaseTimeout)
+	defer cancelRelease()
+	return opened.ReleaseAndWait(releaseContext)
+}
+
+func (dialer *Dialer) prepareConfirmedCloudApplication(
+	ctx context.Context,
+	request clientruntime.AttemptRequest,
+	prepared peeradapter.PreparedAuthorization,
+	opened *openedCloudPeer,
+	reportTiming func(string),
+) (*protocoladapter.ApplicationClient, cloudFailureStage, error) {
+	if opened == nil {
+		return nil, cloudFailureEdgeExchange, errors.New("Cloud peer is unavailable")
+	}
+	setupContext, stopSetup := cloudPeerSetupContext(ctx, opened.signaling)
+	defer stopSetup()
+	application, failureStage, err := dialer.prepareCloudApplication(setupContext, request, prepared, opened, reportTiming)
+	if err != nil {
+		if signalErr, ended := cloudSignalTerminalError(opened.signaling); ended {
+			return nil, cloudFailureEdgeExchange, cloudSignalingTermination(signalErr)
+		}
+		return nil, failureStage, err
+	}
+	initialPath := opened.path
+	confirmedPath, err := opened.ConfirmAuthenticatedPath(setupContext)
+	if err != nil {
+		_ = application.Close()
+		if signalErr, ended := cloudSignalTerminalError(opened.signaling); ended {
+			return nil, cloudFailureEdgeExchange, cloudSignalingTermination(signalErr)
+		}
+		return nil, cloudFailureEdgeExchange, cloudConnectionError(err)
+	}
+	if initialPath != confirmedPath {
+		log.Printf("anytty cloud connect generation=%d stage=path_reselected initial=%s confirmed=%s", request.Stamp().Generation, initialPath, confirmedPath)
+	}
+	if snapshot, ok := opened.peer.Snapshot(time.Now()); ok {
+		log.Printf("anytty cloud connect generation=%d stage=path_confirmation_evidence path=%s local_candidate=%s remote_candidate=%s", request.Stamp().Generation, snapshot.Path, snapshot.LocalCandidateType, snapshot.RemoteCandidateType)
+	}
+	reportTiming("path_confirmed")
+	return application, "", nil
+}
+
+func (dialer *Dialer) prepareCloudApplication(
+	ctx context.Context,
+	request clientruntime.AttemptRequest,
+	prepared peeradapter.PreparedAuthorization,
+	opened *openedCloudPeer,
+	reportTiming func(string),
+) (*protocoladapter.ApplicationClient, cloudFailureStage, error) {
+	fingerprint, err := opened.RemoteCertificateFingerprint()
+	if err != nil {
+		return nil, cloudFailurePeerFingerprint, err
+	}
+	dialer.report(clientruntime.EndpointPhaseAuthorizing)
+	connection := opened.Transport()
+	if _, err = prepared.Authenticate(ctx, connection, fingerprint); err != nil {
+		return nil, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err)
+	}
+	reportTiming("datachannel_authenticated")
+	protocolClient := internalprotocol.NewClient(connection)
+	clientName := strings.TrimSpace(dialer.ClientName)
+	if clientName == "" {
+		clientName = defaultClientName
+	}
+	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
+		_ = protocolClient.Close()
+		return nil, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err)
+	}
+	reportTiming("protocol_ready")
+	application, err := protocoladapter.NewApplicationClientWithObservedPath(protocolClient, request.Stamp(), string(opened.ObservedPath()))
+	if err != nil {
+		_ = protocolClient.Close()
+		return nil, cloudFailureApplicationProbe, err
+	}
+	probeContext, cancelProbe := context.WithTimeout(ctx, cloudApplicationProbeTimeout)
+	err = probeCloudApplication(probeContext, application)
+	cancelProbe()
+	if err != nil {
+		_ = application.Close()
+		return nil, cloudFailureApplicationProbe, fmt.Errorf("probe Cloud application session: %w", err)
+	}
+	reportTiming("application_ready")
+	return application, "", nil
+}
+
+func cloudApplicationFallback(
+	ctx context.Context,
+	route endpoint.AccessRoute,
+	opened *openedCloudPeer,
+	stage cloudFailureStage,
+	err error,
+) (cloudPeerAttempt, bool) {
+	if opened == nil || ctx == nil || ctx.Err() != nil {
+		return cloudPeerAttempt{}, false
+	}
+	if _, ended := cloudSignalTerminalError(opened.signaling); ended {
+		return cloudPeerAttempt{}, false
+	}
+	if stage == cloudFailureDataChannelAuth {
+		fallback, ok := planCloudPeerTransportFallback(route, err)
+		return fallback, ok && opened.relayTCPAvailable
+	}
+	if stage != cloudFailureProtocolHello && stage != cloudFailureApplicationProbe {
+		return cloudPeerAttempt{}, false
+	}
+	return planCloudPeerPostAuthFallback(ctx, route, opened.ObservedPath(), opened.relayTCPAvailable, err)
+}
+
+type cloudApplicationProber interface {
+	TerminalDefaults(context.Context, *apipb.TerminalDefaultsCommand) (*apipb.TerminalDefaultsResult, error)
+}
+
+func probeCloudApplication(ctx context.Context, application cloudApplicationProber) error {
+	if application == nil {
+		return errors.New("Cloud application session is unavailable")
+	}
+	for round := 1; round <= cloudApplicationProbeRounds; round++ {
+		result, err := application.TerminalDefaults(ctx, &apipb.TerminalDefaultsCommand{})
+		if err != nil {
+			return fmt.Errorf("Cloud application probe round %d: %w", round, err)
+		}
+		if result == nil {
+			return fmt.Errorf("Cloud application probe round %d returned no terminal defaults", round)
+		}
+	}
+	return nil
 }
 
 func (dialer *Dialer) report(phase clientruntime.EndpointPhase) {
@@ -174,7 +308,7 @@ func cloudConnectionError(err error) error {
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_QUOTA_EXHAUSTED:
 		return &clientruntime.Error{Code: clientruntime.ErrorRelayQuotaExhausted, Message: cloudEntitlementMessage(failure), Cause: err}
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED:
-		return &clientruntime.Error{Code: clientruntime.ErrorRelayConcurrencyExhausted, Message: cloudEntitlementMessage(failure), Cause: err}
+		return &clientruntime.Error{Code: clientruntime.ErrorRelayConcurrencyExhausted, Message: cloudEntitlementMessage(failure), Cause: err, Retryable: true}
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SERVICE_UNAVAILABLE:
 		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: cloudEntitlementMessage(failure), Cause: err, Retryable: true}
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_NOT_IN_PLAN:
@@ -228,6 +362,7 @@ type Session struct {
 	*protocoladapter.ApplicationClient
 	peer      port.WebRTCPeer
 	signaling *cloudclient.SignalSession
+	path      endpoint.Path
 	closeOnce sync.Once
 	closeErr  error
 	done      chan struct{}
@@ -235,13 +370,44 @@ type Session struct {
 	err       error
 }
 
-func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTCPeer, signaling *cloudclient.SignalSession) *Session {
-	session := &Session{ApplicationClient: application, peer: peer, signaling: signaling, done: make(chan struct{})}
-	go func() { <-application.Done(); session.finish(application.Err()) }()
+func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTCPeer, signaling *cloudclient.SignalSession, path endpoint.Path) *Session {
+	session := &Session{ApplicationClient: application, peer: peer, signaling: signaling, path: path, done: make(chan struct{})}
+	go session.watchApplication(application)
 	if signaling != nil {
-		go func() { <-signaling.Done(); session.finish(cloudSignalingTermination(signaling.Err())) }()
+		go session.watchSignaling(signaling)
 	}
 	return session
+}
+
+type cloudSessionLifecycle interface {
+	Done() <-chan struct{}
+	Err() error
+}
+
+func (session *Session) watchApplication(application cloudSessionLifecycle) {
+	<-application.Done()
+	terminalErr := application.Err()
+	session.finish(cloudSessionClosure{origin: cloudSessionCloseApplication, cause: terminalErr, terminalErr: terminalErr})
+}
+
+func (session *Session) watchSignaling(signaling cloudSessionLifecycle) {
+	<-signaling.Done()
+	terminalErr := signaling.Err()
+	session.finish(cloudSessionClosure{origin: cloudSessionCloseSignaling, cause: cloudSignalingTermination(terminalErr), terminalErr: terminalErr})
+}
+
+type cloudSessionClosure struct {
+	origin      cloudSessionCloseOrigin
+	cause       error
+	terminalErr error
+}
+
+// ObservedPath returns the candidate pair used for the acknowledged path decision.
+func (session *Session) ObservedPath() string {
+	if session == nil {
+		return ""
+	}
+	return string(session.path)
 }
 
 func cloudSignalingTermination(err error) error {
@@ -250,7 +416,7 @@ func cloudSignalingTermination(err error) error {
 		if message == "" {
 			message = "This connection was closed by an administrator"
 		}
-		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: message, Cause: err}
+		return &clientruntime.Error{Code: clientruntime.ErrorUserStopped, Message: message, Cause: err}
 	}
 	if err != nil {
 		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling was interrupted", Cause: err, Retryable: true}
@@ -276,13 +442,14 @@ func (session *Session) Err() error {
 	return session.err
 }
 
-func (session *Session) finish(cause error) {
+func (session *Session) finish(closure cloudSessionClosure) {
 	if session == nil {
 		return
 	}
 	session.closeOnce.Do(func() {
+		reportCloudSessionClose(closure.origin, closure.cause, closure.terminalErr)
 		session.errMu.Lock()
-		session.err = cause
+		session.err = closure.cause
 		session.errMu.Unlock()
 		if session.ApplicationClient != nil {
 			session.closeErr = session.ApplicationClient.Close()
@@ -293,9 +460,9 @@ func (session *Session) finish(cause error) {
 			}
 		}
 		if session.signaling != nil {
-			if err := session.signaling.Close(); session.closeErr == nil {
-				session.closeErr = err
-			}
+			releaseContext, cancelRelease := context.WithTimeout(context.Background(), cloudSessionReleaseTimeout)
+			session.closeErr = errors.Join(session.closeErr, session.signaling.ReleaseAndWait(releaseContext))
+			cancelRelease()
 		}
 		close(session.done)
 	})
@@ -337,42 +504,55 @@ func (session *Session) Close() error {
 	if session == nil {
 		return nil
 	}
-	session.finish(session.observedCloseCause())
+	session.finish(session.observedClosure())
 	return session.closeErr
 }
 
-func (session *Session) observedCloseCause() error {
+func (session *Session) observedClosure() cloudSessionClosure {
 	if session == nil {
-		return nil
+		return cloudSessionClosure{origin: cloudSessionCloseLocal}
 	}
+	var application cloudSessionLifecycle
+	if session.ApplicationClient != nil {
+		application = session.ApplicationClient
+	}
+	var signaling cloudSessionLifecycle
+	if session.signaling != nil {
+		signaling = session.signaling
+	}
+	return observeCloudSessionClosure(application, signaling)
+}
+
+func observeCloudSessionClosure(application, signaling cloudSessionLifecycle) cloudSessionClosure {
 	var applicationErr error
 	applicationDone := false
-	if session.ApplicationClient != nil {
+	if application != nil {
 		select {
-		case <-session.ApplicationClient.Done():
+		case <-application.Done():
 			applicationDone = true
-			applicationErr = session.ApplicationClient.Err()
+			applicationErr = application.Err()
 		default:
 		}
 	}
-	if session.signaling != nil {
+	if signaling != nil {
 		select {
-		case <-session.signaling.Done():
-			signalErr := cloudSignalingTermination(session.signaling.Err())
-			if cloudclient.IsAdminDisconnect(signalErr) {
-				return signalErr
+		case <-signaling.Done():
+			terminalErr := signaling.Err()
+			signalErr := cloudSignalingTermination(terminalErr)
+			if cloudclient.IsAdminDisconnect(terminalErr) {
+				return cloudSessionClosure{origin: cloudSessionCloseSignaling, cause: signalErr, terminalErr: terminalErr}
 			}
 			if applicationDone {
-				return applicationErr
+				return cloudSessionClosure{origin: cloudSessionCloseApplication, cause: applicationErr, terminalErr: applicationErr}
 			}
-			return signalErr
+			return cloudSessionClosure{origin: cloudSessionCloseSignaling, cause: signalErr, terminalErr: terminalErr}
 		default:
 		}
 	}
 	if applicationDone {
-		return applicationErr
+		return cloudSessionClosure{origin: cloudSessionCloseApplication, cause: applicationErr, terminalErr: applicationErr}
 	}
-	return nil
+	return cloudSessionClosure{origin: cloudSessionCloseLocal}
 }
 
 var _ clientruntime.PeerConnector = (*Dialer)(nil)

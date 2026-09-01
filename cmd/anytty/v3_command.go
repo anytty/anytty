@@ -109,6 +109,10 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 			CapacityBytes: runtimeConfig.Daemon.OutputBuffer.CapacityBytes,
 			Overflow:      corev2.TerminalOutputOverflowPolicy(runtimeConfig.Daemon.OutputBuffer.Overflow),
 		}
+		resourceSampling := corev2.TerminalResourceSamplingConfig{
+			Interval:   time.Duration(runtimeConfig.Daemon.ResourceSampling.IntervalMS) * time.Millisecond,
+			MaxSamples: runtimeConfig.Daemon.ResourceSampling.MaxSamples,
+		}
 		historyDir := resolveV3HistoryStorageDir()
 		clientAccess, err := loadV3ClientAccessRuntime(socketPath)
 		if err != nil {
@@ -135,10 +139,10 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 			}
 		}
 		cloudControl := &v3CloudRuntimeControl{}
-		opts := []corev2.ServerOption{corev2.WithLogger(logger), corev2.WithSocketPath(socketPath), corev2.WithHistoryStorageDir(historyDir), corev2.WithHistoryStorageConfig(historyStorage), corev2.WithTerminalOutputBufferConfig(outputBuffer), corev2.WithTerminalOutputResidentBudget(runtimeConfig.Daemon.OutputBuffer.ResidentBudgetBytes), corev2.WithClientAccessService(accessService), corev2.WithRemoteService(cloudControl)}
+		opts := []corev2.ServerOption{corev2.WithLogger(logger), corev2.WithSocketPath(socketPath), corev2.WithHistoryStorageDir(historyDir), corev2.WithHistoryStorageConfig(historyStorage), corev2.WithTerminalOutputBufferConfig(outputBuffer), corev2.WithTerminalResourceSamplingConfig(resourceSampling), corev2.WithTerminalOutputResidentBudget(runtimeConfig.Daemon.OutputBuffer.ResidentBudgetBytes), corev2.WithClientAccessService(accessService), corev2.WithRemoteService(cloudControl)}
 		if !historyEnabled {
 			historyDir = ""
-			opts = []corev2.ServerOption{corev2.WithLogger(logger), corev2.WithSocketPath(socketPath), corev2.WithHistoryDisabled(), corev2.WithTerminalOutputBufferConfig(outputBuffer), corev2.WithTerminalOutputResidentBudget(runtimeConfig.Daemon.OutputBuffer.ResidentBudgetBytes), corev2.WithClientAccessService(accessService), corev2.WithRemoteService(cloudControl)}
+			opts = []corev2.ServerOption{corev2.WithLogger(logger), corev2.WithSocketPath(socketPath), corev2.WithHistoryDisabled(), corev2.WithTerminalOutputBufferConfig(outputBuffer), corev2.WithTerminalResourceSamplingConfig(resourceSampling), corev2.WithTerminalOutputResidentBudget(runtimeConfig.Daemon.OutputBuffer.ResidentBudgetBytes), corev2.WithClientAccessService(accessService), corev2.WithRemoteService(cloudControl)}
 		}
 		srv := newCoreV2Server(opts...)
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)

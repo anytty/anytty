@@ -15,6 +15,7 @@ export type ConnectionFailureReason =
   | 'relay_concurrency'
   | 'daemon_blocked'
   | 'daemon_deleted'
+  | 'user_stopped'
   | 'cancelled'
   | 'internal'
 
@@ -31,6 +32,7 @@ export function connectionFailureReason(error: unknown, phoneOnline = true): Con
 
   const code = connectionErrorCode(error)
   const detail = connectionErrorDetail(error)
+  if (code === 'user_stopped') return 'user_stopped'
   if (
     code === 'cancelled' ||
     /\b(?:cancelled|canceled|aborted|superseded)\b/i.test(detail) ||
@@ -109,6 +111,8 @@ export function connectionFailurePresentation(
       return failure(reason, t('errors.daemonBlockedTitle'), t('errors.daemonBlocked'), true)
     case 'daemon_deleted':
       return failure(reason, t('errors.daemonDeletedTitle'), t('errors.daemonDeleted'), true, true)
+    case 'user_stopped':
+      return failure(reason, t('errors.connectionStoppedTitle'), t('errors.connectionStopped'), false)
     case 'cancelled':
       return failure(reason, t('errors.connectionProblemTitle'), t('errors.connectionCancelled'), true)
     default:

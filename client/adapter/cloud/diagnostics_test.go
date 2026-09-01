@@ -3,6 +3,7 @@ package cloud
 import (
 	"bytes"
 	"errors"
+	"io"
 	"log"
 	"strings"
 	"testing"
@@ -77,6 +78,69 @@ func TestReportCloudFailureIncludesRemoteAuthCodeWithoutDetail(t *testing.T) {
 	message := output.String()
 	if !strings.Contains(message, "auth_code=AUTH_ERROR_CODE_PROTOCOL") || strings.Contains(message, "secret") || strings.Contains(message, "remote auth frame") {
 		t.Fatalf("unexpected diagnostic log %q", message)
+	}
+}
+
+func TestReportCloudSessionCloseEmitsOnlyStableClassifications(t *testing.T) {
+	tests := []struct {
+		name        string
+		origin      cloudSessionCloseOrigin
+		cause       error
+		terminalErr error
+		want        []string
+	}{
+		{
+			name:        "signaling grpc failure",
+			origin:      cloudSessionCloseSignaling,
+			terminalErr: status.Error(codes.Unavailable, "private Edge address and session credential"),
+			want:        []string{"origin=signaling", "cause=grpc_error", "code=unavailable", "rpc_code=Unavailable", "retryable=true"},
+		},
+		{
+			name:        "application eof",
+			origin:      cloudSessionCloseApplication,
+			cause:       io.EOF,
+			terminalErr: io.EOF,
+			want:        []string{"origin=application", "cause=eof", "code=unavailable", "rpc_code=Unknown", "retryable=false"},
+		},
+		{
+			name:   "local close",
+			origin: cloudSessionCloseLocal,
+			want:   []string{"origin=local", "cause=local_close", "code=none", "rpc_code=none", "retryable=false"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			previousWriter, previousFlags, previousPrefix := log.Writer(), log.Flags(), log.Prefix()
+			log.SetOutput(&output)
+			log.SetFlags(0)
+			log.SetPrefix("")
+			t.Cleanup(func() {
+				log.SetOutput(previousWriter)
+				log.SetFlags(previousFlags)
+				log.SetPrefix(previousPrefix)
+			})
+
+			cause := test.cause
+			if test.origin == cloudSessionCloseSignaling {
+				cause = cloudSignalingTermination(test.terminalErr)
+			}
+			reportCloudSessionClose(test.origin, cause, test.terminalErr)
+			message := output.String()
+			if !strings.Contains(message, "anytty cloud session stage=closed") {
+				t.Fatalf("missing Cloud session close diagnostic: %q", message)
+			}
+			for _, want := range test.want {
+				if !strings.Contains(message, want) {
+					t.Fatalf("diagnostic log %q does not contain %q", message, want)
+				}
+			}
+			for _, private := range []string{"private", "Edge address", "session credential", "error="} {
+				if strings.Contains(message, private) {
+					t.Fatalf("diagnostic log leaked %q: %q", private, message)
+				}
+			}
+		})
 	}
 }
 

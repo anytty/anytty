@@ -1230,6 +1230,112 @@ describe('MachineWorkspace terminal creation', () => {
     expect((screen.getByRole('button', { name: 'Open Shell' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('loads the initial terminal inventory when the native generation becomes ready', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const getStatus = vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } }))
+    const listTerminals = vi.fn(async () => [terminal])
+    const props = {
+      api: { getStatus, listTerminals },
+      connector: { connect: vi.fn(async () => new MockProtoSession('studio')) },
+      connectionStateEvents: { subscribe: vi.fn(() => ({ close() {} })) },
+      initialMachine: machine,
+      phoneOnline: true,
+    }
+    const view = render(<MachineWorkspace {...props} connectionState="checking" />)
+
+    await Promise.resolve()
+    expect(getStatus).not.toHaveBeenCalled()
+    expect(listTerminals).not.toHaveBeenCalled()
+
+    view.rerender(<MachineWorkspace {...props} connectionState="ready" />)
+
+    expect(await screen.findByRole('button', { name: 'Open Shell' })).toBeTruthy()
+    expect(getStatus).toHaveBeenCalledOnce()
+    expect(listTerminals).toHaveBeenCalledOnce()
+  })
+
+  it('handles a queued list recovery once the native generation becomes ready', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const listTerminals = vi.fn(async () => [terminal])
+    const connect = vi.fn(async () => new MockProtoSession('studio'))
+    const props = {
+      api: {
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals,
+      },
+      connector: { connect },
+      connectionStateEvents: { subscribe: vi.fn(() => ({ close() {} })) },
+      initialMachine: machine,
+      phoneOnline: true,
+    }
+    const view = render(<MachineWorkspace {...props} connectionState="ready" />)
+
+    await screen.findByRole('button', { name: 'Open Shell' })
+    expect(listTerminals).toHaveBeenCalledOnce()
+
+    view.rerender(<MachineWorkspace {...props} connectionState="recovering" />)
+    act(() => { document.dispatchEvent(new Event('anytty:binding-closed')) })
+    await Promise.resolve()
+    expect(connect).not.toHaveBeenCalled()
+
+    view.rerender(<MachineWorkspace {...props} connectionState="ready" />)
+
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledTimes(2))
+  })
+
+  it('rejects a list recovery that resolves while unavailable and retries when ready', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const staleRecovery = Promise.withResolvers<MockProtoSession>()
+    const staleSession = new MockProtoSession('studio')
+    const closeStaleSession = vi.spyOn(staleSession, 'close')
+    const freshSession = new MockProtoSession('studio')
+    const connect = vi.fn()
+      .mockReturnValueOnce(staleRecovery.promise)
+      .mockResolvedValueOnce(freshSession)
+    const listTerminals = vi.fn(async () => [terminal])
+    const props = {
+      api: {
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals,
+      },
+      connector: { connect },
+      connectionStateEvents: { subscribe: vi.fn(() => ({ close() {} })) },
+      initialMachine: machine,
+      phoneOnline: true,
+    }
+    const view = render(<MachineWorkspace {...props} connectionState="ready" />)
+
+    await screen.findByRole('button', { name: 'Open Shell' })
+    act(() => { document.dispatchEvent(new Event('anytty:binding-closed')) })
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce())
+
+    view.rerender(<MachineWorkspace {...props} connectionState="recovering" />)
+    await act(async () => {
+      staleRecovery.resolve(staleSession)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(closeStaleSession).toHaveBeenCalledOnce())
+    expect(listTerminals).toHaveBeenCalledOnce()
+
+    view.rerender(<MachineWorkspace {...props} connectionState="ready" />)
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledTimes(2))
+  })
+
   it('lets the native session manager own phone network recovery', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const terminal = {
@@ -1239,11 +1345,21 @@ describe('MachineWorkspace terminal creation', () => {
     const session = new MockProtoSession('studio')
     const connect = vi.fn(async () => session)
     const reconnect = vi.fn(async () => undefined)
-    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    let currentConnectionState: RtcConnectionStateSnapshot | null = null
+    let connectionStateHandler: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const publishConnectionState = (snapshot: RtcConnectionStateSnapshot) => {
+      currentConnectionState = snapshot
+      connectionStateHandler?.(snapshot)
+    }
     const connectionStateEvents = {
       subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
-        publishConnectionState = handler
-        return { close() {} }
+        connectionStateHandler = handler
+        if (currentConnectionState) queueMicrotask(() => handler(currentConnectionState!))
+        return {
+          close() {
+            if (connectionStateHandler === handler) connectionStateHandler = undefined
+          },
+        }
       },
     }
     const props = {
@@ -1266,7 +1382,7 @@ describe('MachineWorkspace terminal creation', () => {
     view.rerender(<MachineWorkspace {...props} phoneOnline />)
 
     expect(reconnect).not.toHaveBeenCalled()
-    act(() => publishConnectionState?.({
+    act(() => publishConnectionState({
       machineId: machine.machineId,
       phase: 'connected',
       statusText: 'Connected',
@@ -1281,6 +1397,632 @@ describe('MachineWorkspace terminal creation', () => {
     await Promise.resolve()
     expect(connect).toHaveBeenCalledTimes(1)
     expect(reconnect).not.toHaveBeenCalled()
+  })
+
+  it('keeps a manager-owned network turnover in automatic recovery until the replacement lease is ready', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const replacementSession = new MockProtoSession('studio')
+    const replacement = Promise.withResolvers<MockProtoSession>()
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockReturnValueOnce(replacement.promise)
+    let currentConnectionState: RtcConnectionStateSnapshot | null = null
+    let connectionStateHandler: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const publishConnectionState = (snapshot: RtcConnectionStateSnapshot) => {
+      currentConnectionState = snapshot
+      connectionStateHandler?.(snapshot)
+    }
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        connectionStateHandler = handler
+        if (currentConnectionState) queueMicrotask(() => handler(currentConnectionState!))
+        return {
+          close() {
+            if (connectionStateHandler === handler) connectionStateHandler = undefined
+          },
+        }
+      },
+    }
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals: vi.fn(async () => [terminal]),
+          }}
+          connector={{ connect }}
+          connectionStateEvents={connectionStateEvents}
+          initialMachine={machine}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+
+    act(() => {
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'reconnecting',
+        statusText: 'Reconnecting',
+        relayInUse: false,
+      })
+      initialSession.emitClosed(Object.assign(new Error('native renderer binding generation changed'), {
+        code: 'cancelled',
+        retryable: true,
+      }))
+    })
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    act(() => publishConnectionState({
+      machineId: machine.machineId,
+      phase: 'connected',
+      statusText: 'Connected',
+      relayInUse: false,
+    }))
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+
+    await act(async () => {
+      replacement.resolve(replacementSession)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === replacementSession)).toBe(true))
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+  })
+
+  it('keeps final connected authoritative when the previous lease closes late', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const replacementSession = new MockProtoSession('studio')
+    let queuedOldClose: ((error: Error) => void) | undefined
+    vi.spyOn(initialSession, 'subscribeClosed').mockImplementation((handler) => {
+      queuedOldClose = handler
+      return { close() {} }
+    })
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockResolvedValueOnce(replacementSession)
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals: vi.fn(async () => [terminal]),
+          }}
+          connector={{ connect }}
+          connectionStateEvents={connectionStateEvents}
+          initialMachine={machine}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => {
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'reconnecting',
+        statusText: 'Reconnecting',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'failed',
+        statusText: 'Transient binding failure',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+    })
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === replacementSession)).toBe(true))
+
+    act(() => queuedOldClose?.(Object.assign(new Error('late old-generation close'), {
+      code: 'unavailable',
+      retryable: true,
+    })))
+    await act(async () => { await Promise.resolve() })
+
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(terminalRender.mock.calls.at(-1)?.[0]).toMatchObject({ session: replacementSession })
+  })
+
+  it('ignores a late passive recovery failure after a newer lease has connected', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const freshSession = new MockProtoSession('studio')
+    const staleRecovery = Promise.withResolvers<MockProtoSession>()
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockReturnValueOnce(staleRecovery.promise)
+      .mockResolvedValueOnce(freshSession)
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals: vi.fn(async () => [terminal]),
+          }}
+          connector={{ connect }}
+          connectionStateEvents={connectionStateEvents}
+          initialMachine={machine}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => {
+      initialSession.emitClosed(Object.assign(new Error('binding generation changed'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+
+    act(() => {
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'reconnecting',
+        statusText: 'Reconnecting',
+        relayInUse: false,
+      })
+      document.dispatchEvent(new Event('anytty:binding-closed'))
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === freshSession)).toBe(true))
+
+    act(() => publishConnectionState?.({
+      machineId: machine.machineId,
+      phase: 'connected',
+      statusText: 'Connected',
+      relayInUse: false,
+    }))
+    await waitFor(() => expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull())
+
+    await act(async () => {
+      staleRecovery.reject(Object.assign(new Error('late binding failure'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('retries when the final connected snapshot joined a lease cancelled by the old generation', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const freshSession = new MockProtoSession('studio')
+    const oldGeneration = Promise.withResolvers<MockProtoSession>()
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockReturnValueOnce(oldGeneration.promise)
+      .mockResolvedValueOnce(freshSession)
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect }}
+      connectionStateEvents={connectionStateEvents}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => {
+      initialSession.emitClosed(Object.assign(new Error('binding generation changed'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      document.dispatchEvent(new Event('anytty:binding-closed'))
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+
+    act(() => publishConnectionState?.({
+      machineId: machine.machineId,
+      phase: 'connected',
+      statusText: 'Connected',
+      relayInUse: false,
+    }))
+    await act(async () => {
+      oldGeneration.reject(Object.assign(new Error('old generation was cancelled'), {
+        code: 'cancelled',
+        retryable: true,
+      }))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === freshSession)).toBe(true))
+  })
+
+  it('allows only one fresh lease retry in the same connected manager lineage', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const oldGeneration = Promise.withResolvers<MockProtoSession>()
+    const cancelled = () => Object.assign(new Error('renderer generation was cancelled'), {
+      code: 'cancelled',
+      retryable: true,
+    })
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockReturnValueOnce(oldGeneration.promise)
+      .mockRejectedValueOnce(cancelled())
+      .mockImplementation(() => new Promise<MockProtoSession>(() => {}))
+    let currentConnectionState: RtcConnectionStateSnapshot | null = null
+    let connectionStateHandler: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const publishConnectionState = (snapshot: RtcConnectionStateSnapshot) => {
+      currentConnectionState = snapshot
+      connectionStateHandler?.(snapshot)
+    }
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        connectionStateHandler = handler
+        if (currentConnectionState) queueMicrotask(() => handler(currentConnectionState!))
+        return {
+          close() {
+            if (connectionStateHandler === handler) connectionStateHandler = undefined
+          },
+        }
+      },
+    }
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect }}
+      connectionStateEvents={connectionStateEvents}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => {
+      initialSession.emitClosed(Object.assign(new Error('binding generation changed'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      document.dispatchEvent(new Event('anytty:binding-closed'))
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    act(() => publishConnectionState({
+      machineId: machine.machineId,
+      phase: 'connected',
+      statusText: 'Connected',
+      relayInUse: false,
+    }))
+
+    await act(async () => {
+      oldGeneration.reject(cancelled())
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(3))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(connect).toHaveBeenCalledTimes(3)
+  })
+
+  it('refreshes terminal inventory after manager recovery and fences the old list failure', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const staleInventory = Promise.withResolvers<typeof terminal[]>()
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const listTerminals = vi.fn()
+      .mockReturnValueOnce(staleInventory.promise)
+      .mockImplementationOnce(async () => {
+        publishConnectionState?.({
+          machineId: machine.machineId,
+          phase: 'connected',
+          statusText: 'Connected',
+          relayInUse: false,
+        })
+        return [terminal]
+      })
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals,
+          }}
+          connector={{ connect: vi.fn(async () => new MockProtoSession('studio')) }}
+          connectionStateEvents={connectionStateEvents}
+          initialMachine={machine}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledOnce())
+    act(() => {
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'reconnecting',
+        statusText: 'Reconnecting',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'failed',
+        statusText: 'Transient binding failure',
+        relayInUse: false,
+        error: Object.assign(new Error('transient binding failure'), {
+          code: 'unavailable',
+          retryable: true,
+        }),
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+    })
+
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: 'Open Shell' })).toBeTruthy()
+    await act(async () => { await Promise.resolve() })
+    expect(listTerminals).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      staleInventory.reject(Object.assign(new Error('late inventory failure'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      await Promise.resolve()
+    })
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open Shell' })).toBeTruthy()
+  })
+
+  it('fences a stale inventory failure while recovering an open terminal', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const staleInventory = Promise.withResolvers<typeof terminal[]>()
+    const initialSession = new MockProtoSession('studio')
+    const replacementSession = new MockProtoSession('studio')
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockResolvedValueOnce(replacementSession)
+    const listTerminals = vi.fn()
+      .mockResolvedValueOnce([terminal])
+      .mockReturnValueOnce(staleInventory.promise)
+      .mockResolvedValue([terminal])
+    let publishInventory: (() => void) | undefined
+    const inventoryEvents = {
+      subscribe(_machineId: string, handler: (event: { type: 'inventory_changed' }) => void) {
+        publishInventory = () => handler({ type: 'inventory_changed' })
+        return { close() {} }
+      },
+    }
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals,
+          }}
+          connector={{ connect }}
+          connectionStateEvents={connectionStateEvents}
+          initialMachine={machine}
+          inventoryEvents={inventoryEvents}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => publishConnectionState?.({
+      machineId: machine.machineId,
+      phase: 'connected',
+      statusText: 'Connected',
+      relayInUse: false,
+    }))
+    act(() => publishInventory?.())
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledTimes(2))
+
+    act(() => {
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'reconnecting',
+        statusText: 'Reconnecting',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'failed',
+        statusText: 'Transient binding failure',
+        relayInUse: false,
+      })
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+    })
+
+    await waitFor(() => expect(listTerminals).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === replacementSession)).toBe(true))
+
+    await act(async () => {
+      staleInventory.reject(Object.assign(new Error('late inventory failure'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(terminalRender.mock.calls.at(-1)?.[0]).toMatchObject({ session: replacementSession })
+  })
+
+  it.each([
+    [
+      'phone network',
+      { phoneOnline: false, connectionState: 'ready' as const },
+      { phoneOnline: true, connectionState: 'ready' as const },
+    ],
+    [
+      'native generation',
+      { phoneOnline: true, connectionState: 'recovering' as const },
+      { phoneOnline: true, connectionState: 'ready' as const },
+    ],
+  ])('reacquires a dead terminal session when the %s recovers', async (_source, unavailableProps, recoveredProps) => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const staleSession = new MockProtoSession('studio')
+    const freshSession = new MockProtoSession('studio')
+    const connect = vi.fn()
+      .mockResolvedValueOnce(staleSession)
+      .mockResolvedValueOnce(freshSession)
+    const connectionStateEvents = {
+      subscribe: vi.fn(() => ({ close() {} })),
+    }
+    const props = {
+      api: {
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      },
+      connector: { connect },
+      connectionStateEvents,
+      initialMachine: machine,
+      phoneOnline: true,
+    }
+    const view = render(<MachineWorkspace {...props} />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    expect(connect).toHaveBeenCalledTimes(1)
+
+    view.rerender(<MachineWorkspace {...props} {...unavailableProps} />)
+    act(() => {
+      staleSession.emitClosed(Object.assign(new Error('binding generation changed'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+    })
+    expect(connect).toHaveBeenCalledTimes(1)
+
+    terminalRender.mockClear()
+    view.rerender(<MachineWorkspace {...props} {...recoveredProps} />)
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([terminalProps]) => (
+      terminalProps as { session?: MockProtoSession }
+    ).session === freshSession)).toBe(true))
+    expect(terminalRender.mock.calls.some(([terminalProps]) => (
+      terminalProps as { session?: MockProtoSession }
+    ).session === staleSession)).toBe(false)
   })
 
   it('shows re-pairing after the active daemon enrollment is deleted', async () => {
@@ -1339,6 +2081,59 @@ describe('MachineWorkspace terminal creation', () => {
     expect(screen.getByTestId('anytty-terminal-list-page').querySelector('header')?.contains(screen.getByTestId('anytty-connection-recovery-overlay'))).toBe(false)
     await userEvent.click(backToMachines)
     expect(onBack).toHaveBeenCalledOnce()
+  })
+
+  it('resumes a stopped workspace with one explicit reconnect action', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const stoppedSession = new MockProtoSession('studio')
+    const resumedSession = new MockProtoSession('studio')
+    const connect = vi.fn()
+      .mockResolvedValueOnce(stoppedSession)
+      .mockResolvedValueOnce(resumedSession)
+    let finishReconnect!: () => void
+    const reconnect = vi.fn(() => new Promise<void>((resolve) => { finishReconnect = resolve }))
+
+    render(
+      <ConnectionRecoveryOverlayProvider appIntent={null}>
+        <MachineWorkspace
+          api={{
+            getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+            listTerminals: vi.fn(async () => [terminal]),
+          }}
+          connector={{ connect, reconnect }}
+          initialMachine={machine}
+        />
+      </ConnectionRecoveryOverlayProvider>,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    act(() => {
+      stoppedSession.emitClosed(Object.assign(new Error('native demand was stopped'), {
+        code: 'user_stopped',
+        retryable: false,
+      }))
+    })
+
+    expect(await screen.findByText('Connection stopped')).toBeTruthy()
+    const retry = screen.getByTestId('anytty-workspace-connection-retry')
+    expect(retry).toBe(screen.getByRole('button', { name: 'Retry' }))
+    expect(reconnect).not.toHaveBeenCalled()
+
+    await userEvent.click(retry)
+
+    await waitFor(() => expect(reconnect).toHaveBeenCalledOnce())
+    expect(connect).toHaveBeenCalledOnce()
+    finishReconnect()
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === resumedSession)).toBe(true))
+    expect(screen.queryByTestId('anytty-connection-recovery-overlay')).toBeNull()
   })
 
   it('returns false without a terminal handle and for a rejected single-target send', async () => {
@@ -1697,6 +2492,63 @@ describe('MachineWorkspace terminal creation', () => {
     await waitFor(() => expect(listTerminals.mock.calls.length).toBeGreaterThan(1))
   })
 
+  it('closes a session that resolves while native reconnect is still pending', async () => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const firstSession = new MockProtoSession('studio')
+    const duringReconnectSession = new MockProtoSession('studio')
+    const finalSession = new MockProtoSession('studio')
+    const closeDuringReconnect = vi.spyOn(duringReconnectSession, 'close')
+    const connect = vi.fn()
+      .mockResolvedValueOnce(firstSession)
+      .mockResolvedValueOnce(duringReconnectSession)
+      .mockResolvedValueOnce(finalSession)
+    let finishReconnect!: () => void
+    const reconnect = vi.fn(() => {
+      document.dispatchEvent(new Event('anytty:binding-closed'))
+      return new Promise<void>((resolve) => { finishReconnect = resolve })
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{
+        connect,
+        reconnect,
+        getConnectionPolicy: vi.fn(async () => ({
+          policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' },
+          available: { direct: true, ssh: true, cloud: true },
+          unavailableReasons: {},
+        })),
+        applyConnectionPolicy: vi.fn(async () => undefined),
+      }}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    await userEvent.click(screen.getByRole('button', { name: 'Back to terminal list' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Connection info' }))
+    await userEvent.click(await screen.findByRole('radio', { name: 'Direct' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply & reconnect' }))
+
+    await waitFor(() => expect(reconnect).toHaveBeenCalledOnce())
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    expect(duringReconnectSession.isAlive()).toBe(true)
+
+    finishReconnect()
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(closeDuringReconnect).toHaveBeenCalledOnce())
+    expect(finalSession.isAlive()).toBe(true)
+  })
+
   it('rebuilds the workspace session before refreshing files after a native generation resume', async () => {
     const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
     const staleSession = new MockProtoSession('studio')
@@ -1779,6 +2631,137 @@ describe('MachineWorkspace terminal creation', () => {
     act(() => { document.dispatchEvent(new Event('anytty:binding-closed')) })
 
     expect(terminalReattach).toHaveBeenCalledWith('term-shell', session, { forceTerminalChannel: true })
+  })
+
+  it.each([
+    'anytty:resume',
+    'anytty:binding-closed',
+  ])('rejects a pending stale session when %s starts a newer recovery', async (eventName) => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminal = {
+      terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+      command: '/bin/zsh', cols: 80, rows: 24,
+    }
+    const initialSession = new MockProtoSession('studio')
+    const staleRecoveredSession = new MockProtoSession('studio')
+    const freshSession = new MockProtoSession('studio')
+    const closeStaleRecoveredSession = vi.spyOn(staleRecoveredSession, 'close')
+    let resolveStaleRecovery!: (session: MockProtoSession) => void
+    let resolveFreshRecovery!: (session: MockProtoSession) => void
+    const staleRecovery = new Promise<MockProtoSession>((resolve) => { resolveStaleRecovery = resolve })
+    const freshRecovery = new Promise<MockProtoSession>((resolve) => { resolveFreshRecovery = resolve })
+    const connect = vi.fn()
+      .mockResolvedValueOnce(initialSession)
+      .mockReturnValueOnce(staleRecovery)
+      .mockReturnValueOnce(freshRecovery)
+    let publishConnectionState: ((snapshot: RtcConnectionStateSnapshot) => void) | undefined
+    const connectionStateEvents = {
+      subscribe(_machineId: string, handler: (snapshot: RtcConnectionStateSnapshot) => void) {
+        publishConnectionState = handler
+        return { close() {} }
+      },
+    }
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => [terminal]),
+      }}
+      connector={{ connect }}
+      connectionStateEvents={connectionStateEvents}
+      initialMachine={machine}
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await screen.findByTestId('mock-terminal')
+    terminalReattach.mockClear()
+    terminalRender.mockClear()
+
+    act(() => {
+      initialSession.emitClosed(Object.assign(new Error('binding generation changed'), {
+        code: 'unavailable',
+        retryable: true,
+      }))
+      publishConnectionState?.({
+        machineId: machine.machineId,
+        phase: 'connected',
+        statusText: 'Connected',
+        relayInUse: false,
+      })
+    })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+
+    act(() => { document.dispatchEvent(new Event(eventName)) })
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(3))
+
+    await act(async () => {
+      resolveStaleRecovery(staleRecoveredSession)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(closeStaleRecoveredSession).toHaveBeenCalledOnce())
+    expect(terminalReattach.mock.calls.some(([, session]) => session === staleRecoveredSession)).toBe(false)
+    expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === staleRecoveredSession)).toBe(false)
+
+    await act(async () => {
+      resolveFreshRecovery(freshSession)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(terminalRender.mock.calls.some(([props]) => (
+      props as { session?: MockProtoSession }
+    ).session === freshSession)).toBe(true))
+    expect(terminalReattach.mock.calls.some(([, session]) => session === staleRecoveredSession)).toBe(false)
+  })
+
+  it.each([
+    'anytty:resume',
+    'anytty:binding-closed',
+    'anytty:session-invalidated',
+  ])('replaces a dead active session after %s without leaving the split terminal view', async (eventName) => {
+    const machine = { machineId: 'studio', name: 'Studio', state: 'online' as const }
+    const terminals = [
+      {
+        terminalId: 'term-shell', machineId: 'studio', title: 'Shell', state: 'running' as const,
+        command: '/bin/zsh', cols: 80, rows: 24,
+      },
+      {
+        terminalId: 'term-logs', machineId: 'studio', title: 'Logs', state: 'running' as const,
+        command: 'tail -f app.log', cols: 80, rows: 24,
+      },
+    ]
+    const staleSession = new MockProtoSession('studio')
+    const freshSession = new MockProtoSession('studio')
+    const connect = vi.fn()
+      .mockResolvedValueOnce(staleSession)
+      .mockResolvedValueOnce(freshSession)
+
+    render(<MachineWorkspace
+      api={{
+        getStatus: vi.fn(async () => ({ machine, localWeb: { httpUrl: '', rtcOfferUrl: '' } })),
+        listTerminals: vi.fn(async () => terminals),
+      }}
+      connector={{ connect }}
+      initialMachine={machine}
+      webLayout
+    />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Shell' }))
+    await userEvent.click(await screen.findByTestId('anytty-terminal-split-button'))
+    await waitFor(() => expect(screen.getAllByTestId('mock-terminal')).toHaveLength(2))
+    await staleSession.close()
+
+    act(() => { document.dispatchEvent(new Event(eventName)) })
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    await waitFor(() => {
+      const freshTerminalIds = terminalRender.mock.calls
+        .filter(([props]) => (props as { session?: MockProtoSession }).session === freshSession)
+        .map(([props]) => (props as { terminalId: string }).terminalId)
+      expect(new Set(freshTerminalIds)).toEqual(new Set(['term-shell', 'term-logs']))
+    })
+    expect(screen.getByTestId('anytty-terminal-body')).toBeTruthy()
+    expect(screen.getByTestId('anytty-split-terminal-panel')).toBeTruthy()
   })
 })
 

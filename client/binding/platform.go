@@ -61,9 +61,16 @@ type SessionInvalidationHost interface {
 }
 
 // EndpointDisconnectionHost owns explicit endpoint-wide user disconnects.
-// It must serialize behind an in-flight OpenSession and fence its generation.
+// It must capture the user-intent fence synchronously before scheduling work.
 type EndpointDisconnectionHost interface {
-	DisconnectEndpoint(context.Context, endpoint.EndpointID) error
+	AdvanceEndpointIntent(endpoint.EndpointID) error
+	PrepareEndpointDisconnect(endpoint.EndpointID) (EndpointDisconnectOperation, error)
+}
+
+// EndpointDisconnectOperation is an opaque, request-scoped disconnect fence.
+// Implementations must no-op when a newer endpoint connection intent exists.
+type EndpointDisconnectOperation interface {
+	Disconnect(context.Context) error
 }
 
 // EndpointShareHost 是 binding 对一次性 Endpoint share 的两阶段入口。
@@ -169,12 +176,31 @@ func (broker *PlatformBroker) NextRequest(ctx context.Context) ([]byte, error) {
 	case <-broker.ctx.Done():
 		return nil, ErrClosed
 	case payload := <-broker.queue:
-		return append([]byte(nil), payload...), nil
+		return broker.acceptDequeuedRequest(ctx, payload)
 	}
 }
 
+// acceptDequeuedRequest linearizes delivery against Close after the queue receive.
+// A select may choose a ready queue item while Close is making broker.ctx ready, so
+// the dequeue alone is not sufficient proof that this broker generation is active.
+func (broker *PlatformBroker) acceptDequeuedRequest(ctx context.Context, payload []byte) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+	if broker.closed {
+		return nil, ErrClosed
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), payload...), nil
+}
+
 // Complete 解析并交付一条 PlatformResponse。
-// request_id 缺失、未知或重复完成都会失败，平台错误必须写入 response.error 而不是吞掉响应。
+// request_id 缺失会失败；已取消、未知或重复的迟到响应被幂等丢弃，不能因此击穿仍健康的平台泵。
+// 平台错误必须写入 response.error 而不是吞掉响应。
 func (broker *PlatformBroker) Complete(payload []byte) error {
 	if err := validatePayload(payload); err != nil {
 		return err
@@ -193,7 +219,7 @@ func (broker *PlatformBroker) Complete(payload []byte) error {
 	}
 	broker.mu.Unlock()
 	if channel == nil {
-		return ErrInvalidHandle
+		return nil
 	}
 	channel <- proto.Clone(response).(*bindingpb.PlatformResponse)
 	return nil

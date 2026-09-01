@@ -17,6 +17,26 @@ describe('NativeForegroundBarrier', () => {
     await expect(result).resolves.toEqual({ uri: 'content://selected' })
   })
 
+  it('rejects a picker continuation whose original native intent was stopped while foreground was pending', async () => {
+    const barrier = new NativeForegroundBarrier()
+    const validateContinuation = vi.fn(async () => {
+      throw Object.assign(new Error('Stopped by user'), { code: 'user_stopped' })
+    })
+    const result = runAcrossNativePicker(
+      barrier,
+      async () => ({ uri: 'content://selected' }),
+      validateContinuation,
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(validateContinuation).not.toHaveBeenCalled()
+    barrier.finishForeground()
+
+    await expect(result).rejects.toMatchObject({ code: 'user_stopped' })
+    expect(validateContinuation).toHaveBeenCalledOnce()
+  })
+
   it('rejects the picker result when foreground generation replacement fails', async () => {
     const barrier = new NativeForegroundBarrier()
     const result = runAcrossNativePicker(barrier, async () => 'selected')

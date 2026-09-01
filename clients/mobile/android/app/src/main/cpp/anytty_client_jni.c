@@ -41,7 +41,7 @@ Java_com_anytty_app_goclient_GoClientNative_setDebugLogPath(JNIEnv *env, jobject
   (void)self;
   const char *value = path == NULL ? "" : (*env)->GetStringUTFChars(env, path, NULL);
   if (value == NULL) return;
-  anytty_debug_log_set_path(value);
+  anytty_debug_log_set_path((char *)value);
   if (path != NULL) (*env)->ReleaseStringUTFChars(env, path, value);
 }
 
@@ -125,6 +125,18 @@ Java_com_anytty_app_goclient_GoClientNative_signalSupervisor(JNIEnv *env, jobjec
   anytty_status_v1 status = anytty_supervisor_signal(
       (anytty_handle_t)engine, (const uint8_t *)bytes, (size_t)length);
   (*env)->ReleaseByteArrayElements(env, payload, bytes, JNI_ABORT);
+  throw_status(env, status);
+}
+
+JNIEXPORT void JNICALL
+Java_com_anytty_app_goclient_GoClientNative_repairSupervisorEndpoint(JNIEnv *env, jobject self, jlong engine, jbyteArray endpoint_id) {
+  (void)self;
+  jsize length = 0;
+  jbyte *bytes = borrow_payload(env, endpoint_id, &length);
+  if (bytes == NULL) return;
+  anytty_status_v1 status = anytty_supervisor_repair(
+      (anytty_handle_t)engine, (const uint8_t *)bytes, (size_t)length);
+  (*env)->ReleaseByteArrayElements(env, endpoint_id, bytes, JNI_ABORT);
   throw_status(env, status);
 }
 

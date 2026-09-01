@@ -65,8 +65,8 @@ func TestS2GatewayContracts(t *testing.T) {
 			t.Fatalf("%s.Connect must be bidirectional streaming", service.FullName())
 		}
 	}
-	assertEnvelopeFields(t, (&ClientSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "offer": 21, "path_selected": 22})
-	assertEnvelopeFields(t, (&EdgeSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "answer": 21, "rejected": 22, "challenge": 23, "closed": 24, "presence": 25})
+	assertEnvelopeFields(t, (&ClientSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "offer": 21, "path_decision": 22, "session_release": 23})
+	assertEnvelopeFields(t, (&EdgeSignal{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "answer": 21, "rejected": 22, "challenge": 23, "closed": 24, "presence": 25, "path_decision_ack": 26, "session_release_ack": 27})
 	assertEnvelopeFields(t, (&AgentEvent{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"hello": 20, "heartbeat": 21, "answer": 22, "rejected": 23, "authorization": 24, "lifecycle_result": 25})
 	assertEnvelopeFields(t, (&EdgeCommand{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{"ready": 20, "offer": 21, "authorize": 22, "challenge": 23, "lifecycle": 24, "edge_reselect": 25})
 	challenge := (&EdgeChallenge{}).ProtoReflect().Descriptor()
@@ -137,6 +137,28 @@ func TestEdgeControlIsBidirectionalStreaming(t *testing.T) {
 	assertEnvelopeFields(t, (&ControllerCommand{}).ProtoReflect().Descriptor(), map[protoreflect.Name]protoreflect.FieldNumber{
 		"welcome": 20, "snapshot_accepted": 21, "resync_required": 22, "desired_config": 23, "binding_key_bundle": 24, "relay_reserve": 25, "close_daemon": 26, "close_session": 27, "public_certificate_renew": 28, "relay_renew": 29, "relay_settle": 30, "relay_query": 31, "daemon_state_delta": 32, "daemon_state_query_result": 33, "reselect_daemon_edge": 34, "identity_renew": 35, "daemon_connection_admission": 36, "relay_authorize": 37, "relay_usage_ack": 38, "relay_account_action": 39, "daemon_state_sync_chunk": 40, "daemon_state_sync_end": 41,
 	})
+}
+
+func TestRelayAccountActionPinsTheDecidingRuntimePolicy(t *testing.T) {
+	action := (&RelayAccountAction{}).ProtoReflect().Descriptor()
+	policy := (&RelayRuntimePolicy{}).ProtoReflect().Descriptor()
+	for _, revision := range []struct {
+		name         protoreflect.Name
+		actionNumber protoreflect.FieldNumber
+		policyNumber protoreflect.FieldNumber
+	}{
+		{name: "policy_revision", actionNumber: 9, policyNumber: 4},
+		{name: "account_revision", actionNumber: 10, policyNumber: 11},
+	} {
+		actionRevision := action.Fields().ByName(revision.name)
+		policyRevision := policy.Fields().ByName(revision.name)
+		if actionRevision == nil || actionRevision.Number() != revision.actionNumber || actionRevision.Kind() != protoreflect.Uint64Kind {
+			t.Fatalf("RelayAccountAction.%s=%v", revision.name, actionRevision)
+		}
+		if policyRevision == nil || policyRevision.Number() != revision.policyNumber || policyRevision.Kind() != actionRevision.Kind() {
+			t.Fatalf("RelayRuntimePolicy.%s=%v", revision.name, policyRevision)
+		}
+	}
 }
 
 func TestDaemonLifecycleProtocol(t *testing.T) {

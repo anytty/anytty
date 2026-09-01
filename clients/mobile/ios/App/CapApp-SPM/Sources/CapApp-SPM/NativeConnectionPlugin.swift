@@ -1,9 +1,34 @@
 import Capacitor
 import Foundation
-import Network
-import Security
 import SwiftProtobuf
 import UIKit
+
+final class IOSRendererCallGeneration {}
+
+final class IOSRendererCallFence {
+    private let lock = NSLock()
+    private var currentGeneration = IOSRendererCallGeneration()
+
+    func capture() -> IOSRendererCallGeneration {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentGeneration
+    }
+
+    func rotate() -> IOSRendererCallGeneration {
+        let generation = IOSRendererCallGeneration()
+        lock.lock()
+        currentGeneration = generation
+        lock.unlock()
+        return generation
+    }
+
+    func accepts(_ generation: IOSRendererCallGeneration) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return currentGeneration === generation
+    }
+}
 
 @objc(NativeConnectionPlugin)
 public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -12,55 +37,45 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "NativeConnection"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "handleForegroundResume", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestEndpointRecovery", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNetworkSnapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resetLocalPairings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getBridgeEndpoint", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getSessionDemandLease", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "resumeSessionDemand", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "replaceSessionDemand", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isLocalEndpointDiscovered", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isDirectRouteReachable", returnType: CAPPluginReturnPromise),
     ]
 
-    private let runtimeQueue = DispatchQueue(label: "com.anytty.ios.runtime")
-    private let accessCredentials = IOSClientAccessCredentialStore()
-    private let sshCredentials = IOSSSHCredentialStore()
-    private let endpointRegistry = IOSEndpointRegistryStore()
-    private let pathMonitor = NWPathMonitor()
+    private let runtimeQueue = DispatchQueue(label: "com.anytty.ios.connection-plugin")
+    private let runtimeOwner = IOSConnectionRuntimeOwner.shared
+    private let rendererCallFence = IOSRendererCallFence()
     private lazy var localDiscovery = NativeLocalDiscovery { [weak self] in
         self?.notifyListeners("localDiscoveryChanged", data: [:], retainUntilConsumed: true)
     }
-    private var engine: IOSGoClientEngine?
-    private var port: UInt16 = 0
-    private var token = ""
-    private var epoch: UInt64 = 0
-    private var networkEpoch: UInt64 = 0
-    private var receivedInitialPath = false
-    private var lastNetworkSignature: String?
-    private var pendingNetworkChange: DispatchWorkItem?
-    private var latestNetworkConnected = true
-    private var latestNetworkReason = "path_changed"
+    private var rendererDemand: IOSRendererDemandSnapshot?
 
     override public func load() {
         Self.current = self
-        pathMonitor.pathUpdateHandler = { [weak self] path in
-            self?.runtimeQueue.async { self?.networkChanged(path) }
+        rendererDemand = runtimeOwner.attachRenderer { [weak self] event in
+            self?.handleRuntimeEvent(event)
         }
-        pathMonitor.start(queue: DispatchQueue(label: "com.anytty.ios.path-monitor"))
-        runtimeQueue.async { [weak self] in _ = try? self?.ensureRuntime() }
+        let network = runtimeOwner.networkSnapshot()
+        DispatchQueue.main.async { [weak self] in
+            self?.localDiscovery.restart(connected: network.connected)
+        }
     }
 
     deinit {
         if Self.current === self { Self.current = nil }
-        pathMonitor.cancel()
+        if let rendererDemand { runtimeOwner.detachRenderer(attachmentID: rendererDemand.attachmentID) }
         if Thread.isMainThread {
             localDiscovery.stop()
         } else {
             DispatchQueue.main.sync { localDiscovery.stop() }
         }
         NativeLocalDiscoveryCache.shared.clear()
-        runtimeQueue.sync {
-            pendingNetworkChange?.cancel()
-            stopRuntime()
-        }
     }
 
     static func refreshAfterNativePicker(completion: @escaping () -> Void) {
@@ -69,77 +84,212 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         plugin.runtimeQueue.async {
-            try? plugin.ensureRuntime()
+            try? plugin.runtimeOwner.ensureRuntime()
             DispatchQueue.main.async(execute: completion)
         }
     }
 
+    func rendererContentProcessDidTerminate() {
+        let generation = rendererCallFence.rotate()
+        runtimeQueue.async { [weak self] in
+            guard let self, self.rendererCallFence.accepts(generation) else { return }
+            guard let current = self.rendererDemand else { return }
+            do {
+                self.rendererDemand = try self.runtimeOwner.rotateRenderer(
+                    attachmentID: current.attachmentID
+                )
+            } catch {
+                if self.rendererCallFence.accepts(generation) {
+                    self.rendererDemand = nil
+                }
+            }
+        }
+    }
+
     @objc func handleForegroundResume(_ call: CAPPluginCall) {
+        let rendererGeneration = rendererCallFence.capture()
+        let foregroundLease = runtimeOwner.captureForegroundResumeLease()
         runtimeQueue.async { [weak self] in
             guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             do {
-                try self.ensureRuntime()
+                try self.runtimeOwner.handleForegroundResume(lease: foregroundLease)
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.resolve()
             } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.reject("Go client engine could not resume", nil, error)
             }
         }
     }
 
-    @objc func getNetworkSnapshot(_ call: CAPPluginCall) {
+    @objc func requestEndpointRecovery(_ call: CAPPluginCall) {
+        let endpointID = call.getString("endpointId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !endpointID.isEmpty else {
+            call.reject("endpointId is required")
+            return
+        }
+        let rendererGeneration = rendererCallFence.capture()
         runtimeQueue.async { [weak self] in
             guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+            do {
+                try self.runtimeOwner.requestEndpointRecovery(endpointID: endpointID)
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve()
+            } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.reject("endpoint recovery could not be requested", nil, error)
+            }
+        }
+    }
+
+    @objc func getNetworkSnapshot(_ call: CAPPluginCall) {
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+            let snapshot = self.runtimeOwner.networkSnapshot()
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             call.resolve([
-                "epoch": NSNumber(value: self.networkEpoch),
-                "connected": self.latestNetworkConnected,
-                "reason": self.latestNetworkReason,
+                "epoch": NSNumber(value: snapshot.epoch),
+                "connected": snapshot.connected,
+                "reason": snapshot.reason,
                 "scope": "session",
             ])
         }
     }
 
     @objc func resetLocalPairings(_ call: CAPPluginCall) {
+        let rendererGeneration = rendererCallFence.capture()
         runtimeQueue.async { [weak self] in
             guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             do {
-                self.endpointRegistry.clear()
-                try self.accessCredentials.clearAll()
-                try self.sshCredentials.clearAll()
-                try self.replaceRuntime(reason: "pairings_reset")
+                try self.runtimeOwner.resetLocalPairings()
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.resolve()
             } catch {
-                try? self.ensureRuntime()
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                try? self.runtimeOwner.ensureRuntime()
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.reject("failed to reset local pairings", nil, error)
             }
         }
     }
 
     @objc func getBridgeEndpoint(_ call: CAPPluginCall) {
+        let rendererGeneration = rendererCallFence.capture()
         runtimeQueue.async { [weak self] in
             guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             do {
-                try self.ensureRuntime()
-                guard self.port > 0, !self.token.isEmpty else {
-                    throw AnyTTYPlatformError.failure(code: "temporary", message: "native bridge server is not ready")
-                }
-                call.resolve(["port": Int(self.port), "token": self.token])
+                let endpoint = try self.runtimeOwner.bridgeEndpoint()
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(["port": Int(endpoint.port), "token": endpoint.token])
             } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.reject("native bridge server is not ready", nil, error)
             }
         }
     }
 
+    @objc func getSessionDemandLease(_ call: CAPPluginCall) {
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+            do {
+                guard let current = self.rendererDemand else {
+                    throw NSError(domain: "AnyTTY", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "renderer demand attachment is unavailable",
+                    ])
+                }
+                let snapshot = try self.runtimeOwner.currentDemand(attachmentID: current.attachmentID)
+                self.rendererDemand = snapshot
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(self.demandLeasePayload(snapshot))
+            } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.reject("renderer demand attachment is unavailable", nil, error)
+            }
+        }
+    }
+
     @objc func replaceSessionDemand(_ call: CAPPluginCall) {
-        guard let endpointIDs = call.getArray("endpointIds", String.self) else {
+        guard let requestedEndpointIDs = call.getArray("endpointIds", String.self) else {
             call.reject("endpointIds is required")
             return
         }
-        guard endpointIDs.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+        guard requestedEndpointIDs.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
             call.reject("endpointIds contains an invalid value")
             return
         }
-        // iOS does not need Android's foreground-service ownership signal.
-        call.resolve(["goManagedEndpointIds": []])
+        let attachmentID = call.getString("attachmentId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let baseDemandRevision = call.getString("baseDemandRevision").flatMap(UInt64.init)
+        guard !attachmentID.isEmpty, let baseDemandRevision else {
+            call.reject("a valid native demand lease is required")
+            return
+        }
+        let endpointIDs = Set(requestedEndpointIDs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+            do {
+                let next = try self.runtimeOwner.replaceDemand(
+                    attachmentID: attachmentID,
+                    baseDemandRevision: baseDemandRevision,
+                    endpointIDs: endpointIDs
+                )
+                self.rendererDemand = next
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(self.demandLeasePayload(next))
+            } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                if let current = self.rendererDemand {
+                    self.rendererDemand = try? self.runtimeOwner.currentDemand(attachmentID: current.attachmentID)
+                }
+                call.reject("failed to replace renderer connection demand", nil, error)
+            }
+        }
+    }
+
+    @objc func resumeSessionDemand(_ call: CAPPluginCall) {
+        let intentID = call.getString("intentId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let baseStopEpoch = call.getString("baseStopEpoch").flatMap(UInt64.init)
+        guard !intentID.isEmpty, intentID.count <= 128, let baseStopEpoch else {
+            call.reject("a valid renderer resume intent ID is required")
+            return
+        }
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+            do {
+                guard let current = self.rendererDemand else {
+                    throw NSError(domain: "AnyTTY", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "renderer demand attachment is unavailable",
+                    ])
+                }
+                let resumed = try self.runtimeOwner.resumeDemand(
+                    attachmentID: current.attachmentID,
+                    intentID: intentID,
+                    baseStopEpoch: baseStopEpoch
+                )
+                self.rendererDemand = resumed.snapshot
+                var payload = self.demandLeasePayload(resumed.snapshot)
+                payload["outcome"] = resumed.outcome.rawValue
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(payload)
+            } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                if let current = self.rendererDemand {
+                    self.rendererDemand = try? self.runtimeOwner.currentDemand(attachmentID: current.attachmentID)
+                }
+                call.reject("failed to resume renderer connection demand", nil, error)
+            }
+        }
     }
 
     @objc func isLocalEndpointDiscovered(_ call: CAPPluginCall) {
@@ -149,13 +299,19 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("deviceId and fingerprint are required")
             return
         }
-        runtimeQueue.async {
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             do {
                 let result = nativeLocalDiscoveryResult(
                     NativeLocalDiscoveryCache.shared.snapshot(deviceID: deviceID, fingerprint: fingerprint)
                 )
-                call.resolve(["discovered": try GoClientNative.localProbe(result.serializedData())])
+                let discovered = try GoClientNative.localProbe(result.serializedData())
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(["discovered": discovered])
             } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.reject("local discovery probe failed", nil, error)
             }
         }
@@ -167,133 +323,61 @@ public final class NativeConnectionPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("routeProtoBase64 is required")
             return
         }
-        runtimeQueue.async {
+        let rendererGeneration = rendererCallFence.capture()
+        runtimeQueue.async { [weak self] in
+            guard let self else { call.reject("native runtime is unavailable"); return }
+            guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
             do {
-                call.resolve(["reachable": try GoClientNative.directProbe(routeProto)])
+                let reachable = try GoClientNative.directProbe(routeProto)
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
+                call.resolve(["reachable": reachable])
             } catch {
+                guard self.requireCurrentRenderer(rendererGeneration, call: call) else { return }
                 call.reject("Direct TCP probe failed", nil, error)
             }
         }
     }
 
-    private func networkChanged(_ path: NWPath) {
-        let signature = networkSignature(path)
-        guard receivedInitialPath else {
-            receivedInitialPath = true
-            lastNetworkSignature = signature
-            latestNetworkConnected = path.status == .satisfied
-            latestNetworkReason = latestNetworkConnected ? "path_changed" : "offline"
-            DispatchQueue.main.async { [weak self] in
-                self?.localDiscovery.restart(connected: path.status == .satisfied)
-            }
-            return
-        }
-        let connected = path.status == .satisfied
-        pendingNetworkChange?.cancel()
-        let work = DispatchWorkItem { [weak self] in
+    private func handleRuntimeEvent(_ event: IOSConnectionRuntimeEvent) {
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            let previousSignature = self.lastNetworkSignature
-            self.lastNetworkSignature = signature
-            self.networkEpoch &+= 1
-            let reason = connected
-                ? (previousSignature?.hasPrefix("offline:") == true
-                    ? "available"
-                    : signature == previousSignature ? "path_changed" : "network_replaced")
-                : "offline"
-            self.latestNetworkConnected = connected
-            self.latestNetworkReason = reason
-            if !connected || reason == "available" || reason == "network_replaced" {
-                DispatchQueue.main.async { [weak self] in self?.localDiscovery.restart(connected: connected) }
+            switch event {
+            case .generation(let event, let reason, let epoch):
+                self.notifyListeners(event, data: ["reason": reason, "epoch": NSNumber(value: epoch)])
+            case .network(let snapshot):
+                self.localDiscovery.restart(connected: snapshot.connected)
+                self.notifyListeners(
+                    "networkChanged",
+                    data: [
+                        "epoch": NSNumber(value: snapshot.epoch),
+                        "connected": snapshot.connected,
+                        "reason": snapshot.reason,
+                        "scope": "session",
+                    ],
+                    retainUntilConsumed: true
+                )
             }
-            self.notifyNetworkChanged(connected: connected, reason: reason, epoch: self.networkEpoch)
-        }
-        pendingNetworkChange = work
-        runtimeQueue.asyncAfter(
-            deadline: .now() + .milliseconds(connected ? 200 : 750),
-            execute: work
-        )
-    }
-
-    private func networkSignature(_ path: NWPath) -> String {
-        let interfaces = [
-            path.usesInterfaceType(.wifi) ? "wifi" : "",
-            path.usesInterfaceType(.cellular) ? "cellular" : "",
-            path.usesInterfaceType(.wiredEthernet) ? "wired" : "",
-            path.usesInterfaceType(.loopback) ? "loopback" : "",
-            path.usesInterfaceType(.other) ? "other" : "",
-        ].filter { !$0.isEmpty }.joined(separator: ",")
-        return "\(path.status == .satisfied ? "online" : "offline"):\(interfaces)"
-    }
-
-    private func replaceRuntime(reason: String, alreadyStopped: Bool = false) throws {
-        epoch &+= 1
-        let currentEpoch = epoch
-        notifyGeneration("generationChanging", reason: reason, epoch: currentEpoch)
-        if !alreadyStopped { stopRuntime() }
-        do {
-            try startRuntime()
-            notifyGeneration("generationChanged", reason: reason, epoch: currentEpoch)
-        } catch {
-            notifyGeneration("generationChangeFailed", reason: reason, epoch: currentEpoch)
-            throw error
         }
     }
 
-    private func ensureRuntime() throws {
-        if engine == nil || port == 0 { try startRuntime() }
-    }
-
-    private func startRuntime() throws {
-        let nextToken = try bridgeToken()
-        let nextEngine = try IOSGoClientEngine(
-            accessCredentials: accessCredentials,
-            sshCredentials: sshCredentials,
-            endpointRegistry: endpointRegistry
-        )
-        do {
-            let nextPort = try GoClientNative.startBridge(engine: nextEngine.handle, token: nextToken)
-            engine = nextEngine
-            port = nextPort
-            token = nextToken
-        } catch {
-            nextEngine.close()
-            throw error
+    private func requireCurrentRenderer(
+        _ generation: IOSRendererCallGeneration,
+        call: CAPPluginCall
+    ) -> Bool {
+        guard rendererCallFence.accepts(generation) else {
+            call.reject("renderer attachment was replaced")
+            return false
         }
+        return true
     }
 
-    private func stopRuntime() {
-        port = 0
-        token = ""
-        engine?.close()
-        engine = nil
-    }
-
-    private func bridgeToken() throws -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
-            throw AnyTTYPlatformError.failure(code: "temporary", message: "bridge token generation failed")
-        }
-        return Data(bytes).base64URLEncodedString()
-    }
-
-    private func notifyGeneration(_ event: String, reason: String, epoch: UInt64) {
-        DispatchQueue.main.async { [weak self] in
-            self?.notifyListeners(event, data: ["reason": reason, "epoch": NSNumber(value: epoch)])
-        }
-    }
-
-    private func notifyNetworkChanged(connected: Bool, reason: String, epoch: UInt64) {
-        DispatchQueue.main.async { [weak self] in
-            self?.notifyListeners(
-                "networkChanged",
-                data: [
-                    "epoch": NSNumber(value: epoch),
-                    "connected": connected,
-                    "reason": reason,
-                    "scope": "session",
-                ],
-                retainUntilConsumed: true
-            )
-        }
+    private func demandLeasePayload(_ snapshot: IOSRendererDemandSnapshot) -> [String: Any] {
+        [
+            "attachmentId": snapshot.attachmentID,
+            "demandRevision": String(snapshot.demandRevision),
+            "stopEpoch": String(snapshot.stopEpoch),
+            "endpointIds": snapshot.endpointIDs.sorted(),
+            "stopped": snapshot.stopped,
+        ]
     }
 }

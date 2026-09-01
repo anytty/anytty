@@ -294,6 +294,7 @@ const (
 	ErrorNotFound                  ErrorCode = "not_found"
 	ErrorUnavailable               ErrorCode = "unavailable"
 	ErrorCanceled                  ErrorCode = "canceled"
+	ErrorUserStopped               ErrorCode = "user_stopped"
 	ErrorStaleSession              ErrorCode = "stale_session"
 	ErrorStaleResource             ErrorCode = "stale_resource"
 	ErrorResourceExhausted         ErrorCode = "resource_exhausted"

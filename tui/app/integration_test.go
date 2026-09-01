@@ -6051,10 +6051,29 @@ func TestCopyModeSelectionCopiesAuthoritativeRows(t *testing.T) {
 		t.Fatalf("visible selection should be materialized locally, got backend requests %#v", core.CopyRequests)
 	}
 	last := lastFrame(t, host.Frames())
-	assertPaneANSIState(t, last, "lpha", render.ANSICellStyle{FG: "ansi:8", BG: "ansi:3"})
-	assertPaneANSIState(t, last, "be", render.ANSICellStyle{FG: "ansi:8", BG: "ansi:3"})
+	if runtime.State().CopyMode.Mark != nil || runtime.State().CopyMode.Selection != nil {
+		t.Fatalf("successful copy should return to free scrolling, got %#v", runtime.State().CopyMode)
+	}
 	if len(runtime.State().Shell.Toasts) == 0 || runtime.State().Shell.Toasts[len(runtime.State().Shell.Toasts)-1].Title != "Copied to clipboard" || frameContains(last, "selection yanked") {
 		t.Fatalf("copy feedback toast should stay in state without legacy visible text, state=%#v frame=%#v", runtime.State().Shell.Toasts, last.Lines)
+	}
+	if err := runtime.Post(CopyModeScrollMsg{Delta: -1}); err != nil {
+		t.Fatalf("post free scroll after copy: %v", err)
+	}
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("drain free scroll after copy: %v", err)
+	}
+	if runtime.State().CopyMode.Cursor.Row != 0 || runtime.State().CopyMode.Selection != nil {
+		t.Fatalf("scrolling after copy should move freely without extending a selection, got %#v", runtime.State().CopyMode)
+	}
+	if err := runtime.Post(InputMsg{Event: input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: " "}}); err != nil {
+		t.Fatalf("post mark after copy: %v", err)
+	}
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("drain mark after copy: %v", err)
+	}
+	if runtime.State().CopyMode.Mark == nil || *runtime.State().CopyMode.Mark != runtime.State().CopyMode.Cursor || runtime.State().CopyMode.Selection == nil {
+		t.Fatalf("space should start a new selection after free scrolling, got %#v", runtime.State().CopyMode)
 	}
 }
 
@@ -7202,7 +7221,7 @@ func TestCopyModeOlderPrependKeepsCurrentSearchMatch(t *testing.T) {
 	}
 }
 
-func TestCopyModeMouseSelectionUsesHistoryDisplayColumns(t *testing.T) {
+func TestCopyModeMouseDragSelectionUsesHistoryDisplayColumns(t *testing.T) {
 	core := &testkit.FakeCoreClient{
 		LatestResponses: []port.HistoryResult{{Window: historyWindowForApp(
 			state.HistoryWindowReplace,
@@ -7218,7 +7237,7 @@ func TestCopyModeMouseSelectionUsesHistoryDisplayColumns(t *testing.T) {
 					{Text: "好", Width: 2},
 					{Text: "bc", Width: 2},
 				},
-			}},
+			}, {Text: "12345", LineID: 11}},
 		)}},
 	}
 	host := NewFakeTerminalHost(16)
@@ -7232,22 +7251,25 @@ func TestCopyModeMouseSelectionUsesHistoryDisplayColumns(t *testing.T) {
 		t.Fatalf("drain latest: %v", err)
 	}
 	frame := lastFrame(t, host.Frames())
-	var target render.HitRegion
+	var startTarget render.HitRegion
+	var endTarget render.HitRegion
 	for _, region := range frame.HitRegions {
 		if region.Kind == render.HitRegionHistoryRow && region.Row == 0 {
-			target = region
-			break
+			startTarget = region
+		}
+		if region.Kind == render.HitRegionHistoryRow && region.Row == 1 {
+			endTarget = region
 		}
 	}
-	if target.Kind == "" || target.Rect.W != 5 {
+	if startTarget.Kind == "" || startTarget.Rect.W != 5 || endTarget.Kind == "" {
 		t.Fatalf("expected text-only history row region with display width, got %#v", frame.HitRegions)
 	}
 
 	if err := host.SendInput(input.InputEvent{
 		Kind:  input.EventKindMouse,
 		Mouse: input.MouseLeft,
-		Row:   target.Rect.Y + 1,
-		Col:   target.Rect.X + 1 + 2,
+		Row:   startTarget.Rect.Y + 1,
+		Col:   startTarget.Rect.X + 1 + 2,
 	}); err != nil {
 		t.Fatalf("send row click: %v", err)
 	}
@@ -7259,6 +7281,35 @@ func TestCopyModeMouseSelectionUsesHistoryDisplayColumns(t *testing.T) {
 	}
 	if runtime.State().CopyMode.Mark == nil || *runtime.State().CopyMode.Mark != (state.CopyPosition{Row: 0, Col: 2}) {
 		t.Fatalf("mouse selection should set mark at display column, got %#v", runtime.State().CopyMode.Mark)
+	}
+
+	if err := host.SendInput(input.InputEvent{
+		Kind:  input.EventKindMouse,
+		Mouse: input.MouseLeftDrag,
+		Row:   endTarget.Rect.Y + 1,
+		Col:   endTarget.Rect.X + 1 + 4,
+	}); err != nil {
+		t.Fatalf("send row drag: %v", err)
+	}
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("drain row drag: %v", err)
+	}
+	selection := runtime.State().CopyMode.Selection
+	if selection == nil || selection.Anchor != (state.CopyPosition{Row: 0, Col: 2}) || selection.Focus != (state.CopyPosition{Row: 1, Col: 4}) {
+		t.Fatalf("mouse drag should extend selection across rows using display columns, got %#v", selection)
+	}
+	if got := SelectedText(runtime.State().History, runtime.State().CopyMode); got != "好bc\n1234" {
+		t.Fatalf("unexpected mouse drag selection %q", got)
+	}
+
+	if err := host.SendInput(input.InputEvent{Kind: input.EventKindMouse, Mouse: input.MouseLeftUp, Row: endTarget.Rect.Y + 1, Col: endTarget.Rect.X + 1 + 4}); err != nil {
+		t.Fatalf("send row release: %v", err)
+	}
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("drain row release: %v", err)
+	}
+	if runtime.mouseDrag.Active {
+		t.Fatalf("mouse release should finish copy selection drag, got %#v", runtime.mouseDrag)
 	}
 }
 

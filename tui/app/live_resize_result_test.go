@@ -2,11 +2,12 @@ package app
 
 import (
 	"errors"
-	"github.com/anytty/anytty/tui/testkit"
 	"testing"
 
 	"github.com/anytty/anytty/tui/port"
+	"github.com/anytty/anytty/tui/render"
 	"github.com/anytty/anytty/tui/state"
+	"github.com/anytty/anytty/tui/testkit"
 )
 
 func TestDetachedViewResizeResultDoesNotOverrideCurrentSessionSize(t *testing.T) {
@@ -211,5 +212,111 @@ func TestStaleViewScopedResizeErrorStillSurfacesInSession(t *testing.T) {
 	}
 	if next.Session.Attached || next.Session.LastError != "pty resize failed" || next.Surface.Err != "pty resize failed" {
 		t.Fatalf("stale resize error must still surface in session and surface, session=%#v surface=%#v", next.Session, next.Surface)
+	}
+}
+
+func TestLiveResizeResultReflowsFrozenCopyHistoryAtAuthoritativeCols(t *testing.T) {
+	viewID := state.TerminalPaneViewID(state.DefaultPaneID)
+	root := state.Root{
+		Viewport: state.ViewportStore{Valid: true, Cols: 80, Rows: 24},
+		Shell:    state.DefaultShell(),
+		Session: state.TerminalSessionStore{
+			TerminalID: "term-1",
+			Channel:    7,
+			Attached:   true,
+			Cols:       78,
+			Rows:       20,
+		},
+		Surface: state.TerminalSurfaceStore{
+			TerminalID: "term-1",
+			Cols:       78,
+			Rows:       20,
+		},
+		History: state.HistoryStore{
+			PaneID:      state.DefaultPaneID,
+			ViewID:      viewID,
+			TerminalID:  "term-1",
+			Token:       "tok-1",
+			Cols:        78,
+			SourceLines: []state.HistoryLogicalLine{{Text: "frozen history", LineID: 1}},
+			Rows:        []state.HistoryRow{{Text: "frozen history", LineID: 1}},
+			Lines:       []state.HistoryLineSpan{{LineID: 1, StartRow: 0, EndRow: 0}},
+		},
+		CopyMode: state.CopyModeStore{
+			Active:     true,
+			Phase:      state.CopyModeFrozenHistory,
+			PaneID:     state.DefaultPaneID,
+			ViewID:     viewID,
+			TerminalID: "term-1",
+			BoundToken: "tok-1",
+			BoundCols:  78,
+			ViewRows:   20,
+		},
+		TerminalViews: state.TerminalViewStore{}.BindPane(state.NewPaneTerminalView(
+			state.DefaultPaneID, "term-1", 7, 78, 20, state.TerminalResizeRoleOwner, "surface-main", viewID, true,
+		)),
+	}
+	reducer := ComposeReducers(
+		NewCopyModeResizeRebindReducer(CopyModeDeps{Core: &testkit.FakeCoreClient{}}),
+		newLiveReducerPrepared(LiveDeps{}),
+	)
+
+	next, effects := reducer(root, LiveResizeResultMsg{ViewID: viewID, Seq: 1, Cols: 40, Rows: 12})
+	if len(effects) != 0 {
+		t.Fatalf("resize result should not emit effects, got %#v", effects)
+	}
+	if next.History.Cols != 40 || next.CopyMode.BoundCols != 40 {
+		t.Fatalf("frozen copy history must rebind both cols atomically, history=%#v copy=%#v", next.History, next.CopyMode)
+	}
+	if next.History.Token != "tok-1" || next.CopyMode.BoundToken != "tok-1" {
+		t.Fatalf("local reflow must preserve the frozen token, history=%#v copy=%#v", next.History, next.CopyMode)
+	}
+	frame := render.NewRenderer(render.DefaultTheme()).Render(render.NewRenderVMBuilder().Build(next))
+	if frameContains(frame, "history cols changed") || !frameContains(frame, "frozen history") {
+		t.Fatalf("resize result must keep frozen history renderable, got %#v", frame.Lines)
+	}
+}
+
+func TestCopyModeResizeRebindRepairsHistoryColsMismatch(t *testing.T) {
+	viewID := state.TerminalPaneViewID(state.DefaultPaneID)
+	root := state.Root{
+		Viewport: state.ViewportStore{Valid: true, Cols: 80, Rows: 24},
+		Shell:    state.DefaultShell(),
+		History: state.HistoryStore{
+			PaneID:      state.DefaultPaneID,
+			ViewID:      viewID,
+			TerminalID:  "term-1",
+			Token:       "tok-1",
+			Cols:        78,
+			SourceLines: []state.HistoryLogicalLine{{Text: "frozen history", LineID: 1}},
+			Rows:        []state.HistoryRow{{Text: "frozen history", LineID: 1}},
+			Lines:       []state.HistoryLineSpan{{LineID: 1, StartRow: 0, EndRow: 0}},
+		},
+		CopyMode: state.CopyModeStore{
+			Active:     true,
+			Phase:      state.CopyModeFrozenHistory,
+			PaneID:     state.DefaultPaneID,
+			ViewID:     viewID,
+			TerminalID: "term-1",
+			BoundToken: "tok-1",
+			BoundCols:  40,
+			ViewRows:   12,
+		},
+		TerminalViews: state.TerminalViewStore{}.BindPane(state.NewPaneTerminalView(
+			state.DefaultPaneID, "term-1", 7, 40, 12, state.TerminalResizeRoleOwner, "surface-main", viewID, true,
+		)),
+	}
+	reducer := NewCopyModeResizeRebindReducer(CopyModeDeps{Core: &testkit.FakeCoreClient{}})
+
+	next, effects := reducer(root, HostResizeMsg{Cols: 80, Rows: 24})
+	if len(effects) != 0 {
+		t.Fatalf("local mismatch repair should not emit effects, got %#v", effects)
+	}
+	if next.History.Cols != 40 || next.CopyMode.BoundCols != 40 {
+		t.Fatalf("layout rebind must repair mismatched history cols, history=%#v copy=%#v", next.History, next.CopyMode)
+	}
+	frame := render.NewRenderer(render.DefaultTheme()).Render(render.NewRenderVMBuilder().Build(next))
+	if frameContains(frame, "history cols changed") || !frameContains(frame, "frozen history") {
+		t.Fatalf("repaired history must remain renderable, got %#v", frame.Lines)
 	}
 }

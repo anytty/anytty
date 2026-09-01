@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestPlatformBrokerCorrelatesProtoResponsesAndRejectsLateCompletion(t *testing.T) {
+func TestPlatformBrokerCorrelatesProtoResponsesAndIgnoresLateCompletion(t *testing.T) {
 	broker := NewPlatformBroker()
 	defer broker.Close()
 	result := make(chan *bindingpb.PlatformResponse, 1)
@@ -49,8 +49,42 @@ func TestPlatformBrokerCorrelatesProtoResponsesAndRejectsLateCompletion(t *testi
 	if response := <-result; string(response.GetCredentialSign().GetSignature()) != "signature" {
 		t.Fatalf("platform response = %#v", response)
 	}
-	if err := broker.Complete(responsePayload); !errors.Is(err, ErrInvalidHandle) {
+	if err := broker.Complete(responsePayload); err != nil {
 		t.Fatalf("duplicate completion error = %v", err)
+	}
+}
+
+func TestPlatformBrokerIgnoresAResponseDequeuedBeforeCancellation(t *testing.T) {
+	broker := NewPlatformBroker()
+	defer broker.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := broker.Exchange(ctx, &bindingpb.PlatformRequest{
+			Request: &bindingpb.PlatformRequest_CredentialDelete{CredentialDelete: &bindingpb.CredentialDeleteRequest{
+				CredentialRef: "credential:studio",
+			}},
+		})
+		errCh <- err
+	}()
+	payload, err := broker.NextRequest(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &bindingpb.PlatformRequest{}
+	if err := proto.Unmarshal(payload, request); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	if err := <-errCh; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled exchange error = %v", err)
+	}
+	responsePayload, err := proto.Marshal(&bindingpb.PlatformResponse{RequestId: request.GetRequestId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := broker.Complete(responsePayload); err != nil {
+		t.Fatalf("late cancelled completion error = %v", err)
 	}
 }
 
@@ -78,6 +112,31 @@ func TestPlatformBrokerCancellationAndCloseUnblockBothSides(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("broker close did not unblock NextRequest")
+	}
+}
+
+func TestPlatformBrokerRejectsRequestDequeuedBeforeClose(t *testing.T) {
+	broker := NewPlatformBroker()
+	payload := []byte("already-dequeued")
+	if err := broker.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := broker.acceptDequeuedRequest(context.Background(), payload)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("dequeued request close error = %v, payload = %q", err, got)
+	}
+}
+
+func TestPlatformBrokerRejectsRequestDequeuedBeforeCallerCancellation(t *testing.T) {
+	broker := NewPlatformBroker()
+	defer broker.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	got, err := broker.acceptDequeuedRequest(ctx, []byte("already-dequeued"))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("dequeued request cancellation error = %v, payload = %q", err, got)
 	}
 }
 

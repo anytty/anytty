@@ -17,6 +17,21 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+internal fun finishDisconnectAllServiceRequest(
+    canStopService: () -> Boolean,
+    stopService: () -> Unit,
+): Boolean {
+    if (!canStopService()) return false
+    stopService()
+    return true
+}
+
+internal fun disconnectAllCompletionOwnsForeground(
+    acceptedRuntimeGeneration: Long,
+    currentRuntimeGeneration: Long,
+    hasActiveEndpoints: Boolean,
+): Boolean = !hasActiveEndpoints && acceptedRuntimeGeneration == currentRuntimeGeneration
+
 class AnyTTYConnectionService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -51,11 +66,14 @@ class AnyTTYConnectionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT_ALL) {
+            val request = NativeConnectionRuntimeOwner.acceptDisconnectAll()
             serviceScope.launch {
-                NativeConnectionRuntimeOwner.requestDisconnectAll()
+                request.closeDetachedRuntime()
                 withContext(Dispatchers.Main.immediate) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf(startId)
+                    NativeConnectionRuntimeOwner.finishDisconnectAll(request) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
+                    }
                 }
             }
             return START_NOT_STICKY

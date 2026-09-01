@@ -35,6 +35,7 @@ import (
 
 	"github.com/anytty/anytty/client/binding"
 	"github.com/anytty/anytty/client/binding/loopback"
+	clientruntime "github.com/anytty/anytty/client/runtime"
 )
 
 var iosLibrary = struct {
@@ -153,23 +154,39 @@ func anytty_supervisor_signal(engine C.anytty_handle_t, data *C.uint8_t, length 
 	return status(binding.SignalEndpointSupervisor(host, C.GoBytes(unsafe.Pointer(data), C.int(length))))
 }
 
+//export anytty_supervisor_repair
+func anytty_supervisor_repair(engine C.anytty_handle_t, data *C.uint8_t, length C.size_t) C.anytty_status_v1 {
+	if data == nil || length == 0 || uint64(length) > uint64(binding.MaxPayloadBytes) {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	host := iosSupervisorHost(uint64(engine))
+	if host == nil {
+		return C.ANYTTY_STATUS_INVALID_HANDLE
+	}
+	err := binding.RepairEndpointSupervisor(host, string(C.GoBytes(unsafe.Pointer(data), C.int(length))))
+	if errors.Is(err, clientruntime.ErrEndpointNotManaged) {
+		return C.ANYTTY_STATUS_INVALID_ARGUMENT
+	}
+	return status(err)
+}
+
 //export anytty_supervisor_wait_ready
 func anytty_supervisor_wait_ready(engine C.anytty_handle_t, timeoutMillis C.uint32_t) C.anytty_status_v1 {
 	host := iosSupervisorHost(uint64(engine))
 	if host == nil {
 		return C.ANYTTY_STATUS_INVALID_HANDLE
 	}
+	return waitEndpointDemandReadyStatus(host, uint32(timeoutMillis))
+}
+
+func waitEndpointDemandReadyStatus(host binding.EndpointSupervisorHost, timeoutMillis uint32) C.anytty_status_v1 {
 	ctx := context.Background()
 	cancel := func() {}
 	if timeoutMillis > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(timeoutMillis)*time.Millisecond)
 	}
 	defer cancel()
-	err := host.WaitEndpointDemandReady(ctx)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return C.ANYTTY_STATUS_OK
-	}
-	return status(err)
+	return status(host.WaitEndpointDemandReady(ctx))
 }
 
 //export anytty_supervisor_snapshot

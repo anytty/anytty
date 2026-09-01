@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,9 +10,18 @@ import { dispatchNativeBack } from '../platform/nativeBack'
 import { connectionPathDetail, machinePlatformIcon, machinePlatformLabel, RemoteControlApp, type ExternalPairingAdapter, type MachineRuntime } from './RemoteControlApp'
 
 vi.mock('./MachineWorkspace', () => ({
-  MachineWorkspace: ({ onBack }: { onBack: () => void }) => (
-    <button type="button" onClick={onBack}>Back to devices</button>
-  ),
+  MachineWorkspace: function MockMachineWorkspace({
+    onBack,
+    retainConnectionDemand,
+    connectionResumeIntent,
+  }: {
+    onBack: () => void
+    retainConnectionDemand?: ((resumeIntent?: object | null) => () => void) | undefined
+    connectionResumeIntent?: object | null | undefined
+  }) {
+    useEffect(() => retainConnectionDemand?.(connectionResumeIntent ?? null), [connectionResumeIntent, retainConnectionDemand])
+    return <button type="button" onClick={onBack}>Back to devices</button>
+  },
   ConnectionInfoDialog: ({ policyState, onApply, onRefresh }: {
     policyState: { policy: { route: string; cloud: string; relayTransport: string } } | null
     onApply: (policy: { route: 'cloud'; cloud: 'relay'; relayTransport: 'tcp' }) => void
@@ -279,6 +289,41 @@ describe('RemoteControlApp native session pool', () => {
     expect(cloudCheck.querySelector('.lucide-loader-circle')).toBeNull()
   })
 
+  it.each([
+    ['phone network', { phoneOnline: false, connectionState: 'ready' as const }],
+    ['native generation', { phoneOnline: true, connectionState: 'checking' as const }],
+  ])('reprobes local Hub reachability when the %s becomes ready', async (_source, unavailableProps) => {
+    const storage = new MemoryStorage()
+    createMachineStore({ storage }).saveMachine({
+      machineId: 'device-1',
+      name: 'Build host',
+      state: 'online',
+      terminalCount: 0,
+      source: 'manual',
+      accessClass: 'local_cloud',
+      addresses: { local: ['https://build.local:41102'], lan: [], public: [] },
+      endpoints: {},
+      addedAt: '2026-07-28T00:00:00.000Z',
+      updatedAt: '2026-07-28T00:00:00.000Z',
+    })
+    const fetch = vi.fn(async () => new Response('{}', { status: 200 }))
+    const commonProps = {
+      cloudPresenceByMachineId: new Map([['device-1', 'online' as const]]),
+      externalPairingAdapter: authorizedAdapter(),
+      machineRuntimeFactory: () => runtimeWithSnapshot(idleSnapshot()),
+      networkRuntime: { storage, queryParam: () => null, fetch },
+    }
+    const view = render(<RemoteControlApp {...commonProps} {...unavailableProps} />)
+
+    await Promise.resolve()
+    expect(fetch).not.toHaveBeenCalled()
+
+    view.rerender(<RemoteControlApp {...commonProps} phoneOnline connectionState="ready" />)
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    expect(String(fetch.mock.calls[0]?.[0])).toBe('https://build.local:41102/api/health')
+  })
+
   it('does not treat Controller health as daemon presence and shows the Edge offline result', async () => {
     const storage = new MemoryStorage()
     createMachineStore({ storage }).saveMachine({
@@ -422,6 +467,84 @@ describe('RemoteControlApp native session pool', () => {
     await waitFor(() => expect(disconnect).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('Not connected')).toBeNull()
     expect(screen.queryByRole('menuitem', { name: 'Disconnect from Build host' })).toBeNull()
+  })
+
+  it('mints a resume intent only for explicit entry and restores the workspace journal without one', async () => {
+    const storage = new MemoryStorage()
+    createMachineStore({ storage }).saveMachine({
+      machineId: 'device-1',
+      name: 'Build host',
+      state: 'online',
+      terminalCount: 0,
+      source: 'manual',
+      accessClass: 'cloud',
+      addresses: { local: [], lan: [], public: [] },
+      endpoints: {},
+      addedAt: '2026-07-28T00:00:00.000Z',
+      updatedAt: '2026-07-28T00:00:00.000Z',
+    })
+    const resumeIntent = {}
+    const releaseConnectionDemand = vi.fn()
+    const retainConnectionDemand = vi.fn((_intent?: object | null) => releaseConnectionDemand)
+    const createWorkspaceResumeIntent = vi.fn(() => resumeIntent)
+    const onWorkspaceResumeIntent = vi.fn((_machineId: string, _intent: object) => undefined)
+    const onActiveWorkspaceChange = vi.fn((_machineId: string | null) => undefined)
+    const runtime: MachineRuntime = {
+      ...runtimeWithSnapshot(connectedRelaySnapshot()),
+      retainConnectionDemand,
+    }
+    const adapter = authorizedAdapter()
+    const renderApp = () => render(
+      <RemoteControlApp
+        cloudPresenceByMachineId={new Map([['device-1', 'online']])}
+        createWorkspaceResumeIntent={createWorkspaceResumeIntent}
+        externalPairingAdapter={adapter}
+        machineRuntimeFactory={() => runtime}
+        networkRuntime={networkRuntime(storage)}
+        onActiveWorkspaceChange={onActiveWorkspaceChange}
+        onWorkspaceResumeIntent={onWorkspaceResumeIntent}
+      />,
+    )
+
+    const enteredView = renderApp()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Build host' }))
+
+    expect(createWorkspaceResumeIntent).toHaveBeenCalledOnce()
+    expect(onWorkspaceResumeIntent).toHaveBeenCalledWith('device-1', resumeIntent)
+    expect(onActiveWorkspaceChange).toHaveBeenCalledWith('device-1')
+    await waitFor(() => expect(retainConnectionDemand).toHaveBeenCalledWith(resumeIntent))
+    expect(createWorkspaceResumeIntent.mock.invocationCallOrder[0]).toBeLessThan(
+      onWorkspaceResumeIntent.mock.invocationCallOrder[0]!,
+    )
+    expect(onWorkspaceResumeIntent.mock.invocationCallOrder[0]).toBeLessThan(
+      retainConnectionDemand.mock.invocationCallOrder[0]!,
+    )
+    enteredView.unmount()
+    expect(releaseConnectionDemand).toHaveBeenCalledOnce()
+
+    createWorkspaceResumeIntent.mockClear()
+    onWorkspaceResumeIntent.mockClear()
+    onActiveWorkspaceChange.mockClear()
+    retainConnectionDemand.mockClear()
+    releaseConnectionDemand.mockClear()
+
+    const restoredView = renderApp()
+    expect(await screen.findByRole('button', { name: 'Back to devices' })).toBeTruthy()
+    await waitFor(() => expect(retainConnectionDemand).toHaveBeenCalledWith(null))
+    expect(createWorkspaceResumeIntent).not.toHaveBeenCalled()
+    expect(onWorkspaceResumeIntent).not.toHaveBeenCalled()
+    expect(onActiveWorkspaceChange).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back to devices' }))
+    expect(onActiveWorkspaceChange).toHaveBeenCalledWith(null)
+    restoredView.unmount()
+
+    retainConnectionDemand.mockClear()
+    const homeView = renderApp()
+    expect(await screen.findByRole('button', { name: 'Open Build host' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Back to devices' })).toBeNull()
+    expect(retainConnectionDemand).not.toHaveBeenCalled()
+    homeView.unmount()
   })
 
   it('keeps device truth visible while app recovery pauses remote actions', async () => {

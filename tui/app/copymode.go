@@ -134,6 +134,7 @@ type CopyModeMouseSelectMsg struct {
 	Position state.CopyPosition
 	PaneID   string
 	ViewID   string
+	Extend   bool
 }
 
 func (CopyModeMouseSelectMsg) isMsg() {}
@@ -409,6 +410,9 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			} else {
 				root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastSuccess, Title: "Copied to clipboard", DismissAfterTicks: 3})
 			}
+			if !exitAfterSuccess {
+				root.CopyMode = root.CopyMode.ClearSelection()
+			}
 			root = root.Advance()
 			if exitAfterSuccess {
 				root, releaseEffects := exitCopyModeWithRelease(root, deps)
@@ -464,11 +468,20 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			if !root.CopyMode.CanSelect() {
 				return saveCopyHistorySessionForView(root, msg.ViewID), nil
 			}
+			extending := msg.Extend && root.CopyMode.Mark != nil
 			root.CopyMode = root.CopyMode.MoveCursor(msg.Position)
 			root.CopyMode = clampCopyCursor(root.CopyMode, root.History)
-			root.CopyMode = root.CopyMode.SetMark(root.CopyMode.Cursor)
+			if extending {
+				root.CopyMode = root.CopyMode.MoveCursor(root.CopyMode.Cursor)
+			} else {
+				root.CopyMode = root.CopyMode.SetMark(root.CopyMode.Cursor)
+			}
 			root.CopyMode = ensureCopyCursorVisible(root.CopyMode, len(root.History.Rows))
-			root.CopyMode = root.CopyMode.RefreshLogicalSelection(root.History)
+			if extending {
+				root.CopyMode = root.CopyMode.RefreshLogicalSelectionFocus(root.History)
+			} else {
+				root.CopyMode = root.CopyMode.RefreshLogicalSelection(root.History)
+			}
 			root = root.Advance()
 			return saveCopyHistorySessionForView(root, msg.ViewID), nil
 		case CopyModeWheelMsg:

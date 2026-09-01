@@ -197,8 +197,12 @@ func TestSessionOwnerDisconnectEndpointWaitsForAcquireAndClosesLateWinner(t *tes
 		openDone <- err
 	}()
 	<-started
+	disconnect, err := owner.PrepareEndpointDisconnect(target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	disconnectDone := make(chan error, 1)
-	go func() { disconnectDone <- owner.DisconnectEndpoint(context.Background(), target.ID) }()
+	go func() { disconnectDone <- disconnect.Disconnect(context.Background()) }()
 	select {
 	case err := <-disconnectDone:
 		t.Fatalf("disconnect completed before in-flight acquire: %v", err)
@@ -216,6 +220,116 @@ func TestSessionOwnerDisconnectEndpointWaitsForAcquireAndClosesLateWinner(t *tes
 	}
 	if generation := owner.authority.generations[target.ID]; generation != 2 {
 		t.Fatalf("generation = %d, want 2", generation)
+	}
+}
+
+func TestSessionOwnerQueuedDisconnectCannotCloseWinnerAfterNewEndpointIntent(t *testing.T) {
+	owner := NewSessionOwner()
+	defer owner.Close()
+	target := ownerEndpoint()
+	if err := owner.AdvanceEndpointIntent(target.ID); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	dialer := &ownerDialer{started: started, release: release}
+	openDone := make(chan error, 1)
+	go func() {
+		_, err := owner.AcquireRoute(context.Background(), target, "cloud", ConnectIntentInteractive, "config", dialer)
+		openDone <- err
+	}()
+	<-started
+
+	disconnect, err := owner.PrepareEndpointDisconnect(target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disconnectDone := make(chan error, 1)
+	go func() { disconnectDone <- disconnect.Disconnect(context.Background()) }()
+	select {
+	case err := <-disconnectDone:
+		t.Fatalf("disconnect completed before in-flight acquire: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	// This is the Go-side equivalent of a renderer deadline expiring followed by
+	// one fresh workspace/manual-resume request while the old disconnect is queued.
+	if err := owner.AdvanceEndpointIntent(target.ID); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-openDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-disconnectDone; err != nil {
+		t.Fatal(err)
+	}
+	if dialer.session == nil || dialer.session.closed.Load() {
+		t.Fatal("superseded endpoint disconnect closed the winner retained by newer intent")
+	}
+	if generation := owner.authority.generations[target.ID]; generation != 1 {
+		t.Fatalf("generation = %d, want 1", generation)
+	}
+}
+
+func TestSessionOwnerQueuedDisconnectCannotCloseWinnerAfterFreshSupervisorDemand(t *testing.T) {
+	owner := NewSessionOwner()
+	defer owner.Close()
+	target := ownerEndpoint()
+	if err := owner.AdvanceEndpointIntent(target.ID); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	dialer := &ownerDialer{started: started, release: release}
+	openDone := make(chan error, 1)
+	go func() {
+		_, err := owner.AcquireRoute(context.Background(), target, "cloud", ConnectIntentInteractive, "config", dialer)
+		openDone <- err
+	}()
+	<-started
+
+	disconnect, err := owner.PrepareEndpointDisconnect(target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disconnectDone := make(chan error, 1)
+	go func() { disconnectDone <- disconnect.Disconnect(context.Background()) }()
+	select {
+	case err := <-disconnectDone:
+		t.Fatalf("disconnect completed before in-flight acquire: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	supervisor, err := NewEndpointSupervisor(ownerBackedSupervisorController{owner: owner}, EndpointSupervisorOptions{
+		ProbeTimeout: time.Second,
+		DialTimeout:  time.Second,
+		Backoff:      []time.Duration{time.Second},
+		Logf:         func(string, ...any) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	if err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
+		AttachmentID:   "native-runtime",
+		DemandRevision: 1,
+		Endpoints:      []EndpointDemand{{EndpointID: target.ID, Mode: EndpointSupervisorTakeover}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	close(release)
+	if err := <-openDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-disconnectDone; err != nil {
+		t.Fatal(err)
+	}
+	if dialer.session == nil || dialer.session.closed.Load() {
+		t.Fatal("old endpoint disconnect closed the winner retained by fresh supervisor Demand")
+	}
+	if generation := owner.authority.generations[target.ID]; generation != 1 {
+		t.Fatalf("generation = %d, want 1", generation)
 	}
 }
 
@@ -864,6 +978,30 @@ type ownerDialer struct {
 	err            error
 	delayDone      bool
 	waitForContext bool
+}
+
+type ownerBackedSupervisorController struct {
+	owner *SessionOwner
+}
+
+func (controller ownerBackedSupervisorController) AdvanceEndpointIntent(endpointID endpoint.EndpointID) error {
+	return controller.owner.AdvanceEndpointIntent(endpointID)
+}
+
+func (controller ownerBackedSupervisorController) AcquireCurrent(endpointID endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	return controller.owner.AcquireCurrent(endpointID)
+}
+
+func (controller ownerBackedSupervisorController) Connect(context.Context, endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	return nil, runtimeError(ErrorUnavailable, "test supervisor dial is unavailable", nil)
+}
+
+func (controller ownerBackedSupervisorController) Probe(context.Context, ApplicationReadyPeerSession) error {
+	return nil
+}
+
+func (controller ownerBackedSupervisorController) Invalidate(stamp EndpointSessionStamp, cause error) error {
+	return controller.owner.InvalidateSessionFast(stamp, cause)
 }
 
 func (dialer *ownerDialer) Connect(ctx context.Context, request AttemptRequest) (ReadyPeerSession, error) {

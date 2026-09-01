@@ -657,6 +657,11 @@ public nonisolated struct Anytty_Api_V1_HistorySearchCommand: Sendable {
 
   public var contextBefore: Int32 = 0
 
+  /// scan returns chronological match batches without a replacement window.
+  public var scan: Bool = false
+
+  public var maxMatches: Int32 = 0
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1026,12 +1031,26 @@ public nonisolated struct Anytty_Api_V1_HistorySearchResult: Sendable {
 
   public var wrapped: Bool = false
 
+  public var scanMatches: [Anytty_Api_V1_HistoryRange] = []
+
+  public var scanNext: Anytty_Api_V1_HistoryTextPosition {
+    get {_scanNext ?? Anytty_Api_V1_HistoryTextPosition()}
+    set {_scanNext = newValue}
+  }
+  /// Returns true if `scanNext` has been explicitly set.
+  public var hasScanNext: Bool {self._scanNext != nil}
+  /// Clears the value of `scanNext`. Subsequent reads from it will return its default value.
+  public mutating func clearScanNext() {self._scanNext = nil}
+
+  public var scanDone: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
   fileprivate var _match: Anytty_Api_V1_HistoryRange? = nil
   fileprivate var _window: Anytty_Api_V1_HistoryWindowResult? = nil
+  fileprivate var _scanNext: Anytty_Api_V1_HistoryTextPosition? = nil
 }
 
 public nonisolated struct Anytty_Api_V1_HistoryBacklogStatusResult: Sendable {
@@ -1855,7 +1874,7 @@ nonisolated extension Anytty_Api_V1_HistoryTextPosition: SwiftProtobuf.Message, 
 
 nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".HistorySearchCommand"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\u{2}terminal\0\u{1}token\0\u{3}history_generation\0\u{1}query\0\u{1}direction\0\u{1}cols\0\u{1}limit\0\u{1}start\0\u{1}mode\0\u{3}context_before\0\u{c}\u{1}\u{1}")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\u{2}terminal\0\u{1}token\0\u{3}history_generation\0\u{1}query\0\u{1}direction\0\u{1}cols\0\u{1}limit\0\u{1}start\0\u{1}mode\0\u{3}context_before\0\u{1}scan\0\u{3}max_matches\0\u{c}\u{1}\u{1}")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1873,6 +1892,8 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
       case 9: try { try decoder.decodeSingularMessageField(value: &self._start) }()
       case 10: try { try decoder.decodeSingularEnumField(value: &self.mode) }()
       case 11: try { try decoder.decodeSingularInt32Field(value: &self.contextBefore) }()
+      case 12: try { try decoder.decodeSingularBoolField(value: &self.scan) }()
+      case 13: try { try decoder.decodeSingularInt32Field(value: &self.maxMatches) }()
       default: break
       }
     }
@@ -1913,6 +1934,12 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
     if self.contextBefore != 0 {
       try visitor.visitSingularInt32Field(value: self.contextBefore, fieldNumber: 11)
     }
+    if self.scan != false {
+      try visitor.visitSingularBoolField(value: self.scan, fieldNumber: 12)
+    }
+    if self.maxMatches != 0 {
+      try visitor.visitSingularInt32Field(value: self.maxMatches, fieldNumber: 13)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1927,6 +1954,8 @@ nonisolated extension Anytty_Api_V1_HistorySearchCommand: SwiftProtobuf.Message,
     if lhs._start != rhs._start {return false}
     if lhs.mode != rhs.mode {return false}
     if lhs.contextBefore != rhs.contextBefore {return false}
+    if lhs.scan != rhs.scan {return false}
+    if lhs.maxMatches != rhs.maxMatches {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2548,7 +2577,7 @@ nonisolated extension Anytty_Api_V1_HistoryCopyResult: SwiftProtobuf.Message, Sw
 
 nonisolated extension Anytty_Api_V1_HistorySearchResult: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".HistorySearchResult"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}found\0\u{1}match\0\u{1}window\0\u{1}wrapped\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}found\0\u{1}match\0\u{1}window\0\u{1}wrapped\0\u{3}scan_matches\0\u{3}scan_next\0\u{3}scan_done\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2560,6 +2589,9 @@ nonisolated extension Anytty_Api_V1_HistorySearchResult: SwiftProtobuf.Message, 
       case 2: try { try decoder.decodeSingularMessageField(value: &self._match) }()
       case 3: try { try decoder.decodeSingularMessageField(value: &self._window) }()
       case 4: try { try decoder.decodeSingularBoolField(value: &self.wrapped) }()
+      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.scanMatches) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._scanNext) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.scanDone) }()
       default: break
       }
     }
@@ -2582,6 +2614,15 @@ nonisolated extension Anytty_Api_V1_HistorySearchResult: SwiftProtobuf.Message, 
     if self.wrapped != false {
       try visitor.visitSingularBoolField(value: self.wrapped, fieldNumber: 4)
     }
+    if !self.scanMatches.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.scanMatches, fieldNumber: 5)
+    }
+    try { if let v = self._scanNext {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+    } }()
+    if self.scanDone != false {
+      try visitor.visitSingularBoolField(value: self.scanDone, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2590,6 +2631,9 @@ nonisolated extension Anytty_Api_V1_HistorySearchResult: SwiftProtobuf.Message, 
     if lhs._match != rhs._match {return false}
     if lhs._window != rhs._window {return false}
     if lhs.wrapped != rhs.wrapped {return false}
+    if lhs.scanMatches != rhs.scanMatches {return false}
+    if lhs._scanNext != rhs._scanNext {return false}
+    if lhs.scanDone != rhs.scanDone {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

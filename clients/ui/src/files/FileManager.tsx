@@ -97,7 +97,10 @@ export function FileManager({
         icon: <ArrowDownToLine className="h-5 w-5" />,
         onClick: async () => {
           setTransferError(null)
+          let transferIntent: object | undefined
+          let handedOff = false
           try {
+            transferIntent = fileTransfer.beginTransferIntent?.(machineId)
             const resumeOffset = Math.max(
               0,
               Math.min(
@@ -105,16 +108,21 @@ export function FileManager({
                 await Promise.resolve(fileTransfer.getDownloadResumeOffset?.(machineId, entryMenuPath, menuEntry.size) ?? 0),
               ),
             )
-            fileTransfer.startDownload(
+            const started = fileTransfer.startDownload(
               machineId,
               menuEntry.name,
               menuEntry.size,
               entryMenuPath,
               resumeOffset,
+              transferIntent,
             )
+            handedOff = true
+            await started
             onOpenTransferCenter?.()
           } catch (err) {
             setTransferError(err instanceof Error ? err.message : String(err))
+          } finally {
+            if (!handedOff && transferIntent) fileTransfer.discardTransferIntent?.(machineId, transferIntent)
           }
         },
       })

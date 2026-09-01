@@ -359,6 +359,17 @@ describe('RemoteControlApp accountless product shell', () => {
     expect(await screen.findByText('Device status updated')).toBeTruthy()
   })
 
+  it('uses the authoritative native phone state when WebView navigator.onLine is stale', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false)
+    const onRefreshMachines = vi.fn(async () => undefined)
+    renderApp({ onRefreshMachines, phoneOnline: true })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Refresh devices' }))
+
+    expect(onRefreshMachines).toHaveBeenCalledOnce()
+    expect(await screen.findByText('Device status updated')).toBeTruthy()
+  })
+
   it('closes the Chinese pairing surface without querying English aria labels', async () => {
     await anyttyI18n.changeLanguage('zh-CN')
     const englishLabelDecoy = document.createElement('button')
@@ -386,6 +397,7 @@ function renderApp({
   pairingImport,
   scanPairingCode,
   onRefreshMachines,
+  phoneOnline,
   onRetryConnectionRecovery,
   privacyPolicyUrl,
   onOpenPrivacyPolicy,
@@ -395,6 +407,7 @@ function renderApp({
   pairingImport?: ExternalPairingAdapter['import'] | undefined
   scanPairingCode?: ((options?: ScanPairingCodeOptions) => Promise<string | null>) | undefined
   onRefreshMachines?: (() => Promise<void>) | undefined
+  phoneOnline?: boolean | undefined
   onRetryConnectionRecovery?: (() => Promise<void>) | undefined
   privacyPolicyUrl?: string | undefined
   onOpenPrivacyPolicy?: (() => Promise<void>) | undefined
@@ -417,6 +430,7 @@ function renderApp({
       externalPairingAdapter={externalPairingAdapter}
       networkRuntime={networkRuntime}
       onRefreshMachines={onRefreshMachines}
+      phoneOnline={phoneOnline}
       onRetryConnectionRecovery={onRetryConnectionRecovery}
       scanPairingCode={scanPairingCode}
       privacyPolicyUrl={privacyPolicyUrl}

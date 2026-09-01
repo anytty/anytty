@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,365 @@ func TestEndpointSupervisorProbesRetainedWinnerWithoutRedial(t *testing.T) {
 	projection := onlySupervisorProjection(t, supervisor)
 	if projection.ProbeCount != 2 || projection.DialCount != 0 || controller.connectCount() != 0 {
 		t.Fatalf("projection = %#v, connect_count = %d", projection, controller.connectCount())
+	}
+}
+
+func TestEndpointSupervisorSnapshotsRevisionAndDrainsWakeAtomically(t *testing.T) {
+	controller := &blockingProbeSupervisorController{
+		supervisorController: newSupervisorController("studio", 7),
+		probeStarted:         make(chan struct{}),
+		releaseProbe:         make(chan struct{}),
+	}
+	supervisor, err := NewEndpointSupervisor(controller, EndpointSupervisorOptions{
+		ProbeTimeout: time.Second,
+		DialTimeout:  time.Second,
+		Backoff:      []time.Duration{time.Millisecond},
+		Logf:         func(string, ...any) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+
+	control := &endpointControl{
+		endpointID:      "studio",
+		wake:            make(chan struct{}, 1),
+		done:            make(chan struct{}),
+		mode:            EndpointSupervisorTakeover,
+		demanded:        true,
+		controlRevision: 1,
+		changed:         make(chan struct{}),
+	}
+	supervisor.mu.Lock()
+	supervisor.beginControlRevisionLocked(control)
+	supervisor.endpoints[control.endpointID] = control
+	supervisor.wakeLocked(control)
+	go supervisor.runEndpoint(control)
+
+	// With the old drain-then-snapshot transition, the worker can consume this
+	// wake without the mutex and then block taking its snapshot. Yield until it
+	// has had ample opportunity to reach that gap before advancing the control.
+	for attempts := 0; attempts < 1_000 && len(control.wake) != 0; attempts++ {
+		runtime.Gosched()
+	}
+	supervisor.advanceControlLocked(control)
+	supervisor.mu.Unlock()
+
+	select {
+	case <-controller.probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("probe did not start")
+	}
+	if queued := len(control.wake); queued != 0 {
+		t.Fatalf("wake queue contains %d stale control wake while revision 2 is being probed", queued)
+	}
+	close(controller.releaseProbe)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+	if projection := onlySupervisorProjection(t, supervisor); projection.ControlRevision != 2 || projection.ProbeCount != 1 {
+		t.Fatalf("projection = %#v, want one probe for revision 2", projection)
+	}
+}
+
+func TestEndpointSupervisorRepairAlwaysReprobesOneReadyEndpoint(t *testing.T) {
+	controller := newSupervisorController("studio", 7)
+	supervisor := newTestEndpointSupervisor(t, controller, nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+
+	before := onlySupervisorProjection(t, supervisor)
+	if err := supervisor.Repair("studio"); err != nil {
+		t.Fatal(err)
+	}
+	waitForSupervisorCount(t, supervisor, func(value EndpointSupervisorProjection) bool {
+		return value.Phase == EndpointSupervisorReady &&
+			value.ControlRevision == before.ControlRevision+1 &&
+			value.ProbeCount == before.ProbeCount+1
+	})
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.DialCount != before.DialCount || controller.connectCount() != 0 {
+		t.Fatalf("projection = %#v, connect_count = %d", projection, controller.connectCount())
+	}
+}
+
+func TestEndpointSupervisorRepairFencesReadySynchronously(t *testing.T) {
+	supervisor, cancel := newDormantEndpointSupervisor(
+		newSupervisorController("studio", 7),
+		EndpointSupervisorReady,
+		"",
+		"",
+	)
+	defer cancel()
+	if err := supervisor.Repair("studio"); err != nil {
+		t.Fatal(err)
+	}
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.Phase != EndpointSupervisorReconciling || projection.ControlRevision != 2 {
+		t.Fatalf("projection after repair = %#v", projection)
+	}
+}
+
+func TestEndpointSupervisorRepairRejectsEndpointWithoutTakeoverDemand(t *testing.T) {
+	supervisor := newTestEndpointSupervisor(t, newSupervisorController("studio", 0), nil)
+	defer supervisor.Close()
+	if err := supervisor.Repair("studio"); !errors.Is(err, ErrEndpointNotManaged) {
+		t.Fatalf("Repair error = %v, want ErrEndpointNotManaged", err)
+	}
+}
+
+func TestEndpointSupervisorSignalFencesReadyBeforeWaitReady(t *testing.T) {
+	supervisor, cancel := newDormantEndpointSupervisor(
+		newSupervisorController("studio", 7),
+		EndpointSupervisorReady,
+		"",
+		"",
+	)
+	defer cancel()
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true}); err != nil {
+		t.Fatal(err)
+	}
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.Phase != EndpointSupervisorReconciling || projection.ErrorCode != "" {
+		t.Fatalf("projection after signal = %#v", projection)
+	}
+
+	ctx, stop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer stop()
+	if err := supervisor.WaitReady(ctx); CodeOf(err) != ErrorCanceled || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitReady error = %v, want current-revision timeout", err)
+	}
+}
+
+func TestEndpointSupervisorSignalFencesReadyBeforeAcquire(t *testing.T) {
+	supervisor, cancel := newDormantEndpointSupervisor(
+		newSupervisorController("studio", 7),
+		EndpointSupervisorReady,
+		"",
+		"",
+	)
+	defer cancel()
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, stop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer stop()
+	if _, err := supervisor.Acquire(ctx, "studio"); CodeOf(err) != ErrorCanceled || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Acquire error = %v, want current-revision timeout", err)
+	}
+}
+
+func TestEndpointSupervisorAcquireRejectsReadyLeaseWhenSignalWinsDuringAcquire(t *testing.T) {
+	controller := &blockingAcquireSupervisorController{
+		physical: newSupervisorPhysicalSession("studio", 7),
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	supervisor, cancel := newDormantEndpointSupervisor(
+		controller,
+		EndpointSupervisorReady,
+		"",
+		"",
+	)
+	defer cancel()
+	control := supervisor.endpoints["studio"]
+	control.stamp = controller.physical.stamp
+
+	result := make(chan error, 1)
+	go func() {
+		ctx, stop := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer stop()
+		lease, err := supervisor.Acquire(ctx, "studio")
+		if lease != nil {
+			_ = lease.Close()
+		}
+		result <- err
+	}()
+	select {
+	case <-controller.started:
+	case <-time.After(time.Second):
+		t.Fatal("AcquireCurrent did not start")
+	}
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true}); err != nil {
+		t.Fatal(err)
+	}
+	close(controller.release)
+	select {
+	case err := <-result:
+		if CodeOf(err) != ErrorCanceled || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Acquire error = %v, want current-revision timeout", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Acquire did not finish")
+	}
+}
+
+func TestEndpointSupervisorSignalFencesBlockedFailure(t *testing.T) {
+	supervisor, cancel := newDormantEndpointSupervisor(
+		newSupervisorController("studio", 0),
+		EndpointSupervisorBlocked,
+		ErrorAuthorization,
+		"authorization expired",
+	)
+	defer cancel()
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true}); err != nil {
+		t.Fatal(err)
+	}
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.Phase != EndpointSupervisorReconciling || projection.ErrorCode != "" || projection.Message != "" {
+		t.Fatalf("projection after signal = %#v", projection)
+	}
+
+	ctx, stop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer stop()
+	if err := supervisor.WaitReady(ctx); CodeOf(err) != ErrorCanceled || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitReady error = %v, want current-revision timeout", err)
+	}
+}
+
+func TestEndpointSupervisorDoesNotAutomaticallyRecoverExplicitStop(t *testing.T) {
+	if recoverableSupervisorFailure(&Error{Code: ErrorUserStopped, Message: "disconnected by administrator"}) {
+		t.Fatal("explicit stop was classified as an automatic recovery failure")
+	}
+	if !recoverableSupervisorFailure(&Error{Code: ErrorUnavailable, Message: "network changed"}) {
+		t.Fatal("transient unavailable failure stopped automatic recovery")
+	}
+}
+
+func TestEndpointSupervisorStaleNoDemandPublishCannotOverwriteNewRevision(t *testing.T) {
+	supervisor, cancel := newDormantEndpointSupervisor(
+		newSupervisorController("studio", 7),
+		EndpointSupervisorReady,
+		"",
+		"",
+	)
+	defer cancel()
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true}); err != nil {
+		t.Fatal(err)
+	}
+	control := supervisor.endpoints["studio"]
+	supervisor.publish(control, 1, EndpointSupervisorNoDemand, EndpointSessionStamp{}, nil)
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.ControlRevision != 2 || projection.Phase != EndpointSupervisorReconciling {
+		t.Fatalf("projection after stale no-demand publish = %#v", projection)
+	}
+}
+
+func TestEndpointSupervisorNoDemandInvalidatesRetainedPhysicalWinner(t *testing.T) {
+	controller := newSupervisorController("studio", 7)
+	supervisor := newTestEndpointSupervisor(t, controller, nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+
+	controller.mu.Lock()
+	retired := controller.current
+	controller.mu.Unlock()
+	if err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
+		AttachmentID:   "renderer",
+		DemandRevision: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitForInvalidationCount(t, controller, 1)
+
+	if invalidated := controller.invalidatedStamps(); len(invalidated) != 1 || invalidated[0] != retired.stamp {
+		t.Fatalf("invalidated = %#v, want %#v", invalidated, retired.stamp)
+	}
+	select {
+	case <-retired.done:
+	default:
+		t.Fatal("no-demand transition retained the physical winner")
+	}
+	controller.mu.Lock()
+	current := controller.current
+	controller.mu.Unlock()
+	if current != nil {
+		t.Fatalf("current winner = %#v, want nil", current.stamp)
+	}
+}
+
+func TestEndpointSupervisorNoDemandCannotInvalidateConcurrentNewWinner(t *testing.T) {
+	controller := &blockingInvalidateSupervisorController{
+		supervisorController: newSupervisorController("studio", 7),
+		started:              make(chan EndpointSessionStamp, 1),
+		release:              make(chan struct{}),
+		done:                 make(chan error, 1),
+	}
+	supervisor := newTestEndpointSupervisor(t, controller, nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+
+	if err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
+		AttachmentID:   "renderer",
+		DemandRevision: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var retired EndpointSessionStamp
+	select {
+	case retired = <-controller.started:
+	case <-time.After(time.Second):
+		t.Fatal("no-demand invalidation did not start")
+	}
+
+	replaceTestDemand(t, supervisor, 3, EndpointSupervisorTakeover)
+	newWinner := newSupervisorPhysicalSession("studio", retired.Generation+1)
+	controller.mu.Lock()
+	controller.generation = newWinner.stamp.Generation
+	controller.current = newWinner
+	controller.mu.Unlock()
+	close(controller.release)
+	select {
+	case err := <-controller.done:
+		if CodeOf(err) != ErrorStaleSession {
+			t.Fatalf("old-generation invalidation error = %v, want stale_session", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no-demand invalidation did not finish")
+	}
+
+	if invalidated := controller.invalidatedStamps(); len(invalidated) != 0 {
+		t.Fatalf("invalidated = %#v, want no successful invalidation", invalidated)
+	}
+	select {
+	case <-newWinner.done:
+		t.Fatal("old no-demand transition closed the concurrent new winner")
+	default:
+	}
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+	if projection := onlySupervisorProjection(t, supervisor); projection.SessionStamp != newWinner.stamp {
+		t.Fatalf("projection = %#v, want concurrent new winner %#v", projection, newWinner.stamp)
+	}
+}
+
+func TestEndpointSupervisorNoDemandInvalidatesLateLeaseFromRetiredRevision(t *testing.T) {
+	controller := &delayedAcquireSupervisorController{
+		supervisorController: newSupervisorController("studio", 7),
+		started:              make(chan struct{}),
+		release:              make(chan struct{}),
+	}
+	supervisor := newTestEndpointSupervisor(t, controller, nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	select {
+	case <-controller.started:
+	case <-time.After(time.Second):
+		t.Fatal("AcquireCurrent did not start")
+	}
+
+	if err := supervisor.ReplaceDemand(EndpointDemandSnapshot{
+		AttachmentID:   "renderer",
+		DemandRevision: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	close(controller.release)
+	waitForInvalidationCount(t, controller.supervisorController, 1)
+
+	if invalidated := controller.invalidatedStamps(); len(invalidated) != 1 || invalidated[0].Generation != 7 {
+		t.Fatalf("invalidated = %#v, want retired generation 7", invalidated)
 	}
 }
 
@@ -71,6 +431,12 @@ func TestEndpointSupervisorWaitsOfflineAndDialsOnceWhenPathReturns(t *testing.T)
 	if controller.connectCount() != 0 {
 		t.Fatalf("offline connect count = %d", controller.connectCount())
 	}
+	waitCtx, stopWaiting := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	if err := supervisor.WaitReady(waitCtx); CodeOf(err) != ErrorCanceled || !errors.Is(err, context.DeadlineExceeded) {
+		stopWaiting()
+		t.Fatalf("offline WaitReady error = %v, want timeout", err)
+	}
+	stopWaiting()
 	if err := supervisor.Signal(EndpointHostSignal{Revision: 2, Connected: true, Reason: "available"}); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +444,39 @@ func TestEndpointSupervisorWaitsOfflineAndDialsOnceWhenPathReturns(t *testing.T)
 	if controller.connectCount() != 1 {
 		t.Fatalf("connect count = %d, want 1", controller.connectCount())
 	}
+}
+
+func newDormantEndpointSupervisor(
+	controller EndpointSupervisorController,
+	phase EndpointSupervisorPhase,
+	errorCode ErrorCode,
+	message string,
+) (*EndpointSupervisor, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	control := &endpointControl{
+		endpointID:      "studio",
+		wake:            make(chan struct{}, 1),
+		done:            make(chan struct{}),
+		mode:            EndpointSupervisorTakeover,
+		demanded:        true,
+		controlRevision: 1,
+		phaseRevision:   1,
+		phase:           phase,
+		errorCode:       errorCode,
+		message:         message,
+		changed:         make(chan struct{}),
+	}
+	return &EndpointSupervisor{
+		controller: controller,
+		ctx:        ctx,
+		cancel:     cancel,
+		options: EndpointSupervisorOptions{
+			Logf: func(string, ...any) {},
+		},
+		connected: true,
+		endpoints: map[endpoint.EndpointID]*endpointControl{"studio": control},
+		changed:   make(chan struct{}),
+	}, cancel
 }
 
 func TestEndpointSupervisorShadowModeOnlyRecordsDecision(t *testing.T) {
@@ -234,6 +633,74 @@ type blockingSupervisorController struct {
 	releaseBlocked chan struct{}
 }
 
+type blockingAcquireSupervisorController struct {
+	physical *supervisorPhysicalSession
+	started  chan struct{}
+	release  chan struct{}
+}
+
+type blockingProbeSupervisorController struct {
+	*supervisorController
+	probeStarted     chan struct{}
+	probeStartedOnce sync.Once
+	releaseProbe     chan struct{}
+}
+
+type blockingInvalidateSupervisorController struct {
+	*supervisorController
+	started chan EndpointSessionStamp
+	release chan struct{}
+	done    chan error
+}
+
+type delayedAcquireSupervisorController struct {
+	*supervisorController
+	started chan struct{}
+	release chan struct{}
+}
+
+func (controller *delayedAcquireSupervisorController) AcquireCurrent(endpointID endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	close(controller.started)
+	<-controller.release
+	return controller.supervisorController.AcquireCurrent(endpointID)
+}
+
+func (controller *blockingInvalidateSupervisorController) Invalidate(stamp EndpointSessionStamp, failure error) error {
+	controller.started <- stamp
+	<-controller.release
+	err := controller.supervisorController.Invalidate(stamp, failure)
+	controller.done <- err
+	return err
+}
+
+func (controller *blockingProbeSupervisorController) Probe(ctx context.Context, _ ApplicationReadyPeerSession) error {
+	controller.probeStartedOnce.Do(func() { close(controller.probeStarted) })
+	select {
+	case <-controller.releaseProbe:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (controller *blockingAcquireSupervisorController) AcquireCurrent(endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	close(controller.started)
+	<-controller.release
+	return &supervisorLease{physical: controller.physical}, nil
+}
+
+func (controller *blockingAcquireSupervisorController) Connect(context.Context, endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
+	return nil, runtimeError(ErrorUnavailable, "unexpected connect", nil)
+}
+
+func (controller *blockingAcquireSupervisorController) Probe(context.Context, ApplicationReadyPeerSession) error {
+	return nil
+}
+
+func (controller *blockingAcquireSupervisorController) Invalidate(EndpointSessionStamp, error) error {
+	return nil
+}
+
 func (controller *blockingSupervisorController) AcquireCurrent(endpoint.EndpointID) (ApplicationReadyPeerSession, error) {
 	return nil, runtimeError(ErrorNotFound, "no current session", nil)
 }
@@ -364,6 +831,17 @@ func (controller *supervisorController) invalidatedStamps() []EndpointSessionSta
 	controller.mu.Lock()
 	defer controller.mu.Unlock()
 	return append([]EndpointSessionStamp(nil), controller.invalidated...)
+}
+
+func waitForInvalidationCount(t *testing.T, controller *supervisorController, count int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for len(controller.invalidatedStamps()) < count && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if actual := len(controller.invalidatedStamps()); actual != count {
+		t.Fatalf("invalidation count = %d, want %d", actual, count)
+	}
 }
 
 type supervisorPhysicalSession struct {

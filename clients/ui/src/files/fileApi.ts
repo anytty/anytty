@@ -103,10 +103,14 @@ export interface FileTransferContext {
   /** Get current snapshot (useSyncExternalStore API). */
   getSnapshot(): { transfers: TransferInfo[]; hasActiveTransfers: boolean }
   getDownloadResumeOffset?(machineId: string, filePath: string, fileSize: number): Promise<number> | number
-  startDownload(machineId: string, fileName: string, fileSize: number, filePath: string, offset?: number): void
-  startUpload(machineId: string, files: Array<{ uri: string; name: string; size: number }>, targetDir: string): void
+  /** Captures the exact native resume intent at the synchronous user-action boundary. */
+  beginTransferIntent?(machineId: string): object
+  /** Releases an action token when an async preflight ends before transfer commit. */
+  discardTransferIntent?(machineId: string, intent: object): void
+  startDownload(machineId: string, fileName: string, fileSize: number, filePath: string, offset?: number, intent?: object): void | Promise<void>
+  startUpload(machineId: string, files: Array<{ uri: string; name: string; size: number }>, targetDir: string, intent?: object): void | Promise<void>
   /** Native mode only: opens system file picker then starts upload. */
-  pickAndUpload?(machineId: string, targetDir: string): void
+  pickAndUpload?(machineId: string, targetDir: string): void | Promise<void>
   pauseTransfer?(id: string): void | Promise<void>
   resumeTransfer?(id: string): void | Promise<void>
   resumeAllTransfers?(machineId?: string): void | Promise<void>

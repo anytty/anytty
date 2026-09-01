@@ -4448,10 +4448,10 @@ func TestBatchedPaneCommandsResizeTerminalToLatestContentRect(t *testing.T) {
 	if len(terminal.Resizes) < 2 {
 		t.Fatalf("expected split and zoom resize requests, got %#v", terminal.Resizes)
 	}
-	if got := terminal.Resizes[len(terminal.Resizes)-1]; got.Cols != 98 || got.Rows != 36 {
+	if got := terminal.Resizes[len(terminal.Resizes)-1]; got.Cols != 100 || got.Rows != 40 {
 		t.Fatalf("latest zoomed pane content rect must win, got %#v all=%#v", got, terminal.Resizes)
 	}
-	if runtime.State().Session.Cols != 98 || runtime.State().Session.Rows != 36 {
+	if runtime.State().Session.Cols != 100 || runtime.State().Session.Rows != 40 {
 		t.Fatalf("stale split resize result must not override latest session size, state=%#v", runtime.State().Session)
 	}
 }

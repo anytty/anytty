@@ -79,6 +79,157 @@ describe('NativeFileTransferStore', () => {
     })
   })
 
+  it('does not suspend transfers for an endpoint protected by a newer resume intent', async () => {
+    const storage = memoryStorage()
+    storage.setItem('anytty.file-transfers.v2', JSON.stringify([
+      {
+        id: 'upload-a', machineId: 'machine-a', name: 'a.bin', direction: 'upload',
+        totalSize: 8, transferredSize: 0, status: 'failed', startedAt: 1, updatedAt: 2,
+        localUri: 'content://a', targetDir: '/tmp', pausedByUser: false,
+      },
+      {
+        id: 'upload-b', machineId: 'machine-b', name: 'b.bin', direction: 'upload',
+        totalSize: 8, transferredSize: 0, status: 'failed', startedAt: 1, updatedAt: 2,
+        localUri: 'content://b', targetDir: '/tmp', pausedByUser: false,
+      },
+    ]))
+    const store = new NativeFileTransferStore(storage)
+
+    await store.suspendForUserStop(new Set(['machine-a']))
+
+    expect(store.getSnapshot('machine-a').transfers[0]).toMatchObject({
+      status: 'failed',
+      pausedByUser: false,
+    })
+    expect(store.getSnapshot('machine-b').transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
+  })
+
+  it('restarts a protected pre-intent task without aborting post-intent work', async () => {
+    const store = new NativeFileTransferStore(memoryStorage())
+    const attempts: Array<{ machineId: string; signal: AbortSignal }> = []
+    store.setSessionResolver((machineId, signal) => {
+      attempts.push({ machineId, signal })
+      return new Promise<ProtoClientSession>(() => {})
+    })
+    store.startUpload('machine-a', 'content://old-a', 'old-a.bin', 8, '/tmp')
+    store.startUpload('machine-b', 'content://b', 'b.bin', 8, '/tmp')
+    await vi.waitFor(() => expect(attempts).toHaveLength(2))
+
+    store.markFreshConnectionIntent('machine-a')
+    store.startUpload('machine-a', 'content://new-a', 'new-a.bin', 8, '/tmp')
+    await vi.waitFor(() => expect(attempts).toHaveLength(3))
+
+    await store.suspendForUserStop(new Set(['machine-a']))
+
+    expect(attempts[0]).toMatchObject({ machineId: 'machine-a' })
+    expect(attempts[0]?.signal.aborted).toBe(true)
+    expect(attempts[1]).toMatchObject({ machineId: 'machine-b' })
+    expect(attempts[1]?.signal.aborted).toBe(true)
+    expect(attempts[2]).toMatchObject({ machineId: 'machine-a' })
+    expect(attempts[2]?.signal.aborted).toBe(false)
+    await vi.waitFor(() => expect(attempts).toHaveLength(4))
+    expect(attempts[3]).toMatchObject({ machineId: 'machine-a' })
+    expect(attempts[3]?.signal.aborted).toBe(false)
+    expect(store.getSnapshot('machine-a').transfers.find((transfer) => transfer.name === 'old-a.bin')).toMatchObject({
+      status: 'pending',
+      pausedByUser: false,
+    })
+    expect(store.getSnapshot('machine-a').transfers.find((transfer) => transfer.name === 'new-a.bin')).toMatchObject({
+      status: 'pending',
+      pausedByUser: false,
+    })
+    expect(store.getSnapshot('machine-b').transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
+    await store.discardForLocalReset()
+  })
+
+  it('does not let delayed stop cleanup pause a transfer after fresh endpoint intent', async () => {
+    const storage = memoryStorage()
+    storage.setItem('anytty.file-transfers.v2', JSON.stringify([
+      {
+        id: 'upload-a', machineId: 'machine-a', name: 'a.bin', direction: 'upload',
+        totalSize: 8, transferredSize: 0, status: 'failed', startedAt: 1, updatedAt: 2,
+        localUri: 'content://a', targetDir: '/tmp', pausedByUser: false,
+      },
+      {
+        id: 'upload-b', machineId: 'machine-b', name: 'b.bin', direction: 'upload',
+        totalSize: 8, transferredSize: 0, status: 'failed', startedAt: 1, updatedAt: 2,
+        localUri: 'content://b', targetDir: '/tmp', pausedByUser: false,
+      },
+    ]))
+    const store = new NativeFileTransferStore(storage)
+    const teardown = deferred<void>()
+    vi.spyOn(store, 'suspendForRuntimeReset').mockImplementation(async () => await teardown.promise)
+
+    const stopping = store.suspendForUserStop()
+    await Promise.resolve()
+    store.markFreshConnectionIntent('machine-a')
+    await store.resumeInterruptedTransfers('machine-a')
+    teardown.resolve()
+    await stopping
+
+    expect(store.getSnapshot('machine-a').transfers[0]).toMatchObject({
+      status: 'failed',
+      pausedByUser: false,
+    })
+    expect(store.getSnapshot('machine-b').transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
+  })
+
+  it('blocks foreground auto-resume while a live transfer is being stopped', async () => {
+    const store = new NativeFileTransferStore(memoryStorage())
+    const session = deferred<ProtoClientSession>()
+    const resolveSession = vi.fn(async () => await session.promise)
+    store.setSessionResolver(resolveSession)
+    store.startUpload('machine-a', 'content://live', 'live.bin', 8, '/tmp')
+    await vi.waitFor(() => expect(resolveSession).toHaveBeenCalledOnce())
+    expect(store.getSnapshot('machine-a').transfers[0]?.status).toBe('pending')
+
+    const teardown = deferred<void>()
+    vi.spyOn(store, 'suspendForRuntimeReset').mockImplementation(async () => await teardown.promise)
+    const stopping = store.suspendForUserStop()
+    await Promise.resolve()
+
+    await store.resumeInterruptedTransfers('machine-a')
+    expect(resolveSession).toHaveBeenCalledOnce()
+
+    teardown.resolve()
+    await stopping
+    expect(store.getSnapshot('machine-a').transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
+    await store.discardForLocalReset()
+  })
+
+  it('rejects a Stop cleanup failure and retries the retained transfer owner', async () => {
+    let releases = 0
+    const harness = await createUploadHarness({
+      releaseResource: async () => {
+        releases += 1
+        if (releases === 1) throw new Error('temporary release failure')
+      },
+    })
+    await waitFor(() => harness.store.getSnapshot().transfers[0]?.status === 'transferring')
+
+    await expect(harness.store.suspendForUserStop()).rejects.toThrow('temporary release failure')
+    expect(releases).toBe(1)
+
+    await expect(harness.store.suspendForUserStop()).resolves.toBeUndefined()
+    expect(releases).toBe(2)
+    expect(harness.store.getSnapshot().transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
+  })
+
   it('discards seeded recovery history and ignores late transfer work after reset', async () => {
     const storage = memoryStorage()
     storage.setItem('anytty.file-transfers.v2', JSON.stringify([{
@@ -342,6 +493,28 @@ describe('NativeFileTransferStore', () => {
     await Promise.all([firstResume, duplicateResume])
     expect(harness.openCommands).toHaveLength(2)
     expect(harness.openCommands[1]?.resume?.opaqueToken).toEqual(harness.resumeToken)
+  })
+
+  it('invalidates a resume click still waiting for detach when a newer Stop wins', async () => {
+    const detach = deferred<void>()
+    const detachStarted = deferred<void>()
+    const harness = await createPausedUpload(async () => {
+      detachStarted.resolve()
+      await detach.promise
+    })
+    await detachStarted.promise
+    harness.store.markFreshConnectionIntent('studio')
+    const resume = harness.store.resumeTransfer(harness.id)
+
+    const stopping = harness.store.suspendForUserStop()
+    detach.resolve()
+    await Promise.all([resume, stopping])
+
+    expect(harness.openCommands).toHaveLength(1)
+    expect(harness.store.getSnapshot().transfers[0]).toMatchObject({
+      status: 'paused',
+      pausedByUser: true,
+    })
   })
 
   it('keeps a user pause when a runtime reset overlaps detach cleanup', async () => {

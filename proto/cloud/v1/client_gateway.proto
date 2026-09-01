@@ -59,10 +59,44 @@ enum SelectedCloudPath {
   SELECTED_CLOUD_PATH_RELAY = 2;
 }
 
-// ClientPathSelected 在 ICE/DataChannel ready 后确认实际路径，使 Edge 能立即释放未使用的 Relay 预留。
-message ClientPathSelected {
+enum CloudPathDecision {
+  CLOUD_PATH_DECISION_UNSPECIFIED = 0;
+  CLOUD_PATH_DECISION_CONFIRM_DIRECT = 1;
+  CLOUD_PATH_DECISION_CONFIRM_RELAY = 2;
+  CLOUD_PATH_DECISION_ABANDON = 3;
+}
+
+// ClientPathDecision commits or abandons one authenticated candidate. The
+// decision_id is stable across same-stream retries and cannot be reused for a
+// different decision.
+message ClientPathDecision {
   string session_id = 1;
-  SelectedCloudPath path = 2;
+  string decision_id = 2;
+  CloudPathDecision decision = 3;
+}
+
+// EdgePathDecisionAck is the only decision barrier accepted by the client.
+// Confirm freezes the chosen path without destructively releasing standby
+// Relay state because peer-reflexive ICE candidates cannot prove that TURN is
+// unused. ABANDON is acknowledged only after Relay and runtime cleanup.
+message EdgePathDecisionAck {
+  string session_id = 1;
+  string decision_id = 2;
+  CloudPathDecision decision = 3;
+}
+
+// ClientSessionRelease is a separate teardown transaction for a path that was
+// already confirmed. It must not reuse or mutate the immutable PathDecision.
+message ClientSessionRelease {
+  string session_id = 1;
+  string release_id = 2;
+}
+
+// EdgeSessionReleaseAck is emitted only after Relay and runtime session
+// cleanup completed. EOF and administrative close are not release ACKs.
+message EdgeSessionReleaseAck {
+  string session_id = 1;
+  string release_id = 2;
 }
 
 message ClientOffer {
@@ -113,7 +147,8 @@ message ClientSignal {
   oneof payload {
     ClientHello hello = 20;
     ClientOffer offer = 21;
-    ClientPathSelected path_selected = 22;
+    ClientPathDecision path_decision = 22;
+    ClientSessionRelease session_release = 23;
   }
 }
 
@@ -132,6 +167,8 @@ message EdgeSignal {
     EdgeChallenge challenge = 23;
     SignalSessionClosed closed = 24;
     DaemonPresence presence = 25;
+    EdgePathDecisionAck path_decision_ack = 26;
+    EdgeSessionReleaseAck session_release_ack = 27;
   }
 }
 

@@ -62,6 +62,20 @@ describe('connection error presentation', () => {
     expect(connectionFailureReason(new Error('stale session handle 42'))).toBe('cancelled')
   })
 
+  it('keeps an explicit user stop non-retryable while giving it dedicated copy', () => {
+    const source = Object.assign(new Error('native demand was stopped'), {
+      code: 'user_stopped',
+      retryable: false,
+    })
+
+    expect(connectionFailurePresentation(source, anyttyI18n.t)).toMatchObject({
+      reason: 'user_stopped',
+      title: 'Connection stopped',
+      retryable: false,
+      requiresPairing: false,
+    })
+  })
+
   it('does not infer pairing from a generic forbidden error', () => {
     expect(connectionFailureReason(Object.assign(new Error('policy denied'), { code: 'forbidden' }))).toBe('internal')
   })

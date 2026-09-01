@@ -2,7 +2,7 @@ package com.anytty.app.goclient
 
 /** GoClientNative 是 Android 到稳定 C ABI 的薄 JNI 门面，不持有网络、认证、协议或重连状态。 */
 object GoClientNative {
-    const val ABI_VERSION = 6
+    const val ABI_VERSION = 7
 
     init {
         System.loadLibrary("anytty_client_jni")
@@ -15,6 +15,7 @@ object GoClientNative {
     external fun directProbe(directRouteProto: ByteArray): Boolean
     external fun replaceSupervisorDemand(engine: Long, demandProto: ByteArray)
     external fun signalSupervisor(engine: Long, signalProto: ByteArray)
+    external fun repairSupervisorEndpoint(engine: Long, endpointId: ByteArray)
     external fun awaitSupervisorReady(engine: Long, timeoutMillis: Int)
     external fun supervisorSnapshot(engine: Long): ByteArray
     external fun setDebugLogPath(path: String)

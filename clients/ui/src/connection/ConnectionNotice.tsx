@@ -19,6 +19,7 @@ export interface ConnectionNoticeAction {
   onClick: () => void
   disabled?: boolean | undefined
   pending?: boolean | undefined
+  testId?: string | undefined
   variant?: ButtonVariant | undefined
 }
 
@@ -158,6 +159,7 @@ function NoticeAction({
     <Button
       aria-busy={action.pending || undefined}
       className="min-h-11 min-w-11 px-3 text-xs sm:w-auto"
+      data-testid={action.testId}
       disabled={action.disabled || action.pending}
       onClick={action.onClick}
       variant={action.variant ?? defaultVariant}

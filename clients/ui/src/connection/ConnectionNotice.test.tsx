@@ -15,7 +15,7 @@ describe('ConnectionNotice', () => {
         presentation={presentation({ state: 'failed', tone: 'critical', action: 'retry' })}
         title="Connection could not be restored"
         description="Try again or choose another connection method."
-        primaryAction={{ label: 'Retry', onClick: onRetry }}
+        primaryAction={{ label: 'Retry', onClick: onRetry, testId: 'stable-retry' }}
       />,
     )
 
@@ -23,6 +23,7 @@ describe('ConnectionNotice', () => {
     expect(notice.dataset.variant).toBe('notice')
     expect(notice.className).not.toMatch(/\b(?:fixed|absolute|inset-0)\b/)
     const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(screen.getByTestId('stable-retry')).toBe(retry)
     expect(retry.className).toContain('min-h-11')
     expect(retry.className).toContain('min-w-11')
     await user.click(retry)

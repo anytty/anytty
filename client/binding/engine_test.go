@@ -17,6 +17,7 @@ import (
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/proto/bindingpb"
+	"github.com/anytty/anytty/proto/remoteauthpb"
 	"github.com/anytty/anytty/proto/wire"
 	"github.com/anytty/anytty/proto/wirepb"
 	"github.com/anytty/anytty/shared/transport/memory"
@@ -303,6 +304,48 @@ func TestEngineSessionInvalidateUsesExactSessionStamp(t *testing.T) {
 	}
 }
 
+func TestEngineConnectionPolicyApplyPreservesCommittedResultAfterCancellation(t *testing.T) {
+	host := &committedPolicyBindingHost{
+		bindingHost: &bindingHost{session: newBindingSession()},
+		started:     make(chan struct{}),
+		release:     make(chan struct{}),
+	}
+	engine, err := NewEngine(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	command, err := proto.Marshal(&bindingpb.EngineCommand{Command: &bindingpb.EngineCommand_ConnectionPolicyApply{
+		ConnectionPolicyApply: &bindingpb.ConnectionPolicyApplyRequest{
+			RequestId: "committed-policy", EndpointId: "studio",
+			Policy: &bindingpb.ConnectionPolicy{
+				RoutePreference: remoteauthpb.EndpointRoutePreference_ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD,
+				CloudRelayMode:  remoteauthpb.ManagedWebRTCRelayMode_MANAGED_WEBRTC_RELAY_MODE_RELAY_ONLY,
+			},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := engine.EngineCommand(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-host.started
+	if err := engine.Cancel(operation); err != nil {
+		t.Fatal(err)
+	}
+	close(host.release)
+	result := nextBindingEvent(t, engine).GetConnectionPolicyApply()
+	if result.GetOperationHandle() != operation || result.GetError() != nil ||
+		result.GetState().GetPolicy().GetRoutePreference() != remoteauthpb.EndpointRoutePreference_ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD {
+		t.Fatalf("committed policy result = %#v", result)
+	}
+	if err := engine.Release(operation); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEngineEndpointDisconnectDoesNotRequireSessionHandle(t *testing.T) {
 	host := &bindingHost{session: newBindingSession()}
 	engine, err := NewEngine(host)
@@ -326,6 +369,109 @@ func TestEngineEndpointDisconnectDoesNotRequireSessionHandle(t *testing.T) {
 	}
 	if host.disconnected != "studio" {
 		t.Fatalf("disconnected endpoint = %q", host.disconnected)
+	}
+}
+
+func TestEngineExplicitRouteOpenAcceptanceSupersedesPreparedEndpointDisconnect(t *testing.T) {
+	base := &bindingHost{}
+	base.open = func(ctx context.Context, _ *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	host := &intentFenceBindingHost{
+		bindingHost:       base,
+		disconnectStarted: make(chan struct{}),
+		disconnectRelease: make(chan struct{}),
+	}
+	engine, err := NewEngine(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+	open := func(requestID string) {
+		payload, marshalErr := proto.Marshal(&bindingpb.OpenSessionRequest{
+			RequestId:     requestID,
+			EndpointId:    "studio",
+			RouteOverride: "direct",
+			Intent:        bindingpb.ConnectIntent_CONNECT_INTENT_INTERACTIVE,
+		})
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		if _, openErr := engine.OpenSession(payload); openErr != nil {
+			t.Fatal(openErr)
+		}
+	}
+
+	open("before-disconnect")
+	command, err := proto.Marshal(&bindingpb.EngineCommand{Command: &bindingpb.EngineCommand_EndpointDisconnect{EndpointDisconnect: &bindingpb.EndpointDisconnectRequest{
+		RequestId: "queued-disconnect", EndpointId: "studio",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := engine.EngineCommand(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-host.disconnectStarted
+
+	open("fresh-resume")
+	close(host.disconnectRelease)
+	result := nextBindingEvent(t, engine).GetEndpointDisconnect()
+	if result.GetOperationHandle() != operation || result.GetError() != nil {
+		t.Fatalf("endpoint disconnect result = %#v", result)
+	}
+	if host.wasDisconnected() {
+		t.Fatal("prepared disconnect ran after a newer OpenSession was accepted")
+	}
+}
+
+func TestEngineManagedOpenDoesNotSupersedePreparedEndpointDisconnect(t *testing.T) {
+	base := &bindingHost{}
+	base.open = func(ctx context.Context, _ *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	host := &intentFenceBindingHost{
+		bindingHost:       base,
+		disconnectStarted: make(chan struct{}),
+		disconnectRelease: make(chan struct{}),
+	}
+	engine, err := NewEngine(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer engine.Close()
+
+	command, err := proto.Marshal(&bindingpb.EngineCommand{Command: &bindingpb.EngineCommand_EndpointDisconnect{EndpointDisconnect: &bindingpb.EndpointDisconnectRequest{
+		RequestId: "queued-disconnect", EndpointId: "studio",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, err := engine.EngineCommand(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-host.disconnectStarted
+
+	payload, err := proto.Marshal(&bindingpb.OpenSessionRequest{
+		RequestId: "stale-managed-open", EndpointId: "studio", Intent: bindingpb.ConnectIntent_CONNECT_INTENT_INTERACTIVE,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.OpenSession(payload); err != nil {
+		t.Fatal(err)
+	}
+	close(host.disconnectRelease)
+	result := nextBindingEvent(t, engine).GetEndpointDisconnect()
+	if result.GetOperationHandle() != operation || result.GetError() != nil {
+		t.Fatalf("endpoint disconnect result = %#v", result)
+	}
+	if !host.wasDisconnected() {
+		t.Fatal("managed OpenSession without a Demand fence superseded user disconnect")
 	}
 }
 
@@ -442,9 +588,23 @@ func TestEngineCancellationDestroysLateFileOpenResource(t *testing.T) {
 		t.Fatal("session closed before the cancelled file-open operation reached cleanup")
 	}
 	close(release)
-	event := nextBindingEvent(t, engine)
-	if event.GetExecute().GetError().GetCode() != apipb.ApiErrorCode_API_ERROR_CODE_CANCELLED {
-		t.Fatalf("cancel event = %#v", event)
+	var executeEvent, closedEvent *bindingpb.EventEnvelope
+	for range 2 {
+		event := nextBindingEvent(t, engine)
+		switch event.GetEvent().(type) {
+		case *bindingpb.EventEnvelope_Execute:
+			executeEvent = event
+		case *bindingpb.EventEnvelope_SessionClosed:
+			closedEvent = event
+		default:
+			t.Fatalf("unexpected cancellation event = %#v", event)
+		}
+	}
+	if executeEvent == nil || executeEvent.GetExecute().GetError().GetCode() != apipb.ApiErrorCode_API_ERROR_CODE_CANCELLED {
+		t.Fatalf("cancel event = %#v", executeEvent)
+	}
+	if closedEvent == nil || closedEvent.GetSessionClosed().GetSessionHandle() != sessionHandle {
+		t.Fatalf("session close event = %#v", closedEvent)
 	}
 	select {
 	case command := <-cleanup:
@@ -1500,6 +1660,71 @@ type bindingHost struct {
 	cloudPresenceEndpoint string
 }
 
+type committedPolicyBindingHost struct {
+	*bindingHost
+	started chan struct{}
+	release chan struct{}
+}
+
+func (host *committedPolicyBindingHost) GetConnectionPolicy(context.Context, *bindingpb.ConnectionPolicyGetRequest) (*bindingpb.ConnectionPolicyGetResult, error) {
+	return &bindingpb.ConnectionPolicyGetResult{}, nil
+}
+
+func (host *committedPolicyBindingHost) ApplyConnectionPolicy(ctx context.Context, request *bindingpb.ConnectionPolicyApplyRequest) (*bindingpb.ConnectionPolicyApplyResult, error) {
+	close(host.started)
+	<-host.release
+	if ctx.Err() == nil {
+		return nil, fmt.Errorf("test policy operation was not cancelled")
+	}
+	return &bindingpb.ConnectionPolicyApplyResult{State: &bindingpb.ConnectionPolicyState{Policy: proto.Clone(request.GetPolicy()).(*bindingpb.ConnectionPolicy)}}, nil
+}
+
+type intentFenceBindingHost struct {
+	*bindingHost
+	mu                sync.Mutex
+	intentRevision    uint64
+	disconnectStarted chan struct{}
+	disconnectRelease chan struct{}
+	disconnected      bool
+}
+
+func (host *intentFenceBindingHost) OpenSession(ctx context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+	return host.bindingHost.open(ctx, request)
+}
+
+func (host *intentFenceBindingHost) AdvanceEndpointIntent(endpoint.EndpointID) error {
+	host.mu.Lock()
+	host.intentRevision++
+	host.mu.Unlock()
+	return nil
+}
+
+func (host *intentFenceBindingHost) PrepareEndpointDisconnect(endpoint.EndpointID) (EndpointDisconnectOperation, error) {
+	host.mu.Lock()
+	revision := host.intentRevision
+	host.mu.Unlock()
+	return bindingEndpointDisconnectFunc(func(ctx context.Context) error {
+		close(host.disconnectStarted)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-host.disconnectRelease:
+		}
+		host.mu.Lock()
+		if host.intentRevision == revision {
+			host.disconnected = true
+		}
+		host.mu.Unlock()
+		return nil
+	}), nil
+}
+
+func (host *intentFenceBindingHost) wasDisconnected() bool {
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	return host.disconnected
+}
+
 type lifecycleBindingHost struct {
 	*bindingHost
 	events chan clientruntime.EndpointEvent
@@ -1649,9 +1874,19 @@ func (host *bindingHost) InvalidateSession(_ context.Context, stamp clientruntim
 	return nil
 }
 
-func (host *bindingHost) DisconnectEndpoint(_ context.Context, endpointID endpoint.EndpointID) error {
-	host.disconnected = endpointID
-	return nil
+func (host *bindingHost) AdvanceEndpointIntent(endpoint.EndpointID) error { return nil }
+
+func (host *bindingHost) PrepareEndpointDisconnect(endpointID endpoint.EndpointID) (EndpointDisconnectOperation, error) {
+	return bindingEndpointDisconnectFunc(func(context.Context) error {
+		host.disconnected = endpointID
+		return nil
+	}), nil
+}
+
+type bindingEndpointDisconnectFunc func(context.Context) error
+
+func (disconnect bindingEndpointDisconnectFunc) Disconnect(ctx context.Context) error {
+	return disconnect(ctx)
 }
 
 func (host *bindingHost) GetEndpointCloudPresence(_ context.Context, request *bindingpb.EndpointCloudPresenceGetRequest) (*bindingpb.EndpointCloudPresenceGetResult, error) {

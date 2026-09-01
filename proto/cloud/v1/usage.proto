@@ -157,6 +157,7 @@ message RelayRuntimePolicy {
   string account_id = 1;
   string subscription_id = 2;
   string plan_id = 3;
+  // policy_revision is the subscription revision used to derive this policy.
   uint64 policy_revision = 4;
   bool relay_enabled = 5;
   uint64 relay_max_rate_bytes_per_second = 6;
@@ -164,6 +165,8 @@ message RelayRuntimePolicy {
   uint64 relay_quota_bytes = 8;
   google.protobuf.Timestamp period_start = 9;
   google.protobuf.Timestamp period_end = 10;
+  // account_revision separately fences account state changes such as disable/re-enable.
+  uint64 account_revision = 11;
 }
 
 // RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
@@ -210,6 +213,11 @@ message RelayAccountAction {
   google.protobuf.Timestamp period_start = 6;
   google.protobuf.Timestamp period_end = 7;
   string reason = 8;
+  // policy_revision is the subscription revision used to decide this action.
+  // An Edge must not apply a stale DENY to another subscription revision.
+  uint64 policy_revision = 9;
+  // account_revision identifies the account state revision used to decide this action.
+  uint64 account_revision = 10;
 }
 
 message RelayUsageAck {

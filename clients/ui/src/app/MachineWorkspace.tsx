@@ -119,7 +119,8 @@ const browserSystemClipboard: SystemClipboard = {
 export interface MachineWorkspaceProps {
   api: MachineWorkspaceInventoryApi
   connector: MachineWorkspaceConnector
-  retainConnectionDemand?: (() => () => void) | undefined
+  retainConnectionDemand?: ((resumeIntent?: object | null) => () => void) | undefined
+  connectionResumeIntent?: object | null | undefined
   className?: string | undefined
   initialMachine?: Machine | undefined
   inventoryEvents?: TerminalInventoryEvents | undefined
@@ -158,6 +159,7 @@ type FileManagerLoadState =
   | { status: 'ready'; component: FileManagerComponent }
   | { status: 'error' }
 const TERMINAL_CONNECTION_PROGRESS_DELAY_MS = 450
+const WORKSPACE_CONNECTION_RETRY_TEST_ID = 'anytty-workspace-connection-retry'
 const machineWorkspaceInventoryCache = new WeakMap<MachineWorkspaceConnector, Map<string, {
   machine: Machine
   terminals: RemoteTerminal[]
@@ -183,7 +185,7 @@ function inventoryCacheForConnector(connector: MachineWorkspaceConnector): Map<s
  * MachineWorkspace 编排单个设备的 terminal/file 用户界面并消费 Go-owned session 投影。
  * 它不拥有 Endpoint、Route、credential 或 generation 真值，连接阶段仅用于本地化展示和交互反馈。
  */
-export function MachineWorkspace({ api, connector, retainConnectionDemand, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, webLayout = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
+export function MachineWorkspace({ api, connector, retainConnectionDemand, connectionResumeIntent = null, className, initialMachine, inventoryEvents, connectionStateEvents, subscribeRuntimeInventoryEvents = false, onBack, fileTransfer, terminalSettings: terminalSettingsProp, onNeedsReauthorization, onTerminalSettingsChange, phoneOnline = true, connectionState = 'ready', cloudPresence, singlePane = false, webLayout = false, storage, initialTerminalId, onInitialTerminalOpened, terminalSwitcherMachines = [], loadMachineTerminals, onSwitchTerminal, systemClipboard = browserSystemClipboard }: MachineWorkspaceProps) {
   const { t } = useTranslation()
   const connectionReady = appConnectionIsReady(connectionState)
   const initialInventory = initialMachine ? inventoryCacheForConnector(connector).get(initialMachine.machineId) : undefined
@@ -217,7 +219,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const [connectionPolicyApplying, setConnectionPolicyApplying] = useState(false)
   const connectionPolicyReconnectPendingRef = useRef(false)
   const connectionPolicyFailureRef = useRef<{ stage: 'refresh' | 'apply' | 'reconnect'; policy?: ConnectionPolicy } | null>(null)
-  const [manualReconnectNonce, setManualReconnectNonce] = useState(0)
+  const [terminalListRecoveryToken, setTerminalListRecoveryToken] = useState(0)
   const [terminalResizeControlBySlot, setTerminalResizeControlBySlot] = useState<Record<TerminalPaneKey, TerminalResizeControl>>({
     primary: defaultTerminalResizeControl,
   })
@@ -319,6 +321,12 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   } | null>(null)
   const machineSessionConnectSeqRef = useRef(0)
   const terminalRefreshSeqRef = useRef(0)
+  const initialInventoryLoadRef = useRef({
+    api,
+    connector,
+    machineId: initialMachine?.machineId ?? null,
+    completed: false,
+  })
   const runtimeInventorySubscriptionRef = useRef<{
     connector: MachineWorkspaceConnector
     machineId: string
@@ -328,10 +336,17 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   } | null>(null)
   const connectionStateSubscriptionRef = useRef<RtcSubscription | null>(null)
   const passiveConnectionPhaseRef = useRef<RtcConnectionStateSnapshot['phase'] | null>(null)
+  const passiveConnectionRecoverySeqRef = useRef(0)
+  const passiveConnectionLineageRef = useRef(0)
+  const passiveConnectionRetryLineageRef = useRef<number | null>(null)
+  const passiveConnectionSourceRef = useRef<{
+    events: MachineConnectionStateEvents
+    machineId: string
+  } | null>(null)
   const sessionConnectionPhaseRef = useRef<RtcConnectionStateSnapshot['phase'] | null>(null)
   const latestActiveTerminalIdRef = useRef<string | null>(null)
   const latestSplitTerminalIdsRef = useRef<string[]>([])
-  const handledManualReconnectNonceRef = useRef(0)
+  const handledTerminalListRecoveryTokenRef = useRef(0)
   const resizeLockedHintShownRef = useRef(false)
   const previousPhoneOnlineRef = useRef(phoneOnline)
   const previousConnectionStateRef = useRef(connectionState)
@@ -343,6 +358,18 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   phoneOnlineRef.current = phoneOnline
   connectionReadyRef.current = connectionReady
   hasConnectedOnceRef.current = hasConnectedOnce
+  if (
+    initialInventoryLoadRef.current.api !== api ||
+    initialInventoryLoadRef.current.connector !== connector ||
+    initialInventoryLoadRef.current.machineId !== (initialMachine?.machineId ?? null)
+  ) {
+    initialInventoryLoadRef.current = {
+      api,
+      connector,
+      machineId: initialMachine?.machineId ?? null,
+      completed: false,
+    }
+  }
   const displayedPaneKeys = useMemo(() => terminalPaneKeys(terminalSplitRoot), [terminalSplitRoot])
   const webTabTerminalIds = useMemo(() => webTerminalTabs.map((tab) => tab.terminalId), [webTerminalTabs])
   const webSplitTabTerminalIds = useMemo(() => webTerminalTabs.flatMap((tab) => terminalPaneKeys(tab.root).length > 1 ? [tab.terminalId] : []), [webTerminalTabs])
@@ -378,7 +405,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   const terminalHeaderDirectory = activeToolTerminal?.cwd || activeTerminal?.cwd || ''
   const terminalHeaderSummary = [machine?.name, terminalHeaderTitle, terminalHeaderDirectory].filter(Boolean).join(' · ')
 
-  useEffect(() => retainConnectionDemand?.(), [retainConnectionDemand])
+  useEffect(() => retainConnectionDemand?.(connectionResumeIntent), [connectionResumeIntent, retainConnectionDemand])
 
   useEffect(() => {
     setTerminalOrder(readTerminalOrder(machine?.machineId ?? ''))
@@ -639,7 +666,10 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       clearConnectionStatus()
       return
     }
-    if (snapshot.phase === 'reconnecting' || snapshot.phase === 'waiting_network') setError(null)
+    if (isConnectingConnectionPhase(snapshot.phase)) {
+      setError(null)
+      setConnectionFailure(null)
+    }
     if (snapshot.phase === 'failed') {
       const source = (failureSource ?? snapshot.error) || snapshot.statusText || t('machines.connectionFailed')
       if (isCancelledConnectionError(source)) {
@@ -716,6 +746,25 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       machineSessionRef.current = null
       machineSessionPromiseRef.current = null
       setConnectedSession(null)
+      const passivePhase = passiveConnectionPhaseRef.current
+      if (connectionStateEvents && passivePhase && passivePhase !== 'failed') {
+        updateFromConnectionState({
+          machineId: session.stamp.endpointId,
+          phase: passivePhase,
+          statusText: '',
+          relayInUse: false,
+        })
+        if (
+          passivePhase === 'connected' &&
+          passiveConnectionRetryLineageRef.current !== passiveConnectionLineageRef.current
+        ) {
+          passiveConnectionRetryLineageRef.current = passiveConnectionLineageRef.current
+          setConnectedTerminalId(null)
+          setConnectingTerminalId(latestActiveTerminalIdRef.current)
+          setConnectionRetryToken((value) => value + 1)
+        }
+        return
+      }
       updateFromConnectionState({
         machineId: session.stamp.endpointId,
         phase: 'failed',
@@ -723,7 +772,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         relayInUse: false,
       }, undefined, error)
     })
-  }, [updateFromConnectionState])
+  }, [connectionStateEvents, updateFromConnectionState])
 
   const releaseMachineSession = useCallback(() => {
     disconnectMachineSession()
@@ -731,6 +780,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     setConnectedTerminalId(null)
     setConnectingTerminalId(null)
   }, [disconnectMachineSession])
+
+  const requestActiveSessionRecovery = useCallback(() => {
+    releaseMachineSession()
+    setError(null)
+    setConnectionFailure(null)
+    setConnectingTerminalId(latestActiveTerminalIdRef.current)
+    setConnectionRetryToken((value) => value + 1)
+  }, [releaseMachineSession])
 
   const ensureMachineSession = useCallback(async (machineId: string, connectOptions?: RtcConnectOptions): Promise<MachineWorkspaceClientSession> => {
     if (!phoneOnlineRef.current) throw Object.assign(new Error('phone offline'), { code: 'offline' })
@@ -772,9 +829,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       promise: Promise.resolve(null as unknown as MachineWorkspaceClientSession),
     }
     entry.promise = connector.connect({ machineId }, effectiveConnectOptions).then((session) => {
-      if (machineSessionPromiseRef.current !== entry) {
-        void closeMachineWorkspaceSession(session)
-        return session
+      if (
+        machineSessionPromiseRef.current !== entry ||
+        !phoneOnlineRef.current ||
+        !connectionReadyRef.current
+      ) {
+        void closeMachineWorkspaceSession(session).catch(() => undefined)
+        throw supersededMachineWorkspaceSessionError()
       }
       machineSessionPromiseRef.current = null
       machineSessionRef.current = {
@@ -892,7 +953,8 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   }, [activeTerminalId, machine, splitTerminalIds])
 
   useEffect(() => {
-    if (!phoneOnlineRef.current || !connectionReadyRef.current) {
+    const initialLoad = initialInventoryLoadRef.current
+    if (initialLoad.completed || !phoneOnline || !connectionReady) {
       return
     }
     let cancelled = false
@@ -921,6 +983,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         })
         if (cancelled || terminalRefreshSeqRef.current !== seq) return
         setTerminals(terminalList)
+        if (initialInventoryLoadRef.current === initialLoad) initialLoad.completed = true
         setHasLoadedTerminals(true)
         // 当前 refresh sequence 已由新 generation 成功提交，旧 bridge 的迟到错误不再代表当前连接。
         setError(null)
@@ -954,7 +1017,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     return () => {
       cancelled = true
     }
-  }, [api, clearConnectionStatus, connector, handleConnectionAuthFailure, initialMachine?.machineId, setMachineNetworkMachineId, t, updateConnectionStatus])
+  }, [api, clearConnectionStatus, connectionReady, connector, handleConnectionAuthFailure, initialMachine?.machineId, phoneOnline, setMachineNetworkMachineId, t, updateConnectionStatus])
 
   useEffect(() => {
     if (!machine || !hasLoadedTerminals) return
@@ -1007,40 +1070,103 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   }, [applyRuntimeTerminalEvent, inventoryEvents, machine, refreshTerminals, connectionRetryToken])
 
   useEffect(() => {
-    if (!connectionStateEvents || !machine) return
-    passiveConnectionPhaseRef.current = null
-    const subscription = connectionStateEvents.subscribe(machine.machineId, (snapshot) => {
+    const machineId = machine?.machineId
+    if (!connectionStateEvents || !machineId) return
+    const currentSource = passiveConnectionSourceRef.current
+    if (currentSource?.events !== connectionStateEvents || currentSource.machineId !== machineId) {
+      passiveConnectionSourceRef.current = { events: connectionStateEvents, machineId }
+      passiveConnectionPhaseRef.current = null
+      passiveConnectionLineageRef.current += 1
+      passiveConnectionRetryLineageRef.current = null
+    }
+    const subscription = connectionStateEvents.subscribe(machineId, (snapshot) => {
       const previousPhase = passiveConnectionPhaseRef.current
+      if (previousPhase !== snapshot.phase) passiveConnectionLineageRef.current += 1
+      const recoveryLineage = passiveConnectionLineageRef.current
+      const recoverySeq = ++passiveConnectionRecoverySeqRef.current
       passiveConnectionPhaseRef.current = snapshot.phase
+      if (previousPhase === 'connected' && snapshot.phase !== 'connected') {
+        // A manager transition owns the next renderer generation. Fence both the
+        // current lease and any pending acquisition before final connected can
+        // accidentally join work started for the interrupted generation.
+        releaseMachineSession()
+      }
       const activeSession = machineSessionRef.current?.session
       const recoveredFromInterruption = previousPhase !== null && previousPhase !== 'connected'
-      if (
-        snapshot.phase === 'connected' &&
-        (activeTerminalId || filesOpen) &&
-        (!activeSession || !isProtoSessionAlive(activeSession) || recoveredFromInterruption)
-      ) {
-        void ensureMachineSession(machine.machineId, { forceRelay: forceRelayConnection })
+      if (snapshot.phase === 'connected') {
+        // The manager's connected snapshot is authoritative even when obtaining the
+        // renderer lease takes longer. Clear an older generation's terminal failure
+        // immediately, then correlate the asynchronous lease result to this snapshot.
+        updateFromPassiveConnectionState(snapshot, activeSession)
+        if (recoveredFromInterruption) {
+          // refreshTerminals claims its sequence synchronously, so an old inventory
+          // request loses commit authority before this callback returns. This must
+          // happen on terminal and file pages too: inventory events can refresh in
+          // the background while either page is active.
+          void refreshTerminals()
+        }
+        if (
+          !(activeTerminalId || filesOpen) ||
+          activeSession && isProtoSessionAlive(activeSession) && !recoveredFromInterruption
+        ) return
+        void ensureMachineSession(machineId, { forceRelay: forceRelayConnection })
           .then((session) => {
+            if (
+              passiveConnectionRecoverySeqRef.current !== recoverySeq ||
+              passiveConnectionPhaseRef.current !== 'connected' ||
+              !phoneOnlineRef.current ||
+              !connectionReadyRef.current ||
+              !isProtoSessionAlive(session)
+            ) return
             reattachActiveTerminals(session)
             updateFromPassiveConnectionState(snapshot, session)
           })
           .catch((err: unknown) => {
-            const message = connectionErrorDisplayMessage(err, t)
-            if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machine.machineId)
-            updateConnectionStatus(message, 'failed')
+            const isCurrentRecovery =
+              passiveConnectionRecoverySeqRef.current === recoverySeq &&
+              passiveConnectionPhaseRef.current === 'connected'
+            if (!isCurrentRecovery) return
+            if (isCancelledConnectionError(err)) {
+              if (!phoneOnlineRef.current || !connectionReadyRef.current) return
+              const replacement = machineSessionRef.current?.session
+              if (replacement && isProtoSessionAlive(replacement)) {
+                reattachActiveTerminals(replacement)
+                updateFromPassiveConnectionState(snapshot, replacement)
+              } else if (
+                machineSessionPromiseRef.current === null &&
+                passiveConnectionRetryLineageRef.current !== recoveryLineage
+              ) {
+                // The final manager snapshot can race a promise from the generation
+                // it just replaced. Allow one fresh acquisition in this manager
+                // lineage; another cancellation waits for the next manager event.
+                passiveConnectionRetryLineageRef.current = recoveryLineage
+                requestActiveSessionRecovery()
+              }
+              return
+            }
+            if (!phoneOnlineRef.current || !connectionReadyRef.current) return
+            if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machineId)
+            updateFromConnectionState({
+              machineId,
+              phase: 'failed',
+              statusText: connectionErrorDisplayMessage(err, t),
+              relayInUse: false,
+              error: err instanceof Error ? err : new Error(String(err)),
+            }, undefined, err)
           })
         return
       }
       updateFromPassiveConnectionState(snapshot, activeSession)
     })
     return () => {
+      passiveConnectionRecoverySeqRef.current += 1
       subscription.close()
     }
-  }, [activeTerminalId, connectionStateEvents, ensureMachineSession, filesOpen, forceRelayConnection, handleConnectionAuthFailure, machine, reattachActiveTerminals, updateConnectionStatus, updateFromPassiveConnectionState])
+  }, [activeTerminalId, connectionStateEvents, ensureMachineSession, filesOpen, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, page, reattachActiveTerminals, refreshTerminals, releaseMachineSession, requestActiveSessionRecovery, t, updateFromConnectionState, updateFromPassiveConnectionState])
 
   useEffect(() => {
     const machineId = machine?.machineId
-    if (!subscribeRuntimeInventoryEvents || requireVerification || !machineId) return
+    if (!subscribeRuntimeInventoryEvents || requireVerification || !machineId || !phoneOnline || !connectionReady) return
     let cancelled = false
     void ensureMachineSession(machineId, { forceRelay: forceRelayConnection }).then((session) => {
       if (cancelled) return
@@ -1084,7 +1210,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         current.subscription.close()
       }
     }
-  }, [applyRuntimeTerminalEvent, connectionRetryToken, connector, ensureMachineSession, forceRelayConnection, machine?.machineId, refreshTerminals, requireVerification, subscribeRuntimeInventoryEvents])
+  }, [applyRuntimeTerminalEvent, connectionReady, connectionRetryToken, connector, ensureMachineSession, forceRelayConnection, machine?.machineId, phoneOnline, refreshTerminals, requireVerification, subscribeRuntimeInventoryEvents])
 
   useEffect(() => {
     const machineId = machine?.machineId
@@ -1101,7 +1227,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     ) {
       releaseMachineSession()
     }
-    if (!phoneOnlineRef.current || !connectionReadyRef.current) {
+    if (!phoneOnline || !connectionReady) {
       setConnectingTerminalId(activeTerminalId)
       return
     }
@@ -1215,17 +1341,13 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       cancelled = true
       window.clearTimeout(progressTimer)
     }
-  }, [activeTerminalId, clearConnectionStatus, clearConnectionStatusSoon, connector, connectionRetryToken, ensureMachineSession, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, page, releaseMachineSession, t, updateConnectionStatus, updateFromConnectionState])
+  }, [activeTerminalId, clearConnectionStatus, clearConnectionStatusSoon, connectionReady, connector, connectionRetryToken, ensureMachineSession, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, page, phoneOnline, releaseMachineSession, t, updateConnectionStatus, updateFromConnectionState])
 
   useEffect(() => {
-    if (manualReconnectNonce === 0 || handledManualReconnectNonceRef.current === manualReconnectNonce) return
-    if (page !== 'terminal-list') {
-      handledManualReconnectNonceRef.current = manualReconnectNonce
-      return
-    }
+    if (terminalListRecoveryToken === 0 || handledTerminalListRecoveryTokenRef.current === terminalListRecoveryToken) return
+    if (page !== 'terminal-list') return
     const machineId = machine?.machineId
-    if (!machineId || requireVerification || !phoneOnlineRef.current || !connectionReadyRef.current) return
-    handledManualReconnectNonceRef.current = manualReconnectNonce
+    if (!machineId || requireVerification || !phoneOnline || !connectionReady) return
     let cancelled = false
     void ensureMachineSession(machineId, {
       forceRelay: forceRelayConnection,
@@ -1237,6 +1359,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       },
     }).then((session) => {
       if (cancelled) return
+      handledTerminalListRecoveryTokenRef.current = terminalListRecoveryToken
       setError(null)
       setConnectedSession(session)
       // 列表页重连只替换 session generation，不会产生 terminal inventory event；
@@ -1256,6 +1379,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
         clearConnectionStatus()
         return
       }
+      handledTerminalListRecoveryTokenRef.current = terminalListRecoveryToken
       const failure = connectionFailurePresentation(err, t, { phoneOnline: phoneOnlineRef.current })
       const message = failure.message
       if (isAuthorizationConnectionError(err)) handleConnectionAuthFailure(machineId)
@@ -1275,7 +1399,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     return () => {
       cancelled = true
     }
-  }, [clearConnectionStatus, ensureMachineSession, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, manualReconnectNonce, page, refreshTerminals, requireVerification, t, updateConnectionStatus, updateFromConnectionState])
+  }, [clearConnectionStatus, connectionReady, ensureMachineSession, forceRelayConnection, handleConnectionAuthFailure, machine?.machineId, page, phoneOnline, refreshTerminals, requireVerification, t, terminalListRecoveryToken, updateConnectionStatus, updateFromConnectionState])
 
   useEffect(() => {
     const handleResume = (event: Event) => {
@@ -1293,14 +1417,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       if (page === 'terminal-list') {
         // terminal list 也承载文件管理器。generation 更换后必须先让既有重连状态机取得新的
         // workspace session lease，再从 daemon 刷新 inventory；只刷新列表会让文件页永久等待旧 lease。
-        setManualReconnectNonce((value) => value + 1)
+        setTerminalListRecoveryToken((value) => value + 1)
         return
       }
       if (page !== 'terminal') return
       const session = machineSessionRef.current?.session ?? connectedSession
       if (!activeTerminalId && splitTerminalIds.length === 0) return
       if (!session || !isProtoSessionAlive(session)) {
-        setManualReconnectNonce((value) => value + 1)
+        requestActiveSessionRecovery()
         return
       }
 
@@ -1312,14 +1436,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     const handleSessionInvalidated = () => {
       resetKeyboardLayout()
       if (page === 'terminal-list') {
-        setManualReconnectNonce((value) => value + 1)
+        setTerminalListRecoveryToken((value) => value + 1)
         return
       }
       if (page !== 'terminal') return
       const session = machineSessionRef.current?.session ?? connectedSession
       if (!activeTerminalId && splitTerminalIds.length === 0) return
       if (!session || !isProtoSessionAlive(session)) {
-        setManualReconnectNonce((value) => value + 1)
+        requestActiveSessionRecovery()
         return
       }
       reattachActiveTerminals(session)
@@ -1332,7 +1456,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
       document.removeEventListener('anytty:binding-closed', handleSessionInvalidated)
       document.removeEventListener('anytty:session-invalidated', handleSessionInvalidated)
     }
-  }, [activeTerminalId, connectedSession, fitDisplayedTerminals, page, reattachActiveTerminals, resetKeyboardLayout, splitTerminalIds.length])
+  }, [activeTerminalId, connectedSession, fitDisplayedTerminals, page, reattachActiveTerminals, requestActiveSessionRecovery, resetKeyboardLayout, splitTerminalIds.length])
 
   const activateWebTerminalTab = useCallback((terminalId: string, paneKey?: TerminalPaneKey) => {
     const tab = webTerminalTabs.find((candidate) => candidate.terminalId === terminalId)
@@ -1595,28 +1719,14 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
     updateConnectionStatus(targetForceRelay
       ? t('workspace.reconnectingRelay')
       : connectionPhaseLabel('reconnecting', t), 'reconnecting')
+    // Fence pending/current entries before native reconnect can yield a newer
+    // binding. A late old promise will then close its own superseded lease.
+    releaseMachineSession()
+    setConnectingTerminalId(activeTerminalId)
     if (connector.reconnect) {
-      const current = machineSessionRef.current
       await connector.reconnect({ forceRelay: targetForceRelay })
-      machineSessionConnectSeqRef.current += 1
-      connectionStateSubscriptionRef.current?.close()
-      connectionStateSubscriptionRef.current = null
-      machineSessionPromiseRef.current = null
-      machineSessionRef.current = null
-      const runtimeInventorySubscription = runtimeInventorySubscriptionRef.current
-      runtimeInventorySubscriptionRef.current = null
-      runtimeInventorySubscription?.subscription.close()
-      if (current) void closeMachineWorkspaceSession(current.session)
-      setConnectedSession(null)
-      setConnectedTerminalId(null)
-      setConnectingTerminalId(activeTerminalId)
-    } else {
-      releaseMachineSession()
-      setConnectedSession(null)
-      setConnectedTerminalId(null)
-      setConnectingTerminalId(activeTerminalId)
     }
-    setManualReconnectNonce((value) => value + 1)
+    setTerminalListRecoveryToken((value) => value + 1)
     setConnectionRetryToken((value) => value + 1)
   }, [activeTerminalId, connector, forceRelayConnection, releaseMachineSession, t, updateConnectionStatus])
 
@@ -1655,11 +1765,12 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
             label: t('machines.scanPairing'),
             onClick: () => handleConnectionAuthFailure(machineId),
           }
-        : !connectionFailure || connectionFailure.retryable || connectionFailure.reason === 'daemon_deleted'
+        : !connectionFailure || workspaceFailureAllowsManualRetry(connectionFailure) || connectionFailure.reason === 'daemon_deleted'
           ? {
               label: t(connectionFailure?.reason === 'daemon_deleted' ? 'workspace.retryOtherRoutes' : 'workspace.connection.retry'),
               onClick: () => { void retryAfterFailure() },
               pending: connectionRetryPending,
+              testId: WORKSPACE_CONNECTION_RETRY_TEST_ID,
             }
           : undefined
       return { kind: 'failed', title, description, ...(action ? { action } : {}) }
@@ -3850,11 +3961,12 @@ function MachineConnectionFailureState({
   const offline = failure.reason === 'phone_offline'
   const primaryAction = onPairAgain
     ? { label: t('machines.scanPairing'), onClick: onPairAgain }
-    : failure.retryable && !offline
+    : workspaceFailureAllowsManualRetry(failure) && !offline
       ? {
           label: t(failure.reason === 'daemon_deleted' ? 'workspace.retryOtherRoutes' : 'workspace.connection.retry'),
           onClick: onRetry,
           pending: retryPending,
+          testId: WORKSPACE_CONNECTION_RETRY_TEST_ID,
         }
       : undefined
   return (
@@ -3872,6 +3984,10 @@ function MachineConnectionFailureState({
       secondaryAction={onBack ? { label: t('common.backToMachines'), onClick: onBack } : undefined}
     />
   )
+}
+
+function workspaceFailureAllowsManualRetry(failure: ConnectionFailurePresentation): boolean {
+  return failure.retryable || failure.reason === 'user_stopped'
 }
 
 function workspaceConnectionPresentation(input: {
@@ -4303,6 +4419,13 @@ function closeTerminalDataChannel(session: MachineWorkspaceClientSession, termin
 
 function closeMachineWorkspaceSession(session: MachineWorkspaceClientSession): Promise<void> {
   return session.close()
+}
+
+function supersededMachineWorkspaceSessionError(): Error {
+  return Object.assign(new Error('Workspace session acquisition was superseded'), {
+    code: 'cancelled',
+    retryable: true,
+  })
 }
 
 async function machineWorkspaceConnectionInfo(session: MachineWorkspaceClientSession): Promise<ConnectionInfo> {
