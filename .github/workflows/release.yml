@@ -115,8 +115,9 @@ jobs:
         run: |
           apk_dir="clients/flutter/build/app/outputs/flutter-apk"
           verify_apk() {
-            local source="$1" abi="$2" target="$3"
+            local source="$1" abi="$2" target="$3" max_bytes="${4:-83886080}"
             ANYTTY_ANDROID_EXPECTED_ABIS="$abi" \
+              ANYTTY_FLUTTER_ANDROID_MAX_APK_BYTES="$max_bytes" \
               ANYTTY_ANDROID_REQUIRE_SIGNATURE=1 \
               scripts/verify-flutter-android-apk-boundary.sh "$apk_dir/$source"
             cp "$apk_dir/$source" "$RUNNER_TEMP/$target"
@@ -128,7 +129,7 @@ jobs:
           verify_apk app-x86_64-release.apk x86_64 \
             "anytty-$RELEASE_TAG-android-x86_64.apk"
           verify_apk app-release.apk "armeabi-v7a arm64-v8a x86_64" \
-            "anytty-$RELEASE_TAG-android-universal.apk"
+            "anytty-$RELEASE_TAG-android-universal.apk" 209715200
 
           aab="clients/flutter/build/app/outputs/bundle/release/app-release.aab"
           ANYTTY_ANDROID_EXPECTED_ABIS="armeabi-v7a arm64-v8a x86_64" \
