@@ -48,42 +48,38 @@ func TestPublicRemoteRuntimeDoesNotDependOnPrivateServices(t *testing.T) {
 	}
 }
 
-func TestAndroidManagedRuntimeDoesNotRestoreLegacyHubProtocol(t *testing.T) {
-	mirrorRoot := filepath.Join("..", "clients", "mobile", "native", "android")
-	if _, err := os.Stat(mirrorRoot); !os.IsNotExist(err) {
-		t.Fatalf("Android source mirror must stay deleted: %s", mirrorRoot)
+func TestFlutterManagedRuntimeDoesNotRestoreLegacyHubProtocol(t *testing.T) {
+	legacyRoot := filepath.Join("..", "clients", "mobile")
+	if _, err := os.Stat(legacyRoot); !os.IsNotExist(err) {
+		t.Fatalf("legacy Capacitor client must stay deleted: %s", legacyRoot)
 	}
-	root := filepath.Join("..", "clients", "mobile", "android", "app", "src", "main", "java", "com", "anytty", "app")
 	forbidden := []string{"sessionToken", "session_token", "/api/v1/sessions", "Authorization\" to \"Bearer", "connectHub("}
-	legacyFiles := []string{
-		filepath.Join(root, "connectors", "HubConnector.kt"),
-		filepath.Join(root, "connectors", "LocalConnector.kt"),
-		filepath.Join(root, "connectors", "RaceConnector.kt"),
+	roots := []string{
+		filepath.Join("..", "clients", "flutter", "lib"),
+		filepath.Join("..", "clients", "flutter", "android", "app", "src", "main", "kotlin"),
 	}
-	for _, path := range legacyFiles {
-		if _, err := os.Stat(path); !os.IsNotExist(err) {
-			t.Fatalf("legacy Android connector must stay deleted: %s", path)
-		}
-	}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() || (filepath.Ext(path) != ".kt" && filepath.Ext(path) != ".java") {
-			return nil
-		}
-		payload, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		for _, fragment := range forbidden {
-			if strings.Contains(string(payload), fragment) {
-				t.Fatalf("Android managed runtime %s restored legacy protocol fragment %q", path, fragment)
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
 			}
+			extension := filepath.Ext(path)
+			if entry.IsDir() || (extension != ".dart" && extension != ".kt" && extension != ".java") {
+				return nil
+			}
+			payload, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, fragment := range forbidden {
+				if strings.Contains(string(payload), fragment) {
+					t.Fatalf("Flutter managed runtime %s restored legacy protocol fragment %q", path, fragment)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan Flutter managed runtime: %v", err)
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("scan Android managed runtime: %v", err)
 	}
 }

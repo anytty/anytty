@@ -210,7 +210,7 @@ Local、SSH 与 Direct 可以完全基于本仓库使用。Cloud 是可选能力
 
 ## 从源码构建
 
-CLI/TUI 开发需要 Go 1.26.7；共享 UI 与移动端使用 Node.js 24 及仓库中的 npm lockfile。
+CLI/TUI 开发需要 Go 1.26.7；共享 UI 与 Local Web 使用 Node.js 24 及仓库中的 npm lockfile。原生移动端使用 Flutter 3.47.2、Dart 3.13.2、Zig 0.16.0 和 `clients/flutter/README.md` 中列出的平台 SDK。
 
 ```sh
 git clone https://github.com/anytty/anytty.git
@@ -219,7 +219,7 @@ npm ci
 make build
 ```
 
-二进制输出到 `.artifacts/bin/anytty`。浏览器 UI 以可复现的资源包嵌入二进制；修改共享或移动端 UI 后需执行 `make local-web-bundle` 更新。主要检查命令为 `make test`、`make test-clients` 和 `npm run public:check`。Android 构建还需要 Java 21 与 Android SDK；iOS 构建需要 macOS 与 Xcode。
+二进制输出到 `.artifacts/bin/anytty`。浏览器 UI 以可复现的资源包嵌入二进制；修改 `clients/ui` 或 `clients/web` 后需执行 `make local-web-bundle` 更新。主要检查命令为 `make test`、`make test-clients` 和 `npm run public:check`。Android 构建还需要 Java 21、Flutter、Zig 与 Android SDK/NDK；iOS 构建需要 Flutter、Zig、macOS 与 Xcode。
 
 ## 开源版本与 AnyTTY Cloud
 

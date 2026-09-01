@@ -4,7 +4,7 @@
   "private": true,
   "workspaces": [
     "clients/ui",
-    "clients/mobile"
+    "clients/web"
   ],
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -17,7 +17,6 @@
     "typescript-eslint": "8.65.0"
   },
   "overrides": {
-    "@capacitor/core": "8.3.2",
     "@types/node": "25.6.2",
     "@types/three": {
       "fflate": "0.8.2"
@@ -32,12 +31,10 @@
   },
   "scripts": {
     "proto": "npm run proto --workspace @anytty/ui",
-    "lint": "npm run lint --workspace @anytty/ui && npm run lint --workspace @anytty/mobile",
-    "test": "npm test --workspace @anytty/ui && npm test --workspace @anytty/mobile",
-    "typecheck": "npm run typecheck --workspace @anytty/ui && npm run typecheck --workspace @anytty/mobile",
-    "build": "npm run build --workspace @anytty/ui && npm run build --workspace @anytty/mobile",
-    "cap:copy": "npm run cap:copy --workspace @anytty/mobile",
-    "cap:build": "npm run cap:build --workspace @anytty/mobile",
+    "lint": "npm run lint --workspace @anytty/ui && npm run lint --workspace @anytty/web",
+    "test": "npm test --workspace @anytty/ui && npm test --workspace @anytty/web",
+    "typecheck": "npm run typecheck --workspace @anytty/ui && npm run typecheck --workspace @anytty/web",
+    "build": "npm run build --workspace @anytty/ui && npm run build --workspace @anytty/web",
     "public:check": "node scripts/check-public-repository.mjs"
   }
 }

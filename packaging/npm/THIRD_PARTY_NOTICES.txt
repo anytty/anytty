@@ -5,7 +5,8 @@ AnyTTY Third-Party Notices
 Artifact Notice Bundles
 
 - anytty CLI/daemon: cmd/anytty/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
-- Android App: clients/mobile/public/THIRD_PARTY_NOTICES.txt 和 clients/mobile/public/third-party/; 随 App web assets 与 APK assets/public/ 分发。
+- Web client: clients/web/public/THIRD_PARTY_NOTICES.txt 和 clients/web/public/third-party/; 随 daemon 的 Local Web bundle 分发。
+- Flutter clients: clients/flutter/assets/licenses/; 随 Android 与 iOS 应用分发。
 
 这些 bundle 按实际 Go build graph、npm lockfile、Gradle runtime graph 和内嵌资产分别生成。单独列出 SPDX 名称或本索引不能替代 artifact 内的完整版权、许可和 NOTICE 文本。
 
@@ -13,8 +14,8 @@ Vendored And Embedded Material
 
 - vterm/internal/vt/LICENSE: Charmbracelet terminal implementation 的 MIT 文本。
 - clients/ui/src/assets/fonts/LICENSE: 当前 App 内嵌 Nerd Font Mono 字体的 attribution 与 OFL-1.1 文本。
-- clients/mobile/public/third-party/WEBRTC.txt: Android WebRTC native build 及其第三方组件的固定上游 notice bundle。
-- clients/mobile/public/third-party/NPM_NOTICES.txt: App 生产依赖的可复现清单，包括 Apache-2.0 的 file-viewer React 组件及 text/PDF/Word/spreadsheet/media/3D 渲染器；其中 3D 运行时使用的 occt-import-js 及其 Open CASCADE WebAssembly 组件按 LGPL-2.1 分发，完整许可证与上游说明一并收录。
+- clients/web/public/third-party/NPM_NOTICES.txt: Web 生产依赖清单，包括 Apache-2.0 的 file-viewer React 组件及 text/PDF/Word/spreadsheet/media/3D 渲染器；其中 3D 运行时使用的 occt-import-js 及其 Open CASCADE WebAssembly 组件按 LGPL-2.1 分发，完整许可证与上游说明一并收录。
+- third_party/ghostty/LICENSE: Flutter 终端输入与解析层使用的 libghostty-vt 许可文本。
 - docs/legal/third-party/: npm/Maven artifact 没有随包提供独立 license 文件时使用的固定上游文本。
 
 Reproducible Audit

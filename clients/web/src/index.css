@@ -1,0 +1,58 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+button, a, input, textarea, select, summary {
+  touch-action: manipulation;
+}
+
+pre, code, [data-anytty-selectable="true"], [data-testid="anytty-file-preview"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.xterm-wrapper {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.anytty-terminal-key-row {
+  scrollbar-width: none;
+}
+
+.anytty-terminal-key-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* iPhone zooms focused controls below 16px, which breaks fixed app layouts. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    input:not(.xterm-helper-textarea), textarea, select, [contenteditable="true"] {
+      font-size: 16px !important;
+    }
+  }
+}

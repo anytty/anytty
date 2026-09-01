@@ -57,7 +57,6 @@ export class RemoteNetworkStateManager {
     this.initPhoneNetwork()
     void this.initNativeNetwork()
     this.initAppLifecycle()
-    void this.initNativeAppLifecycle()
     this.initHeartbeat()
   }
 
@@ -133,7 +132,7 @@ export class RemoteNetworkStateManager {
   }
 
   private async initNativeNetwork(): Promise<void> {
-    const network = this.nativeNetworkPlugin ?? capacitorNetworkPlugin()
+    const network = this.nativeNetworkPlugin
     if (!network) return
     try {
       const status = await network.getStatus?.()
@@ -146,20 +145,6 @@ export class RemoteNetworkStateManager {
         this.phoneOnline = status.connected
         this.connectionType = status.connectionType ?? this.connectionType
         this.scheduleNotify()
-      })
-      this.addNativeCleanup(handle)
-    } catch (err) {
-      reportListenerError(err)
-    }
-  }
-
-  private async initNativeAppLifecycle(): Promise<void> {
-    const app = capacitorAppPlugin()
-    if (!app) return
-    try {
-      const handle = await app.addListener?.('appStateChange', ({ isActive }) => {
-        if (isActive) this.onResume()
-        else this.onBackground()
       })
       this.addNativeCleanup(handle)
     } catch (err) {
@@ -298,26 +283,6 @@ export interface NativePluginListenerHandle {
 export interface NativeNetworkStatus {
   connected: boolean
   connectionType?: string | undefined
-}
-
-interface NativeAppPlugin {
-  addListener?: ((
-    eventName: 'appStateChange',
-    handler: (state: { isActive: boolean }) => void,
-  ) => NativePluginListenerHandle | Promise<NativePluginListenerHandle>) | undefined
-}
-
-function capacitorNetworkPlugin(): NativeNetworkStatusPlugin | undefined {
-  return capacitorPlugin('Network') as NativeNetworkStatusPlugin | undefined
-}
-
-function capacitorAppPlugin(): NativeAppPlugin | undefined {
-  return capacitorPlugin('App') as NativeAppPlugin | undefined
-}
-
-function capacitorPlugin(name: string): unknown {
-  const cap = (globalThis as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor
-  return cap?.Plugins?.[name]
 }
 
 function reportListenerError(error: unknown): void {

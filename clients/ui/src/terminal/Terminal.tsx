@@ -112,17 +112,7 @@ function prefersReducedTerminalMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 }
 
-function isNativeAndroidWebView(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const userAgent = navigator.userAgent || ''
-  const cap = globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?: () => boolean } }
-  return /Android/i.test(userAgent) && cap.Capacitor?.isNativePlatform?.() === true
-}
-
 function effectiveRendererMode(configuredRenderer: TerminalRenderer): TerminalRenderer {
-  if (configuredRenderer === 'auto' && isNativeAndroidWebView()) {
-    return 'canvas'
-  }
   return configuredRenderer
 }
 
@@ -1480,7 +1470,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
           configuredRenderer,
           effectiveRenderer: rendererMode,
           activeRenderer,
-          nativeAndroidWebView: isNativeAndroidWebView(),
         },
       })
     }

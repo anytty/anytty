@@ -19,6 +19,6 @@ GitHub Releases 还会提供包含全部受支持 ABI 的 `anytty-VERSION-androi
 
 keystore 和密码必须保存在仓库之外。更换密钥需要明确的迁移方案，因为侧载 APK 只有与已安装版本使用同一密钥签名才能直接升级。
 
-本地执行 `make test-android` 会构建未签名 universal APK 并运行 APK 边界检查。`scripts/build-android-aab.sh` 会创建或使用已被忽略的本地 upload keystore，构建签名 Play bundle，并验证其签名与 ABI 内容。
+本地执行 `make test-android` 会运行 Flutter 测试、构建 release 模式的 arm64 APK，并检查产物包含 Flutter 运行时、Go Client Engine 和终端输入库，同时不包含 WebView 或 JavaScript 运行时。未配置 upload key 环境变量时，Gradle 仅对本地构建使用 debug key。
 
-Android Gradle Plugin 不支持在启用 APK splits 的同一次调用中同时生成 AAB，因此 release 工作流会先构建 AAB，再启用 splits 构建 APK。随后工作流会检查每个 APK 的精确 ABI 集合、签名、生产资源与原生 ELF 对齐，同时确认签名 AAB 包含 `armeabi-v7a`、`arm64-v8a` 和 `x86_64` 原生库；全部通过后才发布 Android 资产。
+Release 工作流通过独立命令构建 Flutter AAB、分 ABI APK 和 universal APK。随后检查每个 APK 的精确 ABI 集合、签名、原生 ELF 对齐和 Flutter 原生边界，同时确认签名 AAB 为 `armeabi-v7a`、`arm64-v8a` 和 `x86_64` 包含 Flutter 运行时、Go Client Engine 和终端输入库；全部通过后才发布 Android 资产。

@@ -220,7 +220,7 @@ Local, SSH, and Direct work entirely from this repository. Cloud is optional: it
 
 ## Build from source
 
-CLI/TUI development requires Go 1.26.7. Shared UI and mobile builds use Node.js 24 and the checked-in npm lockfile.
+CLI/TUI development requires Go 1.26.7. The shared and Local Web clients use Node.js 24 and the checked-in npm lockfile. Native mobile builds use Flutter 3.47.2, Dart 3.13.2, Zig 0.16.0, and the platform SDKs documented in `clients/flutter/README.md`.
 
 ```sh
 git clone https://github.com/anytty/anytty.git
@@ -229,7 +229,7 @@ npm ci
 make build
 ```
 
-The binary is written to `.artifacts/bin/anytty`. The browser UI is committed as a deterministic embedded asset bundle; after changing the shared or mobile UI, refresh it with `make local-web-bundle`. Run the main checks with `make test`, `make test-clients`, and `npm run public:check`. Android builds additionally require Java 21 and the Android SDK; iOS builds require macOS and Xcode.
+The binary is written to `.artifacts/bin/anytty`. The browser UI is committed as a deterministic embedded asset bundle; after changing `clients/ui` or `clients/web`, refresh it with `make local-web-bundle`. Run the main checks with `make test`, `make test-clients`, and `npm run public:check`. Android builds additionally require Java 21, Flutter, Zig, and the Android SDK/NDK; iOS builds require Flutter, Zig, macOS, and Xcode.
 
 ## Open source and AnyTTY Cloud
 

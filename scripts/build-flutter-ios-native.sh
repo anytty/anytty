@@ -9,7 +9,7 @@ output_root="${1:-${repo_root}/clients/flutter/ios/Native}"
 ghostty_root="${repo_root}/third_party/ghostty"
 terminal_source="${repo_root}/clients/flutter/native/terminal/anytty_terminal_input.c"
 terminal_include="${repo_root}/clients/flutter/native/terminal"
-client_headers="${repo_root}/clients/mobile/ios/native/include"
+client_header="${repo_root}/client/binding/cabi/anytty_client.h"
 cloud_controller_address="${ANYTTY_CLOUD_CONTROLLER_ADDRESS:-cloud.anytty.com:443}"
 cloud_controller_server_name="${ANYTTY_CLOUD_CONTROLLER_SERVER_NAME:-cloud.anytty.com}"
 cloud_controller_ca_pem_base64="${ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64:-}"
@@ -33,7 +33,7 @@ if [[ ! -f "${ghostty_root}/build.zig" ]]; then
   echo "Ghostty submodule is unavailable; run: git submodule update --init" >&2
   exit 1
 fi
-if [[ ! -f "${client_headers}/anytty_client.h" ]]; then
+if [[ ! -f "${client_header}" ]]; then
   echo "AnyTTY Client C headers are unavailable" >&2
   exit 1
 fi
@@ -53,7 +53,7 @@ build_go_archive() {
       CGO_CFLAGS="-isysroot ${sdk_root} -target ${target}" \
       CGO_LDFLAGS="-isysroot ${sdk_root} -target ${target}" \
       go build -trimpath -buildmode=c-archive -ldflags="${cloud_ldflags}" \
-        -o "${destination}" ./clients/mobile/ios/native/go/ioslib
+        -o "${destination}" ./clients/flutter/native/ioslib
   )
 }
 
@@ -81,6 +81,16 @@ build_terminal_archive() {
 
 rm -rf "${build_root}"
 mkdir -p "${build_root}" "${output_root}"
+
+client_headers="${build_root}/client/headers"
+mkdir -p "${client_headers}"
+cp "${client_header}" "${client_headers}/anytty_client.h"
+cat >"${client_headers}/module.modulemap" <<'EOF'
+module AnyTTYClient {
+  header "anytty_client.h"
+  export *
+}
+EOF
 
 build_go_archive iphoneos "arm64-apple-ios${minimum_ios}" \
   "${build_root}/client/iphoneos/libanytty_client.a"

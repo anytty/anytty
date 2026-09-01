@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 ARTIFACT_DIR := $(CURDIR)/.artifacts
 ANYTTY_BIN := $(ARTIFACT_DIR)/bin/anytty
-ANDROID_DIR := $(CURDIR)/clients/mobile/android
+FLUTTER_DIR := $(CURDIR)/clients/flutter
 ANDROID_ARTIFACT_DIR := $(ARTIFACT_DIR)/android
 RELEASE_VERSION ?=
 
@@ -29,18 +29,19 @@ test-clients:
 	GOWORK=off go run ./internal/cmd/localwebbundle --check
 
 local-web-bundle:
-	npm run build --workspace @anytty/mobile
+	npm run build --workspace @anytty/web
 	GOWORK=off go run ./internal/cmd/localwebbundle
 
 test-android:
-	npm run cap:build
+	cd "$(FLUTTER_DIR)" && flutter pub get
+	cd "$(FLUTTER_DIR)" && flutter test
+	cd "$(FLUTTER_DIR)" && flutter build apk --release --target-platform android-arm64 --split-per-abi
 	mkdir -p "$(ANDROID_ARTIFACT_DIR)"
-	cd "$(ANDROID_DIR)" && ./gradlew clean testDebugUnitTest assembleRelease
-	cp "$(ANDROID_DIR)/app/build/outputs/apk/release/app-release-unsigned.apk" "$(ANDROID_ARTIFACT_DIR)/app-release-unsigned.apk"
-	scripts/verify-android-apk-boundary.sh "$(ANDROID_ARTIFACT_DIR)/app-release-unsigned.apk"
+	cp "$(FLUTTER_DIR)/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$(ANDROID_ARTIFACT_DIR)/anytty-arm64-v8a-release.apk"
+	ANYTTY_ANDROID_EXPECTED_ABIS=arm64-v8a scripts/verify-flutter-android-apk-boundary.sh "$(ANDROID_ARTIFACT_DIR)/anytty-arm64-v8a-release.apk"
 
 public-check:
 	npm run public:check
 
 clean:
-	rm -rf "$(ARTIFACT_DIR)" clients/ui/dist clients/mobile/dist
+	rm -rf "$(ARTIFACT_DIR)" clients/ui/dist clients/web/dist clients/flutter/build

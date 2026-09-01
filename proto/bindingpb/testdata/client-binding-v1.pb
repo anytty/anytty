@@ -1,5 +1,5 @@
 
-§¬
+³­
 bindingpb/client_binding.protoanytty.client.binding.v1apipb/application.protoapipb/common.protoremoteauthpb/remote_auth.proto"Ñ
 
 ConnectionSnapshot
@@ -299,7 +299,7 @@ connection"Ç
 SessionClosedEvent%
 session_handle (RsessionHandle=
 session (2#.anytty.api.v1.EndpointSessionStampRsession-
-error (2.anytty.api.v1.ApiErrorRerror"È
+error (2.anytty.api.v1.ApiErrorRerror"Ô
 EndpointConnectionEvent
 
 request_id (	R	requestId)
@@ -310,7 +310,10 @@ endpointId=
 phase (21.anytty.client.binding.v1.EndpointConnectionPhaseRphaseU
 observed_path (20.anytty.client.binding.v1.ConnectionObservedPathRobservedPath4
 route_selection_reason (	RrouteSelectionReason-
-error (2.anytty.api.v1.ApiErrorRerror"…
+error (2.anytty.api.v1.ApiErrorRerror_
+attempted_route_kind	 (2-.anytty.client.binding.v1.ConnectionRouteKindRattemptedRouteKind)
+connection_stage
+ (	RconnectionStage"…
 EventEnvelope
 abi_version (R
 abiVersion

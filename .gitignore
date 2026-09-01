@@ -13,18 +13,10 @@
 /dist/
 /muxvia
 /test-results/
-/clients/mobile/test-results/
-# Android packages and generated build state
+/clients/web/test-results/
+# Mobile packages and local signing material
 *.apk
 *.aab
-/clients/mobile/android/build/
-/clients/mobile/android/*/build/
-/clients/mobile/android/.gradle/
-/clients/mobile/android/*/.gradle/
-/clients/mobile/android/.cxx/
-/clients/mobile/android/*/.cxx/
-/clients/mobile/android/local.properties
-/clients/mobile/android/certificates/
 *.jks
 *.keystore
 *.p12

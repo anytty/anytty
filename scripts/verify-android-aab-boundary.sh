@@ -36,7 +36,7 @@ IFS=' ' read -r -a expected_abis <<<"$expected_abis_value"
 
 for abi in "${expected_abis[@]}"; do
   [[ "$abi" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "invalid expected ABI: $abi"
-  for library in libanytty_client.so libanytty_client_jni.so; do
+  for library in libanytty_client.so libanytty_terminal_input.so libapp.so libflutter.so; do
     native_path="base/lib/$abi/$library"
     if ! printf '%s\n' "$aab_entries" | grep -F -x -- "$native_path" >/dev/null; then
       fail "missing required native library: $native_path"

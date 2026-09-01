@@ -1,2 +1,0 @@
-"NSCameraUsageDescription" = "用于扫描 AnyTTY 配对二维码，画面只在本机识别。";
-"NSLocalNetworkUsageDescription" = "用于发现并连接此局域网内已配对的 AnyTTY 设备。";

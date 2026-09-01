@@ -10,7 +10,7 @@ import (
 )
 
 func TestCONN002BootstrapFixtureUsesCanonicalGoParser(t *testing.T) {
-	payload, err := os.ReadFile(filepath.Join("..", "..", "clients", "mobile", "android", "app", "src", "test", "resources", "pairing_bootstrap_v2.json"))
+	payload, err := os.ReadFile(filepath.Join("testdata", "pairing_bootstrap_v2.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

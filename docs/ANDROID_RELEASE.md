@@ -19,6 +19,6 @@ All public APKs and the Play bundle must be signed with the same persistent Andr
 
 Keep the keystore and passwords outside the repository. Rotating the key requires an explicit migration plan because sideloaded APK updates must be signed by the same key as the installed app.
 
-For local validation, `make test-android` builds an unsigned universal APK and runs the APK boundary checks. `scripts/build-android-aab.sh` creates or uses the ignored local upload keystore, builds a signed Play bundle, and verifies its signature and ABI contents.
+For local validation, `make test-android` runs the Flutter tests, builds a release-mode arm64 APK, and checks that the artifact contains the Flutter runtime, Go client engine, and terminal input library without a WebView or JavaScript runtime. Without upload-key environment variables, Gradle uses the debug key for this local build only.
 
-The release workflow builds the AAB before enabling APK splits because Android Gradle Plugin does not support producing both forms in one split-enabled invocation. It then verifies every APK's exact ABI set, signature, production resources, and native ELF alignment. It also verifies that the signed AAB contains `armeabi-v7a`, `arm64-v8a`, and `x86_64` native libraries before publishing any Android asset.
+The release workflow builds the Flutter AAB, split APKs, and universal APK as separate invocations. It verifies every APK's exact ABI set, signature, native ELF alignment, and Flutter-native boundary. It also verifies that the signed AAB contains the Flutter runtime, Go client engine, and terminal input library for `armeabi-v7a`, `arm64-v8a`, and `x86_64` before publishing any Android asset.

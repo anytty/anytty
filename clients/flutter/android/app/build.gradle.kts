@@ -28,11 +28,35 @@ android {
         versionName = flutter.versionName
     }
 
+    val uploadStoreFile = System.getenv("ANYTTY_ANDROID_UPLOAD_STORE_FILE")
+    val uploadStorePassword = System.getenv("ANYTTY_ANDROID_UPLOAD_STORE_PASSWORD")
+    val uploadKeyAlias = System.getenv("ANYTTY_ANDROID_UPLOAD_KEY_ALIAS")
+    val uploadKeyPassword = System.getenv("ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD")
+    val hasUploadSigning = listOf(
+        uploadStoreFile,
+        uploadStorePassword,
+        uploadKeyAlias,
+        uploadKeyPassword,
+    ).all { !it.isNullOrBlank() }
+
+    signingConfigs {
+        if (hasUploadSigning) {
+            create("upload") {
+                storeFile = file(uploadStoreFile!!)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasUploadSigning) {
+                signingConfigs.getByName("upload")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
@@ -45,4 +69,20 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+val anyttyRepoRoot = rootProject.projectDir.resolve("../../..").canonicalFile
+val buildAnyttyNative by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Builds the AnyTTY Go client and Ghostty terminal input libraries."
+    workingDir(anyttyRepoRoot)
+    commandLine(
+        "bash",
+        anyttyRepoRoot.resolve("scripts/build-flutter-android-native.sh"),
+        projectDir.resolve("src/main/jniLibs"),
+    )
+}
+
+tasks.named("preBuild") {
+    dependsOn(buildAnyttyNative)
 }

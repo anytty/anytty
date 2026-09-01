@@ -22,7 +22,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-  ANDROID_NDK_VERSION: 27.2.12479018
+  ANDROID_NDK_VERSION: 28.2.13676358
 
 jobs:
   cli:
@@ -55,14 +55,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
+          submodules: recursive
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -71,7 +68,14 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;$ANDROID_NDK_VERSION"
-      - run: npm ci
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.2
+          cache: true
       - name: Configure Android release signing
         env:
           ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -91,19 +95,23 @@ jobs:
       - name: Build signed Android release APKs and AAB
         env:
           ANYTTY_ANDROID_NDK_VERSION: ${{ env.ANDROID_NDK_VERSION }}
+        working-directory: clients/flutter
         run: |
-          npm run cap:build
-          clients/mobile/android/gradlew --no-daemon -p clients/mobile/android bundleRelease
-          clients/mobile/android/gradlew --no-daemon -p clients/mobile/android \
-            -PanyttyReleaseApkSplits assembleRelease
+          flutter pub get
+          flutter build appbundle --release \
+            --target-platform android-arm,android-arm64,android-x64
+          flutter build apk --release --split-per-abi \
+            --target-platform android-arm,android-arm64,android-x64
+          flutter build apk --release \
+            --target-platform android-arm,android-arm64,android-x64
       - name: Verify and stage Android packages
         run: |
-          apk_dir="clients/mobile/android/app/build/outputs/apk/release"
+          apk_dir="clients/flutter/build/app/outputs/flutter-apk"
           verify_apk() {
             local source="$1" abi="$2" target="$3"
             ANYTTY_ANDROID_EXPECTED_ABIS="$abi" \
               ANYTTY_ANDROID_REQUIRE_SIGNATURE=1 \
-              scripts/verify-android-apk-boundary.sh "$apk_dir/$source"
+              scripts/verify-flutter-android-apk-boundary.sh "$apk_dir/$source"
             cp "$apk_dir/$source" "$RUNNER_TEMP/$target"
           }
           verify_apk app-armeabi-v7a-release.apk armeabi-v7a \
@@ -112,10 +120,11 @@ jobs:
             "anytty-$RELEASE_TAG-android-arm64-v8a.apk"
           verify_apk app-x86_64-release.apk x86_64 \
             "anytty-$RELEASE_TAG-android-x86_64.apk"
-          verify_apk app-universal-release.apk "armeabi-v7a arm64-v8a x86_64" \
+          verify_apk app-release.apk "armeabi-v7a arm64-v8a x86_64" \
             "anytty-$RELEASE_TAG-android-universal.apk"
 
-          aab="clients/mobile/android/app/build/outputs/bundle/release/app-release.aab"
+          aab="clients/flutter/build/app/outputs/bundle/release/app-release.aab"
+          ANYTTY_ANDROID_EXPECTED_ABIS="armeabi-v7a arm64-v8a x86_64" \
           scripts/verify-android-aab-boundary.sh "$aab"
           cp "$aab" "$RUNNER_TEMP/anytty-$RELEASE_TAG-android-play.aab"
       - uses: actions/upload-artifact@v4
