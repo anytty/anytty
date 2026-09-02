@@ -7,6 +7,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Repository = if ($env:ANYTTY_REPOSITORY) { $env:ANYTTY_REPOSITORY } else { 'anytty/anytty' }
+
+function Receive-AnyTTYFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    $Uri = [uri]$Source
+    if ($Uri.IsFile) {
+        Copy-Item -LiteralPath $Uri.LocalPath -Destination $Destination
+        return
+    }
+    Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $Destination
+}
+
 if (-not $InstallDir) {
     $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\AnyTTY\bin'
 }
@@ -37,8 +52,8 @@ try {
     New-Item -ItemType Directory -Path $WorkDir | Out-Null
     $ArchivePath = Join-Path $WorkDir $ArchiveName
     $ChecksumPath = Join-Path $WorkDir 'SHA256SUMS'
-    Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/$ArchiveName" -OutFile $ArchivePath
-    Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseBase/SHA256SUMS" -OutFile $ChecksumPath
+    Receive-AnyTTYFile -Source "$ReleaseBase/$ArchiveName" -Destination $ArchivePath
+    Receive-AnyTTYFile -Source "$ReleaseBase/SHA256SUMS" -Destination $ChecksumPath
 
     $Expected = $null
     foreach ($Line in Get-Content -LiteralPath $ChecksumPath) {

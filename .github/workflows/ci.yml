@@ -8,6 +8,14 @@ permissions:
   contents: read
 
 jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test PowerShell installer
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
+
   test:
     runs-on: ubuntu-latest
     steps:

@@ -225,10 +225,19 @@ func preserveActiveSocket(path string) error {
 		_ = conn.Close()
 		return fmt.Errorf("transport/unix: socket %q already has an active listener", path)
 	}
-	if os.IsNotExist(err) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ECONNREFUSED) {
+	if os.IsNotExist(err) || errors.Is(err, syscall.ENOENT) || isConnectionRefused(err) {
 		return nil
 	}
 	return fmt.Errorf("transport/unix: inspect existing socket %q: %w", path, err)
+}
+
+func isConnectionRefused(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+	// Windows AF_UNIX reports a stale socket as WSAECONNREFUSED. The generic
+	// ECONNREFUSED value does not match that Winsock errno on all Go versions.
+	return runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10061))
 }
 
 // Accept 接收一个 unix socket 连接。

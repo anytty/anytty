@@ -6,6 +6,20 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.8] - 2026-09-02
+
+### Added
+
+- Added a Windows CI test that verifies release archive installation, checksum validation, recommended configuration installation, and preservation of existing configuration.
+
+### Changed
+
+- Updated the documented Windows installation command to work when the default PowerShell execution policy blocks downloaded scripts, without changing the user's persistent policy.
+
+### Fixed
+
+- Windows daemons now recognize Winsock `WSAECONNREFUSED` when probing an abandoned AF_UNIX socket and replace the stale socket instead of failing to start.
+
 ## [0.0.1-beta.7] - 2026-09-02
 
 ### Added

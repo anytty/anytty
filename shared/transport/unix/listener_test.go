@@ -106,6 +106,35 @@ func TestNewListenerPreservesActiveSocket(t *testing.T) {
 	_ = client.Close()
 }
 
+func TestNewListenerReplacesStaleSocket(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "anytty.sock")
+	raw, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatalf("create stale listener failed: %v", err)
+	}
+	if unixListener, ok := raw.(*net.UnixListener); ok {
+		unixListener.SetUnlinkOnClose(false)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatalf("close stale listener failed: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("stale socket was not preserved: %v", err)
+	}
+
+	listener, err := NewListener(path)
+	if err != nil {
+		t.Fatalf("replace stale socket failed: %v", err)
+	}
+	defer listener.Close()
+
+	client, err := Dial(path)
+	if err != nil {
+		t.Fatalf("replacement listener is unreachable: %v", err)
+	}
+	_ = client.Close()
+}
+
 func TestListenerAcceptContextCancel(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "anytty.sock")
 	listener, err := NewListener(path)

@@ -6,6 +6,20 @@
 
 ## Unreleased
 
+## [0.0.1-beta.8] - 2026-09-02
+
+### 新增
+
+- 新增 Windows 安装器 CI 测试，覆盖 Release 压缩包安装、校验和验证、推荐配置安装以及已有配置保留。
+
+### 变更
+
+- 更新 Windows 安装命令，在默认 PowerShell 执行策略阻止下载脚本时也能运行，且不会修改用户的持久策略。
+
+### 修复
+
+- Windows daemon 探测遗留 AF_UNIX socket 时现在能够识别 Winsock `WSAECONNREFUSED`，并替换陈旧 socket，不再启动失败。
+
 ## [0.0.1-beta.7] - 2026-09-02
 
 ### 新增
