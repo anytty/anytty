@@ -39,6 +39,7 @@ type serverConfig struct {
 	historyStorage      HistoryStorageConfig
 	historyDisabled     bool
 	terminalOutput      TerminalOutputBufferConfig
+	terminalResources   TerminalResourceSamplingConfig
 	outputResidentBytes int64
 	applicationFactory  ApplicationExecutorFactory
 	protocolLimits      ProtocolSessionLimits
@@ -225,6 +226,7 @@ func NewServer(opts ...ServerOption) *Server {
 		protocolLimits:      DefaultProtocolSessionLimits(),
 		historyStorage:      DefaultHistoryStorageConfig(),
 		terminalOutput:      DefaultTerminalOutputBufferConfig(),
+		terminalResources:   DefaultTerminalResourceSamplingConfig(),
 		outputResidentBytes: DefaultTerminalOutputResidentBudgetBytes,
 		grantNow:            time.Now,
 		grantAfterFunc: func(delay time.Duration, callback func()) grantTimer {
@@ -248,6 +250,7 @@ func NewServer(opts ...ServerOption) *Server {
 		cfg.processFactory = newPTYProcessFactory()
 	}
 	cfg.terminalOutput = cfg.terminalOutput.normalized()
+	cfg.terminalResources = cfg.terminalResources.normalized()
 	if cfg.outputResidentBytes < MinTerminalOutputResidentBudgetBytes || cfg.outputResidentBytes > MaxTerminalOutputResidentBudgetBytes {
 		cfg.outputResidentBytes = DefaultTerminalOutputResidentBudgetBytes
 	}
@@ -395,6 +398,14 @@ func WithTerminalOutputBufferConfig(output TerminalOutputBufferConfig) ServerOpt
 	}
 }
 
+// WithTerminalResourceSamplingConfig configures resource polling and the
+// per-terminal in-memory resource history window.
+func WithTerminalResourceSamplingConfig(resources TerminalResourceSamplingConfig) ServerOption {
+	return func(cfg *serverConfig) {
+		cfg.terminalResources = resources.normalized()
+	}
+}
+
 // WithTerminalOutputResidentBudget sets the daemon-wide actual resident-byte cap.
 func WithTerminalOutputResidentBudget(bytes int64) ServerOption {
 	return func(cfg *serverConfig) {
@@ -449,6 +460,10 @@ func (server *Server) TerminalOutputBufferConfig() TerminalOutputBufferConfig {
 	return server.cfg.terminalOutput.normalized()
 }
 
+func (server *Server) TerminalResourceSamplingConfig() TerminalResourceSamplingConfig {
+	return server.cfg.terminalResources.normalized()
+}
+
 func (server *Server) TerminalOutputResidentBudget() int64 {
 	return server.cfg.outputResidentBytes
 }
@@ -490,7 +505,7 @@ func (server *Server) RegisterTerminal(record TerminalRecord) (TerminalInfo, err
 		return TerminalInfo{}, err
 	}
 	finishNewTerminal := perftrace.Measure("core.server.register_terminal.new_terminal")
-	terminal := newTerminal(info, record.Options, process, server.events, server.updateTerminalInfo, historyStore, historyEnabled, server.cfg.terminalOutput, server.outputBudget, server.cfg.logger)
+	terminal := newTerminal(info, record.Options, process, server.events, server.updateTerminalInfo, historyStore, historyEnabled, server.cfg.terminalOutput, server.cfg.terminalResources, server.outputBudget, server.cfg.logger)
 	server.mu.Lock()
 	server.terminals[info.ID] = terminal
 	server.mu.Unlock()

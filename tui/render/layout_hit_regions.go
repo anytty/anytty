@@ -23,12 +23,16 @@ func measureHitRegions(shell ShellVM, plan LayoutPlan) []HitRegion {
 	for i := len(plan.Floatings) - 1; i >= 0; i-- {
 		regions = appendFloatingHitRegions(regions, plan.Floatings[i], plan.Viewport)
 	}
-	for _, panel := range plan.Panels {
-		regions = appendPaneActionRegions(regions, panel.Panel, panel.Rect, panel.Panel.ID, plan.Viewport)
+	if !shell.Layout.Zoomed {
+		for _, panel := range plan.Panels {
+			regions = appendPaneActionRegions(regions, panel.Panel, panel.Rect, panel.Panel.ID, plan.Viewport)
+		}
+		regions = appendSplitResizeHitRegions(regions, shell.Layout.Split, plan.Body, plan.Viewport, rootSplitPath)
 	}
-	regions = appendSplitResizeHitRegions(regions, shell.Layout.Split, plan.Body, plan.Viewport, rootSplitPath)
 	for _, panel := range plan.Panels {
-		regions = appendPanelChromeHitRegions(regions, panel, false, plan.Viewport)
+		if !shell.Layout.Zoomed {
+			regions = appendPanelChromeHitRegions(regions, panel, false, plan.Viewport)
+		}
 		regions = appendTranslatedContentRegions(regions, panel.Panel.Content, panel.ContentRect, panel.Panel.ID, plan.Viewport)
 		regions = appendPanelContentHitRegion(regions, panel, plan.Viewport)
 	}

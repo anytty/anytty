@@ -56,15 +56,17 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 	overlayOwnsChrome := shell.Overlay.Opaque && shell.Overlay.Kind != OverlayNone
 	if !overlayHidesBackground {
 		for _, layout := range plan.Panels {
-			switch layout.Panel.Presentation {
-			case PanelPresentationSplitLine:
-				renderSplitPanel(c, layout)
-			default:
-				renderCardPanel(c, layout)
+			if !shell.Layout.Zoomed {
+				switch layout.Panel.Presentation {
+				case PanelPresentationSplitLine:
+					renderSplitPanel(c, layout)
+				default:
+					renderCardPanel(c, layout)
+				}
 			}
 			contentResult := renderContent(c, layout.Panel.Content, layout.ContentRect, "panel:"+layout.Panel.ID+":content", LayerPanel)
 			liveTargets = appendLiveRenderTarget(liveTargets, layout.Panel.Content)
-			if !overlayOwnsChrome {
+			if !overlayOwnsChrome && !shell.Layout.Zoomed {
 				renderPanelContentOverflowMarkers(c, layout, contentResult.Overflow)
 			}
 			layers = append(layers, Layer{Kind: LayerPanel, Rect: layout.Rect, Lines: contentResult.Lines, ContentOverflow: contentResult.Overflow})
@@ -78,7 +80,9 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 				}
 			}
 		}
-		applyChromePatches(c, shell.Layout.ChromePatches, plan)
+		if !shell.Layout.Zoomed {
+			applyChromePatches(c, shell.Layout.ChromePatches, plan)
+		}
 	}
 
 	if !overlayHidesBackground {

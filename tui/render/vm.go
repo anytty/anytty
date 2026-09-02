@@ -591,6 +591,7 @@ func (projector ShellProjector) buildLayoutVM(shell state.ShellStore, activeCont
 	if shell.ZoomedPaneID != "" {
 		return LayoutVM{
 			Viewport:    viewportRect(root.Viewport),
+			Zoomed:      true,
 			Panels:      projector.buildZoomedPanelVMs(shell, activeContent, root),
 			BodyContent: activeContent,
 			Floating:    projector.buildFloatingVMs(shell, root),

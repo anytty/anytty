@@ -19,6 +19,13 @@ const DefaultFileName = "tui-v3.yaml"
 const maxHistorySizeMB = 8 * 1024 * 1024
 
 const (
+	minResourceSampleIntervalMS = 100
+	maxResourceSampleIntervalMS = 60_000
+	minResourceHistorySamples   = 512
+	maxResourceHistorySamples   = 65_536
+)
+
+const (
 	DefaultWorkspaceTemplate = "[style:header-workspace] WS {{workspace | truncate 18}} [/style][style:header-spacer] [/style]"
 	DefaultTabTemplate       = "{{if active}}[style:header-active-edge] [/style][style:header-active-marker]{{marker}}[/style][style:header-active-index] {{index}}[/style][style:header-active-title] {{title | truncate 14}} [/style][action:tab.close][style:header-active-close]{{close_icon}}[/style][/action][style:header-active-edge] [/style]{{else}}[style:header-spacer] [/style][style:header-spacer]{{marker}}[/style][style:header-inactive-index] {{index}}[/style][style:header-inactive-title] {{title | truncate 14}} [/style][action:tab.close][style:header-inactive-close]{{close_icon}}[/style][/action][style:header-spacer] [/style]{{end}}"
 )
@@ -41,6 +48,10 @@ func Default() state.TUIConfigStore {
 				MaxAgeDays:       0,
 				Compression:      "zstd",
 				CompressionLevel: "fast",
+			},
+			ResourceSampling: state.DaemonResourceSamplingConfig{
+				IntervalMS: 500,
+				MaxSamples: 512,
 			},
 		},
 		Profile: "default",
@@ -363,6 +374,7 @@ func knownSection(path string) bool {
 		"daemon",
 		"daemon.output_buffer",
 		"daemon.history",
+		"daemon.resource_sampling",
 		"tui.theme",
 		"tui.theme.border",
 		"tui.theme.surface",
@@ -446,33 +458,39 @@ var scalarSetters = map[string]scalarSetter{
 	"daemon.history.max_age_days":      setInt(func(cfg *state.TUIConfigStore, value int) { cfg.Daemon.History.MaxAgeDays = value }),
 	"daemon.history.compression":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Daemon.History.Compression = value }),
 	"daemon.history.compression_level": setString(func(cfg *state.TUIConfigStore, value string) { cfg.Daemon.History.CompressionLevel = value }),
-	"tui.profile":                      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Profile = value }),
-	"tui.theme.mode":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Mode = value }),
-	"tui.theme.palette":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Palette = value }),
-	"tui.theme.primary":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Primary = value }),
-	"tui.theme.secondary":              setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Secondary = value }),
-	"tui.theme.foreground":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Foreground = value }),
-	"tui.theme.background":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Background = value }),
-	"tui.theme.muted":                  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Muted = value }),
-	"tui.theme.success":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Success = value }),
-	"tui.theme.warning":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Warning = value }),
-	"tui.theme.danger":                 setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Danger = value }),
-	"tui.theme.info":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Info = value }),
-	"tui.theme.border.panel":           setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Panel = value }),
-	"tui.theme.border.active":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Active = value }),
-	"tui.theme.border.inactive":        setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Inactive = value }),
-	"tui.theme.border.muted":           setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Muted = value }),
-	"tui.theme.surface.chrome_bg":      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ChromeBG = value }),
-	"tui.theme.surface.status_bg":      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.StatusBG = value }),
-	"tui.theme.surface.overlay_bg":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.OverlayBG = value }),
-	"tui.theme.surface.toast_bg":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ToastBG = value }),
-	"tui.chrome.header":                setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Header = value }),
-	"tui.chrome.footer":                setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Footer = value }),
-	"tui.chrome.panel_presentation":    setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.PanelPresentation = value }),
-	"tui.chrome.picker.presentation":   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Presentation = value }),
-	"tui.chrome.picker.width":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
-	"tui.chrome.picker.density":        setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
-	"tui.chrome.picker.endpoint_tabs":  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
+	"daemon.resource_sampling.interval_ms": setInt(func(cfg *state.TUIConfigStore, value int) {
+		cfg.Daemon.ResourceSampling.IntervalMS = value
+	}),
+	"daemon.resource_sampling.max_samples": setInt(func(cfg *state.TUIConfigStore, value int) {
+		cfg.Daemon.ResourceSampling.MaxSamples = value
+	}),
+	"tui.profile":                     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Profile = value }),
+	"tui.theme.mode":                  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Mode = value }),
+	"tui.theme.palette":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Palette = value }),
+	"tui.theme.primary":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Primary = value }),
+	"tui.theme.secondary":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Secondary = value }),
+	"tui.theme.foreground":            setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Foreground = value }),
+	"tui.theme.background":            setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Background = value }),
+	"tui.theme.muted":                 setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Muted = value }),
+	"tui.theme.success":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Success = value }),
+	"tui.theme.warning":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Warning = value }),
+	"tui.theme.danger":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Danger = value }),
+	"tui.theme.info":                  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Info = value }),
+	"tui.theme.border.panel":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Panel = value }),
+	"tui.theme.border.active":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Active = value }),
+	"tui.theme.border.inactive":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Inactive = value }),
+	"tui.theme.border.muted":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Muted = value }),
+	"tui.theme.surface.chrome_bg":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ChromeBG = value }),
+	"tui.theme.surface.status_bg":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.StatusBG = value }),
+	"tui.theme.surface.overlay_bg":    setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.OverlayBG = value }),
+	"tui.theme.surface.toast_bg":      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ToastBG = value }),
+	"tui.chrome.header":               setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Header = value }),
+	"tui.chrome.footer":               setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Footer = value }),
+	"tui.chrome.panel_presentation":   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.PanelPresentation = value }),
+	"tui.chrome.picker.presentation":  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Presentation = value }),
+	"tui.chrome.picker.width":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
+	"tui.chrome.picker.density":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
+	"tui.chrome.picker.endpoint_tabs": setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
 	"tui.chrome.picker.endpoint_status.unknown.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
 		cfg.Chrome.Picker.EndpointStatus.Unknown.Glyph = value
 	}),
@@ -940,6 +958,8 @@ var envScalarPaths = map[string]string{
 	"ANYTTY_HISTORY_MAX_AGE_DAYS":                 "daemon.history.max_age_days",
 	"ANYTTY_HISTORY_COMPRESSION":                  "daemon.history.compression",
 	"ANYTTY_HISTORY_COMPRESSION_LEVEL":            "daemon.history.compression_level",
+	"ANYTTY_RESOURCE_SAMPLING_INTERVAL_MS":        "daemon.resource_sampling.interval_ms",
+	"ANYTTY_RESOURCE_SAMPLING_MAX_SAMPLES":        "daemon.resource_sampling.max_samples",
 	"ANYTTY_TUI_THEME_MODE":                       "tui.theme.mode",
 	"ANYTTY_TUI_THEME_PALETTE":                    "tui.theme.palette",
 	"ANYTTY_TUI_THEME_PRIMARY":                    "tui.theme.primary",
@@ -982,6 +1002,12 @@ func Validate(cfg state.TUIConfigStore) error {
 	}
 	if cfg.Daemon.OutputBuffer.ResidentBudgetBytes < 64<<10 || cfg.Daemon.OutputBuffer.ResidentBudgetBytes > 2<<30 {
 		return fmt.Errorf("daemon.output_buffer.resident_budget_bytes must be between 65536 and 2147483648")
+	}
+	if cfg.Daemon.ResourceSampling.IntervalMS < minResourceSampleIntervalMS || cfg.Daemon.ResourceSampling.IntervalMS > maxResourceSampleIntervalMS {
+		return fmt.Errorf("daemon.resource_sampling.interval_ms must be between %d and %d", minResourceSampleIntervalMS, maxResourceSampleIntervalMS)
+	}
+	if cfg.Daemon.ResourceSampling.MaxSamples < minResourceHistorySamples || cfg.Daemon.ResourceSampling.MaxSamples > maxResourceHistorySamples {
+		return fmt.Errorf("daemon.resource_sampling.max_samples must be between %d and %d", minResourceHistorySamples, maxResourceHistorySamples)
 	}
 	if cfg.Daemon.History.MaxSizeMB < 0 || cfg.Daemon.History.MaxSizeMB > maxHistorySizeMB {
 		return fmt.Errorf("daemon.history.max_size_mb must be between 0 and %d", maxHistorySizeMB)

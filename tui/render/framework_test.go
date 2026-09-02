@@ -1549,6 +1549,37 @@ func TestFrameworkHeaderFooterHideReclaimsBody(t *testing.T) {
 	}
 }
 
+func TestFrameworkZoomRendersOnlyFullViewportContent(t *testing.T) {
+	viewport := Rect{W: 30, H: 10}
+	result := NewRenderer(DefaultTheme()).RenderResult(RenderVM{Shell: ShellVM{
+		Header: HeaderVM{Visible: true, Title: "header should be hidden"},
+		Footer: FooterVM{Visible: true, Hint: "footer should be hidden"},
+		Layout: LayoutVM{Viewport: viewport, Zoomed: true, Panels: []PanelVM{{
+			ID:           "pane-zoom",
+			Title:        "pane chrome should be hidden",
+			Presentation: PanelPresentationCard,
+			Active:       true,
+			IsZoomMode:   true,
+			Content: ContentVM{
+				Kind:   ContentTerminalLive,
+				Lines:  []Line{NewLine("full screen")},
+				Extent: ContentExtent{Known: true, Cols: viewport.W + 10, Rows: viewport.H + 2},
+			},
+		}}},
+	}})
+
+	panel := firstLayer(t, result, LayerPanel)
+	if panel.Rect != viewport || !strings.HasPrefix(result.Lines()[0], "full screen") {
+		t.Fatalf("zoom content should begin at viewport origin, layer=%#v lines=%#v", panel, result.Lines())
+	}
+	for _, hidden := range []string{"header should be hidden", "footer should be hidden", "pane chrome should be hidden", "┌", "┐", "└", "┘", "│", ">", "v"} {
+		if linesContain(result.Lines(), hidden) {
+			t.Fatalf("zoom frame must not render shell or pane chrome %q, got %#v", hidden, result.Lines())
+		}
+	}
+	assertAllRowsWidth(t, result.Lines(), viewport.W)
+}
+
 func TestFrameworkRendersToastAndTerminalPickerOverlay(t *testing.T) {
 	result := NewRenderer(DefaultTheme()).RenderResult(RenderVM{Shell: ShellVM{
 		Header:  HeaderVM{Visible: true, Title: "main"},

@@ -122,7 +122,7 @@ func (store ShellStore) OpenTerminalPicker() ShellStore {
 		Open:                 true,
 		TargetID:             targetID,
 		SelectedIndex:        0,
-		TerminalPickerStatus: TerminalPickerStatusAll,
+		TerminalPickerStatus: TerminalPickerStatusRunning,
 		TerminalPickerView:   TerminalPickerViewList,
 	}
 	return store
@@ -425,10 +425,10 @@ func (store ShellStore) ToggleTerminalPickerTag(label string) ShellStore {
 
 func normalizeTerminalPickerStatus(status TerminalPickerStatusFilter) TerminalPickerStatusFilter {
 	switch status {
-	case TerminalPickerStatusRunning, TerminalPickerStatusExited:
+	case TerminalPickerStatusAll, TerminalPickerStatusRunning, TerminalPickerStatusExited:
 		return status
 	default:
-		return TerminalPickerStatusAll
+		return TerminalPickerStatusRunning
 	}
 }
 

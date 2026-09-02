@@ -898,6 +898,9 @@ func TestRenderVMBuilderProjectsZoomPaneChromeAsUnzoomWithoutSplitActions(t *tes
 		ZoomPane(state.PaneCommandTarget{PaneID: "pane-2"})}
 
 	vm := NewRenderVMBuilder().Build(root)
+	if !vm.Shell.Layout.Zoomed || vm.Shell.Header.Visible || vm.Shell.Footer.Visible {
+		t.Fatalf("zoom projection should hide shell bars and enter full-screen layout, got %#v", vm.Shell)
+	}
 	if len(vm.Shell.Layout.Panels) != 1 {
 		t.Fatalf("zoom layout should project only one panel, got %#v", vm.Shell.Layout.Panels)
 	}
@@ -2440,6 +2443,9 @@ func TestRenderVMBuilderProjectsZoomedPaneOnly(t *testing.T) {
 		ZoomPane(state.PaneCommandTarget{PaneID: "pane-2"})
 
 	vm := NewRenderVMBuilder().Build(state.Root{Shell: shell, Surface: state.TerminalSurfaceStore{TerminalID: "term-live", Lines: []string{"prompt"}}})
+	if !vm.Shell.Layout.Zoomed || vm.Shell.Header.Visible || vm.Shell.Footer.Visible {
+		t.Fatalf("expected full-screen zoom projection without shell bars, got %#v", vm.Shell)
+	}
 	if len(vm.Shell.Layout.Panels) != 1 {
 		t.Fatalf("expected one zoomed panel, got %#v", vm.Shell.Layout.Panels)
 	}
@@ -3100,7 +3106,7 @@ func TestRenderVMBuilderProjectsTerminalPickerContentRenderer(t *testing.T) {
 		t.Fatalf("expected terminal picker content, got %#v", vm.Shell.Overlay)
 	}
 	plain := plainLines(content.Lines)
-	for _, want := range []string{"▸ ○ local 2", "⌕ term", "● All 2", "Running 2", "Exited 0", "Tags", "backend", "production", "▸ + New terminal", "● shell · backend · production", "running", "80x24", "● 日志🚀", "100x30"} {
+	for _, want := range []string{"▸ ○ local 2", "⌕ term", "● Running 2", "Exited 0", "All 2", "Tags", "backend", "production", "▸ + New terminal", "● shell · backend · production", "running", "80x24", "● 日志🚀", "100x30"} {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("expected compact picker marker %q, got %#v", want, content.Lines)
 		}

@@ -1003,7 +1003,7 @@ func TestOverlayMouseWheelMovesCurrentSelection(t *testing.T) {
 			name: "terminal picker",
 			root: state.Root{
 				Shell:        state.DefaultShell().OpenTerminalPicker(),
-				TerminalPool: state.TerminalPoolStore{Items: []state.TerminalPoolItem{{TerminalID: "term-a", Title: "a"}, {TerminalID: "term-b", Title: "b"}}},
+				TerminalPool: state.TerminalPoolStore{Items: []state.TerminalPoolItem{{TerminalID: "term-a", Title: "a", State: "running"}, {TerminalID: "term-b", Title: "b", State: "running"}}},
 			},
 			wantKind: state.OverlayTerminalPicker,
 		},
@@ -1118,9 +1118,9 @@ func TestInteractiveRuntimeCtrlFDoesNotSendTerminalInput(t *testing.T) {
 	last := lastFrame(t, host.Frames())
 	if !frameContains(last, "Terminal Picker") ||
 		!frameContains(last, "⌕") ||
-		!frameContains(last, "● All 1") ||
-		!frameContains(last, "Running 1") ||
+		!frameContains(last, "● Running 1") ||
 		!frameContains(last, "Exited 0") ||
+		!frameContains(last, "All 1") ||
 		!frameContains(last, "Tags") ||
 		!frameContains(last, "▸ + New terminal") ||
 		!frameContains(last, "● term-1") ||
@@ -1285,6 +1285,9 @@ func TestInteractiveRuntimeTerminalPickerShowsExitedTerminalImmediatelyAfterAtta
 	terminal.AttachResult = port.TerminalAttachResult{Channel: 9, Cols: 80, Rows: 24}
 	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x06", Ctrl: true}); err != nil {
 		t.Fatalf("send ctrl-f: %v", err)
+	}
+	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight, Shift: true}); err != nil {
+		t.Fatalf("select exited terminals: %v", err)
 	}
 	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "d"}); err != nil {
 		t.Fatalf("send query d: %v", err)
@@ -3124,7 +3127,15 @@ func TestInteractiveRuntimeActivePaneVisualFeedbackFollowsKeyboardAndMouse(t *te
 	if runtime.State().Shell.EnsureDefaults().InteractionMode != state.InteractionModeNormal || len(runtime.State().Shell.Toasts) == 0 {
 		t.Fatalf("resize/presentation/zoom should keep visible active feedback, got %#v", zoomFrame.Lines)
 	}
-	assertPaneVisualState(t, zoomFrame, "pane", render.StyleAccent)
+	zoomContent := frameHitRegion(t, zoomFrame, render.HitRegionPaneContent, "pane-2")
+	if zoomContent.Rect != (render.Rect{W: 96, H: 28}) {
+		t.Fatalf("zoom should give the active pane the full viewport, got %#v", zoomFrame.HitRegions)
+	}
+	for _, region := range zoomFrame.HitRegions {
+		if region.Kind == render.HitRegionPaneChrome || region.Kind == render.HitRegionPaneAction {
+			t.Fatalf("zoom should not retain pane chrome hit regions, got %#v", zoomFrame.HitRegions)
+		}
+	}
 
 	if err := host.SendInput(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x10", Ctrl: true}); err != nil {
 		t.Fatalf("send pane mode before unzoom: %v", err)
@@ -4263,8 +4274,16 @@ func TestTerminalPickerKeyboardMovesEndpointStatusAndTagFilters(t *testing.T) {
 		t.Fatalf("ctrl-t should return to the terminal list, got %#v", root.Shell.Overlay)
 	}
 	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight, Shift: true})
-	if root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusRunning {
+	if root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusExited {
 		t.Fatalf("shift-right should cycle status directly, got %#v", root.Shell.Overlay)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight, Shift: true})
+	if root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusAll {
+		t.Fatalf("all terminals should be the last status option, got %#v", root.Shell.Overlay)
+	}
+	send(input.InputEvent{Kind: input.EventKindKey, Key: input.KeyRight, Shift: true})
+	if root.Shell.Overlay.TerminalPickerStatus != state.TerminalPickerStatusRunning {
+		t.Fatalf("status cycling should wrap from all to running, got %#v", root.Shell.Overlay)
 	}
 	items := state.TerminalPickerItems(root)
 	if len(items) != 2 || !items[0].CreateNew || items[1].TerminalID != "west-run" {
@@ -4298,7 +4317,7 @@ func TestTerminalPickerMouseControlsUseCanonicalSurfaceActions(t *testing.T) {
 		}
 	}
 	click(actiondomain.ActionTerminalPickerEndpointSelect, westIndex, true)
-	click(actiondomain.ActionTerminalPickerStatusSelect, 2, true)
+	click(actiondomain.ActionTerminalPickerStatusSelect, 1, true)
 	click("terminal_picker.tags", 0, false)
 	if root.Shell.Overlay.TerminalPickerView != state.TerminalPickerViewTags {
 		t.Fatalf("clicking tags should open the tag subview, got %#v", root.Shell.Overlay)

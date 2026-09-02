@@ -2684,17 +2684,27 @@ func TestInteractiveRuntimePaneModeFooterActions(t *testing.T) {
 	if got := runtime.State().Shell.EnsureDefaults().ZoomedPaneID; got != activePaneID {
 		t.Fatalf("pane zoom footer action should toggle zoom on active pane, got %q", got)
 	}
-
-	closeAction := frameActionHitRegion(t, lastRuntimeFrame(t, host), "panel.close", "")
-	if err := host.SendInput(mouseEventAt(closeAction.Rect)); err != nil {
-		t.Fatalf("send pane close footer click: %v", err)
+	zoomFrame := lastRuntimeFrame(t, host)
+	assertFrameMissingActionHitRegion(t, zoomFrame, "panel.close")
+	assertFrameMissingActionHitRegion(t, zoomFrame, render.ActionPaneZoom.String())
+	zoomContent := frameHitRegion(t, zoomFrame, render.HitRegionPaneContent, activePaneID)
+	if zoomContent.Rect != (render.Rect{W: 120, H: 24}) {
+		t.Fatalf("zoom pane should own the complete viewport, got %#v", zoomFrame.HitRegions)
 	}
-	if err := runtime.Drain(context.Background()); err != nil {
-		t.Fatalf("drain pane close footer click: %v", err)
+	for _, event := range []input.InputEvent{
+		{Kind: input.EventKindKey, Key: input.KeyChar, Char: "\x10", Ctrl: true},
+		{Kind: input.EventKindKey, Key: input.KeyChar, Char: "x"},
+	} {
+		if err := host.SendInput(event); err != nil {
+			t.Fatalf("send pane close shortcut: %v", err)
+		}
+		if err := runtime.Drain(context.Background()); err != nil {
+			t.Fatalf("drain pane close shortcut: %v", err)
+		}
 	}
 	shell := runtime.State().Shell.EnsureDefaults()
 	if shell.HasPane(state.PaneCommandTarget{PaneID: activePaneID}) || len(shell.Workspace.Tabs[0].Panes) != 1 {
-		t.Fatalf("pane close footer action should close active pane through workbench command, shell=%#v", shell)
+		t.Fatalf("pane shortcut should close the zoomed pane through workbench command, shell=%#v", shell)
 	}
 	if len(terminal.Inputs) != 0 {
 		t.Fatalf("pane mode footer actions must not leak to terminal input, got %#v", terminal.Inputs)

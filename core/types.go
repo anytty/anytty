@@ -15,6 +15,53 @@ const (
 	MaxTerminalOutputResidentBudgetBytes     int64 = 2 << 30
 )
 
+const (
+	DefaultTerminalResourceSampleInterval = 500 * time.Millisecond
+	MinTerminalResourceSampleInterval     = 100 * time.Millisecond
+	MaxTerminalResourceSampleInterval     = time.Minute
+	DefaultTerminalResourceHistorySamples = 512
+	MinTerminalResourceHistorySamples     = 512
+	MaxTerminalResourceHistorySamples     = 65536
+)
+
+// TerminalResourceSamplingConfig controls process resource polling and the
+// chronological in-memory sample window retained for each terminal.
+type TerminalResourceSamplingConfig struct {
+	Interval   time.Duration
+	MaxSamples int
+}
+
+func DefaultTerminalResourceSamplingConfig() TerminalResourceSamplingConfig {
+	return TerminalResourceSamplingConfig{
+		Interval:   DefaultTerminalResourceSampleInterval,
+		MaxSamples: DefaultTerminalResourceHistorySamples,
+	}
+}
+
+func (cfg TerminalResourceSamplingConfig) Validate() error {
+	if cfg.Interval < MinTerminalResourceSampleInterval || cfg.Interval > MaxTerminalResourceSampleInterval {
+		return fmt.Errorf("terminal resource sample interval must be between %s and %s", MinTerminalResourceSampleInterval, MaxTerminalResourceSampleInterval)
+	}
+	if cfg.MaxSamples < MinTerminalResourceHistorySamples || cfg.MaxSamples > MaxTerminalResourceHistorySamples {
+		return fmt.Errorf("terminal resource history samples must be between %d and %d", MinTerminalResourceHistorySamples, MaxTerminalResourceHistorySamples)
+	}
+	return nil
+}
+
+func (cfg TerminalResourceSamplingConfig) normalized() TerminalResourceSamplingConfig {
+	defaults := DefaultTerminalResourceSamplingConfig()
+	if cfg.Interval == 0 {
+		cfg.Interval = defaults.Interval
+	}
+	if cfg.MaxSamples == 0 {
+		cfg.MaxSamples = defaults.MaxSamples
+	}
+	if cfg.Validate() != nil {
+		return defaults
+	}
+	return cfg
+}
+
 type TerminalOutputOverflowPolicy string
 
 const (

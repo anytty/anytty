@@ -553,7 +553,7 @@ func TestMeasureLayoutAddsPaneCommandHitRegionsBeforeContent(t *testing.T) {
 	}
 }
 
-func TestMeasureLayoutZoomPaneChromeDropsSplitActionHitRegions(t *testing.T) {
+func TestMeasureLayoutZoomPaneOwnsViewportWithoutShellOrPaneChrome(t *testing.T) {
 	panel := PanelVM{
 		ID:           "pane-zoom",
 		Presentation: PanelPresentationCard,
@@ -565,12 +565,26 @@ func TestMeasureLayoutZoomPaneChromeDropsSplitActionHitRegions(t *testing.T) {
 			Actions: defaultPaneChromeActionVMsForZoom(StyleAccent, true),
 		},
 	}
-	plan := MeasureLayout(ShellVM{Layout: LayoutVM{Panels: []PanelVM{panel}}}, Rect{W: 40, H: 10})
-	if hitRegionIndexByAction(plan.HitRegions, ActionPaneZoom.String()) < 0 || hitRegionIndexByAction(plan.HitRegions, ActionPaneClose.String()) < 0 {
-		t.Fatalf("zoom pane should keep unzoom toggle and close hit regions, got %#v", plan.HitRegions)
+	viewport := Rect{W: 40, H: 10}
+	plan := MeasureLayout(ShellVM{
+		Header: HeaderVM{Visible: true},
+		Footer: FooterVM{Visible: true},
+		Layout: LayoutVM{Zoomed: true, Panels: []PanelVM{panel}},
+	}, viewport)
+	if plan.Header != (Rect{}) || plan.Footer != (Rect{}) || plan.ShellFrame != (Rect{}) {
+		t.Fatalf("zoom layout must not reserve shell chrome, got %#v", plan)
 	}
-	if hitRegionIndexByAction(plan.HitRegions, ActionPaneSplitRight.String()) >= 0 || hitRegionIndexByAction(plan.HitRegions, ActionPaneSplitDown.String()) >= 0 {
-		t.Fatalf("zoom pane must not expose split hit regions, got %#v", plan.HitRegions)
+	if plan.Body != viewport || len(plan.Panels) != 1 || plan.Panels[0].Rect != viewport || plan.Panels[0].ContentRect != viewport {
+		t.Fatalf("zoom content must own the full viewport, got %#v", plan)
+	}
+	if hitRegionIndexByAction(plan.HitRegions, ActionPaneZoom.String()) >= 0 ||
+		hitRegionIndexByAction(plan.HitRegions, ActionPaneClose.String()) >= 0 ||
+		hitRegionIndex(plan.HitRegions, HitRegionPaneChrome) >= 0 {
+		t.Fatalf("hidden zoom chrome must not leave clickable hit regions, got %#v", plan.HitRegions)
+	}
+	paneContent := hitRegionIndex(plan.HitRegions, HitRegionPaneContent)
+	if paneContent < 0 || plan.HitRegions[paneContent].Rect != viewport {
+		t.Fatalf("zoom content hit region must cover the viewport, got %#v", plan.HitRegions)
 	}
 }
 

@@ -544,6 +544,9 @@ func TestDefaultDaemonUsesCoreV2Server(t *testing.T) {
 		if got := server.HistoryStorageConfig(); got.MaxBytesPerTerminal != corev2.DefaultHistoryMaxBytesPerTerminal || got.Compression != corev2.HistoryCompressionZstd || got.CompressionLevel != corev2.HistoryCompressionLevelFast {
 			t.Fatalf("unexpected default daemon history storage config: %#v", got)
 		}
+		if got := server.TerminalResourceSamplingConfig(); got.Interval != 500*time.Millisecond || got.MaxSamples != 512 {
+			t.Fatalf("unexpected default daemon resource sampling config: %#v", got)
+		}
 		return fakeV3
 	}
 
@@ -568,7 +571,7 @@ func TestDaemonAppliesHistoryStorageConfigFile(t *testing.T) {
 	oldNewCoreV2Server := newCoreV2Server
 	t.Cleanup(func() { newCoreV2Server = oldNewCoreV2Server })
 	configPath := filepath.Join(t.TempDir(), "anytty.yaml")
-	if err := os.WriteFile(configPath, []byte("version: 1\ndaemon:\n  history:\n    max_size_mb: 64\n    max_age_days: 14\n    compression: s2\n    compression_level: best\n"), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte("version: 1\ndaemon:\n  history:\n    max_size_mb: 64\n    max_age_days: 14\n    compression: s2\n    compression_level: best\n  resource_sampling:\n    interval_ms: 750\n    max_samples: 1024\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	fakeV3 := &fakeCoreV2Server{}
@@ -576,6 +579,9 @@ func TestDaemonAppliesHistoryStorageConfigFile(t *testing.T) {
 		server := newCoreV2TestServer(opts...)
 		if got := server.HistoryStorageConfig(); got.MaxBytesPerTerminal != 64<<20 || got.MaxAge != 14*24*time.Hour || got.Compression != corev2.HistoryCompressionS2 || got.CompressionLevel != corev2.HistoryCompressionLevelBest {
 			t.Fatalf("daemon did not apply history storage config: %#v", got)
+		}
+		if got := server.TerminalResourceSamplingConfig(); got.Interval != 750*time.Millisecond || got.MaxSamples != 1024 {
+			t.Fatalf("daemon did not apply resource sampling config: %#v", got)
 		}
 		return fakeV3
 	}
@@ -642,6 +648,8 @@ func TestDaemonConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
 	t.Setenv("ANYTTY_OUTPUT_BUFFER_OVERFLOW", "block")
 	t.Setenv("ANYTTY_OUTPUT_BUFFER_CAPACITY_BYTES", "12582912")
 	t.Setenv("ANYTTY_OUTPUT_RESIDENT_BUDGET_BYTES", "268435456")
+	t.Setenv("ANYTTY_RESOURCE_SAMPLING_INTERVAL_MS", "750")
+	t.Setenv("ANYTTY_RESOURCE_SAMPLING_MAX_SAMPLES", "1024")
 
 	fakeV3 := &fakeCoreV2Server{}
 	newCoreV2Server = func(opts ...corev2.ServerOption) coreV2Server {
@@ -653,6 +661,9 @@ func TestDaemonConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
 		}
 		if budget := server.TerminalOutputResidentBudget(); budget != 256<<20 {
 			t.Fatalf("daemon did not pass resident budget env to core: %d", budget)
+		}
+		if resources := server.TerminalResourceSamplingConfig(); resources.Interval != 750*time.Millisecond || resources.MaxSamples != 1024 {
+			t.Fatalf("daemon did not pass resource sampling env to core: %#v", resources)
 		}
 		return fakeV3
 	}
@@ -1865,9 +1876,9 @@ func TestV3InteractiveRuntimeLayoutResizeReachesCoreV2Process(t *testing.T) {
 		t.Fatalf("post zoom: %v", err)
 	}
 	drainV3RuntimeForCLITest(t, runtime)
-	waitForCoreV2ProcessResizeAfter(t, process, corev2.Size{Cols: 118, Rows: 38}, resizeStart)
+	waitForCoreV2ProcessResizeAfter(t, process, corev2.Size{Cols: 120, Rows: 40}, resizeStart)
 	waitForV3RuntimeState(t, runtime, func(root tuistate.Root) bool {
-		return root.Surface.Cols == 118 && root.Surface.Rows == 38
+		return root.Surface.Cols == 120 && root.Surface.Rows == 40
 	}, "zoom content rect")
 
 	resizeStart = process.resizeCount()

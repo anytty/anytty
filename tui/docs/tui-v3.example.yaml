@@ -33,6 +33,15 @@ daemon:
     # 默认值：536870912（512 MiB）；允许 65536 到 2147483648。
     resident_budget_bytes: 536870912
 
+  resource_sampling:
+    # Terminal 进程 CPU/内存的采样间隔，单位毫秒。
+    # 默认值：500；允许 100 到 60000。
+    interval_ms: 500
+
+    # 每个 terminal 在内存中保留的资源历史点数。
+    # 默认值及最小值：512；最大值：65536。
+    max_samples: 512
+
   history:
     # 每个 terminal 的历史文件物理上限，单位 MiB。超限时淘汰最旧压缩块。
     # 默认值：512。设为 0 表示不设上限。

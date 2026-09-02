@@ -22,10 +22,17 @@ func (projector ShellProjector) Project(root state.Root) ShellVM {
 	shellState := root.Shell.ReadonlyDefaults()
 	root.Shell = shellState
 	activeContent := projector.buildActiveContentVM(root, shellState)
+	header := buildHeaderVM(shellState, root)
+	footer := buildFooterVM(root, shellState, activeContent)
+	layout := projector.buildLayoutVM(shellState, activeContent, root)
+	if layout.Zoomed {
+		header.Visible = false
+		footer.Visible = false
+	}
 	return ShellVM{
-		Header:  buildHeaderVM(shellState, root),
-		Footer:  buildFooterVM(root, shellState, activeContent),
-		Layout:  projector.buildLayoutVM(shellState, activeContent, root),
+		Header:  header,
+		Footer:  footer,
+		Layout:  layout,
 		Overlay: projector.buildOverlayVM(root, shellState),
 		Toasts:  buildToastVMs(shellState),
 		Cursor:  activeContent.Cursor,

@@ -67,7 +67,10 @@ type TerminalResourceUsage struct {
 	SampledAt      time.Time
 }
 
-const terminalResourceHistoryLimit = 64
+const (
+	terminalResourceHistoryFallbackLimit = 512
+	terminalResourceHistorySafetyLimit   = 65536
+)
 
 func (store TerminalPoolStore) RequestList() TerminalPoolStore {
 	store.RequestSeq++
@@ -336,17 +339,23 @@ func reconcileTerminalResourceHistory(history map[TerminalRef][]TerminalResource
 			continue
 		}
 		samples := cloneTerminalResourceSamples(history[ref])
-		if len(item.ResourceHistory) > 0 {
+		hasDaemonHistory := len(item.ResourceHistory) > 0
+		if hasDaemonHistory {
 			samples = normalizeTerminalResourceSamples(item.ResourceHistory)
 		}
+		useSafetyLimit := hasDaemonHistory || len(samples) > terminalResourceHistoryFallbackLimit
 		sample := item.Resources
 		if !sample.SampledAt.IsZero() && terminalResourceSampleIsNewer(samples, sample) {
 			if len(samples) > 0 && samples[len(samples)-1].PID > 0 && sample.PID > 0 && samples[len(samples)-1].PID != sample.PID {
 				samples = nil
 			}
 			samples = append(samples, sample)
-			if len(samples) > terminalResourceHistoryLimit {
-				samples = cloneTerminalResourceSamples(samples[len(samples)-terminalResourceHistoryLimit:])
+			limit := terminalResourceHistoryFallbackLimit
+			if useSafetyLimit {
+				limit = terminalResourceHistorySafetyLimit
+			}
+			if len(samples) > limit {
+				samples = cloneTerminalResourceSamples(samples[len(samples)-limit:])
 			}
 		}
 		if len(samples) > 0 {
@@ -369,8 +378,8 @@ func normalizeTerminalResourceSamples(samples []TerminalResourceUsage) []Termina
 			normalized = nil
 		}
 		normalized = append(normalized, sample)
-		if len(normalized) > terminalResourceHistoryLimit {
-			normalized = normalized[len(normalized)-terminalResourceHistoryLimit:]
+		if len(normalized) > terminalResourceHistorySafetyLimit {
+			normalized = normalized[len(normalized)-terminalResourceHistorySafetyLimit:]
 		}
 	}
 	return cloneTerminalResourceSamples(normalized)

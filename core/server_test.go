@@ -45,6 +45,9 @@ func TestServerOptions(t *testing.T) {
 	if got := server.TerminalOutputResidentBudget(); got != DefaultTerminalOutputResidentBudgetBytes {
 		t.Fatalf("unexpected default terminal output resident budget %d", got)
 	}
+	if got := server.TerminalResourceSamplingConfig(); got != DefaultTerminalResourceSamplingConfig() || got.Interval != 500*time.Millisecond || got.MaxSamples != 512 {
+		t.Fatalf("unexpected default terminal resource sampling config %#v", got)
+	}
 	if got := server.HistoryStorageConfig(); got.MaxBytesPerTerminal != DefaultHistoryMaxBytesPerTerminal || got.Compression != HistoryCompressionZstd || got.CompressionLevel != HistoryCompressionLevelFast {
 		t.Fatalf("unexpected default history storage config %#v", got)
 	}
@@ -76,6 +79,23 @@ func TestServerTerminalOutputBufferConfigOption(t *testing.T) {
 	fallback := NewServer(WithTerminalOutputResidentBudget(MinTerminalOutputResidentBudgetBytes - 1))
 	if got := fallback.TerminalOutputResidentBudget(); got != DefaultTerminalOutputResidentBudgetBytes {
 		t.Fatalf("unsafe aggregate budget did not fall back to default: %d", got)
+	}
+}
+
+func TestServerTerminalResourceSamplingConfigOption(t *testing.T) {
+	server := NewServer(WithTerminalResourceSamplingConfig(TerminalResourceSamplingConfig{
+		Interval:   750 * time.Millisecond,
+		MaxSamples: 1024,
+	}))
+	if got := server.TerminalResourceSamplingConfig(); got.Interval != 750*time.Millisecond || got.MaxSamples != 1024 {
+		t.Fatalf("unexpected terminal resource sampling config %#v", got)
+	}
+	fallback := NewServer(WithTerminalResourceSamplingConfig(TerminalResourceSamplingConfig{
+		Interval:   50 * time.Millisecond,
+		MaxSamples: 64,
+	}))
+	if got := fallback.TerminalResourceSamplingConfig(); got != DefaultTerminalResourceSamplingConfig() {
+		t.Fatalf("unsafe terminal resource sampling config did not fall back to default: %#v", got)
 	}
 }
 
@@ -201,13 +221,14 @@ func TestServerListTerminalsAddsResourceProjection(t *testing.T) {
 }
 
 func TestTerminalResourceHistoryIsBoundedAndResetsForNewProcess(t *testing.T) {
-	terminal := &Terminal{}
+	const historyLimit = 513
+	terminal := &Terminal{resourceSampling: TerminalResourceSamplingConfig{Interval: time.Second, MaxSamples: historyLimit}}
 	base := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
-	for index := 0; index < terminalResourceHistoryLimit+5; index++ {
+	for index := 0; index < historyLimit+5; index++ {
 		terminal.recordResourceUsage(TerminalResourceUsage{PID: 101, CPUPercentX100: index, SampledAt: base.Add(time.Duration(index) * time.Second)})
 	}
 	latest, history := terminal.ResourceSnapshot()
-	if len(history) != terminalResourceHistoryLimit || history[0].CPUPercentX100 != 5 || latest.CPUPercentX100 != terminalResourceHistoryLimit+4 {
+	if len(history) != historyLimit || history[0].CPUPercentX100 != 5 || latest.CPUPercentX100 != historyLimit+4 {
 		t.Fatalf("unexpected bounded history: latest=%#v history=%#v", latest, history)
 	}
 	history[0].CPUPercentX100 = -1
