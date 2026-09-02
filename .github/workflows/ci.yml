@@ -11,7 +11,7 @@ jobs:
   windows-installer:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test PowerShell installer
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
@@ -19,7 +19,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -43,7 +43,7 @@ jobs:
         -Dorg.gradle.jvmargs=-Xmx2G -XX:MaxMetaspaceSize=1G
         -Dkotlin.compiler.execution.strategy=in-process
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: actions/setup-go@v5
@@ -86,7 +86,7 @@ jobs:
   flutter-ios:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
       - uses: actions/setup-go@v5
