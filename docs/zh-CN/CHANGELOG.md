@@ -6,6 +6,27 @@
 
 ## Unreleased
 
+## [0.0.1-beta.7] - 2026-09-02
+
+### 新增
+
+- daemon 资源采样周期和每个 terminal 的保留采样点数现在可通过 YAML、环境变量及 CLI 配置。
+
+### 变更
+
+- TUI pane 进入 zoom 后会占满整个终端视口，不再显示 header、footer、pane 边框、溢出标记，也不再保留隐藏的 chrome 点击区域。
+- terminal picker 现在默认显示运行中的 terminal，筛选顺序调整为 Running、Exited、All。
+- 更新仓库文档中的原生移动端截图。
+
+### 修复
+
+- 资源采样改用有界、按时间排序的环形缓冲区；TUI 会保留 daemon 提供的完整历史窗口，不再截断为 64 个采样点。
+
+### 安全
+
+- 将 Browserslist 更新至 4.28.8，修复缓存无限增长和自定义统计数据不安全标准化问题。
+- 将 gRPC-Go 更新至 1.83.1，防止碎片化 HTTP/2 DATA 帧导致堆内存耗尽。
+
 ## [0.0.1-beta.6] - 2026-09-01
 
 ### 新增

@@ -6,6 +6,27 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.7] - 2026-09-02
+
+### Added
+
+- Added daemon resource sampling settings for polling interval and per-terminal retained sample count through YAML, environment variables, and CLI configuration.
+
+### Changed
+
+- Zoomed TUI panes now occupy the complete terminal viewport without the header, footer, pane borders, overflow markers, or hidden chrome hit targets.
+- The terminal picker now opens on running terminals by default and orders its filters as Running, Exited, and All.
+- Updated the native mobile screenshots in the repository documentation.
+
+### Fixed
+
+- Resource sampling now uses a bounded chronological ring buffer and preserves the daemon-provided history window in the TUI instead of truncating it to 64 points.
+
+### Security
+
+- Updated Browserslist to 4.28.8 to address unbounded cache growth and unsafe custom-stat normalization.
+- Updated gRPC-Go to 1.83.1 to prevent heap exhaustion from fragmented HTTP/2 DATA frames.
+
 ## [0.0.1-beta.6] - 2026-09-01
 
 ### Added

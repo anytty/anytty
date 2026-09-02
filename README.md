@@ -15,7 +15,7 @@
 
 AnyTTY keeps terminal sessions running on your own machines, so you can close the window, switch devices, or come back later without losing the work. Use the keyboard-first TUI, CLI, or mobile app to check in, take control, and manage files over the same connection.
 
-> **Beta:** `v0.0.1-beta.6` provides macOS, Linux, and Windows builds, signed Android APKs for ARMv7, ARM64, x86_64, and universal installs, plus a public iOS TestFlight beta. Protocols and configuration may still change before the first stable release.
+> **Beta:** `v0.0.1-beta.7` provides macOS, Linux, and Windows builds, signed Android APKs for ARMv7, ARM64, x86_64, and universal installs, plus a public iOS TestFlight beta. Protocols and configuration may still change before the first stable release.
 
 ## Quick install
 
@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
 **Mobile app**
 
 - iPhone and iPad: [join the public beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
-- Android: [download the Beta APK for your device from GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.6).
+- Android: [download the Beta APK for your device from GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.7).
 
 <table>
   <tr>
@@ -77,7 +77,7 @@ irm https://raw.githubusercontent.com/anytty/anytty/main/install.ps1 -OutFile in
   </tr>
 </table>
 
-> **Install the app:** The mobile app supports both Android and iOS. Download a signed Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.6), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
+> **Install the app:** The mobile app supports both Android and iOS. Download a signed Android Beta APK from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.7), or [join the public iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh).
 
 ### Appearance and touch controls
 
@@ -132,7 +132,7 @@ Choose another version or installation directory when needed:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
-  sh -s -- --version v0.0.1-beta.6 --bin-dir "$HOME/bin"
+  sh -s -- --version v0.0.1-beta.7 --bin-dir "$HOME/bin"
 ```
 
 ### Windows PowerShell
@@ -144,7 +144,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/anytty/anytty/main/install.p
 
 The PowerShell installer verifies SHA-256, installs to `%LOCALAPPDATA%\Programs\AnyTTY\bin`, and adds that directory to the current user's `PATH`. On first install it also writes the recommended `coralline-candy` profile to `%APPDATA%\anytty\tui-v3.yaml`; an existing configuration is preserved. Pass `-NoModifyPath` to leave `PATH` unchanged.
 
-You can also download CLI archives and signed per-ABI or universal Android Beta APKs directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.6). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
+You can also download CLI archives and signed per-ABI or universal Android Beta APKs directly from [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.7). Package definitions for Homebrew, npm, and WinGet are being prepared; see [package manager publishing](docs/PACKAGE_MANAGERS.md) for their current status.
 
 ### Update
 
