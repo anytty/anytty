@@ -71,7 +71,11 @@ archive_base="anytty-${version}-${os}-${arch}"
 archive_name="${archive_base}.tar.gz"
 release_base="${ANYTTY_RELEASE_BASE_URL:-https://github.com/${repository}/releases/download/${version}}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/anytty-install.XXXXXX")"
-cleanup() { rm -rf "$work_dir"; }
+install_candidate=""
+cleanup() {
+  [ -z "$install_candidate" ] || rm -f "$install_candidate"
+  rm -rf "$work_dir"
+}
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
@@ -94,8 +98,16 @@ tar -xzf "$work_dir/$archive_name" -C "$work_dir"
 [ -f "$work_dir/$archive_base/anytty" ] || { echo "release archive does not contain anytty" >&2; exit 1; }
 [ -f "$work_dir/$archive_base/tui-v3.yaml" ] || { echo "release archive does not contain tui-v3.yaml" >&2; exit 1; }
 mkdir -p "$install_dir"
-cp "$work_dir/$archive_base/anytty" "$install_dir/anytty"
-chmod 0755 "$install_dir/anytty"
+install_candidate="$(mktemp "$install_dir/.anytty-install.XXXXXX")"
+cp "$work_dir/$archive_base/anytty" "$install_candidate"
+chmod 0755 "$install_candidate"
+if [ "$os" = "darwin" ]; then
+  command -v codesign >/dev/null 2>&1 || { echo "codesign is required on macOS" >&2; exit 1; }
+  codesign --force --sign - --identifier com.anytty.cli "$install_candidate"
+  codesign --verify --strict "$install_candidate"
+fi
+mv -f "$install_candidate" "$install_dir/anytty"
+install_candidate=""
 
 config_home="${XDG_CONFIG_HOME:-}"
 case "$config_home" in

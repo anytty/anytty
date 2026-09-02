@@ -80,6 +80,11 @@ func TestUpdateInstallsVerifiedReleaseWithoutRestartingDaemon(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := fixture.runtime(target, "v1.0.0")
+	prepared := false
+	runtime.prepareExecutable = func(path string) error {
+		prepared = path != ""
+		return nil
+	}
 	command := newUpdateCommand(runtime)
 	var output bytes.Buffer
 	command.SetOut(&output)
@@ -91,8 +96,107 @@ func TestUpdateInstallsVerifiedReleaseWithoutRestartingDaemon(t *testing.T) {
 	if data, err := os.ReadFile(target); err != nil || string(data) != "new anytty" {
 		t.Fatalf("installed executable = %q, %v", data, err)
 	}
+	if !prepared {
+		t.Fatal("update candidate was not prepared before installation")
+	}
 	if !strings.Contains(output.String(), "not restarted; running terminals are unchanged") {
 		t.Fatalf("update output = %q", output.String())
+	}
+}
+
+func TestFetchUpdateReleasesUsesGitHubToken(t *testing.T) {
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authorization = request.Header.Get("Authorization")
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte("[]"))
+	}))
+	t.Cleanup(server.Close)
+
+	runtime := updateCommandRuntime{
+		client:         server.Client(),
+		apiBase:        server.URL,
+		repository:     defaultUpdateRepository,
+		currentVersion: "v1.0.0",
+		githubToken:    func(context.Context) string { return "test-token" },
+	}
+	if _, err := runtime.fetchReleases(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if authorization != "Bearer test-token" {
+		t.Fatalf("Authorization = %q", authorization)
+	}
+}
+
+func TestFetchUpdateReleasesRetriesTransientFailure(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		requests++
+		if requests == 1 {
+			http.Error(writer, "try again", http.StatusServiceUnavailable)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte("[]"))
+	}))
+	t.Cleanup(server.Close)
+
+	runtime := updateCommandRuntime{
+		client:         server.Client(),
+		apiBase:        server.URL,
+		repository:     defaultUpdateRepository,
+		currentVersion: "v1.0.0",
+	}
+	if _, err := runtime.fetchReleases(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2", requests)
+	}
+}
+
+func TestFetchUpdateReleasesDoesNotRetryForbiddenResponse(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		requests++
+		http.Error(writer, "rate limit exceeded", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+
+	runtime := updateCommandRuntime{
+		client:         server.Client(),
+		apiBase:        server.URL,
+		repository:     defaultUpdateRepository,
+		currentVersion: "v1.0.0",
+	}
+	_, err := runtime.fetchReleases(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "HTTP 403: rate limit exceeded") {
+		t.Fatalf("error = %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+}
+
+func TestUpdateGitHubTokenPrefersGHtoken(t *testing.T) {
+	t.Setenv("GH_TOKEN", " gh-token ")
+	t.Setenv("GITHUB_TOKEN", "github-token")
+	if token := updateGitHubToken(context.Background()); token != "gh-token" {
+		t.Fatalf("token = %q", token)
+	}
+}
+
+func TestUpdateGitHubTokenUsesAuthenticatedGitHubCLI(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	binDir := t.TempDir()
+	ghPath := filepath.Join(binDir, "gh")
+	if err := os.WriteFile(ghPath, []byte("#!/bin/sh\nprintf 'cli-token\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	if token := updateGitHubToken(context.Background()); token != "cli-token" {
+		t.Fatalf("token = %q", token)
 	}
 }
 
@@ -110,6 +214,27 @@ func TestUpdateRejectsChecksumMismatchWithoutReplacingExecutable(t *testing.T) {
 	err := command.Execute()
 	if err == nil || !strings.Contains(err.Error(), "SHA-256 verification failed") {
 		t.Fatalf("checksum mismatch error = %v", err)
+	}
+	if data, readErr := os.ReadFile(target); readErr != nil || string(data) != "old anytty" {
+		t.Fatalf("target after rejected update = %q, %v", data, readErr)
+	}
+}
+
+func TestUpdatePrepareFailureDoesNotReplaceExecutable(t *testing.T) {
+	fixture := newUpdateFixture(t, "v1.1.0", []byte("new anytty"), "")
+	target := filepath.Join(t.TempDir(), "anytty")
+	if err := os.WriteFile(target, []byte("old anytty"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runtime := fixture.runtime(target, "v1.0.0")
+	runtime.prepareExecutable = func(string) error { return fmt.Errorf("sign candidate") }
+	command := newUpdateCommand(runtime)
+	command.SetOut(&bytes.Buffer{})
+	command.SetErr(&bytes.Buffer{})
+	command.SetArgs(nil)
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "sign candidate") {
+		t.Fatalf("prepare error = %v", err)
 	}
 	if data, readErr := os.ReadFile(target); readErr != nil || string(data) != "old anytty" {
 		t.Fatalf("target after rejected update = %q, %v", data, readErr)
@@ -230,6 +355,7 @@ func (fixture *updateFixture) runtime(target, current string) updateCommandRunti
 			}
 			return nil
 		},
+		prepareExecutable: func(string) error { return nil },
 		replaceExecutable: os.Rename,
 		allowHTTP:         true,
 	}

@@ -6,6 +6,18 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.9] - 2026-09-02
+
+### Changed
+
+- macOS CLI release archives are now built on macOS and carry an explicit code signature instead of the Go linker's transient signature.
+
+### Fixed
+
+- The macOS installer and self-updater now apply and verify a local code signature before atomically replacing the installed executable, preventing Apple System Policy from terminating a freshly installed CLI.
+- Update checks now authenticate with `GH_TOKEN`, `GITHUB_TOKEN`, or an existing authenticated GitHub CLI session, avoiding the much lower shared-IP limit for anonymous GitHub API requests.
+- Update requests now retry bounded transient connection failures, HTTP 429 responses, and server errors from GitHub and its Release asset CDN.
+
 ## [0.0.1-beta.8] - 2026-09-02
 
 ### Added

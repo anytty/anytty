@@ -44,6 +44,14 @@ for target in "${targets[@]}"; do
       go build -trimpath -ldflags="-s -w -X main.version=$version" \
       -o "$package_dir/$binary_name" ./cmd/anytty
   )
+  if [[ "$goos" == darwin ]]; then
+    [[ "$(uname -s)" == Darwin ]] || {
+      echo "Darwin release artifacts must be built on macOS so they can be signed" >&2
+      exit 1
+    }
+    codesign --force --sign - --identifier com.anytty.cli "$package_dir/$binary_name"
+    codesign --verify --strict "$package_dir/$binary_name"
+  fi
   install -m 0644 "$repo_root/LICENSE" "$package_dir/LICENSE"
   install -m 0644 "$repo_root/NOTICE" "$package_dir/NOTICE"
   install -m 0644 "$repo_root/cmd/anytty/THIRD_PARTY_NOTICES.txt" "$package_dir/THIRD_PARTY_NOTICES.txt"
@@ -52,7 +60,7 @@ for target in "${targets[@]}"; do
   if [[ "$goos" == windows ]]; then
     (cd "$work_dir" && zip -q -r "$output_dir/$artifact_base.zip" "$artifact_base")
   else
-    tar -C "$work_dir" -czf "$output_dir/$artifact_base.tar.gz" "$artifact_base"
+    COPYFILE_DISABLE=1 tar -C "$work_dir" -czf "$output_dir/$artifact_base.tar.gz" "$artifact_base"
   fi
   rm -rf "$package_dir"
 done

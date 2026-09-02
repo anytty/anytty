@@ -24,10 +24,12 @@ import (
 )
 
 const (
-	defaultUpdateRepository = "anytty/anytty"
-	maxUpdateChecksumBytes  = 1 << 20
-	maxUpdateArchiveBytes   = 512 << 20
-	maxUpdateBinaryBytes    = 256 << 20
+	defaultUpdateRepository  = "anytty/anytty"
+	maxUpdateChecksumBytes   = 1 << 20
+	maxUpdateArchiveBytes    = 512 << 20
+	maxUpdateBinaryBytes     = 256 << 20
+	maxUpdateRequestAttempts = 5
+	updateRetryBaseDelay     = 250 * time.Millisecond
 )
 
 type updateReleaseAsset struct {
@@ -53,7 +55,9 @@ type updateCommandRuntime struct {
 	goarch             string
 	executable         func() (string, error)
 	validateExecutable func(context.Context, string, string) error
+	prepareExecutable  func(string) error
 	replaceExecutable  func(string, string) error
+	githubToken        func(context.Context) string
 	allowHTTP          bool
 }
 
@@ -78,7 +82,9 @@ func defaultUpdateCommandRuntime() updateCommandRuntime {
 		goarch:             runtime.GOARCH,
 		executable:         currentExecutablePath,
 		validateExecutable: validateUpdateExecutable,
+		prepareExecutable:  prepareUpdateExecutable,
 		replaceExecutable:  replaceUpdateExecutable,
+		githubToken:        updateGitHubToken,
 	}
 }
 
@@ -168,7 +174,12 @@ func (updateRuntime updateCommandRuntime) fetchReleases(ctx context.Context) ([]
 	request.Header.Set("Accept", "application/vnd.github+json")
 	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	request.Header.Set("User-Agent", "anytty/"+updateRuntime.currentVersion)
-	response, err := updateRuntime.client.Do(request)
+	if updateRuntime.githubToken != nil {
+		if token := updateRuntime.githubToken(ctx); token != "" {
+			request.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+	response, err := updateRuntime.doRequest(request)
 	if err != nil {
 		return nil, fmt.Errorf("query GitHub Releases: %w", err)
 	}
@@ -335,6 +346,9 @@ func (updateRuntime updateCommandRuntime) install(ctx context.Context, release u
 	if err := os.Chmod(candidatePath, mode); err != nil {
 		return "", err
 	}
+	if err := updateRuntime.prepareExecutable(candidatePath); err != nil {
+		return "", err
+	}
 	if err := updateRuntime.validateExecutable(ctx, candidatePath, release.TagName); err != nil {
 		return "", err
 	}
@@ -406,7 +420,7 @@ func (updateRuntime updateCommandRuntime) download(ctx context.Context, asset up
 		return nil, err
 	}
 	request.Header.Set("User-Agent", "anytty/"+updateRuntime.currentVersion)
-	response, err := updateRuntime.client.Do(request)
+	response, err := updateRuntime.doRequest(request)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", asset.Name, err)
 	}
@@ -415,6 +429,35 @@ func (updateRuntime updateCommandRuntime) download(ctx context.Context, asset up
 		return nil, fmt.Errorf("download %s: HTTP %d", asset.Name, response.StatusCode)
 	}
 	return response, nil
+}
+
+func (updateRuntime updateCommandRuntime) doRequest(request *http.Request) (*http.Response, error) {
+	var lastErr error
+	for attempt := 0; attempt < maxUpdateRequestAttempts; attempt++ {
+		response, err := updateRuntime.client.Do(request)
+		if err == nil && response.StatusCode != http.StatusTooManyRequests && response.StatusCode < http.StatusInternalServerError {
+			return response, nil
+		}
+		if response != nil {
+			_ = response.Body.Close()
+		}
+		lastErr = err
+		if err == nil {
+			lastErr = fmt.Errorf("HTTP %d", response.StatusCode)
+		}
+		if attempt+1 == maxUpdateRequestAttempts {
+			break
+		}
+		delay := time.Duration(attempt+1) * updateRetryBaseDelay
+		timer := time.NewTimer(delay)
+		select {
+		case <-request.Context().Done():
+			timer.Stop()
+			return nil, request.Context().Err()
+		case <-timer.C:
+		}
+	}
+	return nil, lastErr
 }
 
 func verifyGitHubAssetDigest(asset updateReleaseAsset, actual string) error {
@@ -530,6 +573,26 @@ func extractUpdateExecutableZip(archivePath, memberName string, destination io.W
 }
 
 func currentExecutablePath() (string, error) { return os.Executable() }
+
+func updateGitHubToken(ctx context.Context) string {
+	if token := strings.TrimSpace(os.Getenv("GH_TOKEN")); token != "" {
+		return token
+	}
+	if token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); token != "" {
+		return token
+	}
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return ""
+	}
+	credentialContext, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(credentialContext, ghPath, "auth", "token", "--hostname", "github.com").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
 
 func validateUpdateExecutable(ctx context.Context, path, expectedVersion string) error {
 	command := exec.CommandContext(ctx, path, "--version")

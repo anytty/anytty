@@ -107,7 +107,12 @@ func TestNewListenerPreservesActiveSocket(t *testing.T) {
 }
 
 func TestNewListenerReplacesStaleSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "anytty.sock")
+	root, err := os.MkdirTemp(shortSocketBaseDir(), "anytty-stale-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+	path := filepath.Join(root, "anytty.sock")
 	raw, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatalf("create stale listener failed: %v", err)

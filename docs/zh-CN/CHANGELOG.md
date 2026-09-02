@@ -6,6 +6,18 @@
 
 ## Unreleased
 
+## [0.0.1-beta.9] - 2026-09-02
+
+### 变更
+
+- macOS CLI Release 压缩包现在改为在 macOS 上构建，并使用明确的代码签名替代 Go linker 生成的临时签名。
+
+### 修复
+
+- macOS 安装器和自更新会在原子替换现有程序前，对候选可执行文件进行本机签名并严格校验，避免新安装的 CLI 被 Apple System Policy 直接终止。
+- 更新检查现在支持使用 `GH_TOKEN`、`GITHUB_TOKEN` 或已登录 GitHub CLI 的凭据完成认证，避免匿名 GitHub API 请求更容易触发的共享 IP 限额。
+- updater 现在会有界重试 GitHub 及 Release 资源 CDN 的瞬时连接失败、HTTP 429 和服务端错误。
+
 ## [0.0.1-beta.8] - 2026-09-02
 
 ### 新增

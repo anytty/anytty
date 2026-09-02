@@ -38,20 +38,39 @@ printf '%s  %s\n' "$checksum" "$archive_name" >"$release_dir/SHA256SUMS"
 
 install_dir="$work_dir/bin"
 config_home="$work_dir/config"
+mock_bin="$work_dir/mock-bin"
+codesign_log="$work_dir/codesign.log"
+mkdir -p "$mock_bin"
+cat >"$mock_bin/codesign" <<'EOF'
+#!/usr/bin/env sh
+printf '%s\n' "$*" >>"$ANYTTY_TEST_CODESIGN_LOG"
+EOF
+chmod 0755 "$mock_bin/codesign"
 HOME="$work_dir/home" \
 XDG_CONFIG_HOME="$config_home" \
 ANYTTY_VERSION="$version" \
 ANYTTY_RELEASE_BASE_URL="file://$release_dir" \
+ANYTTY_TEST_CODESIGN_LOG="$codesign_log" \
+PATH="$mock_bin:$PATH" \
   sh "$repo_root/install.sh" --bin-dir "$install_dir"
 
 cmp "$package_dir/anytty" "$install_dir/anytty"
 cmp "$repo_root/tui/docs/tui-v3.recommended.yaml" "$config_home/anytty/tui-v3.yaml"
+if [[ "$os" == darwin ]]; then
+  grep -q -- '--force --sign -' "$codesign_log"
+  grep -q -- '--identifier com.anytty.cli' "$codesign_log"
+  grep -q -- '--verify --strict' "$codesign_log"
+else
+  [[ ! -e "$codesign_log" ]]
+fi
 
 printf 'version: 1\ntui:\n  profile: keep-user-config\n' >"$config_home/anytty/tui-v3.yaml"
 HOME="$work_dir/home" \
 XDG_CONFIG_HOME="$config_home" \
 ANYTTY_VERSION="$version" \
 ANYTTY_RELEASE_BASE_URL="file://$release_dir" \
+ANYTTY_TEST_CODESIGN_LOG="$codesign_log" \
+PATH="$mock_bin:$PATH" \
   sh "$repo_root/install.sh" --bin-dir "$install_dir"
 
 grep -q 'profile: keep-user-config' "$config_home/anytty/tui-v3.yaml"
