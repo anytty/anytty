@@ -28,7 +28,7 @@ jobs:
   cli:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-go@v5
@@ -52,7 +52,7 @@ jobs:
       ANYTTY_ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEY_ALIAS }}
       ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [cli, android]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
