@@ -13,6 +13,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../app/anytty_theme.dart';
 import '../../../app/anytty_localizations.dart';
 import '../../../app/providers.dart';
+import '../../../generated/proto/apipb/common.pb.dart';
 import '../../../generated/proto/apipb/history.pb.dart';
 import '../../../generated/proto/apipb/terminal.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
@@ -317,6 +318,16 @@ final class _TerminalWorkspaceScreenState
                 ),
                 icon: const Icon(Icons.folder_outlined, size: 17),
               ),
+            IconButton(
+              tooltip: anyttyText(context, en: 'Web', zh: 'Web 浏览器'),
+              constraints: const BoxConstraints.tightFor(width: 38, height: 36),
+              padding: const EdgeInsets.all(9),
+              onPressed: () => context.push(
+                '/browser/${Uri.encodeComponent(widget.endpointId)}'
+                '?label=${Uri.encodeQueryComponent(endpointLabel)}',
+              ),
+              icon: const Icon(Icons.language_rounded, size: 17),
+            ),
             if (selectedTerminal == null)
               _WorkspaceNetworkAction(
                 diagnostics: connectionDiagnostics!,
@@ -2118,6 +2129,9 @@ final class _TerminalListLoadingState
       if (_attempts.isNotEmpty) setState(_attempts.clear);
       return;
     }
+    // AUTO may cancel a slower route after another attempt has already won.
+    // That is normal race convergence, not a user-visible connection failure.
+    if (_isSupersededConnectionAttempt(event)) return;
     final kind = event.attemptedRouteKind;
     if (kind == ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) return;
     setState(() => _attempts[kind] = event.deepCopy());
@@ -2155,6 +2169,7 @@ final class _TerminalListLoadingState
     );
     final latest = progress.valueOrNull;
     if (latest != null &&
+        !_isSupersededConnectionAttempt(latest) &&
         latest.attemptedRouteKind !=
             ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) {
       attempts[latest.attemptedRouteKind] = latest;
@@ -2338,6 +2353,12 @@ final class _TerminalListLoadingState
       '?label=${Uri.encodeQueryComponent(widget.label)}',
     );
   }
+}
+
+bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
+  return event.connectionStage == 'attempt_failed' &&
+      event.hasError() &&
+      event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
 }
 
 String _connectionLoadingLabel(

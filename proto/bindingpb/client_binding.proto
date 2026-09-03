@@ -29,6 +29,10 @@ enum ResourceStreamFrameType {
   RESOURCE_STREAM_FRAME_TYPE_PTY_SYNC_LOST = 8;
   // PTY_CLOSED payload 是 serialized PTYStreamClosed。
   RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED = 9;
+  // BROWSER_DATA payload 是要写入 daemon-side TCP connection 的原始 bytes。
+  RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA = 10;
+  // BROWSER_CLOSED 表示 daemon-side TCP connection 已关闭。
+  RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED = 11;
 }
 
 // ConnectionRouteKind 是 ReadySession 实际获胜的持久 Route kind 投影。

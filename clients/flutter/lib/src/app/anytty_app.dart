@@ -13,6 +13,7 @@ import '../features/endpoints/presentation/route_management_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/settings/presentation/terminal_petal_menu_settings_screen.dart';
 import '../features/settings/presentation/theme_color_settings_screen.dart';
+import '../features/browser/presentation/browser_session_screen.dart';
 import '../features/terminal/presentation/terminal_workspace_screen.dart';
 import '../native/background_platform.dart';
 import 'anytty_theme.dart';
@@ -102,6 +103,16 @@ final anyttyRouter = GoRouter(
           ),
         ),
       ],
+    ),
+    GoRoute(
+      path: '/browser/:endpointId',
+      pageBuilder: (context, state) => _terminalPage(
+        state,
+        BrowserSessionScreen(
+          endpointId: state.pathParameters['endpointId']!,
+          endpointLabel: state.uri.queryParameters['label'],
+        ),
+      ),
     ),
   ],
 );

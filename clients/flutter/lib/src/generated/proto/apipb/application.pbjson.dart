@@ -63,6 +63,21 @@ final $typed_data.Uint8List releaseResourceCommandDescriptor =
         'ChZSZWxlYXNlUmVzb3VyY2VDb21tYW5kEjkKCHJlc291cmNlGAIgASgLMh0uYW55dHR5LmFwaS'
         '52MS5SZXNvdXJjZUhhbmRsZVIIcmVzb3VyY2VKBAgBEAI=');
 
+@$core.Deprecated('Use browserProxyOpenCommandDescriptor instead')
+const BrowserProxyOpenCommand$json = {
+  '1': 'BrowserProxyOpenCommand',
+  '2': [
+    {'1': 'host', '3': 1, '4': 1, '5': 9, '10': 'host'},
+    {'1': 'port', '3': 2, '4': 1, '5': 13, '10': 'port'},
+  ],
+};
+
+/// Descriptor for `BrowserProxyOpenCommand`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List browserProxyOpenCommandDescriptor =
+    $convert.base64Decode(
+        'ChdCcm93c2VyUHJveHlPcGVuQ29tbWFuZBISCgRob3N0GAEgASgJUgRob3N0EhIKBHBvcnQYAi'
+        'ABKA1SBHBvcnQ=');
+
 @$core.Deprecated('Use commandEnvelopeDescriptor instead')
 const CommandEnvelope$json = {
   '1': 'CommandEnvelope',
@@ -561,6 +576,15 @@ const CommandEnvelope$json = {
       '9': 0,
       '10': 'remoteCloudDisable'
     },
+    {
+      '1': 'browser_proxy_open',
+      '3': 121,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.BrowserProxyOpenCommand',
+      '9': 0,
+      '10': 'browserProxyOpen'
+    },
   ],
   '8': [
     {'1': 'command'},
@@ -651,7 +675,8 @@ final $typed_data.Uint8List commandEnvelopeDescriptor = $convert.base64Decode(
     'VuYWJsZRh3IAEoCzInLmFueXR0eS5hcGkudjEuUmVtb3RlQ2xvdWRFbmFibGVDb21tYW5kSABS'
     'EXJlbW90ZUNsb3VkRW5hYmxlElwKFHJlbW90ZV9jbG91ZF9kaXNhYmxlGHggASgLMiguYW55dH'
     'R5LmFwaS52MS5SZW1vdGVDbG91ZERpc2FibGVDb21tYW5kSABSEnJlbW90ZUNsb3VkRGlzYWJs'
-    'ZUIJCgdjb21tYW5k');
+    'ZRJWChJicm93c2VyX3Byb3h5X29wZW4YeSABKAsyJi5hbnl0dHkuYXBpLnYxLkJyb3dzZXJQcm'
+    '94eU9wZW5Db21tYW5kSABSEGJyb3dzZXJQcm94eU9wZW5CCQoHY29tbWFuZA==');
 
 @$core.Deprecated('Use acknowledgeResultDescriptor instead')
 const AcknowledgeResult$json = {
@@ -990,6 +1015,15 @@ const ResultEnvelope$json = {
       '9': 0,
       '10': 'remoteCloudStatus'
     },
+    {
+      '1': 'browser_proxy_open',
+      '3': 115,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.BrowserProxyOpenResult',
+      '9': 0,
+      '10': 'browserProxyOpen'
+    },
   ],
   '8': [
     {'1': 'result'},
@@ -1050,7 +1084,30 @@ final $typed_data.Uint8List resultEnvelopeDescriptor = $convert.base64Decode(
     'RlTG9jYWxTdGF0dXMSVQoScmVtb3RlX2Nsb3VkX2VkZ2VzGHEgASgLMiUuYW55dHR5LmFwaS52'
     'MS5SZW1vdGVDbG91ZEVkZ2VzUmVzdWx0SABSEHJlbW90ZUNsb3VkRWRnZXMSWAoTcmVtb3RlX2'
     'Nsb3VkX3N0YXR1cxhyIAEoCzImLmFueXR0eS5hcGkudjEuUmVtb3RlQ2xvdWRTdGF0dXNSZXN1'
-    'bHRIAFIRcmVtb3RlQ2xvdWRTdGF0dXNCCAoGcmVzdWx0');
+    'bHRIAFIRcmVtb3RlQ2xvdWRTdGF0dXMSVQoSYnJvd3Nlcl9wcm94eV9vcGVuGHMgASgLMiUuYW'
+    '55dHR5LmFwaS52MS5Ccm93c2VyUHJveHlPcGVuUmVzdWx0SABSEGJyb3dzZXJQcm94eU9wZW5C'
+    'CAoGcmVzdWx0');
+
+@$core.Deprecated('Use browserProxyOpenResultDescriptor instead')
+const BrowserProxyOpenResult$json = {
+  '1': 'BrowserProxyOpenResult',
+  '2': [
+    {
+      '1': 'resource',
+      '3': 1,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.ResourceHandle',
+      '10': 'resource'
+    },
+  ],
+};
+
+/// Descriptor for `BrowserProxyOpenResult`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List browserProxyOpenResultDescriptor =
+    $convert.base64Decode(
+        'ChZCcm93c2VyUHJveHlPcGVuUmVzdWx0EjkKCHJlc291cmNlGAEgASgLMh0uYW55dHR5LmFwaS'
+        '52MS5SZXNvdXJjZUhhbmRsZVIIcmVzb3VyY2U=');
 
 @$core.Deprecated('Use operationCancelledEventDescriptor instead')
 const OperationCancelledEvent$json = {

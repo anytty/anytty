@@ -19,6 +19,7 @@ import '../../../native/request_id.dart';
 import '../../../native/runtime_diagnostics.dart';
 import '../../../native/terminal_input_encoder.dart';
 import '../../files/domain/file_preview_safety.dart';
+import '../../browser/data/browser_http_proxy.dart';
 import '../domain/bounded_serial_operation_queue.dart';
 import '../domain/history_store.dart';
 import '../domain/live_screen_store.dart';
@@ -60,7 +61,7 @@ bool _isCompleteEndpointSessionStamp(EndpointSessionStamp stamp) {
       stamp.generation != Int64.ZERO;
 }
 
-final class EndpointSessionClient {
+final class EndpointSessionClient implements BrowserProxySession {
   EndpointSessionClient._(
     this._runtime,
     this.sessionHandle,
@@ -346,6 +347,39 @@ final class EndpointSessionClient {
         resource: transfer.resource,
         initialUploadOffset: transfer.offset,
       ),
+    );
+  }
+
+  @override
+  Future<ResourceHandle> openBrowserProxy({
+    required String host,
+    required int port,
+  }) async {
+    final result = await execute(
+      CommandEnvelope(
+        browserProxyOpen: BrowserProxyOpenCommand(host: host, port: port),
+      ),
+    );
+    if (result.whichResult() != ResultEnvelope_Result.browserProxyOpen ||
+        !result.browserProxyOpen.hasResource()) {
+      throw const NativeSessionException(
+        'Browser proxy response was incomplete',
+      );
+    }
+    return result.browserProxyOpen.resource.deepCopy();
+  }
+
+  @override
+  Future<AnyttyResourceStream> openBrowserResourceStream(
+    ResourceHandle resource,
+  ) {
+    if (resource.kind != ResourceKind.RESOURCE_KIND_BROWSER_PROXY) {
+      throw const NativeSessionException('Browser proxy resource was invalid');
+    }
+    return AnyttyResourceStream.open(
+      runtime: _runtime,
+      sessionHandle: sessionHandle,
+      request: OpenResourceStreamRequest(resource: resource),
     );
   }
 

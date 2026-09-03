@@ -6,7 +6,14 @@ import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
 import android.net.Uri
+import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
+import android.webkit.WebStorage
+import android.webkit.WebView
+import android.webkit.WebViewDatabase
+import androidx.webkit.ProxyConfig
+import androidx.webkit.ProxyController
+import androidx.webkit.WebViewFeature
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.embedding.engine.dart.DartExecutor
@@ -15,6 +22,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
+import java.util.concurrent.Executor
 
 class MainActivity : FlutterActivity() {
     private data class PendingExport(
@@ -27,6 +35,8 @@ class MainActivity : FlutterActivity() {
     private var externalUriChannel: MethodChannel? = null
     private var sshCredentialChannel: MethodChannel? = null
     private var localDiscoveryChannel: MethodChannel? = null
+    private var browserProxyChannel: MethodChannel? = null
+    private var browserProxyLease: BrowserProxyLease? = null
     private var imeInsetsBridge: AndroidImeInsetsBridge? = null
     private var terminalInputBridge: AndroidTerminalInputBridge? = null
     private val sshCredentials = AndroidSSHCredentialStore()
@@ -65,6 +75,10 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             LOCAL_DISCOVERY_CHANNEL,
         ).also { channel -> channel.setMethodCallHandler(localDiscovery::handle) }
+        browserProxyChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BROWSER_PROXY_CHANNEL,
+        ).also { channel -> channel.setMethodCallHandler(::handleBrowserProxyMethod) }
         imeInsetsBridge?.close()
         imeInsetsBridge = AndroidImeInsetsBridge(
             window.decorView,
@@ -88,6 +102,8 @@ class MainActivity : FlutterActivity() {
         sshCredentialChannel = null
         localDiscoveryChannel?.setMethodCallHandler(null)
         localDiscoveryChannel = null
+        browserProxyChannel?.setMethodCallHandler(null)
+        browserProxyChannel = null
         imeInsetsBridge?.close()
         imeInsetsBridge = null
         terminalInputBridge?.close()
@@ -176,6 +192,109 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun handleBrowserProxyMethod(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "clearData" -> clearBrowserData(result)
+            "open" -> openBrowserProxy(call, result)
+            "close" -> closeBrowserProxy(call, result)
+            else -> result.notImplemented()
+        }
+    }
+
+    private data class BrowserProxyLease(
+        val leaseId: String,
+        val sessionId: String,
+        val endpointId: String,
+        val routeId: String,
+        val routeGeneration: Int,
+    )
+
+    private fun browserCallbackExecutor(): Executor = Executor { command ->
+        runOnUiThread(command)
+    }
+
+    private fun openBrowserProxy(call: MethodCall, result: MethodChannel.Result) {
+        val sessionId = call.argument<String>("sessionId").orEmpty().trim()
+        val endpointId = call.argument<String>("endpointId").orEmpty().trim()
+        val proxyHost = call.argument<String>("proxyHost").orEmpty().trim()
+        val proxyPort = call.argument<Int>("proxyPort") ?: 0
+        val routeId = call.argument<String>("routeId").orEmpty().trim()
+        val routeGeneration = call.argument<Int>("routeGeneration") ?: 0
+        if (sessionId.isEmpty() || endpointId.isEmpty() || proxyHost.isEmpty() ||
+            proxyPort !in 1..65535 || routeId.isEmpty() || routeGeneration <= 0) {
+            result.error("browser_proxy_invalid", "The browser proxy binding is invalid", null)
+            return
+        }
+        if (browserProxyLease != null) {
+            result.error("browser_proxy_busy", "Another browser proxy lease is active", null)
+            return
+        }
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
+            result.error("browser_proxy_unavailable", "This WebView provider does not support proxy override", null)
+            return
+        }
+        val config = ProxyConfig.Builder()
+            .addProxyRule("$proxyHost:$proxyPort")
+            // WebView normally bypasses localhost and 127.0.0.0/8. Those
+            // targets must reach the remote daemon host for this session.
+            .removeImplicitRules()
+            .build()
+        ProxyController.getInstance().setProxyOverride(config, browserCallbackExecutor()) {
+            val lease = BrowserProxyLease(
+                leaseId = "browser-$sessionId-${System.nanoTime()}",
+                sessionId = sessionId,
+                endpointId = endpointId,
+                routeId = routeId,
+                routeGeneration = routeGeneration,
+            )
+            browserProxyLease = lease
+            result.success(
+                mapOf(
+                    "leaseId" to lease.leaseId,
+                    "sessionId" to lease.sessionId,
+                    "endpointId" to lease.endpointId,
+                    "routeId" to lease.routeId,
+                    "routeGeneration" to lease.routeGeneration,
+                    "dnsProxied" to true,
+                ),
+            )
+        }
+    }
+
+    private fun closeBrowserProxy(call: MethodCall, result: MethodChannel.Result) {
+        val lease = browserProxyLease
+        val leaseId = call.argument<String>("leaseId").orEmpty().trim()
+        if (lease == null || lease.leaseId != leaseId) {
+            result.success(null)
+            return
+        }
+        ProxyController.getInstance().clearProxyOverride(browserCallbackExecutor()) {
+            browserProxyLease = null
+            result.success(null)
+        }
+    }
+
+    private fun clearBrowserData(result: MethodChannel.Result) {
+        try {
+            WebView(applicationContext).also { cleanupView ->
+                cleanupView.clearCache(true)
+                cleanupView.destroy()
+            }
+            WebStorage.getInstance().deleteAllData()
+            WebViewDatabase.getInstance(applicationContext).clearHttpAuthUsernamePassword()
+            CookieManager.getInstance().removeAllCookies {
+                CookieManager.getInstance().flush()
+                runOnUiThread { result.success(null) }
+            }
+        } catch (error: Exception) {
+            result.error(
+                "browser_data_clear_failed",
+                "Unable to clear WebView data",
+                error.message,
+            )
+        }
+    }
+
     @Deprecated("Uses the Activity result callback supported by FlutterActivity")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -251,6 +370,7 @@ class MainActivity : FlutterActivity() {
         private const val EXTERNAL_URI_CHANNEL = "com.anytty.app/external-uri"
         private const val SSH_CREDENTIAL_CHANNEL = "com.anytty.app/ssh-credentials"
         private const val LOCAL_DISCOVERY_CHANNEL = "com.anytty.app/local-discovery"
+        private const val BROWSER_PROXY_CHANNEL = "com.anytty.app/browser-proxy"
         private const val ENGINE_ID = "anytty-retained-engine"
         private const val DEFAULT_MIME_TYPE = "application/octet-stream"
         private const val EXPORT_REQUEST_CODE = 7001

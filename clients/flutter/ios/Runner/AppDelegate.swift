@@ -1,6 +1,8 @@
 import Flutter
+import Network
 import UIKit
 import UserNotifications
+import WebKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, UIDocumentPickerDelegate {
@@ -9,6 +11,8 @@ import UserNotifications
   private var backgroundChannel: FlutterMethodChannel?
   private var sshCredentialChannel: FlutterMethodChannel?
   private var localDiscoveryChannel: FlutterMethodChannel?
+  private var browserProxyChannel: FlutterMethodChannel?
+  private var browserProxyLease: String?
   private let sshCredentialBridge = SSHCredentialBridge()
   private let localDiscoveryBridge = LocalDiscoveryBridge()
   private var pendingExportResult: FlutterResult?
@@ -69,6 +73,99 @@ import UserNotifications
       self?.localDiscoveryBridge.handle(call, result: result)
     }
     localDiscoveryChannel = discoveryChannel
+
+    let browserChannel = FlutterMethodChannel(
+      name: "com.anytty.app/browser-proxy",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    browserChannel.setMethodCallHandler { [weak self] call, result in
+      self?.handleBrowserProxyMethod(call, result: result)
+    }
+    browserProxyChannel = browserChannel
+  }
+
+  private func handleBrowserProxyMethod(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "clearData":
+      let store = WKWebsiteDataStore.default()
+      if #available(iOS 17.0, *) {
+        store.proxyConfigurations = []
+      }
+      store.removeData(
+        ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+        modifiedSince: Date.distantPast
+      ) {
+        DispatchQueue.main.async { result(nil) }
+      }
+    case "open":
+      openBrowserProxy(call, result: result)
+    case "close":
+      closeBrowserProxy(call, result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func openBrowserProxy(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard #available(iOS 17.0, *) else {
+      result(FlutterError(code: "browser_proxy_unavailable", message: "Session-bound WebView proxy requires iOS 17 or later", details: nil))
+      return
+    }
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let sessionID = arguments["sessionId"] as? String,
+      let endpointID = arguments["endpointId"] as? String,
+      let proxyHost = arguments["proxyHost"] as? String,
+      let proxyPort = arguments["proxyPort"] as? Int,
+      let routeID = arguments["routeId"] as? String,
+      let routeGeneration = arguments["routeGeneration"] as? Int,
+      !sessionID.isEmpty,
+      !endpointID.isEmpty,
+      !proxyHost.isEmpty,
+      !routeID.isEmpty,
+      routeGeneration > 0,
+      (1...65535).contains(proxyPort),
+      browserProxyLease == nil
+    else {
+      result(FlutterError(code: "browser_proxy_invalid", message: "The browser proxy binding is invalid or busy", details: nil))
+      return
+    }
+    let endpoint = NWEndpoint.hostPort(
+      host: NWEndpoint.Host(proxyHost),
+      port: NWEndpoint.Port(rawValue: UInt16(proxyPort))!
+    )
+    // The proxy receives the original authority, so remote localhost targets
+    // are dialed by the daemon rather than by the iOS device.
+    let configuration = ProxyConfiguration(httpCONNECTProxy: endpoint, tlsOptions: nil)
+    WKWebsiteDataStore.default().proxyConfigurations = [configuration]
+    let leaseID = "browser-\(sessionID)-\(UInt64(Date.timeIntervalSinceReferenceDate * 1_000_000))"
+    browserProxyLease = leaseID
+    result([
+      "leaseId": leaseID,
+      "sessionId": sessionID,
+      "endpointId": endpointID,
+      "routeId": routeID,
+      "routeGeneration": routeGeneration,
+      "dnsProxied": true,
+    ])
+  }
+
+  private func closeBrowserProxy(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard #available(iOS 17.0, *) else {
+      result(nil)
+      return
+    }
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let leaseID = arguments["leaseId"] as? String,
+      browserProxyLease == leaseID
+    else {
+      result(nil)
+      return
+    }
+    WKWebsiteDataStore.default().proxyConfigurations = []
+    browserProxyLease = nil
+    result(nil)
   }
 
   private func handleBackgroundMethod(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

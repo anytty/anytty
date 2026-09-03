@@ -45,6 +45,8 @@ const (
 	ApplicationCapabilityClientAccess
 	// ApplicationCapabilityRemoteControl 表示 local-owner remote runtime 控制。
 	ApplicationCapabilityRemoteControl
+	// ApplicationCapabilityBrowserProxy 表示 session-bound daemon-side TCP proxy。
+	ApplicationCapabilityBrowserProxy
 )
 
 var (
@@ -193,6 +195,11 @@ type TerminalResizeResult struct {
 	ResizeControl *TerminalResizeControl
 }
 
+// BrowserProxy 是一个已经由 daemon 拨号并绑定到当前 protocol session 的 TCP resource。
+type BrowserProxy struct {
+	Token []byte
+}
+
 // ApplicationSessionPort 是单条 protocol connection 暴露给 API Layer 的 core-native 窄边界。
 // 实现绑定 immutable transport scope 和 session-owned resource registry，不包含 Proto 字段转换。
 type ApplicationSessionPort interface {
@@ -202,6 +209,8 @@ type ApplicationSessionPort interface {
 	CancelApplicationOperation(context.Context, string) error
 	// ReleaseApplicationResource 按 opaque token 释放当前 session owning resource。
 	ReleaseApplicationResource(context.Context, []byte) error
+	// ApplicationBrowserProxyOpen 在 daemon 所在机器打开一个 session-bound TCP resource。
+	ApplicationBrowserProxyOpen(context.Context, string, uint16) (BrowserProxy, error)
 	// ApplicationTerminalDefaults 返回 owning daemon 机器的 shell/cwd 默认值。
 	ApplicationTerminalDefaults(context.Context) (TerminalDefaults, error)
 	// ApplicationTerminalCreate 把 core record 交给 terminal lifecycle owner。

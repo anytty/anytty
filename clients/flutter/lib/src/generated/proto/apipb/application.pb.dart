@@ -141,6 +141,75 @@ class ReleaseResourceCommand extends $pb.GeneratedMessage {
   $0.ResourceHandle ensureResource() => $_ensure(0);
 }
 
+/// BrowserProxyOpenCommand opens one daemon-side TCP connection. The returned
+/// resource is a bidirectional byte stream owned by the current API session.
+class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
+  factory BrowserProxyOpenCommand({
+    $core.String? host,
+    $core.int? port,
+  }) {
+    final result = create();
+    if (host != null) result.host = host;
+    if (port != null) result.port = port;
+    return result;
+  }
+
+  BrowserProxyOpenCommand._();
+
+  factory BrowserProxyOpenCommand.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BrowserProxyOpenCommand.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BrowserProxyOpenCommand',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'host')
+    ..aI(2, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyOpenCommand clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyOpenCommand copyWith(
+          void Function(BrowserProxyOpenCommand) updates) =>
+      super.copyWith((message) => updates(message as BrowserProxyOpenCommand))
+          as BrowserProxyOpenCommand;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyOpenCommand create() => BrowserProxyOpenCommand._();
+  @$core.override
+  BrowserProxyOpenCommand createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyOpenCommand getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenCommand>(create);
+  static BrowserProxyOpenCommand? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get host => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set host($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasHost() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearHost() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get port => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set port($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasPort() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPort() => $_clearField(2);
+}
+
 enum CommandEnvelope_Command {
   cancelOperation,
   releaseResource,
@@ -196,6 +265,7 @@ enum CommandEnvelope_Command {
   remoteCloudStatus,
   remoteCloudEnable,
   remoteCloudDisable,
+  browserProxyOpen,
   notSet
 }
 
@@ -256,6 +326,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     $6.RemoteCloudStatusCommand? remoteCloudStatus,
     $6.RemoteCloudEnableCommand? remoteCloudEnable,
     $6.RemoteCloudDisableCommand? remoteCloudDisable,
+    BrowserProxyOpenCommand? browserProxyOpen,
   }) {
     final result = create();
     if (context != null) result.context = context;
@@ -325,6 +396,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     if (remoteCloudEnable != null) result.remoteCloudEnable = remoteCloudEnable;
     if (remoteCloudDisable != null)
       result.remoteCloudDisable = remoteCloudDisable;
+    if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
     return result;
   }
 
@@ -393,6 +465,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     118: CommandEnvelope_Command.remoteCloudStatus,
     119: CommandEnvelope_Command.remoteCloudEnable,
     120: CommandEnvelope_Command.remoteCloudDisable,
+    121: CommandEnvelope_Command.browserProxyOpen,
     0: CommandEnvelope_Command.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -453,7 +526,8 @@ class CommandEnvelope extends $pb.GeneratedMessage {
       117,
       118,
       119,
-      120
+      120,
+      121
     ])
     ..aOM<$0.RequestContext>(1, _omitFieldNames ? '' : 'context',
         subBuilder: $0.RequestContext.create)
@@ -588,6 +662,9 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     ..aOM<$6.RemoteCloudDisableCommand>(
         120, _omitFieldNames ? '' : 'remoteCloudDisable',
         subBuilder: $6.RemoteCloudDisableCommand.create)
+    ..aOM<BrowserProxyOpenCommand>(
+        121, _omitFieldNames ? '' : 'browserProxyOpen',
+        subBuilder: BrowserProxyOpenCommand.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -663,6 +740,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(118)
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
+  @$pb.TagNumber(121)
   CommandEnvelope_Command whichCommand() =>
       _CommandEnvelope_CommandByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -719,6 +797,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(118)
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
+  @$pb.TagNumber(121)
   void clearCommand() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -1348,6 +1427,17 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   void clearRemoteCloudDisable() => $_clearField(120);
   @$pb.TagNumber(120)
   $6.RemoteCloudDisableCommand ensureRemoteCloudDisable() => $_ensure(54);
+
+  @$pb.TagNumber(121)
+  BrowserProxyOpenCommand get browserProxyOpen => $_getN(55);
+  @$pb.TagNumber(121)
+  set browserProxyOpen(BrowserProxyOpenCommand value) => $_setField(121, value);
+  @$pb.TagNumber(121)
+  $core.bool hasBrowserProxyOpen() => $_has(55);
+  @$pb.TagNumber(121)
+  void clearBrowserProxyOpen() => $_clearField(121);
+  @$pb.TagNumber(121)
+  BrowserProxyOpenCommand ensureBrowserProxyOpen() => $_ensure(55);
 }
 
 class AcknowledgeResult extends $pb.GeneratedMessage {
@@ -1424,6 +1514,7 @@ enum ResultEnvelope_Result {
   remoteLocalStatus,
   remoteCloudEdges,
   remoteCloudStatus,
+  browserProxyOpen,
   notSet
 }
 
@@ -1466,6 +1557,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     $6.RemoteLocalStatusResult? remoteLocalStatus,
     $6.RemoteCloudEdgesResult? remoteCloudEdges,
     $6.RemoteCloudStatusResult? remoteCloudStatus,
+    BrowserProxyOpenResult? browserProxyOpen,
   }) {
     final result = create();
     if (requestId != null) result.requestId = requestId;
@@ -1511,6 +1603,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     if (remoteLocalStatus != null) result.remoteLocalStatus = remoteLocalStatus;
     if (remoteCloudEdges != null) result.remoteCloudEdges = remoteCloudEdges;
     if (remoteCloudStatus != null) result.remoteCloudStatus = remoteCloudStatus;
+    if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
     return result;
   }
 
@@ -1560,6 +1653,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     112: ResultEnvelope_Result.remoteLocalStatus,
     113: ResultEnvelope_Result.remoteCloudEdges,
     114: ResultEnvelope_Result.remoteCloudStatus,
+    115: ResultEnvelope_Result.browserProxyOpen,
     0: ResultEnvelope_Result.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -1601,7 +1695,8 @@ class ResultEnvelope extends $pb.GeneratedMessage {
       111,
       112,
       113,
-      114
+      114,
+      115
     ])
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOM<$0.EndpointSessionStamp>(2, _omitFieldNames ? '' : 'originSession',
@@ -1690,6 +1785,9 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     ..aOM<$6.RemoteCloudStatusResult>(
         114, _omitFieldNames ? '' : 'remoteCloudStatus',
         subBuilder: $6.RemoteCloudStatusResult.create)
+    ..aOM<BrowserProxyOpenResult>(
+        115, _omitFieldNames ? '' : 'browserProxyOpen',
+        subBuilder: BrowserProxyOpenResult.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1746,6 +1844,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(112)
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
+  @$pb.TagNumber(115)
   ResultEnvelope_Result whichResult() =>
       _ResultEnvelope_ResultByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -1783,6 +1882,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(112)
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
+  @$pb.TagNumber(115)
   void clearResult() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -2203,6 +2303,75 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   void clearRemoteCloudStatus() => $_clearField(114);
   @$pb.TagNumber(114)
   $6.RemoteCloudStatusResult ensureRemoteCloudStatus() => $_ensure(36);
+
+  @$pb.TagNumber(115)
+  BrowserProxyOpenResult get browserProxyOpen => $_getN(37);
+  @$pb.TagNumber(115)
+  set browserProxyOpen(BrowserProxyOpenResult value) => $_setField(115, value);
+  @$pb.TagNumber(115)
+  $core.bool hasBrowserProxyOpen() => $_has(37);
+  @$pb.TagNumber(115)
+  void clearBrowserProxyOpen() => $_clearField(115);
+  @$pb.TagNumber(115)
+  BrowserProxyOpenResult ensureBrowserProxyOpen() => $_ensure(37);
+}
+
+class BrowserProxyOpenResult extends $pb.GeneratedMessage {
+  factory BrowserProxyOpenResult({
+    $0.ResourceHandle? resource,
+  }) {
+    final result = create();
+    if (resource != null) result.resource = resource;
+    return result;
+  }
+
+  BrowserProxyOpenResult._();
+
+  factory BrowserProxyOpenResult.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BrowserProxyOpenResult.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BrowserProxyOpenResult',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
+      createEmptyInstance: create)
+    ..aOM<$0.ResourceHandle>(1, _omitFieldNames ? '' : 'resource',
+        subBuilder: $0.ResourceHandle.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyOpenResult clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyOpenResult copyWith(
+          void Function(BrowserProxyOpenResult) updates) =>
+      super.copyWith((message) => updates(message as BrowserProxyOpenResult))
+          as BrowserProxyOpenResult;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyOpenResult create() => BrowserProxyOpenResult._();
+  @$core.override
+  BrowserProxyOpenResult createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyOpenResult getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenResult>(create);
+  static BrowserProxyOpenResult? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $0.ResourceHandle get resource => $_getN(0);
+  @$pb.TagNumber(1)
+  set resource($0.ResourceHandle value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasResource() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearResource() => $_clearField(1);
+  @$pb.TagNumber(1)
+  $0.ResourceHandle ensureResource() => $_ensure(0);
 }
 
 class OperationCancelledEvent extends $pb.GeneratedMessage {

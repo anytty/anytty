@@ -2,8 +2,11 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"net"
+	"strconv"
 
 	"github.com/anytty/anytty/core/history"
 	"github.com/anytty/anytty/proto/wire"
@@ -96,7 +99,8 @@ func applicationCapabilitySupported(capability ApplicationCapability) bool {
 		ApplicationCapabilityStorage,
 		ApplicationCapabilityEventSubscription,
 		ApplicationCapabilityClientAccess,
-		ApplicationCapabilityRemoteControl:
+		ApplicationCapabilityRemoteControl,
+		ApplicationCapabilityBrowserProxy:
 		return true
 	default:
 		return false
@@ -132,6 +136,10 @@ func (session *protocolSession) CancelApplicationOperation(context.Context, stri
 
 // ReleaseApplicationResource 释放当前 session registry 持有的 opaque attachment token。
 func (session *protocolSession) ReleaseApplicationResource(_ context.Context, token []byte) error {
+	if proxy := session.browserProxyForToken(token); proxy != nil {
+		session.removeBrowserProxy(proxy)
+		return nil
+	}
 	attachment, err := session.attachmentForToken(token)
 	if err == nil {
 		session.detach(attachmentDetachRequest{Channel: attachment.Channel})
@@ -156,6 +164,40 @@ func (session *protocolSession) ReleaseApplicationResource(_ context.Context, to
 		return nil
 	}
 	return err
+}
+
+// ApplicationBrowserProxyOpen dials from the daemon host and publishes the
+// resulting bidirectional byte stream only after the connection succeeds.
+func (session *protocolSession) ApplicationBrowserProxyOpen(ctx context.Context, host string, port uint16) (BrowserProxy, error) {
+	if !session.scope.AllowDaemon {
+		return BrowserProxy{}, ErrApplicationForbidden
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	address := net.JoinHostPort(host, strconv.Itoa(int(port)))
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	if err != nil {
+		return BrowserProxy{}, err
+	}
+	channel, err := session.reserveBrowserChannel()
+	if err != nil {
+		_ = conn.Close()
+		return BrowserProxy{}, err
+	}
+	token := make([]byte, 34)
+	binary.BigEndian.PutUint16(token[:2], channel)
+	if _, err := rand.Read(token[2:]); err != nil {
+		_ = conn.Close()
+		session.releaseChannel(channel, protocolChannelBrowserProxy)
+		return BrowserProxy{}, err
+	}
+	proxy := &sessionBrowserProxy{channel: channel, token: token, conn: conn}
+	session.browserMu.Lock()
+	session.browserChannels[channel] = proxy
+	session.browserTokens[string(token)] = channel
+	session.browserMu.Unlock()
+	return BrowserProxy{Token: append([]byte(nil), token...)}, nil
 }
 
 // ApplicationTerminalDefaults 返回 owning daemon 机器的默认 shell 与 cwd。
