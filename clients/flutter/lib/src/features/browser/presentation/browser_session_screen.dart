@@ -10,6 +10,7 @@ import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
 import '../../../app/providers.dart';
 import '../../../native/browser_proxy_platform.dart';
+import '../data/browser_bookmark_store.dart';
 import '../data/browser_http_proxy.dart';
 import '../data/browser_history_store.dart';
 import '../data/browser_session_store.dart';
@@ -18,6 +19,7 @@ import '../domain/browser_session.dart';
 import '../../terminal/data/endpoint_session_client.dart';
 import '../../terminal/presentation/terminal_petal_menu.dart';
 import 'browser_endpoint_picker_sheet.dart';
+import 'browser_new_tab_page.dart';
 
 final class BrowserSessionScreen extends ConsumerStatefulWidget {
   const BrowserSessionScreen({
@@ -27,6 +29,7 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
     this.proxyPlatform,
     this.sessionStore,
     this.historyStore,
+    this.bookmarkStore,
     this.onExit,
     this.navigationRequestId = 0,
     this.navigationUrl,
@@ -37,6 +40,7 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
   final BrowserProxyPlatform? proxyPlatform;
   final BrowserSessionStore? sessionStore;
   final BrowserHistoryStore? historyStore;
+  final BrowserBookmarkStore? bookmarkStore;
   final VoidCallback? onExit;
   final int navigationRequestId;
   final String? navigationUrl;
@@ -55,11 +59,14 @@ final class _BrowserSessionScreenState
 
   final _addressController = TextEditingController();
   final _addressFocusNode = FocusNode();
+  final _newTabSearchController = TextEditingController();
+  final _newTabSearchFocusNode = FocusNode();
   final _stateMachine = BrowserSessionStateMachine();
 
   late final BrowserProxyPlatform _proxyPlatform;
   late final BrowserSessionStore _sessionStore;
   late final BrowserHistoryStore _historyStore;
+  late final BrowserBookmarkStore _bookmarkStore;
 
   String _activeEndpointId = '';
   String _activeEndpointLabel = '';
@@ -75,6 +82,7 @@ final class _BrowserSessionScreenState
   bool _closing = false;
   bool _sessionRecoveryPending = false;
   List<BrowserHistoryEntry> _history = const [];
+  List<BrowserBookmark> _bookmarks = const [];
   final _tabsByEndpoint = <String, List<BrowserTabSnapshot>>{};
   final _activeTabIds = <String, String?>{};
   bool _readerMode = false;
@@ -95,11 +103,14 @@ final class _BrowserSessionScreenState
         widget.sessionStore ?? const SharedPreferencesBrowserSessionStore();
     _historyStore =
         widget.historyStore ?? const SharedPreferencesBrowserHistoryStore();
+    _bookmarkStore =
+        widget.bookmarkStore ?? const SharedPreferencesBrowserBookmarkStore();
     _activeEndpointId = widget.endpointId;
     _activeEndpointLabel = _labelFor(widget.endpointId, widget.endpointLabel);
     _pendingNavigationUrl = widget.navigationUrl;
     _retainEndpointSession(_activeEndpointId);
     unawaited(_loadHistory());
+    unawaited(_loadBookmarks());
     unawaited(_activateSession(_activeEndpointId, _activeEndpointLabel));
   }
 
@@ -130,6 +141,8 @@ final class _BrowserSessionScreenState
     );
     _addressController.dispose();
     _addressFocusNode.dispose();
+    _newTabSearchController.dispose();
+    _newTabSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -154,6 +167,99 @@ final class _BrowserSessionScreenState
       // History is an enhancement; a corrupt or unavailable store must not
       // prevent the remote browser from opening.
     }
+  }
+
+  Future<void> _loadBookmarks() async {
+    try {
+      final bookmarks = await _bookmarkStore.load();
+      if (mounted) setState(() => _bookmarks = bookmarks);
+    } catch (_) {
+      // A corrupt bookmark list must not prevent the remote browser from opening.
+    }
+  }
+
+  Uri? get _currentPageUri {
+    final uri = Uri.tryParse(_snapshot?.url.trim() ?? '');
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return null;
+    }
+    return uri;
+  }
+
+  bool get _isCurrentPageBookmarked {
+    final uri = _currentPageUri;
+    return uri != null && _bookmarks.any((item) => item.url == uri.toString());
+  }
+
+  bool _isNewTabUrl(String? value) =>
+      value == null || value.trim().isEmpty || value.trim() == 'about:blank';
+
+  Future<void> _toggleBookmark() async {
+    final uri = _currentPageUri;
+    if (uri == null) return;
+    final url = uri.toString();
+    final index = _bookmarks.indexWhere((item) => item.url == url);
+    if (index >= 0) {
+      try {
+        await _bookmarkStore.remove(url);
+      } catch (error) {
+        if (mounted) setState(() => _error = '$error');
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _bookmarks = List<BrowserBookmark>.of(_bookmarks)..removeAt(index);
+        });
+        _showBrowserMessage(
+          anyttyText(context, en: 'Bookmark removed', zh: '已取消收藏'),
+        );
+      }
+      return;
+    }
+
+    final title = _snapshot?.title.trim();
+    final bookmark = BrowserBookmark(
+      url: url,
+      title: title?.isNotEmpty == true ? title! : uri.host,
+    );
+    try {
+      await _bookmarkStore.add(bookmark);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _bookmarks = [
+          bookmark,
+          ..._bookmarks.where((item) => item.url != bookmark.url),
+        ];
+      });
+      _showBrowserMessage(anyttyText(context, en: 'Page saved', zh: '网页已收藏'));
+    }
+  }
+
+  Future<void> _removeBookmark(String url) async {
+    try {
+      await _bookmarkStore.remove(url);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+      return;
+    }
+    if (mounted) {
+      setState(
+        () => _bookmarks = _bookmarks
+            .where((bookmark) => bookmark.url != url)
+            .toList(growable: false),
+      );
+    }
+  }
+
+  void _showBrowserMessage(String message) {
+    if (!mounted || _closing) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   List<BrowserTabSnapshot> _tabsFor(String endpointId) =>
@@ -262,6 +368,23 @@ final class _BrowserSessionScreenState
             history: _history,
           ),
           actions: [
+            IconButton(
+              tooltip: _isCurrentPageBookmarked
+                  ? anyttyText(context, en: 'Remove bookmark', zh: '取消收藏')
+                  : anyttyText(context, en: 'Save page', zh: '收藏网页'),
+              onPressed: _currentPageUri == null
+                  ? null
+                  : () => unawaited(_toggleBookmark()),
+              icon: Icon(
+                _isCurrentPageBookmarked
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                size: 21,
+              ),
+              color: _isCurrentPageBookmarked
+                  ? AnyttyPalette.of(context).accent
+                  : null,
+            ),
             if (compact)
               _BrowserTabCountButton(
                 count: _tabsFor(_activeEndpointId).length,
@@ -428,6 +551,19 @@ final class _BrowserSessionScreenState
     final state = _stateMachine.state;
     final controller = _webViewController;
     final palette = AnyttyPalette.of(context);
+    final isNewTab =
+        controller != null && _pageReady && _isNewTabUrl(_snapshot?.url);
+    if (isNewTab) {
+      return BrowserNewTabPage(
+        searchController: _newTabSearchController,
+        searchFocusNode: _newTabSearchFocusNode,
+        onSearch: _navigate,
+        bookmarks: _bookmarks,
+        history: _history,
+        onRemoveBookmark: _removeBookmark,
+        onOpenHistory: _openHistory,
+      );
+    }
     if (controller != null) {
       return Stack(
         fit: StackFit.expand,
@@ -1119,7 +1255,7 @@ final class _BrowserSessionScreenState
     if (requestedValue != null && _pendingNavigationUrl == requestedValue) {
       _pendingNavigationUrl = null;
     }
-    final uri = Uri.tryParse(value.contains('://') ? value : 'https://$value');
+    final uri = _resolveNavigation(value);
     if (uri == null || !_allowedUri(uri)) {
       setState(
         () => _error = anyttyText(
@@ -1143,6 +1279,24 @@ final class _BrowserSessionScreenState
       ),
     );
     await controller.loadRequest(uri);
+  }
+
+  Uri? _resolveNavigation(String value) {
+    if (value == 'about:blank' || value.startsWith('about:')) {
+      return Uri.tryParse(value);
+    }
+    if (value.contains('://')) return Uri.tryParse(value);
+    if (!value.contains(RegExp(r'\s'))) {
+      final address = Uri.tryParse('https://$value');
+      final host = address?.host ?? '';
+      if (host.contains('.') ||
+          value.startsWith('localhost') ||
+          value.startsWith('127.0.0.1') ||
+          value.startsWith('[')) {
+        return address;
+      }
+    }
+    return Uri.https('www.google.com', '/search', {'q': value});
   }
 
   Future<void> _recordHistory(BrowserHistoryEntry entry) async {
@@ -1327,6 +1481,7 @@ final class _BrowserSessionScreenState
     _activeTabIds[_activeEndpointId] = tab.id;
     final snapshot = _snapshotForTab(tab);
     _snapshot = snapshot;
+    if (_isNewTabUrl(tab.url)) _newTabSearchController.clear();
     await _sessionStore.save(snapshot);
     if (mounted) {
       setState(() {

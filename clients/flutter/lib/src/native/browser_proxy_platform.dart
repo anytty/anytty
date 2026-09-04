@@ -45,8 +45,8 @@ abstract interface class BrowserProxyPlatform {
 
   /// Clears shared native WebView data before another session opens.
   ///
-  /// Cold restore intentionally keeps only URL, scroll position, and a PNG
-  /// snapshot. A platform that cannot clear its shared data store must fail
+  /// Cold restore intentionally keeps only URL, scroll position, and tab
+  /// metadata. A platform that cannot clear its shared data store must fail
   /// closed and avoid creating the next WebView.
   Future<void> clearBrowserData();
 }
