@@ -15,7 +15,6 @@ BrowserSessionSnapshot _snapshot({
   title: 'Remote app',
   scrollX: 4,
   scrollY: 120,
-  snapshotPath: '/tmp/$sessionId.png',
   routeId: 'route-$sessionId',
   routeGeneration: 7,
   parkedAt: DateTime.utc(2026, 9, 3, 8, 0),
@@ -44,7 +43,6 @@ void main() {
             title: 'Remote app',
             scrollX: 2,
             scrollY: 40,
-            snapshotPath: '/tmp/tab-a.png',
           ),
           BrowserTabSnapshot(
             id: 'tab-b',
@@ -52,7 +50,6 @@ void main() {
             title: '',
             scrollX: 0,
             scrollY: 0,
-            snapshotPath: null,
           ),
         ],
         activeTabId: 'tab-b',

@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -16,7 +13,7 @@ import '../../../native/browser_proxy_platform.dart';
 import '../data/browser_http_proxy.dart';
 import '../data/browser_history_store.dart';
 import '../data/browser_session_store.dart';
-import '../data/browser_snapshot_store.dart';
+import '../domain/browser_load_progress.dart';
 import '../domain/browser_session.dart';
 import '../../terminal/data/endpoint_session_client.dart';
 import '../../terminal/presentation/terminal_petal_menu.dart';
@@ -29,7 +26,6 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
     this.endpointLabel,
     this.proxyPlatform,
     this.sessionStore,
-    this.snapshotStore,
     this.historyStore,
     this.onExit,
     this.navigationRequestId = 0,
@@ -40,7 +36,6 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
   final String? endpointLabel;
   final BrowserProxyPlatform? proxyPlatform;
   final BrowserSessionStore? sessionStore;
-  final BrowserSnapshotStore? snapshotStore;
   final BrowserHistoryStore? historyStore;
   final VoidCallback? onExit;
   final int navigationRequestId;
@@ -54,25 +49,21 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
 final class _BrowserSessionScreenState
     extends ConsumerState<BrowserSessionScreen> {
   static const _sessionPreparationTimeout = Duration(seconds: 8);
-  static const _maximumOfflineHtmlLength = 3 * 1024 * 1024;
   static const _desktopUserAgent =
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
   final _addressController = TextEditingController();
   final _addressFocusNode = FocusNode();
-  final _webViewBoundaryKey = GlobalKey();
   final _stateMachine = BrowserSessionStateMachine();
 
   late final BrowserProxyPlatform _proxyPlatform;
   late final BrowserSessionStore _sessionStore;
-  late final BrowserSnapshotStore _snapshotStore;
   late final BrowserHistoryStore _historyStore;
 
   String _activeEndpointId = '';
   String _activeEndpointLabel = '';
   BrowserSessionSnapshot? _snapshot;
-  Uint8List? _snapshotBytes;
   BrowserProxyLease? _proxyLease;
   BrowserHttpProxy? _httpProxy;
   WebViewController? _webViewController;
@@ -86,10 +77,12 @@ final class _BrowserSessionScreenState
   List<BrowserHistoryEntry> _history = const [];
   final _tabsByEndpoint = <String, List<BrowserTabSnapshot>>{};
   final _activeTabIds = <String, String?>{};
-  final _htmlByTabId = <String, String>{};
   bool _readerMode = false;
   bool _desktopMode = false;
-  bool _offlineMode = false;
+  Timer? _loadProgressTimer;
+  DateTime? _loadStartedAt;
+  int _loadProgressGeneration = 0;
+  double _loadProgress = 0;
   String? _pendingNavigationUrl;
   Future<void> _transitionTail = Future<void>.value();
 
@@ -100,8 +93,6 @@ final class _BrowserSessionScreenState
         widget.proxyPlatform ?? MethodChannelBrowserProxyPlatform.instance;
     _sessionStore =
         widget.sessionStore ?? const SharedPreferencesBrowserSessionStore();
-    _snapshotStore =
-        widget.snapshotStore ?? const ApplicationBrowserSnapshotStore();
     _historyStore =
         widget.historyStore ?? const SharedPreferencesBrowserHistoryStore();
     _activeEndpointId = widget.endpointId;
@@ -115,6 +106,8 @@ final class _BrowserSessionScreenState
   @override
   void dispose() {
     _closing = true;
+    _loadProgressTimer?.cancel();
+    _loadProgressTimer = null;
     final controller = _webViewController;
     final lease = _proxyLease;
     final httpProxy = _httpProxy;
@@ -190,7 +183,6 @@ final class _BrowserSessionScreenState
               title: snapshot.title,
               scrollX: snapshot.scrollX,
               scrollY: snapshot.scrollY,
-              snapshotPath: snapshot.snapshotPath,
             ),
           ]
         : List<BrowserTabSnapshot>.of(snapshot.tabs);
@@ -216,7 +208,6 @@ final class _BrowserSessionScreenState
       title: snapshot.title,
       scrollX: snapshot.scrollX,
       scrollY: snapshot.scrollY,
-      snapshotPath: snapshot.snapshotPath,
     );
     final index = tabs.indexWhere((tab) => tab.id == activeId);
     if (index == -1) {
@@ -441,26 +432,20 @@ final class _BrowserSessionScreenState
       return Stack(
         fit: StackFit.expand,
         children: [
-          RepaintBoundary(
-            key: _webViewBoundaryKey,
-            child: WebViewWidget(controller: controller),
-          ),
-          if (!_pageReady && _snapshotBytes != null)
-            IgnorePointer(
-              child: Image.memory(_snapshotBytes!, fit: BoxFit.cover),
+          WebViewWidget(controller: controller),
+          if (!_pageReady)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _BrowserLoadProgress(value: _loadProgress),
             ),
-          if (!_pageReady && _snapshotBytes == null)
+          if (_error != null)
             Align(
               alignment: Alignment.topCenter,
-              child: _BrowserLoadingMarker(
-                label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
-              ),
-            ),
-          if (_offlineMode)
-            Align(
-              alignment: Alignment.topCenter,
-              child: _BrowserOfflineBanner(
-                onRefresh: () => unawaited(
+              child: _BrowserConnectionBanner(
+                message: _error!,
+                onRetry: () => unawaited(
                   _activateSession(
                     _activeEndpointId,
                     _activeEndpointLabel,
@@ -472,30 +457,15 @@ final class _BrowserSessionScreenState
         ],
       );
     }
-    if (_snapshotBytes != null &&
-        (state.phase == BrowserSessionPhase.blocked ||
-            state.phase == BrowserSessionPhase.failed ||
-            state.phase == BrowserSessionPhase.parked ||
-            state.phase == BrowserSessionPhase.parking ||
-            state.phase == BrowserSessionPhase.restoring)) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.memory(_snapshotBytes!, fit: BoxFit.cover),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _BrowserLoadingMarker(
-              label:
-                  state.phase == BrowserSessionPhase.parking ||
-                      state.phase == BrowserSessionPhase.restoring
-                  ? anyttyText(context, en: 'Snapshot preview', zh: '快照预览')
-                  : anyttyText(context, en: 'Paused preview', zh: '已暂停预览'),
-            ),
-          ),
-        ],
+    final blocked = state.phase == BrowserSessionPhase.blocked;
+    if (!blocked && state.phase != BrowserSessionPhase.failed) {
+      return Semantics(
+        container: true,
+        liveRegion: true,
+        label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
+        child: _BrowserLoadingSurface(value: _loadProgress),
       );
     }
-    final blocked = state.phase == BrowserSessionPhase.blocked;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -519,8 +489,8 @@ final class _BrowserSessionScreenState
                       )
                     : anyttyText(
                         context,
-                        en: 'Preparing web session',
-                        zh: '正在准备 Web 会话',
+                        en: 'Browser unavailable',
+                        zh: '浏览器不可用',
                       ),
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -539,8 +509,8 @@ final class _BrowserSessionScreenState
                       )
                     : anyttyText(
                         context,
-                        en: 'The browser will open only after its route is ready.',
-                        zh: '路由准备好后，浏览器才会打开。',
+                        en: 'The page could not be opened. Check the connection and try again.',
+                        zh: '网页暂时无法打开，请检查连接后重试。',
                       ),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: palette.muted, height: 1.45),
@@ -618,34 +588,19 @@ final class _BrowserSessionScreenState
         endpointLabel: endpointLabel,
       );
     } catch (error) {
-      if (switching) {
-        final html = _offlineHtmlFor(endpointId);
-        if (html != null &&
-            await _activateOfflineHtmlSession(
-              endpointId: endpointId,
-              endpointLabel: endpointLabel,
-              html: html,
-              previousEndpointId: previousEndpointId,
-              previousEndpointLabel: previousEndpointLabel,
-            )) {
-          return;
-        }
-      }
       if (!switching && _webViewController != null) {
         final operation = _stateMachine.begin(endpointId);
+        final message = '$error';
         if (error is BrowserProxyUnavailableException) {
-          _stateMachine.markBlocked(operation, endpointId, '$error');
+          _stateMachine.markBlocked(operation, endpointId, message);
         } else {
           _stateMachine.markFailed(operation, endpointId, error);
         }
-        try {
-          await _webViewController!.setJavaScriptMode(JavaScriptMode.disabled);
-        } catch (_) {}
         if (mounted) {
           setState(() {
-            _offlineMode = true;
-            _error = null;
+            _error = message;
             _pageReady = true;
+            _loadProgress = 0;
           });
         }
         return;
@@ -674,7 +629,7 @@ final class _BrowserSessionScreenState
       });
     }
     final operation = _stateMachine.begin(endpointId);
-    if (!await _parkLiveSession(captureSnapshot: !forceReconnect)) {
+    if (!await _parkLiveSession()) {
       await prepared.dispose();
       _stateMachine.markBlocked(
         operation,
@@ -695,12 +650,10 @@ final class _BrowserSessionScreenState
     }
 
     final restoredSnapshot = prepared.snapshot;
-    final bytes = prepared.snapshotBytes;
     _installSessionTabs(restoredSnapshot);
     _stateMachine.markRestoring(operation, endpointId, restoredSnapshot);
     setState(() {
       _snapshot = restoredSnapshot;
-      _snapshotBytes = bytes;
       _addressController.text = restoredSnapshot.url;
     });
 
@@ -776,13 +729,13 @@ final class _BrowserSessionScreenState
             if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
               return;
             }
-            setState(() => _pageReady = false);
+            _beginPageLoad();
           },
           onPageFinished: (url) {
             final restoreScroll = restoreScrollPending;
             restoreScrollPending = false;
             unawaited(
-              _pageFinished(
+              _finishPageLoad(
                 operation: operation,
                 endpointId: endpointId,
                 controller: controller,
@@ -855,11 +808,13 @@ final class _BrowserSessionScreenState
     _activeEndpointSession = prepared.endpointSession;
     _watchEndpointSession(endpointId, prepared.endpointSession);
     _snapshot = activeSnapshot;
-    _offlineMode = false;
     _replaceActiveTab(activeSnapshot);
     _stateMachine.markActive(operation, endpointId, activeSnapshot);
     setState(() {
       _pageReady = activeSnapshot.restorableUri == null;
+      _loadProgress = activeSnapshot.restorableUri == null
+          ? 0
+          : browserFakeLoadProgress(Duration.zero);
       _error = null;
     });
     final pendingUrl = _pendingNavigationUrl;
@@ -906,132 +861,17 @@ final class _BrowserSessionScreenState
         endpointId: endpointId,
         endpointLabel: endpointLabel,
       );
-      final snapshotBytes = snapshot.snapshotPath == null
-          ? null
-          : await _snapshotStore.read(snapshot.snapshotPath!);
       return _PreparedBrowserSession(
         endpointSession: endpointSession,
         httpProxy: httpProxy,
         endpointSubscription: endpointSubscription,
         snapshot: snapshot,
-        snapshotBytes: snapshotBytes,
       );
     } catch (_) {
       endpointSubscription?.close();
       await httpProxy?.close();
       rethrow;
     }
-  }
-
-  String? _offlineHtmlFor(String endpointId) {
-    final tab = _activeTabFor(endpointId);
-    final html = tab == null ? null : _htmlByTabId[tab.id];
-    return html == null || html.isEmpty ? null : html;
-  }
-
-  Future<void> _captureCurrentHtml() async {
-    final controller = _webViewController;
-    final tab = _activeTabFor(_activeEndpointId);
-    if (controller == null || tab == null) return;
-    try {
-      final result = await controller.runJavaScriptReturningResult(
-        'document.documentElement == null ? "" : document.documentElement.outerHTML',
-      );
-      var html = result is String ? result : '$result';
-      if (html.startsWith('"')) {
-        try {
-          final decoded = jsonDecode(html);
-          if (decoded is String) html = decoded;
-        } on FormatException {
-          // Some WebView implementations already return the unquoted value.
-        }
-      }
-      if (html.trim().isEmpty || html.length > _maximumOfflineHtmlLength) {
-        return;
-      }
-      _htmlByTabId[tab.id] = html;
-    } catch (_) {
-      // DOM capture is best-effort; the PNG snapshot remains the cold-restore fallback.
-    }
-  }
-
-  Future<bool> _activateOfflineHtmlSession({
-    required String endpointId,
-    required String endpointLabel,
-    required String html,
-    required String previousEndpointId,
-    required String previousEndpointLabel,
-  }) async {
-    final operation = _stateMachine.begin(endpointId);
-    if (!await _parkLiveSession(captureSnapshot: false)) {
-      _stateMachine.markBlocked(
-        operation,
-        endpointId,
-        'WebView data isolation is unavailable',
-      );
-      _restorePreviousSessionAfterFailure(
-        previousEndpointId,
-        previousEndpointLabel,
-      );
-      return false;
-    }
-    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
-      return false;
-    }
-
-    final tab = _activeTabFor(endpointId);
-    final snapshot =
-        BrowserSessionSnapshot.empty(
-          sessionId: endpointId,
-          endpointId: endpointId,
-          endpointLabel: endpointLabel,
-        ).copyWith(
-          url: tab?.url,
-          title: tab?.title,
-          scrollX: tab?.scrollX,
-          scrollY: tab?.scrollY,
-          tabs: _tabsFor(endpointId),
-          activeTabId: tab?.id,
-        );
-    _stateMachine.markRestoring(operation, endpointId, snapshot);
-    final controller = WebViewController();
-    try {
-      await controller.setJavaScriptMode(JavaScriptMode.disabled);
-      await controller.setBackgroundColor(Colors.transparent);
-      await controller.setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (_) => NavigationDecision.prevent,
-        ),
-      );
-      await controller.loadHtmlString(html);
-    } catch (error) {
-      _stateMachine.markFailed(operation, endpointId, error);
-      if (mounted) setState(() => _error = '$error');
-      _restorePreviousSessionAfterFailure(
-        previousEndpointId,
-        previousEndpointLabel,
-      );
-      return false;
-    }
-    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
-      return false;
-    }
-    _webViewController = controller;
-    _proxyLease = null;
-    _httpProxy = null;
-    _activeEndpointSession = null;
-    _activeEndpointId = endpointId;
-    _activeEndpointLabel = endpointLabel;
-    _snapshot = snapshot;
-    _snapshotBytes = null;
-    _offlineMode = true;
-    _stateMachine.markActive(operation, endpointId, snapshot);
-    setState(() {
-      _pageReady = true;
-      _error = null;
-      _addressController.text = snapshot.url;
-    });
-    return true;
   }
 
   void _adoptEndpointSession(
@@ -1104,6 +944,58 @@ final class _BrowserSessionScreenState
     );
   }
 
+  void _beginPageLoad() {
+    _loadProgressTimer?.cancel();
+    final generation = ++_loadProgressGeneration;
+    _loadStartedAt = DateTime.now();
+    if (mounted) {
+      setState(() {
+        _pageReady = false;
+        _loadProgress = browserFakeLoadProgress(Duration.zero);
+      });
+    }
+    _loadProgressTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      if (!mounted || generation != _loadProgressGeneration) {
+        _loadProgressTimer?.cancel();
+        return;
+      }
+      final startedAt = _loadStartedAt;
+      if (startedAt == null) return;
+      final progress = browserFakeLoadProgress(
+        DateTime.now().difference(startedAt),
+      );
+      if (progress != _loadProgress) {
+        setState(() => _loadProgress = progress);
+      }
+    });
+  }
+
+  Future<void> _finishPageLoad({
+    required int operation,
+    required String endpointId,
+    required WebViewController controller,
+    required String url,
+    required bool restoreScroll,
+  }) async {
+    await _pageFinished(
+      operation: operation,
+      endpointId: endpointId,
+      controller: controller,
+      url: url,
+      restoreScroll: restoreScroll,
+    );
+    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) return;
+    _loadProgressTimer?.cancel();
+    _loadProgressTimer = null;
+    setState(() {
+      _loadProgress = 1;
+      _pageReady = true;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) return;
+    setState(() => _loadProgress = 0);
+  }
+
   Future<void> _pageFinished({
     required int operation,
     required String endpointId,
@@ -1149,9 +1041,6 @@ final class _BrowserSessionScreenState
         ),
       );
       if (_readerMode) await _applyReaderMode(controller, enabled: true);
-      if (mounted && _stateMachine.isCurrent(operation, endpointId)) {
-        setState(() => _pageReady = true);
-      }
     } catch (error) {
       if (mounted && _stateMachine.isCurrent(operation, endpointId)) {
         setState(() => _error = '$error');
@@ -1199,6 +1088,7 @@ final class _BrowserSessionScreenState
     if (controller == null) return;
     try {
       await controller.setUserAgent(enabled ? _desktopUserAgent : null);
+      _beginPageLoad();
       await controller.reload();
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -1214,7 +1104,7 @@ final class _BrowserSessionScreenState
     if (controller == null || _proxyLease == null) {
       if (requestedValue != null) {
         _pendingNavigationUrl = requestedValue;
-        if (_offlineMode && _activeEndpointId.isNotEmpty) {
+        if (_activeEndpointId.isNotEmpty) {
           unawaited(
             _activateSession(
               _activeEndpointId,
@@ -1241,6 +1131,7 @@ final class _BrowserSessionScreenState
       return;
     }
     _addressFocusNode.unfocus();
+    _beginPageLoad();
     setState(() {
       _error = null;
       _pageReady = false;
@@ -1265,41 +1156,29 @@ final class _BrowserSessionScreenState
     } catch (_) {}
   }
 
-  Future<bool> _parkLiveSession({bool captureSnapshot = true}) async {
+  Future<bool> _parkLiveSession() async {
     final controller = _webViewController;
     final lease = _proxyLease;
     final httpProxy = _httpProxy;
     if (controller == null && lease == null && httpProxy == null) {
-      return _clearBrowserData();
+      return _clearBrowserData(notify: false);
     }
     if (mounted) {
       setState(() => _pageReady = false);
     }
-    await _captureCurrentHtml();
-    var parked = captureSnapshot
-        ? await _captureSession(
-            sessionId: _activeEndpointId,
-            endpointLabel: _activeEndpointLabel,
-            controller: controller,
-            lease: lease,
-            previous: _snapshot,
-          )
-        : _snapshot?.copyWith(parkedAt: DateTime.now());
+    _loadProgressTimer?.cancel();
+    _loadProgressTimer = null;
+    var parked = await _captureSession(
+      sessionId: _activeEndpointId,
+      endpointLabel: _activeEndpointLabel,
+      controller: controller,
+      lease: lease,
+      previous: _snapshot,
+    );
     if (parked != null) {
       parked = _withTabState(parked);
       await _sessionStore.save(parked);
       _snapshot = parked;
-      if (mounted) {
-        final bytes = parked.snapshotPath == null
-            ? null
-            : await _snapshotStore.read(parked.snapshotPath!);
-        if (mounted) {
-          setState(() {
-            _snapshot = parked;
-            _snapshotBytes = bytes;
-          });
-        }
-      }
     }
     _webViewController = null;
     _proxyLease = null;
@@ -1316,12 +1195,27 @@ final class _BrowserSessionScreenState
     if (httpProxy != null) {
       await httpProxy.close();
     }
-    return _clearBrowserData();
+    return _clearBrowserData(notify: false);
   }
 
-  Future<bool> _clearBrowserData() async {
+  Future<bool> _clearBrowserData({bool notify = true}) async {
     try {
       await _proxyPlatform.clearBrowserData();
+      if (notify && mounted && !_closing) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                anyttyText(
+                  context,
+                  en: 'Cache and site data cleared',
+                  zh: '缓存和网站数据已清除',
+                ),
+              ),
+            ),
+          );
+      }
       return true;
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -1363,29 +1257,6 @@ final class _BrowserSessionScreenState
           scrollY: scroll.dy.round(),
         );
       } catch (_) {}
-      try {
-        final boundary = _webViewBoundaryKey.currentContext?.findRenderObject();
-        if (boundary is RenderRepaintBoundary) {
-          final image = await boundary.toImage(pixelRatio: 1);
-          final data = await image.toByteData(format: ui.ImageByteFormat.png);
-          image.dispose();
-          if (data != null) {
-            final path = await _snapshotStore.save(
-              '$sessionId-${_activeTabIdFor(sessionId) ?? 'tab'}',
-              data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-            );
-            final previousPath = current.snapshotPath;
-            current = current.copyWith(snapshotPath: path);
-            if (previousPath != null && previousPath != path) {
-              try {
-                await _snapshotStore.remove(previousPath);
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {
-        // Platform views may not be capturable on every renderer.
-      }
     }
     _replaceActiveTab(current);
     return _withTabState(current);
@@ -1446,7 +1317,6 @@ final class _BrowserSessionScreenState
         title: tab.title,
         scrollX: tab.scrollX,
         scrollY: tab.scrollY,
-        snapshotPath: tab.snapshotPath,
         parkedAt: null,
         activeTabId: tab.id,
       ),
@@ -1456,11 +1326,7 @@ final class _BrowserSessionScreenState
   Future<void> _resumeTab(BrowserTabSnapshot tab) async {
     _activeTabIds[_activeEndpointId] = tab.id;
     final snapshot = _snapshotForTab(tab);
-    final bytes = snapshot.snapshotPath == null
-        ? null
-        : await _snapshotStore.read(snapshot.snapshotPath!);
     _snapshot = snapshot;
-    _snapshotBytes = bytes;
     await _sessionStore.save(snapshot);
     if (mounted) {
       setState(() {
@@ -1559,6 +1425,64 @@ final class _BrowserSessionScreenState
     } catch (_) {}
   }
 
+  Future<bool> _confirmBrowserAction(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(anyttyText(context, en: 'Clear', zh: '清除')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _clearBrowserDataFromSettings() async {
+    final endpointId = _activeEndpointId;
+    final endpointLabel = _activeEndpointLabel;
+    var cleared = true;
+    if (_webViewController != null ||
+        _proxyLease != null ||
+        _httpProxy != null) {
+      if (!await _parkLiveSession()) return;
+      if (!mounted || _closing) return;
+      await _activateSession(endpointId, endpointLabel, forceReconnect: true);
+      cleared =
+          _webViewController != null &&
+          _stateMachine.state.phase == BrowserSessionPhase.active;
+    } else {
+      await _clearBrowserData(notify: false);
+    }
+    if (cleared && mounted && !_closing) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              anyttyText(
+                context,
+                en: 'Cache and site data cleared',
+                zh: '缓存和网站数据已清除',
+              ),
+            ),
+          ),
+        );
+    }
+  }
+
   Future<void> _openBrowserSettings() async {
     var readerMode = _readerMode;
     var desktopMode = _desktopMode;
@@ -1637,24 +1561,73 @@ final class _BrowserSessionScreenState
                   trailing: const Icon(Icons.check_circle_outline_rounded),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.delete_sweep_outlined),
+                  leading: const Icon(Icons.history_rounded),
                   title: Text(
                     anyttyText(
                       context,
-                      en: 'Clear browser data',
-                      zh: '清理浏览器数据',
+                      en: 'Clear browsing history',
+                      zh: '清除浏览历史',
                     ),
                   ),
                   subtitle: Text(
                     anyttyText(
                       context,
-                      en: 'Clear shared WebView data without removing snapshots.',
-                      zh: '清理共享 WebView 数据，但保留会话快照。',
+                      en: '${_history.length} saved address${_history.length == 1 ? '' : 'es'}',
+                      zh: '已保存 ${_history.length} 条地址',
                     ),
                   ),
                   onTap: () async {
+                    final confirmed = await _confirmBrowserAction(
+                      context,
+                      title: anyttyText(
+                        context,
+                        en: 'Clear browsing history?',
+                        zh: '清除浏览历史？',
+                      ),
+                      message: anyttyText(
+                        context,
+                        en: 'Saved addresses will be removed from this device.',
+                        zh: '此设备上保存的地址将被移除。',
+                      ),
+                    );
+                    if (!confirmed || !context.mounted) return;
                     Navigator.of(context).pop();
-                    await _clearBrowserData();
+                    await _clearHistory();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined),
+                  title: Text(
+                    anyttyText(
+                      context,
+                      en: 'Clear cache and site data',
+                      zh: '清除缓存和网站数据',
+                    ),
+                  ),
+                  subtitle: Text(
+                    anyttyText(
+                      context,
+                      en: 'Clear cookies, cache, storage, and HTTP auth.',
+                      zh: '清除 Cookie、缓存、存储和 HTTP 登录信息。',
+                    ),
+                  ),
+                  onTap: () async {
+                    final confirmed = await _confirmBrowserAction(
+                      context,
+                      title: anyttyText(
+                        context,
+                        en: 'Clear cache and site data?',
+                        zh: '清除缓存和网站数据？',
+                      ),
+                      message: anyttyText(
+                        context,
+                        en: 'You may need to sign in to websites again.',
+                        zh: '清理后可能需要重新登录网站。',
+                      ),
+                    );
+                    if (!confirmed || !context.mounted) return;
+                    Navigator.of(context).pop();
+                    await _clearBrowserDataFromSettings();
                   },
                 ),
                 const SizedBox(height: 8),
@@ -1721,16 +1694,6 @@ final class _BrowserSessionScreenState
   }
 
   void _reload(WebViewController? controller) {
-    if (_offlineMode) {
-      unawaited(
-        _activateSession(
-          _activeEndpointId,
-          _activeEndpointLabel,
-          forceReconnect: true,
-        ),
-      );
-      return;
-    }
     if (controller != null) unawaited(controller.reload());
   }
 }
@@ -1741,7 +1704,6 @@ final class _PreparedBrowserSession {
     required this.httpProxy,
     required this.endpointSubscription,
     required this.snapshot,
-    required this.snapshotBytes,
   });
 
   final EndpointSessionClient endpointSession;
@@ -1749,7 +1711,6 @@ final class _PreparedBrowserSession {
   final ProviderSubscription<AsyncValue<EndpointSessionClient>>?
   endpointSubscription;
   final BrowserSessionSnapshot snapshot;
-  final Uint8List? snapshotBytes;
 
   Future<void> dispose() async {
     endpointSubscription?.close();
@@ -2421,10 +2382,14 @@ final class _BrowserHistorySheet extends StatelessWidget {
   }
 }
 
-final class _BrowserOfflineBanner extends StatelessWidget {
-  const _BrowserOfflineBanner({required this.onRefresh});
+final class _BrowserConnectionBanner extends StatelessWidget {
+  const _BrowserConnectionBanner({
+    required this.message,
+    required this.onRetry,
+  });
 
-  final VoidCallback onRefresh;
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -2443,11 +2408,7 @@ final class _BrowserOfflineBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              anyttyText(
-                context,
-                en: 'Offline preview. Refresh for the latest page.',
-                zh: '当前属于离线模式，刷新后才是最新网页。',
-              ),
+              message,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -2458,14 +2419,14 @@ final class _BrowserOfflineBanner extends StatelessWidget {
             ),
           ),
           TextButton.icon(
-            onPressed: onRefresh,
+            onPressed: onRetry,
             icon: Icon(
               Icons.refresh_rounded,
               size: 16,
               color: palette.background,
             ),
             label: Text(
-              anyttyText(context, en: 'Refresh', zh: '刷新'),
+              anyttyText(context, en: 'Retry', zh: '重试'),
               style: TextStyle(color: palette.background, fontSize: 12),
             ),
             style: TextButton.styleFrom(
@@ -2534,8 +2495,8 @@ String _browserPhaseText(BuildContext context, BrowserSessionPhase phase) {
     ),
     BrowserSessionPhase.parking => anyttyText(
       context,
-      en: 'Saving snapshot',
-      zh: '正在保存快照',
+      en: 'Closing page',
+      zh: '正在关闭页面',
     ),
     BrowserSessionPhase.blocked => anyttyText(
       context,
@@ -2579,36 +2540,45 @@ final class _BrowserIconButton extends StatelessWidget {
   }
 }
 
-final class _BrowserLoadingMarker extends StatelessWidget {
-  const _BrowserLoadingMarker({required this.label});
+final class _BrowserLoadingSurface extends StatelessWidget {
+  const _BrowserLoadingSurface({required this.value});
 
-  final String label;
+  final double value;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: palette.surface.withValues(alpha: 0.94),
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 13,
-            height: 13,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.8,
-              color: palette.accent,
-            ),
+    return ColoredBox(
+      color: palette.background,
+      child: Center(
+        child: SizedBox(
+          width: 220,
+          child: Semantics(
+            label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
+            value: '${(value * 100).round()}%',
+            child: _BrowserLoadProgress(value: value),
           ),
-          const SizedBox(width: 7),
-          Text(label, style: TextStyle(color: palette.text, fontSize: 11)),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _BrowserLoadProgress extends StatelessWidget {
+  const _BrowserLoadProgress({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    return SizedBox(
+      height: 2,
+      child: LinearProgressIndicator(
+        value: value <= 0 ? null : value.clamp(0, 1),
+        backgroundColor: palette.border.withValues(alpha: 0.35),
+        color: palette.accent,
+        minHeight: 2,
       ),
     );
   }

@@ -12,26 +12,16 @@ final class BrowserTabSnapshot {
     required this.title,
     required this.scrollX,
     required this.scrollY,
-    required this.snapshotPath,
   });
 
-  factory BrowserTabSnapshot.empty({required String id}) => BrowserTabSnapshot(
-    id: id,
-    url: '',
-    title: '',
-    scrollX: 0,
-    scrollY: 0,
-    snapshotPath: null,
-  );
+  factory BrowserTabSnapshot.empty({required String id}) =>
+      BrowserTabSnapshot(id: id, url: '', title: '', scrollX: 0, scrollY: 0);
 
   final String id;
   final String url;
   final String title;
   final int scrollX;
   final int scrollY;
-  final String? snapshotPath;
-
-  bool get hasSnapshot => snapshotPath?.isNotEmpty == true;
 
   Uri? get restorableUri {
     final parsed = Uri.tryParse(url.trim());
@@ -50,16 +40,12 @@ final class BrowserTabSnapshot {
     String? title,
     int? scrollX,
     int? scrollY,
-    Object? snapshotPath = _unchanged,
   }) => BrowserTabSnapshot(
     id: id ?? this.id,
     url: url ?? this.url,
     title: title ?? this.title,
     scrollX: scrollX ?? this.scrollX,
     scrollY: scrollY ?? this.scrollY,
-    snapshotPath: identical(snapshotPath, _unchanged)
-        ? this.snapshotPath
-        : snapshotPath as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -68,7 +54,6 @@ final class BrowserTabSnapshot {
     'title': title,
     'scrollX': scrollX,
     'scrollY': scrollY,
-    'snapshotPath': snapshotPath,
   };
 
   String encode() => jsonEncode(toJson());
@@ -77,11 +62,6 @@ final class BrowserTabSnapshot {
     String stringValue(String key) {
       final value = json[key];
       return value is String ? value.trim() : '';
-    }
-
-    String? nullableStringValue(String key) {
-      final value = json[key];
-      return value is String ? value.trim() : null;
     }
 
     final id = stringValue('id');
@@ -94,7 +74,6 @@ final class BrowserTabSnapshot {
       title: stringValue('title'),
       scrollX: _intValue(json['scrollX']),
       scrollY: _intValue(json['scrollY']),
-      snapshotPath: nullableStringValue('snapshotPath'),
     );
   }
 
@@ -122,7 +101,6 @@ final class BrowserSessionSnapshot {
     required this.title,
     required this.scrollX,
     required this.scrollY,
-    required this.snapshotPath,
     required this.routeId,
     required this.routeGeneration,
     required this.parkedAt,
@@ -142,7 +120,6 @@ final class BrowserSessionSnapshot {
     title: '',
     scrollX: 0,
     scrollY: 0,
-    snapshotPath: null,
     routeId: null,
     routeGeneration: 0,
     parkedAt: null,
@@ -157,14 +134,11 @@ final class BrowserSessionSnapshot {
   final String title;
   final int scrollX;
   final int scrollY;
-  final String? snapshotPath;
   final String? routeId;
   final int routeGeneration;
   final DateTime? parkedAt;
   final List<BrowserTabSnapshot> tabs;
   final String? activeTabId;
-
-  bool get hasSnapshot => snapshotPath?.isNotEmpty == true;
 
   Uri? get restorableUri {
     final parsed = Uri.tryParse(url.trim());
@@ -185,7 +159,6 @@ final class BrowserSessionSnapshot {
     String? title,
     int? scrollX,
     int? scrollY,
-    Object? snapshotPath = _unchanged,
     Object? routeId = _unchanged,
     int? routeGeneration,
     Object? parkedAt = _unchanged,
@@ -199,9 +172,6 @@ final class BrowserSessionSnapshot {
     title: title ?? this.title,
     scrollX: scrollX ?? this.scrollX,
     scrollY: scrollY ?? this.scrollY,
-    snapshotPath: identical(snapshotPath, _unchanged)
-        ? this.snapshotPath
-        : snapshotPath as String?,
     routeId: identical(routeId, _unchanged) ? this.routeId : routeId as String?,
     routeGeneration: routeGeneration ?? this.routeGeneration,
     parkedAt: identical(parkedAt, _unchanged)
@@ -225,7 +195,6 @@ final class BrowserSessionSnapshot {
     'title': title,
     'scrollX': scrollX,
     'scrollY': scrollY,
-    'snapshotPath': snapshotPath,
     'routeId': routeId,
     'routeGeneration': routeGeneration,
     'parkedAt': parkedAt?.toUtc().toIso8601String(),
@@ -274,7 +243,6 @@ final class BrowserSessionSnapshot {
       title: stringValue('title'),
       scrollX: _intValue(json['scrollX']),
       scrollY: _intValue(json['scrollY']),
-      snapshotPath: nullableStringValue('snapshotPath'),
       routeId: nullableStringValue('routeId'),
       routeGeneration: _intValue(json['routeGeneration']),
       parkedAt: parkedAtText == null ? null : DateTime.tryParse(parkedAtText),
