@@ -291,15 +291,13 @@ func cliCloudControllerEndpointFromEnvironment() (cliCloudControllerEndpoint, er
 }
 
 type v3PairingRaceResult struct {
+	index  int
 	paired remoteauth.PairingExchangeResult
 	err    error
 }
 
 func redeemV3RemotePairing(ctx context.Context, endpointID clientendpoint.EndpointID, credentialRef string, candidate clientendpoint.EndpointCandidate, request remoteauth.ClientPairingRequest) (remoteauth.PairingExchangeResult, error) {
-	cloudProtocol, err := cliCloudClientFromEnvironment(uuid.NewString())
-	if err != nil {
-		return remoteauth.PairingExchangeResult{}, err
-	}
+	cloudProtocol, cloudInitErr := cliCloudClientFromEnvironment(uuid.NewString())
 	sshCredentials := sshadapter.AgentCredentialSource{}
 	routes := make(map[clientendpoint.RouteID]clientendpoint.AccessRoute)
 	for _, route := range candidate.Routes {
@@ -313,7 +311,7 @@ func redeemV3RemotePairing(ctx context.Context, endpointID clientendpoint.Endpoi
 				route.SSHCredentialRef = route.CredentialDescriptor.DescriptorID
 			}
 		case clientendpoint.RouteManagedWebRTC:
-			if cloudProtocol == nil {
+			if cloudProtocol == nil && cloudInitErr == nil {
 				continue
 			}
 		default:
@@ -341,8 +339,8 @@ func redeemV3RemotePairing(ctx context.Context, endpointID clientendpoint.Endpoi
 	raceContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan v3PairingRaceResult, len(attempts))
-	for _, attempt := range attempts {
-		attempt := attempt
+	for index, attempt := range attempts {
+		index, attempt := index, attempt
 		go func() {
 			var paired remoteauth.PairingExchangeResult
 			var attemptErr error
@@ -352,23 +350,27 @@ func redeemV3RemotePairing(ctx context.Context, endpointID clientendpoint.Endpoi
 			case clientendpoint.RouteSSHWebRTCTCP:
 				paired, attemptErr = (&sshadapter.PairingConnector{Peers: pionadapter.Factory{}, Credentials: sshCredentials, Now: time.Now}).Redeem(raceContext, attempt, request)
 			case clientendpoint.RouteManagedWebRTC:
+				if cloudInitErr != nil {
+					attemptErr = cloudInitErr
+					break
+				}
 				paired, attemptErr = (&cloudadapter.PairingConnector{Peers: pionadapter.Factory{}, Cloud: cloudProtocol, Product: cloudv1.ClientProduct_CLIENT_PRODUCT_CLI, Now: time.Now}).Redeem(raceContext, attempt, request)
 			default:
 				attemptErr = fmt.Errorf("pairing Route %q is unsupported", attempt.Route().Kind)
 			}
-			results <- v3PairingRaceResult{paired: paired, err: attemptErr}
+			results <- v3PairingRaceResult{index: index, paired: paired, err: attemptErr}
 		}()
 	}
-	var failures []error
+	failures := make([]error, len(attempts))
 	for range attempts {
 		result := <-results
 		if result.err == nil {
 			cancel()
 			return result.paired, nil
 		}
-		failures = append(failures, result.err)
+		failures[result.index] = result.err
 	}
-	return remoteauth.PairingExchangeResult{}, fmt.Errorf("all pairing Routes failed: %w", errors.Join(failures...))
+	return remoteauth.PairingExchangeResult{}, clientruntime.NewAllRoutesUnavailableError(attempts, failures)
 }
 
 func cliEndpointConfigKey(target clientendpoint.Endpoint, localOptions localadapter.Options, environment clientruntime.RoutePlanEnvironment) (string, error) {

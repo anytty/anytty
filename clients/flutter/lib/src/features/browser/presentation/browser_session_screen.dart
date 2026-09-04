@@ -65,9 +65,6 @@ final class _BrowserSessionScreenState
 
   late final BrowserProxyPlatform _proxyPlatform;
   late final BrowserSessionStore _sessionStore;
-  late final BrowserHistoryStore _historyStore;
-  late final BrowserBookmarkStore _bookmarkStore;
-
   String _activeEndpointId = '';
   String _activeEndpointLabel = '';
   BrowserSessionSnapshot? _snapshot;
@@ -90,7 +87,7 @@ final class _BrowserSessionScreenState
   Timer? _loadProgressTimer;
   DateTime? _loadStartedAt;
   int _loadProgressGeneration = 0;
-  double _loadProgress = 0;
+  final ValueNotifier<double> _loadProgress = ValueNotifier(0);
   String? _pendingNavigationUrl;
   Future<void> _transitionTail = Future<void>.value();
 
@@ -101,16 +98,12 @@ final class _BrowserSessionScreenState
         widget.proxyPlatform ?? MethodChannelBrowserProxyPlatform.instance;
     _sessionStore =
         widget.sessionStore ?? const SharedPreferencesBrowserSessionStore();
-    _historyStore =
-        widget.historyStore ?? const SharedPreferencesBrowserHistoryStore();
-    _bookmarkStore =
-        widget.bookmarkStore ?? const SharedPreferencesBrowserBookmarkStore();
     _activeEndpointId = widget.endpointId;
     _activeEndpointLabel = _labelFor(widget.endpointId, widget.endpointLabel);
     _pendingNavigationUrl = widget.navigationUrl;
     _retainEndpointSession(_activeEndpointId);
-    unawaited(_loadHistory());
-    unawaited(_loadBookmarks());
+    unawaited(_loadHistory(_activeEndpointId));
+    unawaited(_loadBookmarks(_activeEndpointId));
     unawaited(_activateSession(_activeEndpointId, _activeEndpointLabel));
   }
 
@@ -143,6 +136,7 @@ final class _BrowserSessionScreenState
     _addressFocusNode.dispose();
     _newTabSearchController.dispose();
     _newTabSearchFocusNode.dispose();
+    _loadProgress.dispose();
     super.dispose();
   }
 
@@ -159,20 +153,32 @@ final class _BrowserSessionScreenState
     });
   }
 
-  Future<void> _loadHistory() async {
+  BrowserHistoryStore _historyStoreFor(String endpointId) =>
+      widget.historyStore ??
+      SharedPreferencesBrowserHistoryStore(scope: endpointId);
+
+  BrowserBookmarkStore _bookmarkStoreFor(String endpointId) =>
+      widget.bookmarkStore ??
+      SharedPreferencesBrowserBookmarkStore(scope: endpointId);
+
+  Future<void> _loadHistory(String endpointId) async {
     try {
-      final history = await _historyStore.load();
-      if (mounted) setState(() => _history = history);
+      final history = await _historyStoreFor(endpointId).load();
+      if (mounted && endpointId == _activeEndpointId) {
+        setState(() => _history = history);
+      }
     } catch (_) {
       // History is an enhancement; a corrupt or unavailable store must not
       // prevent the remote browser from opening.
     }
   }
 
-  Future<void> _loadBookmarks() async {
+  Future<void> _loadBookmarks(String endpointId) async {
     try {
-      final bookmarks = await _bookmarkStore.load();
-      if (mounted) setState(() => _bookmarks = bookmarks);
+      final bookmarks = await _bookmarkStoreFor(endpointId).load();
+      if (mounted && endpointId == _activeEndpointId) {
+        setState(() => _bookmarks = bookmarks);
+      }
     } catch (_) {
       // A corrupt bookmark list must not prevent the remote browser from opening.
     }
@@ -201,7 +207,7 @@ final class _BrowserSessionScreenState
     final index = _bookmarks.indexWhere((item) => item.url == url);
     if (index >= 0) {
       try {
-        await _bookmarkStore.remove(url);
+        await _bookmarkStoreFor(_activeEndpointId).remove(url);
       } catch (error) {
         if (mounted) setState(() => _error = '$error');
         return;
@@ -223,7 +229,7 @@ final class _BrowserSessionScreenState
       title: title?.isNotEmpty == true ? title! : uri.host,
     );
     try {
-      await _bookmarkStore.add(bookmark);
+      await _bookmarkStoreFor(_activeEndpointId).add(bookmark);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
       return;
@@ -241,7 +247,7 @@ final class _BrowserSessionScreenState
 
   Future<void> _removeBookmark(String url) async {
     try {
-      await _bookmarkStore.remove(url);
+      await _bookmarkStoreFor(_activeEndpointId).remove(url);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
       return;
@@ -346,80 +352,99 @@ final class _BrowserSessionScreenState
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_closeScreen());
       },
-      child: Scaffold(
-        backgroundColor: palette.background,
-        resizeToAvoidBottomInset: false,
-        appBar: AppBar(
-          toolbarHeight: 56,
-          automaticallyImplyLeading: false,
-          leading: IconButton(
-            tooltip: anyttyText(context, en: 'Back', zh: '返回'),
-            onPressed: _closing ? null : () => unawaited(_closeScreen()),
-            icon: const Icon(Icons.arrow_back_rounded, size: 22),
-          ),
-          titleSpacing: 0,
-          title: _BrowserToolbarTitle(
-            addressController: _addressController,
-            addressFocusNode: _addressFocusNode,
-            controller: _webViewController,
-            onNavigate: _navigate,
-            onBack: () => _goBack(_webViewController),
-            onForward: () => _goForward(_webViewController),
-            history: _history,
-          ),
-          actions: [
-            IconButton(
-              tooltip: _isCurrentPageBookmarked
-                  ? anyttyText(context, en: 'Remove bookmark', zh: '取消收藏')
-                  : anyttyText(context, en: 'Save page', zh: '收藏网页'),
-              onPressed: _currentPageUri == null
-                  ? null
-                  : () => unawaited(_toggleBookmark()),
-              icon: Icon(
-                _isCurrentPageBookmarked
-                    ? Icons.star_rounded
-                    : Icons.star_border_rounded,
-                size: 21,
-              ),
-              color: _isCurrentPageBookmarked
-                  ? AnyttyPalette.of(context).accent
-                  : null,
+      child: AnimatedBuilder(
+        animation: _addressFocusNode,
+        builder: (context, _) => Scaffold(
+          backgroundColor: palette.background,
+          resizeToAvoidBottomInset: false,
+          appBar: AppBar(
+            toolbarHeight: 56,
+            automaticallyImplyLeading: false,
+            leading: IconButton(
+              tooltip: anyttyText(context, en: 'Back', zh: '返回'),
+              onPressed: _closing ? null : () => unawaited(_closeScreen()),
+              icon: const Icon(Icons.arrow_back_rounded, size: 22),
             ),
-            if (compact)
-              _BrowserTabCountButton(
-                count: _tabsFor(_activeEndpointId).length,
-                onPressed: _openTabSwitcher,
-              )
-            else
-              IconButton(
-                tooltip: anyttyText(context, en: 'Reload', zh: '重新加载'),
-                onPressed: state.phase == BrowserSessionPhase.active
-                    ? () => _reload(_webViewController)
-                    : null,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
-              ),
-            _BrowserOverflowMenu(
-              state: state,
-              hasProxy: _proxyLease != null,
-              dnsProxied: _proxyLease?.dnsProxied ?? false,
+            titleSpacing: 0,
+            title: _BrowserToolbarTitle(
+              addressController: _addressController,
+              addressFocusNode: _addressFocusNode,
               controller: _webViewController,
+              onNavigate: _navigate,
               onBack: () => _goBack(_webViewController),
               onForward: () => _goForward(_webViewController),
-              onReload: () => _reload(_webViewController),
-              onSwitchSession: () => unawaited(_openEndpointPicker()),
-              onOpenTabs: _openTabSwitcher,
-              onOpenHistory: _openHistory,
-              onOpenSettings: _openBrowserSettings,
-              readerMode: _readerMode,
-              desktopMode: _desktopMode,
-              onToggleReaderMode: _toggleReaderMode,
-              onToggleDesktopMode: _toggleDesktopMode,
+              history: _history,
             ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          child: Column(children: [Expanded(child: _buildContent(context))]),
+            actions: _addressFocusNode.hasFocus
+                ? [
+                    IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Close address bar',
+                        zh: '关闭地址栏',
+                      ),
+                      onPressed: _addressFocusNode.unfocus,
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                    ),
+                  ]
+                : [
+                    IconButton(
+                      tooltip: _isCurrentPageBookmarked
+                          ? anyttyText(
+                              context,
+                              en: 'Remove bookmark',
+                              zh: '取消收藏',
+                            )
+                          : anyttyText(context, en: 'Save page', zh: '收藏网页'),
+                      onPressed: _currentPageUri == null
+                          ? null
+                          : () => unawaited(_toggleBookmark()),
+                      icon: Icon(
+                        _isCurrentPageBookmarked
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 21,
+                      ),
+                      color: _isCurrentPageBookmarked
+                          ? AnyttyPalette.of(context).accent
+                          : null,
+                    ),
+                    if (compact)
+                      _BrowserTabCountButton(
+                        count: _tabsFor(_activeEndpointId).length,
+                        onPressed: _openTabSwitcher,
+                      )
+                    else
+                      IconButton(
+                        tooltip: anyttyText(context, en: 'Reload', zh: '重新加载'),
+                        onPressed: state.phase == BrowserSessionPhase.active
+                            ? () => _reload(_webViewController)
+                            : null,
+                        icon: const Icon(Icons.refresh_rounded, size: 20),
+                      ),
+                    _BrowserOverflowMenu(
+                      state: state,
+                      hasProxy: _proxyLease != null,
+                      dnsProxied: _proxyLease?.dnsProxied ?? false,
+                      controller: _webViewController,
+                      onBack: () => _goBack(_webViewController),
+                      onForward: () => _goForward(_webViewController),
+                      onReload: () => _reload(_webViewController),
+                      onSwitchSession: () => unawaited(_openEndpointPicker()),
+                      onOpenTabs: _openTabSwitcher,
+                      onOpenHistory: _openHistory,
+                      onOpenSettings: _openBrowserSettings,
+                      readerMode: _readerMode,
+                      desktopMode: _desktopMode,
+                      onToggleReaderMode: _toggleReaderMode,
+                      onToggleDesktopMode: _toggleDesktopMode,
+                    ),
+                  ],
+          ),
+          body: SafeArea(
+            top: false,
+            child: Column(children: [Expanded(child: _buildContent(context))]),
+          ),
         ),
       ),
     );
@@ -558,6 +583,7 @@ final class _BrowserSessionScreenState
         searchController: _newTabSearchController,
         searchFocusNode: _newTabSearchFocusNode,
         onSearch: _navigate,
+        onFocusSearch: _focusAddressBarFromNewTab,
         bookmarks: _bookmarks,
         history: _history,
         onRemoveBookmark: _removeBookmark,
@@ -574,7 +600,11 @@ final class _BrowserSessionScreenState
               top: 0,
               left: 0,
               right: 0,
-              child: _BrowserLoadProgress(value: _loadProgress),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _loadProgress,
+                builder: (context, value, _) =>
+                    _BrowserLoadProgress(value: value),
+              ),
             ),
           if (_error != null)
             Align(
@@ -599,7 +629,10 @@ final class _BrowserSessionScreenState
         container: true,
         liveRegion: true,
         label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
-        child: _BrowserLoadingSurface(value: _loadProgress),
+        child: ValueListenableBuilder<double>(
+          valueListenable: _loadProgress,
+          builder: (context, value, _) => _BrowserLoadingSurface(value: value),
+        ),
       );
     }
     return Center(
@@ -736,8 +769,8 @@ final class _BrowserSessionScreenState
           setState(() {
             _error = message;
             _pageReady = true;
-            _loadProgress = 0;
           });
+          _loadProgress.value = 0;
         }
         return;
       }
@@ -853,6 +886,8 @@ final class _BrowserSessionScreenState
       return;
     }
 
+    _readerMode = restoredSnapshot.readerMode;
+    _desktopMode = restoredSnapshot.desktopMode;
     final controller = WebViewController();
     var restoreScrollPending = restoredSnapshot.restorableUri != null;
     try {
@@ -868,6 +903,10 @@ final class _BrowserSessionScreenState
             _beginPageLoad();
           },
           onPageFinished: (url) {
+            if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
+              return;
+            }
+            if (_error != null) setState(() => _error = null);
             final restoreScroll = restoreScrollPending;
             restoreScrollPending = false;
             unawaited(
@@ -895,6 +934,7 @@ final class _BrowserSessionScreenState
             return NavigationDecision.navigate;
           },
           onWebResourceError: (error) {
+            if (error.isForMainFrame != true) return;
             if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
               return;
             }
@@ -946,13 +986,16 @@ final class _BrowserSessionScreenState
     _snapshot = activeSnapshot;
     _replaceActiveTab(activeSnapshot);
     _stateMachine.markActive(operation, endpointId, activeSnapshot);
+    _loadProgress.value = activeSnapshot.restorableUri == null
+        ? 0
+        : browserFakeLoadProgress(Duration.zero);
     setState(() {
       _pageReady = activeSnapshot.restorableUri == null;
-      _loadProgress = activeSnapshot.restorableUri == null
-          ? 0
-          : browserFakeLoadProgress(Duration.zero);
       _error = null;
     });
+    _newTabSearchController.clear();
+    unawaited(_loadHistory(endpointId));
+    unawaited(_loadBookmarks(endpointId));
     final pendingUrl = _pendingNavigationUrl;
     if (pendingUrl != null) {
       _pendingNavigationUrl = null;
@@ -1084,11 +1127,9 @@ final class _BrowserSessionScreenState
     _loadProgressTimer?.cancel();
     final generation = ++_loadProgressGeneration;
     _loadStartedAt = DateTime.now();
+    _loadProgress.value = browserFakeLoadProgress(Duration.zero);
     if (mounted) {
-      setState(() {
-        _pageReady = false;
-        _loadProgress = browserFakeLoadProgress(Duration.zero);
-      });
+      setState(() => _pageReady = false);
     }
     _loadProgressTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
       if (!mounted || generation != _loadProgressGeneration) {
@@ -1100,9 +1141,7 @@ final class _BrowserSessionScreenState
       final progress = browserFakeLoadProgress(
         DateTime.now().difference(startedAt),
       );
-      if (progress != _loadProgress) {
-        setState(() => _loadProgress = progress);
-      }
+      if (progress != _loadProgress.value) _loadProgress.value = progress;
     });
   }
 
@@ -1123,13 +1162,11 @@ final class _BrowserSessionScreenState
     if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) return;
     _loadProgressTimer?.cancel();
     _loadProgressTimer = null;
-    setState(() {
-      _loadProgress = 1;
-      _pageReady = true;
-    });
+    _loadProgress.value = 1;
+    setState(() => _pageReady = true);
     await Future<void>.delayed(const Duration(milliseconds: 220));
     if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) return;
-    setState(() => _loadProgress = 0);
+    _loadProgress.value = 0;
   }
 
   Future<void> _pageFinished({
@@ -1268,10 +1305,7 @@ final class _BrowserSessionScreenState
     }
     _addressFocusNode.unfocus();
     _beginPageLoad();
-    setState(() {
-      _error = null;
-      _pageReady = false;
-    });
+    if (mounted) setState(() => _error = null);
     _recordHistory(
       BrowserHistoryEntry(
         url: uri.toString(),
@@ -1279,6 +1313,24 @@ final class _BrowserSessionScreenState
       ),
     );
     await controller.loadRequest(uri);
+  }
+
+  void _focusAddressBarFromNewTab() {
+    _addressController
+      ..text = _newTabSearchController.text
+      ..selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _newTabSearchController.text.length,
+      );
+    _newTabSearchFocusNode.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _addressFocusNode.requestFocus();
+      _addressController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _addressController.text.length,
+      );
+    });
   }
 
   Uri? _resolveNavigation(String value) {
@@ -1306,7 +1358,7 @@ final class _BrowserSessionScreenState
     ].take(20).toList(growable: false);
     if (mounted) setState(() => _history = next);
     try {
-      await _historyStore.add(entry);
+      await _historyStoreFor(_activeEndpointId).add(entry);
     } catch (_) {}
   }
 
@@ -1398,6 +1450,8 @@ final class _BrowserSessionScreenState
       routeId: lease?.routeId ?? current.routeId,
       routeGeneration: lease?.routeGeneration ?? current.routeGeneration,
       parkedAt: DateTime.now(),
+      readerMode: _readerMode,
+      desktopMode: _desktopMode,
     );
     if (controller != null) {
       try {
@@ -1522,17 +1576,18 @@ final class _BrowserSessionScreenState
     final index = tabs.indexWhere((tab) => tab.id == tabId);
     if (index == -1) return;
     final closingActive = tabId == _activeTabIdFor(endpointId);
-    final fallback = closingActive
-        ? tabs[index == 0 ? 1 : index - 1]
-        : _activeTabFor(endpointId)!;
     await _parkLiveSession();
     if (_closing || !mounted) return;
     if (tabs.length == 1) {
+      // Keep one tab slot so closing the last tab always lands on a blank tab.
       final blank = BrowserTabSnapshot.empty(id: tabId);
       _tabsByEndpoint[endpointId] = [blank];
       await _resumeTab(blank);
       return;
     }
+    final fallback = closingActive
+        ? tabs[index == 0 ? 1 : index - 1]
+        : _activeTabFor(endpointId)!;
     tabs.removeAt(index);
     _tabsByEndpoint[endpointId] = List<BrowserTabSnapshot>.unmodifiable(tabs);
     await _resumeTab(fallback);
@@ -1576,7 +1631,7 @@ final class _BrowserSessionScreenState
   Future<void> _clearHistory() async {
     if (mounted) setState(() => _history = const []);
     try {
-      await _historyStore.clear();
+      await _historyStoreFor(_activeEndpointId).clear();
     } catch (_) {}
   }
 
@@ -1902,7 +1957,7 @@ final class _BrowserToolbarTitle extends StatelessWidget {
           final addressFocused = addressFocusNode.hasFocus;
           return Row(
             children: [
-              if (showInlineNavigation) ...[
+              if (showInlineNavigation && !addressFocused) ...[
                 _BrowserIconButton(
                   tooltip: anyttyText(context, en: 'Back', zh: '后退'),
                   enabled: controller != null,

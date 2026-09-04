@@ -13,6 +13,7 @@ final class BrowserNewTabPage extends StatelessWidget {
     required this.searchController,
     required this.searchFocusNode,
     required this.onSearch,
+    required this.onFocusSearch,
     required this.bookmarks,
     required this.history,
     required this.onRemoveBookmark,
@@ -22,6 +23,7 @@ final class BrowserNewTabPage extends StatelessWidget {
   final TextEditingController searchController;
   final FocusNode searchFocusNode;
   final Future<void> Function(String value) onSearch;
+  final VoidCallback onFocusSearch;
   final List<BrowserBookmark> bookmarks;
   final List<BrowserHistoryEntry> history;
   final Future<void> Function(String url) onRemoveBookmark;
@@ -53,6 +55,7 @@ final class BrowserNewTabPage extends StatelessWidget {
                     controller: searchController,
                     focusNode: searchFocusNode,
                     onSearch: onSearch,
+                    onFocusSearch: onFocusSearch,
                   ),
                   const SizedBox(height: 34),
                   _NewTabSectionHeader(
@@ -179,11 +182,13 @@ final class _NewTabSearchField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onSearch,
+    required this.onFocusSearch,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final Future<void> Function(String value) onSearch;
+  final VoidCallback onFocusSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -195,6 +200,7 @@ final class _NewTabSearchField extends StatelessWidget {
         key: const ValueKey('browser-new-tab-search'),
         controller: controller,
         focusNode: focusNode,
+        onTap: onFocusSearch,
         onSubmitted: (value) {
           if (value.trim().isNotEmpty) unawaited(onSearch(value));
         },

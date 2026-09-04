@@ -327,6 +327,9 @@ type ClientHello struct {
 	// presence_probe only verifies this daemon's live AgentGateway presence.
 	// It never allocates a ClientSession, Relay reservation, or WebRTC peer.
 	PresenceProbe bool `protobuf:"varint,8,opt,name=presence_probe,json=presenceProbe,proto3" json:"presence_probe,omitempty"`
+	// Relay transport requested for this attempt. Edge must forward it to the
+	// daemon so both WebRTC peers use the same TURN transport.
+	RelayTransport RelayTransport `protobuf:"varint,9,opt,name=relay_transport,json=relayTransport,proto3,enum=anytty.cloud.v1.RelayTransport" json:"relay_transport,omitempty"`
 	// Types that are valid to be assigned to Authorization:
 	//
 	//	*ClientHello_CloudRouteGrant
@@ -413,6 +416,13 @@ func (x *ClientHello) GetPresenceProbe() bool {
 		return x.PresenceProbe
 	}
 	return false
+}
+
+func (x *ClientHello) GetRelayTransport() RelayTransport {
+	if x != nil {
+		return x.RelayTransport
+	}
+	return RelayTransport_RELAY_TRANSPORT_UNSPECIFIED
 }
 
 func (x *ClientHello) GetAuthorization() isClientHello_Authorization {
@@ -1476,7 +1486,7 @@ const file_cloud_v1_client_gateway_proto_rawDesc = "" +
 	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\x12*\n" +
 	"\x11device_public_key\x18\x03 \x01(\fR\x0fdevicePublicKey\x120\n" +
 	"\x14pairing_claim_sha256\x18\x04 \x01(\fR\x12pairingClaimSha256\x12/\n" +
-	"\x14expires_at_unix_nano\x18\x05 \x01(\x03R\x11expiresAtUnixNano\"\x96\x04\n" +
+	"\x14expires_at_unix_nano\x18\x05 \x01(\x03R\x11expiresAtUnixNano\"\xe0\x04\n" +
 	"\vClientHello\x12*\n" +
 	"\x11client_public_key\x18\x02 \x01(\fR\x0fclientPublicKey\x12!\n" +
 	"\fclient_proof\x18\x03 \x01(\fR\vclientProof\x128\n" +
@@ -1484,7 +1494,8 @@ const file_cloud_v1_client_gateway_proto_rawDesc = "" +
 	"\x10software_version\x18\x05 \x01(\tR\x0fsoftwareVersion\x12-\n" +
 	"\x12attempt_generation\x18\x06 \x01(\x04R\x11attemptGeneration\x12K\n" +
 	"\x10relay_preference\x18\a \x01(\x0e2 .anytty.cloud.v1.RelayPreferenceR\x0frelayPreference\x12%\n" +
-	"\x0epresence_probe\x18\b \x01(\bR\rpresenceProbe\x12M\n" +
+	"\x0epresence_probe\x18\b \x01(\bR\rpresenceProbe\x12H\n" +
+	"\x0frelay_transport\x18\t \x01(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\x0erelayTransport\x12M\n" +
 	"\x11cloud_route_grant\x18\n" +
 	" \x01(\v2\x1f.anytty.cloud.v1.SignedEnvelopeH\x00R\x0fcloudRouteGrant\x12P\n" +
 	"\x11pairing_admission\x18\v \x01(\v2!.anytty.cloud.v1.PairingAdmissionH\x00R\x10pairingAdmissionB\x0f\n" +
@@ -1633,46 +1644,48 @@ var file_cloud_v1_client_gateway_proto_goTypes = []any{
 	(*EdgeSignal)(nil),              // 17: anytty.cloud.v1.EdgeSignal
 	(ClientProduct)(0),              // 18: anytty.cloud.v1.ClientProduct
 	(RelayPreference)(0),            // 19: anytty.cloud.v1.RelayPreference
-	(*SignedEnvelope)(nil),          // 20: anytty.cloud.v1.SignedEnvelope
-	(*RelayICEConfig)(nil),          // 21: anytty.cloud.v1.RelayICEConfig
-	(*CloudEntitlementFailure)(nil), // 22: anytty.cloud.v1.CloudEntitlementFailure
-	(*timestamppb.Timestamp)(nil),   // 23: google.protobuf.Timestamp
-	(*EdgeChallenge)(nil),           // 24: anytty.cloud.v1.EdgeChallenge
+	(RelayTransport)(0),             // 20: anytty.cloud.v1.RelayTransport
+	(*SignedEnvelope)(nil),          // 21: anytty.cloud.v1.SignedEnvelope
+	(*RelayICEConfig)(nil),          // 22: anytty.cloud.v1.RelayICEConfig
+	(*CloudEntitlementFailure)(nil), // 23: anytty.cloud.v1.CloudEntitlementFailure
+	(*timestamppb.Timestamp)(nil),   // 24: google.protobuf.Timestamp
+	(*EdgeChallenge)(nil),           // 25: anytty.cloud.v1.EdgeChallenge
 }
 var file_cloud_v1_client_gateway_proto_depIdxs = []int32{
 	18, // 0: anytty.cloud.v1.ClientHello.product:type_name -> anytty.cloud.v1.ClientProduct
 	19, // 1: anytty.cloud.v1.ClientHello.relay_preference:type_name -> anytty.cloud.v1.RelayPreference
-	20, // 2: anytty.cloud.v1.ClientHello.cloud_route_grant:type_name -> anytty.cloud.v1.SignedEnvelope
-	4,  // 3: anytty.cloud.v1.ClientHello.pairing_admission:type_name -> anytty.cloud.v1.PairingAdmission
-	21, // 4: anytty.cloud.v1.ClientReady.relay:type_name -> anytty.cloud.v1.RelayICEConfig
-	22, // 5: anytty.cloud.v1.ClientReady.relay_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	1,  // 6: anytty.cloud.v1.ClientPathDecision.decision:type_name -> anytty.cloud.v1.CloudPathDecision
-	1,  // 7: anytty.cloud.v1.EdgePathDecisionAck.decision:type_name -> anytty.cloud.v1.CloudPathDecision
-	3,  // 8: anytty.cloud.v1.ClientOffer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
-	3,  // 9: anytty.cloud.v1.EdgeAnswer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
-	22, // 10: anytty.cloud.v1.SignalRejected.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	2,  // 11: anytty.cloud.v1.SignalSessionClosed.code:type_name -> anytty.cloud.v1.SignalSessionCloseCode
-	23, // 12: anytty.cloud.v1.ClientSignal.sent_at:type_name -> google.protobuf.Timestamp
-	5,  // 13: anytty.cloud.v1.ClientSignal.hello:type_name -> anytty.cloud.v1.ClientHello
-	11, // 14: anytty.cloud.v1.ClientSignal.offer:type_name -> anytty.cloud.v1.ClientOffer
-	7,  // 15: anytty.cloud.v1.ClientSignal.path_decision:type_name -> anytty.cloud.v1.ClientPathDecision
-	9,  // 16: anytty.cloud.v1.ClientSignal.session_release:type_name -> anytty.cloud.v1.ClientSessionRelease
-	23, // 17: anytty.cloud.v1.EdgeSignal.sent_at:type_name -> google.protobuf.Timestamp
-	6,  // 18: anytty.cloud.v1.EdgeSignal.ready:type_name -> anytty.cloud.v1.ClientReady
-	12, // 19: anytty.cloud.v1.EdgeSignal.answer:type_name -> anytty.cloud.v1.EdgeAnswer
-	13, // 20: anytty.cloud.v1.EdgeSignal.rejected:type_name -> anytty.cloud.v1.SignalRejected
-	24, // 21: anytty.cloud.v1.EdgeSignal.challenge:type_name -> anytty.cloud.v1.EdgeChallenge
-	14, // 22: anytty.cloud.v1.EdgeSignal.closed:type_name -> anytty.cloud.v1.SignalSessionClosed
-	15, // 23: anytty.cloud.v1.EdgeSignal.presence:type_name -> anytty.cloud.v1.DaemonPresence
-	8,  // 24: anytty.cloud.v1.EdgeSignal.path_decision_ack:type_name -> anytty.cloud.v1.EdgePathDecisionAck
-	10, // 25: anytty.cloud.v1.EdgeSignal.session_release_ack:type_name -> anytty.cloud.v1.EdgeSessionReleaseAck
-	16, // 26: anytty.cloud.v1.ClientGateway.Connect:input_type -> anytty.cloud.v1.ClientSignal
-	17, // 27: anytty.cloud.v1.ClientGateway.Connect:output_type -> anytty.cloud.v1.EdgeSignal
-	27, // [27:28] is the sub-list for method output_type
-	26, // [26:27] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	20, // 2: anytty.cloud.v1.ClientHello.relay_transport:type_name -> anytty.cloud.v1.RelayTransport
+	21, // 3: anytty.cloud.v1.ClientHello.cloud_route_grant:type_name -> anytty.cloud.v1.SignedEnvelope
+	4,  // 4: anytty.cloud.v1.ClientHello.pairing_admission:type_name -> anytty.cloud.v1.PairingAdmission
+	22, // 5: anytty.cloud.v1.ClientReady.relay:type_name -> anytty.cloud.v1.RelayICEConfig
+	23, // 6: anytty.cloud.v1.ClientReady.relay_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	1,  // 7: anytty.cloud.v1.ClientPathDecision.decision:type_name -> anytty.cloud.v1.CloudPathDecision
+	1,  // 8: anytty.cloud.v1.EdgePathDecisionAck.decision:type_name -> anytty.cloud.v1.CloudPathDecision
+	3,  // 9: anytty.cloud.v1.ClientOffer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
+	3,  // 10: anytty.cloud.v1.EdgeAnswer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
+	23, // 11: anytty.cloud.v1.SignalRejected.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	2,  // 12: anytty.cloud.v1.SignalSessionClosed.code:type_name -> anytty.cloud.v1.SignalSessionCloseCode
+	24, // 13: anytty.cloud.v1.ClientSignal.sent_at:type_name -> google.protobuf.Timestamp
+	5,  // 14: anytty.cloud.v1.ClientSignal.hello:type_name -> anytty.cloud.v1.ClientHello
+	11, // 15: anytty.cloud.v1.ClientSignal.offer:type_name -> anytty.cloud.v1.ClientOffer
+	7,  // 16: anytty.cloud.v1.ClientSignal.path_decision:type_name -> anytty.cloud.v1.ClientPathDecision
+	9,  // 17: anytty.cloud.v1.ClientSignal.session_release:type_name -> anytty.cloud.v1.ClientSessionRelease
+	24, // 18: anytty.cloud.v1.EdgeSignal.sent_at:type_name -> google.protobuf.Timestamp
+	6,  // 19: anytty.cloud.v1.EdgeSignal.ready:type_name -> anytty.cloud.v1.ClientReady
+	12, // 20: anytty.cloud.v1.EdgeSignal.answer:type_name -> anytty.cloud.v1.EdgeAnswer
+	13, // 21: anytty.cloud.v1.EdgeSignal.rejected:type_name -> anytty.cloud.v1.SignalRejected
+	25, // 22: anytty.cloud.v1.EdgeSignal.challenge:type_name -> anytty.cloud.v1.EdgeChallenge
+	14, // 23: anytty.cloud.v1.EdgeSignal.closed:type_name -> anytty.cloud.v1.SignalSessionClosed
+	15, // 24: anytty.cloud.v1.EdgeSignal.presence:type_name -> anytty.cloud.v1.DaemonPresence
+	8,  // 25: anytty.cloud.v1.EdgeSignal.path_decision_ack:type_name -> anytty.cloud.v1.EdgePathDecisionAck
+	10, // 26: anytty.cloud.v1.EdgeSignal.session_release_ack:type_name -> anytty.cloud.v1.EdgeSessionReleaseAck
+	16, // 27: anytty.cloud.v1.ClientGateway.Connect:input_type -> anytty.cloud.v1.ClientSignal
+	17, // 28: anytty.cloud.v1.ClientGateway.Connect:output_type -> anytty.cloud.v1.EdgeSignal
+	28, // [28:29] is the sub-list for method output_type
+	27, // [27:28] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_client_gateway_proto_init() }

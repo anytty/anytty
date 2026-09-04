@@ -84,4 +84,5 @@ message GatewayClientHelloProofInput {
   uint64 attempt_generation = 14;
   RelayPreference relay_preference = 15;
   bool presence_probe = 16;
+  RelayTransport relay_transport = 17;
 }

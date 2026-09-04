@@ -389,6 +389,19 @@ func (session *SignalSession) ConfirmPath(ctx context.Context, path cloudv1.Sele
 	return session.decidePath(ctx, decision)
 }
 
+// PathConfirmed reports whether Edge acknowledged a terminal direct or Relay path decision.
+// Callers use this to distinguish a provisional signaling session from one that needs release.
+func (session *SignalSession) PathConfirmed() bool {
+	if session == nil {
+		return false
+	}
+	session.decisionMu.Lock()
+	defer session.decisionMu.Unlock()
+	return session.decision != nil && session.decision.acked &&
+		(session.decision.decision == cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_DIRECT ||
+			session.decision.decision == cloudv1.CloudPathDecision_CLOUD_PATH_DECISION_CONFIRM_RELAY)
+}
+
 // AbandonPath releases a provisional Relay reservation and runtime session.
 // EOF and Done never satisfy this barrier; only a matching authenticated ACK does.
 func (session *SignalSession) AbandonPath(ctx context.Context) error {
@@ -892,7 +905,8 @@ func (client *Client) ProbePresence(ctx context.Context, resolution *RouteResolu
 }
 
 // Exchange 连接目标 Edge，并用长期 RouteGrant 或一次性 pairing admission 与本次 client proof 完成 offer/answer。
-func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution, identity remoteauth.ClientAccessIdentity, signer Signer, product cloudv1.ClientProduct, attemptGeneration uint64, relayPreference cloudv1.RelayPreference, createOffer func(context.Context, *cloudv1.ClientReady) (string, error)) (result *SignalSession, err error) {
+// relayTransport 绑定本次 Relay attempt；Edge 必须把它透传给 daemon。
+func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution, identity remoteauth.ClientAccessIdentity, signer Signer, product cloudv1.ClientProduct, attemptGeneration uint64, relayPreference cloudv1.RelayPreference, relayTransport cloudv1.RelayTransport, createOffer func(context.Context, *cloudv1.ClientReady) (string, error)) (result *SignalSession, err error) {
 	capabilityRoute := resolution != nil && resolution.locator != nil && resolution.routeGrant != nil && resolution.pairingBootstrap == nil && resolution.pairingAdmission == nil
 	pairingRoute := resolution != nil && resolution.locator == nil && resolution.routeGrant == nil && resolution.pairingBootstrap != nil && resolution.pairingAdmission != nil
 	if ctx == nil || client == nil || (!capabilityRoute && !pairingRoute) || signer == nil || identity.ValidatePublic() != nil || product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED || attemptGeneration == 0 || createOffer == nil {
@@ -969,7 +983,7 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 		return nil, markEdgeLocatorUnavailable(err)
 	}
 	reportTiming("edge_challenge")
-	clientHello := &cloudv1.ClientHello{ClientPublicKey: append([]byte(nil), identity.PublicKey...), Product: product, SoftwareVersion: client.config.SoftwareVersion, AttemptGeneration: attemptGeneration, RelayPreference: relayPreference}
+	clientHello := &cloudv1.ClientHello{ClientPublicKey: append([]byte(nil), identity.PublicKey...), Product: product, SoftwareVersion: client.config.SoftwareVersion, AttemptGeneration: attemptGeneration, RelayPreference: relayPreference, RelayTransport: relayTransport}
 	if capabilityRoute {
 		clientHello.Authorization = &cloudv1.ClientHello_CloudRouteGrant{CloudRouteGrant: proto.Clone(resolution.routeGrant).(*cloudv1.SignedEnvelope)}
 	} else {

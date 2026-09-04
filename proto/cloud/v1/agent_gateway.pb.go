@@ -145,8 +145,10 @@ type AgentOffer struct {
 	Relay              *RelayICEConfig        `protobuf:"bytes,7,opt,name=relay,proto3" json:"relay,omitempty"`
 	AccessMode         CloudClientAccessMode  `protobuf:"varint,8,opt,name=access_mode,json=accessMode,proto3,enum=anytty.cloud.v1.CloudClientAccessMode" json:"access_mode,omitempty"`
 	PairingClaimSha256 []byte                 `protobuf:"bytes,9,opt,name=pairing_claim_sha256,json=pairingClaimSha256,proto3" json:"pairing_claim_sha256,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Edge copies the client's requested TURN transport to the daemon.
+	RelayTransport RelayTransport `protobuf:"varint,10,opt,name=relay_transport,json=relayTransport,proto3,enum=anytty.cloud.v1.RelayTransport" json:"relay_transport,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AgentOffer) Reset() {
@@ -240,6 +242,13 @@ func (x *AgentOffer) GetPairingClaimSha256() []byte {
 		return x.PairingClaimSha256
 	}
 	return nil
+}
+
+func (x *AgentOffer) GetRelayTransport() RelayTransport {
+	if x != nil {
+		return x.RelayTransport
+	}
+	return RelayTransport_RELAY_TRANSPORT_UNSPECIFIED
 }
 
 // AgentAuthorize 要求 owning daemon 在产生 TURN credential 前按本地 AccessStore 预检客户端。
@@ -1200,7 +1209,7 @@ const file_cloud_v1_agent_gateway_proto_rawDesc = "" +
 	"\x0eAgentHeartbeat\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\x04R\n" +
-	"generation\"\xbc\x03\n" +
+	"generation\"\x86\x04\n" +
 	"\n" +
 	"AgentOffer\x12%\n" +
 	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x1d\n" +
@@ -1215,7 +1224,9 @@ const file_cloud_v1_agent_gateway_proto_rawDesc = "" +
 	"\x05relay\x18\a \x01(\v2\x1f.anytty.cloud.v1.RelayICEConfigR\x05relay\x12G\n" +
 	"\vaccess_mode\x18\b \x01(\x0e2&.anytty.cloud.v1.CloudClientAccessModeR\n" +
 	"accessMode\x120\n" +
-	"\x14pairing_claim_sha256\x18\t \x01(\fR\x12pairingClaimSha256\"\xe2\x02\n" +
+	"\x14pairing_claim_sha256\x18\t \x01(\fR\x12pairingClaimSha256\x12H\n" +
+	"\x0frelay_transport\x18\n" +
+	" \x01(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\x0erelayTransport\"\xe2\x02\n" +
 	"\x0eAgentAuthorize\x12%\n" +
 	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x1d\n" +
 	"\n" +
@@ -1337,45 +1348,47 @@ var file_cloud_v1_agent_gateway_proto_goTypes = []any{
 	(*CloudICECandidate)(nil),         // 14: anytty.cloud.v1.CloudICECandidate
 	(*RelayICEConfig)(nil),            // 15: anytty.cloud.v1.RelayICEConfig
 	(CloudClientAccessMode)(0),        // 16: anytty.cloud.v1.CloudClientAccessMode
-	(ClientProduct)(0),                // 17: anytty.cloud.v1.ClientProduct
-	(*HeartbeatPolicy)(nil),           // 18: anytty.cloud.v1.HeartbeatPolicy
-	(*DaemonStateRecord)(nil),         // 19: anytty.cloud.v1.DaemonStateRecord
-	(*timestamppb.Timestamp)(nil),     // 20: google.protobuf.Timestamp
-	(*EdgeChallenge)(nil),             // 21: anytty.cloud.v1.EdgeChallenge
+	(RelayTransport)(0),               // 17: anytty.cloud.v1.RelayTransport
+	(ClientProduct)(0),                // 18: anytty.cloud.v1.ClientProduct
+	(*HeartbeatPolicy)(nil),           // 19: anytty.cloud.v1.HeartbeatPolicy
+	(*DaemonStateRecord)(nil),         // 20: anytty.cloud.v1.DaemonStateRecord
+	(*timestamppb.Timestamp)(nil),     // 21: google.protobuf.Timestamp
+	(*EdgeChallenge)(nil),             // 22: anytty.cloud.v1.EdgeChallenge
 }
 var file_cloud_v1_agent_gateway_proto_depIdxs = []int32{
 	13, // 0: anytty.cloud.v1.AgentHello.daemon_binding:type_name -> anytty.cloud.v1.SignedEnvelope
 	14, // 1: anytty.cloud.v1.AgentOffer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
 	15, // 2: anytty.cloud.v1.AgentOffer.relay:type_name -> anytty.cloud.v1.RelayICEConfig
 	16, // 3: anytty.cloud.v1.AgentOffer.access_mode:type_name -> anytty.cloud.v1.CloudClientAccessMode
-	17, // 4: anytty.cloud.v1.AgentAuthorize.product:type_name -> anytty.cloud.v1.ClientProduct
-	16, // 5: anytty.cloud.v1.AgentAuthorize.access_mode:type_name -> anytty.cloud.v1.CloudClientAccessMode
-	14, // 6: anytty.cloud.v1.AgentAnswer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
-	18, // 7: anytty.cloud.v1.AgentReady.heartbeat:type_name -> anytty.cloud.v1.HeartbeatPolicy
-	19, // 8: anytty.cloud.v1.AgentReady.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
-	19, // 9: anytty.cloud.v1.DaemonLifecycleCommand.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
-	19, // 10: anytty.cloud.v1.DaemonLifecycleResult.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
-	20, // 11: anytty.cloud.v1.AgentEvent.sent_at:type_name -> google.protobuf.Timestamp
-	0,  // 12: anytty.cloud.v1.AgentEvent.hello:type_name -> anytty.cloud.v1.AgentHello
-	1,  // 13: anytty.cloud.v1.AgentEvent.heartbeat:type_name -> anytty.cloud.v1.AgentHeartbeat
-	5,  // 14: anytty.cloud.v1.AgentEvent.answer:type_name -> anytty.cloud.v1.AgentAnswer
-	6,  // 15: anytty.cloud.v1.AgentEvent.rejected:type_name -> anytty.cloud.v1.AgentSignalRejected
-	4,  // 16: anytty.cloud.v1.AgentEvent.authorization:type_name -> anytty.cloud.v1.AgentAuthorizationResult
-	9,  // 17: anytty.cloud.v1.AgentEvent.lifecycle_result:type_name -> anytty.cloud.v1.DaemonLifecycleResult
-	20, // 18: anytty.cloud.v1.EdgeCommand.sent_at:type_name -> google.protobuf.Timestamp
-	7,  // 19: anytty.cloud.v1.EdgeCommand.ready:type_name -> anytty.cloud.v1.AgentReady
-	2,  // 20: anytty.cloud.v1.EdgeCommand.offer:type_name -> anytty.cloud.v1.AgentOffer
-	3,  // 21: anytty.cloud.v1.EdgeCommand.authorize:type_name -> anytty.cloud.v1.AgentAuthorize
-	21, // 22: anytty.cloud.v1.EdgeCommand.challenge:type_name -> anytty.cloud.v1.EdgeChallenge
-	8,  // 23: anytty.cloud.v1.EdgeCommand.lifecycle:type_name -> anytty.cloud.v1.DaemonLifecycleCommand
-	10, // 24: anytty.cloud.v1.EdgeCommand.edge_reselect:type_name -> anytty.cloud.v1.DaemonEdgeReselectCommand
-	11, // 25: anytty.cloud.v1.AgentGateway.Connect:input_type -> anytty.cloud.v1.AgentEvent
-	12, // 26: anytty.cloud.v1.AgentGateway.Connect:output_type -> anytty.cloud.v1.EdgeCommand
-	26, // [26:27] is the sub-list for method output_type
-	25, // [25:26] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	17, // 4: anytty.cloud.v1.AgentOffer.relay_transport:type_name -> anytty.cloud.v1.RelayTransport
+	18, // 5: anytty.cloud.v1.AgentAuthorize.product:type_name -> anytty.cloud.v1.ClientProduct
+	16, // 6: anytty.cloud.v1.AgentAuthorize.access_mode:type_name -> anytty.cloud.v1.CloudClientAccessMode
+	14, // 7: anytty.cloud.v1.AgentAnswer.candidates:type_name -> anytty.cloud.v1.CloudICECandidate
+	19, // 8: anytty.cloud.v1.AgentReady.heartbeat:type_name -> anytty.cloud.v1.HeartbeatPolicy
+	20, // 9: anytty.cloud.v1.AgentReady.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
+	20, // 10: anytty.cloud.v1.DaemonLifecycleCommand.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
+	20, // 11: anytty.cloud.v1.DaemonLifecycleResult.daemon_state:type_name -> anytty.cloud.v1.DaemonStateRecord
+	21, // 12: anytty.cloud.v1.AgentEvent.sent_at:type_name -> google.protobuf.Timestamp
+	0,  // 13: anytty.cloud.v1.AgentEvent.hello:type_name -> anytty.cloud.v1.AgentHello
+	1,  // 14: anytty.cloud.v1.AgentEvent.heartbeat:type_name -> anytty.cloud.v1.AgentHeartbeat
+	5,  // 15: anytty.cloud.v1.AgentEvent.answer:type_name -> anytty.cloud.v1.AgentAnswer
+	6,  // 16: anytty.cloud.v1.AgentEvent.rejected:type_name -> anytty.cloud.v1.AgentSignalRejected
+	4,  // 17: anytty.cloud.v1.AgentEvent.authorization:type_name -> anytty.cloud.v1.AgentAuthorizationResult
+	9,  // 18: anytty.cloud.v1.AgentEvent.lifecycle_result:type_name -> anytty.cloud.v1.DaemonLifecycleResult
+	21, // 19: anytty.cloud.v1.EdgeCommand.sent_at:type_name -> google.protobuf.Timestamp
+	7,  // 20: anytty.cloud.v1.EdgeCommand.ready:type_name -> anytty.cloud.v1.AgentReady
+	2,  // 21: anytty.cloud.v1.EdgeCommand.offer:type_name -> anytty.cloud.v1.AgentOffer
+	3,  // 22: anytty.cloud.v1.EdgeCommand.authorize:type_name -> anytty.cloud.v1.AgentAuthorize
+	22, // 23: anytty.cloud.v1.EdgeCommand.challenge:type_name -> anytty.cloud.v1.EdgeChallenge
+	8,  // 24: anytty.cloud.v1.EdgeCommand.lifecycle:type_name -> anytty.cloud.v1.DaemonLifecycleCommand
+	10, // 25: anytty.cloud.v1.EdgeCommand.edge_reselect:type_name -> anytty.cloud.v1.DaemonEdgeReselectCommand
+	11, // 26: anytty.cloud.v1.AgentGateway.Connect:input_type -> anytty.cloud.v1.AgentEvent
+	12, // 27: anytty.cloud.v1.AgentGateway.Connect:output_type -> anytty.cloud.v1.EdgeCommand
+	27, // [27:28] is the sub-list for method output_type
+	26, // [26:27] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_agent_gateway_proto_init() }

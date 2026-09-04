@@ -649,7 +649,14 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 		if len(relay.GetUrls()) == 0 || strings.TrimSpace(relay.GetUsername()) == "" || strings.TrimSpace(relay.GetCredential()) == "" {
 			return reject("RELAY_INVALID", "Edge supplied incomplete Relay ICE material")
 		}
-		iceServers = append(iceServers, webrtc.ICEServer{URLs: append([]string(nil), relay.GetUrls()...), Username: relay.GetUsername(), Credential: relay.GetCredential()})
+		urls, filterErr := filterDaemonRelayICEURLs(relay.GetUrls(), offer.GetRelayTransport())
+		if filterErr != nil {
+			return reject("RELAY_INVALID", "Edge supplied invalid Relay ICE material")
+		}
+		if !hasDaemonTURNICEURL(urls) {
+			return reject("RELAY_UNAVAILABLE", "Edge supplied no Relay ICE server for the requested transport")
+		}
+		iceServers = append(iceServers, webrtc.ICEServer{URLs: urls, Username: relay.GetUsername(), Credential: relay.GetCredential()})
 	}
 	sessionCtx, session, ok := runtime.beginCloudSession(ctx, offer.GetSessionId(), peers)
 	if !ok {

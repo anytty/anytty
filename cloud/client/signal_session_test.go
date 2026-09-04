@@ -91,6 +91,9 @@ func TestSignalSessionConfirmPathWaitsForMatchingAck(t *testing.T) {
 	if err := <-result; err != nil {
 		t.Fatal(err)
 	}
+	if !session.PathConfirmed() {
+		t.Fatal("confirmed path was not published")
+	}
 	if err := session.ConfirmPath(context.Background(), cloudv1.SelectedCloudPath_SELECTED_CLOUD_PATH_DIRECT); err != nil {
 		t.Fatalf("idempotent confirmation: %v", err)
 	}

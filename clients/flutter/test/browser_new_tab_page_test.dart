@@ -13,6 +13,7 @@ void main() {
     String? searched;
     String? removed;
     var historyOpened = false;
+    var searchFocused = false;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -20,6 +21,7 @@ void main() {
           searchController: searchController,
           searchFocusNode: searchFocusNode,
           onSearch: (value) async => searched = value,
+          onFocusSearch: () => searchFocused = true,
           bookmarks: const [
             BrowserBookmark(url: 'https://anytty.dev', title: 'AnyTTY'),
           ],
@@ -38,6 +40,8 @@ void main() {
     expect(find.text('Recent pages'), findsOneWidget);
     expect(find.text('Example'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('browser-new-tab-search')));
+    expect(searchFocused, isTrue);
     await tester.enterText(
       find.byKey(const ValueKey('browser-new-tab-search')),
       'flutter webview',

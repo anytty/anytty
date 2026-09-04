@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -92,6 +93,36 @@ func TestPairingClaimRoutesRequireCloudBootstrapDependencies(t *testing.T) {
 	})
 	if err != nil || len(routes) != 1 || routes[0].ID != cloud.ID {
 		t.Fatalf("Cloud bootstrap pairing routes = %#v err=%v", routes, err)
+	}
+}
+
+func TestAllPairingRoutesUnavailableErrorListsStableRouteDetails(t *testing.T) {
+	identity := endpoint.DaemonIdentity{DeviceID: "daemon-1", DeviceFingerprint: "ed25519-sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+	routes := []endpoint.AccessRoute{
+		{ID: "direct", Kind: endpoint.RouteDirectWebRTCTCP, Enabled: true, Source: endpoint.SourceBootstrap, PolicySource: endpoint.SourceBootstrap, SignalingAddresses: []string{"127.0.0.1:41120"}, ICETCPAddresses: []string{"127.0.0.1:41121"}},
+		{ID: "cloud", Kind: endpoint.RouteManagedWebRTC, Enabled: true, Source: endpoint.SourceCloud, PolicySource: endpoint.SourceBootstrap, TargetDeviceID: identity.DeviceID, RelayMode: endpoint.RelayAuto},
+	}
+	target := pairingTarget("daemon-1", identity, routes, "credential:daemon-1")
+	attempts := make([]clientruntime.AttemptRequest, 0, len(routes))
+	for _, route := range routes {
+		attempt, err := clientruntime.NewAttemptRequest(target, route.ID, 1, clientruntime.ConnectIntentInteractive)
+		if err != nil {
+			t.Fatalf("create %s attempt: %v", route.ID, err)
+		}
+		attempts = append(attempts, attempt)
+	}
+	directCause := errors.New("direct cause")
+	cloudCause := errors.New("cloud cause")
+	failures := []error{
+		&clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "direct signaling is unavailable", Cause: directCause},
+		&clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling is temporarily unavailable", Cause: cloudCause},
+	}
+	err := clientruntime.NewAllRoutesUnavailableError(attempts, failures)
+	if got, want := err.Error(), "All configured routes are unavailable. Direct: direct signaling is unavailable. Cloud: Cloud signaling is temporarily unavailable."; got != want {
+		t.Fatalf("error message = %q, want %q", got, want)
+	}
+	if !errors.Is(err, directCause) || !errors.Is(err, cloudCause) {
+		t.Fatalf("aggregated error does not preserve route causes: %v", err)
 	}
 }
 

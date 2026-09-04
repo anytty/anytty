@@ -28,6 +28,7 @@ import (
 const defaultClientName = "anytty-go-cloud"
 
 const cloudLocatorStoreTimeout = 2 * time.Second
+const cloudSessionReleaseTimeout = 2 * time.Second
 
 // PeerFactory 根据本次 Controller/Edge 决策创建 direct 或 single-Relay WebRTC primitive。
 type PeerFactory interface {
@@ -333,6 +334,28 @@ type Session struct {
 	err       error
 }
 
+type cloudSessionSignaling interface {
+	Done() <-chan struct{}
+	PathConfirmed() bool
+	ReleaseAndWait(context.Context) error
+}
+
+func releaseCloudSession(signaling cloudSessionSignaling) error {
+	if signaling == nil || !signaling.PathConfirmed() {
+		return nil
+	}
+	select {
+	case <-signaling.Done():
+		// Edge has already observed the signaling stream end and will run its
+		// deferred session cleanup; there is no stream left to send release on.
+		return nil
+	default:
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cloudSessionReleaseTimeout)
+	defer cancel()
+	return signaling.ReleaseAndWait(ctx)
+}
+
 func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTCPeer, signaling *cloudclient.SignalSession) *Session {
 	session := &Session{ApplicationClient: application, peer: peer, signaling: signaling, done: make(chan struct{})}
 	go func() { <-application.Done(); session.finish(application.Err()) }()
@@ -382,18 +405,17 @@ func (session *Session) finish(cause error) {
 		session.errMu.Lock()
 		session.err = cause
 		session.errMu.Unlock()
+		if err := releaseCloudSession(session.signaling); err != nil {
+			session.closeErr = errors.Join(session.closeErr, err)
+		}
 		if session.ApplicationClient != nil {
-			session.closeErr = session.ApplicationClient.Close()
+			session.closeErr = errors.Join(session.closeErr, session.ApplicationClient.Close())
 		}
 		if session.peer != nil {
-			if err := session.peer.Close(); session.closeErr == nil {
-				session.closeErr = err
-			}
+			session.closeErr = errors.Join(session.closeErr, session.peer.Close())
 		}
 		if session.signaling != nil {
-			if err := session.signaling.Close(); session.closeErr == nil {
-				session.closeErr = err
-			}
+			session.closeErr = errors.Join(session.closeErr, session.signaling.Close())
 		}
 		close(session.done)
 	})

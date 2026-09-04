@@ -223,8 +223,9 @@ func TestHostPublicCloudEntriesShareBootIdentity(t *testing.T) {
 	assertReachedSignaling("new Host ImportPairing", pair(otherHost))
 
 	hostCaptures := gateway.capturesForBoot(host.cloudBootID)
-	if len(hostCaptures) != 4+concurrentAttempts {
-		t.Fatalf("public same-Host Hello count=%d want %d", len(hostCaptures), 4+concurrentAttempts)
+	const cloudAttemptsPerRoute = 3
+	if len(hostCaptures) != (4+concurrentAttempts)*cloudAttemptsPerRoute {
+		t.Fatalf("public same-Host Hello count=%d want %d", len(hostCaptures), (4+concurrentAttempts)*cloudAttemptsPerRoute)
 	}
 	assertCloudBootGenerations(t, hostCaptures, host.cloudBootID)
 	capability, pairing := 0, 0
@@ -238,13 +239,13 @@ func TestHostPublicCloudEntriesShareBootIdentity(t *testing.T) {
 			t.Fatal("public Cloud entry emitted Hello without authorization")
 		}
 	}
-	if capability != 2+concurrentAttempts/2 || pairing != 2+concurrentAttempts/2 {
+	if capability != (2+concurrentAttempts/2)*cloudAttemptsPerRoute || pairing != (2+concurrentAttempts/2)*cloudAttemptsPerRoute {
 		t.Fatalf("public Cloud Hello modes capability=%d pairing=%d", capability, pairing)
 	}
 
 	otherCaptures := gateway.capturesForBoot(otherHost.cloudBootID)
-	if len(otherCaptures) != 2 {
-		t.Fatalf("new Host public Hello count=%d want 2", len(otherCaptures))
+	if len(otherCaptures) != 2*cloudAttemptsPerRoute {
+		t.Fatalf("new Host public Hello count=%d want %d", len(otherCaptures), 2*cloudAttemptsPerRoute)
 	}
 	assertCloudBootGenerations(t, otherCaptures, otherHost.cloudBootID)
 	if hostCaptures[0].hello.GetBootId() == otherCaptures[0].hello.GetBootId() {
@@ -291,6 +292,10 @@ func TestEndpointCloudPresenceRefreshesStaleLocatorAndStoresCurrentEdge(t *testi
 
 func assertCloudBootGenerations(t *testing.T, captures []cloudBootCapture, bootID string) {
 	t.Helper()
+	const cloudAttemptsPerRoute = 3
+	if len(captures)%cloudAttemptsPerRoute != 0 {
+		t.Fatalf("Cloud Hello count=%d is not divisible by attempts per route=%d", len(captures), cloudAttemptsPerRoute)
+	}
 	generations := make([]uint64, 0, len(captures))
 	for _, capture := range captures {
 		if capture.hello.GetBootId() != bootID {
@@ -300,7 +305,7 @@ func assertCloudBootGenerations(t *testing.T, captures []cloudBootCapture, bootI
 	}
 	sort.Slice(generations, func(i, j int) bool { return generations[i] < generations[j] })
 	for index, generation := range generations {
-		if generation != uint64(index+1) {
+		if generation != uint64(index/cloudAttemptsPerRoute+1) {
 			t.Fatalf("wire attempt generations=%v", generations)
 		}
 	}
@@ -622,7 +627,7 @@ func exchangeCloudHello(ctx context.Context, profiles platformCloudProfiles, res
 	if err != nil {
 		return err
 	}
-	session, err := client.Exchange(ctx, resolution, identity, signer, cloudv1.ClientProduct_CLIENT_PRODUCT_ANDROID, generation, cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO, func(context.Context, *cloudv1.ClientReady) (string, error) {
+	session, err := client.Exchange(ctx, resolution, identity, signer, cloudv1.ClientProduct_CLIENT_PRODUCT_ANDROID, generation, cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO, cloudv1.RelayTransport_RELAY_TRANSPORT_UNSPECIFIED, func(context.Context, *cloudv1.ClientReady) (string, error) {
 		return "enginehost-offer", nil
 	})
 	if err != nil {

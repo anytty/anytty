@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,8 +20,9 @@ import (
 )
 
 type cloudPeerAttempt struct {
-	preference cloudv1.RelayPreference
-	icePolicy  port.ICETransportPolicy
+	preference     cloudv1.RelayPreference
+	icePolicy      port.ICETransportPolicy
+	relayTransport endpoint.RelayTransport
 }
 
 type cloudSignalLifecycle interface {
@@ -54,24 +56,145 @@ func openResolvedCloudPeer(
 	product cloudv1.ClientProduct,
 	report func(clientruntime.EndpointPhase),
 ) (*openedCloudPeer, error) {
-	attempt, err := planCloudPeerAttempt(request.Route().RelayMode)
+	if ctx == nil {
+		return nil, errors.New("Cloud peer attempt context is required")
+	}
+	attempts, err := planCloudPeerAttempts(request.Route().RelayMode, request.Route().RelayTransport)
 	if err != nil {
 		return nil, err
 	}
-	return openResolvedCloudPeerAttempt(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempt)
+	if len(attempts) == 1 {
+		return openResolvedCloudPeerAttempt(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempts[0])
+	}
+	return raceCloudPeerAttempts(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempts)
 }
 
-func planCloudPeerAttempt(mode endpoint.RelayMode) (cloudPeerAttempt, error) {
+func relayTransportOptions(value endpoint.RelayTransport) ([]endpoint.RelayTransport, error) {
+	switch value {
+	case "", endpoint.RelayTransportAuto:
+		return []endpoint.RelayTransport{endpoint.RelayTransportTCP, endpoint.RelayTransportUDP}, nil
+	case endpoint.RelayTransportUDP, endpoint.RelayTransportTCP:
+		return []endpoint.RelayTransport{value}, nil
+	default:
+		return nil, fmt.Errorf("unsupported Cloud relay transport %q", value)
+	}
+}
+
+func planCloudPeerAttempts(mode endpoint.RelayMode, relayTransport endpoint.RelayTransport) ([]cloudPeerAttempt, error) {
+	transportOptions, err := relayTransportOptions(relayTransport)
+	if err != nil {
+		return nil, err
+	}
 	switch mode {
 	case "", endpoint.RelayAuto, endpoint.RelaySmart:
-		return cloudPeerAttempt{preference: cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO, icePolicy: port.ICETransportAll}, nil
+		attempts := []cloudPeerAttempt{{
+			preference: cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY,
+			icePolicy:  port.ICETransportAll,
+		}}
+		for _, value := range transportOptions {
+			attempts = append(attempts, cloudPeerAttempt{
+				preference:     cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY,
+				icePolicy:      port.ICETransportRelayOnly,
+				relayTransport: value,
+			})
+		}
+		return attempts, nil
 	case endpoint.RelayDirect:
-		return cloudPeerAttempt{preference: cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY, icePolicy: port.ICETransportAll}, nil
+		return []cloudPeerAttempt{{
+			preference: cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY,
+			icePolicy:  port.ICETransportAll,
+		}}, nil
 	case endpoint.RelayOnly:
-		return cloudPeerAttempt{preference: cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY, icePolicy: port.ICETransportRelayOnly}, nil
+		attempts := make([]cloudPeerAttempt, 0, len(transportOptions))
+		for _, value := range transportOptions {
+			attempts = append(attempts, cloudPeerAttempt{
+				preference:     cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY,
+				icePolicy:      port.ICETransportRelayOnly,
+				relayTransport: value,
+			})
+		}
+		return attempts, nil
 	default:
-		return cloudPeerAttempt{}, fmt.Errorf("unsupported Cloud relay mode %q", mode)
+		return nil, fmt.Errorf("unsupported Cloud relay mode %q", mode)
 	}
+}
+
+func relayTransportProto(value endpoint.RelayTransport) cloudv1.RelayTransport {
+	switch value {
+	case endpoint.RelayTransportUDP:
+		return cloudv1.RelayTransport_RELAY_TRANSPORT_UDP
+	case endpoint.RelayTransportTCP:
+		return cloudv1.RelayTransport_RELAY_TRANSPORT_TCP
+	default:
+		return cloudv1.RelayTransport_RELAY_TRANSPORT_UNSPECIFIED
+	}
+}
+
+func (attempt cloudPeerAttempt) label() string {
+	if attempt.preference == cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY {
+		return "Direct"
+	}
+	return fmt.Sprintf("Relay-%s", strings.ToUpper(string(attempt.relayTransport)))
+}
+
+type cloudPeerAttemptResult struct {
+	index  int
+	opened *openedCloudPeer
+	err    error
+}
+
+func raceCloudPeerAttempts(
+	ctx context.Context,
+	request clientruntime.AttemptRequest,
+	peers PeerFactory,
+	cloud *cloudclient.Client,
+	resolved *cloudclient.RouteResolution,
+	identity remoteauth.ClientAccessIdentity,
+	signer cloudclient.Signer,
+	product cloudv1.ClientProduct,
+	report func(clientruntime.EndpointPhase),
+	attempts []cloudPeerAttempt,
+) (*openedCloudPeer, error) {
+	if len(attempts) == 0 {
+		return nil, errors.New("Cloud peer attempts are required")
+	}
+	if ctx == nil {
+		return nil, errors.New("Cloud peer attempt context is required")
+	}
+	raceCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan cloudPeerAttemptResult, len(attempts))
+	for index, attempt := range attempts {
+		go func(index int, attempt cloudPeerAttempt) {
+			opened, err := openResolvedCloudPeerAttempt(raceCtx, request, peers, cloud, resolved, identity, signer, product, report, attempt)
+			results <- cloudPeerAttemptResult{index: index, opened: opened, err: err}
+		}(index, attempt)
+	}
+
+	orderedErrors := make([]error, len(attempts))
+	var winner *openedCloudPeer
+	for remaining := len(attempts); remaining > 0; remaining-- {
+		result := <-results
+		if result.err == nil && result.opened != nil && winner == nil {
+			winner = result.opened
+			cancel()
+			continue
+		}
+		if result.opened != nil {
+			_ = result.opened.Close()
+		}
+		if result.err == nil {
+			result.err = errors.New("Cloud peer attempt returned no peer")
+		}
+		orderedErrors[result.index] = fmt.Errorf("Cloud %s attempt: %w", attempts[result.index].label(), result.err)
+	}
+	if winner != nil {
+		return winner, nil
+	}
+	if err := context.Cause(ctx); err != nil {
+		return nil, err
+	}
+	return nil, errors.Join(orderedErrors...)
 }
 
 func openResolvedCloudPeerAttempt(
@@ -93,7 +216,6 @@ func openResolvedCloudPeerAttempt(
 		log.Printf("anytty cloud connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, stage, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
 		lastAt = now
 	}
-	route := request.Route()
 	var peer port.WebRTCPeer
 	closePeer := func() {
 		if peer != nil {
@@ -104,10 +226,10 @@ func openResolvedCloudPeerAttempt(
 		report(clientruntime.EndpointPhaseConnecting)
 	}
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseSignaling, clientruntime.EndpointStageSignaling)
-	signalSession, err := cloud.Exchange(ctx, resolved, identity, signer, product, uint64(request.Stamp().Generation), attempt.preference, func(ctx context.Context, ready *cloudv1.ClientReady) (string, error) {
+	signalSession, err := cloud.Exchange(ctx, resolved, identity, signer, product, uint64(request.Stamp().Generation), attempt.preference, relayTransportProto(attempt.relayTransport), func(ctx context.Context, ready *cloudv1.ClientReady) (string, error) {
 		peerConfig := port.WebRTCConfig{Policy: attempt.icePolicy}
-		if relay := ready.GetRelay(); relay != nil {
-			urls, filterErr := filterManagedICEURLs(relay.GetUrls(), route.RelayTransport)
+		if relay := ready.GetRelay(); relay != nil && attempt.preference != cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY {
+			urls, filterErr := filterManagedICEURLs(relay.GetUrls(), attempt.relayTransport)
 			if filterErr != nil {
 				return "", filterErr
 			}
@@ -287,8 +409,9 @@ func (opened *openedCloudPeer) Close() error {
 		return nil
 	}
 	opened.closeOnce.Do(func() {
+		opened.closeErr = errors.Join(opened.closeErr, releaseCloudSession(opened.signaling))
 		if opened.connection != nil {
-			opened.closeErr = opened.connection.Close()
+			opened.closeErr = errors.Join(opened.closeErr, opened.connection.Close())
 		}
 		if opened.peer != nil {
 			opened.closeErr = errors.Join(opened.closeErr, opened.peer.Close())

@@ -106,6 +106,8 @@ final class BrowserSessionSnapshot {
     required this.parkedAt,
     this.tabs = const <BrowserTabSnapshot>[],
     this.activeTabId,
+    this.readerMode = false,
+    this.desktopMode = false,
   });
 
   factory BrowserSessionSnapshot.empty({
@@ -125,6 +127,8 @@ final class BrowserSessionSnapshot {
     parkedAt: null,
     tabs: const <BrowserTabSnapshot>[],
     activeTabId: null,
+    readerMode: false,
+    desktopMode: false,
   );
 
   final String sessionId;
@@ -139,6 +143,8 @@ final class BrowserSessionSnapshot {
   final DateTime? parkedAt;
   final List<BrowserTabSnapshot> tabs;
   final String? activeTabId;
+  final bool readerMode;
+  final bool desktopMode;
 
   Uri? get restorableUri {
     final parsed = Uri.tryParse(url.trim());
@@ -164,6 +170,8 @@ final class BrowserSessionSnapshot {
     Object? parkedAt = _unchanged,
     Object? tabs = _unchanged,
     Object? activeTabId = _unchanged,
+    bool? readerMode,
+    bool? desktopMode,
   }) => BrowserSessionSnapshot(
     sessionId: sessionId ?? this.sessionId,
     endpointId: endpointId ?? this.endpointId,
@@ -185,6 +193,8 @@ final class BrowserSessionSnapshot {
     activeTabId: identical(activeTabId, _unchanged)
         ? this.activeTabId
         : activeTabId as String?,
+    readerMode: readerMode ?? this.readerMode,
+    desktopMode: desktopMode ?? this.desktopMode,
   );
 
   Map<String, Object?> toJson() => {
@@ -200,6 +210,8 @@ final class BrowserSessionSnapshot {
     'parkedAt': parkedAt?.toUtc().toIso8601String(),
     'activeTabId': activeTabId,
     'tabs': tabs.map((tab) => tab.toJson()).toList(growable: false),
+    'readerMode': readerMode,
+    'desktopMode': desktopMode,
   };
 
   String encode() => jsonEncode(toJson());
@@ -248,6 +260,8 @@ final class BrowserSessionSnapshot {
       parkedAt: parkedAtText == null ? null : DateTime.tryParse(parkedAtText),
       tabs: List<BrowserTabSnapshot>.unmodifiable(decodedTabs),
       activeTabId: nullableStringValue('activeTabId'),
+      readerMode: json['readerMode'] == true,
+      desktopMode: json['desktopMode'] == true,
     );
   }
 

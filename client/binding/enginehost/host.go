@@ -544,6 +544,7 @@ func pairingClaimRoutes(candidate endpoint.EndpointCandidate, options Options) (
 }
 
 type pairingRaceResult struct {
+	index  int
 	paired remoteauth.PairingExchangeResult
 	err    error
 }
@@ -553,8 +554,8 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 	raceContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan pairingRaceResult, len(attempts))
-	for _, attempt := range attempts {
-		attempt := attempt
+	for index, attempt := range attempts {
+		index, attempt := index, attempt
 		go func() {
 			log.Printf("anytty pairing stage=route_started route_kind=%s", attempt.Route().Kind)
 			var paired remoteauth.PairingExchangeResult
@@ -584,19 +585,19 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 			} else {
 				log.Printf("anytty pairing stage=route_ready route_kind=%s", attempt.Route().Kind)
 			}
-			results <- pairingRaceResult{paired: paired, err: err}
+			results <- pairingRaceResult{index: index, paired: paired, err: err}
 		}()
 	}
-	var failures []error
+	failures := make([]error, len(attempts))
 	for range attempts {
 		result := <-results
 		if result.err == nil {
 			cancel()
 			return result.paired, nil
 		}
-		failures = append(failures, result.err)
+		failures[result.index] = result.err
 	}
-	return remoteauth.PairingExchangeResult{}, fmt.Errorf("all pairing Routes failed: %w", errors.Join(failures...))
+	return remoteauth.PairingExchangeResult{}, clientruntime.NewAllRoutesUnavailableError(attempts, failures)
 }
 
 // DeleteCredential 删除当前平台 secure store 中的 credential record。

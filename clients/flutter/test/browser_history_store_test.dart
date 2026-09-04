@@ -49,5 +49,24 @@ void main() {
       await store.clear();
       expect(await store.load(), isEmpty);
     });
+
+    test('isolates history by device scope', () async {
+      const first = SharedPreferencesBrowserHistoryStore(scope: 'device-a');
+      const second = SharedPreferencesBrowserHistoryStore(scope: 'device-b');
+
+      await first.add(
+        const BrowserHistoryEntry(url: 'https://a.example', title: 'A'),
+      );
+      await second.add(
+        const BrowserHistoryEntry(url: 'https://b.example', title: 'B'),
+      );
+
+      expect(await first.load(), const [
+        BrowserHistoryEntry(url: 'https://a.example', title: 'A'),
+      ]);
+      expect(await second.load(), const [
+        BrowserHistoryEntry(url: 'https://b.example', title: 'B'),
+      ]);
+    });
   });
 }

@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:anytty_native/src/features/browser/data/browser_bookmark_store.dart';
+import 'package:anytty_native/src/features/browser/data/browser_device_data.dart';
+import 'package:anytty_native/src/features/browser/data/browser_history_store.dart';
 import 'package:anytty_native/src/features/browser/data/browser_session_store.dart';
 import 'package:anytty_native/src/features/browser/domain/browser_session.dart';
 
@@ -65,6 +68,18 @@ void main() {
         'http://127.0.0.1:9000/app',
       );
     });
+
+    test('round trips per-device browser display modes', () {
+      final original = _snapshot().copyWith(
+        readerMode: true,
+        desktopMode: true,
+      );
+
+      final restored = BrowserSessionSnapshot.decode(original.encode());
+
+      expect(restored.readerMode, isTrue);
+      expect(restored.desktopMode, isTrue);
+    });
   });
 
   group('BrowserSessionStateMachine', () {
@@ -114,6 +129,46 @@ void main() {
 
       expect(await store.load('device-a'), isNull);
       expect((await store.load('device-b'))!.sessionId, 'device-b');
+    });
+
+    test('clears only the removed device browser data', () async {
+      const removedId = 'device-a';
+      const retainedId = 'device-b';
+      const bookmarksA = SharedPreferencesBrowserBookmarkStore(
+        scope: removedId,
+      );
+      const bookmarksB = SharedPreferencesBrowserBookmarkStore(
+        scope: retainedId,
+      );
+      const historyA = SharedPreferencesBrowserHistoryStore(scope: removedId);
+      const historyB = SharedPreferencesBrowserHistoryStore(scope: retainedId);
+      const sessions = SharedPreferencesBrowserSessionStore();
+
+      await Future.wait([
+        bookmarksA.add(
+          const BrowserBookmark(url: 'https://a.example', title: 'A'),
+        ),
+        bookmarksB.add(
+          const BrowserBookmark(url: 'https://b.example', title: 'B'),
+        ),
+        historyA.add(
+          const BrowserHistoryEntry(url: 'https://a.example', title: 'A'),
+        ),
+        historyB.add(
+          const BrowserHistoryEntry(url: 'https://b.example', title: 'B'),
+        ),
+        sessions.save(_snapshot(sessionId: removedId)),
+        sessions.save(_snapshot(sessionId: retainedId)),
+      ]);
+
+      await clearBrowserDeviceData(removedId);
+
+      expect(await bookmarksA.load(), isEmpty);
+      expect(await historyA.load(), isEmpty);
+      expect(await sessions.load(removedId), isNull);
+      expect(await bookmarksB.load(), isNotEmpty);
+      expect(await historyB.load(), isNotEmpty);
+      expect(await sessions.load(retainedId), isNotNull);
     });
   });
 }

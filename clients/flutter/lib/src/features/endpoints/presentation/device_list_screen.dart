@@ -12,6 +12,7 @@ import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../generated/proto/remoteauthpb/remote_auth.pb.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
+import '../../browser/data/browser_device_data.dart';
 import '../../files/presentation/file_transfer_sheet.dart';
 import '../data/endpoint_repository.dart';
 import '../domain/device_search.dart';
@@ -25,7 +26,9 @@ final class DeviceListScreen extends ConsumerStatefulWidget {
 
 final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'device-search');
   bool _refreshing = false;
+  bool _searchOpen = false;
 
   @override
   void initState() {
@@ -38,10 +41,25 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     _searchController
       ..removeListener(_handleSearchChanged)
       ..dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
   void _handleSearchChanged() => setState(() {});
+
+  void _openSearch() {
+    if (_searchOpen) return;
+    setState(() => _searchOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _searchOpen) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    if (mounted) setState(() => _searchOpen = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +73,7 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       final presence = _cloudPresenceFor(ref, endpoint);
       return _deviceVisualState(endpoint, presence).online;
     }).length;
-    return Scaffold(
+    final screen = Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
         titleSpacing: 20,
@@ -94,6 +112,15 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
           ],
         ),
         actions: [
+          _RaisedHeaderAction(
+            child: IconButton(
+              tooltip: anyttyText(context, en: 'Pair device', zh: '扫码配对'),
+              onPressed: registry.hasValue
+                  ? () => _showPairingSheet(context)
+                  : null,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+            ),
+          ),
           _RaisedHeaderAction(
             child: FileTransferCenterAction(
               controller: ref.read(fileTransferControllerProvider),
@@ -143,9 +170,14 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 3, 16, 104),
                   children: [
-                    _DeviceSearchField(controller: _searchController),
-                    const SizedBox(height: 14),
-                    _DeviceSectionHeading(count: visibleEndpoints.length),
+                    _DeviceSectionHeading(
+                      count: visibleEndpoints.length,
+                      searchOpen: _searchOpen,
+                      searchController: _searchController,
+                      searchFocusNode: _searchFocusNode,
+                      onOpenSearch: _openSearch,
+                      onCloseSearch: _closeSearch,
+                    ),
                     const SizedBox(height: 11),
                     if (visibleEndpoints.isEmpty)
                       const _NoMatchingDevices()
@@ -165,24 +197,13 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                 ),
         ),
       ),
-      floatingActionButton: registry.hasValue
-          ? FloatingActionButton.extended(
-              tooltip: anyttyText(context, en: 'Pair device', zh: '配对设备'),
-              onPressed: () => _showPairingSheet(context),
-              elevation: 3,
-              highlightElevation: 1,
-              backgroundColor: AnyttyPalette.of(context).accent,
-              foregroundColor: AnyttyPalette.of(context).accentText,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
-              label: Text(
-                anyttyText(context, en: 'Pair device', zh: '配对设备'),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            )
-          : null,
+    );
+    return PopScope<Object?>(
+      canPop: !_searchOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searchOpen) _closeSearch();
+      },
+      child: screen,
     );
   }
 
@@ -384,43 +405,73 @@ final class _DeviceHeaderStatus extends StatelessWidget {
 }
 
 final class _DeviceSearchField extends StatelessWidget {
-  const _DeviceSearchField({required this.controller});
+  const _DeviceSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onClose,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return SizedBox(
       height: 44,
-      child: TextField(
-        key: const ValueKey('device-search-field'),
-        controller: controller,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: anyttyText(context, en: 'Search devices', zh: '搜索设备'),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: palette.muted,
-            size: 19,
-          ),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: anyttyText(context, en: 'Clear search', zh: '清除搜索'),
-                  onPressed: controller.clear,
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            onClose();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: TextField(
+          key: const ValueKey('device-search-field'),
+          controller: controller,
+          focusNode: focusNode,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: anyttyText(context, en: 'Search devices', zh: '搜索设备'),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: palette.muted,
+              size: 19,
+            ),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (controller.text.isNotEmpty)
+                  IconButton(
+                    tooltip: anyttyText(
+                      context,
+                      en: 'Clear search',
+                      zh: '清除搜索',
+                    ),
+                    onPressed: controller.clear,
+                    icon: const Icon(Icons.backspace_outlined, size: 17),
+                  ),
+                IconButton(
+                  tooltip: anyttyText(context, en: 'Close search', zh: '关闭搜索'),
+                  onPressed: onClose,
                   icon: const Icon(Icons.close_rounded, size: 18),
                 ),
-          filled: true,
-          fillColor: palette.surface,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: palette.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: palette.accent, width: 1.5),
+              ],
+            ),
+            filled: true,
+            fillColor: palette.surface,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: palette.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: palette.accent, width: 1.5),
+            ),
           ),
         ),
       ),
@@ -451,34 +502,68 @@ final class _NoMatchingDevices extends StatelessWidget {
 }
 
 final class _DeviceSectionHeading extends StatelessWidget {
-  const _DeviceSectionHeading({required this.count});
+  const _DeviceSectionHeading({
+    required this.count,
+    required this.searchOpen,
+    required this.searchController,
+    required this.searchFocusNode,
+    required this.onOpenSearch,
+    required this.onCloseSearch,
+  });
 
   final int count;
+  final bool searchOpen;
+  final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+  final VoidCallback onOpenSearch;
+  final VoidCallback onCloseSearch;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(
-            anyttyText(context, en: 'My devices', zh: '我的设备'),
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$count',
-            style: TextStyle(
-              color: palette.faint,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+      child: searchOpen
+          ? _DeviceSearchField(
+              controller: searchController,
+              focusNode: searchFocusNode,
+              onClose: onCloseSearch,
+          )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  anyttyText(context, en: 'My devices', zh: '我的设备'),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    color: palette.faint,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                SizedBox.square(
+                  dimension: 40,
+                  child: IconButton(
+                    tooltip: anyttyText(
+                      context,
+                      en: 'Search devices',
+                      zh: '搜索设备',
+                    ),
+                    onPressed: onOpenSearch,
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.search_rounded, size: 20),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1350,7 +1435,9 @@ final class _DeviceActionsSheetState
     await _perform(
       successMessage: anyttyText(context, en: 'Device removed', zh: '设备已移除'),
       action: () async {
-        await (await _repository()).deleteEndpoint(widget.endpoint.endpointId);
+        final endpointId = widget.endpoint.endpointId;
+        await (await _repository()).deleteEndpoint(endpointId);
+        await clearBrowserDeviceData(endpointId);
         ref.invalidate(endpointRegistryProvider);
       },
     );
@@ -1773,6 +1860,7 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                             hintText: 'Paste the pairing payload',
                             alignLabelWithHint: true,
                             errorText: _error,
+                            errorMaxLines: 4,
                           ),
                           onChanged: (_) => setState(() => _error = null),
                         ),

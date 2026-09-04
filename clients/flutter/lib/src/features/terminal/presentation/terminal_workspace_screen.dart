@@ -1216,6 +1216,13 @@ enum _TerminalRowAction {
   moveDown,
 }
 
+bool _terminalCanEnd(TerminalInfo terminal) =>
+    terminal.state == TerminalState.TERMINAL_STATE_RUNNING ||
+    terminal.state == TerminalState.TERMINAL_STATE_CREATED;
+
+bool _terminalCanDelete(TerminalInfo terminal) =>
+    terminal.state == TerminalState.TERMINAL_STATE_EXITED;
+
 final class _TerminalCreateInput {
   const _TerminalCreateInput({
     required this.name,
@@ -1994,12 +2001,17 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
   static const _refreshInterval = Duration(seconds: 2);
 
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'terminal-list-search');
   TerminalStatusFilter _status = TerminalStatusFilter.running;
   Set<String> _selectedTagIds = const {};
+  Set<String> _selectedTerminalIds = const {};
   List<String> _pinnedIds = const [];
   int _pinLoadEpoch = 0;
   Timer? _refreshTimer;
   bool _refreshInFlight = false;
+  bool _searchOpen = false;
+  bool _selectionMode = false;
+  bool _batchBusy = false;
 
   @override
   void initState() {
@@ -2017,10 +2029,67 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
     _searchController
       ..removeListener(_handleSearchChanged)
       ..dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
-  void _handleSearchChanged() => setState(() {});
+  void _handleSearchChanged() {
+    setState(() {
+      if (_selectionMode) _selectedTerminalIds = const {};
+    });
+  }
+
+  void _openSearch() {
+    if (_searchOpen) return;
+    setState(() => _searchOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _searchOpen) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    if (mounted) setState(() => _searchOpen = false);
+  }
+
+  void _enterSelection(String terminalId) {
+    if (_selectionMode) return;
+    _searchFocusNode.unfocus();
+    if (mounted) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _selectionMode = true;
+        _selectedTerminalIds = {terminalId};
+      });
+    }
+  }
+
+  void _closeSelection() {
+    if (mounted) {
+      setState(() {
+        _selectionMode = false;
+        _selectedTerminalIds = const {};
+      });
+    }
+  }
+
+  void _toggleTerminalSelection(String terminalId) {
+    final next = {..._selectedTerminalIds};
+    if (!next.add(terminalId)) next.remove(terminalId);
+    setState(() => _selectedTerminalIds = Set.unmodifiable(next));
+  }
+
+  void _selectAllTerminals(List<TerminalInfo> terminals) {
+    final ids = terminals.map((terminal) => terminal.ref.terminalId).toSet();
+    setState(
+      () => _selectedTerminalIds =
+          ids.length == _selectedTerminalIds.length &&
+              ids.every(_selectedTerminalIds.contains)
+          ? const {}
+          : Set.unmodifiable(ids),
+    );
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -2039,6 +2108,9 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
       _status = TerminalStatusFilter.running;
       _searchController.clear();
       _selectedTagIds = const {};
+      _selectedTerminalIds = const {};
+      _selectionMode = false;
+      _searchOpen = false;
       _pinnedIds = const [];
       unawaited(_loadPins());
       _scheduleRefresh(Duration.zero);
@@ -2049,7 +2121,7 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     final terminals = ref.watch(terminalListProvider(widget.endpointId));
-    return terminals.when(
+    final content = terminals.when(
       loading: () => _TerminalListLoading(
         endpointId: widget.endpointId,
         label: widget.label,
@@ -2097,17 +2169,49 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
         ).length;
         return Column(
           children: [
-            _TerminalSearchField(controller: _searchController),
-            _TerminalFilterBar(
-              status: _status,
-              runningCount: runningCount,
-              exitedCount: exitedCount,
-              totalCount: items.length,
-              selectedTagCount: _selectedTagIds.length,
-              tagsAvailable: tags.isNotEmpty,
-              onStatusChanged: (value) => setState(() => _status = value),
-              onTags: () => _showTagFilters(tags, items),
-            ),
+            if (_selectionMode)
+              _TerminalSelectionBar(
+                selectedCount: _selectedTerminalIds.length,
+                totalCount: filtered.length,
+                canEnd: filtered.any(
+                  (terminal) =>
+                      _selectedTerminalIds.contains(terminal.ref.terminalId) &&
+                      _terminalCanEnd(terminal),
+                ),
+                canDelete: filtered.any(
+                  (terminal) =>
+                      _selectedTerminalIds.contains(terminal.ref.terminalId) &&
+                      _terminalCanDelete(terminal),
+                ),
+                busy: _batchBusy,
+                onSelectAll: () => _selectAllTerminals(filtered),
+                onEnd: () =>
+                    unawaited(_runBulkAction(items, _TerminalAction.end)),
+                onDelete: () =>
+                    unawaited(_runBulkAction(items, _TerminalAction.remove)),
+                onClose: _closeSelection,
+              ),
+            if (_searchOpen)
+              _TerminalSearchField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onClose: _closeSearch,
+              )
+            else
+              _TerminalFilterBar(
+                status: _status,
+                runningCount: runningCount,
+                exitedCount: exitedCount,
+                totalCount: items.length,
+                selectedTagCount: _selectedTagIds.length,
+                tagsAvailable: tags.isNotEmpty,
+                onStatusChanged: (value) => setState(() {
+                  _status = value;
+                  _selectedTerminalIds = const {};
+                }),
+                onTags: () => _showTagFilters(tags, items),
+                onSearch: _openSearch,
+              ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => _refreshInventory(force: true),
@@ -2172,6 +2276,18 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
         );
       },
     );
+    return PopScope<Object?>(
+      canPop: !_searchOpen && !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_searchOpen) {
+          _closeSearch();
+        } else if (_selectionMode) {
+          _closeSelection();
+        }
+      },
+      child: content,
+    );
   }
 
   Widget _buildTerminalRow(TerminalInfo terminal) {
@@ -2183,9 +2299,133 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
       canMoveUp: pinIndex > 0,
       canMoveDown: pinIndex >= 0 && pinIndex < _pinnedIds.length - 1,
       searchQuery: _searchController.text,
+      selected: _selectedTerminalIds.contains(terminalId),
+      selectionMode: _selectionMode,
       onTap: () => _openTerminal(terminalId),
+      onLongPress: () => _enterSelection(terminalId),
+      onToggleSelected: () => _toggleTerminalSelection(terminalId),
       onAction: (action) => _handleRowAction(terminal, action),
     );
+  }
+
+  Future<void> _runBulkAction(
+    List<TerminalInfo> terminals,
+    _TerminalAction action,
+  ) async {
+    final selected = terminals
+        .where(
+          (terminal) => _selectedTerminalIds.contains(terminal.ref.terminalId),
+        )
+        .where(
+          action == _TerminalAction.end ? _terminalCanEnd : _terminalCanDelete,
+        )
+        .toList(growable: false);
+    if (selected.isEmpty || _batchBusy) return;
+    final destructive = action == _TerminalAction.remove;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          destructive
+              ? anyttyText(
+                  context,
+                  en: 'Delete terminal records?',
+                  zh: '删除终端记录？',
+                )
+              : anyttyText(context, en: 'End processes?', zh: '结束进程？'),
+        ),
+        content: Text(
+          destructive
+              ? anyttyText(
+                  context,
+                  en: 'Delete ${selected.length} exited terminal records?',
+                  zh: '删除 ${selected.length} 个已退出的终端记录？',
+                )
+              : anyttyText(
+                  context,
+                  en: 'End ${selected.length} terminal processes? Their records will remain.',
+                  zh: '结束 ${selected.length} 个终端进程？终端记录会保留。',
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
+          ),
+          FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: const Color(0xffdc2626),
+                  )
+                : null,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              destructive
+                  ? anyttyText(context, en: 'Delete', zh: '删除')
+                  : anyttyText(context, en: 'End', zh: '结束'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _batchBusy = true);
+    final failures = <String>[];
+    try {
+      final session = await ref.read(
+        endpointSessionProvider(widget.endpointId).future,
+      );
+      for (final terminal in selected) {
+        try {
+          if (action == _TerminalAction.end) {
+            await session.killTerminal(terminal.ref);
+          } else {
+            await session.removeTerminal(terminal.ref);
+          }
+        } catch (_) {
+          failures.add(terminal.ref.terminalId);
+        }
+      }
+      ref.invalidate(terminalListProvider(widget.endpointId));
+      if (!mounted) return;
+      setState(() {
+        _batchBusy = false;
+        if (failures.isEmpty) {
+          _selectionMode = false;
+          _selectedTerminalIds = const {};
+        } else {
+          _selectedTerminalIds = Set.unmodifiable(failures.toSet());
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failures.isEmpty
+                ? (destructive
+                      ? anyttyText(
+                          context,
+                          en: 'Terminal records deleted',
+                          zh: '终端记录已删除',
+                        )
+                      : anyttyText(
+                          context,
+                          en: 'Terminal processes ended',
+                          zh: '终端进程已结束',
+                        ))
+                : anyttyText(
+                    context,
+                    en: '${selected.length - failures.length} completed, ${failures.length} failed',
+                    zh: '已完成 ${selected.length - failures.length} 个，${failures.length} 个失败',
+                  ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _batchBusy = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   void _scheduleRefresh([Duration delay = _refreshInterval]) {
@@ -2308,7 +2548,12 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
           query: _searchController.text,
         ).length,
         onChanged: (selected) {
-          if (mounted) setState(() => _selectedTagIds = selected);
+          if (mounted) {
+            setState(() {
+              _selectedTagIds = selected;
+              _selectedTerminalIds = const {};
+            });
+          }
         },
       ),
     );
@@ -2328,9 +2573,28 @@ final class _TerminalListLoading extends ConsumerStatefulWidget {
 
 final class _TerminalListLoadingState
     extends ConsumerState<_TerminalListLoading> {
+  static const _progressRebuildInterval = Duration(milliseconds: 32);
+
   final Map<ConnectionRouteKind, EndpointConnectionEvent> _attempts = {};
+  ProviderSubscription<AsyncValue<EndpointConnectionEvent>>?
+  _progressSubscription;
+  AsyncValue<EndpointConnectionEvent> _progress = const AsyncLoading();
+  Timer? _progressRebuildTimer;
   bool _applyingAuto = false;
   String? _actionError;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindConnectionProgress();
+  }
+
+  @override
+  void dispose() {
+    _progressRebuildTimer?.cancel();
+    _progressSubscription?.close();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_TerminalListLoading oldWidget) {
@@ -2339,14 +2603,36 @@ final class _TerminalListLoadingState
       _attempts.clear();
       _applyingAuto = false;
       _actionError = null;
+      _bindConnectionProgress();
     }
+  }
+
+  void _bindConnectionProgress() {
+    _progressSubscription?.close();
+    final provider = endpointConnectionProgressProvider(widget.endpointId);
+    _progress = ref.read(provider);
+    _progressSubscription = ref
+        .listenManual<AsyncValue<EndpointConnectionEvent>>(provider, (_, next) {
+          if (!mounted) return;
+          _progress = next;
+          _captureProgress(next.valueOrNull);
+          _scheduleProgressRebuild();
+        });
+  }
+
+  void _scheduleProgressRebuild() {
+    if (_progressRebuildTimer != null) return;
+    _progressRebuildTimer = Timer(_progressRebuildInterval, () {
+      _progressRebuildTimer = null;
+      if (mounted) setState(() {});
+    });
   }
 
   void _captureProgress(EndpointConnectionEvent? event) {
     if (!mounted || event == null) return;
     if (event.phase ==
         EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_PLANNING) {
-      if (_attempts.isNotEmpty) setState(_attempts.clear);
+      _attempts.clear();
       return;
     }
     // AUTO may cancel a slower route after another attempt has already won.
@@ -2354,19 +2640,13 @@ final class _TerminalListLoadingState
     if (_isSupersededConnectionAttempt(event)) return;
     final kind = event.attemptedRouteKind;
     if (kind == ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) return;
-    setState(() => _attempts[kind] = event.deepCopy());
+    _attempts[kind] = event.deepCopy();
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    final progress = ref.watch(
-      endpointConnectionProgressProvider(widget.endpointId),
-    );
-    ref.listen<AsyncValue<EndpointConnectionEvent>>(
-      endpointConnectionProgressProvider(widget.endpointId),
-      (_, next) => _captureProgress(next.valueOrNull),
-    );
+    final progress = _progress;
     final policyState = ref
         .watch(connectionPolicyProvider(widget.endpointId))
         .valueOrNull;
@@ -2427,11 +2707,10 @@ final class _TerminalListLoadingState
                         ),
                         child: SizedBox.square(
                           dimension: 18,
-                          child: CircularProgressIndicator(
+                          child: _ConnectionSpinner(
                             color: waitingForNetwork
                                 ? palette.warning
                                 : palette.accent,
-                            strokeWidth: 2.2,
                           ),
                         ),
                       ),
@@ -2579,6 +2858,22 @@ bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
   return event.connectionStage == 'attempt_failed' &&
       event.hasError() &&
       event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
+}
+
+final class _ConnectionSpinner extends StatelessWidget {
+  const _ConnectionSpinner({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(color: color, strokeWidth: 2.2),
+      ),
+    );
+  }
 }
 
 String _connectionLoadingLabel(
@@ -2804,13 +3099,7 @@ final class _DirectOnlyConnectionHelp extends StatelessWidget {
                   ),
                 ),
                 child: applying
-                    ? SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          color: palette.warning,
-                          strokeWidth: 2.2,
-                        ),
-                      )
+                    ? _ConnectionSpinner(color: palette.warning)
                     : Icon(
                         Icons.route_outlined,
                         size: 21,
@@ -2893,7 +3182,11 @@ final class _TerminalRow extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.searchQuery,
+    required this.selected,
+    required this.selectionMode,
     required this.onTap,
+    required this.onLongPress,
+    required this.onToggleSelected,
     required this.onAction,
   });
 
@@ -2902,7 +3195,11 @@ final class _TerminalRow extends StatelessWidget {
   final bool canMoveUp;
   final bool canMoveDown;
   final String searchQuery;
+  final bool selected;
+  final bool selectionMode;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final VoidCallback onToggleSelected;
   final ValueChanged<_TerminalRowAction> onAction;
 
   @override
@@ -2926,6 +3223,7 @@ final class _TerminalRow extends StatelessWidget {
     return SizedBox(
       height: 88,
       child: Card(
+        key: ValueKey('terminal-row-${terminal.ref.terminalId}'),
         elevation: 1,
         shadowColor: Colors.black.withValues(
           alpha: Theme.of(context).brightness == Brightness.dark ? 0.20 : 0.08,
@@ -2939,13 +3237,31 @@ final class _TerminalRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: () {
             HapticFeedback.selectionClick();
-            onTap();
+            if (selectionMode) {
+              onToggleSelected();
+            } else {
+              onTap();
+            }
           },
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(9, 7, 2, 7),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (selectionMode)
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Checkbox(
+                      key: ValueKey(
+                        'terminal-select-${terminal.ref.terminalId}',
+                      ),
+                      value: selected,
+                      onChanged: (_) => onToggleSelected(),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
                 Semantics(
                   container: true,
                   label: outputQuiet == null
@@ -3160,10 +3476,105 @@ final class _TerminalRow extends StatelessWidget {
   }
 }
 
+final class _TerminalSelectionBar extends StatelessWidget {
+  const _TerminalSelectionBar({
+    required this.selectedCount,
+    required this.totalCount,
+    required this.canEnd,
+    required this.canDelete,
+    required this.busy,
+    required this.onSelectAll,
+    required this.onEnd,
+    required this.onDelete,
+    required this.onClose,
+  });
+
+  final int selectedCount;
+  final int totalCount;
+  final bool canEnd;
+  final bool canDelete;
+  final bool busy;
+  final VoidCallback onSelectAll;
+  final VoidCallback onEnd;
+  final VoidCallback onDelete;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    final allSelected = totalCount > 0 && selectedCount == totalCount;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.border),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: anyttyText(context, en: 'Close selection', zh: '关闭选择'),
+              onPressed: busy ? null : onClose,
+              icon: const Icon(Icons.close_rounded, size: 19),
+            ),
+            Expanded(
+              child: Text(
+                anyttyText(
+                  context,
+                  en: '$selectedCount selected',
+                  zh: '已选择 $selectedCount 个',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: allSelected
+                  ? anyttyText(context, en: 'Clear selection', zh: '清除选择')
+                  : anyttyText(context, en: 'Select all', zh: '全选'),
+              onPressed: busy ? null : onSelectAll,
+              icon: Icon(
+                allSelected
+                    ? Icons.indeterminate_check_box_outlined
+                    : Icons.select_all_rounded,
+                size: 20,
+              ),
+            ),
+            IconButton(
+              tooltip: anyttyText(context, en: 'End processes', zh: '结束进程'),
+              onPressed: busy || !canEnd ? null : onEnd,
+              icon: const Icon(Icons.stop_circle_outlined, size: 20),
+            ),
+            IconButton(
+              tooltip: anyttyText(context, en: 'Delete records', zh: '删除记录'),
+              onPressed: busy || !canDelete ? null : onDelete,
+              color: palette.danger,
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 final class _TerminalSearchField extends StatelessWidget {
-  const _TerminalSearchField({required this.controller});
+  const _TerminalSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onClose,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -3172,38 +3583,62 @@ final class _TerminalSearchField extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       child: SizedBox(
         height: 42,
-        child: TextField(
-          key: const ValueKey('terminal-list-search-field'),
-          controller: controller,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: anyttyText(context, en: 'Search terminals', zh: '搜索终端'),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: palette.muted,
-              size: 18,
-            ),
-            suffixIcon: controller.text.isEmpty
-                ? null
-                : IconButton(
+        child: Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              onClose();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: TextField(
+            key: const ValueKey('terminal-list-search-field'),
+            controller: controller,
+            focusNode: focusNode,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: anyttyText(context, en: 'Search terminals', zh: '搜索终端'),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: palette.muted,
+                size: 18,
+              ),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (controller.text.isNotEmpty)
+                    IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Clear search',
+                        zh: '清除搜索',
+                      ),
+                      onPressed: controller.clear,
+                      icon: const Icon(Icons.backspace_outlined, size: 17),
+                    ),
+                  IconButton(
                     tooltip: anyttyText(
                       context,
-                      en: 'Clear search',
-                      zh: '清除搜索',
+                      en: 'Close search',
+                      zh: '关闭搜索',
                     ),
-                    onPressed: controller.clear,
+                    onPressed: onClose,
                     icon: const Icon(Icons.close_rounded, size: 17),
                   ),
-            filled: true,
-            fillColor: palette.surface,
-            contentPadding: const EdgeInsets.symmetric(vertical: 9),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: BorderSide(color: palette.accent, width: 1.5),
+                ],
+              ),
+              filled: true,
+              fillColor: palette.surface,
+              contentPadding: const EdgeInsets.symmetric(vertical: 9),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(color: palette.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(color: palette.accent, width: 1.5),
+              ),
             ),
           ),
         ),
@@ -3222,6 +3657,7 @@ final class _TerminalFilterBar extends StatelessWidget {
     required this.tagsAvailable,
     required this.onStatusChanged,
     required this.onTags,
+    required this.onSearch,
   });
 
   final TerminalStatusFilter status;
@@ -3232,6 +3668,7 @@ final class _TerminalFilterBar extends StatelessWidget {
   final bool tagsAvailable;
   final ValueChanged<TerminalStatusFilter> onStatusChanged;
   final VoidCallback onTags;
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -3316,6 +3753,23 @@ final class _TerminalFilterBar extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(width: 8),
+            Material(
+              color: palette.surfaceRaised,
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox.square(
+                dimension: 56,
+                child: IconButton(
+                  tooltip: anyttyText(
+                    context,
+                    en: 'Search terminals',
+                    zh: '搜索终端',
+                  ),
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded, size: 20),
+                ),
+              ),
+            ),
           ],
         ),
       ),
