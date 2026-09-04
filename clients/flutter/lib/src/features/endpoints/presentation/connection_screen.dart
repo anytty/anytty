@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_ui.dart';
 import '../../../app/anytty_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
@@ -50,40 +51,39 @@ final class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
+        toolbarHeight: AnyttyUi.appBarHeight(context, subtitleLines: 2),
+        leading: AnyttyIconButton(
           tooltip: 'Back to devices',
           onPressed: () => Navigator.maybePop(context),
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icons.arrow_back_rounded,
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               anyttyText(context, en: 'Connection', zh: '网络连接'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: AnyttyUi.title(context),
             ),
             Text(
               _label,
-              maxLines: 1,
+              style: AnyttyUi.muted(context),
+              maxLines: 2,
+              softWrap: true,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
             ),
           ],
         ),
         actions: [
-          IconButton(
+          AnyttyIconButton(
             tooltip: 'Refresh connection diagnostics',
             onPressed: _refreshing || _applying ? null : _refresh,
-            icon: _refreshing
+            icon: Icons.refresh_rounded,
+            child: _refreshing
                 ? const SizedBox.square(
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.refresh_rounded),
+                : null,
           ),
           const SizedBox(width: 4),
         ],
@@ -116,7 +116,7 @@ final class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
               en: 'Auto chooses the best available route.',
               zh: '自动模式会选择当前最合适的可用路由。',
             ),
-            style: TextStyle(color: palette.muted, fontSize: 12, height: 1.4),
+            style: AnyttyUi.muted(context),
           ),
           const SizedBox(height: 10),
           if (policyAsync.isLoading && policyAsync.valueOrNull == null)
@@ -161,24 +161,28 @@ final class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
             label: anyttyText(context, en: 'CONNECTION ROUTES', zh: '连接路由'),
           ),
           const SizedBox(height: 8),
-          Material(
-            color: palette.surface,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: palette.border),
-            ),
+          AnyttyCard(
+            radius: 14,
+            depth: 1,
+            padding: EdgeInsets.zero,
             child: ListTile(
-              leading: const Icon(Icons.alt_route_rounded),
-              title: Text(anyttyText(context, en: 'Manage routes', zh: '管理路由')),
+              leading: Icon(Icons.alt_route_rounded, color: palette.strong),
+              title: Text(
+                anyttyText(context, en: 'Manage routes', zh: '管理路由'),
+                style: AnyttyUi.body(context),
+              ),
               subtitle: Text(
                 anyttyText(
                   context,
                   en: 'Add, order, and test routes',
                   zh: '添加、排序和测试连接路由',
                 ),
+                style: AnyttyUi.muted(context),
               ),
-              trailing: Icon(Icons.chevron_right_rounded, color: palette.faint),
+              trailing: Icon(
+                Icons.chevron_right_rounded,
+                color: palette.strong,
+              ),
               onTap: () => context.push(
                 Uri(
                   path: '/routes/${Uri.encodeComponent(widget.endpointId)}',
@@ -325,8 +329,12 @@ final class _ConnectionSummary extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AnyttyUi.cardDecoration(
+          context,
+          radius: 14,
+          depth: 1,
+        ).boxShadow,
       ),
       child: Column(
         children: [
@@ -353,7 +361,7 @@ final class _ConnectionSummary extends StatelessWidget {
                           connected
                               ? Icons.route_rounded
                               : Icons.cloud_off_outlined,
-                          color: connected ? palette.accent : palette.muted,
+                          color: connected ? palette.accent : palette.strong,
                           size: 22,
                         ),
                 ),
@@ -362,20 +370,9 @@ final class _ConnectionSummary extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        route,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      Text(route, style: AnyttyUi.sectionTitle(context)),
                       const SizedBox(height: 2),
-                      Text(
-                        status,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: palette.muted, fontSize: 12),
-                      ),
+                      Text(status, style: AnyttyUi.muted(context)),
                     ],
                   ),
                 ),
@@ -385,20 +382,10 @@ final class _ConnectionSummary extends StatelessWidget {
                     children: [
                       Text(
                         _formatLatency(snapshot.roundTripNanos.toInt()),
-                        style: const TextStyle(
-                          fontFamily: 'JetBrainsMonoNerd',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontWeight: FontWeight.w600),
                       ),
-                      Text(
-                        'LATENCY',
-                        style: TextStyle(
-                          color: palette.muted,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      Text('LATENCY', style: AnyttyUi.muted(context)),
                     ],
                   ),
               ],
@@ -468,8 +455,12 @@ final class _RoutePreferenceList extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AnyttyUi.cardDecoration(
+          context,
+          radius: 14,
+          depth: 1,
+        ).boxShadow,
       ),
       child: Column(
         children: [
@@ -484,7 +475,7 @@ final class _RoutePreferenceList extends StatelessWidget {
               onTap: () => onChanged(options[index].value),
             ),
             if (index != options.length - 1)
-              Divider(height: 1, color: palette.border),
+              Divider(height: 1, color: palette.track),
           ],
         ],
       ),
@@ -529,59 +520,60 @@ final class _RoutePreferenceRow extends StatelessWidget {
     final available =
         option.routeKind == null || availability?.available == true;
     final interactive = enabled && available;
-    final color = interactive ? palette.text : palette.faint;
+    final color = interactive ? palette.strong : palette.faint;
     return Semantics(
       button: true,
       selected: selected,
+      inMutuallyExclusiveGroup: true,
       enabled: interactive,
       label: '${option.label} connection route',
-      child: InkWell(
-        onTap: interactive ? onTap : null,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 64),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            child: Row(
-              children: [
-                Icon(option.icon, size: 20, color: color),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        option.label,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: interactive ? onTap : null,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                children: [
+                  Icon(option.icon, size: 20, color: color),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          option.label,
+                          style: AnyttyUi.body(
+                            context,
+                          ).copyWith(color: color, fontWeight: FontWeight.w600),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        available
-                            ? option.description
-                            : _availabilityReason(availability?.reason),
-                        style: TextStyle(
-                          color: interactive ? palette.muted : palette.faint,
-                          fontSize: 11,
-                          height: 1.3,
+                        const SizedBox(height: 2),
+                        Text(
+                          available
+                              ? option.description
+                              : _availabilityReason(availability?.reason),
+                          style: interactive
+                              ? AnyttyUi.muted(context)
+                              : AnyttyUi.body(context)
+                                    .copyWith(color: palette.faint),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  size: 20,
-                  color: selected && interactive
-                      ? palette.accent
-                      : palette.faint,
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 20,
+                    color: selected && interactive
+                        ? palette.accent
+                        : palette.faint,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -631,8 +623,12 @@ final class _CloudPolicyControls extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AnyttyUi.cardDecoration(
+          context,
+          radius: 14,
+          depth: 1,
+        ).boxShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -651,27 +647,36 @@ final class _CloudPolicyControls extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 8),
-          SegmentedButton<ManagedWebRTCRelayMode>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_AUTO,
-                label: Text('Auto'),
-              ),
-              ButtonSegment(
-                value: ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_DIRECT,
-                label: Text('P2P'),
-              ),
-              ButtonSegment(
-                value:
-                    ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_RELAY_ONLY,
-                label: Text('Relay'),
-              ),
-            ],
-            selected: {cloudMode},
-            onSelectionChanged: controlsEnabled
-                ? (value) => onCloudChanged(value.single)
-                : null,
+          DecoratedBox(
+            decoration: AnyttyUi.pillDecoration(
+              context,
+              enabled: controlsEnabled,
+            ),
+            child: SegmentedButton<ManagedWebRTCRelayMode>(
+              showSelectedIcon: true,
+              selectedIcon: Icon(Icons.check_rounded, color: palette.strong),
+              style: _segmentedButtonStyle(context),
+              segments: const [
+                ButtonSegment(
+                  value: ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_AUTO,
+                  label: Text('Auto'),
+                ),
+                ButtonSegment(
+                  value:
+                      ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_DIRECT,
+                  label: Text('P2P'),
+                ),
+                ButtonSegment(
+                  value: ManagedWebRTCRelayMode
+                      .MANAGED_WEBRTC_RELAY_MODE_RELAY_ONLY,
+                  label: Text('Relay'),
+                ),
+              ],
+              selected: {cloudMode},
+              onSelectionChanged: controlsEnabled
+                  ? (value) => onCloudChanged(value.single)
+                  : null,
+            ),
           ),
           const SizedBox(height: 18),
           _ControlLabel(
@@ -681,29 +686,34 @@ final class _CloudPolicyControls extends StatelessWidget {
                 : 'Relay transport is not active for this path',
           ),
           const SizedBox(height: 8),
-          SegmentedButton<ManagedWebRTCRelayTransport>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(
-                value: ManagedWebRTCRelayTransport
-                    .MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO,
-                label: Text('Auto'),
-              ),
-              ButtonSegment(
-                value: ManagedWebRTCRelayTransport
-                    .MANAGED_WEBRTC_RELAY_TRANSPORT_UDP,
-                label: Text('UDP'),
-              ),
-              ButtonSegment(
-                value: ManagedWebRTCRelayTransport
-                    .MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
-                label: Text('TCP'),
-              ),
-            ],
-            selected: {_normalizeRelayTransport(policy.relayTransport)},
-            onSelectionChanged: relayEnabled
-                ? (value) => onTransportChanged(value.single)
-                : null,
+          DecoratedBox(
+            decoration: AnyttyUi.pillDecoration(context, enabled: relayEnabled),
+            child: SegmentedButton<ManagedWebRTCRelayTransport>(
+              showSelectedIcon: true,
+              selectedIcon: Icon(Icons.check_rounded, color: palette.strong),
+              style: _segmentedButtonStyle(context),
+              segments: const [
+                ButtonSegment(
+                  value: ManagedWebRTCRelayTransport
+                      .MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO,
+                  label: Text('Auto'),
+                ),
+                ButtonSegment(
+                  value: ManagedWebRTCRelayTransport
+                      .MANAGED_WEBRTC_RELAY_TRANSPORT_UDP,
+                  label: Text('UDP'),
+                ),
+                ButtonSegment(
+                  value: ManagedWebRTCRelayTransport
+                      .MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
+                  label: Text('TCP'),
+                ),
+              ],
+              selected: {_normalizeRelayTransport(policy.relayTransport)},
+              onSelectionChanged: relayEnabled
+                  ? (value) => onTransportChanged(value.single)
+                  : null,
+            ),
           ),
         ],
       ),
@@ -719,22 +729,46 @@ final class _ControlLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: AnyttyUi.body(context).copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 2),
-        Text(
-          hint,
-          style: TextStyle(color: palette.muted, fontSize: 11, height: 1.3),
-        ),
+        Text(hint, style: AnyttyUi.muted(context)),
       ],
     );
   }
+}
+
+ButtonStyle _segmentedButtonStyle(BuildContext context) {
+  final palette = AnyttyPalette.of(context);
+  return ButtonStyle(
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
+        return palette.accent.withValues(alpha: 0.16);
+      }
+      return Colors.transparent;
+    }),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      return states.contains(WidgetState.selected)
+          ? palette.accentText
+          : palette.strong;
+    }),
+    textStyle: WidgetStateProperty.resolveWith((states) {
+      return AnyttyUi.body(context).copyWith(
+        fontWeight: states.contains(WidgetState.selected)
+            ? FontWeight.w600
+            : FontWeight.normal,
+      );
+    }),
+    side: const WidgetStatePropertyAll(BorderSide(color: Colors.transparent)),
+    elevation: const WidgetStatePropertyAll(0),
+    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+    minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+  );
 }
 
 final class _DiagnosticsSection extends StatelessWidget {
@@ -755,8 +789,12 @@ final class _DiagnosticsSection extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AnyttyUi.cardDecoration(
+          context,
+          radius: 14,
+          depth: 1,
+        ).boxShadow,
       ),
       child: ExpansionTile(
         key: const ValueKey('connection-diagnostics'),
@@ -764,10 +802,14 @@ final class _DiagnosticsSection extends StatelessWidget {
         childrenPadding: EdgeInsets.zero,
         shape: const Border(),
         collapsedShape: const Border(),
-        leading: const Icon(Icons.monitor_heart_outlined, size: 20),
+        leading: Icon(
+          Icons.monitor_heart_outlined,
+          size: 20,
+          color: palette.strong,
+        ),
         title: Text(
           anyttyText(context, en: 'Technical details', zh: '技术详情'),
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: AnyttyUi.body(context).copyWith(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
           snapshot == null
@@ -781,10 +823,10 @@ final class _DiagnosticsSection extends StatelessWidget {
                   en: 'Addresses, traffic, and connection generation',
                   zh: '地址、流量与连接代次',
                 ),
-          style: TextStyle(color: palette.muted, fontSize: 11),
+          style: AnyttyUi.muted(context),
         ),
         children: [
-          Divider(height: 1, color: palette.border),
+          Divider(height: 1, color: palette.track),
           if (snapshot == null)
             Padding(
               padding: const EdgeInsets.all(14),
@@ -794,7 +836,7 @@ final class _DiagnosticsSection extends StatelessWidget {
                   diagnostics.isLoading
                       ? 'Reading diagnostics...'
                       : diagnostics.error?.toString() ?? 'Not provided',
-                  style: TextStyle(color: palette.muted, fontSize: 12),
+                  style: AnyttyUi.muted(context),
                 ),
               ),
             )
@@ -862,16 +904,12 @@ final class _DiagnosticsSection extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.hub_outlined, size: 17, color: palette.accent),
+                    Icon(Icons.hub_outlined, size: 17, color: palette.strong),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Both public candidates match. The peers are likely behind the same NAT and connected through router mappings.',
-                        style: TextStyle(
-                          color: palette.muted,
-                          fontSize: 11,
-                          height: 1.4,
-                        ),
+                        style: AnyttyUi.muted(context),
                       ),
                     ),
                   ],
@@ -880,14 +918,28 @@ final class _DiagnosticsSection extends StatelessWidget {
           ],
           Padding(
             padding: const EdgeInsets.all(12),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                key: const ValueKey('copy-redacted-diagnostics'),
-                onPressed: onCopyRedacted,
-                icon: const Icon(Icons.copy_all_rounded, size: 18),
-                label: const Text('Copy redacted report'),
+            child: DecoratedBox(
+              decoration: AnyttyUi.pillDecoration(context),
+              child: SizedBox(
+                width: double.infinity,
+                height: AnyttyUi.controlHeight(context),
+                child: OutlinedButton.icon(
+                  key: const ValueKey('copy-redacted-diagnostics'),
+                  onPressed: onCopyRedacted,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: palette.strong,
+                    shadowColor: Colors.transparent,
+                    side: BorderSide.none,
+                    minimumSize: Size(0, AnyttyUi.controlHeight(context)),
+                  ),
+                  icon: Icon(
+                    Icons.copy_all_rounded,
+                    size: 18,
+                    color: palette.strong,
+                  ),
+                  label: const Text('Copy redacted report'),
+                ),
               ),
             ),
           ),
@@ -915,43 +967,34 @@ final class _DiagnosticRow extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.border)),
+        border: Border(bottom: BorderSide(color: palette.track)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 112,
-            child: Text(
-              label,
-              style: TextStyle(color: palette.muted, fontSize: 11),
-            ),
+            child: Text(label, style: AnyttyUi.muted(context)),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'JetBrainsMonoNerd',
-                fontSize: 11,
-                height: 1.35,
-              ),
+              style: AnyttyUi.body(context),
             ),
           ),
           if (copyValue?.trim().isNotEmpty == true) ...[
             const SizedBox(width: 4),
-            IconButton(
+            AnyttyIconButton(
               tooltip: 'Copy $label',
-              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: copyValue!));
                 ScaffoldMessenger.of(context)
                     .showSnackBar(SnackBar(content: Text('$label copied')));
               },
-              icon: const Icon(Icons.copy_rounded, size: 16),
+              icon: Icons.copy_rounded,
+              iconSize: 16,
             ),
           ],
         ],
@@ -982,19 +1025,37 @@ final class _ConnectionFooter extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         decoration: BoxDecoration(
           color: palette.background,
-          border: Border(top: BorderSide(color: palette.border)),
+          border: Border(top: BorderSide(color: palette.track)),
         ),
-        child: SizedBox(
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: enabled && changed && !applying ? onApply : null,
-            icon: applying
-                ? const SizedBox.square(
-                    dimension: 17,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync_rounded, size: 18),
-            label: Text(applying ? 'Applying...' : 'Apply and reconnect'),
+        child: DecoratedBox(
+          decoration: AnyttyUi.pillDecoration(
+            context,
+            color: enabled && changed ? palette.accent : palette.surfaceRaised,
+            enabled: enabled && changed && !applying,
+          ),
+          child: SizedBox(
+            height: AnyttyUi.controlHeight(context),
+            child: FilledButton.icon(
+              onPressed: enabled && changed && !applying ? onApply : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: palette.strong,
+                disabledForegroundColor: palette.muted,
+                disabledBackgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                minimumSize: Size(0, AnyttyUi.controlHeight(context)),
+              ),
+              icon: applying
+                  ? const SizedBox.square(
+                      dimension: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded, size: 18),
+              label: Text(
+                applying ? 'Applying...' : 'Apply and reconnect',
+                style: AnyttyUi.body(context),
+              ),
+            ),
           ),
         ),
       ),
@@ -1006,9 +1067,17 @@ final class _PolicyLoading extends StatelessWidget {
   const _PolicyLoading();
 
   @override
-  Widget build(BuildContext context) => const SizedBox(
-    height: 92,
-    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    label: anyttyText(
+      context,
+      en: 'Loading connection settings',
+      zh: '正在加载连接设置',
+    ),
+    child: const SizedBox(
+      height: 92,
+      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    ),
   );
 }
 
@@ -1021,27 +1090,26 @@ final class _PolicyError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline_rounded, color: palette.danger),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.muted, fontSize: 12),
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: message,
+      child: AnyttyCard(
+        radius: 14,
+        depth: 1,
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: palette.danger),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message, style: AnyttyUi.body(context))),
+            AnyttyPillButton(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              onPressed: onRetry,
             ),
-          ),
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1063,29 +1131,33 @@ final class _InlineMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      color: color.withValues(alpha: 0.09),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.text, fontSize: 11, height: 1.3),
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: message,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        color: color.withValues(alpha: 0.09),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: AnyttyUi.body(context).copyWith(color: palette.text),
+              ),
             ),
-          ),
-          if (onClose != null)
-            IconButton(
-              tooltip: 'Dismiss',
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded, size: 17),
-            ),
-        ],
+            if (onClose != null)
+              AnyttyIconButton(
+                tooltip: 'Dismiss',
+                onPressed: onClose,
+                icon: Icons.close_rounded,
+                iconSize: 17,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1098,15 +1170,7 @@ final class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    return Text(
-      label,
-      style: TextStyle(
-        color: palette.muted,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-      ),
-    );
+    return Text(label, style: AnyttyUi.sectionTitle(context));
   }
 }
 

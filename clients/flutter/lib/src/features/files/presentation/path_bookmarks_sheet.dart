@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_ui.dart';
 import '../data/path_bookmark_store.dart';
 
 Future<String?> showPathBookmarks({
@@ -12,7 +13,6 @@ Future<String?> showPathBookmarks({
   PathBookmarkStore store = const PathBookmarkStore(),
 }) => showModalBottomSheet<String>(
   context: context,
-  sheetAnimationStyle: AnimationStyle.noAnimation,
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
@@ -93,7 +93,6 @@ final class _PathBookmarksSheetState extends State<_PathBookmarksSheet> {
   Future<void> _edit(PathBookmark bookmark) async {
     final changed = await showModalBottomSheet<bool>(
       context: context,
-      sheetAnimationStyle: AnimationStyle.noAnimation,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
@@ -109,8 +108,8 @@ final class _PathBookmarksSheetState extends State<_PathBookmarksSheet> {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.72,
+    return FractionallySizedBox(
+      heightFactor: 0.9,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -122,54 +121,75 @@ final class _PathBookmarksSheetState extends State<_PathBookmarksSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Bookmarks',
-                        style: TextStyle(
-                          color: palette.text,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      Text('Bookmarks', style: AnyttyUi.title(context)),
                       const SizedBox(height: 2),
                       Text(
                         _loading ? 'Loading' : '${_bookmarks.length} saved',
-                        style: TextStyle(color: palette.muted, fontSize: 13),
+                        style: AnyttyUi.muted(context),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-                IconButton(
+                AnyttyIconButton(
                   tooltip: 'Close bookmarks',
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
+                  icon: Icons.close_rounded,
                 ),
               ],
             ),
           ),
-          Divider(height: 1, color: palette.border),
+          Divider(height: 1, color: palette.track),
           if (_error case final error?)
-            MaterialBanner(
-              content: Text(
-                error,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      container: true,
+                      liveRegion: true,
+                      child: Text(
+                        error,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context)
+                            .copyWith(color: palette.danger),
+                      ),
+                    ),
+                  ),
+                  AnyttyIconButton(
+                    tooltip: 'Retry bookmarks',
+                    onPressed: _load,
+                    icon: Icons.refresh_rounded,
+                  ),
+                ],
               ),
-              actions: [
-                TextButton(onPressed: _load, child: const Text('Retry')),
-              ],
             ),
           ListTile(
-            leading: const Icon(Icons.bookmark_add_outlined),
-            title: const Text('Save current folder'),
+            leading: Icon(
+              Icons.bookmark_add_outlined,
+              color: _saving ? palette.muted : palette.strong,
+            ),
+            title: Text(
+              'Save current folder',
+              style: AnyttyUi.body(context).copyWith(
+                color: _saving ? palette.muted : palette.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             subtitle: Text(
               widget.currentPath,
-              maxLines: 1,
+              style: AnyttyUi.muted(context)
+                  .copyWith(color: _saving ? palette.muted : palette.muted),
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             enabled: !_saving,
             onTap: _saveCurrent,
           ),
-          Divider(height: 1, color: palette.border),
+          Divider(height: 1, color: palette.track),
           Expanded(
             child: _loading && _bookmarks.isEmpty
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
@@ -177,29 +197,64 @@ final class _PathBookmarksSheetState extends State<_PathBookmarksSheet> {
                 ? Center(
                     child: Text(
                       'No saved bookmarks',
-                      style: TextStyle(color: palette.muted),
+                      style: AnyttyUi.muted(context),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _bookmarks.length,
                     separatorBuilder: (_, _) =>
-                        Divider(height: 1, color: palette.border),
+                        Divider(height: 1, color: palette.track),
                     itemBuilder: (context, index) {
                       final bookmark = _bookmarks[index];
-                      return ListTile(
-                        leading: const Icon(Icons.bookmark_border_rounded),
-                        title: Text(bookmark.label),
-                        subtitle: Text(
-                          bookmark.path,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 20, right: 8),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.bookmark_border_rounded,
+                              color: palette.strong,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () =>
+                                    Navigator.pop(context, bookmark.path),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        bookmark.label,
+                                        style: AnyttyUi.body(
+                                          context,
+                                        ).copyWith(fontWeight: FontWeight.w600),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        bookmark.path,
+                                        style: AnyttyUi.muted(context),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            AnyttyIconButton(
+                              tooltip: 'Edit bookmark ${bookmark.label}',
+                              onPressed: () => _edit(bookmark),
+                              icon: Icons.edit_outlined,
+                            ),
+                          ],
                         ),
-                        trailing: IconButton(
-                          tooltip: 'Edit bookmark ${bookmark.label}',
-                          onPressed: () => _edit(bookmark),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                        onTap: () => Navigator.pop(context, bookmark.path),
                       );
                     },
                   ),
@@ -261,6 +316,60 @@ final class _PathBookmarkEditorState extends State<_PathBookmarkEditor> {
 
   Future<void> _remove() async {
     if (_pending) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final palette = AnyttyPalette.of(context);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: AnyttyCard(
+            radius: 16,
+            depth: 2,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Remove bookmark?', style: AnyttyUi.sectionTitle(context)),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.25,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      widget.bookmark.path,
+                      style: AnyttyUi.body(context),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AnyttyPillButton(
+                      outlined: true,
+                      label: 'Cancel',
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    AnyttyPillButton(
+                      label: 'Remove',
+                      color: palette.danger.withValues(alpha: 0.14),
+                      foregroundColor: palette.danger,
+                      onPressed: () => Navigator.pop(context, true),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _pending = true);
     try {
       await widget.store.remove(widget.endpointId, widget.bookmark.id);
@@ -288,20 +397,18 @@ final class _PathBookmarkEditorState extends State<_PathBookmarkEditor> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Edit bookmark',
-              style: TextStyle(
-                color: palette.text,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            Text('Edit bookmark', style: AnyttyUi.title(context)),
             const SizedBox(height: 4),
-            Text(
-              widget.bookmark.path,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.muted, fontSize: 13),
+            SizedBox(
+              width: double.infinity,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  widget.bookmark.path,
+                  softWrap: false,
+                  style: AnyttyUi.muted(context),
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -318,16 +425,17 @@ final class _PathBookmarkEditorState extends State<_PathBookmarkEditor> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: AnyttyPillButton(
+                    outlined: true,
+                    label: 'Cancel',
                     onPressed: _pending ? null : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: FilledButton(
+                  child: AnyttyPillButton(
+                    label: 'Save',
                     onPressed: _pending ? null : _save,
-                    child: const Text('Save'),
                   ),
                 ),
               ],
@@ -335,16 +443,12 @@ final class _PathBookmarkEditorState extends State<_PathBookmarkEditor> {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: palette.danger,
-                  side: BorderSide(
-                    color: palette.danger.withValues(alpha: 0.35),
-                  ),
-                ),
+              child: AnyttyPillButton(
+                label: 'Remove bookmark',
+                icon: Icons.delete_outline_rounded,
+                color: palette.danger.withValues(alpha: 0.12),
+                foregroundColor: palette.danger,
                 onPressed: _pending ? null : _remove,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Remove bookmark'),
               ),
             ),
           ],

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_ui.dart';
 import '../../../app/app_appearance.dart';
 import '../../../app/app_color_preferences.dart';
 import '../../../app/app_language.dart';
@@ -15,6 +16,17 @@ import '../../../app/providers.dart';
 import '../../../native/background_platform.dart';
 import '../../terminal/domain/terminal_petal_menu_preferences.dart';
 import '../../terminal/domain/terminal_settings.dart';
+
+double _settingsControlHeight(BuildContext context, {bool multiline = false}) {
+  final scale = MediaQuery.textScalerOf(context).scale(1);
+  final lineHeight = scale * 18;
+  return math
+      .max(
+        AnyttyUi.controlHeight(context),
+        multiline && scale > 1.5 ? lineHeight * 2 + 16 : lineHeight + 16,
+      )
+      .toDouble();
+}
 
 final class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -40,10 +52,11 @@ final class SettingsScreen extends ConsumerWidget {
         BackgroundPreferences.defaults;
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
+        toolbarHeight: AnyttyUi.appBarHeight(context, subtitleLines: 1),
+        leading: AnyttyIconButton(
           tooltip: anyttyText(context, en: 'Back to devices', zh: '返回设备列表'),
           onPressed: context.pop,
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: Icons.chevron_left_rounded,
         ),
         titleSpacing: 0,
         title: Column(
@@ -51,11 +64,11 @@ final class SettingsScreen extends ConsumerWidget {
           children: [
             Text(
               anyttyText(context, en: 'Settings', zh: '设置'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: AnyttyUi.title(context),
             ),
             Text(
               anyttyText(context, en: 'Device access', zh: '设备与终端'),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              style: AnyttyUi.muted(context),
             ),
           ],
         ),
@@ -72,11 +85,7 @@ final class SettingsScreen extends ConsumerWidget {
                 children: [
                   Text(
                     anyttyText(context, en: 'APPEARANCE', zh: '外观'),
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.sectionTitle(context),
                   ),
                   const SizedBox(height: 8),
                   _AppearancePicker(
@@ -88,8 +97,12 @@ final class SettingsScreen extends ConsumerWidget {
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: palette.surface,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: AnyttyUi.cardDecoration(
+                        context,
+                        radius: 14,
+                        depth: 1,
+                      ).boxShadow,
                     ),
                     child: _SettingsNavigationRow(
                       key: const ValueKey('theme-color-settings-link'),
@@ -106,19 +119,19 @@ final class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text(
                     anyttyText(context, en: 'LANGUAGE', zh: '语言'),
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.sectionTitle(context),
                   ),
                   const SizedBox(height: 8),
                   Container(
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: palette.surface,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: AnyttyUi.cardDecoration(
+                        context,
+                        radius: 14,
+                        depth: 1,
+                      ).boxShadow,
                     ),
                     child: _SettingsRow(
                       label: anyttyText(
@@ -152,11 +165,7 @@ final class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text(
                     anyttyText(context, en: 'TERMINAL', zh: '终端'),
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.sectionTitle(context),
                   ),
                   const SizedBox(height: 8),
                   _TerminalSettingsPreview(settings: terminalSettings),
@@ -165,8 +174,12 @@ final class SettingsScreen extends ConsumerWidget {
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: palette.surface,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: AnyttyUi.cardDecoration(
+                        context,
+                        radius: 14,
+                        depth: 1,
+                      ).boxShadow,
                     ),
                     child: Column(
                       children: [
@@ -187,7 +200,7 @@ final class SettingsScreen extends ConsumerWidget {
                           icon: LucideIcons.flower2,
                           onTap: () => context.push('/settings/petal-menu'),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -203,7 +216,7 @@ final class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(context, en: 'Font', zh: '字体'),
                           child: _FontPreviewButton(
@@ -222,7 +235,7 @@ final class SettingsScreen extends ConsumerWidget {
                             },
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -245,7 +258,7 @@ final class SettingsScreen extends ConsumerWidget {
                             },
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -285,7 +298,7 @@ final class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -310,7 +323,7 @@ final class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -337,7 +350,7 @@ final class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -379,10 +392,8 @@ final class SettingsScreen extends ConsumerWidget {
                                   child: Text(
                                     '${terminalSettings.scrollInertia}',
                                     textAlign: TextAlign.right,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: AnyttyUi.body(context)
+                                        .copyWith(fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ),
@@ -395,19 +406,19 @@ final class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text(
                     anyttyText(context, en: 'BACKGROUND', zh: '后台'),
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.sectionTitle(context),
                   ),
                   const SizedBox(height: 8),
                   Container(
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       color: palette.surface,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: AnyttyUi.cardDecoration(
+                        context,
+                        radius: 14,
+                        depth: 1,
+                      ).boxShadow,
                     ),
                     child: Column(
                       children: [
@@ -437,7 +448,7 @@ final class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        _SettingsDivider(color: palette.border),
+                        _SettingsDivider(color: palette.track),
                         _SettingsRow(
                           label: anyttyText(
                             context,
@@ -623,6 +634,8 @@ final class _SettingsNavigationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final lineHeight =
+        MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5);
     return Semantics(
       button: true,
       label: '$label, $status',
@@ -631,12 +644,14 @@ final class _SettingsNavigationRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 64),
+          constraints: BoxConstraints(
+            minHeight: math.max(64, lineHeight * 2 + 18),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                Icon(icon, size: 20, color: palette.muted),
+                Icon(icon, size: 20, color: palette.strong),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -645,29 +660,20 @@ final class _SettingsNavigationRow extends StatelessWidget {
                     children: [
                       Text(
                         label,
-                        maxLines: 2,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          height: 1.25,
-                        ),
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontWeight: FontWeight.normal),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         status,
-                        maxLines: 2,
-                        style: TextStyle(
-                          color: palette.muted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          height: 1.25,
-                        ),
+                        style: AnyttyUi.muted(context)
+                            .copyWith(fontWeight: FontWeight.normal),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(LucideIcons.chevronRight, size: 18, color: palette.muted),
+                Icon(LucideIcons.chevronRight, size: 18, color: palette.strong),
               ],
             ),
           ),
@@ -760,27 +766,26 @@ final class _TerminalSettingsPreviewState
       child: AnimatedContainer(
         duration: AnyttyMotion.resolve(context, AnyttyMotion.standard),
         curve: AnyttyMotion.emphasized,
-        height: 148,
+        height: math.max(148, AnyttyUi.controlHeight(context) + 116),
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
+        decoration: AnyttyUi.cardDecoration(
+          context,
+          radius: 14,
+          depth: 1,
           color: background,
-          border: Border.all(color: palette.borderStrong),
-          borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 32,
+              height: AnyttyUi.controlHeight(context),
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
                 color: Color.alphaBlend(
                   foreground.withValues(alpha: 0.06),
                   background,
                 ),
-                border: Border(
-                  bottom: BorderSide(color: foreground.withValues(alpha: 0.12)),
-                ),
+                border: Border(bottom: BorderSide(color: palette.track)),
               ),
               child: Row(
                 children: [
@@ -798,21 +803,17 @@ final class _TerminalSettingsPreviewState
                       terminalTheme.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: AnyttyUi.body(context).copyWith(
                         color: foreground.withValues(alpha: 0.72),
                         fontFamily: widget.settings.fontFamily,
-                        fontSize: 10,
-                        letterSpacing: 0,
                       ),
                     ),
                   ),
                   Text(
                     '${widget.settings.fontSize} pt',
-                    style: TextStyle(
+                    style: AnyttyUi.body(context).copyWith(
                       color: foreground.withValues(alpha: 0.56),
                       fontFamily: widget.settings.fontFamily,
-                      fontSize: 9,
-                      letterSpacing: 0,
                     ),
                   ),
                 ],
@@ -821,65 +822,67 @@ final class _TerminalSettingsPreviewState
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 9, 12, 8),
-                child: FittedBox(
-                  alignment: Alignment.topLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text.rich(
-                        TextSpan(
-                          style: lineStyle,
-                          children: [
-                            TextSpan(
-                              text: 'anytty',
-                              style: TextStyle(color: green),
-                            ),
-                            const TextSpan(text: ' in '),
-                            TextSpan(
-                              text: '~/workspace',
-                              style: TextStyle(color: cyan),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text.rich(
-                        TextSpan(
-                          style: lineStyle,
-                          children: [
-                            TextSpan(
-                              text: r'$ ',
-                              style: TextStyle(color: yellow),
-                            ),
-                            const TextSpan(text: 'git status --short'),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            ' M clients/flutter/lib/app.dart ',
+                child: SingleChildScrollView(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text.rich(
+                          TextSpan(
                             style: lineStyle,
+                            children: [
+                              TextSpan(
+                                text: 'anytty',
+                                style: TextStyle(color: green),
+                              ),
+                              const TextSpan(text: ' in '),
+                              TextSpan(
+                                text: '~/workspace',
+                                style: TextStyle(color: cyan),
+                              ),
+                            ],
                           ),
-                          AnimatedBuilder(
-                            animation: _cursor,
-                            builder: (context, child) => Opacity(
-                              opacity:
-                                  widget.settings.cursorBlink && !motionDisabled
-                                  ? 0.28 + (_cursor.value * 0.72)
-                                  : 1,
-                              child: child,
-                            ),
-                            child: Container(
-                              width: math.max(2, previewFontSize * 0.52),
-                              height: previewFontSize * 1.05,
-                              color: _terminalColor(terminalTheme.cursor),
-                            ),
+                        ),
+                        Text.rich(
+                          TextSpan(
+                            style: lineStyle,
+                            children: [
+                              TextSpan(
+                                text: r'$ ',
+                                style: TextStyle(color: yellow),
+                              ),
+                              const TextSpan(text: 'git status --short'),
+                            ],
                           ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              ' M clients/flutter/lib/app.dart ',
+                              style: lineStyle,
+                            ),
+                            AnimatedBuilder(
+                              animation: _cursor,
+                              builder: (context, child) => Opacity(
+                                opacity:
+                                    widget.settings.cursorBlink &&
+                                        !motionDisabled
+                                    ? 0.28 + (_cursor.value * 0.72)
+                                    : 1,
+                                child: child,
+                              ),
+                              child: Container(
+                                width: math.max(2, previewFontSize * 0.52),
+                                height: previewFontSize * 1.05,
+                                color: _terminalColor(terminalTheme.cursor),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -907,48 +910,51 @@ final class _SettingsRow extends StatelessWidget {
   final bool excludeLabelSemantics;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    child: stacked
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ExcludeSemantics(
-                excluding: excludeLabelSemantics,
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              child,
-            ],
-          )
-        : Row(
-            children: [
-              Expanded(
-                child: ExcludeSemantics(
-                  excluding: excludeLabelSemantics,
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.visible,
-                    softWrap: true,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      height: 1.25,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stack =
+          stacked ||
+          constraints.maxWidth < 420 ||
+          MediaQuery.textScalerOf(context).scale(1) > 1.35;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: stack
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ExcludeSemantics(
+                    excluding: excludeLabelSemantics,
+                    child: Text(
+                      label,
+                      style: AnyttyUi.body(context)
+                          .copyWith(fontWeight: FontWeight.normal),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  child,
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: ExcludeSemantics(
+                      excluding: excludeLabelSemantics,
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontWeight: FontWeight.normal),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(child: child),
+                ],
               ),
-              const SizedBox(width: 12),
-              child,
-            ],
-          ),
+      );
+    },
   );
 }
 
@@ -962,31 +968,36 @@ final class _FontSizeStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return Container(
-      height: 50,
-      decoration: BoxDecoration(
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
+      height: AnyttyUi.controlHeight(context),
+      decoration: AnyttyUi.cardDecoration(
+        context,
+        radius: 14,
+        depth: 1,
+        color: palette.surfaceRaised,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
+          AnyttyIconButton(
             tooltip: anyttyText(context, en: 'Decrease font size', zh: '减小字体'),
             onPressed: value > 8 ? () => onChanged(value - 1) : null,
-            icon: const Icon(Icons.remove_rounded, size: 17),
+            icon: Icons.remove_rounded,
+            iconSize: 17,
           ),
           SizedBox(
             width: 42,
             child: Text(
               '$value',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: AnyttyUi.body(context)
+                  .copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          IconButton(
+          AnyttyIconButton(
             tooltip: anyttyText(context, en: 'Increase font size', zh: '增大字体'),
             onPressed: value < 32 ? () => onChanged(value + 1) : null,
-            icon: const Icon(Icons.add_rounded, size: 17),
+            icon: Icons.add_rounded,
+            iconSize: 17,
           ),
         ],
       ),
@@ -1010,38 +1021,44 @@ final class _SettingsDropdown<T> extends StatelessWidget {
   final ValueChanged<T> onChanged;
 
   @override
-  Widget build(BuildContext context) => MergeSemantics(
-    child: Semantics(
-      label: semanticsLabel,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 190),
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          underline: const SizedBox.shrink(),
-          borderRadius: BorderRadius.circular(6),
-          items: [
-            for (final item in values)
-              DropdownMenuItem<T>(
-                value: item,
-                child: Text(
-                  labelFor(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+  Widget build(BuildContext context) {
+    final height = _settingsControlHeight(context);
+    return MergeSemantics(
+      child: Semantics(
+        label: semanticsLabel,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 190),
+          child: DecoratedBox(
+            decoration: AnyttyUi.pillDecoration(context),
+            child: SizedBox(
+              height: height,
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                underline: const SizedBox.shrink(),
+                borderRadius: BorderRadius.circular(6),
+                items: [
+                  for (final item in values)
+                    DropdownMenuItem<T>(
+                      value: item,
+                      child: Text(
+                        labelFor(item),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context),
+                      ),
+                    ),
+                ],
+                onChanged: (next) {
+                  if (next != null) onChanged(next);
+                },
               ),
-          ],
-          onChanged: (next) {
-            if (next != null) onChanged(next);
-          },
+            ),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 final class _FontPreviewButton extends StatelessWidget {
@@ -1053,6 +1070,7 @@ final class _FontPreviewButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final height = _settingsControlHeight(context, multiline: true);
     return Semantics(
       button: true,
       label: anyttyText(
@@ -1062,55 +1080,38 @@ final class _FontPreviewButton extends StatelessWidget {
       ),
       onTap: onPressed,
       excludeSemantics: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const ValueKey('terminal-font-picker'),
-          borderRadius: BorderRadius.circular(6),
-          onTap: onPressed,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: 174,
-              maxWidth: 174,
-              minHeight: 48,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Aa 01 ~/',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.text,
-                            fontFamily: value,
-                            fontSize: 14,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        Text(
-                          terminalFontLabel(value),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: palette.muted, fontSize: 10),
-                        ),
-                      ],
+      child: DecoratedBox(
+        decoration: AnyttyUi.pillDecoration(context),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const ValueKey('terminal-font-picker'),
+            customBorder: const StadiumBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              height: height,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        terminalFontLabel(value),
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontFamily: value, color: palette.text),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: palette.faint,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: palette.strong,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1129,6 +1130,7 @@ final class _ThemePreviewButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final height = _settingsControlHeight(context, multiline: true);
     return Semantics(
       button: true,
       label: anyttyText(
@@ -1138,49 +1140,40 @@ final class _ThemePreviewButton extends StatelessWidget {
       ),
       onTap: onPressed,
       excludeSemantics: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const ValueKey('terminal-theme-picker'),
-          borderRadius: BorderRadius.circular(6),
-          onTap: onPressed,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: 174,
-              maxWidth: 174,
-              minHeight: 48,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          value.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        _ThemeSwatches(theme: value, compact: true),
-                      ],
+      child: DecoratedBox(
+        decoration: AnyttyUi.pillDecoration(context),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const ValueKey('terminal-theme-picker'),
+            customBorder: const StadiumBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              height: height,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        value.label,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontWeight: FontWeight.w600),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: palette.faint,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    _ThemeSwatches(theme: value, compact: true),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: palette.strong,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1194,14 +1187,13 @@ Future<String?> _showFontPicker(BuildContext context, String selected) {
   final palette = AnyttyPalette.of(context);
   return showModalBottomSheet<String>(
     context: context,
-    sheetAnimationStyle: AnimationStyle.noAnimation,
     useSafeArea: true,
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: palette.surface,
     barrierColor: palette.overlay,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (context) => _FontPickerSheet(selected: selected),
   );
@@ -1229,43 +1221,31 @@ final class _FontPickerSheet extends StatelessWidget {
                 zh: '关闭字体选择',
               ),
             ),
-            Divider(height: 1, color: palette.border),
+            Divider(height: 1, color: palette.track),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
                   Text(
                     anyttyText(context, en: 'FONT PREVIEW', zh: '字体预览'),
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.sectionTitle(context),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: palette.surfaceRaised,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        for (
-                          var index = 0;
-                          index < terminalFontFamilies.length;
-                          index++
-                        ) ...[
-                          _FontChoiceRow(
-                            value: terminalFontFamilies[index],
-                            selected: terminalFontFamilies[index] == selected,
-                          ),
-                          if (index != terminalFontFamilies.length - 1)
-                            Divider(height: 1, color: palette.border),
-                        ],
+                  Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < terminalFontFamilies.length;
+                        index++
+                      ) ...[
+                        _FontChoiceRow(
+                          value: terminalFontFamilies[index],
+                          selected: terminalFontFamilies[index] == selected,
+                        ),
+                        if (index != terminalFontFamilies.length - 1)
+                          const SizedBox(height: 8),
                       ],
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -1286,6 +1266,7 @@ final class _FontChoiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final height = _settingsControlHeight(context, multiline: true);
     return Semantics(
       button: true,
       selected: selected,
@@ -1296,54 +1277,50 @@ final class _FontChoiceRow extends StatelessWidget {
       ),
       onTap: () => Navigator.pop(context, value),
       excludeSemantics: true,
-      child: InkWell(
-        key: ValueKey('terminal-font-$value'),
-        onTap: () => Navigator.pop(context, value),
-        child: SizedBox(
-          height: 78,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+      child: DecoratedBox(
+        decoration: AnyttyUi.pillDecoration(
+          context,
+          selected: selected,
+          color: selected ? palette.accent : palette.surfaceRaised,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: ValueKey('terminal-font-$value'),
+            customBorder: const StadiumBorder(),
+            onTap: () => Navigator.pop(context, value),
+            child: SizedBox(
+              height: height,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
                         terminalFontLabel(value),
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        r'anytty ~/workspace $ Aa 01 {}[]',
-                        maxLines: 1,
-                        overflow: TextOverflow.clip,
-                        style: TextStyle(
-                          color: palette.muted,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context).copyWith(
                           fontFamily: value,
-                          fontSize: 13,
-                          letterSpacing: 0,
+                          color: selected ? palette.accentText : palette.text,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox.square(
+                      dimension: 24,
+                      child: selected
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: palette.accentText,
+                              size: 21,
+                            )
+                          : null,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                SizedBox.square(
-                  dimension: 24,
-                  child: selected
-                      ? Icon(
-                          Icons.check_rounded,
-                          color: palette.accent,
-                          size: 21,
-                        )
-                      : null,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1356,14 +1333,13 @@ Future<String?> _showThemePicker(BuildContext context, String selected) {
   final palette = AnyttyPalette.of(context);
   return showModalBottomSheet<String>(
     context: context,
-    sheetAnimationStyle: AnimationStyle.noAnimation,
     useSafeArea: true,
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: palette.surface,
     barrierColor: palette.overlay,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (context) => _ThemePickerSheet(selected: selected),
   );
@@ -1421,7 +1397,7 @@ final class _ThemePickerSheetState extends State<_ThemePickerSheet> {
                 zh: '关闭主题选择',
               ),
             ),
-            Divider(height: 1, color: palette.border),
+            Divider(height: 1, color: palette.track),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -1464,39 +1440,22 @@ final class _ThemeChoiceGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: palette.muted,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        Text(label, style: AnyttyUi.sectionTitle(context)),
         const SizedBox(height: 8),
-        Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            border: Border.all(color: palette.border),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              for (var index = 0; index < themes.length; index++) ...[
-                _ThemeChoiceRow(
-                  key: themes[index].id == selected ? selectedKey : null,
-                  theme: themes[index],
-                  selected: themes[index].id == selected,
-                ),
-                if (index != themes.length - 1)
-                  Divider(height: 1, color: palette.border),
-              ],
+        Column(
+          children: [
+            for (var index = 0; index < themes.length; index++) ...[
+              _ThemeChoiceRow(
+                key: themes[index].id == selected ? selectedKey : null,
+                theme: themes[index],
+                selected: themes[index].id == selected,
+              ),
+              if (index != themes.length - 1) const SizedBox(height: 8),
             ],
-          ),
+          ],
         ),
       ],
     );
@@ -1516,6 +1475,12 @@ final class _ThemeChoiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final lineHeight =
+        MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5);
+    final tileHeight = math.max(
+      AnyttyUi.controlHeight(context),
+      lineHeight * 2 + 16,
+    );
     return Semantics(
       button: true,
       selected: selected,
@@ -1526,40 +1491,52 @@ final class _ThemeChoiceRow extends StatelessWidget {
       ),
       onTap: () => Navigator.pop(context, theme.id),
       excludeSemantics: true,
-      child: InkWell(
-        key: ValueKey('terminal-theme-${theme.id}'),
-        onTap: () => Navigator.pop(context, theme.id),
-        child: SizedBox(
-          height: 62,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    theme.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+      child: DecoratedBox(
+        decoration: AnyttyUi.pillDecoration(
+          context,
+          selected: selected,
+          color: selected ? palette.accent : palette.surfaceRaised,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: ValueKey('terminal-theme-${theme.id}'),
+            customBorder: const StadiumBorder(),
+            onTap: () => Navigator.pop(context, theme.id),
+            child: SizedBox(
+              height: tileHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        theme.label,
+                        maxLines: 2,
+                        softWrap: true,
+                        overflow: TextOverflow.ellipsis,
+                        style: AnyttyUi.body(context).copyWith(
+                          color: selected ? palette.accentText : palette.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    _ThemeSwatches(theme: theme),
+                    const SizedBox(width: 10),
+                    SizedBox.square(
+                      dimension: 24,
+                      child: selected
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: palette.accentText,
+                              size: 21,
+                            )
+                          : null,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _ThemeSwatches(theme: theme),
-                const SizedBox(width: 10),
-                SizedBox.square(
-                  dimension: 24,
-                  child: selected
-                      ? Icon(
-                          Icons.check_rounded,
-                          color: palette.accent,
-                          size: 21,
-                        )
-                      : null,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1576,7 +1553,6 @@ final class _ThemeSwatches extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
     final colors = [
       theme.background,
       theme.foreground,
@@ -1598,10 +1574,13 @@ final class _ThemeSwatches extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _terminalColor(colors[index]),
                 borderRadius: BorderRadius.circular(compact ? 2 : 3),
-                border: Border.all(
-                  color: palette.borderStrong.withValues(alpha: 0.55),
-                  width: 0.5,
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
             ),
             if (index != colors.length - 1) SizedBox(width: gap),
@@ -1619,22 +1598,17 @@ final class _PickerHeader extends StatelessWidget {
   final String closeTooltip;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 58,
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(minHeight: AnyttyUi.controlHeight(context)),
     child: Padding(
       padding: const EdgeInsets.only(left: 16, right: 4),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-            ),
-          ),
-          IconButton(
+          Expanded(child: Text(title, style: AnyttyUi.title(context))),
+          AnyttyIconButton(
             tooltip: closeTooltip,
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.close_rounded),
+            icon: Icons.close_rounded,
           ),
         ],
       ),
@@ -1651,45 +1625,64 @@ final class _AppearancePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
-      height: 58,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: palette.surfaceRaised,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: _AppearanceOption(
-              label: anyttyText(context, en: 'Light', zh: '浅色'),
-              icon: Icons.light_mode_outlined,
-              selected: value == AppAppearance.light,
-              onPressed: () => onChanged(AppAppearance.light),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final compact = constraints.maxWidth < 420 || scale > 1.5;
+        final columns = compact ? 2 : 3;
+        final gap = 4.0;
+        final lineHeight =
+            MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5);
+        final optionHeight = math
+            .max(
+              AnyttyUi.controlHeight(context),
+              compact && scale > 1.5 ? lineHeight * 2 + 8 : 0,
+            )
+            .toDouble();
+        final options = [
+          _AppearanceOption(
+            label: anyttyText(context, en: 'Light', zh: '浅色'),
+            icon: Icons.light_mode_outlined,
+            selected: value == AppAppearance.light,
+            onPressed: () => onChanged(AppAppearance.light),
+            height: optionHeight,
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _AppearanceOption(
-              label: anyttyText(context, en: 'Dark', zh: '深色'),
-              icon: Icons.dark_mode_outlined,
-              selected: value == AppAppearance.dark,
-              onPressed: () => onChanged(AppAppearance.dark),
-            ),
+          _AppearanceOption(
+            label: anyttyText(context, en: 'Dark', zh: '深色'),
+            icon: Icons.dark_mode_outlined,
+            selected: value == AppAppearance.dark,
+            onPressed: () => onChanged(AppAppearance.dark),
+            height: optionHeight,
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _AppearanceOption(
-              label: anyttyText(context, en: 'System', zh: '跟随系统'),
-              icon: Icons.brightness_auto_outlined,
-              selected: value == AppAppearance.system,
-              onPressed: () => onChanged(AppAppearance.system),
-            ),
+          _AppearanceOption(
+            label: anyttyText(context, en: 'System', zh: '跟随系统'),
+            icon: Icons.brightness_auto_outlined,
+            selected: value == AppAppearance.system,
+            onPressed: () => onChanged(AppAppearance.system),
+            height: optionHeight,
           ),
-        ],
-      ),
+        ];
+        final rows = (options.length + columns - 1) ~/ columns;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Container(
+          height: optionHeight * rows + gap * (rows - 1) + 8,
+          padding: const EdgeInsets.all(4),
+          decoration: AnyttyUi.cardDecoration(
+            context,
+            radius: 14,
+            depth: 1,
+            color: palette.surfaceRaised,
+          ),
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final option in options)
+                SizedBox(width: width, height: optionHeight, child: option),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1700,12 +1693,14 @@ final class _AppearanceOption extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onPressed,
+    this.height,
   });
 
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onPressed;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -1721,34 +1716,43 @@ final class _AppearanceOption extends StatelessWidget {
       ),
       onTap: onPressed,
       excludeSemantics: true,
-      child: Material(
-        color: selected ? palette.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(6),
-          onTap: onPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 17,
-                color: selected ? palette.accentText : palette.muted,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected ? palette.accentText : palette.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+      child: DecoratedBox(
+        decoration: AnyttyUi.pillDecoration(
+          context,
+          selected: selected,
+          color: selected ? palette.accent : palette.surfaceRaised,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              height: height ?? AnyttyUi.controlHeight(context),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 17,
+                    color: selected ? palette.accentText : palette.strong,
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      style: AnyttyUi.body(context).copyWith(
+                        color: selected ? palette.accentText : palette.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

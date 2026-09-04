@@ -49,7 +49,7 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
       tester.getSize(find.byTooltip('Close preview')).height,
-      greaterThanOrEqualTo(48),
+      greaterThanOrEqualTo(44),
     );
 
     await tester.tap(find.byTooltip('Close preview'));

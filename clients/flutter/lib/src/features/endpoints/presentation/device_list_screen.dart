@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_ui.dart';
 import '../../../app/anytty_localizations.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
@@ -16,6 +18,17 @@ import '../../browser/data/browser_device_data.dart';
 import '../../files/presentation/file_transfer_sheet.dart';
 import '../data/endpoint_repository.dart';
 import '../domain/device_search.dart';
+
+double _deviceControlHeight(BuildContext context, {bool multiline = false}) {
+  final scale = MediaQuery.textScalerOf(context).scale(1);
+  final lineHeight = scale * 18;
+  return math
+      .max(
+        AnyttyUi.controlHeight(context),
+        multiline && scale > 1.5 ? lineHeight * 2 + 16 : lineHeight + 16,
+      )
+      .toDouble();
+}
 
 final class DeviceListScreen extends ConsumerStatefulWidget {
   const DeviceListScreen({super.key});
@@ -75,7 +88,12 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     }).length;
     final screen = Scaffold(
       appBar: AppBar(
-        toolbarHeight: 76,
+        toolbarHeight: AnyttyUi.appBarHeight(
+          context,
+          minimum: 76,
+          subtitleLines: 2,
+          eyebrow: true,
+        ),
         titleSpacing: 20,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,16 +101,15 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
           children: [
             Text(
               'ANYTTY',
-              style: TextStyle(
+              style: AnyttyUi.body(context).copyWith(
                 color: AnyttyPalette.of(context).accent,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               anyttyText(context, en: 'Devices', zh: '设备'),
-              style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w700),
+              style: AnyttyUi.title(context),
             ),
             const SizedBox(height: 3),
             Text(
@@ -101,48 +118,41 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
                 en: 'Return to your workspace anytime',
                 zh: '随时回到你的工作现场',
               ),
-              style: TextStyle(
-                color: AnyttyPalette.of(context).muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
+              style: AnyttyUi.muted(context),
+              maxLines: 2,
+              softWrap: true,
               overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         actions: [
-          _RaisedHeaderAction(
-            child: IconButton(
-              tooltip: anyttyText(context, en: 'Pair device', zh: '扫码配对'),
-              onPressed: registry.hasValue
-                  ? () => _showPairingSheet(context)
-                  : null,
-              icon: const Icon(Icons.qr_code_scanner_rounded),
-            ),
+          AnyttyIconButton(
+            tooltip: anyttyText(context, en: 'Pair device', zh: '扫码配对'),
+            onPressed: registry.hasValue
+                ? () => _showPairingSheet(context)
+                : null,
+            icon: Icons.qr_code_scanner_rounded,
           ),
-          _RaisedHeaderAction(
-            child: FileTransferCenterAction(
+          if (MediaQuery.sizeOf(context).width >= 500 &&
+              MediaQuery.textScalerOf(context).scale(14.5) < 22)
+            FileTransferCenterAction(
               controller: ref.read(fileTransferControllerProvider),
               showWhenEmpty: true,
-              dimension: 48,
+              dimension: 44,
               iconSize: 22,
             ),
-          ),
-          _RaisedHeaderAction(
-            child: _DeviceHeaderStatus(
+          if (MediaQuery.sizeOf(context).width >= 500 &&
+              MediaQuery.textScalerOf(context).scale(14.5) < 22)
+            _DeviceHeaderStatus(
               onlineCount: onlineCount,
               totalCount: deviceCount,
               refreshing: registry.isLoading || _refreshing,
               onRefresh: _refreshDevices,
             ),
-          ),
-          _RaisedHeaderAction(
-            child: IconButton(
-              tooltip: anyttyText(context, en: 'Settings', zh: '设置'),
-              onPressed: () => context.push('/settings'),
-              icon: const Icon(Icons.settings_outlined),
-            ),
+          AnyttyIconButton(
+            tooltip: anyttyText(context, en: 'Settings', zh: '设置'),
+            onPressed: () => context.push('/settings'),
+            icon: Icons.settings_outlined,
           ),
           const SizedBox(width: 4),
         ],
@@ -253,19 +263,20 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
     if (_refreshing) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AnyttyDialog(
         title: const Text('Reset saved devices?'),
         content: const Text(
           'This clears the local device registry on this phone. It does not change remote terminals.',
         ),
         actions: [
-          TextButton(
+          AnyttyPillButton(
+            outlined: true,
+            label: 'Cancel',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
+          AnyttyPillButton(
+            label: 'Reset',
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reset'),
           ),
         ],
       ),
@@ -288,16 +299,6 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
       if (mounted) setState(() => _refreshing = false);
     }
   }
-}
-
-final class _RaisedHeaderAction extends StatelessWidget {
-  const _RaisedHeaderAction({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) =>
-      Transform.translate(offset: const Offset(0, -18), child: child);
 }
 
 AsyncValue<EndpointCloudPresenceGetResult>? _cloudPresenceFor(
@@ -333,71 +334,57 @@ final class _DeviceHeaderStatus extends StatelessWidget {
       en: '$onlineCount of $totalCount devices online. Refresh',
       zh: '$onlineCount/$totalCount 台在线，刷新',
     );
-    return Tooltip(
-      message: status,
-      child: Semantics(
-        button: true,
-        liveRegion: true,
-        label: status,
-        child: InkResponse(
-          key: const ValueKey('device-header-status'),
-          onTap: refreshing ? null : onRefresh,
-          radius: 24,
-          child: SizedBox.square(
-            dimension: 48,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox.square(
-                  dimension: 19,
-                  child: refreshing
-                      ? CircularProgressIndicator(
-                          color: palette.accent,
-                          strokeWidth: 2,
-                        )
-                      : Stack(
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.none,
-                          children: [
-                            Icon(
-                              Icons.refresh_rounded,
-                              color: palette.muted,
-                              size: 19,
-                            ),
-                            Positioned(
-                              right: -1,
-                              top: -1,
-                              child: Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: onlineCount > 0
-                                      ? palette.success
-                                      : palette.faint,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: palette.background,
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+    return Semantics(
+      liveRegion: true,
+      label: status,
+      child: AnyttyIconButton(
+        key: const ValueKey('device-header-status'),
+        tooltip: status,
+        onPressed: refreshing ? null : onRefresh,
+        icon: Icons.refresh_rounded,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          alignment: Alignment.center,
+          children: [
+            if (refreshing)
+              SizedBox.square(
+                dimension: 19,
+                child: CircularProgressIndicator(
+                  color: palette.accent,
+                  strokeWidth: 2,
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  '$onlineCount/$totalCount',
-                  textScaler: TextScaler.noScaling,
-                  style: TextStyle(
-                    color: palette.muted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
+              )
+            else
+              Icon(Icons.refresh_rounded, color: palette.strong, size: 19),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: DecoratedBox(
+                decoration: AnyttyUi.pillDecoration(
+                  context,
+                  color: palette.surfaceRaised,
+                  radius: 10,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 36),
+                    child: Text(
+                      '$onlineCount/$totalCount',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AnyttyUi.body(context).copyWith(
+                        color: onlineCount > 0
+                            ? palette.success
+                            : palette.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -418,8 +405,9 @@ final class _DeviceSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final height = _deviceControlHeight(context);
     return SizedBox(
-      height: 44,
+      height: height,
       child: Focus(
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent &&
@@ -435,29 +423,32 @@ final class _DeviceSearchField extends StatelessWidget {
           focusNode: focusNode,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
+            labelText: anyttyText(context, en: 'Search devices', zh: '搜索设备'),
             hintText: anyttyText(context, en: 'Search devices', zh: '搜索设备'),
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: palette.muted,
+              color: palette.strong,
               size: 19,
             ),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (controller.text.isNotEmpty)
-                  IconButton(
+                  AnyttyIconButton(
                     tooltip: anyttyText(
                       context,
                       en: 'Clear search',
                       zh: '清除搜索',
                     ),
                     onPressed: controller.clear,
-                    icon: const Icon(Icons.backspace_outlined, size: 17),
+                    icon: Icons.backspace_outlined,
+                    iconSize: 17,
                   ),
-                IconButton(
+                AnyttyIconButton(
                   tooltip: anyttyText(context, en: 'Close search', zh: '关闭搜索'),
                   onPressed: onClose,
-                  icon: const Icon(Icons.close_rounded, size: 18),
+                  icon: Icons.close_rounded,
+                  iconSize: 18,
                 ),
               ],
             ),
@@ -466,11 +457,11 @@ final class _DeviceSearchField extends StatelessWidget {
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: palette.border),
+              borderSide: BorderSide(color: Colors.transparent),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: palette.accent, width: 1.5),
+              borderSide: BorderSide(color: Colors.transparent),
             ),
           ),
         ),
@@ -489,11 +480,12 @@ final class _NoMatchingDevices extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 36),
       child: Column(
         children: [
-          Icon(Icons.search_off_rounded, color: palette.muted, size: 30),
+          Icon(Icons.search_off_rounded, color: palette.strong, size: 30),
           const SizedBox(height: 10),
           Text(
             anyttyText(context, en: 'No matching devices', zh: '没有匹配的设备'),
-            style: TextStyle(color: palette.muted, fontWeight: FontWeight.w600),
+            style: AnyttyUi.muted(context)
+                .copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -528,39 +520,31 @@ final class _DeviceSectionHeading extends StatelessWidget {
               controller: searchController,
               focusNode: searchFocusNode,
               onClose: onCloseSearch,
-          )
+            )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
                   anyttyText(context, en: 'My devices', zh: '我的设备'),
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AnyttyUi.sectionTitle(context),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   '$count',
-                  style: TextStyle(
-                    color: palette.faint,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AnyttyUi.muted(
+                    context,
+                  ).copyWith(color: palette.muted, fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
-                SizedBox.square(
-                  dimension: 40,
-                  child: IconButton(
-                    tooltip: anyttyText(
-                      context,
-                      en: 'Search devices',
-                      zh: '搜索设备',
-                    ),
-                    onPressed: onOpenSearch,
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.search_rounded, size: 20),
+                AnyttyIconButton(
+                  tooltip: anyttyText(
+                    context,
+                    en: 'Search devices',
+                    zh: '搜索设备',
                   ),
+                  onPressed: onOpenSearch,
+                  icon: Icons.search_rounded,
+                  iconSize: 20,
                 ),
               ],
             ),
@@ -629,196 +613,184 @@ final class _DeviceRow extends ConsumerWidget {
       child: Ink(
         decoration: BoxDecoration(
           color: palette.surface,
-          border: Border.all(color: palette.border),
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(
-                alpha: Theme.of(context).brightness == Brightness.dark
-                    ? 0.16
-                    : 0.045,
-              ),
-              blurRadius: 18,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          boxShadow: AnyttyUi.cardDecoration(
+            context,
+            radius: 18,
+            depth: 2,
+          ).boxShadow,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            HapticFeedback.selectionClick();
-            if (authorizationRequired) {
-              _showPairingSheet(context, reauthorizeEndpoint: endpoint);
-            } else {
-              context.push(
-                '/terminal/${Uri.encodeComponent(endpoint.endpointId)}'
-                '?label=${Uri.encodeQueryComponent(label)}',
-              );
-            }
-          },
-          child: SizedBox(
-            height: 88,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 2, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 40,
-                    child: Column(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 88),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    if (authorizationRequired) {
+                      _showPairingSheet(context, reauthorizeEndpoint: endpoint);
+                    } else {
+                      context.push(
+                        '/terminal/${Uri.encodeComponent(endpoint.endpointId)}'
+                        '?label=${Uri.encodeQueryComponent(label)}',
+                      );
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 2, 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
+                        SizedBox(
                           width: 40,
-                          height: 40,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: palette.surfaceRaised,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            _platformIcon(endpoint.platform),
-                            size: 20,
-                            color: palette.text,
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            width: 1,
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            color: palette.border,
-                          ),
-                        ),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: visualState.color(palette),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: palette.surface,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: visualState.color(palette),
-                                spreadRadius: 1,
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: palette.surfaceRaised,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(
+                                  _platformIcon(endpoint.platform),
+                                  size: 20,
+                                  color: palette.strong,
+                                ),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 10,
+                                color: palette.track,
+                              ),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: visualState.color(palette),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: visualState.color(palette),
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FuzzyHighlightText(
+                                        label,
+                                        query: searchQuery,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AnyttyUi.body(
+                                          context,
+                                        ).copyWith(fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      visualState.icon,
+                                      size: 13,
+                                      color: visualState.color(palette),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        statusLabel,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.right,
+                                        style: AnyttyUi.body(context).copyWith(
+                                          color: visualState.color(palette),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                FuzzyHighlightText(
+                                  [
+                                    endpoint.platform.isEmpty
+                                        ? anyttyText(
+                                            context,
+                                            en: 'Unknown platform',
+                                            zh: '未知平台',
+                                          )
+                                        : endpoint.platform,
+                                    if (routes.isNotEmpty) routes,
+                                  ].join('  ·  '),
+                                  query: searchQuery,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AnyttyUi.muted(context)
+                                      .copyWith(fontWeight: FontWeight.normal),
+                                ),
+                                Row(
+                                  children: [
+                                    if (isDefault) ...[
+                                      Icon(
+                                        Icons.star_rounded,
+                                        size: 13,
+                                        color: palette.warning,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        anyttyText(
+                                          context,
+                                          en: 'Default',
+                                          zh: '默认设备',
+                                        ),
+                                        style: AnyttyUi.muted(
+                                          context,
+                                        ).copyWith(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                    Expanded(
+                                      child: FuzzyHighlightText(
+                                        endpoint.endpointId,
+                                        query: searchQuery,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AnyttyUi.muted(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: FuzzyHighlightText(
-                                  label,
-                                  query: searchQuery,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                visualState.icon,
-                                size: 13,
-                                color: visualState.color(palette),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  color: visualState.color(palette),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          FuzzyHighlightText(
-                            [
-                              endpoint.platform.isEmpty
-                                  ? anyttyText(
-                                      context,
-                                      en: 'Unknown platform',
-                                      zh: '未知平台',
-                                    )
-                                  : endpoint.platform,
-                              if (routes.isNotEmpty) routes,
-                            ].join('  ·  '),
-                            query: searchQuery,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: palette.muted,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Spacer(),
-                          Row(
-                            children: [
-                              if (isDefault) ...[
-                                Icon(
-                                  Icons.star_rounded,
-                                  size: 13,
-                                  color: palette.warning,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  anyttyText(
-                                    context,
-                                    en: 'Default',
-                                    zh: '默认设备',
-                                  ),
-                                  style: TextStyle(
-                                    color: palette.muted,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                              ],
-                              Expanded(
-                                child: FuzzyHighlightText(
-                                  endpoint.endpointId,
-                                  query: searchQuery,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: palette.faint,
-                                    fontFamily: 'JetBrainsMonoNerd',
-                                    fontSize: 9,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'More actions for $label',
-                    onPressed: onActions,
-                    icon: Icon(Icons.more_horiz_rounded, color: palette.muted),
-                  ),
-                ],
+                ),
               ),
-            ),
+              AnyttyIconButton(
+                tooltip: 'More actions for $label',
+                onPressed: onActions,
+                icon: Icons.more_horiz_rounded,
+                iconColor: palette.strong,
+              ),
+            ],
           ),
         ),
       ),
@@ -1023,7 +995,6 @@ Future<void> _showDeviceActionsSheet(
 }) async {
   await showModalBottomSheet<void>(
     context: context,
-    sheetAnimationStyle: AnimationStyle.noAnimation,
     useSafeArea: true,
     isScrollControlled: true,
     showDragHandle: true,
@@ -1092,12 +1063,12 @@ final class _DeviceActionsSheetState
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: palette.surfaceRaised,
-                          border: Border.all(color: palette.border),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Icon(
                           _platformIcon(widget.endpoint.platform),
                           size: 22,
+                          color: palette.strong,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1105,37 +1076,26 @@ final class _DeviceActionsSheetState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            Text(_label, style: AnyttyUi.sectionTitle(context)),
                             Text(
                               anyttyText(
                                 context,
                                 en: 'Device actions',
                                 zh: '设备操作',
                               ),
-                              style: TextStyle(
-                                color: palette.muted,
-                                fontSize: 12,
-                              ),
+                              style: AnyttyUi.muted(context),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
+                      AnyttyIconButton(
                         tooltip: anyttyText(
                           context,
                           en: 'Close device actions',
                           zh: '关闭设备操作',
                         ),
                         onPressed: _busy ? null : () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: Icons.close_rounded,
                       ),
                     ],
                   ),
@@ -1151,14 +1111,14 @@ final class _DeviceActionsSheetState
                         en: 'Display name',
                         zh: '显示名称',
                       ),
-                      suffixIcon: IconButton(
+                      suffixIcon: AnyttyIconButton(
                         tooltip: anyttyText(
                           context,
                           en: 'Save display name',
                           zh: '保存显示名称',
                         ),
                         onPressed: _busy ? null : _saveLabel,
-                        icon: const Icon(Icons.check_rounded),
+                        icon: Icons.check_rounded,
                       ),
                     ),
                   ),
@@ -1172,12 +1132,13 @@ final class _DeviceActionsSheetState
                       liveRegion: true,
                       child: Text(
                         _error!,
-                        style: TextStyle(color: palette.danger, fontSize: 12),
+                        style: AnyttyUi.body(context)
+                            .copyWith(color: palette.danger),
                       ),
                     ),
                   ],
                   const SizedBox(height: 12),
-                  Divider(height: 1, color: palette.border),
+                  Divider(height: 1, color: palette.track),
                   if (_authorizationRequired(widget.endpoint)) ...[
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1188,6 +1149,8 @@ final class _DeviceActionsSheetState
                       ),
                       title: Text(
                         anyttyText(context, en: 'Authorize device', zh: '授权设备'),
+                        style: AnyttyUi.body(context)
+                            .copyWith(fontWeight: FontWeight.w600),
                       ),
                       subtitle: Text(
                         anyttyText(
@@ -1195,19 +1158,23 @@ final class _DeviceActionsSheetState
                           en: 'Fresh pairing required',
                           zh: '需要重新配对',
                         ),
+                        style: AnyttyUi.muted(context),
                       ),
                       trailing: Icon(
                         Icons.chevron_right_rounded,
-                        color: palette.faint,
+                        color: palette.strong,
                       ),
                       onTap: _authorize,
                     ),
-                    Divider(height: 1, color: palette.border),
+                    Divider(height: 1, color: palette.track),
                   ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     enabled: !_busy && !widget.isDefault,
-                    leading: const Icon(Icons.star_outline_rounded),
+                    leading: Icon(
+                      Icons.star_outline_rounded,
+                      color: palette.strong,
+                    ),
                     title: Text(
                       widget.isDefault
                           ? anyttyText(
@@ -1220,19 +1187,23 @@ final class _DeviceActionsSheetState
                               en: 'Set as default',
                               zh: '设为默认设备',
                             ),
+                      style: AnyttyUi.body(context)
+                          .copyWith(fontWeight: FontWeight.w600),
                     ),
                     trailing: widget.isDefault
                         ? Icon(Icons.check_rounded, color: palette.success)
                         : null,
                     onTap: widget.isDefault ? null : _makeDefault,
                   ),
-                  Divider(height: 1, color: palette.border),
+                  Divider(height: 1, color: palette.track),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     enabled: !_busy,
-                    leading: const Icon(Icons.route_outlined),
+                    leading: Icon(Icons.route_outlined, color: palette.strong),
                     title: Text(
                       anyttyText(context, en: 'Connection', zh: '网络连接'),
+                      style: AnyttyUi.body(context)
+                          .copyWith(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
                       anyttyText(
@@ -1240,20 +1211,26 @@ final class _DeviceActionsSheetState
                         en: 'Route, latency, traffic, and policy',
                         zh: '线路、延迟与连接策略',
                       ),
+                      style: AnyttyUi.muted(context),
                     ),
                     trailing: Icon(
                       Icons.chevron_right_rounded,
-                      color: palette.faint,
+                      color: palette.strong,
                     ),
                     onTap: _openConnection,
                   ),
-                  Divider(height: 1, color: palette.border),
+                  Divider(height: 1, color: palette.track),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     enabled: !_busy,
-                    leading: const Icon(Icons.link_off_rounded),
+                    leading: Icon(
+                      Icons.link_off_rounded,
+                      color: palette.strong,
+                    ),
                     title: Text(
                       anyttyText(context, en: 'Disconnect', zh: '断开连接'),
+                      style: AnyttyUi.body(context)
+                          .copyWith(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
                       anyttyText(
@@ -1261,10 +1238,11 @@ final class _DeviceActionsSheetState
                         en: 'Close the current pooled connection',
                         zh: '关闭当前复用连接',
                       ),
+                      style: AnyttyUi.muted(context),
                     ),
                     onTap: _disconnect,
                   ),
-                  Divider(height: 1, color: palette.border),
+                  Divider(height: 1, color: palette.track),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     enabled: !_busy,
@@ -1274,7 +1252,10 @@ final class _DeviceActionsSheetState
                     ),
                     title: Text(
                       anyttyText(context, en: 'Remove device', zh: '移除设备'),
-                      style: TextStyle(color: palette.danger),
+                      style: AnyttyUi.body(context).copyWith(
+                        color: palette.danger,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     subtitle: Text(
                       anyttyText(
@@ -1282,6 +1263,7 @@ final class _DeviceActionsSheetState
                         en: 'Remove saved routes and authorization',
                         zh: '删除已保存的线路与授权',
                       ),
+                      style: AnyttyUi.muted(context),
                     ),
                     onTap: _remove,
                   ),
@@ -1368,7 +1350,7 @@ final class _DeviceActionsSheetState
   Future<void> _disconnect() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AnyttyDialog(
         title: Text(
           anyttyText(context, en: 'Disconnect device?', zh: '断开设备连接？'),
         ),
@@ -1380,13 +1362,14 @@ final class _DeviceActionsSheetState
           ),
         ),
         actions: [
-          TextButton(
+          AnyttyPillButton(
+            outlined: true,
+            label: anyttyText(context, en: 'Cancel', zh: '取消'),
             onPressed: () => Navigator.pop(context, false),
-            child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
           ),
-          FilledButton(
+          AnyttyPillButton(
+            label: anyttyText(context, en: 'Disconnect', zh: '断开'),
             onPressed: () => Navigator.pop(context, true),
-            child: Text(anyttyText(context, en: 'Disconnect', zh: '断开')),
           ),
         ],
       ),
@@ -1407,9 +1390,10 @@ final class _DeviceActionsSheetState
   }
 
   Future<void> _remove() async {
+    final palette = AnyttyPalette.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AnyttyDialog(
         title: Text(anyttyText(context, en: 'Remove device?', zh: '移除设备？')),
         content: Text(
           anyttyText(
@@ -1419,14 +1403,16 @@ final class _DeviceActionsSheetState
           ),
         ),
         actions: [
-          TextButton(
+          AnyttyPillButton(
+            outlined: true,
+            label: anyttyText(context, en: 'Cancel', zh: '取消'),
             onPressed: () => Navigator.pop(context, false),
-            child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+          AnyttyPillButton(
+            label: anyttyText(context, en: 'Remove', zh: '移除'),
+            color: palette.danger.withValues(alpha: 0.14),
+            foregroundColor: palette.danger,
             onPressed: () => Navigator.pop(context, true),
-            child: Text(anyttyText(context, en: 'Remove', zh: '移除')),
           ),
         ],
       ),
@@ -1476,13 +1462,10 @@ final class _EmptyDevices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
+    return AnyttyCard(
+      radius: 16,
+      depth: 1,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1492,15 +1475,14 @@ final class _EmptyDevices extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: palette.surfaceRaised,
-              border: Border.all(color: palette.border),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.dns_outlined, size: 24, color: palette.text),
+            child: Icon(Icons.dns_outlined, size: 24, color: palette.strong),
           ),
           const SizedBox(height: 20),
           Text(
             anyttyText(context, en: 'No paired devices', zh: '暂无已配对设备'),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            style: AnyttyUi.sectionTitle(context),
           ),
           const SizedBox(height: 8),
           Text(
@@ -1509,16 +1491,32 @@ final class _EmptyDevices extends StatelessWidget {
               en: 'Pair this app with an AnyTTY endpoint to begin.',
               zh: '与 AnyTTY 端点配对后即可开始使用。',
             ),
-            style: TextStyle(color: palette.muted, height: 1.5),
+            style: AnyttyUi.muted(context),
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: onPair,
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-              label: Text(anyttyText(context, en: 'Scan service', zh: '扫描服务')),
+          DecoratedBox(
+            decoration: AnyttyUi.pillDecoration(context),
+            child: SizedBox(
+              width: double.infinity,
+              height: AnyttyUi.controlHeight(context),
+              child: FilledButton.icon(
+                onPressed: onPair,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  minimumSize: Size(0, AnyttyUi.controlHeight(context)),
+                  foregroundColor: palette.strong,
+                  disabledForegroundColor: palette.muted,
+                ),
+                icon: Icon(
+                  Icons.qr_code_scanner_rounded,
+                  size: 18,
+                  color: palette.strong,
+                ),
+                label: Text(
+                  anyttyText(context, en: 'Scan service', zh: '扫描服务'),
+                ),
+              ),
             ),
           ),
         ],
@@ -1545,59 +1543,94 @@ final class _RegistryError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_outlined, color: palette.danger, size: 36),
-            const SizedBox(height: 12),
-            const Text(
-              'Could not load devices',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: palette.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 18),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: FilledButton.icon(
-                onPressed: busy ? null : onRetry,
-                icon: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh_rounded),
-                label: const Text('Retry startup'),
+    final actionHeight = _deviceControlHeight(context, multiline: true);
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: message,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off_outlined, color: palette.strong, size: 36),
+              const SizedBox(height: 12),
+              Text(
+                'Could not load devices',
+                style: AnyttyUi.sectionTitle(context),
               ),
-            ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: OutlinedButton.icon(
-                onPressed: busy ? null : onCopyDiagnostics,
-                icon: const Icon(Icons.copy_all_rounded),
-                label: const Text('Copy redacted diagnostics'),
+              const SizedBox(height: 6),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: AnyttyUi.muted(context),
               ),
-            ),
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: busy ? null : onReset,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                foregroundColor: palette.danger,
+              const SizedBox(height: 18),
+              DecoratedBox(
+                decoration: AnyttyUi.pillDecoration(context, enabled: !busy),
+                child: SizedBox(
+                  height: actionHeight,
+                  child: FilledButton.icon(
+                    onPressed: busy ? null : onRetry,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: palette.strong,
+                      disabledForegroundColor: palette.muted,
+                      shadowColor: Colors.transparent,
+                      minimumSize: Size(0, actionHeight),
+                    ),
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry startup'),
+                  ),
+                ),
               ),
-              child: const Text('Reset saved devices'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              DecoratedBox(
+                decoration: AnyttyUi.pillDecoration(context, enabled: !busy),
+                child: SizedBox(
+                  height: actionHeight,
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : onCopyDiagnostics,
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: palette.strong,
+                      disabledForegroundColor: palette.muted,
+                      shadowColor: Colors.transparent,
+                      side: BorderSide.none,
+                      minimumSize: Size(0, actionHeight),
+                    ),
+                    icon: const Icon(Icons.copy_all_rounded),
+                    label: const Text('Copy redacted diagnostics'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              DecoratedBox(
+                decoration: AnyttyUi.pillDecoration(
+                  context,
+                  color: palette.danger.withValues(alpha: 0.12),
+                  enabled: !busy,
+                ),
+                child: SizedBox(
+                  height: actionHeight,
+                  child: TextButton(
+                    onPressed: busy ? null : onReset,
+                    style: TextButton.styleFrom(
+                      foregroundColor: palette.danger,
+                      minimumSize: Size(0, actionHeight),
+                    ),
+                    child: const Text('Reset saved devices'),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1620,15 +1653,12 @@ final class _DeviceLoading extends StatelessWidget {
             SizedBox.square(
               dimension: 18,
               child: CircularProgressIndicator(
-                color: palette.text,
+                color: palette.strong,
                 strokeWidth: 2,
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Loading devices',
-              style: TextStyle(color: palette.muted, fontSize: 13),
-            ),
+            Text('Loading devices', style: AnyttyUi.muted(context)),
           ],
         ),
       ),
@@ -1684,6 +1714,8 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    final actionHeight = _deviceControlHeight(context, multiline: true);
     final sharePreview = _sharePreview;
     final reauthorizeEndpoint = widget.reauthorizeEndpoint;
     final reauthorizeLabel = reauthorizeEndpoint == null
@@ -1693,6 +1725,7 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
         : reauthorizeEndpoint.label.trim();
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: AnyttyUi.appBarHeight(context),
         leading: Padding(
           padding: EdgeInsets.only(left: 12),
           child: Icon(
@@ -1702,6 +1735,7 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                       : Icons.shield_outlined
                 : Icons.move_to_inbox_outlined,
             size: 20,
+            color: palette.strong,
           ),
         ),
         leadingWidth: 44,
@@ -1712,13 +1746,13 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
               : reauthorizeEndpoint == null
               ? 'Pair device'
               : 'Authorize device',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: AnyttyUi.title(context),
         ),
         actions: [
-          IconButton(
+          AnyttyIconButton(
             tooltip: 'Close',
             onPressed: _submitting ? null : () => Navigator.pop(context),
-            icon: const Icon(Icons.close_rounded),
+            icon: Icons.close_rounded,
           ),
         ],
       ),
@@ -1746,10 +1780,11 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                       Container(
                         height: 336,
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xff09090b),
-                          border: Border.all(color: const Color(0xff27272a)),
-                          borderRadius: BorderRadius.circular(12),
+                        decoration: AnyttyUi.cardDecoration(
+                          context,
+                          radius: 14,
+                          depth: 1,
+                          color: palette.surfaceRaised,
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -1766,12 +1801,15 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                                     width: 216,
                                     height: 216,
                                     decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.72,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: palette.accent.withValues(
+                                            alpha: 0.54,
+                                          ),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
                                         ),
-                                        width: 2,
-                                      ),
+                                      ],
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
@@ -1780,27 +1818,21 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                               Positioned(
                                 top: 4,
                                 right: 4,
-                                child: IconButton(
+                                child: AnyttyIconButton(
                                   tooltip: 'Toggle flashlight',
-                                  color: Colors.white,
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.black54,
-                                  ),
                                   onPressed: _submitting
                                       ? null
                                       : _scanner.toggleTorch,
-                                  icon: const Icon(
-                                    Icons.flashlight_on_outlined,
-                                    size: 20,
-                                  ),
+                                  icon: Icons.flashlight_on_outlined,
+                                  iconColor: palette.strong,
                                 ),
                               ),
                               if (_submitting)
-                                const ColoredBox(
-                                  color: Color(0x9909090b),
+                                ColoredBox(
+                                  color: palette.overlay,
                                   child: Center(
                                     child: CircularProgressIndicator(
-                                      color: Colors.white,
+                                      color: palette.strong,
                                       strokeWidth: 2,
                                     ),
                                   ),
@@ -1810,44 +1842,67 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _submitting
-                            ? null
-                            : () => setState(() => _pasteOpen = !_pasteOpen),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                      DecoratedBox(
+                        decoration: AnyttyUi.pillDecoration(
+                          context,
+                          enabled: !_submitting,
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.content_paste_rounded, size: 17),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Paste pairing payload',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                        child: SizedBox(
+                          height: actionHeight,
+                          child: OutlinedButton(
+                            onPressed: _submitting
+                                ? null
+                                : () =>
+                                      setState(() => _pasteOpen = !_pasteOpen),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: palette.strong,
+                              disabledForegroundColor: palette.muted,
+                              shadowColor: Colors.transparent,
+                              side: BorderSide.none,
+                              minimumSize: Size(0, actionHeight),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
                               ),
                             ),
-                            AnimatedRotation(
-                              turns: _pasteOpen ? 0.5 : 0,
-                              duration: const Duration(milliseconds: 200),
-                              child: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                              ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.content_paste_rounded,
+                                  size: 17,
+                                  color: _submitting
+                                      ? palette.muted
+                                      : palette.strong,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Paste pairing payload',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                AnimatedRotation(
+                                  turns: _pasteOpen ? 0.5 : 0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 18,
+                                    color: _submitting
+                                        ? palette.muted
+                                        : palette.strong,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                       if (_pasteOpen) ...[
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Pairing payload',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AnyttyUi.sectionTitle(context),
                         ),
                         const SizedBox(height: 8),
                         TextField(
@@ -1857,6 +1912,7 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                           enabled: !_submitting,
                           autocorrect: false,
                           decoration: InputDecoration(
+                            labelText: 'Pairing payload',
                             hintText: 'Paste the pairing payload',
                             alignLabelWithHint: true,
                             errorText: _error,
@@ -1865,21 +1921,39 @@ final class _PairingSheetState extends ConsumerState<_PairingSheet> {
                           onChanged: (_) => setState(() => _error = null),
                         ),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
-                            onPressed:
-                                _submitting || _controller.text.trim().isEmpty
-                                ? null
-                                : _submit,
-                            child: _submitting
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Continue'),
+                        DecoratedBox(
+                          decoration: AnyttyUi.pillDecoration(
+                            context,
+                            enabled:
+                                !_submitting &&
+                                _controller.text.trim().isNotEmpty,
+                          ),
+                          child: SizedBox(
+                            height: AnyttyUi.controlHeight(context),
+                            child: FilledButton(
+                              onPressed:
+                                  _submitting || _controller.text.trim().isEmpty
+                                  ? null
+                                  : _submit,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: palette.strong,
+                                disabledForegroundColor: palette.muted,
+                                shadowColor: Colors.transparent,
+                                minimumSize: const Size(
+                                  0,
+                                  AnyttyUi.controlSize,
+                                ),
+                              ),
+                              child: _submitting
+                                  ? const SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Continue'),
+                            ),
                           ),
                         ),
                       ],
@@ -2027,18 +2101,16 @@ final class _ReauthorizationTarget extends StatelessWidget {
     final palette = AnyttyPalette.of(context);
     return Semantics(
       label: '$label, authorization required',
-      child: Container(
+      child: AnyttyCard(
+        radius: 14,
+        depth: 1,
+        color: palette.surfaceRaised,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: palette.surfaceRaised,
-          border: Border.all(color: palette.border),
-          borderRadius: BorderRadius.circular(8),
-        ),
         child: Row(
           children: [
             Icon(
               _platformIcon(endpoint.platform),
-              color: palette.text,
+              color: palette.strong,
               size: 22,
             ),
             const SizedBox(width: 12),
@@ -2048,18 +2120,16 @@ final class _ReauthorizationTarget extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AnyttyUi.body(context)
+                        .copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(
                     endpoint.endpointId,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: palette.muted, fontSize: 11),
+                    style: AnyttyUi.muted(context),
                   ),
                 ],
               ),
@@ -2067,11 +2137,11 @@ final class _ReauthorizationTarget extends StatelessWidget {
             const SizedBox(width: 10),
             Text(
               'FRESH PAIRING',
-              style: TextStyle(
-                color: palette.warning,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AnyttyUi.body(
+                context,
+              ).copyWith(color: palette.warning, fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -2119,13 +2189,10 @@ final class _EndpointSharePreviewView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
+                  AnyttyCard(
+                    radius: 16,
+                    depth: 2,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      border: Border.all(color: palette.border),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2135,13 +2202,12 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: palette.surfaceRaised,
-                            border: Border.all(color: palette.border),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
                             Icons.computer_rounded,
                             size: 23,
-                            color: palette.text,
+                            color: palette.strong,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -2151,21 +2217,16 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                             children: [
                               Text(
                                 label,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: AnyttyUi.sectionTitle(context),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                preview.endpointId,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: palette.muted,
-                                  fontSize: 12,
+                              SelectionArea(
+                                child: Text(
+                                  preview.endpointId,
+                                  softWrap: true,
+                                  style: AnyttyUi.muted(context),
                                 ),
                               ),
                             ],
@@ -2182,9 +2243,8 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                           ),
                           child: Text(
                             'VERIFIED',
-                            style: TextStyle(
+                            style: AnyttyUi.body(context).copyWith(
                               color: palette.success,
-                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2199,12 +2259,9 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                       child: SelectionArea(
                         child: Text(
                           fingerprint,
-                          style: TextStyle(
-                            color: palette.muted,
-                            fontFamily: 'JetBrainsMono',
-                            fontSize: 11,
-                            height: 1.5,
-                          ),
+                          softWrap: true,
+                          style: AnyttyUi.body(context)
+                              .copyWith(color: palette.muted),
                         ),
                       ),
                     ),
@@ -2212,11 +2269,8 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                   const SizedBox(height: 20),
                   Text(
                     'ROUTE CHANGES',
-                    style: TextStyle(
-                      color: palette.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: AnyttyUi.sectionTitle(context)
+                        .copyWith(color: palette.text),
                   ),
                   const SizedBox(height: 8),
                   if (preview.routeDiffs.isEmpty)
@@ -2224,29 +2278,30 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                       label: 'NO ROUTE CHANGES',
                       child: Text(
                         'Existing routes stay unchanged.',
-                        style: TextStyle(color: palette.muted, fontSize: 12),
+                        style: AnyttyUi.muted(context),
                       ),
                     )
                   else
-                    Container(
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        border: Border.all(color: palette.border),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          for (
-                            var index = 0;
-                            index < preview.routeDiffs.length;
-                            index++
-                          ) ...[
-                            _ShareRouteDiffRow(diff: preview.routeDiffs[index]),
-                            if (index != preview.routeDiffs.length - 1)
-                              Divider(height: 1, color: palette.border),
+                    AnyttyCard(
+                      radius: 14,
+                      depth: 1,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < preview.routeDiffs.length;
+                              index++
+                            ) ...[
+                              _ShareRouteDiffRow(
+                                diff: preview.routeDiffs[index],
+                              ),
+                              if (index != preview.routeDiffs.length - 1)
+                                Divider(height: 1, color: palette.track),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   const SizedBox(height: 12),
@@ -2258,7 +2313,7 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                       policyChanges.isEmpty
                           ? 'Connection policy stays unchanged.'
                           : '${policyChanges.join(' and ')} will be updated.',
-                      style: TextStyle(color: palette.muted, fontSize: 12),
+                      style: AnyttyUi.muted(context),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -2269,7 +2324,7 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                       preview.credentialDescriptors.isEmpty
                           ? 'No local credential setup is required by this import.'
                           : '${preview.credentialDescriptors.length} route credential${preview.credentialDescriptors.length == 1 ? '' : 's'} must be prepared on this device after import.',
-                      style: TextStyle(color: palette.muted, fontSize: 12),
+                      style: AnyttyUi.muted(context),
                     ),
                   ),
                   if (error != null) ...[
@@ -2278,7 +2333,8 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                       liveRegion: true,
                       child: Text(
                         error!,
-                        style: TextStyle(color: palette.danger, fontSize: 12),
+                        style: AnyttyUi.body(context)
+                            .copyWith(color: palette.danger),
                       ),
                     ),
                   ],
@@ -2287,18 +2343,44 @@ final class _EndpointSharePreviewView extends StatelessWidget {
                     const LinearProgressIndicator(minHeight: 2),
                   ],
                   const SizedBox(height: 20),
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: submitting ? null : onCommit,
-                      icon: const Icon(Icons.download_rounded, size: 18),
-                      label: const Text('Import configuration'),
+                  DecoratedBox(
+                    decoration: AnyttyUi.pillDecoration(
+                      context,
+                      enabled: !submitting,
+                    ),
+                    child: SizedBox(
+                      height: AnyttyUi.controlHeight(context),
+                      child: FilledButton.icon(
+                        onPressed: submitting ? null : onCommit,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: palette.strong,
+                          disabledForegroundColor: palette.muted,
+                          shadowColor: Colors.transparent,
+                          minimumSize: Size(0, AnyttyUi.controlHeight(context)),
+                        ),
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: const Text('Import configuration'),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: submitting ? null : onCancel,
-                    child: const Text('Scan a different code'),
+                  DecoratedBox(
+                    decoration: AnyttyUi.pillDecoration(
+                      context,
+                      enabled: !submitting,
+                    ),
+                    child: SizedBox(
+                      height: AnyttyUi.controlHeight(context),
+                      child: TextButton(
+                        onPressed: submitting ? null : onCancel,
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.strong,
+                          minimumSize: Size(0, AnyttyUi.controlHeight(context)),
+                        ),
+                        child: const Text('Scan a different code'),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -2320,18 +2402,16 @@ final class _ShareDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Container(
+    return AnyttyCard(
+      radius: 14,
+      depth: 1,
+      color: palette.surfaceRaised,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: palette.surfaceRaised,
-        border: Border.all(color: palette.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: palette.muted, size: 18),
+            Icon(icon, color: palette.strong, size: 18),
             const SizedBox(width: 10),
           ],
           Expanded(
@@ -2340,11 +2420,8 @@ final class _ShareDetail extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    color: palette.muted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AnyttyUi.muted(context)
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 5),
                 child,
@@ -2375,7 +2452,7 @@ final class _ShareRouteDiffRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
-          Icon(Icons.alt_route_rounded, color: palette.muted, size: 18),
+          Icon(Icons.alt_route_rounded, color: palette.strong, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -2383,18 +2460,14 @@ final class _ShareRouteDiffRow extends StatelessWidget {
               children: [
                 Text(
                   diff.routeId,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AnyttyUi.body(context)
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   diff.routeKind.trim().isEmpty
                       ? 'Route'
                       : diff.routeKind.trim(),
-                  style: TextStyle(color: palette.muted, fontSize: 11),
+                  style: AnyttyUi.muted(context),
                 ),
               ],
             ),
@@ -2402,11 +2475,8 @@ final class _ShareRouteDiffRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             action.toUpperCase(),
-            style: TextStyle(
-              color: actionColor,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
+            style: AnyttyUi.body(context)
+                .copyWith(color: actionColor, fontWeight: FontWeight.w700),
           ),
         ],
       ),

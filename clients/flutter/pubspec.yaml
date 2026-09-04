@@ -80,8 +80,12 @@ flutter:
   assets:
     - assets/licenses/JetBrainsMonoNerdFont-OFL.txt
     - assets/licenses/terminal-fonts-OFL.txt
+    - assets/licenses/InterTight-OFL.txt
 
   fonts:
+    - family: InterTight
+      fonts:
+        - asset: assets/fonts/InterTight-Variable.ttf
     - family: JetBrainsMonoNerd
       fonts:
         - asset: assets/fonts/JetBrainsMonoNerdFont-Regular.ttf

@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_ui.dart';
 import '../data/browser_bookmark_store.dart';
 import '../data/browser_history_store.dart';
 
@@ -91,11 +93,14 @@ final class BrowserNewTabPage extends StatelessWidget {
                     count: history.length,
                     trailing: history.isEmpty
                         ? null
-                        : TextButton(
-                            onPressed: onOpenHistory,
-                            child: Text(
-                              anyttyText(context, en: 'View all', zh: '查看全部'),
+                        : AnyttyPillButton(
+                            label: anyttyText(
+                              context,
+                              en: 'View all',
+                              zh: '查看全部',
                             ),
+                            icon: Icons.arrow_forward_rounded,
+                            onPressed: onOpenHistory,
                           ),
                   ),
                   const SizedBox(height: 8),
@@ -150,27 +155,25 @@ final class _NewTabIdentity extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              anyttyText(context, en: 'AnyTTY browser', zh: 'AnyTTY 浏览器'),
-              style: TextStyle(
-                color: palette.text,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                anyttyText(context, en: 'AnyTTY browser', zh: 'AnyTTY 浏览器'),
+                style: AnyttyUi.title(context),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              anyttyText(
-                context,
-                en: 'A clean start for the pages you use remotely.',
-                zh: '从这里继续浏览远程设备上的网页。',
+              const SizedBox(height: 3),
+              Text(
+                anyttyText(
+                  context,
+                  en: 'A clean start for the pages you use remotely.',
+                  zh: '从这里继续浏览远程设备上的网页。',
+                ),
+                style: AnyttyUi.muted(context),
               ),
-              style: TextStyle(color: palette.muted, fontSize: 13),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -207,28 +210,29 @@ final class _NewTabSearchField extends StatelessWidget {
         textInputAction: TextInputAction.search,
         keyboardType: TextInputType.url,
         maxLines: 1,
-        style: TextStyle(color: palette.text, fontSize: 16),
+        style: AnyttyUi.body(context).copyWith(color: palette.text),
         decoration: InputDecoration(
           hintText: anyttyText(
             context,
             en: 'Search or enter a web address',
             zh: '搜索或输入网址',
           ),
-          hintStyle: TextStyle(color: palette.faint, fontSize: 16),
+          hintStyle: AnyttyUi.body(context).copyWith(color: palette.muted),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: palette.accent,
             size: 23,
           ),
-          suffixIcon: IconButton(
+          suffixIcon: AnyttyIconButton(
             tooltip: anyttyText(context, en: 'Search', zh: '搜索'),
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
                 unawaited(onSearch(controller.text));
               }
             },
-            icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-            color: palette.accent,
+            icon: Icons.arrow_forward_rounded,
+            iconColor: palette.accent,
+            iconSize: 20,
           ),
           filled: true,
           fillColor: palette.surfaceRaised,
@@ -237,16 +241,16 @@ final class _NewTabSearchField extends StatelessWidget {
             vertical: 17,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: palette.border),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.transparent),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: palette.border),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.transparent),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: palette.accent, width: 1.4),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.transparent),
           ),
         ),
       ),
@@ -272,19 +276,20 @@ final class _NewTabSectionHeader extends StatelessWidget {
     final palette = AnyttyPalette.of(context);
     return Row(
       children: [
-        Icon(icon, color: palette.text, size: 20),
+        Icon(icon, color: palette.strong, size: 20),
         const SizedBox(width: 9),
-        Text(
-          title,
-          style: TextStyle(
-            color: palette.text,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
+        Expanded(
+          child: Text(
+            title,
+            style: AnyttyUi.sectionTitle(context),
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(width: 8),
-        Text('$count', style: TextStyle(color: palette.muted, fontSize: 12)),
-        const Spacer(),
+        Text('$count', style: AnyttyUi.muted(context)),
+        if (trailing == null) const Spacer(),
         ?trailing,
       ],
     );
@@ -312,7 +317,10 @@ final class _NewTabBookmarkGrid extends StatelessWidget {
         itemCount: bookmarks.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: columns,
-          mainAxisExtent: 72,
+          mainAxisExtent: math.max(
+            72,
+            MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5) * 4 + 16,
+          ),
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
         ),
@@ -344,60 +352,61 @@ final class _NewTabBookmarkTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     final title = bookmark.title.isEmpty ? bookmark.url : bookmark.title;
-    return Material(
+    return AnyttyCard(
       color: palette.surfaceRaised,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-          child: Row(
-            children: [
-              Icon(Icons.public_rounded, color: palette.accent, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      bookmark.url,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.muted, fontSize: 11),
-                    ),
-                  ],
-                ),
+      radius: 14,
+      depth: 1,
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              customBorder: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              IconButton(
-                tooltip: anyttyText(
-                  context,
-                  en: 'Remove saved link',
-                  zh: '移除收藏链接',
-                ),
-                onPressed: onRemove,
-                icon: const Icon(Icons.close_rounded, size: 17),
-                color: palette.muted,
-                constraints: const BoxConstraints.tightFor(
-                  width: 44,
-                  height: 48,
-                ),
-                padding: EdgeInsets.zero,
+              onTap: onOpen,
+              child: Row(
+                children: [
+                  Icon(Icons.public_rounded, color: palette.strong, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: AnyttyUi.body(context).copyWith(
+                            color: palette.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          bookmark.url,
+                          style: AnyttyUi.muted(context),
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          AnyttyIconButton(
+            tooltip: anyttyText(context, en: 'Remove saved link', zh: '移除收藏链接'),
+            onPressed: onRemove,
+            icon: Icons.close_rounded,
+            iconColor: palette.strong,
+            iconSize: 17,
+          ),
+        ],
       ),
     );
   }
@@ -416,25 +425,19 @@ final class _NewTabHistoryList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: entries.length,
-      separatorBuilder: (_, _) => Divider(height: 1, color: palette.border),
+      separatorBuilder: (_, _) => Divider(height: 1, color: palette.track),
       itemBuilder: (context, index) {
         final entry = entries[index];
         return ListTile(
           contentPadding: EdgeInsets.zero,
           minTileHeight: 58,
-          leading: Icon(Icons.history_rounded, color: palette.muted, size: 21),
+          leading: Icon(Icons.history_rounded, color: palette.strong, size: 21),
           title: Text(
             entry.title.isEmpty ? entry.url : entry.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: palette.text, fontWeight: FontWeight.w600),
+            style: AnyttyUi.body(context)
+                .copyWith(color: palette.text, fontWeight: FontWeight.w600),
           ),
-          subtitle: Text(
-            entry.url,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: palette.muted, fontSize: 12),
-          ),
+          subtitle: Text(entry.url, style: AnyttyUi.muted(context)),
           onTap: () => unawaited(onOpen(entry.url)),
         );
       },
@@ -461,7 +464,7 @@ final class _NewTabEmptyMessage extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: palette.muted, size: 21),
+          Icon(icon, color: palette.strong, size: 21),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -469,13 +472,12 @@ final class _NewTabEmptyMessage extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    color: palette.text,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AnyttyUi.body(
+                    context,
+                  ).copyWith(color: palette.text, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 3),
-                Text(detail, style: TextStyle(color: palette.muted)),
+                Text(detail, style: AnyttyUi.muted(context)),
               ],
             ),
           ),

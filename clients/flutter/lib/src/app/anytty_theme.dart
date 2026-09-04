@@ -37,6 +37,11 @@ final class AnyttyPalette extends ThemeExtension<AnyttyPalette> {
   final Color danger;
   final Color overlay;
 
+  // Semantic aliases used by the product UI. Keep the legacy border names
+  // for Terminal and older feature code while new surfaces use these tokens.
+  Color get track => border;
+  Color get strong => text;
+
   static final light = _paletteFor(
     Brightness.light,
     AppColorPreferences.defaults,
@@ -183,12 +188,13 @@ ThemeData anyttyTheme(
           surfaceContainerLow: palette.surface,
           surfaceContainer: palette.surfaceRaised,
         );
-  const radius = BorderRadius.all(Radius.circular(6));
+  const radius = BorderRadius.all(Radius.circular(14));
   final seed = ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
     scaffoldBackgroundColor: palette.background,
+    fontFamily: anyttyUiFontFamily,
     extensions: [palette],
     visualDensity: VisualDensity.standard,
     splashFactory: NoSplash.splashFactory,
@@ -203,10 +209,10 @@ ThemeData anyttyTheme(
       },
     ),
   );
-  final base = seed.copyWith(textTheme: _zeroLetterSpacing(seed.textTheme));
+  final base = seed.copyWith(textTheme: _appTextTheme(seed.textTheme, palette));
   return base.copyWith(
     appBarTheme: AppBarTheme(
-      toolbarHeight: 48,
+      toolbarHeight: 56,
       backgroundColor: palette.background,
       foregroundColor: palette.text,
       surfaceTintColor: Colors.transparent,
@@ -218,8 +224,10 @@ ThemeData anyttyTheme(
       ),
       titleTextStyle: base.textTheme.titleLarge?.copyWith(
         color: palette.text,
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
+        fontSize: 22,
+        height: 28 / 22,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.7,
       ),
     ),
     bottomSheetTheme: BottomSheetThemeData(
@@ -230,42 +238,73 @@ ThemeData anyttyTheme(
       showDragHandle: true,
       dragHandleColor: palette.borderStrong,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
     ),
     cardTheme: CardThemeData(
       color: palette.surface,
       surfaceTintColor: Colors.transparent,
-      elevation: 0,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: dark ? 0.30 : 0.10),
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: radius,
-        side: BorderSide(color: palette.border),
+      shape: RoundedRectangleBorder(borderRadius: radius),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: palette.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: dark ? 0.30 : 0.10),
+      shape: RoundedRectangleBorder(borderRadius: radius),
+      titleTextStyle: base.textTheme.titleMedium?.copyWith(color: palette.text),
+      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+        color: palette.text,
       ),
     ),
-    dividerTheme: DividerThemeData(color: palette.border, thickness: 1),
+    dividerTheme: DividerThemeData(color: palette.track, thickness: 1),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: palette.surface,
+      fillColor: palette.surfaceRaised,
       border: OutlineInputBorder(
         borderRadius: radius,
-        borderSide: BorderSide(color: palette.borderStrong),
+        borderSide: BorderSide(color: Colors.transparent),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: radius,
-        borderSide: BorderSide(color: palette.borderStrong),
+        borderSide: BorderSide(color: Colors.transparent),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: radius,
-        borderSide: BorderSide(color: palette.text, width: 1.5),
+        borderSide: BorderSide(color: Colors.transparent),
       ),
-      labelStyle: TextStyle(color: palette.muted),
-      hintStyle: TextStyle(color: palette.faint),
+      labelStyle: TextStyle(
+        color: palette.muted,
+        fontSize: 14.5,
+        height: 18 / 14.5,
+        letterSpacing: 0.3,
+      ),
+      floatingLabelStyle: TextStyle(
+        color: palette.muted,
+        fontSize: 14.5,
+        height: 18 / 14.5,
+        letterSpacing: 0.3,
+      ),
+      hintStyle: TextStyle(
+        color: palette.muted,
+        fontSize: 14.5,
+        height: 18 / 14.5,
+        letterSpacing: 0.3,
+      ),
+      helperStyle: TextStyle(
+        color: palette.muted,
+        fontSize: 14.5,
+        height: 18 / 14.5,
+        letterSpacing: 0.3,
+      ),
     ),
     searchBarTheme: SearchBarThemeData(
       elevation: const WidgetStatePropertyAll(0),
-      backgroundColor: WidgetStatePropertyAll(palette.surface),
-      side: WidgetStatePropertyAll(BorderSide(color: palette.border)),
+      backgroundColor: WidgetStatePropertyAll(palette.surfaceRaised),
+      side: const WidgetStatePropertyAll(BorderSide(color: Colors.transparent)),
       shape: const WidgetStatePropertyAll(
         RoundedRectangleBorder(borderRadius: radius),
       ),
@@ -276,19 +315,20 @@ ThemeData anyttyTheme(
         base.textTheme.bodyMedium?.copyWith(color: palette.muted),
       ),
     ),
-    iconButtonTheme: const IconButtonThemeData(
+    iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(Size.square(48)),
-        overlayColor: WidgetStatePropertyAll(Color(0x12000000)),
+        minimumSize: const WidgetStatePropertyAll(Size.square(44)),
+        padding: const WidgetStatePropertyAll(EdgeInsets.all(10)),
+        shape: const WidgetStatePropertyAll(CircleBorder()),
+        foregroundColor: WidgetStatePropertyAll(palette.strong),
+        overlayColor: WidgetStatePropertyAll(Color(0x16000000)),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: ButtonStyle(
         elevation: const WidgetStatePropertyAll(0),
-        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
-        shape: const WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: radius),
-        ),
+        minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
         textStyle: WidgetStatePropertyAll(
           base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
@@ -296,72 +336,106 @@ ThemeData anyttyTheme(
     ),
     outlinedButtonTheme: const OutlinedButtonThemeData(
       style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(Size(48, 48)),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: radius),
-        ),
+        minimumSize: WidgetStatePropertyAll(Size(44, 44)),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
     textButtonTheme: const TextButtonThemeData(
       style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(Size(48, 48)),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: radius),
-        ),
+        minimumSize: WidgetStatePropertyAll(Size(44, 44)),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
     popupMenuTheme: PopupMenuThemeData(
       color: palette.surface,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: radius,
-        side: BorderSide(color: palette.border),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: radius),
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
-        side: WidgetStatePropertyAll(BorderSide(color: palette.border)),
-        shape: const WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: radius),
+        minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+        elevation: const WidgetStatePropertyAll(1),
+        shadowColor: WidgetStatePropertyAll(
+          Colors.black.withValues(alpha: dark ? 0.22 : 0.10),
         ),
+        side: const WidgetStatePropertyAll(
+          BorderSide(color: Colors.transparent),
+        ),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: palette.surfaceRaised,
-      contentTextStyle: TextStyle(
+      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
         color: palette.text,
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0,
       ),
       behavior: SnackBarBehavior.floating,
       elevation: 1,
       insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(8)),
-        side: BorderSide(color: palette.borderStrong),
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
       ),
     ),
   );
 }
 
-TextTheme _zeroLetterSpacing(TextTheme theme) => theme.copyWith(
-  displayLarge: theme.displayLarge?.copyWith(letterSpacing: 0),
-  displayMedium: theme.displayMedium?.copyWith(letterSpacing: 0),
-  displaySmall: theme.displaySmall?.copyWith(letterSpacing: 0),
-  headlineLarge: theme.headlineLarge?.copyWith(letterSpacing: 0),
-  headlineMedium: theme.headlineMedium?.copyWith(letterSpacing: 0),
-  headlineSmall: theme.headlineSmall?.copyWith(letterSpacing: 0),
-  titleLarge: theme.titleLarge?.copyWith(letterSpacing: 0),
-  titleMedium: theme.titleMedium?.copyWith(letterSpacing: 0),
-  titleSmall: theme.titleSmall?.copyWith(letterSpacing: 0),
-  bodyLarge: theme.bodyLarge?.copyWith(letterSpacing: 0),
-  bodyMedium: theme.bodyMedium?.copyWith(letterSpacing: 0),
-  bodySmall: theme.bodySmall?.copyWith(letterSpacing: 0),
-  labelLarge: theme.labelLarge?.copyWith(letterSpacing: 0),
-  labelMedium: theme.labelMedium?.copyWith(letterSpacing: 0),
-  labelSmall: theme.labelSmall?.copyWith(letterSpacing: 0),
+const anyttyUiFontFamily = 'InterTight';
+
+TextTheme _appTextTheme(TextTheme theme, AnyttyPalette palette) =>
+    theme.copyWith(
+      displayLarge: _uiTitle(theme.displayLarge, palette, 22, 28, -0.7),
+      displayMedium: _uiTitle(theme.displayMedium, palette, 22, 28, -0.7),
+      displaySmall: _uiTitle(theme.displaySmall, palette, 22, 28, -0.7),
+      headlineLarge: _uiTitle(theme.headlineLarge, palette, 22, 28, -0.7),
+      headlineMedium: _uiTitle(theme.headlineMedium, palette, 22, 28, -0.7),
+      headlineSmall: _uiSection(theme.headlineSmall, palette),
+      titleLarge: _uiTitle(theme.titleLarge, palette, 22, 28, -0.7),
+      titleMedium: _uiSection(theme.titleMedium, palette),
+      titleSmall: _uiSection(theme.titleSmall, palette),
+      bodyLarge: _uiBody(theme.bodyLarge, palette),
+      bodyMedium: _uiBody(theme.bodyMedium, palette),
+      bodySmall: _uiBody(theme.bodySmall, palette),
+      labelLarge: _uiBody(theme.labelLarge, palette, weight: FontWeight.w600),
+      labelMedium: _uiBody(theme.labelMedium, palette, weight: FontWeight.w600),
+      labelSmall: _uiBody(theme.labelSmall, palette, weight: FontWeight.w600),
+    );
+
+TextStyle _uiTitle(
+  TextStyle? base,
+  AnyttyPalette palette,
+  double fontSize,
+  double lineHeight,
+  double letterSpacing,
+) => (base ?? const TextStyle()).copyWith(
+  color: palette.text,
+  fontFamily: anyttyUiFontFamily,
+  fontSize: fontSize,
+  height: lineHeight / fontSize,
+  fontWeight: FontWeight.w600,
+  letterSpacing: letterSpacing,
+);
+
+TextStyle _uiSection(TextStyle? base, AnyttyPalette palette) =>
+    (base ?? const TextStyle()).copyWith(
+      color: palette.text,
+      fontFamily: anyttyUiFontFamily,
+      fontSize: 19,
+      height: 24 / 19,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.6,
+    );
+
+TextStyle _uiBody(
+  TextStyle? base,
+  AnyttyPalette palette, {
+  FontWeight weight = FontWeight.w400,
+}) => (base ?? const TextStyle()).copyWith(
+  color: palette.text,
+  fontFamily: anyttyUiFontFamily,
+  fontSize: 14.5,
+  height: 18 / 14.5,
+  fontWeight: weight,
+  letterSpacing: 0.3,
 );
 
 SystemUiOverlayStyle anyttySystemUiOverlayStyle(
