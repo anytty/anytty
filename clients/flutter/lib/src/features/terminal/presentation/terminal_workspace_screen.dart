@@ -24,6 +24,7 @@ import '../../../native/external_uri_platform.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
 import '../../endpoints/data/connection_repository.dart';
 import '../../endpoints/data/endpoint_repository.dart';
+import '../../browser/presentation/browser_session_screen.dart';
 import '../../files/presentation/file_manager_screen.dart';
 import '../../files/presentation/file_transfer_sheet.dart';
 import '../../terminal/data/endpoint_session_client.dart';
@@ -83,6 +84,10 @@ final class _TerminalWorkspaceScreenState
   String? _activeTerminalId;
   double _keyboardInset = 0;
   bool _usingNativeKeyboardInsets = false;
+  bool _browserOpened = false;
+  bool _browserVisible = false;
+  int _browserNavigationRequestId = 0;
+  String? _browserNavigationUrl;
 
   @override
   void initState() {
@@ -112,6 +117,7 @@ final class _TerminalWorkspaceScreenState
   void didChangeMetrics() => _updateKeyboardInset();
 
   void _updateKeyboardInset() {
+    if (_browserVisible) return;
     if (_usingNativeKeyboardInsets) return;
     final inset = _view.viewInsets.bottom / _view.devicePixelRatio;
     _keyboardVisualInset.value = inset;
@@ -119,19 +125,63 @@ final class _TerminalWorkspaceScreenState
   }
 
   void _updateNativeKeyboardInset(double physicalInset) {
-    if (!mounted) return;
+    if (!mounted || _browserVisible) return;
     _usingNativeKeyboardInsets = true;
     final inset = math.max(0.0, physicalInset / _view.devicePixelRatio);
     _keyboardInsetStabilizer.update(inset);
     _keyboardVisualInset.value = inset;
   }
 
+  void _handleWorkspaceBack() {
+    if (!mounted) return;
+    if (_browserVisible) {
+      setState(() => _browserVisible = false);
+      return;
+    }
+    if (widget.terminalId == null) {
+      context.go('/');
+      return;
+    }
+    final endpointLabel = widget.label?.trim().isNotEmpty == true
+        ? widget.label!.trim()
+        : widget.endpointId;
+    context.go(
+      '/terminal/${Uri.encodeComponent(widget.endpointId)}'
+      '?label=${Uri.encodeQueryComponent(endpointLabel)}',
+    );
+  }
+
+  void _showBrowser() {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _browserOpened = true;
+      _browserVisible = true;
+    });
+  }
+
+  Future<void> _openBrowserUrl(Uri uri) async {
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _browserOpened = true;
+      _browserVisible = true;
+      _browserNavigationRequestId += 1;
+      _browserNavigationUrl = uri.toString();
+    });
+  }
+
   @override
   void didUpdateWidget(TerminalWorkspaceScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.endpointId != widget.endpointId ||
-        oldWidget.terminalId != widget.terminalId) {
-      _activeTerminalId = null;
+    if (oldWidget.endpointId != widget.endpointId) {
+      _activeTerminalId = widget.terminalId;
+      _browserOpened = false;
+      _browserVisible = false;
+      _browserNavigationRequestId = 0;
+      _browserNavigationUrl = null;
+    } else if (oldWidget.terminalId != widget.terminalId) {
+      _activeTerminalId = widget.terminalId;
     }
   }
 
@@ -173,6 +223,7 @@ final class _TerminalWorkspaceScreenState
         ? widget.label!.trim()
         : widget.endpointId;
     final selectedTerminal = widget.terminalId;
+    final browserVisible = _browserVisible;
     final headerTerminalId = selectedTerminal == null
         ? null
         : _activeTerminalId ?? selectedTerminal;
@@ -228,17 +279,30 @@ final class _TerminalWorkspaceScreenState
           )
         : null;
     final workspace = PopScope<Object?>(
-      canPop: selectedTerminal == null,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop || selectedTerminal == null) return;
-        if (_surfaceKey.currentState?.handleBack() != true) context.pop();
+        if (didPop) return;
+        if (selectedTerminal != null &&
+            !browserVisible &&
+            _surfaceKey.currentState?.handleBack() == true) {
+          return;
+        }
+        _handleWorkspaceBack();
       },
       child: Scaffold(
-        resizeToAvoidBottomInset: selectedTerminal == null,
+        resizeToAvoidBottomInset: selectedTerminal == null && !browserVisible,
         backgroundColor: palette.background,
         appBar: AppBar(
           toolbarHeight: 36,
           leadingWidth: 40,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            tooltip: anyttyText(context, en: 'Back', zh: '返回'),
+            constraints: const BoxConstraints.tightFor(width: 40, height: 36),
+            padding: const EdgeInsets.all(9),
+            onPressed: _handleWorkspaceBack,
+            icon: const Icon(Icons.arrow_back_rounded, size: 17),
+          ),
           titleSpacing: 0,
           actionsIconTheme: const IconThemeData(size: 17),
           backgroundColor: selectedTerminal == null
@@ -338,10 +402,7 @@ final class _TerminalWorkspaceScreenState
                   height: 36,
                 ),
                 padding: const EdgeInsets.all(9),
-                onPressed: () => context.push(
-                  '/browser/${Uri.encodeComponent(widget.endpointId)}'
-                  '?label=${Uri.encodeQueryComponent(endpointLabel)}',
-                ),
+                onPressed: _showBrowser,
                 icon: const Icon(Icons.language_rounded, size: 17),
               ),
             if (selectedTerminal == null)
@@ -359,6 +420,17 @@ final class _TerminalWorkspaceScreenState
                   label: endpointLabel,
                 ),
                 icon: const Icon(Icons.add_rounded),
+              ),
+            if (selectedTerminal != null)
+              IconButton(
+                tooltip: anyttyText(context, en: 'Web', zh: 'Web 浏览器'),
+                constraints: const BoxConstraints.tightFor(
+                  width: 38,
+                  height: 38,
+                ),
+                padding: const EdgeInsets.all(9),
+                onPressed: _showBrowser,
+                icon: const Icon(Icons.language_rounded, size: 17),
               ),
             if (selectedTerminal != null && activeTerminal != null)
               IconButton(
@@ -424,6 +496,7 @@ final class _TerminalWorkspaceScreenState
                   keyboardInset: _keyboardInset,
                   settledKeyboardInset: _keyboardInset,
                   surfaceKey: _surfaceKey,
+                  onOpenBrowser: _openBrowserUrl,
                   onActiveTerminalChanged: (terminalId) {
                     if (mounted && _activeTerminalId != terminalId) {
                       setState(() => _activeTerminalId = terminalId);
@@ -433,7 +506,27 @@ final class _TerminalWorkspaceScreenState
         ),
       ),
     );
-    return workspace;
+    if (!_browserOpened) return workspace;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        workspace,
+        Positioned.fill(
+          child: Offstage(
+            offstage: !browserVisible,
+            child: BrowserSessionScreen(
+              endpointId: widget.endpointId,
+              endpointLabel: endpointLabel,
+              navigationRequestId: _browserNavigationRequestId,
+              navigationUrl: _browserNavigationUrl,
+              onExit: () {
+                if (mounted) setState(() => _browserVisible = false);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _openTerminalSwitcher({
@@ -511,9 +604,9 @@ final class _TerminalWorkspaceScreenState
       return;
     }
     context.go(
-      '/terminal/${Uri.encodeComponent(selection.endpointId)}/'
-      '${Uri.encodeComponent(selection.terminalId)}'
-      '?label=${Uri.encodeQueryComponent(selection.endpointLabel)}',
+      '/terminal/${Uri.encodeComponent(selection.endpointId)}'
+      '?terminalId=${Uri.encodeQueryComponent(selection.terminalId)}'
+      '&label=${Uri.encodeQueryComponent(selection.endpointLabel)}',
     );
   }
 
@@ -765,9 +858,19 @@ final class _WorkspaceConnectionDetailsSheet extends ConsumerWidget {
                       ),
                       _WorkspaceConnectionDetailRow(
                         label: anyttyText(context, en: 'Transport', zh: '传输协议'),
-                        value:
-                            '${_workspaceTransportLabel(snapshot.localProtocol)} / ${_workspaceTransportLabel(snapshot.remoteProtocol)}',
+                        value: _workspaceTransportSummary(snapshot),
                       ),
+                      if (snapshot.observedPath ==
+                          ConnectionObservedPath
+                              .CONNECTION_OBSERVED_PATH_SINGLE_RELAY)
+                        _WorkspaceConnectionDetailRow(
+                          label: anyttyText(
+                            context,
+                            en: 'ICE transport',
+                            zh: 'ICE 传输',
+                          ),
+                          value: _workspaceIceTransportSummary(snapshot),
+                        ),
                       _WorkspaceConnectionDetailRow(
                         label: anyttyText(
                           context,
@@ -1011,6 +1114,18 @@ String _workspaceTransportLabel(ConnectionTransport transport) {
   return '--';
 }
 
+String _workspaceTransportSummary(ConnectionSnapshot snapshot) {
+  if (snapshot.observedPath ==
+      ConnectionObservedPath.CONNECTION_OBSERVED_PATH_SINGLE_RELAY) {
+    return _workspaceTransportLabel(snapshot.relayTransport);
+  }
+  return _workspaceIceTransportSummary(snapshot);
+}
+
+String _workspaceIceTransportSummary(ConnectionSnapshot snapshot) {
+  return '${_workspaceTransportLabel(snapshot.localProtocol)} / ${_workspaceTransportLabel(snapshot.remoteProtocol)}';
+}
+
 String _workspaceCandidateLabel(ConnectionCandidateType candidate) {
   if (candidate == ConnectionCandidateType.CONNECTION_CANDIDATE_TYPE_HOST) {
     return 'host';
@@ -1162,10 +1277,10 @@ Future<void> _createTerminal({
     ref.invalidate(terminalListProvider(endpointId));
     if (!context.mounted) return;
     messenger.hideCurrentSnackBar();
-    context.push(
-      '/terminal/${Uri.encodeComponent(endpointId)}/'
-      '${Uri.encodeComponent(terminal.ref.terminalId)}'
-      '?label=${Uri.encodeQueryComponent(label)}',
+    context.go(
+      '/terminal/${Uri.encodeComponent(endpointId)}'
+      '?terminalId=${Uri.encodeQueryComponent(terminal.ref.terminalId)}'
+      '&label=${Uri.encodeQueryComponent(label)}',
     );
   } catch (error) {
     messenger.hideCurrentSnackBar();
@@ -2126,10 +2241,10 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
   }
 
   void _openTerminal(String terminalId) {
-    context.push(
-      '/terminal/${Uri.encodeComponent(widget.endpointId)}/'
-      '${Uri.encodeComponent(terminalId)}'
-      '?label=${Uri.encodeQueryComponent(widget.label)}',
+    context.go(
+      '/terminal/${Uri.encodeComponent(widget.endpointId)}'
+      '?terminalId=${Uri.encodeQueryComponent(terminalId)}'
+      '&label=${Uri.encodeQueryComponent(widget.label)}',
     );
   }
 
@@ -3664,6 +3779,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.surfaceKey,
+    required this.onOpenBrowser,
     required this.onActiveTerminalChanged,
   }) : super(key: surfaceKey);
 
@@ -3674,6 +3790,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final GlobalKey<_ActiveTerminalState> surfaceKey;
+  final Future<void> Function(Uri) onOpenBrowser;
   final ValueChanged<String> onActiveTerminalChanged;
 
   @override
@@ -4193,6 +4310,7 @@ final class _ActiveTerminalState extends ConsumerState<_ActiveTerminal> {
                           surfaceKey: _surfaceKey(paneKey),
                           active: active,
                           onActivate: () => _activatePane(paneKey),
+                          onOpenBrowser: widget.onOpenBrowser,
                           externalControls: true,
                           onSurfaceReady: () {
                             if (mounted) setState(() {});
@@ -4239,6 +4357,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
     required this.surfaceKey,
     required this.active,
     required this.onActivate,
+    required this.onOpenBrowser,
     required this.externalControls,
     required this.onSurfaceReady,
     required this.onInput,
@@ -4259,6 +4378,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
   final GlobalKey<_TerminalSurfaceState> surfaceKey;
   final bool active;
   final VoidCallback onActivate;
+  final Future<void> Function(Uri) onOpenBrowser;
   final bool externalControls;
   final VoidCallback onSurfaceReady;
   final Future<void> Function(_TerminalInputOperation) onInput;
@@ -4302,6 +4422,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
             manageKeyboardInset: false,
             onSurfaceReady: onSurfaceReady,
             onInput: onInput,
+            onOpenBrowser: onOpenBrowser,
             onOpenFiles: () => showAnyttyFileManager(
               context: context,
               endpointId: endpointId,
@@ -4505,6 +4626,7 @@ final class _TerminalSurface extends StatefulWidget {
     required this.manageKeyboardInset,
     required this.onSurfaceReady,
     required this.onInput,
+    required this.onOpenBrowser,
     required this.onOpenFiles,
     required this.onShowResources,
     required this.splitOpen,
@@ -4530,6 +4652,7 @@ final class _TerminalSurface extends StatefulWidget {
   final bool manageKeyboardInset;
   final VoidCallback onSurfaceReady;
   final Future<void> Function(_TerminalInputOperation) onInput;
+  final Future<void> Function(Uri) onOpenBrowser;
   final Future<void> Function() onOpenFiles;
   final Future<void> Function() onShowResources;
   final bool splitOpen;
@@ -6908,6 +7031,8 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       );
       return;
     }
+    final scheme = uri.scheme.toLowerCase();
+    final opensInAnyttyBrowser = scheme == 'http' || scheme == 'https';
     FocusManager.instance.primaryFocus?.unfocus();
     final accepted = await showModalBottomSheet<bool>(
       context: context,
@@ -6921,9 +7046,18 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Open terminal link?',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+              Text(
+                anyttyText(
+                  context,
+                  en: opensInAnyttyBrowser
+                      ? 'Open in AnyTTY browser?'
+                      : 'Open terminal link?',
+                  zh: opensInAnyttyBrowser ? '在 AnyTTY 浏览器中打开？' : '打开终端链接？',
+                ),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 12),
               SelectableText(
@@ -6954,7 +7088,13 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                   FilledButton.icon(
                     onPressed: () => Navigator.pop(context, true),
                     icon: const Icon(Icons.open_in_new_rounded),
-                    label: const Text('Open'),
+                    label: Text(
+                      anyttyText(
+                        context,
+                        en: opensInAnyttyBrowser ? 'Open in browser' : 'Open',
+                        zh: opensInAnyttyBrowser ? '浏览器打开' : '打开',
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -6964,6 +7104,10 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       ),
     );
     if (accepted != true || !mounted) return;
+    if (opensInAnyttyBrowser) {
+      await widget.onOpenBrowser(uri);
+      return;
+    }
     try {
       await MethodChannelExternalUriLauncher.instance.open(uri);
     } catch (error) {

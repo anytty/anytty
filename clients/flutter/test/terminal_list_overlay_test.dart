@@ -247,17 +247,18 @@ void main() {
               ),
               snapshot: ConnectionSnapshot(
                 connected: true,
-                routeId: 'direct-home',
-                routeKind: ConnectionRouteKind.CONNECTION_ROUTE_KIND_DIRECT,
-                observedPath:
-                    ConnectionObservedPath.CONNECTION_OBSERVED_PATH_DIRECT,
+                routeId: 'cloud-relay',
+                routeKind: ConnectionRouteKind.CONNECTION_ROUTE_KIND_CLOUD,
+                observedPath: ConnectionObservedPath
+                    .CONNECTION_OBSERVED_PATH_SINGLE_RELAY,
                 roundTripNanos: Int64(12800000),
-                localCandidateType: ConnectionCandidateType
-                    .CONNECTION_CANDIDATE_TYPE_SERVER_REFLEXIVE,
-                remoteCandidateType: ConnectionCandidateType
-                    .CONNECTION_CANDIDATE_TYPE_SERVER_REFLEXIVE,
+                localCandidateType:
+                    ConnectionCandidateType.CONNECTION_CANDIDATE_TYPE_RELAY,
+                remoteCandidateType:
+                    ConnectionCandidateType.CONNECTION_CANDIDATE_TYPE_RELAY,
                 localProtocol: ConnectionTransport.CONNECTION_TRANSPORT_UDP,
                 remoteProtocol: ConnectionTransport.CONNECTION_TRANSPORT_UDP,
+                relayTransport: ConnectionTransport.CONNECTION_TRANSPORT_TCP,
                 localIp: '203.0.113.8',
                 localPort: 40520,
                 remoteIp: '203.0.113.9',
@@ -300,11 +301,13 @@ void main() {
       '',
     );
     await tester.pump();
-    expect(find.text('P2P'), findsOneWidget);
+    expect(find.text('Relay'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('terminal-network-status')));
     await tester.pumpAndSettle();
     expect(find.text('Network status'), findsOneWidget);
     expect(find.text('Connection type'), findsOneWidget);
+    expect(find.text('TCP'), findsOneWidget);
+    expect(find.text('ICE transport'), findsOneWidget);
     expect(find.text('Local candidate'), findsOneWidget);
     await tester.drag(find.byType(ListView).last, const Offset(0, -260));
     await tester.pumpAndSettle();

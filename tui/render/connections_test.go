@@ -66,6 +66,27 @@ func TestConnectionsOverlayShowsSelectedPairAddressesAndRTT(t *testing.T) {
 	}
 }
 
+func TestConnectionsOverlaySeparatesRelayTransportFromICETransport(t *testing.T) {
+	root := state.Root{
+		Viewport: state.ViewportStore{Valid: true, Cols: 100, Rows: 36},
+		Shell:    state.DefaultShell().OpenConnections(),
+		Endpoints: (state.EndpointStore{}).Upsert(state.EndpointItem{
+			ID: "studio", Label: "Studio", Enabled: true, Status: state.EndpointStatusConnected,
+			ActiveRouteID: "cloud", ConnectionGeneration: 12, ObservedPath: "single_relay",
+			ConnectionSnapshot: state.EndpointConnectionSnapshot{
+				LocalCandidateType: "relay", RemoteCandidateType: "relay",
+				LocalProtocol: "udp", RemoteProtocol: "udp", RelayTransport: "tcp",
+			},
+		}),
+	}
+	text := frameText(NewRenderer(DefaultTheme()).Render(NewRenderVMBuilder().Build(root)))
+	for _, want := range []string{"ICE: udp / udp", "Relay: tcp"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("connections frame missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestConnectionsOverlayShowsEnabledCheckboxAndDrainingState(t *testing.T) {
 	root := state.Root{
 		Viewport: state.ViewportStore{Valid: true, Cols: 100, Rows: 30},

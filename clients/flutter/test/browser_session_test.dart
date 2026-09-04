@@ -34,6 +34,40 @@ void main() {
       expect(_snapshot(url: 'javascript:alert(1)').restorableUri, isNull);
       expect(_snapshot(url: 'file:///private/data').restorableUri, isNull);
     });
+
+    test('round trips tab snapshots and active tab selection', () {
+      final original = _snapshot().copyWith(
+        tabs: const [
+          BrowserTabSnapshot(
+            id: 'tab-a',
+            url: 'http://127.0.0.1:9000/app',
+            title: 'Remote app',
+            scrollX: 2,
+            scrollY: 40,
+            snapshotPath: '/tmp/tab-a.png',
+          ),
+          BrowserTabSnapshot(
+            id: 'tab-b',
+            url: '',
+            title: '',
+            scrollX: 0,
+            scrollY: 0,
+            snapshotPath: null,
+          ),
+        ],
+        activeTabId: 'tab-b',
+      );
+
+      final restored = BrowserSessionSnapshot.decode(original.encode());
+
+      expect(restored, original);
+      expect(restored.activeTabId, 'tab-b');
+      expect(restored.tabs, hasLength(2));
+      expect(
+        restored.tabs.first.restorableUri.toString(),
+        'http://127.0.0.1:9000/app',
+      );
+    });
   });
 
   group('BrowserSessionStateMachine', () {

@@ -15,7 +15,7 @@
 
 AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换设备或稍后再回来，任务都不会丢。你可以用键盘优先的 TUI、CLI 或手机 App 随时查看、接管，并通过同一条连接管理远程文件。
 
-> **Beta：** `v0.0.1-beta.9` 已提供 macOS、Linux 和 Windows 构建，适用于 ARMv7、ARM64、x86_64 与 universal 安装的签名 Android APK，以及 iOS TestFlight 公开测试；首个稳定版发布前，协议与配置仍可能变化。
+> **Beta：** `v0.0.1-beta.10` 已提供 macOS、Linux 和 Windows 构建，适用于 ARMv7、ARM64、x86_64 与 universal 安装的签名 Android APK，以及 iOS TestFlight 公开测试；首个稳定版发布前，协议与配置仍可能变化。
 
 ## 快速安装
 
@@ -35,7 +35,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
 **手机 App**
 
 - iPhone 与 iPad：[通过 TestFlight 加入公开测试](https://testflight.apple.com/join/rfcgFyJh)。
-- Android：[从 GitHub Releases 下载适合当前设备的 Beta APK](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.9)。
+- Android：[从 GitHub Releases 下载适合当前设备的 Beta APK](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.10)。
 
 <table>
   <tr>
@@ -77,7 +77,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
   </tr>
 </table>
 
-> **下载安装：** 手机 App 同时支持 Android 与 iOS。签名 Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.9) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。
+> **下载安装：** 手机 App 同时支持 Android 与 iOS。签名 Android Beta APK 可从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.10) 下载；iOS 可以通过 [TestFlight 公开测试](https://testflight.apple.com/join/rfcgFyJh) 安装。
 
 ### 外观与触控操作
 
@@ -132,7 +132,7 @@ curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | \
-  sh -s -- --version v0.0.1-beta.9 --bin-dir "$HOME/bin"
+  sh -s -- --version v0.0.1-beta.10 --bin-dir "$HOME/bin"
 ```
 
 ### Windows PowerShell
@@ -144,7 +144,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
 
 PowerShell 脚本会校验 SHA-256，安装到 `%LOCALAPPDATA%\Programs\AnyTTY\bin`，并把目录加入当前用户的 `PATH`。首次安装还会把 `coralline-candy` 推荐配置写入 `%APPDATA%\anytty\tui-v3.yaml`；已有配置不会被覆盖。如不希望修改 `PATH`，可传入 `-NoModifyPath`。
 
-你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.9) 下载各平台 CLI 压缩包，以及签名的单 ABI 或 universal Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
+你也可以直接从 [GitHub Releases](https://github.com/anytty/anytty/releases/tag/v0.0.1-beta.10) 下载各平台 CLI 压缩包，以及签名的单 ABI 或 universal Android Beta APK。Homebrew、npm 与 WinGet 的包定义正在准备发布，当前状态见[包管理器发布说明](docs/PACKAGE_MANAGERS.md)。
 
 ### 更新
 

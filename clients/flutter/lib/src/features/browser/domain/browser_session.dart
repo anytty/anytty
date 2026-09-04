@@ -5,6 +5,114 @@ import 'package:flutter/foundation.dart';
 enum BrowserSessionPhase { parked, restoring, active, parking, blocked, failed }
 
 @immutable
+final class BrowserTabSnapshot {
+  const BrowserTabSnapshot({
+    required this.id,
+    required this.url,
+    required this.title,
+    required this.scrollX,
+    required this.scrollY,
+    required this.snapshotPath,
+  });
+
+  factory BrowserTabSnapshot.empty({required String id}) => BrowserTabSnapshot(
+    id: id,
+    url: '',
+    title: '',
+    scrollX: 0,
+    scrollY: 0,
+    snapshotPath: null,
+  );
+
+  final String id;
+  final String url;
+  final String title;
+  final int scrollX;
+  final int scrollY;
+  final String? snapshotPath;
+
+  bool get hasSnapshot => snapshotPath?.isNotEmpty == true;
+
+  Uri? get restorableUri {
+    final parsed = Uri.tryParse(url.trim());
+    if (parsed == null) return null;
+    if (parsed.scheme == 'http' ||
+        parsed.scheme == 'https' ||
+        parsed.scheme == 'about') {
+      return parsed;
+    }
+    return null;
+  }
+
+  BrowserTabSnapshot copyWith({
+    String? id,
+    String? url,
+    String? title,
+    int? scrollX,
+    int? scrollY,
+    Object? snapshotPath = _unchanged,
+  }) => BrowserTabSnapshot(
+    id: id ?? this.id,
+    url: url ?? this.url,
+    title: title ?? this.title,
+    scrollX: scrollX ?? this.scrollX,
+    scrollY: scrollY ?? this.scrollY,
+    snapshotPath: identical(snapshotPath, _unchanged)
+        ? this.snapshotPath
+        : snapshotPath as String?,
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'url': url,
+    'title': title,
+    'scrollX': scrollX,
+    'scrollY': scrollY,
+    'snapshotPath': snapshotPath,
+  };
+
+  String encode() => jsonEncode(toJson());
+
+  factory BrowserTabSnapshot.fromJson(Map<String, Object?> json) {
+    String stringValue(String key) {
+      final value = json[key];
+      return value is String ? value.trim() : '';
+    }
+
+    String? nullableStringValue(String key) {
+      final value = json[key];
+      return value is String ? value.trim() : null;
+    }
+
+    final id = stringValue('id');
+    if (id.isEmpty) {
+      throw const FormatException('Browser tab identity is required');
+    }
+    return BrowserTabSnapshot(
+      id: id,
+      url: stringValue('url'),
+      title: stringValue('title'),
+      scrollX: _intValue(json['scrollX']),
+      scrollY: _intValue(json['scrollY']),
+      snapshotPath: nullableStringValue('snapshotPath'),
+    );
+  }
+
+  static int _intValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is BrowserTabSnapshot && encode() == other.encode();
+
+  @override
+  int get hashCode => encode().hashCode;
+}
+
+@immutable
 final class BrowserSessionSnapshot {
   const BrowserSessionSnapshot({
     required this.sessionId,
@@ -18,6 +126,8 @@ final class BrowserSessionSnapshot {
     required this.routeId,
     required this.routeGeneration,
     required this.parkedAt,
+    this.tabs = const <BrowserTabSnapshot>[],
+    this.activeTabId,
   });
 
   factory BrowserSessionSnapshot.empty({
@@ -36,6 +146,8 @@ final class BrowserSessionSnapshot {
     routeId: null,
     routeGeneration: 0,
     parkedAt: null,
+    tabs: const <BrowserTabSnapshot>[],
+    activeTabId: null,
   );
 
   final String sessionId;
@@ -49,6 +161,8 @@ final class BrowserSessionSnapshot {
   final String? routeId;
   final int routeGeneration;
   final DateTime? parkedAt;
+  final List<BrowserTabSnapshot> tabs;
+  final String? activeTabId;
 
   bool get hasSnapshot => snapshotPath?.isNotEmpty == true;
 
@@ -75,6 +189,8 @@ final class BrowserSessionSnapshot {
     Object? routeId = _unchanged,
     int? routeGeneration,
     Object? parkedAt = _unchanged,
+    Object? tabs = _unchanged,
+    Object? activeTabId = _unchanged,
   }) => BrowserSessionSnapshot(
     sessionId: sessionId ?? this.sessionId,
     endpointId: endpointId ?? this.endpointId,
@@ -91,6 +207,14 @@ final class BrowserSessionSnapshot {
     parkedAt: identical(parkedAt, _unchanged)
         ? this.parkedAt
         : parkedAt as DateTime?,
+    tabs: identical(tabs, _unchanged)
+        ? this.tabs
+        : List<BrowserTabSnapshot>.unmodifiable(
+            tabs as Iterable<BrowserTabSnapshot>,
+          ),
+    activeTabId: identical(activeTabId, _unchanged)
+        ? this.activeTabId
+        : activeTabId as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -105,6 +229,8 @@ final class BrowserSessionSnapshot {
     'routeId': routeId,
     'routeGeneration': routeGeneration,
     'parkedAt': parkedAt?.toUtc().toIso8601String(),
+    'activeTabId': activeTabId,
+    'tabs': tabs.map((tab) => tab.toJson()).toList(growable: false),
   };
 
   String encode() => jsonEncode(toJson());
@@ -126,6 +252,20 @@ final class BrowserSessionSnapshot {
       throw const FormatException('Browser session identity is required');
     }
     final parkedAtText = nullableStringValue('parkedAt');
+    final decodedTabs = <BrowserTabSnapshot>[];
+    final rawTabs = json['tabs'];
+    if (rawTabs is List) {
+      for (final value in rawTabs) {
+        if (value is! Map) continue;
+        try {
+          decodedTabs.add(
+            BrowserTabSnapshot.fromJson(value.cast<String, Object?>()),
+          );
+        } on FormatException {
+          continue;
+        }
+      }
+    }
     return BrowserSessionSnapshot(
       sessionId: sessionId,
       endpointId: endpointId,
@@ -138,6 +278,8 @@ final class BrowserSessionSnapshot {
       routeId: nullableStringValue('routeId'),
       routeGeneration: _intValue(json['routeGeneration']),
       parkedAt: parkedAtText == null ? null : DateTime.tryParse(parkedAtText),
+      tabs: List<BrowserTabSnapshot>.unmodifiable(decodedTabs),
+      activeTabId: nullableStringValue('activeTabId'),
     );
   }
 

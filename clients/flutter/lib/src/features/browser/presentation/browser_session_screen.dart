@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/anytty_localizations.dart';
@@ -12,10 +14,12 @@ import '../../../app/anytty_theme.dart';
 import '../../../app/providers.dart';
 import '../../../native/browser_proxy_platform.dart';
 import '../data/browser_http_proxy.dart';
+import '../data/browser_history_store.dart';
 import '../data/browser_session_store.dart';
 import '../data/browser_snapshot_store.dart';
 import '../domain/browser_session.dart';
 import '../../terminal/data/endpoint_session_client.dart';
+import '../../terminal/presentation/terminal_petal_menu.dart';
 import 'browser_endpoint_picker_sheet.dart';
 
 final class BrowserSessionScreen extends ConsumerStatefulWidget {
@@ -26,6 +30,10 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
     this.proxyPlatform,
     this.sessionStore,
     this.snapshotStore,
+    this.historyStore,
+    this.onExit,
+    this.navigationRequestId = 0,
+    this.navigationUrl,
   });
 
   final String endpointId;
@@ -33,6 +41,10 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
   final BrowserProxyPlatform? proxyPlatform;
   final BrowserSessionStore? sessionStore;
   final BrowserSnapshotStore? snapshotStore;
+  final BrowserHistoryStore? historyStore;
+  final VoidCallback? onExit;
+  final int navigationRequestId;
+  final String? navigationUrl;
 
   @override
   ConsumerState<BrowserSessionScreen> createState() =>
@@ -42,6 +54,10 @@ final class BrowserSessionScreen extends ConsumerStatefulWidget {
 final class _BrowserSessionScreenState
     extends ConsumerState<BrowserSessionScreen> {
   static const _sessionPreparationTimeout = Duration(seconds: 8);
+  static const _maximumOfflineHtmlLength = 3 * 1024 * 1024;
+  static const _desktopUserAgent =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
   final _addressController = TextEditingController();
   final _addressFocusNode = FocusNode();
@@ -51,6 +67,7 @@ final class _BrowserSessionScreenState
   late final BrowserProxyPlatform _proxyPlatform;
   late final BrowserSessionStore _sessionStore;
   late final BrowserSnapshotStore _snapshotStore;
+  late final BrowserHistoryStore _historyStore;
 
   String _activeEndpointId = '';
   String _activeEndpointLabel = '';
@@ -66,7 +83,14 @@ final class _BrowserSessionScreenState
   bool _pageReady = false;
   bool _closing = false;
   bool _sessionRecoveryPending = false;
-  String? _preparingEndpointLabel;
+  List<BrowserHistoryEntry> _history = const [];
+  final _tabsByEndpoint = <String, List<BrowserTabSnapshot>>{};
+  final _activeTabIds = <String, String?>{};
+  final _htmlByTabId = <String, String>{};
+  bool _readerMode = false;
+  bool _desktopMode = false;
+  bool _offlineMode = false;
+  String? _pendingNavigationUrl;
   Future<void> _transitionTail = Future<void>.value();
 
   @override
@@ -78,9 +102,13 @@ final class _BrowserSessionScreenState
         widget.sessionStore ?? const SharedPreferencesBrowserSessionStore();
     _snapshotStore =
         widget.snapshotStore ?? const ApplicationBrowserSnapshotStore();
+    _historyStore =
+        widget.historyStore ?? const SharedPreferencesBrowserHistoryStore();
     _activeEndpointId = widget.endpointId;
     _activeEndpointLabel = _labelFor(widget.endpointId, widget.endpointLabel);
+    _pendingNavigationUrl = widget.navigationUrl;
     _retainEndpointSession(_activeEndpointId);
+    unawaited(_loadHistory());
     unawaited(_activateSession(_activeEndpointId, _activeEndpointLabel));
   }
 
@@ -113,16 +141,117 @@ final class _BrowserSessionScreenState
   }
 
   @override
+  void didUpdateWidget(BrowserSessionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.navigationRequestId == oldWidget.navigationRequestId ||
+        widget.navigationUrl == null) {
+      return;
+    }
+    _pendingNavigationUrl = widget.navigationUrl;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_navigate(_pendingNavigationUrl));
+    });
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final history = await _historyStore.load();
+      if (mounted) setState(() => _history = history);
+    } catch (_) {
+      // History is an enhancement; a corrupt or unavailable store must not
+      // prevent the remote browser from opening.
+    }
+  }
+
+  List<BrowserTabSnapshot> _tabsFor(String endpointId) =>
+      _tabsByEndpoint[endpointId] ?? const <BrowserTabSnapshot>[];
+
+  String _tabIdFor(String endpointId, [int index = 0]) =>
+      '$endpointId-tab-$index';
+
+  String? _activeTabIdFor(String endpointId) => _activeTabIds[endpointId];
+
+  BrowserTabSnapshot? _activeTabFor(String endpointId) {
+    final tabs = _tabsFor(endpointId);
+    final activeId = _activeTabIdFor(endpointId);
+    for (final tab in tabs) {
+      if (tab.id == activeId) return tab;
+    }
+    return tabs.isEmpty ? null : tabs.first;
+  }
+
+  void _installSessionTabs(BrowserSessionSnapshot snapshot) {
+    final endpointId = snapshot.endpointId;
+    final tabs = snapshot.tabs.isEmpty
+        ? [
+            BrowserTabSnapshot(
+              id: snapshot.activeTabId ?? _tabIdFor(endpointId),
+              url: snapshot.url,
+              title: snapshot.title,
+              scrollX: snapshot.scrollX,
+              scrollY: snapshot.scrollY,
+              snapshotPath: snapshot.snapshotPath,
+            ),
+          ]
+        : List<BrowserTabSnapshot>.of(snapshot.tabs);
+    final activeId =
+        snapshot.activeTabId != null &&
+            tabs.any((tab) => tab.id == snapshot.activeTabId)
+        ? snapshot.activeTabId!
+        : tabs.first.id;
+    _tabsByEndpoint[endpointId] = List<BrowserTabSnapshot>.unmodifiable(tabs);
+    _activeTabIds[endpointId] = activeId;
+  }
+
+  void _replaceActiveTab(BrowserSessionSnapshot snapshot) {
+    final endpointId = snapshot.endpointId;
+    final tabs = List<BrowserTabSnapshot>.of(_tabsFor(endpointId));
+    final activeId =
+        _activeTabIdFor(endpointId) ??
+        snapshot.activeTabId ??
+        _tabIdFor(endpointId);
+    final updated = BrowserTabSnapshot(
+      id: activeId,
+      url: snapshot.url,
+      title: snapshot.title,
+      scrollX: snapshot.scrollX,
+      scrollY: snapshot.scrollY,
+      snapshotPath: snapshot.snapshotPath,
+    );
+    final index = tabs.indexWhere((tab) => tab.id == activeId);
+    if (index == -1) {
+      tabs.add(updated);
+    } else {
+      tabs[index] = updated;
+    }
+    _tabsByEndpoint[endpointId] = List<BrowserTabSnapshot>.unmodifiable(tabs);
+    _activeTabIds[endpointId] = activeId;
+  }
+
+  BrowserSessionSnapshot _withTabState(BrowserSessionSnapshot snapshot) {
+    final tabs = _tabsFor(snapshot.endpointId);
+    return snapshot.copyWith(
+      tabs: tabs,
+      activeTabId: _activeTabIdFor(snapshot.endpointId),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     final state = _stateMachine.state;
-    return PopScope<Object?>(
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final petalPreferences = ref
+        .watch(terminalPetalMenuPreferencesProvider)
+        .valueOrNull;
+    final browser = PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_closeScreen());
       },
       child: Scaffold(
         backgroundColor: palette.background,
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           toolbarHeight: 56,
           automaticallyImplyLeading: false,
@@ -133,27 +262,28 @@ final class _BrowserSessionScreenState
           ),
           titleSpacing: 0,
           title: _BrowserToolbarTitle(
-            endpointLabel: _activeEndpointLabel,
-            preparingEndpointLabel: _preparingEndpointLabel,
-            state: state,
-            hasProxy: _proxyLease != null,
-            dnsProxied: _proxyLease?.dnsProxied ?? false,
             addressController: _addressController,
             addressFocusNode: _addressFocusNode,
             controller: _webViewController,
             onNavigate: _navigate,
             onBack: () => _goBack(_webViewController),
             onForward: () => _goForward(_webViewController),
-            onSwitchSession: () => unawaited(_openEndpointPicker()),
+            history: _history,
           ),
           actions: [
-            IconButton(
-              tooltip: anyttyText(context, en: 'Reload', zh: '重新加载'),
-              onPressed: state.phase == BrowserSessionPhase.active
-                  ? () => _reload(_webViewController)
-                  : null,
-              icon: const Icon(Icons.refresh_rounded, size: 20),
-            ),
+            if (compact)
+              _BrowserTabCountButton(
+                count: _tabsFor(_activeEndpointId).length,
+                onPressed: _openTabSwitcher,
+              )
+            else
+              IconButton(
+                tooltip: anyttyText(context, en: 'Reload', zh: '重新加载'),
+                onPressed: state.phase == BrowserSessionPhase.active
+                    ? () => _reload(_webViewController)
+                    : null,
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+              ),
             _BrowserOverflowMenu(
               state: state,
               hasProxy: _proxyLease != null,
@@ -161,7 +291,15 @@ final class _BrowserSessionScreenState
               controller: _webViewController,
               onBack: () => _goBack(_webViewController),
               onForward: () => _goForward(_webViewController),
+              onReload: () => _reload(_webViewController),
               onSwitchSession: () => unawaited(_openEndpointPicker()),
+              onOpenTabs: _openTabSwitcher,
+              onOpenHistory: _openHistory,
+              onOpenSettings: _openBrowserSettings,
+              readerMode: _readerMode,
+              desktopMode: _desktopMode,
+              onToggleReaderMode: _toggleReaderMode,
+              onToggleDesktopMode: _toggleDesktopMode,
             ),
           ],
         ),
@@ -171,6 +309,128 @@ final class _BrowserSessionScreenState
         ),
       ),
     );
+    return TerminalPetalMenuOverlay(
+      child: TerminalPetalMenuRegion(
+        actions: _browserPetalActions(context),
+        enabled: petalPreferences?.enabled ?? true,
+        hapticsEnabled: petalPreferences?.hapticsEnabled ?? true,
+        onOpened: _addressFocusNode.unfocus,
+        onSelected: (action) => unawaited(_handleBrowserPetalAction(action.id)),
+        child: browser,
+      ),
+    );
+  }
+
+  List<TerminalPetalMenuItem> _browserPetalActions(BuildContext context) => [
+    TerminalPetalMenuItem(
+      id: 'browser-navigation',
+      label: anyttyText(context, en: 'Navigate', zh: '导航'),
+      icon: LucideIcons.navigation,
+      enabled: _webViewController != null,
+      children: [
+        TerminalPetalMenuItem(
+          id: 'browser-back',
+          label: anyttyText(context, en: 'Back', zh: '后退'),
+          icon: LucideIcons.arrowLeft,
+          enabled: _webViewController != null,
+        ),
+        TerminalPetalMenuItem(
+          id: 'browser-forward',
+          label: anyttyText(context, en: 'Forward', zh: '前进'),
+          icon: LucideIcons.arrowRight,
+          enabled: _webViewController != null,
+        ),
+        TerminalPetalMenuItem(
+          id: 'browser-reload',
+          label: anyttyText(context, en: 'Reload', zh: '刷新'),
+          icon: LucideIcons.refreshCw,
+          enabled: _webViewController != null,
+        ),
+      ],
+    ),
+    TerminalPetalMenuItem(
+      id: 'browser-tabs',
+      label: anyttyText(context, en: 'Tabs', zh: '标签页'),
+      icon: LucideIcons.panelsTopLeft,
+      children: [
+        TerminalPetalMenuItem(
+          id: 'browser-new-tab',
+          label: anyttyText(context, en: 'New tab', zh: '新建标签页'),
+          icon: LucideIcons.plus,
+        ),
+        TerminalPetalMenuItem(
+          id: 'browser-open-tabs',
+          label: anyttyText(context, en: 'Switch tab', zh: '切换标签页'),
+          icon: LucideIcons.listFilter,
+        ),
+      ],
+    ),
+    TerminalPetalMenuItem(
+      id: 'browser-history',
+      label: anyttyText(context, en: 'History', zh: '历史记录'),
+      icon: LucideIcons.history,
+    ),
+    TerminalPetalMenuItem(
+      id: 'browser-reader',
+      label: anyttyText(context, en: 'Reader', zh: '阅读模式'),
+      icon: LucideIcons.copy,
+      enabled: _webViewController != null,
+    ),
+    TerminalPetalMenuItem(
+      id: 'browser-desktop',
+      label: anyttyText(context, en: 'Desktop site', zh: '电脑模式'),
+      icon: LucideIcons.monitor,
+      enabled: _webViewController != null,
+    ),
+    TerminalPetalMenuItem(
+      id: 'browser-session',
+      label: anyttyText(context, en: 'Session', zh: '会话'),
+      icon: LucideIcons.gitCompareArrows,
+      children: [
+        TerminalPetalMenuItem(
+          id: 'browser-switch-session',
+          label: anyttyText(context, en: 'Switch session', zh: '切换会话'),
+          icon: LucideIcons.gitCompareArrows,
+        ),
+        TerminalPetalMenuItem(
+          id: 'browser-settings',
+          label: anyttyText(context, en: 'Browser settings', zh: '浏览器设置'),
+          icon: LucideIcons.settings,
+        ),
+        TerminalPetalMenuItem(
+          id: 'browser-exit',
+          label: anyttyText(context, en: 'Close browser', zh: '关闭浏览器'),
+          icon: LucideIcons.x,
+        ),
+      ],
+    ),
+  ];
+
+  Future<void> _handleBrowserPetalAction(String id) async {
+    switch (id) {
+      case 'browser-back':
+        _goBack(_webViewController);
+      case 'browser-forward':
+        _goForward(_webViewController);
+      case 'browser-reload':
+        _reload(_webViewController);
+      case 'browser-new-tab':
+        await _createTab();
+      case 'browser-open-tabs':
+        await _openTabSwitcher();
+      case 'browser-history':
+        await _openHistory();
+      case 'browser-reader':
+        await _toggleReaderMode();
+      case 'browser-desktop':
+        await _toggleDesktopMode();
+      case 'browser-switch-session':
+        await _openEndpointPicker();
+      case 'browser-settings':
+        await _openBrowserSettings();
+      case 'browser-exit':
+        await _closeScreen();
+    }
   }
 
   Widget _buildContent(BuildContext context) {
@@ -189,14 +449,23 @@ final class _BrowserSessionScreenState
             IgnorePointer(
               child: Image.memory(_snapshotBytes!, fit: BoxFit.cover),
             ),
-          if (!_pageReady)
+          if (!_pageReady && _snapshotBytes == null)
             Align(
               alignment: Alignment.topCenter,
               child: _BrowserLoadingMarker(
-                label: anyttyText(
-                  context,
-                  en: 'Restoring session',
-                  zh: '正在恢复会话',
+                label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
+              ),
+            ),
+          if (_offlineMode)
+            Align(
+              alignment: Alignment.topCenter,
+              child: _BrowserOfflineBanner(
+                onRefresh: () => unawaited(
+                  _activateSession(
+                    _activeEndpointId,
+                    _activeEndpointLabel,
+                    forceReconnect: true,
+                  ),
                 ),
               ),
             ),
@@ -219,7 +488,7 @@ final class _BrowserSessionScreenState
               label:
                   state.phase == BrowserSessionPhase.parking ||
                       state.phase == BrowserSessionPhase.restoring
-                  ? anyttyText(context, en: 'Restoring session', zh: '正在恢复会话')
+                  ? anyttyText(context, en: 'Snapshot preview', zh: '快照预览')
                   : anyttyText(context, en: 'Paused preview', zh: '已暂停预览'),
             ),
           ),
@@ -339,10 +608,7 @@ final class _BrowserSessionScreenState
 
     final switching = hasLiveSession && endpointId != previousEndpointId;
     if (mounted && switching) {
-      setState(() {
-        _preparingEndpointLabel = endpointLabel;
-        _error = null;
-      });
+      setState(() => _error = null);
     }
 
     _PreparedBrowserSession prepared;
@@ -352,8 +618,39 @@ final class _BrowserSessionScreenState
         endpointLabel: endpointLabel,
       );
     } catch (error) {
+      if (switching) {
+        final html = _offlineHtmlFor(endpointId);
+        if (html != null &&
+            await _activateOfflineHtmlSession(
+              endpointId: endpointId,
+              endpointLabel: endpointLabel,
+              html: html,
+              previousEndpointId: previousEndpointId,
+              previousEndpointLabel: previousEndpointLabel,
+            )) {
+          return;
+        }
+      }
+      if (!switching && _webViewController != null) {
+        final operation = _stateMachine.begin(endpointId);
+        if (error is BrowserProxyUnavailableException) {
+          _stateMachine.markBlocked(operation, endpointId, '$error');
+        } else {
+          _stateMachine.markFailed(operation, endpointId, error);
+        }
+        try {
+          await _webViewController!.setJavaScriptMode(JavaScriptMode.disabled);
+        } catch (_) {}
+        if (mounted) {
+          setState(() {
+            _offlineMode = true;
+            _error = null;
+            _pageReady = true;
+          });
+        }
+        return;
+      }
       if (mounted && switching) {
-        setState(() => _preparingEndpointLabel = null);
         _showSwitchError(endpointLabel, error);
         return;
       }
@@ -365,17 +662,13 @@ final class _BrowserSessionScreenState
         _stateMachine.markFailed(operation, endpointId, error);
       }
       if (mounted) {
-        setState(() {
-          _preparingEndpointLabel = null;
-          _error = message;
-        });
+        setState(() => _error = message);
       }
       return;
     }
 
     if (mounted) {
       setState(() {
-        _preparingEndpointLabel = null;
         _error = null;
         _pageReady = false;
       });
@@ -403,6 +696,7 @@ final class _BrowserSessionScreenState
 
     final restoredSnapshot = prepared.snapshot;
     final bytes = prepared.snapshotBytes;
+    _installSessionTabs(restoredSnapshot);
     _stateMachine.markRestoring(operation, endpointId, restoredSnapshot);
     setState(() {
       _snapshot = restoredSnapshot;
@@ -474,6 +768,7 @@ final class _BrowserSessionScreenState
     var restoreScrollPending = restoredSnapshot.restorableUri != null;
     try {
       await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      await controller.setUserAgent(_desktopMode ? _desktopUserAgent : null);
       await controller.setBackgroundColor(Colors.transparent);
       await controller.setNavigationDelegate(
         NavigationDelegate(
@@ -560,11 +855,20 @@ final class _BrowserSessionScreenState
     _activeEndpointSession = prepared.endpointSession;
     _watchEndpointSession(endpointId, prepared.endpointSession);
     _snapshot = activeSnapshot;
+    _offlineMode = false;
+    _replaceActiveTab(activeSnapshot);
     _stateMachine.markActive(operation, endpointId, activeSnapshot);
     setState(() {
       _pageReady = activeSnapshot.restorableUri == null;
       _error = null;
     });
+    final pendingUrl = _pendingNavigationUrl;
+    if (pendingUrl != null) {
+      _pendingNavigationUrl = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_navigate(pendingUrl));
+      });
+    }
   }
 
   Future<_PreparedBrowserSession> _prepareSession({
@@ -617,6 +921,117 @@ final class _BrowserSessionScreenState
       await httpProxy?.close();
       rethrow;
     }
+  }
+
+  String? _offlineHtmlFor(String endpointId) {
+    final tab = _activeTabFor(endpointId);
+    final html = tab == null ? null : _htmlByTabId[tab.id];
+    return html == null || html.isEmpty ? null : html;
+  }
+
+  Future<void> _captureCurrentHtml() async {
+    final controller = _webViewController;
+    final tab = _activeTabFor(_activeEndpointId);
+    if (controller == null || tab == null) return;
+    try {
+      final result = await controller.runJavaScriptReturningResult(
+        'document.documentElement == null ? "" : document.documentElement.outerHTML',
+      );
+      var html = result is String ? result : '$result';
+      if (html.startsWith('"')) {
+        try {
+          final decoded = jsonDecode(html);
+          if (decoded is String) html = decoded;
+        } on FormatException {
+          // Some WebView implementations already return the unquoted value.
+        }
+      }
+      if (html.trim().isEmpty || html.length > _maximumOfflineHtmlLength) {
+        return;
+      }
+      _htmlByTabId[tab.id] = html;
+    } catch (_) {
+      // DOM capture is best-effort; the PNG snapshot remains the cold-restore fallback.
+    }
+  }
+
+  Future<bool> _activateOfflineHtmlSession({
+    required String endpointId,
+    required String endpointLabel,
+    required String html,
+    required String previousEndpointId,
+    required String previousEndpointLabel,
+  }) async {
+    final operation = _stateMachine.begin(endpointId);
+    if (!await _parkLiveSession(captureSnapshot: false)) {
+      _stateMachine.markBlocked(
+        operation,
+        endpointId,
+        'WebView data isolation is unavailable',
+      );
+      _restorePreviousSessionAfterFailure(
+        previousEndpointId,
+        previousEndpointLabel,
+      );
+      return false;
+    }
+    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
+      return false;
+    }
+
+    final tab = _activeTabFor(endpointId);
+    final snapshot =
+        BrowserSessionSnapshot.empty(
+          sessionId: endpointId,
+          endpointId: endpointId,
+          endpointLabel: endpointLabel,
+        ).copyWith(
+          url: tab?.url,
+          title: tab?.title,
+          scrollX: tab?.scrollX,
+          scrollY: tab?.scrollY,
+          tabs: _tabsFor(endpointId),
+          activeTabId: tab?.id,
+        );
+    _stateMachine.markRestoring(operation, endpointId, snapshot);
+    final controller = WebViewController();
+    try {
+      await controller.setJavaScriptMode(JavaScriptMode.disabled);
+      await controller.setBackgroundColor(Colors.transparent);
+      await controller.setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: (_) => NavigationDecision.prevent,
+        ),
+      );
+      await controller.loadHtmlString(html);
+    } catch (error) {
+      _stateMachine.markFailed(operation, endpointId, error);
+      if (mounted) setState(() => _error = '$error');
+      _restorePreviousSessionAfterFailure(
+        previousEndpointId,
+        previousEndpointLabel,
+      );
+      return false;
+    }
+    if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
+      return false;
+    }
+    _webViewController = controller;
+    _proxyLease = null;
+    _httpProxy = null;
+    _activeEndpointSession = null;
+    _activeEndpointId = endpointId;
+    _activeEndpointLabel = endpointLabel;
+    _snapshot = snapshot;
+    _snapshotBytes = null;
+    _offlineMode = true;
+    _stateMachine.markActive(operation, endpointId, snapshot);
+    setState(() {
+      _pageReady = true;
+      _error = null;
+      _addressController.text = snapshot.url;
+    });
+    return true;
   }
 
   void _adoptEndpointSession(
@@ -721,9 +1136,19 @@ final class _BrowserSessionScreenState
         parkedAt: null,
       );
       _snapshot = next;
+      _replaceActiveTab(next);
       _stateMachine.markActive(operation, endpointId, next);
       if (!_addressFocusNode.hasFocus) _addressController.text = currentUrl;
-      await _sessionStore.save(next);
+      await _sessionStore.save(_withTabState(next));
+      unawaited(
+        _recordHistory(
+          BrowserHistoryEntry(
+            url: currentUrl,
+            title: title.isEmpty ? currentUrl : title,
+          ),
+        ),
+      );
+      if (_readerMode) await _applyReaderMode(controller, enabled: true);
       if (mounted && _stateMachine.isCurrent(operation, endpointId)) {
         setState(() => _pageReady = true);
       }
@@ -734,11 +1159,76 @@ final class _BrowserSessionScreenState
     }
   }
 
-  Future<void> _navigate() async {
+  Future<void> _applyReaderMode(
+    WebViewController controller, {
+    required bool enabled,
+  }) async {
+    final script = enabled
+        ? '''(() => {
+  const old = document.getElementById('anytty-reader-style');
+  if (old) old.remove();
+  const style = document.createElement('style');
+  style.id = 'anytty-reader-style';
+  style.textContent = 'body { max-width: 760px !important; margin: 0 auto !important; padding: 24px !important; background: #fffdf8 !important; color: #17201f !important; } nav, aside, header, footer, video, iframe, [role="banner"], [role="navigation"] { display: none !important; } p, li { font-size: 1.12em !important; line-height: 1.8 !important; }';
+  document.head.appendChild(style);
+})()'''
+        : '''document.getElementById('anytty-reader-style')?.remove();''';
+    try {
+      await controller.runJavaScript(script);
+    } catch (_) {}
+  }
+
+  Future<void> _setReaderMode(bool enabled) async {
+    if (mounted) setState(() => _readerMode = enabled);
     final controller = _webViewController;
-    if (controller == null || _proxyLease == null) return;
-    final value = _addressController.text.trim();
+    if (controller != null) {
+      await _applyReaderMode(controller, enabled: enabled);
+    }
+  }
+
+  Future<void> _toggleReaderMode() => _setReaderMode(!_readerMode);
+
+  Future<void> _setDesktopMode(bool enabled) async {
+    if (mounted) {
+      setState(() {
+        _desktopMode = enabled;
+        _pageReady = false;
+      });
+    }
+    final controller = _webViewController;
+    if (controller == null) return;
+    try {
+      await controller.setUserAgent(enabled ? _desktopUserAgent : null);
+      await controller.reload();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _toggleDesktopMode() => _setDesktopMode(!_desktopMode);
+
+  Future<void> _navigate([String? requestedValue]) async {
+    final controller = _webViewController;
+    final value = (requestedValue ?? _addressController.text).trim();
     if (value.isEmpty) return;
+    if (controller == null || _proxyLease == null) {
+      if (requestedValue != null) {
+        _pendingNavigationUrl = requestedValue;
+        if (_offlineMode && _activeEndpointId.isNotEmpty) {
+          unawaited(
+            _activateSession(
+              _activeEndpointId,
+              _activeEndpointLabel,
+              forceReconnect: true,
+            ),
+          );
+        }
+      }
+      return;
+    }
+    if (requestedValue != null && _pendingNavigationUrl == requestedValue) {
+      _pendingNavigationUrl = null;
+    }
     final uri = Uri.tryParse(value.contains('://') ? value : 'https://$value');
     if (uri == null || !_allowedUri(uri)) {
       setState(
@@ -755,7 +1245,24 @@ final class _BrowserSessionScreenState
       _error = null;
       _pageReady = false;
     });
+    _recordHistory(
+      BrowserHistoryEntry(
+        url: uri.toString(),
+        title: uri.host.isEmpty ? uri.toString() : uri.host,
+      ),
+    );
     await controller.loadRequest(uri);
+  }
+
+  Future<void> _recordHistory(BrowserHistoryEntry entry) async {
+    final next = <BrowserHistoryEntry>[
+      entry,
+      ..._history.where((item) => item.url != entry.url),
+    ].take(20).toList(growable: false);
+    if (mounted) setState(() => _history = next);
+    try {
+      await _historyStore.add(entry);
+    } catch (_) {}
   }
 
   Future<bool> _parkLiveSession({bool captureSnapshot = true}) async {
@@ -768,7 +1275,8 @@ final class _BrowserSessionScreenState
     if (mounted) {
       setState(() => _pageReady = false);
     }
-    final parked = captureSnapshot
+    await _captureCurrentHtml();
+    var parked = captureSnapshot
         ? await _captureSession(
             sessionId: _activeEndpointId,
             endpointLabel: _activeEndpointLabel,
@@ -778,6 +1286,7 @@ final class _BrowserSessionScreenState
           )
         : _snapshot?.copyWith(parkedAt: DateTime.now());
     if (parked != null) {
+      parked = _withTabState(parked);
       await _sessionStore.save(parked);
       _snapshot = parked;
       if (mounted) {
@@ -862,17 +1371,24 @@ final class _BrowserSessionScreenState
           image.dispose();
           if (data != null) {
             final path = await _snapshotStore.save(
-              sessionId,
+              '$sessionId-${_activeTabIdFor(sessionId) ?? 'tab'}',
               data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
             );
+            final previousPath = current.snapshotPath;
             current = current.copyWith(snapshotPath: path);
+            if (previousPath != null && previousPath != path) {
+              try {
+                await _snapshotStore.remove(previousPath);
+              } catch (_) {}
+            }
           }
         }
       } catch (_) {
         // Platform views may not be capturable on every renderer.
       }
     }
-    return current;
+    _replaceActiveTab(current);
+    return _withTabState(current);
   }
 
   Future<void> _persistDetachedSession({
@@ -905,10 +1421,249 @@ final class _BrowserSessionScreenState
   }
 
   Future<void> _closeScreen() async {
+    if (widget.onExit != null) {
+      _addressFocusNode.unfocus();
+      widget.onExit!();
+      return;
+    }
     if (_closing) return;
     _closing = true;
     await _parkLiveSession();
     if (mounted) Navigator.of(context).pop();
+  }
+
+  BrowserSessionSnapshot _snapshotForTab(BrowserTabSnapshot tab) {
+    final base =
+        _snapshot ??
+        BrowserSessionSnapshot.empty(
+          sessionId: _activeEndpointId,
+          endpointId: _activeEndpointId,
+          endpointLabel: _activeEndpointLabel,
+        );
+    return _withTabState(
+      base.copyWith(
+        url: tab.url,
+        title: tab.title,
+        scrollX: tab.scrollX,
+        scrollY: tab.scrollY,
+        snapshotPath: tab.snapshotPath,
+        parkedAt: null,
+        activeTabId: tab.id,
+      ),
+    );
+  }
+
+  Future<void> _resumeTab(BrowserTabSnapshot tab) async {
+    _activeTabIds[_activeEndpointId] = tab.id;
+    final snapshot = _snapshotForTab(tab);
+    final bytes = snapshot.snapshotPath == null
+        ? null
+        : await _snapshotStore.read(snapshot.snapshotPath!);
+    _snapshot = snapshot;
+    _snapshotBytes = bytes;
+    await _sessionStore.save(snapshot);
+    if (mounted) {
+      setState(() {
+        _pageReady = false;
+        _error = null;
+      });
+    }
+    await _activateSession(_activeEndpointId, _activeEndpointLabel);
+  }
+
+  Future<void> _createTab() async {
+    final endpointId = _activeEndpointId;
+    await _parkLiveSession();
+    if (_closing || !mounted) return;
+    final tabs = List<BrowserTabSnapshot>.of(_tabsFor(endpointId));
+    final tab = BrowserTabSnapshot.empty(
+      id: '$endpointId-tab-${DateTime.now().microsecondsSinceEpoch}',
+    );
+    tabs.add(tab);
+    _tabsByEndpoint[endpointId] = List<BrowserTabSnapshot>.unmodifiable(tabs);
+    await _resumeTab(tab);
+  }
+
+  Future<void> _selectTab(String tabId) async {
+    if (tabId == _activeTabIdFor(_activeEndpointId)) return;
+    final tab = _tabsFor(_activeEndpointId)
+        .cast<BrowserTabSnapshot?>()
+        .firstWhere((item) => item?.id == tabId, orElse: () => null);
+    if (tab == null) return;
+    await _parkLiveSession();
+    if (_closing || !mounted) return;
+    await _resumeTab(tab);
+  }
+
+  Future<void> _closeTab(String tabId) async {
+    final endpointId = _activeEndpointId;
+    final tabs = List<BrowserTabSnapshot>.of(_tabsFor(endpointId));
+    final index = tabs.indexWhere((tab) => tab.id == tabId);
+    if (index == -1) return;
+    final closingActive = tabId == _activeTabIdFor(endpointId);
+    final fallback = closingActive
+        ? tabs[index == 0 ? 1 : index - 1]
+        : _activeTabFor(endpointId)!;
+    await _parkLiveSession();
+    if (_closing || !mounted) return;
+    if (tabs.length == 1) {
+      final blank = BrowserTabSnapshot.empty(id: tabId);
+      _tabsByEndpoint[endpointId] = [blank];
+      await _resumeTab(blank);
+      return;
+    }
+    tabs.removeAt(index);
+    _tabsByEndpoint[endpointId] = List<BrowserTabSnapshot>.unmodifiable(tabs);
+    await _resumeTab(fallback);
+  }
+
+  Future<void> _openTabSwitcher() async {
+    final action = await showModalBottomSheet<_BrowserTabAction>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AnyttyPalette.of(context).surface,
+      builder: (context) => _BrowserTabsSheet(
+        tabs: _tabsFor(_activeEndpointId),
+        activeTabId: _activeTabIdFor(_activeEndpointId),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action.type) {
+      case _BrowserTabActionType.newTab:
+        await _createTab();
+      case _BrowserTabActionType.select:
+        await _selectTab(action.tabId!);
+      case _BrowserTabActionType.close:
+        await _closeTab(action.tabId!);
+    }
+  }
+
+  Future<void> _openHistory() async {
+    final entry = await showModalBottomSheet<BrowserHistoryEntry>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AnyttyPalette.of(context).surface,
+      builder: (context) =>
+          _BrowserHistorySheet(entries: _history, onClear: _clearHistory),
+    );
+    if (!mounted || entry == null) return;
+    await _navigate(entry.url);
+  }
+
+  Future<void> _clearHistory() async {
+    if (mounted) setState(() => _history = const []);
+    try {
+      await _historyStore.clear();
+    } catch (_) {}
+  }
+
+  Future<void> _openBrowserSettings() async {
+    var readerMode = _readerMode;
+    var desktopMode = _desktopMode;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AnyttyPalette.of(context).surface,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                  child: Text(
+                    anyttyText(context, en: 'Browser settings', zh: '浏览器设置'),
+                    style: TextStyle(
+                      color: AnyttyPalette.of(context).text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  secondary: const Icon(Icons.menu_book_outlined),
+                  title: Text(
+                    anyttyText(context, en: 'Reader mode', zh: '阅读模式'),
+                  ),
+                  subtitle: Text(
+                    anyttyText(
+                      context,
+                      en: 'Reduce navigation and focus on page content.',
+                      zh: '收起导航和装饰，只保留页面正文。',
+                    ),
+                  ),
+                  value: readerMode,
+                  onChanged: (value) {
+                    setSheetState(() => readerMode = value);
+                    unawaited(_setReaderMode(value));
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  secondary: const Icon(Icons.desktop_windows_outlined),
+                  title: Text(
+                    anyttyText(context, en: 'Desktop site', zh: '电脑模式'),
+                  ),
+                  subtitle: Text(
+                    anyttyText(
+                      context,
+                      en: 'Request the desktop layout for this tab.',
+                      zh: '为当前标签页请求桌面布局。',
+                    ),
+                  ),
+                  value: desktopMode,
+                  onChanged: (value) {
+                    setSheetState(() => desktopMode = value);
+                    unawaited(_setDesktopMode(value));
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.code_rounded),
+                  title: Text(
+                    anyttyText(context, en: 'JavaScript', zh: 'JavaScript'),
+                  ),
+                  subtitle: Text(
+                    anyttyText(
+                      context,
+                      en: 'Always enabled for modern web apps.',
+                      zh: '为兼容现代网站保持开启。',
+                    ),
+                  ),
+                  trailing: const Icon(Icons.check_circle_outline_rounded),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_sweep_outlined),
+                  title: Text(
+                    anyttyText(
+                      context,
+                      en: 'Clear browser data',
+                      zh: '清理浏览器数据',
+                    ),
+                  ),
+                  subtitle: Text(
+                    anyttyText(
+                      context,
+                      en: 'Clear shared WebView data without removing snapshots.',
+                      zh: '清理共享 WebView 数据，但保留会话快照。',
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _clearBrowserData();
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openEndpointPicker() async {
@@ -966,6 +1721,16 @@ final class _BrowserSessionScreenState
   }
 
   void _reload(WebViewController? controller) {
+    if (_offlineMode) {
+      unawaited(
+        _activateSession(
+          _activeEndpointId,
+          _activeEndpointLabel,
+          forceReconnect: true,
+        ),
+      );
+      return;
+    }
     if (controller != null) unawaited(controller.reload());
   }
 }
@@ -994,32 +1759,22 @@ final class _PreparedBrowserSession {
 
 final class _BrowserToolbarTitle extends StatelessWidget {
   const _BrowserToolbarTitle({
-    required this.endpointLabel,
-    required this.preparingEndpointLabel,
-    required this.state,
-    required this.hasProxy,
-    required this.dnsProxied,
     required this.addressController,
     required this.addressFocusNode,
     required this.controller,
     required this.onNavigate,
     required this.onBack,
     required this.onForward,
-    required this.onSwitchSession,
+    required this.history,
   });
 
-  final String endpointLabel;
-  final String? preparingEndpointLabel;
-  final BrowserSessionState state;
-  final bool hasProxy;
-  final bool dnsProxied;
   final TextEditingController addressController;
   final FocusNode addressFocusNode;
   final WebViewController? controller;
-  final VoidCallback onNavigate;
+  final Future<void> Function([String?]) onNavigate;
   final VoidCallback onBack;
   final VoidCallback onForward;
-  final VoidCallback onSwitchSession;
+  final List<BrowserHistoryEntry> history;
 
   @override
   Widget build(BuildContext context) {
@@ -1046,17 +1801,6 @@ final class _BrowserToolbarTitle extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
               ],
-              _BrowserSessionControl(
-                endpointLabel: endpointLabel,
-                state: state,
-                hasProxy: hasProxy,
-                dnsProxied: dnsProxied,
-                compact: !showInlineNavigation,
-                collapsed: addressFocused,
-                preparingEndpointLabel: preparingEndpointLabel,
-                onTap: onSwitchSession,
-              ),
-              const SizedBox(width: 6),
               Expanded(
                 child: _BrowserAddressField(
                   addressController: addressController,
@@ -1064,101 +1808,12 @@ final class _BrowserToolbarTitle extends StatelessWidget {
                   controller: controller,
                   focused: addressFocused,
                   onNavigate: onNavigate,
+                  history: history,
                 ),
               ),
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-final class _BrowserSessionControl extends StatelessWidget {
-  const _BrowserSessionControl({
-    required this.endpointLabel,
-    required this.state,
-    required this.hasProxy,
-    required this.dnsProxied,
-    required this.compact,
-    required this.collapsed,
-    required this.preparingEndpointLabel,
-    required this.onTap,
-  });
-
-  final String endpointLabel;
-  final BrowserSessionState state;
-  final bool hasProxy;
-  final bool dnsProxied;
-  final bool compact;
-  final bool collapsed;
-  final String? preparingEndpointLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    final status = _browserStatus(
-      context,
-      state: state,
-      hasProxy: hasProxy,
-      dnsProxied: dnsProxied,
-    );
-    final switching = preparingEndpointLabel != null;
-    final statusColor = switching ? palette.accent : status.color;
-    return Tooltip(
-      message: switching
-          ? anyttyText(
-              context,
-              en: 'Preparing $preparingEndpointLabel',
-              zh: '正在准备 $preparingEndpointLabel',
-            )
-          : '$endpointLabel\n${status.label}',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          width: collapsed ? 36 : (compact ? 86 : 132),
-          height: 48,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                Icon(
-                  switching ? Icons.sync_rounded : Icons.devices_rounded,
-                  size: 18,
-                  color: statusColor,
-                ),
-                if (!collapsed) ...[
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      endpointLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.text,
-                        fontSize: compact ? 11 : 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -1171,72 +1826,158 @@ final class _BrowserAddressField extends StatelessWidget {
     required this.controller,
     required this.focused,
     required this.onNavigate,
+    required this.history,
   });
 
   final TextEditingController addressController;
   final FocusNode addressFocusNode;
   final WebViewController? controller;
   final bool focused;
-  final VoidCallback onNavigate;
+  final Future<void> Function([String?]) onNavigate;
+  final List<BrowserHistoryEntry> history;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     final enabled = controller != null;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      height: focused ? 46 : 40,
-      child: TextField(
-        controller: addressController,
-        focusNode: addressFocusNode,
-        enabled: enabled,
-        onSubmitted: (_) => onNavigate(),
-        textInputAction: TextInputAction.go,
-        keyboardType: TextInputType.url,
-        maxLines: 1,
-        style: TextStyle(color: palette.text, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: anyttyText(context, en: 'Enter a URL', zh: '输入网址'),
-          hintStyle: TextStyle(color: palette.faint, fontSize: 14),
-          prefixIcon: Icon(
-            Icons.lock_outline_rounded,
-            size: 16,
-            color: palette.muted,
+    return RawAutocomplete<BrowserHistoryEntry>(
+      key: const ValueKey('browser-address-autocomplete'),
+      textEditingController: addressController,
+      focusNode: addressFocusNode,
+      displayStringForOption: (entry) => entry.url,
+      optionsBuilder: (value) {
+        final query = value.text.trim().toLowerCase();
+        return history.where(
+          (entry) =>
+              query.isEmpty ||
+              entry.url.toLowerCase().contains(query) ||
+              entry.title.toLowerCase().contains(query),
+        );
+      },
+      onSelected: (entry) => unawaited(onNavigate(entry.url)),
+      optionsViewBuilder: (context, onSelected, options) {
+        final entries = options.toList(growable: false);
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            color: palette.surface,
+            elevation: 8,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(color: palette.borderStrong),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                shrinkWrap: true,
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return ListTile(
+                    dense: true,
+                    minVerticalPadding: 6,
+                    leading: Icon(
+                      Icons.history_rounded,
+                      size: 18,
+                      color: palette.muted,
+                    ),
+                    title: Text(
+                      entry.title.isEmpty ? entry.url : entry.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      entry.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 11),
+                    ),
+                    trailing: index == 0
+                        ? Text(
+                            anyttyText(context, en: 'Tab', zh: 'Tab'),
+                            style: TextStyle(
+                              color: palette.faint,
+                              fontSize: 10,
+                            ),
+                          )
+                        : null,
+                    onTap: () => onSelected(entry),
+                  );
+                },
+              ),
+            ),
           ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 38,
-            minHeight: 40,
+        );
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) =>
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            height: focused ? 46 : 40,
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: enabled,
+              onSubmitted: (_) {
+                onFieldSubmitted();
+                unawaited(onNavigate());
+              },
+              textInputAction: TextInputAction.go,
+              keyboardType: TextInputType.url,
+              maxLines: 1,
+              style: TextStyle(color: palette.text, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: anyttyText(context, en: 'Enter a URL', zh: '输入网址'),
+                hintStyle: TextStyle(color: palette.faint, fontSize: 14),
+                prefixIcon: Icon(
+                  Icons.lock_outline_rounded,
+                  size: 16,
+                  color: palette.muted,
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 38,
+                  minHeight: 40,
+                ),
+                suffixIcon: IconButton(
+                  tooltip: anyttyText(context, en: 'Open', zh: '打开'),
+                  onPressed: enabled ? () => unawaited(onNavigate()) : null,
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  color: palette.accent,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+                filled: true,
+                fillColor: palette.surfaceRaised,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: focused ? 11 : 8,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.accent, width: 1.2),
+                ),
+              ),
+            ),
           ),
-          suffixIcon: IconButton(
-            tooltip: anyttyText(context, en: 'Open', zh: '打开'),
-            onPressed: enabled ? onNavigate : null,
-            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-            color: palette.accent,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-            padding: EdgeInsets.zero,
-          ),
-          filled: true,
-          fillColor: palette.surfaceRaised,
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: focused ? 11 : 8,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: palette.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: palette.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(6),
-            borderSide: BorderSide(color: palette.accent, width: 1.2),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1249,7 +1990,15 @@ final class _BrowserOverflowMenu extends StatelessWidget {
     required this.controller,
     required this.onBack,
     required this.onForward,
+    required this.onReload,
     required this.onSwitchSession,
+    required this.onOpenTabs,
+    required this.onOpenHistory,
+    required this.onOpenSettings,
+    required this.readerMode,
+    required this.desktopMode,
+    required this.onToggleReaderMode,
+    required this.onToggleDesktopMode,
   });
 
   final BrowserSessionState state;
@@ -1258,7 +2007,15 @@ final class _BrowserOverflowMenu extends StatelessWidget {
   final WebViewController? controller;
   final VoidCallback onBack;
   final VoidCallback onForward;
+  final VoidCallback onReload;
   final VoidCallback onSwitchSession;
+  final VoidCallback onOpenTabs;
+  final VoidCallback onOpenHistory;
+  final VoidCallback onOpenSettings;
+  final bool readerMode;
+  final bool desktopMode;
+  final VoidCallback onToggleReaderMode;
+  final VoidCallback onToggleDesktopMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1286,6 +2043,71 @@ final class _BrowserOverflowMenu extends StatelessWidget {
           leadingIcon: const Icon(Icons.arrow_forward_rounded, size: 18),
           onPressed: controller != null ? onForward : null,
           child: Text(anyttyText(context, en: 'Forward', zh: '前进')),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.refresh_rounded, size: 18),
+          onPressed: controller != null ? onReload : null,
+          child: Text(anyttyText(context, en: 'Reload', zh: '重新加载')),
+        ),
+        const Divider(height: 1),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.tab_rounded, size: 18),
+          onPressed: onOpenTabs,
+          child: Text(anyttyText(context, en: 'Tabs', zh: '标签页')),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.history_rounded, size: 18),
+          onPressed: onOpenHistory,
+          child: Text(anyttyText(context, en: 'History', zh: '历史记录')),
+        ),
+        MenuItemButton(
+          leadingIcon: Icon(
+            Icons.menu_book_outlined,
+            color: readerMode ? palette.accent : null,
+            size: 18,
+          ),
+          onPressed: onToggleReaderMode,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(anyttyText(context, en: 'Reader mode', zh: '阅读模式')),
+              ),
+              Text(
+                readerMode
+                    ? anyttyText(context, en: 'On', zh: '已开启')
+                    : anyttyText(context, en: 'Off', zh: '关闭'),
+                style: TextStyle(color: palette.muted, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        MenuItemButton(
+          leadingIcon: Icon(
+            Icons.desktop_windows_outlined,
+            color: desktopMode ? palette.accent : null,
+            size: 18,
+          ),
+          onPressed: onToggleDesktopMode,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  anyttyText(context, en: 'Desktop site', zh: '电脑模式'),
+                ),
+              ),
+              Text(
+                desktopMode
+                    ? anyttyText(context, en: 'On', zh: '已开启')
+                    : anyttyText(context, en: 'Off', zh: '关闭'),
+                style: TextStyle(color: palette.muted, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        MenuItemButton(
+          leadingIcon: const Icon(Icons.settings_outlined, size: 18),
+          onPressed: onOpenSettings,
+          child: Text(anyttyText(context, en: 'Browser settings', zh: '浏览器设置')),
         ),
         const Divider(height: 1),
         MenuItemButton(
@@ -1324,6 +2146,335 @@ final class _BrowserOverflowMenu extends StatelessWidget {
         icon: const Icon(Icons.more_vert_rounded, size: 21),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(width: 44, height: 48),
+      ),
+    );
+  }
+}
+
+final class _BrowserTabCountButton extends StatelessWidget {
+  const _BrowserTabCountButton({required this.count, required this.onPressed});
+
+  final int count;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: anyttyText(context, en: 'Tabs', zh: '标签页'),
+    onPressed: onPressed,
+    icon: Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        border: Border.all(color: AnyttyPalette.of(context).muted),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          color: AnyttyPalette.of(context).text,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+
+enum _BrowserTabActionType { newTab, select, close }
+
+final class _BrowserTabAction {
+  const _BrowserTabAction._(this.type, [this.tabId]);
+
+  const _BrowserTabAction.newTab() : this._(_BrowserTabActionType.newTab);
+
+  const _BrowserTabAction.select(String tabId)
+    : this._(_BrowserTabActionType.select, tabId);
+
+  const _BrowserTabAction.close(String tabId)
+    : this._(_BrowserTabActionType.close, tabId);
+
+  final _BrowserTabActionType type;
+  final String? tabId;
+}
+
+final class _BrowserTabsSheet extends StatelessWidget {
+  const _BrowserTabsSheet({required this.tabs, required this.activeTabId});
+
+  final List<BrowserTabSnapshot> tabs;
+  final String? activeTabId;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 620),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 12, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      anyttyText(context, en: 'Tabs', zh: '标签页'),
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: anyttyText(context, en: 'New tab', zh: '新建标签页'),
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .pop(const _BrowserTabAction.newTab()),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 12),
+                itemCount: tabs.length,
+                separatorBuilder: (_, _) =>
+                    Divider(height: 1, indent: 72, color: palette.border),
+                itemBuilder: (context, index) {
+                  final tab = tabs[index];
+                  final active = tab.id == activeTabId;
+                  return ListTile(
+                    minTileHeight: 68,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? palette.accent.withValues(alpha: 0.12)
+                            : palette.surfaceRaised,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          color: active ? palette.accent : palette.muted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      tab.title.isEmpty
+                          ? anyttyText(context, en: 'New tab', zh: '新标签页')
+                          : tab.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      tab.url.isEmpty ? 'about:blank' : tab.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Close tab',
+                        zh: '关闭标签页',
+                      ),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .pop(_BrowserTabAction.close(tab.id)),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    ),
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pop(_BrowserTabAction.select(tab.id)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _BrowserHistorySheet extends StatelessWidget {
+  const _BrowserHistorySheet({required this.entries, required this.onClear});
+
+  final List<BrowserHistoryEntry> entries;
+  final Future<void> Function() onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    var currentEntries = entries;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        final palette = AnyttyPalette.of(context);
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 620),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 12, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          anyttyText(context, en: 'History', zh: '历史记录'),
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: currentEntries.isEmpty
+                            ? null
+                            : () {
+                                setState(() => currentEntries = const []);
+                                unawaited(onClear());
+                              },
+                        child: Text(anyttyText(context, en: 'Clear', zh: '清空')),
+                      ),
+                    ],
+                  ),
+                ),
+                if (currentEntries.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 34),
+                    child: Center(
+                      child: Text(
+                        anyttyText(
+                          context,
+                          en: 'No browsing history',
+                          zh: '还没有浏览记录',
+                        ),
+                        style: TextStyle(color: palette.muted),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: currentEntries.length,
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 1, indent: 68, color: palette.border),
+                      itemBuilder: (context, index) {
+                        final entry = currentEntries[index];
+                        return ListTile(
+                          minTileHeight: 62,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                          ),
+                          leading: Icon(
+                            Icons.history_rounded,
+                            color: palette.muted,
+                          ),
+                          title: Text(
+                            entry.title.isEmpty ? entry.url : entry.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.text,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            entry.url,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          onTap: () => Navigator.of(context).pop(entry),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+final class _BrowserOfflineBanner extends StatelessWidget {
+  const _BrowserOfflineBanner({required this.onRefresh});
+
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: palette.warning),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 18, color: palette.background),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              anyttyText(
+                context,
+                en: 'Offline preview. Refresh for the latest page.',
+                zh: '当前属于离线模式，刷新后才是最新网页。',
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.background,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRefresh,
+            icon: Icon(
+              Icons.refresh_rounded,
+              size: 16,
+              color: palette.background,
+            ),
+            label: Text(
+              anyttyText(context, en: 'Refresh', zh: '刷新'),
+              style: TextStyle(color: palette.background, fontSize: 12),
+            ),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1373,8 +2524,8 @@ String _browserPhaseText(BuildContext context, BrowserSessionPhase phase) {
     BrowserSessionPhase.parked => anyttyText(context, en: 'Paused', zh: '已暂停'),
     BrowserSessionPhase.restoring => anyttyText(
       context,
-      en: 'Restoring',
-      zh: '正在恢复',
+      en: 'Loading page',
+      zh: '正在加载页面',
     ),
     BrowserSessionPhase.active => anyttyText(
       context,
@@ -1383,8 +2534,8 @@ String _browserPhaseText(BuildContext context, BrowserSessionPhase phase) {
     ),
     BrowserSessionPhase.parking => anyttyText(
       context,
-      en: 'Saving session',
-      zh: '正在保存会话',
+      en: 'Saving snapshot',
+      zh: '正在保存快照',
     ),
     BrowserSessionPhase.blocked => anyttyText(
       context,

@@ -6,6 +6,23 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.10] - 2026-09-04
+
+### Added
+
+- Added a native browser surface for remote web sessions with isolated proxy routing, persistent session state, multi-tab snapshots, history suggestions, reader mode, desktop-site mode, and offline restore messaging.
+- Added browser entry points from endpoint and terminal views, including a shared browser instance and consistent app/system back navigation.
+
+### Changed
+
+- Integrated browser navigation into a single compact toolbar with mobile tab switching and the existing terminal petal menu.
+- Android debug and release signing configurations now enable both V1 and V2 APK signature schemes for broader OEM installer compatibility.
+
+### Fixed
+
+- Terminal links now open inside AnyTTY's browser while preserving `mailto:` and `tel:` external handling.
+- Browser session routing no longer creates a second workspace when entering from a terminal, and leaving the browser keeps its live WebView state in memory.
+
 ## [0.0.1-beta.9] - 2026-09-02
 
 ### Changed

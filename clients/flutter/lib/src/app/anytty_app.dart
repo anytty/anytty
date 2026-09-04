@@ -86,21 +86,25 @@ final anyttyRouter = GoRouter(
       pageBuilder: (context, state) => _terminalPage(
         state,
         TerminalWorkspaceScreen(
+          key: ValueKey(
+            'terminal-workspace-${state.pathParameters['endpointId']}',
+          ),
           endpointId: state.pathParameters['endpointId']!,
+          terminalId: state.uri.queryParameters['terminalId'],
           label: state.uri.queryParameters['label'],
         ),
       ),
       routes: [
         GoRoute(
           path: ':terminalId',
-          pageBuilder: (context, state) => _terminalPage(
-            state,
-            TerminalWorkspaceScreen(
-              endpointId: state.pathParameters['endpointId']!,
-              terminalId: state.pathParameters['terminalId']!,
-              label: state.uri.queryParameters['label'],
-            ),
-          ),
+          redirect: (context, state) {
+            final endpointId = state.pathParameters['endpointId']!;
+            final terminalId = state.pathParameters['terminalId']!;
+            final label = state.uri.queryParameters['label'];
+            return '/terminal/${Uri.encodeComponent(endpointId)}'
+                '?terminalId=${Uri.encodeQueryComponent(terminalId)}'
+                '${label == null ? '' : '&label=${Uri.encodeQueryComponent(label)}'}';
+          },
         ),
       ],
     ),

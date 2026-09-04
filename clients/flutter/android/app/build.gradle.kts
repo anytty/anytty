@@ -40,12 +40,19 @@ android {
     ).all { !it.isNullOrBlank() }
 
     signingConfigs {
+        getByName("debug") {
+            // Keep sideloaded debug builds installable on older OEM installers.
+            isV1SigningEnabled = true
+            isV2SigningEnabled = true
+        }
         if (hasUploadSigning) {
             create("upload") {
                 storeFile = file(uploadStoreFile!!)
                 storePassword = uploadStorePassword
                 keyAlias = uploadKeyAlias
                 keyPassword = uploadKeyPassword
+                isV1SigningEnabled = true
+                isV2SigningEnabled = true
             }
         }
     }
