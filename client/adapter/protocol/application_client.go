@@ -305,7 +305,7 @@ func (stream *applicationResourceStream) Receive(ctx context.Context) (uint8, []
 		if !ok {
 			return 0, nil, io.EOF
 		}
-		if frame.Type == wire.TypeClosed || frame.Type == wire.TypeSyncLost {
+		if frame.Type == wire.TypeClosed || frame.Type == wire.TypeSyncLost || frame.Type == wire.TypeBrowserClosed {
 			stream.mu.Lock()
 			stream.ended = true
 			stream.mu.Unlock()
@@ -318,6 +318,9 @@ func (stream *applicationResourceStream) Send(ctx context.Context, typ uint8, pa
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if stream.kind == apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY {
+		return stream.client.SendBrowserFrame(stream.channel, typ, payload)
+	}
 	if stream.kind != apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER {
 		return errors.New("terminal attachment stream is receive-only; input uses TerminalInputCommand")
 	}
@@ -328,6 +331,9 @@ func (stream *applicationResourceStream) Close() error {
 	stream.once.Do(func() {
 		if stream.kind == apipb.ResourceKind_RESOURCE_KIND_TERMINAL_ATTACHMENT {
 			stream.closeErr = stream.client.SendAttachmentStreamClose(stream.channel)
+		}
+		if stream.kind == apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY {
+			stream.closeErr = stream.client.SendBrowserFrame(stream.channel, wire.TypeClosed, nil)
 		}
 		stream.stop()
 	})

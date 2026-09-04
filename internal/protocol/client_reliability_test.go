@@ -462,6 +462,36 @@ func TestClientPendingAccountingReleasesChannelFrameAndByteCapacity(t *testing.T
 	}
 }
 
+func TestClientDropsLateBrowserFramesAfterStreamClose(t *testing.T) {
+	clientTransport, serverTransport := memory.NewPair()
+	client := NewClient(clientTransport)
+	defer client.Close()
+	defer serverTransport.Close()
+
+	const channel = uint16(7)
+	client.bindApplicationAttachment(channel, &apipb.ResourceHandle{
+		OpaqueToken: []byte{0, byte(channel), 1},
+		Kind:        apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY,
+	})
+	_, stop := client.Stream(channel)
+	stop()
+
+	if err := sendTestFrame(serverTransport, channel, wire.TypeBrowserData, []byte("late")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-client.Done():
+		t.Fatalf("late browser frame closed client: %v", client.Err())
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.pending) != 0 || len(client.reused) != 0 || client.pendingFrameCount != 0 || client.pendingByteCount != 0 {
+		t.Fatalf("late browser frame was retained: pending=%d reused=%d frames=%d bytes=%d", len(client.pending), len(client.reused), client.pendingFrameCount, client.pendingByteCount)
+	}
+}
+
 type pendingTestFrame struct {
 	channel uint16
 	payload []byte

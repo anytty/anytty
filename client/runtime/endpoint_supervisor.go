@@ -156,6 +156,9 @@ func NewEndpointSupervisor(controller EndpointSupervisorController, options Endp
 	} else {
 		options.Backoff = append([]time.Duration(nil), options.Backoff...)
 	}
+	if options.Random == nil {
+		options.Random = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
 	if options.Logf == nil {
 		options.Logf = log.Printf
 	}

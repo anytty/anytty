@@ -69,6 +69,7 @@ type PlatformController interface {
 	RemoteCloudStatus(context.Context, *apipb.EndpointSessionStamp, *apipb.RemoteCloudStatusCommand) (*apipb.RemoteCloudStatusResult, error)
 	RemoteCloudEnable(context.Context, *apipb.EndpointSessionStamp, *apipb.RemoteCloudEnableCommand) (*apipb.RemoteCloudStatusResult, error)
 	RemoteCloudDisable(context.Context, *apipb.EndpointSessionStamp, *apipb.RemoteCloudDisableCommand) (*apipb.RemoteCloudStatusResult, error)
+	BrowserProxyOpen(context.Context, *apipb.EndpointSessionStamp, *apipb.BrowserProxyOpenCommand) (*apipb.BrowserProxyOpenResult, error)
 }
 
 func isTerminalCommand(command *apipb.CommandEnvelope) bool {
@@ -153,6 +154,8 @@ func validateApplicationCommand(command *apipb.CommandEnvelope) error {
 		*apipb.CommandEnvelope_RemoteCloudEnable,
 		*apipb.CommandEnvelope_RemoteCloudDisable:
 		return apimapping.ValidateAccessRemoteCommand(command)
+	case *apipb.CommandEnvelope_BrowserProxyOpen:
+		return apimapping.ValidateBrowserProxyCommand(command)
 	default:
 		return nil
 	}
@@ -476,6 +479,12 @@ func (service *Service) dispatchPlatformCommand(ctx context.Context, requestID s
 			return errorResult(requestID, session, apimapping.ErrorToProto(err, true))
 		}
 		return &apipb.ResultEnvelope{RequestId: requestID, OriginSession: cloneSession(session), Result: &apipb.ResultEnvelope_RemoteCloudStatus{RemoteCloudStatus: result}}
+	case *apipb.CommandEnvelope_BrowserProxyOpen:
+		result, err := service.platform.BrowserProxyOpen(ctx, session, value.BrowserProxyOpen)
+		if err != nil || result == nil {
+			return errorResult(requestID, session, apimapping.ErrorToProto(err, true))
+		}
+		return &apipb.ResultEnvelope{RequestId: requestID, OriginSession: cloneSession(session), Result: &apipb.ResultEnvelope_BrowserProxyOpen{BrowserProxyOpen: result}}
 	default:
 		return errorResult(requestID, session, apimapping.ErrorToProto(&apimapping.ValidationError{Field: "command", Reason: "unsupported platform command"}, false))
 	}

@@ -22,6 +22,13 @@ message ReleaseResourceCommand {
   ResourceHandle resource = 2;
 }
 
+// BrowserProxyOpenCommand opens one daemon-side TCP connection. The returned
+// resource is a bidirectional byte stream owned by the current API session.
+message BrowserProxyOpenCommand {
+  string host = 1;
+  uint32 port = 2;
+}
+
 message CommandEnvelope {
   RequestContext context = 1;
   oneof command {
@@ -79,6 +86,7 @@ message CommandEnvelope {
     RemoteCloudStatusCommand remote_cloud_status = 118;
     RemoteCloudEnableCommand remote_cloud_enable = 119;
     RemoteCloudDisableCommand remote_cloud_disable = 120;
+    BrowserProxyOpenCommand browser_proxy_open = 121;
   }
 }
 
@@ -123,7 +131,12 @@ message ResultEnvelope {
     RemoteLocalStatusResult remote_local_status = 112;
     RemoteCloudEdgesResult remote_cloud_edges = 113;
     RemoteCloudStatusResult remote_cloud_status = 114;
+    BrowserProxyOpenResult browser_proxy_open = 115;
   }
+}
+
+message BrowserProxyOpenResult {
+  ResourceHandle resource = 1;
 }
 
 message OperationCancelledEvent {

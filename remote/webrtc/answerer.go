@@ -235,12 +235,22 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		candidateMu.Unlock()
 	})
 	peer.OnConnectionStateChange(func(state pion.PeerConnectionState) {
+		if answerer.PionLogger != nil {
+			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "peer", "value", state.String())
+			logDaemonSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "peer_"+state.String())
+		}
 		if state == pion.PeerConnectionStateClosed {
 			lifecycle.requestClose()
 			return
 		}
 		if state == pion.PeerConnectionStateFailed || answerer.CloseOnDisconnected && state == pion.PeerConnectionStateDisconnected {
 			lifecycle.requestClose()
+		}
+	})
+	peer.OnICEConnectionStateChange(func(state pion.ICEConnectionState) {
+		if answerer.PionLogger != nil {
+			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "ice", "value", state.String())
+			logDaemonSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "ice_"+state.String())
 		}
 	})
 	peer.OnDataChannel(func(channel *pion.DataChannel) {
@@ -312,6 +322,25 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	wireCandidates := append([]ICECandidate(nil), candidates...)
 	candidateMu.Unlock()
 	return &SignalingAnswer{SessionID: offer.SessionID, SDP: description.SDP, Candidates: wireCandidates, lifecycle: lifecycle}, nil
+}
+
+func logDaemonSelectedCandidatePair(logger *slog.Logger, peer *pion.PeerConnection, sessionID, event string) {
+	if logger == nil || peer == nil || peer.SCTP() == nil || peer.SCTP().Transport() == nil || peer.SCTP().Transport().ICETransport() == nil {
+		return
+	}
+	pair, ok := peer.SCTP().Transport().ICETransport().GetSelectedCandidatePairStats()
+	if !ok {
+		logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", false)
+		return
+	}
+	report := peer.GetStats()
+	local, localOK := report[pair.LocalCandidateID].(pion.ICECandidateStats)
+	remote, remoteOK := report[pair.RemoteCandidateID].(pion.ICECandidateStats)
+	if !localOK || !remoteOK {
+		logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "candidates", "unavailable")
+		return
+	}
+	logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "pair_id", pair.ID, "local_type", local.CandidateType.String(), "local_address", local.IP, "local_port", local.Port, "local_protocol", local.Protocol, "local_relay_protocol", local.RelayProtocol, "remote_type", remote.CandidateType.String(), "remote_address", remote.IP, "remote_port", remote.Port, "remote_protocol", remote.Protocol, "bytes_sent", pair.BytesSent, "bytes_received", pair.BytesReceived)
 }
 
 func toPionCandidate(candidate ICECandidate) pion.ICECandidateInit {

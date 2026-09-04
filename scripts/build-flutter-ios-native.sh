@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 developer_dir="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-minimum_ios="${ANYTTY_IOS_DEPLOYMENT_TARGET:-15.0}"
+minimum_ios="${ANYTTY_IOS_DEPLOYMENT_TARGET:-17.0}"
 build_root="${repo_root}/.artifacts/flutter-ios-native"
 output_root="${1:-${repo_root}/clients/flutter/ios/Native}"
 ghostty_root="${repo_root}/third_party/ghostty"

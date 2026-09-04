@@ -32,6 +32,18 @@ func (session *ApplicationSession) ReleaseResource(ctx context.Context, command 
 	return nil
 }
 
+// BrowserProxyOpen executes the browser_proxy_open application command.
+func (session *ApplicationSession) BrowserProxyOpen(ctx context.Context, command *apipb.BrowserProxyOpenCommand) (*apipb.BrowserProxyOpenResult, error) {
+	result, err := session.ExecuteTerminal(ctx, &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_BrowserProxyOpen{BrowserProxyOpen: command}})
+	if err != nil {
+		return nil, err
+	}
+	if result.GetBrowserProxyOpen() == nil {
+		return nil, missingApplicationResult("browser_proxy_open")
+	}
+	return result.GetBrowserProxyOpen(), nil
+}
+
 // TerminalDefaults executes the terminal_defaults application command.
 func (session *ApplicationSession) TerminalDefaults(ctx context.Context, command *apipb.TerminalDefaultsCommand) (*apipb.TerminalDefaultsResult, error) {
 	result, err := session.Execute(ctx, &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalDefaults{TerminalDefaults: command}})

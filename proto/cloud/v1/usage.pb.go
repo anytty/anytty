@@ -1356,6 +1356,7 @@ type RelayRuntimePolicy struct {
 	RelayQuotaBytes            uint64                 `protobuf:"varint,8,opt,name=relay_quota_bytes,json=relayQuotaBytes,proto3" json:"relay_quota_bytes,omitempty"`
 	PeriodStart                *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
 	PeriodEnd                  *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
+	AccountRevision            uint64                 `protobuf:"varint,11,opt,name=account_revision,json=accountRevision,proto3" json:"account_revision,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1458,6 +1459,13 @@ func (x *RelayRuntimePolicy) GetPeriodEnd() *timestamppb.Timestamp {
 		return x.PeriodEnd
 	}
 	return nil
+}
+
+func (x *RelayRuntimePolicy) GetAccountRevision() uint64 {
+	if x != nil {
+		return x.AccountRevision
+	}
+	return 0
 }
 
 // RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
@@ -1713,17 +1721,19 @@ func (x *RelayUsageBatch) GetSamples() []*RelayUsageSample {
 }
 
 type RelayAccountAction struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	AccountId      string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Action         RelayAccountActionType `protobuf:"varint,2,opt,name=action,proto3,enum=anytty.cloud.v1.RelayAccountActionType" json:"action,omitempty"`
-	ActionRevision uint64                 `protobuf:"varint,3,opt,name=action_revision,json=actionRevision,proto3" json:"action_revision,omitempty"`
-	UsedBytes      uint64                 `protobuf:"varint,4,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
-	QuotaBytes     uint64                 `protobuf:"varint,5,opt,name=quota_bytes,json=quotaBytes,proto3" json:"quota_bytes,omitempty"`
-	PeriodStart    *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
-	PeriodEnd      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
-	Reason         string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	AccountId       string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Action          RelayAccountActionType `protobuf:"varint,2,opt,name=action,proto3,enum=anytty.cloud.v1.RelayAccountActionType" json:"action,omitempty"`
+	ActionRevision  uint64                 `protobuf:"varint,3,opt,name=action_revision,json=actionRevision,proto3" json:"action_revision,omitempty"`
+	UsedBytes       uint64                 `protobuf:"varint,4,opt,name=used_bytes,json=usedBytes,proto3" json:"used_bytes,omitempty"`
+	QuotaBytes      uint64                 `protobuf:"varint,5,opt,name=quota_bytes,json=quotaBytes,proto3" json:"quota_bytes,omitempty"`
+	PeriodStart     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
+	PeriodEnd       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
+	Reason          string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	PolicyRevision  uint64                 `protobuf:"varint,9,opt,name=policy_revision,json=policyRevision,proto3" json:"policy_revision,omitempty"`
+	AccountRevision uint64                 `protobuf:"varint,10,opt,name=account_revision,json=accountRevision,proto3" json:"account_revision,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RelayAccountAction) Reset() {
@@ -1810,6 +1820,20 @@ func (x *RelayAccountAction) GetReason() string {
 		return x.Reason
 	}
 	return ""
+}
+
+func (x *RelayAccountAction) GetPolicyRevision() uint64 {
+	if x != nil {
+		return x.PolicyRevision
+	}
+	return 0
+}
+
+func (x *RelayAccountAction) GetAccountRevision() uint64 {
+	if x != nil {
+		return x.AccountRevision
+	}
+	return 0
 }
 
 type RelayUsageAck struct {
@@ -2142,7 +2166,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\x05grant\x18\x03 \x01(\v2\x1b.anytty.cloud.v1.RelayGrantR\x05grant\x12?\n" +
 	"\bterminal\x18\x04 \x01(\v2#.anytty.cloud.v1.RelaySettlementAckR\bterminal\x12#\n" +
 	"\rerror_message\x18\x05 \x01(\tR\ferrorMessage\x12Y\n" +
-	"\x13entitlement_failure\x18\x06 \x01(\v2(.anytty.cloud.v1.CloudEntitlementFailureR\x12entitlementFailure\"\xe2\x03\n" +
+	"\x13entitlement_failure\x18\x06 \x01(\v2(.anytty.cloud.v1.CloudEntitlementFailureR\x12entitlementFailure\"\x8d\x04\n" +
 	"\x12RelayRuntimePolicy\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12'\n" +
@@ -2156,7 +2180,8 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\fperiod_start\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vperiodStart\x129\n" +
 	"\n" +
 	"period_end\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\"\xce\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x12)\n" +
+	"\x10account_revision\x18\v \x01(\x04R\x0faccountRevision\"\xce\x01\n" +
 	"\x15RelayAuthorizeRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
@@ -2180,7 +2205,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"sampled_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tsampledAt\"u\n" +
 	"\x0fRelayUsageBatch\x12%\n" +
 	"\x0ebatch_sequence\x18\x01 \x01(\x04R\rbatchSequence\x12;\n" +
-	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\"\xef\x02\n" +
+	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\"\xc3\x03\n" +
 	"\x12RelayAccountAction\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12?\n" +
@@ -2193,7 +2218,10 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\fperiod_start\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\vperiodStart\x129\n" +
 	"\n" +
 	"period_end\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x12\x16\n" +
-	"\x06reason\x18\b \x01(\tR\x06reason\"\xb4\x01\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12'\n" +
+	"\x0fpolicy_revision\x18\t \x01(\x04R\x0epolicyRevision\x12)\n" +
+	"\x10account_revision\x18\n" +
+	" \x01(\x04R\x0faccountRevision\"\xb4\x01\n" +
 	"\rRelayUsageAck\x12%\n" +
 	"\x0ebatch_sequence\x18\x01 \x01(\x04R\rbatchSequence\x12=\n" +
 	"\aactions\x18\x02 \x03(\v2#.anytty.cloud.v1.RelayAccountActionR\aactions\x12=\n" +

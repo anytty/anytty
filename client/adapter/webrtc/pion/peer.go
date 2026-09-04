@@ -261,14 +261,19 @@ func openPeer(
 		gatherTimeout: gatherTimeout, gatheringGrace: gatheringGrace, diagnosticMode: diagnosticMode,
 		peerResource: peerResource,
 	}
-	channel.OnOpen(func() { value.readyOnce.Do(func() { close(ready) }) })
+	channel.OnOpen(func() {
+		value.readyOnce.Do(func() { close(ready) })
+		value.logSelectedCandidatePair("datachannel_open")
+	})
 	channelAdapter.SetCloseHandler(func() { value.channelClosedOnce.Do(func() { close(closed) }) })
 	peer.OnConnectionStateChange(func(state pionwebrtc.PeerConnectionState) {
 		log.Printf("anytty webrtc state mode=%s component=peer value=%s", diagnosticMode, state.String())
+		value.logSelectedCandidatePair("peer_" + state.String())
 		value.handleConnectionState(state)
 	})
 	peer.OnICEConnectionStateChange(func(state pionwebrtc.ICEConnectionState) {
 		log.Printf("anytty webrtc state mode=%s component=ice value=%s", diagnosticMode, state.String())
+		value.logSelectedCandidatePair("ice_" + state.String())
 	})
 	peer.OnICEGatheringStateChange(func(state pionwebrtc.ICEGatheringState) {
 		log.Printf("anytty webrtc state mode=%s component=gathering value=%s", diagnosticMode, state.String())
@@ -420,6 +425,7 @@ func (peer *webRTCPeer) CreateOffer(ctx context.Context) (string, error) {
 			default:
 				candidateType = "unknown"
 			}
+			log.Printf("anytty webrtc candidate detail mode=%s type=%s address=%s port=%d protocol=%s related_address=%s related_port=%d tcp_type=%s", peer.diagnosticMode, candidateType, candidate.Address, candidate.Port, candidate.Protocol.String(), candidate.RelatedAddress, candidate.RelatedPort, candidate.TCPType)
 		}
 		log.Printf("anytty webrtc candidate mode=%s type=%s", peer.diagnosticMode, candidateType)
 	})
@@ -449,11 +455,21 @@ func (peer *webRTCPeer) ApplyAnswer(ctx context.Context, answer string, candidat
 		return err
 	}
 	for _, candidate := range candidates {
+		log.Printf("anytty webrtc remote candidate mode=%s value=%s", peer.diagnosticMode, strings.TrimSpace(candidate.Candidate))
 		if err := peer.peer.AddICECandidate(toPionCandidate(candidate)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (peer *webRTCPeer) logSelectedCandidatePair(event string) {
+	pair, local, remote, _, ok := peer.selectedCandidatePair()
+	if !ok {
+		log.Printf("anytty webrtc selected_pair mode=%s event=%s selected=false", peer.diagnosticMode, event)
+		return
+	}
+	log.Printf("anytty webrtc selected_pair mode=%s event=%s selected=true pair_id=%s local_type=%s local_address=%s local_port=%d local_protocol=%s local_relay_protocol=%s remote_type=%s remote_address=%s remote_port=%d remote_protocol=%s bytes_sent=%d bytes_received=%d", peer.diagnosticMode, event, pair.ID, local.CandidateType.String(), local.IP, candidatePort(local.Port), local.Protocol, local.RelayProtocol, remote.CandidateType.String(), remote.IP, candidatePort(remote.Port), remote.Protocol, pair.BytesSent, pair.BytesReceived)
 }
 
 func (peer *webRTCPeer) WaitReady(ctx context.Context) error {

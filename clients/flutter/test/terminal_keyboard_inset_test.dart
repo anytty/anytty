@@ -16,7 +16,7 @@ void main() {
     expect(find.text('0'), findsOneWidget);
   });
 
-  testWidgets('keeps the terminal and key bar in one keyboard workspace', (
+  testWidgets('keeps the terminal and key bar above the keyboard', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -77,12 +77,94 @@ void main() {
     final terminal = tester.getRect(find.byKey(const Key('terminal')));
     final keyBar = tester.getRect(find.byKey(const Key('key-bar')));
     final searchBar = tester.getRect(find.byKey(const Key('search-bar')));
-    expect(terminal, const Rect.fromLTWH(0, -300, 400, 752));
+    expect(terminal, const Rect.fromLTWH(0, 0, 400, 452));
     expect(terminal.bottom, 452);
     expect(keyBar, const Rect.fromLTWH(0, 452, 400, 48));
     expect(searchBar, const Rect.fromLTWH(8, 400, 384, 44));
     expect(terminal.bottom, keyBar.top);
     expect(searchBar.bottom, lessThan(keyBar.top));
+    expect(workspaceBuilds, 1);
+  });
+
+  testWidgets('waits for the settled inset before relayout', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final visualInset = ValueNotifier<double>(0);
+    addTearDown(visualInset.dispose);
+    var layoutInset = 0.0;
+    late StateSetter updateLayoutInset;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateLayoutInset = setState;
+            return TerminalKeyboardWorkspace(
+              visualInset: visualInset,
+              layoutInset: layoutInset,
+              child: const SizedBox(key: Key('settled-layout'), height: 800),
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(tester.getRect(find.byKey(const Key('settled-layout'))).bottom, 800);
+
+    visualInset.value = 300;
+    await tester.pump();
+    expect(tester.getRect(find.byKey(const Key('settled-layout'))).bottom, 800);
+
+    updateLayoutInset(() => layoutInset = 300);
+    await tester.pump();
+    expect(tester.getRect(find.byKey(const Key('settled-layout'))).bottom, 500);
+  });
+
+  testWidgets('translates the live workspace without rebuilding its child', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final visualInset = ValueNotifier<double>(0);
+    addTearDown(visualInset.dispose);
+    var workspaceBuilds = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TerminalKeyboardWorkspace(
+          visualInset: visualInset,
+          translateVisualInset: true,
+          child: Builder(
+            builder: (context) {
+              workspaceBuilds += 1;
+              return Column(
+                children: [
+                  const Expanded(
+                    child: ColoredBox(
+                      key: Key('translated-terminal'),
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(key: Key('translated-key-bar'), height: 48),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    visualInset.value = 300;
+    await tester.pump();
+
+    expect(
+      tester.getRect(find.byKey(const Key('translated-key-bar'))).top,
+      452,
+    );
     expect(workspaceBuilds, 1);
   });
 

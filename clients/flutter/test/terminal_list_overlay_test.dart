@@ -203,6 +203,9 @@ void main() {
         name: 'Build terminal',
         state: TerminalState.TERMINAL_STATE_RUNNING,
         cwd: '/workspace/build',
+        lastOutputAtUnixNano: Int64(
+          (DateTime.now().toUtc().microsecondsSinceEpoch - 12 * 1000000) * 1000,
+        ),
         tags: const {'tag1': 'release'}.entries,
         resources: TerminalResourceUsage(
           pid: 4242,
@@ -273,6 +276,7 @@ void main() {
     await tester.tap(find.text('Overlay test'));
     await tester.pumpAndSettle();
 
+    expect(find.text('12s'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('terminal-resource-strip-cpu')),
       findsNothing,

@@ -13,6 +13,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../app/anytty_theme.dart';
 import '../../../app/anytty_localizations.dart';
 import '../../../app/providers.dart';
+import '../../../generated/proto/apipb/common.pbenum.dart';
 import '../../../generated/proto/apipb/history.pb.dart';
 import '../../../generated/proto/apipb/terminal.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
@@ -36,6 +37,7 @@ import '../../terminal/domain/terminal_form.dart';
 import '../../terminal/domain/terminal_inventory.dart';
 import '../../terminal/domain/terminal_links.dart';
 import '../../terminal/domain/terminal_modifiers.dart';
+import '../../terminal/domain/terminal_output_activity.dart';
 import '../../terminal/domain/terminal_petal_menu_preferences.dart';
 import '../../terminal/domain/terminal_quick_action.dart';
 import '../../terminal/domain/terminal_settings.dart';
@@ -50,6 +52,7 @@ import 'terminal_quick_keys_panel.dart';
 import 'terminal_recovery_notice.dart';
 import 'terminal_resource_panel.dart';
 import 'terminal_switcher_sheet.dart';
+import 'terminal_path_picker_sheet.dart';
 import 'terminal_ui_theme.dart';
 
 final class TerminalWorkspaceScreen extends ConsumerStatefulWidget {
@@ -326,6 +329,20 @@ final class _TerminalWorkspaceScreenState
                   endpointId: widget.endpointId,
                   endpointLabel: endpointLabel,
                 ),
+              ),
+            if (selectedTerminal == null)
+              IconButton(
+                tooltip: anyttyText(context, en: 'Web', zh: 'Web 浏览器'),
+                constraints: const BoxConstraints.tightFor(
+                  width: 38,
+                  height: 36,
+                ),
+                padding: const EdgeInsets.all(9),
+                onPressed: () => context.push(
+                  '/browser/${Uri.encodeComponent(widget.endpointId)}'
+                  '?label=${Uri.encodeQueryComponent(endpointLabel)}',
+                ),
+                icon: const Icon(Icons.language_rounded, size: 17),
               ),
             if (selectedTerminal == null)
               IconButton(
@@ -1126,7 +1143,10 @@ Future<void> _createTerminal({
       showDragHandle: false,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
-      builder: (context) => _TerminalCreateSheet(defaults: defaults),
+      builder: (context) => _TerminalCreateSheet(
+        defaults: defaults,
+        loadDirectories: (prefix) => session.listDirectories(prefix: prefix),
+      ),
     );
     if (input == null || !context.mounted) return;
     messenger.showSnackBar(const SnackBar(content: Text('Creating terminal')));
@@ -1261,9 +1281,13 @@ String _terminalActionSuccess(_TerminalAction action) {
 }
 
 final class _TerminalCreateSheet extends StatefulWidget {
-  const _TerminalCreateSheet({required this.defaults});
+  const _TerminalCreateSheet({
+    required this.defaults,
+    required this.loadDirectories,
+  });
 
   final TerminalDefaults defaults;
+  final TerminalDirectoryLoader loadDirectories;
 
   @override
   State<_TerminalCreateSheet> createState() => _TerminalCreateSheetState();
@@ -1343,7 +1367,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                       const SizedBox(width: 20),
                       Expanded(
                         child: Text(
-                          'New terminal',
+                          anyttyText(context, en: 'New terminal', zh: '新建终端'),
                           style: TextStyle(
                             color: palette.text,
                             fontSize: 17,
@@ -1352,7 +1376,11 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Close New terminal',
+                        tooltip: anyttyText(
+                          context,
+                          en: 'Close New terminal',
+                          zh: '关闭新建终端',
+                        ),
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close_rounded, size: 20),
                       ),
@@ -1367,7 +1395,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                     children: [
                       _labelledField(
                         context,
-                        label: 'Name',
+                        label: anyttyText(context, en: 'Name', zh: '名称'),
                         child: TextField(
                           controller: _name,
                           maxLength: 120,
@@ -1381,7 +1409,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                       const SizedBox(height: 16),
                       _labelledField(
                         context,
-                        label: 'Command',
+                        label: anyttyText(context, en: 'Command', zh: '命令'),
                         child: TextField(
                           controller: _command,
                           autocorrect: false,
@@ -1397,17 +1425,45 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                       const SizedBox(height: 16),
                       _labelledField(
                         context,
-                        label: 'Working directory',
-                        child: TextField(
-                          controller: _cwd,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          textInputAction: TextInputAction.next,
-                          style: const TextStyle(
-                            fontFamily: 'JetBrainsMonoNerd',
-                            fontSize: 15,
-                          ),
-                          decoration: _fieldDecoration(context),
+                        label: anyttyText(
+                          context,
+                          en: 'Working directory',
+                          zh: '工作目录',
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _cwd,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textInputAction: TextInputAction.next,
+                                style: const TextStyle(
+                                  fontFamily: 'JetBrainsMonoNerd',
+                                  fontSize: 15,
+                                ),
+                                decoration: _fieldDecoration(context),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: IconButton(
+                                key: const ValueKey(
+                                  'terminal-browse-working-directory',
+                                ),
+                                onPressed: _browseWorkingDirectory,
+                                tooltip: anyttyText(
+                                  context,
+                                  en: 'Browse working directory',
+                                  zh: '浏览工作目录',
+                                ),
+                                icon: const Icon(LucideIcons.folderOpen),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1415,23 +1471,45 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                       const SizedBox(height: 16),
                       _labelledField(
                         context,
-                        label: 'Size policy',
+                        label: anyttyText(
+                          context,
+                          en: 'Size policy',
+                          zh: '尺寸策略',
+                        ),
                         child: DropdownButtonFormField<String>(
                           initialValue: _sizeLockMode,
                           isExpanded: true,
                           decoration: _fieldDecoration(context),
-                          items: const [
+                          items: [
                             DropdownMenuItem(
                               value: 'off',
-                              child: Text('Resizable'),
+                              child: Text(
+                                anyttyText(
+                                  context,
+                                  en: 'Resizable',
+                                  zh: '可调整大小',
+                                ),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'warn',
-                              child: Text('Warn before resizing'),
+                              child: Text(
+                                anyttyText(
+                                  context,
+                                  en: 'Warn before resizing',
+                                  zh: '调整大小前提醒',
+                                ),
+                              ),
                             ),
                             DropdownMenuItem(
                               value: 'lock',
-                              child: Text('Locked size'),
+                              child: Text(
+                                anyttyText(
+                                  context,
+                                  en: 'Locked size',
+                                  zh: '锁定尺寸',
+                                ),
+                              ),
                             ),
                           ],
                           onChanged: (value) {
@@ -1465,7 +1543,9 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                     child: FilledButton.icon(
                       onPressed: _submit,
                       icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Create terminal'),
+                      label: Text(
+                        anyttyText(context, en: 'Create terminal', zh: '创建终端'),
+                      ),
                     ),
                   ),
                 ),
@@ -1483,7 +1563,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Environment',
+          anyttyText(context, en: 'Environment', zh: '环境变量'),
           style: TextStyle(
             color: palette.text,
             fontSize: 14,
@@ -1501,7 +1581,10 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                   controller: _environment[index].key,
                   autocorrect: false,
                   enableSuggestions: false,
-                  decoration: _fieldDecoration(context, hintText: 'Key'),
+                  decoration: _fieldDecoration(
+                    context,
+                    hintText: anyttyText(context, en: 'Key', zh: '键'),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1511,7 +1594,10 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                   controller: _environment[index].value,
                   autocorrect: false,
                   enableSuggestions: false,
-                  decoration: _fieldDecoration(context, hintText: 'Value'),
+                  decoration: _fieldDecoration(
+                    context,
+                    hintText: anyttyText(context, en: 'Value', zh: '值'),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1540,7 +1626,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                 child: OutlinedButton.icon(
                   onPressed: _addEnvironment,
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Add'),
+                  label: Text(anyttyText(context, en: 'Add', zh: '添加')),
                 ),
               ),
             ),
@@ -1551,7 +1637,7 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                 child: OutlinedButton.icon(
                   onPressed: () => setState(() => _pasteOpen = true),
                   icon: const Icon(Icons.content_paste_rounded, size: 17),
-                  label: const Text('Paste'),
+                  label: Text(anyttyText(context, en: 'Paste', zh: '粘贴')),
                 ),
               ),
             ),
@@ -1571,9 +1657,13 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Paste environment',
+                        anyttyText(
+                          context,
+                          en: 'Paste environment',
+                          zh: '粘贴环境变量',
+                        ),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -1581,7 +1671,11 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Close environment paste',
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Close environment paste',
+                        zh: '关闭环境变量粘贴',
+                      ),
                       onPressed: () => setState(() => _pasteOpen = false),
                       icon: const Icon(Icons.close_rounded, size: 18),
                     ),
@@ -1607,7 +1701,13 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
                   height: 48,
                   child: FilledButton(
                     onPressed: _applyEnvironmentPaste,
-                    child: const Text('Apply environment'),
+                    child: Text(
+                      anyttyText(
+                        context,
+                        en: 'Apply environment',
+                        zh: '应用环境变量',
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1667,6 +1767,22 @@ final class _TerminalCreateSheetState extends State<_TerminalCreateSheet> {
 
   void _addEnvironment() {
     setState(() => _environment.add(_TerminalEnvironmentControllers()));
+  }
+
+  Future<void> _browseWorkingDirectory() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final selected = await showTerminalPathPicker(
+      context: context,
+      initialPath: _cwd.text.trim().isEmpty
+          ? widget.defaults.defaultCwd
+          : _cwd.text.trim(),
+      loadDirectories: widget.loadDirectories,
+    );
+    if (!mounted || selected == null) return;
+    _cwd.value = TextEditingValue(
+      text: selected,
+      selection: TextSelection.collapsed(offset: selected.length),
+    );
   }
 
   void _removeEnvironment(int index) {
@@ -2118,6 +2234,9 @@ final class _TerminalListLoadingState
       if (_attempts.isNotEmpty) setState(_attempts.clear);
       return;
     }
+    // AUTO may cancel a slower route after another attempt has already won.
+    // That is normal race convergence, not a user-visible connection failure.
+    if (_isSupersededConnectionAttempt(event)) return;
     final kind = event.attemptedRouteKind;
     if (kind == ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) return;
     setState(() => _attempts[kind] = event.deepCopy());
@@ -2155,6 +2274,7 @@ final class _TerminalListLoadingState
     );
     final latest = progress.valueOrNull;
     if (latest != null &&
+        !_isSupersededConnectionAttempt(latest) &&
         latest.attemptedRouteKind !=
             ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) {
       attempts[latest.attemptedRouteKind] = latest;
@@ -2338,6 +2458,12 @@ final class _TerminalListLoadingState
       '?label=${Uri.encodeQueryComponent(widget.label)}',
     );
   }
+}
+
+bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
+  return event.connectionStage == 'attempt_failed' &&
+      event.hasError() &&
+      event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
 }
 
 String _connectionLoadingLabel(
@@ -2680,6 +2806,8 @@ final class _TerminalRow extends StatelessWidget {
       if (program.isEmpty && terminal.command.isNotEmpty)
         terminal.command.join(' '),
     ];
+    final outputQuiet = terminalOutputQuietDuration(terminal);
+    final outputTone = terminalOutputActivityTone(terminal);
     return SizedBox(
       height: 88,
       child: Card(
@@ -2703,37 +2831,87 @@ final class _TerminalRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: palette.surfaceRaised,
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                      child: Icon(
-                        terminalProgramIcon(terminal),
-                        size: 20,
-                        color: palette.text,
-                      ),
-                    ),
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _terminalStateColor(context, terminal.state),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: palette.surface, width: 2),
+                Semantics(
+                  container: true,
+                  label: outputQuiet == null
+                      ? anyttyText(
+                          context,
+                          en: 'No terminal output time available',
+                          zh: '暂无终端输出时间',
+                        )
+                      : _terminalOutputActivitySemantics(context, outputQuiet),
+                  child: SizedBox(
+                    width: 40,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: palette.surfaceRaised,
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: Icon(
+                                terminalProgramIcon(terminal),
+                                size: 20,
+                                color: palette.text,
+                              ),
+                            ),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _terminalStateColor(
+                                    context,
+                                    terminal.state,
+                                  ),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: palette.surface,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                        if (outputQuiet != null) ...[
+                          const SizedBox(height: 2),
+                          Icon(
+                            LucideIcons.clock3,
+                            size: 10,
+                            color: _terminalOutputActivityColor(
+                              palette,
+                              outputTone,
+                            ),
+                          ),
+                          Text(
+                            _terminalOutputActivityLabel(context, outputQuiet),
+                            maxLines: 1,
+                            overflow: TextOverflow.clip,
+                            style: TextStyle(
+                              color: _terminalOutputActivityColor(
+                                palette,
+                                outputTone,
+                              ),
+                              fontFamily: 'JetBrainsMonoNerd',
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ),
                 const SizedBox(width: 11),
                 Expanded(
@@ -3359,6 +3537,77 @@ Color _terminalStateColor(BuildContext context, TerminalState state) {
   };
 }
 
+String _terminalOutputActivityLabel(BuildContext context, Duration quiet) {
+  if (quiet < const Duration(seconds: 5)) {
+    return anyttyText(context, en: 'now', zh: '刚刚');
+  }
+  if (quiet < const Duration(minutes: 1)) {
+    final seconds = quiet.inSeconds;
+    return anyttyText(
+      context,
+      en: _terminalOutputCompactDuration(seconds, 's'),
+      zh: '$seconds秒',
+    );
+  }
+  if (quiet < const Duration(hours: 1)) {
+    final minutes = quiet.inMinutes;
+    return anyttyText(
+      context,
+      en: _terminalOutputCompactDuration(minutes, 'm'),
+      zh: '$minutes分',
+    );
+  }
+  final hours = quiet.inHours;
+  return anyttyText(
+    context,
+    en: _terminalOutputCompactDuration(hours, 'h'),
+    zh: '$hours时',
+  );
+}
+
+String _terminalOutputCompactDuration(int value, String unit) => '$value$unit';
+
+String _terminalOutputActivitySemantics(BuildContext context, Duration quiet) {
+  if (quiet < const Duration(seconds: 5)) {
+    return anyttyText(context, en: 'Last output just now', zh: '最近刚有输出');
+  }
+  if (quiet < const Duration(minutes: 1)) {
+    final seconds = quiet.inSeconds;
+    return anyttyText(
+      context,
+      en: 'Last output $seconds seconds ago',
+      zh: '最近输出于 $seconds 秒前',
+    );
+  }
+  if (quiet < const Duration(hours: 1)) {
+    final minutes = quiet.inMinutes;
+    return anyttyText(
+      context,
+      en: 'Last output $minutes minutes ago',
+      zh: '最近输出于 $minutes 分钟前',
+    );
+  }
+  final hours = quiet.inHours;
+  return anyttyText(
+    context,
+    en: 'Last output $hours hours ago',
+    zh: '最近输出于 $hours 小时前',
+  );
+}
+
+Color _terminalOutputActivityColor(
+  AnyttyPalette palette,
+  TerminalOutputActivityTone tone,
+) {
+  return switch (tone) {
+    TerminalOutputActivityTone.fresh ||
+    TerminalOutputActivityTone.recent => palette.accent,
+    TerminalOutputActivityTone.idle ||
+    TerminalOutputActivityTone.stale => palette.muted,
+    TerminalOutputActivityTone.none => palette.faint,
+  };
+}
+
 enum _TerminalSplitTarget { left, right, above, below }
 
 final class _TerminalInputOperation {
@@ -3755,6 +4004,7 @@ final class _ActiveTerminalState extends ConsumerState<_ActiveTerminal> {
         children: [
           TerminalKeyboardWorkspace(
             visualInset: widget.keyboardVisualInset,
+            translateVisualInset: true,
             child: Column(
               children: [
                 Expanded(
@@ -4935,8 +5185,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
           _keyboardMode,
           alternateScreen: alternate,
         );
-        final shifting =
-            keyboardInset > 0 && mode == TerminalKeyboardMode.shift;
         final resizing =
             keyboardInset > 0 && mode == TerminalKeyboardMode.resize;
         final keyboardAnimating =
@@ -4944,7 +5192,10 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
         if (keyboardInset <= 1 && settledKeyboardInset <= 1) {
           _fullTerminalViewportHeight = constraints.maxHeight;
         }
-        final preserveGrid = shifting || keyboardAnimating;
+        // The surrounding workspace follows the raw IME inset in a
+        // composited layer. Keep only the settled viewport resize here so the
+        // terminal does not receive a second visual translation.
+        final preserveGrid = keyboardAnimating;
         final layoutHeight = resizing
             ? math.max(0.0, constraints.maxHeight - keyboardInset)
             : preserveGrid
@@ -4953,8 +5204,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
         _scheduleViewportFit(Size(constraints.maxWidth, layoutHeight));
         if (!preserveGrid) {
           return Align(
-            // The workspace moves upward as one unit. Bottom alignment places a
-            // resized terminal below the clipped area before that translation.
             alignment: resizing ? Alignment.bottomLeft : Alignment.topLeft,
             child: SizedBox(
               width: constraints.maxWidth,
@@ -4964,14 +5213,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
           );
         }
 
-        final shift = shifting
-            ? resolveTerminalKeyboardShift(
-                keyboardInset: keyboardInset,
-                visibleHeight: constraints.maxHeight,
-                cursorRow: screen.cursor?.row,
-                rowHeight: widget.settings.metrics.rowHeight,
-              )
-            : 0.0;
         return ClipRect(
           child: OverflowBox(
             alignment: Alignment.topLeft,
@@ -4979,13 +5220,10 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             maxWidth: constraints.maxWidth,
             minHeight: layoutHeight,
             maxHeight: layoutHeight,
-            child: Transform.translate(
-              offset: Offset(0, -shift),
-              child: SizedBox(
-                width: constraints.maxWidth,
-                height: layoutHeight,
-                child: child,
-              ),
+            child: SizedBox(
+              width: constraints.maxWidth,
+              height: layoutHeight,
+              child: child,
             ),
           ),
         );

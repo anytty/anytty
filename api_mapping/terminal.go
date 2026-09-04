@@ -609,6 +609,8 @@ func applicationCapabilityToCore(capability apipb.ApiCapability) corev2.Applicat
 		return corev2.ApplicationCapabilityClientAccess
 	case apipb.ApiCapability_API_CAPABILITY_REMOTE_CONTROL:
 		return corev2.ApplicationCapabilityRemoteControl
+	case apipb.ApiCapability_API_CAPABILITY_BROWSER_PROXY:
+		return corev2.ApplicationCapabilityBrowserProxy
 	default:
 		return 0
 	}

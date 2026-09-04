@@ -1234,6 +1234,12 @@ func bindingFrameTypeToWire(typ bindingpb.ResourceStreamFrameType, outbound bool
 		if outbound {
 			return wire.TypeFileFinish, nil
 		}
+	case bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA:
+		return wire.TypeBrowserData, nil
+	case bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED:
+		if !outbound {
+			return wire.TypeBrowserClosed, nil
+		}
 	case bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_OUTPUT:
 		if !outbound {
 			return wire.TypePTYOutput, nil
@@ -1260,6 +1266,8 @@ func wireFrameTypeToBinding(typ uint8) (bindingpb.ResourceStreamFrameType, error
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_OUTPUT,
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_SYNC_LOST,
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED,
+		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
+		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED,
 	} {
 		wireType, _ := bindingFrameTypeToWire(candidate, false)
 		if wireType == typ {

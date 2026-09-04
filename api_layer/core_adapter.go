@@ -304,6 +304,14 @@ func (adapter *coreApplicationAdapter) FileTransferCancel(ctx context.Context, _
 	}
 	return apimapping.FileTransferCancelToProto(result), nil
 }
+
+func (adapter *coreApplicationAdapter) BrowserProxyOpen(ctx context.Context, origin *apipb.EndpointSessionStamp, command *apipb.BrowserProxyOpenCommand) (*apipb.BrowserProxyOpenResult, error) {
+	proxy, err := adapter.port.ApplicationBrowserProxyOpen(ctx, command.GetHost(), uint16(command.GetPort()))
+	if err != nil {
+		return nil, apimapping.CoreError(err)
+	}
+	return apimapping.BrowserProxyToProto(origin, proxy), nil
+}
 func (adapter *coreApplicationAdapter) StorageGet(ctx context.Context, _ *apipb.EndpointSessionStamp, command *apipb.StorageGetCommand) (*apipb.StorageGetResult, error) {
 	appID, scope, ownerID, key := apimapping.StorageKeyFromProto(command.GetKey())
 	result, err := adapter.port.ApplicationStorageGet(ctx, appID, scope, ownerID, key)

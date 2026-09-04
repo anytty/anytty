@@ -273,6 +273,10 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 		_ = opened.Close()
 		return nil, err
 	}
+	if answer == nil || strings.TrimSpace(answer.GetRequestId()) == "" {
+		_ = opened.Close()
+		return nil, fmt.Errorf("direct signaling returned an empty answer")
+	}
 	if options.Timing != nil {
 		options.Timing("signaling_answer")
 	}
@@ -280,7 +284,7 @@ func openDirectPeer(ctx context.Context, request clientruntime.AttemptRequest, o
 	if options.Now != nil {
 		verifyNow = options.Now().UTC()
 	}
-	if err := remoteauth.VerifyDirectSignalingAnswer(answer, requestID, request.DaemonIdentity().DeviceID, request.DaemonIdentity().DeviceFingerprint, verifyNow); err != nil {
+	if err := remoteauth.VerifyDirectSignalingAnswer(answer, answer.GetRequestId(), request.DaemonIdentity().DeviceID, request.DaemonIdentity().DeviceFingerprint, verifyNow); err != nil {
 		_ = opened.Close()
 		return nil, fmt.Errorf("verify direct signaling answer: %w", err)
 	}
@@ -510,15 +514,18 @@ func (dialer *Dialer) reportPhase(phase clientruntime.EndpointPhase) {
 	}
 }
 
-// TCPSignalingClient 使用首个可建立 TCP connection 的 locator 完成一次 Proto exchange。
-// 地址选择只发生在写入 request 前；一旦请求可能已被 daemon 消费，就不重放到其他地址。
+// TCPSignalingClient races the complete signaling exchange across locators.
+// TCP establishment alone is not sufficient: a firewall or half-open path can
+// accept a SYN and then never process the first protocol frame.
 type TCPSignalingClient struct {
-	Dialer ContextDialer
+	Dialer          ContextDialer
+	ExchangeTimeout time.Duration
 }
 
-type signalingDialResult struct {
+type signalingExchangeResult struct {
 	connection net.Conn
 	address    string
+	answer     *remoteauthpb.DirectSignalingAnswerV2
 	err        error
 }
 
@@ -528,20 +535,21 @@ type ContextDialer interface {
 	DialContext(context.Context, string, string) (net.Conn, error)
 }
 
-// Exchange 建连后写入一个 request 并读取一个 response；context 取消会立即打断当前 socket。
+const defaultSignalingExchangeTimeout = 8 * time.Second
+
+// Exchange races dial plus request/response. Each multi-address attempt gets a
+// fresh request ID so one daemon's replay protection cannot consume the ID for
+// a second candidate before that candidate has a chance to answer.
 func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []string, request *remoteauthpb.DirectSignalingRequestV2) (*remoteauthpb.DirectSignalingAnswerV2, error) {
-	if request == nil || len(addresses) == 0 {
+	if ctx == nil || request == nil || len(addresses) == 0 {
 		return nil, fmt.Errorf("direct signaling request and addresses are required")
 	}
 	dialer := client.Dialer
 	if dialer == nil {
 		dialer = &net.Dialer{}
 	}
-	dialContext, cancelDial := context.WithCancel(ctx)
-	defer cancelDial()
 	unique := make(map[string]struct{}, len(addresses))
-	results := make(chan signalingDialResult, len(addresses))
-	dialCount := 0
+	locators := make([]string, 0, len(addresses))
 	for _, address := range addresses {
 		address = strings.TrimSpace(address)
 		if address == "" {
@@ -551,44 +559,73 @@ func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []strin
 			continue
 		}
 		unique[address] = struct{}{}
-		dialCount++
-		go func() {
-			connection, err := dialer.DialContext(dialContext, "tcp", address)
-			results <- signalingDialResult{connection: connection, address: address, err: err}
-		}()
+		locators = append(locators, address)
 	}
-	if dialCount == 0 {
+	if len(locators) == 0 {
 		return nil, fmt.Errorf("direct signaling addresses are empty")
 	}
-	var connection net.Conn
+	timeout := client.ExchangeTimeout
+	if timeout <= 0 {
+		timeout = defaultSignalingExchangeTimeout
+	}
+	exchangeContext, cancelExchange := context.WithTimeout(ctx, timeout)
+	defer cancelExchange()
+	results := make(chan signalingExchangeResult, len(locators))
+	for _, address := range locators {
+		go func(address string) {
+			connection, err := dialer.DialContext(exchangeContext, "tcp", address)
+			if err != nil || connection == nil {
+				if err == nil {
+					err = errors.New("dialer returned no connection")
+				}
+				results <- signalingExchangeResult{address: address, err: err}
+				return
+			}
+			defer connection.Close()
+			exchangeRequest := proto.Clone(request).(*remoteauthpb.DirectSignalingRequestV2)
+			if len(locators) > 1 {
+				exchangeRequest.RequestId, err = directRequestID(nil)
+				if err != nil {
+					results <- signalingExchangeResult{connection: connection, address: address, err: err}
+					return
+				}
+			}
+			answer, err := exchangeSignalingConnection(exchangeContext, connection, exchangeRequest)
+			results <- signalingExchangeResult{connection: connection, address: address, answer: answer, err: err}
+		}(address)
+	}
 	var dialErrors []error
-	for received := 0; received < dialCount; received++ {
+	for received := 0; received < len(locators); received++ {
 		select {
 		case <-ctx.Done():
-			cancelDial()
-			go closeLateSignalingConnections(results, dialCount-received)
 			return nil, ctx.Err()
 		case result := <-results:
-			if result.err != nil || result.connection == nil {
-				if result.err == nil {
-					result.err = errors.New("dialer returned no connection")
-				}
-				dialErrors = append(dialErrors, fmt.Errorf("%s: %w", result.address, result.err))
-				continue
+			if result.err == nil && result.answer != nil {
+				cancelExchange()
+				return result.answer, nil
 			}
-			connection = result.connection
-			cancelDial()
-			go closeLateSignalingConnections(results, dialCount-received-1)
-			received = dialCount
+			if result.err == nil {
+				result.err = errors.New("direct signaling returned an empty answer")
+			}
+			dialErrors = append(dialErrors, fmt.Errorf("%s: %w", result.address, result.err))
 		}
 	}
-	if connection == nil {
+	if exchangeContext.Err() != nil && ctx.Err() == nil {
 		return nil, &clientruntime.Error{
-			Code: clientruntime.ErrorUnavailable, Message: "direct signaling is unavailable",
-			Cause: errors.Join(dialErrors...), Attempted: true, Retryable: true,
+			Code: clientruntime.ErrorUnavailable, Message: "direct signaling timed out",
+			Cause: exchangeContext.Err(), Attempted: true, Retryable: true,
 		}
 	}
-	defer connection.Close()
+	return nil, &clientruntime.Error{
+		Code: clientruntime.ErrorUnavailable, Message: "direct signaling is unavailable",
+		Cause: errors.Join(dialErrors...), Attempted: true, Retryable: true,
+	}
+}
+
+func exchangeSignalingConnection(ctx context.Context, connection net.Conn, request *remoteauthpb.DirectSignalingRequestV2) (*remoteauthpb.DirectSignalingAnswerV2, error) {
+	if connection == nil || request == nil {
+		return nil, errors.New("direct signaling connection and request are required")
+	}
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = connection.SetDeadline(deadline)
 	}
@@ -596,7 +633,7 @@ func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []strin
 	go func() {
 		select {
 		case <-ctx.Done():
-			_ = connection.SetDeadline(time.Now())
+			_ = connection.Close()
 		case <-stop:
 		}
 	}()
@@ -621,15 +658,6 @@ func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []strin
 		return nil, &SignalingError{Code: payload.Error.GetCode(), Message: payload.Error.GetMessage()}
 	default:
 		return nil, fmt.Errorf("direct signaling returned an unknown response")
-	}
-}
-
-func closeLateSignalingConnections(results <-chan signalingDialResult, remaining int) {
-	for ; remaining > 0; remaining-- {
-		result := <-results
-		if result.connection != nil {
-			_ = result.connection.Close()
-		}
 	}
 }
 

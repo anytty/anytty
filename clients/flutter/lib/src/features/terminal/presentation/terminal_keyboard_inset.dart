@@ -19,49 +19,91 @@ final class TerminalKeyboardMediaQuery extends StatelessWidget {
   }
 }
 
-/// Keeps the terminal viewport and its key bar in one IME-visible workspace.
+/// Keeps the IME-visible workspace together while the keyboard animates.
+///
+/// The terminal route uses [translateVisualInset] so the system keyboard and
+/// its content move in the same composited layer. Smaller consumers can use
+/// the settled [layoutInset] mode when they need a real bottom re-layout.
 final class TerminalKeyboardWorkspace extends StatelessWidget {
   const TerminalKeyboardWorkspace({
     super.key,
     required this.visualInset,
+    this.layoutInset,
+    this.translateVisualInset = false,
     required this.child,
   });
 
   final ValueListenable<double> visualInset;
+
+  /// Optional settled inset for expensive workspace layout changes.
+  ///
+  /// When provided, raw IME animation frames do not relayout the terminal.
+  /// The parent updates this value after the inset stabilizer settles.
+  final double? layoutInset;
+
+  /// Moves the workspace in the compositor for every keyboard animation frame.
+  final bool translateVisualInset;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) => ClipRect(
-        child: ValueListenableBuilder<double>(
-          valueListenable: visualInset,
-          child: RepaintBoundary(
-            child: SizedBox(
-              width: constraints.hasBoundedWidth ? constraints.maxWidth : null,
-              height: constraints.hasBoundedHeight
-                  ? constraints.maxHeight
-                  : null,
-              child: child,
-            ),
+      builder: (context, constraints) {
+        final workspace = RepaintBoundary(
+          child: SizedBox(
+            width: constraints.hasBoundedWidth ? constraints.maxWidth : null,
+            height: translateVisualInset && constraints.hasBoundedHeight
+                ? constraints.maxHeight
+                : null,
+            child: child,
           ),
-          builder: (context, inset, workspace) {
-            final normalizedInset = inset.isFinite ? math.max(0.0, inset) : 0.0;
-            final boundedInset = constraints.hasBoundedHeight
-                ? math.min(normalizedInset, constraints.maxHeight)
-                : normalizedInset;
-            return Transform.translate(
-              offset: Offset(0, -boundedInset),
-              child: workspace,
-            );
-          },
-        ),
-      ),
+        );
+
+        double boundedInset(double inset) {
+          final normalizedInset = inset.isFinite ? math.max(0.0, inset) : 0.0;
+          return constraints.hasBoundedHeight
+              ? math.min(normalizedInset, constraints.maxHeight)
+              : normalizedInset;
+        }
+
+        Widget withLayoutInset(double inset) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: boundedInset(inset)),
+            child: workspace,
+          );
+        }
+
+        Widget withVisualInset(double inset) {
+          return Transform.translate(
+            offset: Offset(0, -boundedInset(inset)),
+            child: workspace,
+          );
+        }
+
+        final Widget content;
+        if (translateVisualInset) {
+          content = ValueListenableBuilder<double>(
+            valueListenable: visualInset,
+            child: workspace,
+            builder: (context, inset, workspace) => withVisualInset(inset),
+          );
+        } else if (layoutInset == null) {
+          content = ValueListenableBuilder<double>(
+            valueListenable: visualInset,
+            child: workspace,
+            builder: (context, inset, workspace) => withLayoutInset(inset),
+          );
+        } else {
+          content = withLayoutInset(layoutInset!);
+        }
+
+        return ClipRect(child: content);
+      },
     );
   }
 }
 
-/// Keeps live terminal updates from invalidating the translated workspace.
+/// Keeps live terminal updates from invalidating the keyboard transition.
 final class TerminalKeyboardFrameFreeze extends StatefulWidget {
   const TerminalKeyboardFrameFreeze({
     super.key,
