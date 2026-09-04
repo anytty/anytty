@@ -118,6 +118,8 @@ func RequiredCapabilityForCommand(command *apipb.CommandEnvelope) apipb.ApiCapab
 		return apipb.ApiCapability_API_CAPABILITY_REMOTE_CONTROL
 	case *apipb.CommandEnvelope_RemoteCloudDisable:
 		return apipb.ApiCapability_API_CAPABILITY_REMOTE_CONTROL
+	case *apipb.CommandEnvelope_BrowserProxyOpen:
+		return apipb.ApiCapability_API_CAPABILITY_BROWSER_PROXY
 	default:
 		return apipb.ApiCapability_API_CAPABILITY_UNSPECIFIED
 	}

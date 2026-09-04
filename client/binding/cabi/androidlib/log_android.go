@@ -30,6 +30,7 @@ var (
 	cloudTimingPrefix        = []byte("anytty cloud connect ")
 	cloudFailurePrefix       = []byte("anytty cloud failure ")
 	cloudPresencePrefix      = []byte("anytty cloud presence ")
+	pairingDiagnosticPrefix  = []byte("anytty pairing ")
 	directTimingPrefix       = []byte("anytty direct connect ")
 	directFailurePrefix      = []byte("anytty direct failure ")
 	webRTCDiagnosticPrefix   = []byte("anytty webrtc ")
@@ -54,6 +55,7 @@ func (androidTimingWriter) Write(payload []byte) (int, error) {
 	if !bytes.HasPrefix(payload, cloudTimingPrefix) &&
 		!bytes.HasPrefix(payload, cloudFailurePrefix) &&
 		!bytes.HasPrefix(payload, cloudPresencePrefix) &&
+		!bytes.HasPrefix(payload, pairingDiagnosticPrefix) &&
 		!bytes.HasPrefix(payload, directTimingPrefix) &&
 		!bytes.HasPrefix(payload, directFailurePrefix) &&
 		!bytes.HasPrefix(payload, webRTCDiagnosticPrefix) &&

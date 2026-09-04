@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -127,6 +128,10 @@ type protocolSession struct {
 	fileMu                        sync.Mutex
 	fileChannels                  map[uint16]*sessionFileTransfer
 	fileIDs                       map[string]uint16
+	browserMu                     sync.Mutex
+	browserChannels               map[uint16]*sessionBrowserProxy
+	browserTokens                 map[string]uint16
+	browserCount                  int
 	lifecycleObserver             TransportLifecycleObserver
 	helloAccepted                 bool
 	beforeGlobalAttachmentPublish func(protocolAttachment)
@@ -137,6 +142,7 @@ type protocolChannelKind uint8
 const (
 	protocolChannelAttachment protocolChannelKind = iota + 1
 	protocolChannelFileTransfer
+	protocolChannelBrowserProxy
 )
 
 type protocolHistoryResourceKey struct {
@@ -147,6 +153,24 @@ type protocolHistoryResourceKey struct {
 type applicationEventSubscription struct {
 	cancel context.CancelFunc
 	filter EventFilter
+}
+
+type sessionBrowserProxy struct {
+	channel        uint16
+	token          []byte
+	conn           net.Conn
+	writeMu        sync.Mutex
+	forwardOnce    sync.Once
+	clientDataOnce sync.Once
+	serverDataOnce sync.Once
+	closeOnce      sync.Once
+}
+
+func (proxy *sessionBrowserProxy) close() {
+	if proxy == nil || proxy.conn == nil {
+		return
+	}
+	proxy.closeOnce.Do(func() { _ = proxy.conn.Close() })
 }
 
 // protocolAttachment 是 daemon-side channel/view registry；它不保存 TUI workspace/pane truth。
@@ -256,6 +280,8 @@ func newProtocolSessionObserved(server *Server, conn transport.Transport, scope 
 		attachmentTokens:   make(map[string]uint16),
 		fileChannels:       make(map[uint16]*sessionFileTransfer),
 		fileIDs:            make(map[string]uint16),
+		browserChannels:    make(map[uint16]*sessionBrowserProxy),
+		browserTokens:      make(map[string]uint16),
 		eventSubscriptions: make(map[uint64]applicationEventSubscription),
 		rawPTYStreams:      make(map[uint16]*protocolRawPTYStream),
 		requestSlots:       make(chan struct{}, server.cfg.protocolLimits.MaxInFlightRequests),
@@ -284,6 +310,7 @@ func (session *protocolSession) run(ctx context.Context) error {
 		session.requests.Wait()
 		session.releaseAllHistorySnapshots()
 		session.releaseAllFileTransfers()
+		session.releaseAllBrowserProxies()
 		session.stopEvents()
 		session.releaseProtocolAttachments()
 		session.clearLiveScreenBaselines()
@@ -518,6 +545,9 @@ func (session *protocolSession) remoteService() (RemoteService, error) {
 }
 
 func (session *protocolSession) handleStreamFrame(ctx context.Context, channel uint16, typ uint8, payload []byte) error {
+	if proxy := session.browserProxyForChannel(channel); proxy != nil {
+		return session.handleBrowserProxyFrame(proxy, typ, payload)
+	}
 	if transfer := session.fileTransferForChannel(channel); transfer != nil {
 		return session.handleFileTransferFrame(ctx, transfer, typ, payload)
 	}
@@ -1362,6 +1392,21 @@ func (session *protocolSession) reserveFileChannel() (uint16, error) {
 	return channel, nil
 }
 
+func (session *protocolSession) reserveBrowserChannel() (uint16, error) {
+	session.resourceMu.Lock()
+	defer session.resourceMu.Unlock()
+	if session.totalResourcesLocked() >= session.protocolLimits().MaxResources {
+		return 0, fmt.Errorf("%w: browser proxy resource limit reached", ErrProtocolResourceExhausted)
+	}
+	channel, err := session.allocateChannelLocked()
+	if err != nil {
+		return 0, err
+	}
+	session.channelKinds[channel] = protocolChannelBrowserProxy
+	session.browserCount++
+	return channel, nil
+}
+
 func (session *protocolSession) reserveEventSubscription() error {
 	session.resourceMu.Lock()
 	defer session.resourceMu.Unlock()
@@ -1401,6 +1446,10 @@ func (session *protocolSession) releaseChannel(channel uint16, kind protocolChan
 		case protocolChannelFileTransfer:
 			if session.fileTransferCount > 0 {
 				session.fileTransferCount--
+			}
+		case protocolChannelBrowserProxy:
+			if session.browserCount > 0 {
+				session.browserCount--
 			}
 		}
 	}
@@ -1485,7 +1534,7 @@ func (session *protocolSession) releaseAllHistorySnapshots() {
 }
 
 func (session *protocolSession) totalResourcesLocked() int {
-	return session.attachmentCount + session.fileTransferCount + session.eventSubscriptionCount + session.historyTokenReservations + len(session.historyTokens)
+	return session.attachmentCount + session.fileTransferCount + session.browserCount + session.eventSubscriptionCount + session.historyTokenReservations + len(session.historyTokens)
 }
 
 func normalizeAttachMode(mode string) string {

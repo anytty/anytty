@@ -921,6 +921,94 @@ func TestConnectEdgeWaitsForClaimedDataChannelHandler(t *testing.T) {
 	}
 }
 
+func TestConnectEdgeBoundsStalledPeerCleanup(t *testing.T) {
+	api := daemonLoopbackWebRTCAPI()
+	handler := &daemonGatedHandler{started: make(chan struct{}), release: make(chan struct{})}
+	runtime, clientPublicKey := daemonRuntimeFixture(t, webrtc.Answerer{
+		Handler:         handler,
+		PeerConnections: api.NewPeerConnection,
+	})
+	runtime.config.SessionCleanupTimeout = 25 * time.Millisecond
+	clientPeer := daemonOfferPeer(t, api, "protocol")
+	defer clientPeer.Close()
+	gateway := &daemonTestAgentGateway{
+		offer:  daemonAgentOffer(t, clientPeer, clientPublicKey),
+		answer: make(chan *cloudv1.AgentAnswer, 1),
+	}
+	locator := startDaemonTestAgentGateway(t, gateway)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- runtime.connectEdge(ctx, runtime.currentRecord().DaemonID, &cloudv1.SignedEnvelope{KeyId: "test-binding"}, locator, 0)
+	}()
+	answer := waitDaemonAnswer(t, gateway.answer)
+	applyDaemonAnswer(t, clientPeer, answer)
+	select {
+	case <-handler.started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("protocol DataChannel handler was not claimed")
+	}
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("connectEdge error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("connectEdge remained blocked on a stalled peer cleanup")
+	}
+	if got := len(runtime.cloudSessions); got != 0 {
+		t.Fatalf("stale Cloud sessions = %d, want 0", got)
+	}
+
+	// Let the deliberately non-cooperative handler finish so the test does not
+	// leave a background lifecycle goroutine behind after the bounded cleanup.
+	close(handler.release)
+	_ = clientPeer.Close()
+}
+
+func TestDetachedCloudSessionRejectsReuseUntilPeerCloses(t *testing.T) {
+	firstContext, cancelFirst := context.WithCancel(context.Background())
+	first := &cloudSession{cancel: cancelFirst, done: make(chan struct{})}
+	firstPeers := new(sync.WaitGroup)
+	firstPeers.Add(1)
+	runtime := &Runtime{
+		record:               EnrollmentRecord{DaemonID: "daemon"},
+		daemonState:          daemonLifecycleState("daemon", cloudv1.DaemonState_DAEMON_STATE_ACTIVE, 1),
+		readyConnectionID:    "connection",
+		lifecycleAck:         1,
+		cloudSessions:        map[string]*cloudSession{"session": first},
+		cloudClosingSessions: make(map[string]*cloudSession),
+	}
+
+	if got := runtime.detachCloudSessions(); got != 1 {
+		t.Fatalf("detached sessions = %d, want 1", got)
+	}
+	select {
+	case <-firstContext.Done():
+	default:
+		t.Fatal("detached Cloud session was not canceled")
+	}
+	var replacementPeers sync.WaitGroup
+	if _, _, ok := runtime.beginCloudSession(context.Background(), "session", &replacementPeers); ok {
+		t.Fatal("closing Cloud session ID was reused before the peer callback")
+	}
+
+	runtime.finishCloudSession("session", first, firstPeers)
+	waitDaemonPeers(t, firstPeers)
+	if len(runtime.cloudClosingSessions) != 0 {
+		t.Fatal("closing Cloud session tombstone was not released")
+	}
+	_, replacement, ok := runtime.beginCloudSession(context.Background(), "session", &replacementPeers)
+	if !ok {
+		t.Fatal("Cloud session ID was not reusable after peer close")
+	}
+	runtime.finishCloudSession("session", replacement, &replacementPeers)
+	waitDaemonPeers(t, &replacementPeers)
+}
+
 func TestAnswerOfferFailuresDoNotLeakPeerAccounting(t *testing.T) {
 	runtime, clientPublicKey := daemonRuntimeFixture(t, webrtc.Answerer{Handler: daemonBlockingHandler{}})
 	offer := &cloudv1.AgentOffer{

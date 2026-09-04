@@ -51,6 +51,8 @@ class ApiCapability extends $pb.ProtobufEnum {
       ApiCapability._(13, _omitEnumNames ? '' : 'API_CAPABILITY_CLIENT_ACCESS');
   static const ApiCapability API_CAPABILITY_REMOTE_CONTROL = ApiCapability._(
       14, _omitEnumNames ? '' : 'API_CAPABILITY_REMOTE_CONTROL');
+  static const ApiCapability API_CAPABILITY_BROWSER_PROXY =
+      ApiCapability._(15, _omitEnumNames ? '' : 'API_CAPABILITY_BROWSER_PROXY');
 
   static const $core.List<ApiCapability> values = <ApiCapability>[
     API_CAPABILITY_UNSPECIFIED,
@@ -68,10 +70,11 @@ class ApiCapability extends $pb.ProtobufEnum {
     API_CAPABILITY_EVENT_SUBSCRIPTION,
     API_CAPABILITY_CLIENT_ACCESS,
     API_CAPABILITY_REMOTE_CONTROL,
+    API_CAPABILITY_BROWSER_PROXY,
   ];
 
   static final $core.List<ApiCapability?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 14);
+      $pb.ProtobufEnum.$_initByValueList(values, 15);
   static ApiCapability? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
@@ -175,6 +178,8 @@ class ResourceKind extends $pb.ProtobufEnum {
       ResourceKind._(4, _omitEnumNames ? '' : 'RESOURCE_KIND_HISTORY_WINDOW');
   static const ResourceKind RESOURCE_KIND_FILE_TRANSFER =
       ResourceKind._(5, _omitEnumNames ? '' : 'RESOURCE_KIND_FILE_TRANSFER');
+  static const ResourceKind RESOURCE_KIND_BROWSER_PROXY =
+      ResourceKind._(6, _omitEnumNames ? '' : 'RESOURCE_KIND_BROWSER_PROXY');
 
   static const $core.List<ResourceKind> values = <ResourceKind>[
     RESOURCE_KIND_UNSPECIFIED,
@@ -183,10 +188,11 @@ class ResourceKind extends $pb.ProtobufEnum {
     RESOURCE_KIND_TERMINAL_ATTACHMENT,
     RESOURCE_KIND_HISTORY_WINDOW,
     RESOURCE_KIND_FILE_TRANSFER,
+    RESOURCE_KIND_BROWSER_PROXY,
   ];
 
   static final $core.List<ResourceKind?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 5);
+      $pb.ProtobufEnum.$_initByValueList(values, 6);
   static ResourceKind? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

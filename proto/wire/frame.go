@@ -37,6 +37,8 @@ const (
 	TypeFileAck        uint8 = 0x22
 	TypeFileFinish     uint8 = 0x23
 	TypeFileResult     uint8 = 0x24
+	TypeBrowserData    uint8 = 0x31
+	TypeBrowserClosed  uint8 = 0x32
 )
 
 var (

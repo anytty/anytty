@@ -381,6 +381,22 @@ void main() {
     await client.closed;
   });
 
+  test('stops retrying after the configured session open budget', () async {
+    final runtime = _SessionRuntime(openFailures: 1000);
+
+    await expectLater(
+      openEndpointSessionWithRetry(
+        runtime,
+        'studio',
+        initialRetryDelay: Duration.zero,
+        maximumRetryDelay: Duration.zero,
+        maximumRetryDuration: Duration.zero,
+      ),
+      throwsA(isA<NativeSessionException>()),
+    );
+    expect(runtime.openCalls, 1);
+  });
+
   test('does not retry a user-action open failure', () async {
     final runtime = _SessionRuntime(
       openFailures: 1,
@@ -441,6 +457,39 @@ void main() {
     client.close();
     await client.closed;
   });
+
+  test(
+    'executes remote directory picker queries through the endpoint session',
+    () async {
+      final runtime = _SessionRuntime(
+        executeResult: (command) => switch (command.whichCommand()) {
+          CommandEnvelope_Command.pathListDirectories => ResultEnvelope(
+            pathListDirectories: PathListDirectoriesResult(
+              basePath: '/workspace',
+              entries: [
+                PathDirectoryEntry(name: 'src', path: '/workspace/src/'),
+              ],
+              truncated: true,
+            ),
+          ),
+          _ => throw StateError('unexpected command'),
+        },
+      );
+      final client = await EndpointSessionClient.open(runtime, 'studio');
+
+      final result = await client.listDirectories(
+        prefix: '/workspace/',
+        limit: 500,
+      );
+
+      expect(result.basePath, '/workspace');
+      expect(result.entries.single.path, '/workspace/src/');
+      expect(runtime.commands.single.pathListDirectories.prefix, '/workspace/');
+      expect(runtime.commands.single.pathListDirectories.limit, 100);
+      client.close();
+      await client.closed;
+    },
+  );
 
   test('surfaces daemon file operation errors', () async {
     final runtime = _SessionRuntime(

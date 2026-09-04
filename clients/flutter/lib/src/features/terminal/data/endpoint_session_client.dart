@@ -19,6 +19,7 @@ import '../../../native/request_id.dart';
 import '../../../native/runtime_diagnostics.dart';
 import '../../../native/terminal_input_encoder.dart';
 import '../../files/domain/file_preview_safety.dart';
+import '../../browser/data/browser_http_proxy.dart';
 import '../domain/bounded_serial_operation_queue.dart';
 import '../domain/history_store.dart';
 import '../domain/live_screen_store.dart';
@@ -60,7 +61,7 @@ bool _isCompleteEndpointSessionStamp(EndpointSessionStamp stamp) {
       stamp.generation != Int64.ZERO;
 }
 
-final class EndpointSessionClient {
+final class EndpointSessionClient implements BrowserProxySession {
   EndpointSessionClient._(
     this._runtime,
     this.sessionHandle,
@@ -349,6 +350,39 @@ final class EndpointSessionClient {
     );
   }
 
+  @override
+  Future<ResourceHandle> openBrowserProxy({
+    required String host,
+    required int port,
+  }) async {
+    final result = await execute(
+      CommandEnvelope(
+        browserProxyOpen: BrowserProxyOpenCommand(host: host, port: port),
+      ),
+    );
+    if (result.whichResult() != ResultEnvelope_Result.browserProxyOpen ||
+        !result.browserProxyOpen.hasResource()) {
+      throw const NativeSessionException(
+        'Browser proxy response was incomplete',
+      );
+    }
+    return result.browserProxyOpen.resource.deepCopy();
+  }
+
+  @override
+  Future<AnyttyResourceStream> openBrowserResourceStream(
+    ResourceHandle resource,
+  ) {
+    if (resource.kind != ResourceKind.RESOURCE_KIND_BROWSER_PROXY) {
+      throw const NativeSessionException('Browser proxy resource was invalid');
+    }
+    return AnyttyResourceStream.open(
+      runtime: _runtime,
+      sessionHandle: sessionHandle,
+      request: OpenResourceStreamRequest(resource: resource),
+    );
+  }
+
   Future<void> cancelFileTransfer(FileTransferHandle transfer) async {
     if (_closeRequested || isClosed) return;
     final result = await execute(
@@ -468,6 +502,26 @@ final class EndpointSessionClient {
       );
     }
     return result.terminalDefaults.defaults.deepCopy();
+  }
+
+  Future<PathListDirectoriesResult> listDirectories({
+    required String prefix,
+    int limit = 100,
+  }) async {
+    final result = await execute(
+      CommandEnvelope(
+        pathListDirectories: PathListDirectoriesCommand(
+          prefix: prefix,
+          limit: limit.clamp(1, 100),
+        ),
+      ),
+    );
+    if (result.whichResult() != ResultEnvelope_Result.pathListDirectories) {
+      throw const NativeSessionException(
+        'Directory list response was incomplete',
+      );
+    }
+    return result.pathListDirectories.deepCopy();
   }
 
   Future<TerminalInfo> createTerminal({
@@ -824,8 +878,10 @@ Future<EndpointSessionClient> openEndpointSessionWithRetry(
   Future<void>? cancelWhen,
   Duration initialRetryDelay = const Duration(seconds: 1),
   Duration maximumRetryDelay = const Duration(seconds: 8),
+  Duration maximumRetryDuration = const Duration(seconds: 90),
 }) async {
   var retryDelay = initialRetryDelay;
+  final startedAt = DateTime.now();
   for (;;) {
     try {
       return await EndpointSessionClient.open(
@@ -838,7 +894,17 @@ Future<EndpointSessionClient> openEndpointSessionWithRetry(
           !_retryableSessionOpenError(error)) {
         rethrow;
       }
-      await _waitForSessionRetry(retryDelay, cancelWhen);
+      final elapsed = DateTime.now().difference(startedAt);
+      if (maximumRetryDuration <= Duration.zero ||
+          elapsed >= maximumRetryDuration) {
+        rethrow;
+      }
+      final remaining = maximumRetryDuration - elapsed;
+      final wait = retryDelay.compareTo(remaining) < 0 ? retryDelay : remaining;
+      await _waitForSessionRetry(wait, cancelWhen);
+      if (DateTime.now().difference(startedAt) >= maximumRetryDuration) {
+        rethrow;
+      }
       final doubledMilliseconds = retryDelay.inMilliseconds * 2;
       retryDelay = Duration(
         milliseconds: doubledMilliseconds.clamp(

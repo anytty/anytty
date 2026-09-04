@@ -164,6 +164,7 @@ message RelayRuntimePolicy {
   uint64 relay_quota_bytes = 8;
   google.protobuf.Timestamp period_start = 9;
   google.protobuf.Timestamp period_end = 10;
+  uint64 account_revision = 11;
 }
 
 // RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
@@ -210,6 +211,8 @@ message RelayAccountAction {
   google.protobuf.Timestamp period_start = 6;
   google.protobuf.Timestamp period_end = 7;
   string reason = 8;
+  uint64 policy_revision = 9;
+  uint64 account_revision = 10;
 }
 
 message RelayUsageAck {

@@ -208,6 +208,9 @@ func (s *clientStream) send(frame StreamFrame) {
 		countsAsFrame: true,
 	})
 	s.retainedFrames++
+	if frame.Type == wire.TypeBrowserClosed {
+		s.terminalAfterQueue = true
+	}
 	s.cond.Signal()
 }
 
@@ -578,6 +581,9 @@ func (c *Client) updateApplicationAttachmentBinding(command *apipb.CommandEnvelo
 	if transfer := result.GetFileTransferOpen().GetTransfer(); transfer != nil {
 		boundResource = transfer.GetResource()
 	}
+	if browser := result.GetBrowserProxyOpen().GetResource(); browser != nil {
+		boundResource = browser
+	}
 	if boundResource != nil && len(boundResource.GetOpaqueToken()) >= 2 {
 		channel := binary.BigEndian.Uint16(boundResource.GetOpaqueToken()[:2])
 		if channel != 0 {
@@ -628,6 +634,24 @@ func (c *Client) SendFileFrame(channel uint16, typ uint8, payload []byte) error 
 	case wire.TypeFileData, wire.TypeFileAck, wire.TypeFileFinish:
 	default:
 		return fmt.Errorf("unsupported client file frame type %d", typ)
+	}
+	frame, err := wire.EncodeFrame(channel, typ, payload)
+	if err != nil {
+		return err
+	}
+	return c.send(frame)
+}
+
+// SendBrowserFrame writes bytes or a close marker to a daemon-side TCP resource.
+func (c *Client) SendBrowserFrame(channel uint16, typ uint8, payload []byte) error {
+	switch typ {
+	case wire.TypeBrowserData:
+	case wire.TypeClosed:
+		if len(payload) != 0 {
+			return fmt.Errorf("browser proxy close payload must be empty")
+		}
+	default:
+		return fmt.Errorf("unsupported client browser frame type %d", typ)
 	}
 	frame, err := wire.EncodeFrame(channel, typ, payload)
 	if err != nil {
@@ -898,7 +922,7 @@ func (c *Client) removeWaiter(id uint64, abandoned bool) {
 func validInboundStreamFrameType(typ uint8) bool {
 	switch typ {
 	case wire.TypeStreamReady, wire.TypeSyncLost, wire.TypeClosed, wire.TypePTYOutput,
-		wire.TypeFileData, wire.TypeFileAck, wire.TypeFileFinish, wire.TypeFileResult, wire.TypeError:
+		wire.TypeFileData, wire.TypeFileAck, wire.TypeFileFinish, wire.TypeFileResult, wire.TypeBrowserData, wire.TypeBrowserClosed, wire.TypeError:
 		return true
 	default:
 		return false
@@ -992,6 +1016,14 @@ func (c *Client) readLoop() {
 		}
 		if stream == nil {
 			if _, dropped := c.dropped[channel]; dropped {
+				if resource := c.applicationAttachments[channel]; resource != nil &&
+					resource.GetKind() == apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY {
+					// Browser resources are never reopened. A response that races
+					// with local socket teardown must not consume the reusable
+					// attachment queue or eventually tear down the whole peer.
+					c.mu.Unlock()
+					continue
+				}
 				err = c.queuePendingFrameLocked(c.reused, channel, typ, payload)
 			} else {
 				err = c.queuePendingFrameLocked(c.pending, channel, typ, payload)

@@ -223,7 +223,8 @@ func validResourceKind(kind apipb.ResourceKind) bool {
 		apipb.ResourceKind_RESOURCE_KIND_SUBSCRIPTION,
 		apipb.ResourceKind_RESOURCE_KIND_TERMINAL_ATTACHMENT,
 		apipb.ResourceKind_RESOURCE_KIND_HISTORY_WINDOW,
-		apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER:
+		apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER,
+		apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY:
 		return true
 	default:
 		return false

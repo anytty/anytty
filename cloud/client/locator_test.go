@@ -41,6 +41,16 @@ func TestCachedCapabilityRouteRoundTripsWithoutController(t *testing.T) {
 	if timeout := resolution.edgeTransportTimeout(); timeout != 1500*time.Millisecond {
 		t.Fatalf("cached Edge transport timeout = %s", timeout)
 	}
+	if timeout := resolution.edgeProtocolTimeout(); timeout != 8*time.Second {
+		t.Fatalf("cached Edge protocol timeout = %s", timeout)
+	}
+	fresh, err := newCapabilityRoute(edge, &cloudv1.SignedEnvelope{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if timeout := fresh.edgeProtocolTimeout(); timeout != 15*time.Second {
+		t.Fatalf("fresh Edge protocol timeout = %s", timeout)
+	}
 }
 
 func TestShouldRefreshEdgeLocatorOnlyForStaleOrUnreachableEdge(t *testing.T) {
@@ -55,6 +65,7 @@ func TestShouldRefreshEdgeLocatorOnlyForStaleOrUnreachableEdge(t *testing.T) {
 		{name: "wrapped unavailable", err: errors.Join(errors.New("exchange"), status.Error(codes.Unavailable, "edge unavailable"))},
 		{name: "unauthorized", err: status.Error(codes.Unauthenticated, "grant rejected")},
 		{name: "daemon denied", err: status.Error(codes.PermissionDenied, "revoked")},
+		{name: "authenticated client rejection", err: &SignalRejectedError{Code: "CLIENT_REVOKED", Message: "client access is not active"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if got := ShouldRefreshEdgeLocator(test.err); got != test.want {

@@ -77,6 +77,16 @@ class ResourceStreamFrameType extends $pb.ProtobufEnum {
       ResourceStreamFrameType._(
           9, _omitEnumNames ? '' : 'RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED');
 
+  /// BROWSER_DATA payload 是要写入 daemon-side TCP connection 的原始 bytes。
+  static const ResourceStreamFrameType RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA =
+      ResourceStreamFrameType._(
+          10, _omitEnumNames ? '' : 'RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA');
+
+  /// BROWSER_CLOSED 表示 daemon-side TCP connection 已关闭。
+  static const ResourceStreamFrameType
+      RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED = ResourceStreamFrameType._(11,
+          _omitEnumNames ? '' : 'RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED');
+
   static const $core.List<ResourceStreamFrameType> values =
       <ResourceStreamFrameType>[
     RESOURCE_STREAM_FRAME_TYPE_UNSPECIFIED,
@@ -89,10 +99,12 @@ class ResourceStreamFrameType extends $pb.ProtobufEnum {
     RESOURCE_STREAM_FRAME_TYPE_PTY_OUTPUT,
     RESOURCE_STREAM_FRAME_TYPE_PTY_SYNC_LOST,
     RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED,
+    RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
+    RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED,
   ];
 
   static final $core.List<ResourceStreamFrameType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 9);
+      $pb.ProtobufEnum.$_initByValueList(values, 11);
   static ResourceStreamFrameType? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

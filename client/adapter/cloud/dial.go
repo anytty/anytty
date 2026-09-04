@@ -74,32 +74,39 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	}
 	dialer.report(clientruntime.EndpointPhaseSignaling)
 	resolved, cachedErr := cloudclient.NewCachedCapabilityRoute(signaling.CloudEdgeLocator(), signaling.CloudRouteGrant())
-	discovered := false
-	var opened *openedCloudPeer
-	if cachedErr == nil {
-		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudCachedEdge)
-		opened, err = openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, resolved, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
-		if err == nil {
-			reportTiming("cached_edge_ready")
-		} else {
-			reportTiming("cached_edge_failed")
-		}
-		if err != nil && !cloudclient.ShouldRefreshEdgeLocator(err) {
-			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureEdgeExchange, cloudConnectionError(err))
-		}
+	if cachedErr != nil {
+		resolved = nil
 	}
-	if opened == nil {
-		clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
-		resolved, err = dialer.Cloud.Resolve(ctx, signaling.CloudRouteGrant(), signaling)
-		if err != nil {
-			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureController, cloudConnectionError(err))
+	opened, source, selectedResolution, err := dialCloudRoute(
+		ctx,
+		resolved,
+		func(ctx context.Context) (*cloudclient.RouteResolution, error) {
+			clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
+			fresh, resolveErr := dialer.Cloud.Resolve(ctx, signaling.CloudRouteGrant(), signaling)
+			if resolveErr == nil {
+				reportTiming("controller_resolved")
+			}
+			return fresh, resolveErr
+		},
+		func(ctx context.Context, route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+			if source == cloudRouteSourceCached {
+				clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudCachedEdge)
+			} else {
+				clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
+			}
+			return openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, route, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
+		},
+		func(source cloudRouteSource, route *cloudclient.RouteResolution, routeErr error) {
+			reportTiming(string(source) + "_edge_failed")
+			log.Printf("anytty cloud connect generation=%d route_source=%s route_refresh=%t error_type=%T", request.Stamp().Generation, source, shouldRefreshCloudRoute(routeErr), routeErr)
+		},
+	)
+	if err != nil {
+		failureStage := cloudFailureEdgeExchange
+		if source == cloudRouteSourceController && selectedResolution == nil {
+			failureStage = cloudFailureController
 		}
-		reportTiming("controller_resolved")
-		opened, err = openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, resolved, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
-		if err != nil {
-			return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureEdgeExchange, cloudConnectionError(err))
-		}
-		discovered = true
+		return nil, reportCloudFailure(request.Stamp().Generation, failureStage, cloudConnectionError(err))
 	}
 	fingerprint, err := opened.RemoteCertificateFingerprint()
 	if err != nil {
@@ -138,8 +145,8 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, err
 	}
 	var locatorToStore []byte
-	if discovered {
-		locatorToStore, err = cloudclient.EncodeEdgeLocator(resolved.Locator())
+	if source == cloudRouteSourceController {
+		locatorToStore, err = cloudclient.EncodeEdgeLocator(selectedResolution.Locator())
 		if err != nil {
 			_ = application.Close()
 			_ = opened.Close()
@@ -159,6 +166,92 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}(append([]byte(nil), locatorToStore...))
 	}
 	return session, nil
+}
+
+type cloudRouteSource string
+
+const (
+	cloudRouteSourceCached     cloudRouteSource = "cached"
+	cloudRouteSourceController cloudRouteSource = "controller"
+)
+
+// dialCloudRoute owns the bounded route recovery policy for one connection generation.
+// A cached locator is an optimization only: an unsuccessful cached Edge exchange invalidates
+// that optimization and permits exactly one authenticated Controller resolve before the caller's
+// normal supervisor backoff takes over. Permanent authorization/lifecycle failures are returned
+// immediately because resolving another Edge cannot fix them.
+func dialCloudRoute(
+	ctx context.Context,
+	cached *cloudclient.RouteResolution,
+	resolve func(context.Context) (*cloudclient.RouteResolution, error),
+	open func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error),
+	onFailure func(cloudRouteSource, *cloudclient.RouteResolution, error),
+) (*openedCloudPeer, cloudRouteSource, *cloudclient.RouteResolution, error) {
+	if ctx == nil || resolve == nil || open == nil {
+		return nil, "", nil, errors.New("Cloud route recovery dependencies are incomplete")
+	}
+	if cached != nil {
+		opened, err := open(ctx, cached, cloudRouteSourceCached)
+		if err == nil && opened == nil {
+			err = errors.New("cached Cloud route returned no peer")
+		}
+		if err == nil {
+			return opened, cloudRouteSourceCached, cached, nil
+		}
+		if onFailure != nil {
+			onFailure(cloudRouteSourceCached, cached, err)
+		}
+		if ctx.Err() != nil || !shouldRefreshCloudRoute(err) {
+			return nil, cloudRouteSourceCached, cached, err
+		}
+	}
+
+	fresh, err := resolve(ctx)
+	if err != nil {
+		return nil, cloudRouteSourceController, nil, err
+	}
+	if fresh == nil {
+		return nil, cloudRouteSourceController, nil, errors.New("Cloud route resolver returned no route")
+	}
+	opened, err := open(ctx, fresh, cloudRouteSourceController)
+	if err == nil && opened == nil {
+		err = errors.New("resolved Cloud route returned no peer")
+	}
+	if err != nil {
+		if onFailure != nil {
+			onFailure(cloudRouteSourceController, fresh, err)
+		}
+		return nil, cloudRouteSourceController, fresh, err
+	}
+	return opened, cloudRouteSourceController, fresh, nil
+}
+
+func shouldRefreshCloudRoute(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Exchange marks an Edge-local protocol timeout explicitly. It must be
+	// refreshable even though the wrapper still unwraps to DeadlineExceeded.
+	if cloudclient.ShouldRefreshEdgeLocator(err) {
+		return true
+	}
+	if cloudclient.SignalRejectionCode(err) != "" {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if cloudclient.IsAdminDisconnect(err) || cloudclient.IsDaemonBlocked(err) || cloudclient.IsDaemonDeleted(err) || cloudclient.EntitlementFailure(err) != nil {
+		return false
+	}
+	// Explicit gRPC authentication and permission failures belong to the frozen credential,
+	// not to the cached locator. All other non-context setup failures are bounded route failures.
+	switch status.Code(err) {
+	case codes.Unauthenticated, codes.PermissionDenied:
+		return false
+	default:
+		return true
+	}
 }
 
 func (dialer *Dialer) report(phase clientruntime.EndpointPhase) {

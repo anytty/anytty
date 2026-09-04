@@ -3,6 +3,7 @@ package direct_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -58,12 +59,12 @@ func TestTCPSignalingClientRacesAddressesBeforeSendingRequest(t *testing.T) {
 			serverDone <- err
 			return
 		}
-		if request.GetRequestId() != "race-addresses" {
-			serverDone <- errors.New("unexpected request id")
+		if request.GetRequestId() == "" {
+			serverDone <- errors.New("request id is empty")
 			return
 		}
 		serverDone <- directsignal.WriteMessage(serverConnection, &remoteauthpb.DirectSignalingResponseV2{
-			Payload: &remoteauthpb.DirectSignalingResponseV2_Answer{Answer: &remoteauthpb.DirectSignalingAnswerV2{AnswerSdp: "answer"}},
+			Payload: &remoteauthpb.DirectSignalingResponseV2_Answer{Answer: &remoteauthpb.DirectSignalingAnswerV2{RequestId: request.GetRequestId(), AnswerSdp: "answer"}},
 		})
 	}()
 
@@ -80,6 +81,54 @@ func TestTCPSignalingClientRacesAddressesBeforeSendingRequest(t *testing.T) {
 	case <-slowCanceled:
 	case <-time.After(time.Second):
 		t.Fatal("losing address dial was not canceled")
+	}
+}
+
+func TestTCPSignalingClientDoesNotLetSilentTCPConnectionWin(t *testing.T) {
+	silentServer, silentClient := net.Pipe()
+	readyServer, readyClient := net.Pipe()
+	silentClosed := make(chan struct{})
+	serverDone := make(chan error, 2)
+	go func() {
+		defer silentServer.Close()
+		request := &remoteauthpb.DirectSignalingRequestV2{}
+		if err := directsignal.ReadMessage(silentServer, request); err != nil {
+			serverDone <- err
+			return
+		}
+		_, _ = io.Copy(io.Discard, silentServer)
+		close(silentClosed)
+		serverDone <- nil
+	}()
+	go func() {
+		defer readyServer.Close()
+		request := &remoteauthpb.DirectSignalingRequestV2{}
+		if err := directsignal.ReadMessage(readyServer, request); err != nil {
+			serverDone <- err
+			return
+		}
+		serverDone <- directsignal.WriteMessage(readyServer, &remoteauthpb.DirectSignalingResponseV2{
+			Payload: &remoteauthpb.DirectSignalingResponseV2_Answer{Answer: &remoteauthpb.DirectSignalingAnswerV2{RequestId: request.GetRequestId(), AnswerSdp: "ready-answer"}},
+		})
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	answer, err := (direct.TCPSignalingClient{
+		Dialer: protocolRacingDialer{silent: silentClient, ready: readyClient}, ExchangeTimeout: 500 * time.Millisecond,
+	}).Exchange(ctx, []string{"silent.test:1", "ready.test:2"}, &remoteauthpb.DirectSignalingRequestV2{RequestId: "original-request"})
+	if err != nil || answer.GetAnswerSdp() != "ready-answer" {
+		t.Fatalf("Exchange answer = %#v, err = %v", answer, err)
+	}
+	select {
+	case <-silentClosed:
+	case <-time.After(time.Second):
+		t.Fatal("silent signaling connection was not closed after a winner answered")
+	}
+	for range 2 {
+		if serverErr := <-serverDone; serverErr != nil && !errors.Is(serverErr, net.ErrClosed) {
+			t.Fatal(serverErr)
+		}
 	}
 }
 
@@ -113,6 +162,11 @@ type directRacingDialer struct {
 	slowCanceled chan struct{}
 }
 
+type protocolRacingDialer struct {
+	silent net.Conn
+	ready  net.Conn
+}
+
 type directFailingDialer struct{ cause error }
 
 func (dialer directFailingDialer) DialContext(context.Context, string, string) (net.Conn, error) {
@@ -129,6 +183,21 @@ func (dialer directRacingDialer) DialContext(ctx context.Context, _, address str
 	case "reachable.test:2":
 		<-dialer.slowStarted
 		return dialer.connection, nil
+	default:
+		return nil, errors.New("unexpected address")
+	}
+}
+
+func (dialer protocolRacingDialer) DialContext(ctx context.Context, _, address string) (net.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch address {
+	case "silent.test:1":
+		return dialer.silent, nil
+	case "ready.test:2":
+		time.Sleep(10 * time.Millisecond)
+		return dialer.ready, nil
 	default:
 		return nil, errors.New("unexpected address")
 	}

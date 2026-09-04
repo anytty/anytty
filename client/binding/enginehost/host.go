@@ -399,17 +399,21 @@ func (host *Host) routeConnectorsWithProfiles(authorizer peeradapter.CapabilityA
 
 // ImportPairing 验证 bootstrap、使用平台不可导出 signer 完成 PairingExchange，并原子绑定 grant。
 func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPairingRequest) (*bindingpb.ImportPairingResult, error) {
+	log.Printf("anytty pairing stage=import_started")
 	payload, err := decodeBootstrap(request.GetPortablePayload())
 	if err != nil {
+		log.Printf("anytty pairing stage=bootstrap_decode_failed error_type=%T", err)
 		return nil, err
 	}
 	now := host.options.Now().UTC()
 	offer, err := remoteauth.ParsePairingClaimOffer(payload, now)
 	if err != nil {
+		log.Printf("anytty pairing stage=claim_parse_failed error_type=%T", err)
 		return nil, fmt.Errorf("parse pairing claim offer at %s: %w", now.Format(time.RFC3339Nano), err)
 	}
 	pairingCandidate, err := remoteauth.PairingClaimEndpointCandidate(offer)
 	if err != nil {
+		log.Printf("anytty pairing stage=route_extract_failed error_type=%T", err)
 		return nil, err
 	}
 	endpointID := strings.TrimSpace(request.GetExpectedEndpointId())
@@ -430,19 +434,23 @@ func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPa
 	}
 	pairingRoutes, err := pairingClaimRoutes(pairingCandidate, host.options)
 	if err != nil {
+		log.Printf("anytty pairing stage=route_filter_failed error_type=%T", err)
 		return nil, err
 	}
 	target := pairingTarget(endpointID, pairingCandidate.Identity, pairingRoutes, credentialRef)
-	if host.options.EnableLocalDiscovery {
-		target = applyPlatformLocalDiscovery(ctx, target, host.options)
-	}
+	// Pairing must use only the claim's signed route seeds. Local discovery is an
+	// untrusted, ephemeral optimization for already-paired endpoints; allowing it
+	// into this race can make a host-side 10.0.2.2 candidate cancel the real claim
+	// route before the target daemon sees the one-time exchange.
 	routeList := target.RouteList()
 	routeIDs := make([]endpoint.RouteID, 0, len(routeList))
 	for _, route := range routeList {
 		routeIDs = append(routeIDs, route.ID)
 	}
+	log.Printf("anytty pairing stage=routes_ready route_count=%d", len(routeIDs))
 	attempts, err := host.owner.BeginRouteAttempts(target, routeIDs, clientruntime.ConnectIntentInteractive)
 	if err != nil {
+		log.Printf("anytty pairing stage=attempts_failed error_type=%T", err)
 		return nil, err
 	}
 	identity := remoteauth.ClientAccessIdentity{
@@ -458,8 +466,10 @@ func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPa
 	}
 	paired, err := host.redeemPairingRace(ctx, attempts, pairingRequest)
 	if err != nil {
+		log.Printf("anytty pairing stage=exchange_failed error_type=%T", err)
 		return nil, err
 	}
+	log.Printf("anytty pairing stage=exchange_ready")
 	// PairingAccepted 只会在 owning daemon 已原子兑换 ticket 后返回；这里重新校验 ticket
 	// 本地时钟会把合法的跨设备小幅 clock skew 误判为过期。签名、身份、ticket 对应关系与
 	// 带容差的 grant 已由 ClientPairingHandshake 验证，此处只解析已接受的持久 Endpoint 配置。
@@ -546,6 +556,7 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 	for _, attempt := range attempts {
 		attempt := attempt
 		go func() {
+			log.Printf("anytty pairing stage=route_started route_kind=%s", attempt.Route().Kind)
 			var paired remoteauth.PairingExchangeResult
 			var err error
 			switch attempt.Route().Kind {
@@ -567,6 +578,11 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 				paired, err = (&cloudadapter.PairingConnector{Peers: cloudPeers, Cloud: protocolClient, Product: host.options.CloudProduct, Now: host.options.Now}).Redeem(raceContext, attempt, request)
 			default:
 				err = fmt.Errorf("pairing Route %q is unsupported", attempt.Route().Kind)
+			}
+			if err != nil {
+				log.Printf("anytty pairing stage=route_failed route_kind=%s error_type=%T", attempt.Route().Kind, err)
+			} else {
+				log.Printf("anytty pairing stage=route_ready route_kind=%s", attempt.Route().Kind)
 			}
 			results <- pairingRaceResult{paired: paired, err: err}
 		}()

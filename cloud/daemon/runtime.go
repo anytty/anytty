@@ -49,36 +49,42 @@ type Config struct {
 	BindingRefreshMinimum time.Duration
 	BindingRefreshBefore  time.Duration
 	ConnectAttemptTimeout time.Duration
+	SessionCleanupTimeout time.Duration
 	Now                   func() time.Time
 }
 
 // Runtime 持有可刷新的 enrollment 路由材料和当前 AgentGateway 在线状态。
 type Runtime struct {
-	config              Config
-	bootID              string
-	attemptGeneration   atomic.Uint64
-	agentReadySequence  atomic.Uint64
-	agentReadyAt        atomic.Int64
-	recordMu            sync.RWMutex
-	record              EnrollmentRecord
-	lifecycleMu         sync.Mutex
-	daemonState         *cloudv1.DaemonStateRecord
-	readyConnectionID   string
-	lifecycleAck        uint64
-	cloudSessions       map[string]*cloudSession
-	enrollmentDeleted   bool
-	operationMu         sync.Mutex
-	recordChanges       chan struct{}
-	attemptMu           sync.Mutex
-	activeAttemptID     string
-	activeCancel        context.CancelFunc
-	connectionFailureMu sync.RWMutex
-	connectionFailure   *cloudv1.CloudEntitlementFailure
+	config               Config
+	bootID               string
+	attemptGeneration    atomic.Uint64
+	agentReadySequence   atomic.Uint64
+	agentReadyAt         atomic.Int64
+	recordMu             sync.RWMutex
+	record               EnrollmentRecord
+	lifecycleMu          sync.Mutex
+	daemonState          *cloudv1.DaemonStateRecord
+	readyConnectionID    string
+	lifecycleAck         uint64
+	cloudSessions        map[string]*cloudSession
+	cloudClosingSessions map[string]*cloudSession
+	enrollmentDeleted    bool
+	operationMu          sync.Mutex
+	connectMu            sync.Mutex
+	recordChanges        chan struct{}
+	attemptMu            sync.Mutex
+	activeAttemptID      string
+	activeCancel         context.CancelFunc
+	connectionFailureMu  sync.RWMutex
+	connectionFailure    *cloudv1.CloudEntitlementFailure
 }
 
 var errEdgeReselected = errors.New("daemon Edge reselection requested")
 
-const defaultBindingRefreshBefore = 30 * 24 * time.Hour
+const (
+	defaultBindingRefreshBefore  = 30 * 24 * time.Hour
+	defaultSessionCleanupTimeout = 5 * time.Second
+)
 
 type agentDiagnosticStage string
 
@@ -224,11 +230,15 @@ func NewRuntime(config Config) (*Runtime, error) {
 	if config.ConnectAttemptTimeout <= 0 {
 		config.ConnectAttemptTimeout = 15 * time.Second
 	}
+	if config.SessionCleanupTimeout <= 0 {
+		config.SessionCleanupTimeout = defaultSessionCleanupTimeout
+	}
 	return &Runtime{
 		config: config, bootID: uuid.NewString(),
-		record:        cloneEnrollmentRecord(config.Record),
-		recordChanges: make(chan struct{}, 1),
-		cloudSessions: make(map[string]*cloudSession),
+		record:               cloneEnrollmentRecord(config.Record),
+		recordChanges:        make(chan struct{}, 1),
+		cloudSessions:        make(map[string]*cloudSession),
+		cloudClosingSessions: make(map[string]*cloudSession),
 	}, nil
 }
 
@@ -340,7 +350,11 @@ func (runtime *Runtime) connectOnce(ctx context.Context) error {
 	return runtime.connectEdge(ctx, record.DaemonID, binding, locator, runtime.config.ConnectAttemptTimeout)
 }
 
-func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, binding *cloudv1.SignedEnvelope, locator *cloudv1.EdgeLocator, connectAttemptTimeout time.Duration) error {
+func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, binding *cloudv1.SignedEnvelope, locator *cloudv1.EdgeLocator, connectAttemptTimeout time.Duration) (err error) {
+	// A Runtime owns one AgentGateway and one Cloud session registry. Keep
+	// attempts serial so stale cleanup cannot account for a different attempt.
+	runtime.connectMu.Lock()
+	defer runtime.connectMu.Unlock()
 	if binding == nil || locator == nil {
 		return errors.New("daemon binding or Edge locator is incomplete")
 	}
@@ -358,14 +372,27 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	attemptID := uuid.NewString()
 	runtime.setActiveAttempt(attemptID, cancelAttempt)
 	stopAttemptTimeout := connectAttemptTimeoutGuard(connectAttemptTimeout, cancelAttempt)
-	var workers sync.WaitGroup
 	var peers sync.WaitGroup
+	workerDone := make(chan struct{}, 2)
 	defer func() {
 		stopAttemptTimeout()
 		runtime.clearActiveAttempt(attemptID)
 		cancelAttempt()
-		workers.Wait()
-		peers.Wait()
+		_ = connection.Close()
+		if !waitWorkerCompletion(workerDone, 2, runtime.config.SessionCleanupTimeout) {
+			if runtime.config.Logger != nil {
+				runtime.config.Logger.Warn("anytty cloud daemon AgentGateway worker cleanup timed out", "timeout", runtime.config.SessionCleanupTimeout)
+			}
+		}
+		if !runtime.waitCloudSessions(runtime.config.SessionCleanupTimeout) {
+			stale := runtime.detachCloudSessions()
+			if runtime.config.Logger != nil {
+				runtime.config.Logger.Warn("anytty cloud daemon WebRTC sessions detached after cleanup timeout", "sessions", stale, "timeout", runtime.config.SessionCleanupTimeout)
+			}
+		}
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		}
 	}()
 	stream, err := cloudv1.NewAgentGatewayClient(connection).Connect(attemptCtx)
 	if err != nil {
@@ -413,13 +440,12 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	outbound := make(chan *cloudv1.AgentEvent, 32)
 	writerErrors := make(chan error, 1)
 	receive := make(chan error, 1)
-	workers.Add(2)
 	go func() {
-		defer workers.Done()
+		defer func() { workerDone <- struct{}{} }()
 		runtime.runAgentWriter(attemptCtx, stream, daemonID, runtime.bootID, connectionID, 1, outbound, writerErrors)
 	}()
 	go func() {
-		defer workers.Done()
+		defer func() { workerDone <- struct{}{} }()
 		runtime.runEdgeCommands(attemptCtx, stream, command.GetReady().GetGeneration(), outbound, receive, &peers)
 	}()
 	outbound <- lifecycleResult(command.GetReady().GetGeneration(), daemonState, nil)
@@ -632,14 +658,18 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 	answerer := runtime.config.Answerer
 	onPeerClosed := answerer.OnPeerClosed
 	var peerClosed sync.Once
+	finish := func() {
+		runtime.finishCloudSession(offer.GetSessionId(), session, peers)
+		if onPeerClosed != nil {
+			onPeerClosed()
+		}
+	}
 	answerer.OnPeerClosed = func() {
-		peerClosed.Do(func() {
-			runtime.finishCloudSession(offer.GetSessionId(), session, peers, onPeerClosed)
-		})
+		peerClosed.Do(finish)
 	}
 	answer, err := answerer.Answer(sessionCtx, &webrtc.SignalingOffer{SessionID: offer.GetSessionId(), SDP: offer.GetOfferSdp(), Candidates: candidates}, iceServers)
 	if err != nil {
-		peerClosed.Do(func() { runtime.finishCloudSession(offer.GetSessionId(), session, peers, onPeerClosed) })
+		peerClosed.Do(finish)
 		return reject("ANSWER_FAILED", "daemon could not establish P2P signaling")
 	}
 	wireCandidates := make([]*cloudv1.CloudICECandidate, 0, len(answer.Candidates))
@@ -733,7 +763,7 @@ func (runtime *Runtime) applyDaemonState(ctx context.Context, state *cloudv1.Dae
 func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID string, peers *sync.WaitGroup) (context.Context, *cloudSession, bool) {
 	runtime.lifecycleMu.Lock()
 	defer runtime.lifecycleMu.Unlock()
-	if !runtime.cloudActiveLocked() || runtime.cloudSessions[sessionID] != nil {
+	if !runtime.cloudActiveLocked() || runtime.cloudSessions[sessionID] != nil || runtime.cloudClosingSessions[sessionID] != nil {
 		return nil, nil, false
 	}
 	ctx, cancel := context.WithCancel(parent)
@@ -743,19 +773,84 @@ func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID stri
 	return ctx, session, true
 }
 
-func (runtime *Runtime) finishCloudSession(sessionID string, session *cloudSession, peers *sync.WaitGroup, onPeerClosed func()) {
+func waitWorkerCompletion(done <-chan struct{}, count int, timeout time.Duration) bool {
+	if count <= 0 {
+		return true
+	}
+	if timeout <= 0 {
+		timeout = defaultSessionCleanupTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for remaining := count; remaining > 0; remaining-- {
+		select {
+		case <-done:
+		case <-timer.C:
+			return false
+		}
+	}
+	return true
+}
+
+func (runtime *Runtime) waitCloudSessions(timeout time.Duration) bool {
+	if timeout <= 0 {
+		timeout = defaultSessionCleanupTimeout
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		runtime.lifecycleMu.Lock()
+		sessions := make([]*cloudSession, 0, len(runtime.cloudSessions))
+		for _, session := range runtime.cloudSessions {
+			sessions = append(sessions, session)
+		}
+		runtime.lifecycleMu.Unlock()
+		if len(sessions) == 0 {
+			return true
+		}
+		for _, session := range sessions {
+			select {
+			case <-session.done:
+			case <-timer.C:
+				return false
+			}
+		}
+	}
+}
+
+func (runtime *Runtime) detachCloudSessions() int {
+	runtime.lifecycleMu.Lock()
+	sessions := make(map[string]*cloudSession, len(runtime.cloudSessions))
+	for sessionID, session := range runtime.cloudSessions {
+		sessions[sessionID] = session
+		delete(runtime.cloudSessions, sessionID)
+		if runtime.cloudClosingSessions == nil {
+			runtime.cloudClosingSessions = make(map[string]*cloudSession)
+		}
+		runtime.cloudClosingSessions[sessionID] = session
+	}
+	runtime.lifecycleMu.Unlock()
+	for _, session := range sessions {
+		// The WebRTC owner already received cancellation. Keep a closing tombstone
+		// until its real callback arrives so the same session ID cannot be reused.
+		session.cancel()
+	}
+	return len(sessions)
+}
+
+func (runtime *Runtime) finishCloudSession(sessionID string, session *cloudSession, peers *sync.WaitGroup) {
 	session.once.Do(func() {
 		session.cancel()
 		runtime.lifecycleMu.Lock()
 		if runtime.cloudSessions[sessionID] == session {
 			delete(runtime.cloudSessions, sessionID)
 		}
+		if runtime.cloudClosingSessions[sessionID] == session {
+			delete(runtime.cloudClosingSessions, sessionID)
+		}
 		runtime.lifecycleMu.Unlock()
 		close(session.done)
 		peers.Done()
-		if onPeerClosed != nil {
-			onPeerClosed()
-		}
 	})
 }
 

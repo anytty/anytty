@@ -71,6 +71,10 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    implementation("androidx.webkit:webkit:1.15.0")
+}
+
 val anyttyRepoRoot = rootProject.projectDir.resolve("../../..").canonicalFile
 val buildAnyttyNative by tasks.registering(Exec::class) {
     group = "build"

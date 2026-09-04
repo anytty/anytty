@@ -104,6 +104,31 @@ func (err *EntitlementError) Error() string {
 	return err.Failure.GetMessage()
 }
 
+// SignalRejectedError preserves the authenticated Edge rejection code so the
+// route recovery layer cannot mistake a revoked credential for a bad locator.
+type SignalRejectedError struct {
+	Code    string
+	Message string
+}
+
+func (err *SignalRejectedError) Error() string {
+	if err == nil || strings.TrimSpace(err.Code) == "" {
+		return "Cloud signaling was rejected"
+	}
+	if strings.TrimSpace(err.Message) == "" {
+		return fmt.Sprintf("Cloud signaling rejected (%s)", err.Code)
+	}
+	return fmt.Sprintf("Cloud signaling rejected (%s): %s", err.Code, err.Message)
+}
+
+func SignalRejectionCode(err error) string {
+	var rejected *SignalRejectedError
+	if !errors.As(err, &rejected) || rejected == nil {
+		return ""
+	}
+	return strings.TrimSpace(rejected.Code)
+}
+
 func EntitlementFailure(err error) *cloudv1.CloudEntitlementFailure {
 	var entitlement *EntitlementError
 	if errors.As(err, &entitlement) && entitlement.Failure != nil {
@@ -867,12 +892,19 @@ func (client *Client) ProbePresence(ctx context.Context, resolution *RouteResolu
 }
 
 // Exchange 连接目标 Edge，并用长期 RouteGrant 或一次性 pairing admission 与本次 client proof 完成 offer/answer。
-func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution, identity remoteauth.ClientAccessIdentity, signer Signer, product cloudv1.ClientProduct, attemptGeneration uint64, relayPreference cloudv1.RelayPreference, createOffer func(context.Context, *cloudv1.ClientReady) (string, error)) (*SignalSession, error) {
+func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution, identity remoteauth.ClientAccessIdentity, signer Signer, product cloudv1.ClientProduct, attemptGeneration uint64, relayPreference cloudv1.RelayPreference, createOffer func(context.Context, *cloudv1.ClientReady) (string, error)) (result *SignalSession, err error) {
 	capabilityRoute := resolution != nil && resolution.locator != nil && resolution.routeGrant != nil && resolution.pairingBootstrap == nil && resolution.pairingAdmission == nil
 	pairingRoute := resolution != nil && resolution.locator == nil && resolution.routeGrant == nil && resolution.pairingBootstrap != nil && resolution.pairingAdmission != nil
-	if client == nil || (!capabilityRoute && !pairingRoute) || signer == nil || identity.ValidatePublic() != nil || product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED || attemptGeneration == 0 || createOffer == nil {
+	if ctx == nil || client == nil || (!capabilityRoute && !pairingRoute) || signer == nil || identity.ValidatePublic() != nil || product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED || attemptGeneration == 0 || createOffer == nil {
 		return nil, errors.New("Cloud signaling input is incomplete")
 	}
+	exchangeContext, cancelExchange := context.WithTimeout(ctx, resolution.edgeProtocolTimeout())
+	defer func() {
+		cancelExchange()
+		if err != nil && errors.Is(exchangeContext.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			err = markEdgeLocatorUnavailable(fmt.Errorf("Cloud Edge protocol exchange timed out: %w", exchangeContext.Err()))
+		}
+	}()
 	startedAt := time.Now()
 	lastAt := startedAt
 	reportTiming := func(stage string) {
@@ -885,12 +917,11 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if relayPreference == cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY {
 		// Direct offer gathering does not depend on Edge or Relay material. Run it beside
 		// TCP/TLS/challenge setup so local interface enumeration is not a serial cold stage.
-		prefetchedOffer = newOfferFuture(ctx, createOffer, &cloudv1.ClientReady{SessionId: sessionID, Generation: attemptGeneration})
+		prefetchedOffer = newOfferFuture(exchangeContext, createOffer, &cloudv1.ClientReady{SessionId: sessionID, Generation: attemptGeneration})
 		defer prefetchedOffer.Close()
 		reportTiming("client_offer_started")
 	}
 	var connection *grpc.ClientConn
-	var err error
 	if capabilityRoute {
 		connection, err = client.dial(resolution.locator.GetPublicEndpoint(), resolution.locator.GetServerName(), resolution.locator.GetCaCertificatePem())
 	} else {
@@ -899,7 +930,7 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if err != nil {
 		return nil, markEdgeLocatorUnavailable(err)
 	}
-	if err := waitForEdgeTransport(ctx, connection, resolution.edgeTransportTimeout()); err != nil {
+	if err := waitForEdgeTransport(exchangeContext, connection, resolution.edgeTransportTimeout()); err != nil {
 		_ = connection.Close()
 		return nil, markEdgeLocatorUnavailable(err)
 	}
@@ -913,6 +944,8 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	// route racer 会在 winner 发布后取消 attempt context；ClientGateway 需要在 answer 前响应该取消，
 	// 成功后则改由 ReadyPeerSession lifecycle 持有，不能被 winner 自己的 attempt cancel 误关。
 	streamContext, streamOwner := newSignalStreamOwner(ctx)
+	stopHandshakeTimeout := context.AfterFunc(exchangeContext, streamOwner.cancel)
+	defer stopHandshakeTimeout()
 	keepStream := false
 	defer func() {
 		if !keepStream {
@@ -947,7 +980,7 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if err != nil {
 		return nil, err
 	}
-	proof, err := signer.Sign(ctx, canonical)
+	proof, err := signer.Sign(exchangeContext, canonical)
 	if err != nil {
 		return nil, err
 	}
@@ -991,7 +1024,7 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if prefetchedOffer != nil {
 		offerSDP, err = prefetchedOffer.Await()
 	} else {
-		offerSDP, err = createOffer(ctx, ready.GetReady())
+		offerSDP, err = createOffer(exchangeContext, ready.GetReady())
 	}
 	if err != nil {
 		return nil, fmt.Errorf("create Cloud P2P offer: %w", err)
@@ -1039,12 +1072,15 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 		if rejected.GetEntitlementFailure() != nil {
 			return nil, &EntitlementError{Failure: proto.Clone(rejected.GetEntitlementFailure()).(*cloudv1.CloudEntitlementFailure)}
 		}
-		return nil, fmt.Errorf("Cloud signaling rejected (%s): %s", rejected.GetCode(), rejected.GetMessage())
+		return nil, &SignalRejectedError{Code: rejected.GetCode(), Message: rejected.GetMessage()}
 	}
 	if response.GetAnswer() == nil || response.GetAnswer().GetSessionId() != sessionID || strings.TrimSpace(response.GetAnswer().GetAnswerSdp()) == "" {
 		return nil, errors.New("Edge signaling answer is invalid")
 	}
 	reportTiming("edge_answer")
+	if !stopHandshakeTimeout() {
+		return nil, context.Cause(exchangeContext)
+	}
 	if err := streamOwner.Retain(); err != nil {
 		return nil, err
 	}
@@ -1144,6 +1180,15 @@ func (resolution *RouteResolution) edgeTransportTimeout() time.Duration {
 		return 1500 * time.Millisecond
 	}
 	return 3 * time.Second
+}
+
+func (resolution *RouteResolution) edgeProtocolTimeout() time.Duration {
+	if resolution != nil && resolution.cachedLocator {
+		// A cached locator is an optimization. Give it enough time for a normal
+		// mobile RTT, but bound a silent Edge so Controller refresh can proceed.
+		return 8 * time.Second
+	}
+	return 15 * time.Second
 }
 
 func waitForEdgeTransport(ctx context.Context, connection *grpc.ClientConn, timeout time.Duration) error {

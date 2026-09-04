@@ -85,7 +85,7 @@ void main() {
   });
 
   testWidgets(
-    'keeps attached Quick Keys fixed while the terminal workspace shifts',
+    'keeps attached Quick Keys fixed while the terminal workspace resizes',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 800);
@@ -133,11 +133,15 @@ void main() {
       final terminalAfter = tester.getTopLeft(
         find.byKey(const ValueKey('terminal-workspace')),
       );
+      final terminalRectAfter = tester.getRect(
+        find.byKey(const ValueKey('terminal-workspace')),
+      );
       final headerLayerAfter = tester.getRect(
         find.byKey(const ValueKey('quick-keys-header-layer')),
       );
 
-      expect(terminalAfter.dy, terminalBefore.dy - 300);
+      expect(terminalAfter.dy, terminalBefore.dy);
+      expect(terminalRectAfter.bottom, 500);
       expect(headerLayerAfter, headerLayerBefore);
     },
   );
