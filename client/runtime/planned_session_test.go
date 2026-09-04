@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,66 @@ import (
 	"github.com/anytty/anytty/client/endpoint"
 	"github.com/anytty/anytty/client/port"
 )
+
+func TestAttemptedRuntimeErrorExplainsRouteAndSocket(t *testing.T) {
+	tests := []struct {
+		name   string
+		route  endpoint.AccessRoute
+		cause  error
+		wants  []string
+		unwant string
+	}{
+		{
+			name:  "configured local socket",
+			route: endpoint.AccessRoute{ID: "local", Kind: endpoint.RouteLocalUnix, Socket: "/run/anytty-root/daemon.sock"},
+			cause: errors.New("connect: no such file or directory"),
+			wants: []string{
+				`local route "local" failed`,
+				`configured Unix socket is "/run/anytty-root/daemon.sock"`,
+				`Pass --socket "/run/anytty-root/daemon.sock"`,
+				"connect: no such file or directory",
+			},
+			unwant: "route attempt failed",
+		},
+		{
+			name:  "automatic local socket",
+			route: endpoint.AccessRoute{ID: "local", Kind: endpoint.RouteLocalUnix, Socket: "auto"},
+			cause: errors.New("socket unavailable"),
+			wants: []string{
+				`local route "local" has no explicit Unix socket`,
+				"pass --socket PATH",
+				"endpoints.yaml",
+			},
+			unwant: "route attempt failed",
+		},
+		{
+			name:  "network route",
+			route: endpoint.AccessRoute{ID: "cloud", Kind: endpoint.RouteManagedWebRTC},
+			cause: errors.New("controller unavailable"),
+			wants: []string{
+				`route "cloud" (managed-webrtc) failed`,
+				"check this route's configuration",
+				"choose another configured route",
+				"controller unavailable",
+			},
+			unwant: "route attempt failed",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			message := attemptedRuntimeError(test.route, test.cause).Error()
+			for _, want := range test.wants {
+				if !strings.Contains(message, want) {
+					t.Fatalf("message %q does not contain %q", message, want)
+				}
+			}
+			if strings.Contains(message, test.unwant) {
+				t.Fatalf("message %q still contains generic failure text", message)
+			}
+		})
+	}
+}
 
 func TestSessionOwnerFullRaceReturnsFirstReadyBeforeIgnoredCancelLoserCleanup(t *testing.T) {
 	owner := NewSessionOwner()

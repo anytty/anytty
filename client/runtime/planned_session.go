@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/anytty/anytty/client/endpoint"
@@ -417,7 +418,7 @@ func (owner *SessionOwner) executeScheduledAttempt(ctx context.Context, index, g
 		if ready != nil {
 			_ = ready.Close()
 		}
-		attemptErr := attemptedRuntimeError(err)
+		attemptErr := attemptedRuntimeError(request.Route(), err)
 		owner.publishEndpointEvent(EndpointEvent{
 			EndpointID:         request.EndpointID(),
 			Stamp:              request.Stamp(),
@@ -433,11 +434,11 @@ func (owner *SessionOwner) executeScheduledAttempt(ctx context.Context, index, g
 		if ready != nil {
 			_ = ready.Close()
 		}
-		return routeAttemptResult{index: index, group: group, request: request, err: attemptedRuntimeError(err)}
+		return routeAttemptResult{index: index, group: group, request: request, err: attemptedRuntimeError(request.Route(), err)}
 	}
 	if _, ok := ready.(ApplicationReadyPeerSession); !ok {
 		_ = ready.Close()
-		return routeAttemptResult{index: index, group: group, request: request, err: attemptedRuntimeError(runtimeError(ErrorUnavailable, "route attempt returned no Proto application session", nil))}
+		return routeAttemptResult{index: index, group: group, request: request, err: attemptedRuntimeError(request.Route(), runtimeError(ErrorUnavailable, "application session was not created", nil))}
 	}
 	return routeAttemptResult{index: index, group: group, request: request, ready: ready}
 }
@@ -482,14 +483,24 @@ func (owner *SessionOwner) publishEndpointEventLocked(event EndpointEvent) {
 	}
 }
 
-func attemptedRuntimeError(err error) error {
+func attemptedRuntimeError(route endpoint.AccessRoute, err error) error {
 	code := CodeOf(err)
-	message := "route attempt failed"
+	message := fmt.Sprintf("route %q (%s) failed; check this route's configuration or choose another configured route", route.ID, route.Kind)
 	retryable := false
 	var value *Error
 	if errors.As(err, &value) && value.Message != "" {
-		message = value.Message
 		retryable = value.Retryable
+	}
+	if route.Kind == endpoint.RouteLocalUnix {
+		socket := strings.TrimSpace(route.Socket)
+		if socket == "" || socket == "auto" {
+			message = fmt.Sprintf("local route %q has no explicit Unix socket; pass --socket PATH or set the correct socket in endpoints.yaml", route.ID)
+		} else {
+			message = fmt.Sprintf("local route %q failed; configured Unix socket is %q. Pass --socket %q or update endpoints.yaml if this is not the daemon socket", route.ID, socket, socket)
+		}
+	}
+	if reason := strings.TrimSpace(errorMessage(err)); reason != "" {
+		message += ": " + reason
 	}
 	return &Error{Code: code, Message: message, Cause: err, Attempted: true, Retryable: retryable}
 }

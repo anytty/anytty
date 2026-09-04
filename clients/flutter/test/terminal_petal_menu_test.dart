@@ -111,6 +111,31 @@ void main() {
     }
   });
 
+  testWidgets('keeps guide lines and does not underline petal labels', (
+    tester,
+  ) async {
+    final session = TerminalPetalMenuSession.start(
+      viewport: const Size(375, 600),
+      origin: const Offset(187.5, 300),
+      actions: _actions,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: anyttyTheme(Brightness.dark),
+        home: SizedBox(
+          width: 375,
+          height: 600,
+          child: TerminalPetalMenu(session: session),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('terminal-petal-guides')), findsOneWidget);
+    final label = tester.widget<Text>(find.text('History'));
+    expect(label.style?.decoration, TextDecoration.none);
+  });
+
   test('lays out ten children on an adaptive fan', () {
     final session = TerminalPetalMenuSession.start(
       viewport: const Size(375, 600),

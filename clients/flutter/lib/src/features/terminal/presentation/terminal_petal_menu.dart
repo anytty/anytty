@@ -615,6 +615,7 @@ final class TerminalPetalMenu extends StatelessWidget {
             const Positioned.fill(child: ColoredBox(color: Color(0x66000000))),
             Positioned.fill(
               child: CustomPaint(
+                key: const ValueKey('terminal-petal-guides'),
                 painter: _TerminalPetalGuidePainter(
                   origin: session.origin,
                   center: session.center,
@@ -802,6 +803,9 @@ final class _TerminalPetalNode extends StatelessWidget {
                         color: foreground,
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.none,
+                        decorationColor: Colors.transparent,
+                        decorationThickness: 0,
                       ),
                     ),
                   ),
