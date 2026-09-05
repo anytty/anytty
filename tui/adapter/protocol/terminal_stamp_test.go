@@ -95,7 +95,7 @@ func TestTerminalAdapterCarriesInputOperationIdentityIntoProto(t *testing.T) {
 	if operation.GetOperationId() != "paste:view-1:19" || operation.GetSession().GetEndpointId() != "west" || operation.GetSession().GetRouteId() != "ssh" || operation.GetSession().GetGeneration() != 8 {
 		t.Fatalf("unexpected Proto operation %#v", operation)
 	}
-	if client.validateCalls != 1 || client.attachmentCalls != 1 || client.executeCalls != 1 {
+	if client.validateCalls != 2 || client.attachmentCalls != 1 || client.executeCalls != 1 {
 		t.Fatalf("valid input calls: validate=%d attachment=%d execute=%d", client.validateCalls, client.attachmentCalls, client.executeCalls)
 	}
 }

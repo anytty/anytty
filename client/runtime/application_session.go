@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -109,10 +110,21 @@ type protoApplicationEventSource interface {
 // ApplicationSession 把 generated Proto command 绑定到一个不可变 ReadyPeerSession generation。
 // request ID 与 operation ID 由该对象单调分配；调用方不得自行重建 session stamp 或跨 generation 复用资源。
 type ApplicationSession struct {
-	stamp    EndpointSessionStamp
-	executor ProtoApplicationExecutor
-	nextID   atomic.Uint64
+	stamp         EndpointSessionStamp
+	executor      ProtoApplicationExecutor
+	requestPrefix string
+	nextID        atomic.Uint64
 }
+
+// preparedApplicationRequest is an in-process trust marker created by the
+// outermost ApplicationSession. Nested route adapters must preserve its exact
+// request and session identity instead of allocating another correlation ID.
+type preparedApplicationRequest struct {
+	requestID string
+	stamp     EndpointSessionStamp
+}
+
+type preparedApplicationRequestContextKey struct{}
 
 // NewApplicationSession 建立 connection-bound Proto API session。
 // stamp 不完整或 executor 缺失时立即失败，禁止创建可在运行期 fallback 的半初始化对象。
@@ -123,7 +135,11 @@ func NewApplicationSession(stamp EndpointSessionStamp, executor ProtoApplication
 	if executor == nil {
 		return nil, runtimeError(ErrorUnavailable, "application executor is required", nil)
 	}
-	return &ApplicationSession{stamp: stamp, executor: executor}, nil
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, runtimeError(ErrorUnavailable, "generate application request identity", err)
+	}
+	return &ApplicationSession{stamp: stamp, executor: executor, requestPrefix: fmt.Sprintf("app-%x", nonce)}, nil
 }
 
 // Stamp 返回该 application session 的不可变 generation fence。
@@ -171,15 +187,43 @@ func (session *ApplicationSession) execute(ctx context.Context, command *apipb.C
 	if session == nil || session.executor == nil {
 		return nil, runtimeError(ErrorUnavailable, "application session is unavailable", nil)
 	}
+	if ctx == nil {
+		return nil, runtimeError(ErrorInvalidRequest, "application context is required", nil)
+	}
 	if command == nil {
 		return nil, runtimeError(ErrorInvalidRequest, "application command is required", nil)
 	}
-	sequence := session.nextID.Add(1)
-	requestID := fmt.Sprintf("%s-%d", session.stamp.EndpointID, sequence)
+	if err := session.ValidateCurrent(); err != nil {
+		return nil, err
+	}
 	stamp := session.protoStamp()
 	snapshot := proto.Clone(command).(*apipb.CommandEnvelope)
-	snapshot.Context = &apipb.RequestContext{RequestId: requestID, ApiVersion: &apipb.ApiVersion{Major: 1}, Session: stamp}
-	bindOperationStamp(snapshot, stamp, requestID)
+	requestID := ""
+	if prepared, ok := ctx.Value(preparedApplicationRequestContextKey{}).(preparedApplicationRequest); ok {
+		if prepared.stamp != session.stamp {
+			return nil, &Error{Code: ErrorStaleSession, Message: "prepared application request belongs to a different endpoint session"}
+		}
+		requestContext := snapshot.GetContext()
+		if prepared.requestID == "" || requestContext.GetRequestId() != prepared.requestID {
+			return nil, &Error{Code: ErrorInvalidRequest, Message: "prepared application request correlation mismatch"}
+		}
+		if requestContext.GetApiVersion().GetMajor() != 1 {
+			return nil, &Error{Code: ErrorInvalidRequest, Message: "prepared application request API version mismatch"}
+		}
+		if !applicationSessionStampsEqual(requestContext.GetSession(), stamp) {
+			return nil, &Error{Code: ErrorStaleSession, Message: "prepared application request session mismatch"}
+		}
+		requestID = prepared.requestID
+	} else {
+		sequence := session.nextID.Add(1)
+		if sequence == 0 {
+			return nil, runtimeError(ErrorUnavailable, "application request sequence is exhausted", nil)
+		}
+		requestID = fmt.Sprintf("%s-%d", session.requestPrefix, sequence)
+		snapshot.Context = &apipb.RequestContext{RequestId: requestID, ApiVersion: &apipb.ApiVersion{Major: 1}, Session: stamp}
+		bindOperationStamp(snapshot, stamp, requestID)
+		ctx = context.WithValue(ctx, preparedApplicationRequestContextKey{}, preparedApplicationRequest{requestID: requestID, stamp: session.stamp})
+	}
 	var result *apipb.ResultEnvelope
 	var err error
 	if terminal {

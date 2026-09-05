@@ -9,6 +9,7 @@ This file records user-visible changes. The current version is a prerelease and 
 ### Fixed
 
 - Windows executables now embed a lossless ConPTY runtime, preserving styled blank cells in arbitrary CLI output and the original VT scroll stream needed for complete terminal history.
+- Remote application requests now retain one correlation identity across nested runtime adapters, preventing intermittent TUI failures after concurrent requests, connection reuse, or resource cleanup.
 
 ## [0.0.1-beta.10] - 2026-09-04
 

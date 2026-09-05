@@ -18,6 +18,16 @@ type recordingProtoExecutor struct {
 	terminal bool
 }
 
+type nestedApplicationExecutor struct {
+	inner *ApplicationSession
+}
+
+type staleApplicationExecutor struct {
+	called bool
+}
+
+type echoApplicationExecutor struct{}
+
 type executeOnlyFileOpenExecutor struct {
 	commands []*apipb.CommandEnvelope
 }
@@ -121,6 +131,39 @@ func (executor *recordingProtoExecutor) ExecuteApplicationTerminal(ctx context.C
 	return executor.ExecuteApplication(ctx, command)
 }
 
+func (executor *nestedApplicationExecutor) ExecuteApplication(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return executor.inner.Execute(ctx, command)
+}
+
+func (executor *nestedApplicationExecutor) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return executor.inner.ExecuteTerminal(ctx, command)
+}
+
+func (executor *staleApplicationExecutor) ValidateApplicationSession(EndpointSessionStamp) error {
+	return runtimeError(ErrorStaleSession, "session was replaced", nil)
+}
+
+func (executor *staleApplicationExecutor) ExecuteApplication(_ context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	executor.called = true
+	return &apipb.ResultEnvelope{
+		RequestId:     command.GetContext().GetRequestId(),
+		OriginSession: proto.Clone(command.GetContext().GetSession()).(*apipb.EndpointSessionStamp),
+		Result:        &apipb.ResultEnvelope_Acknowledge{Acknowledge: &apipb.AcknowledgeResult{}},
+	}, nil
+}
+
+func (echoApplicationExecutor) ExecuteApplication(_ context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return &apipb.ResultEnvelope{
+		RequestId:     command.GetContext().GetRequestId(),
+		OriginSession: proto.Clone(command.GetContext().GetSession()).(*apipb.EndpointSessionStamp),
+		Result:        &apipb.ResultEnvelope_Acknowledge{Acknowledge: &apipb.AcknowledgeResult{}},
+	}, nil
+}
+
+func (executor echoApplicationExecutor) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return executor.ExecuteApplication(ctx, command)
+}
+
 func TestApplicationSessionOwnsContextAndOperationStamp(t *testing.T) {
 	executor := &recordingProtoExecutor{}
 	session, err := NewApplicationSession(EndpointSessionStamp{EndpointID: endpoint.EndpointID("studio"), RouteID: endpoint.RouteID("ssh"), Generation: 7}, executor)
@@ -141,6 +184,144 @@ func TestApplicationSessionOwnsContextAndOperationStamp(t *testing.T) {
 	}
 	if command.GetContext() != nil || command.GetTerminalAttach().GetOperation() != nil {
 		t.Fatal("application session mutated caller command")
+	}
+}
+
+func TestNestedApplicationSessionsPreserveOwningRequestIdentity(t *testing.T) {
+	stamp := EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 7}
+	executor := &recordingProtoExecutor{}
+	inner, err := NewApplicationSession(stamp, executor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inner.Execute(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}}); err != nil {
+		t.Fatal(err)
+	}
+	consumedID := executor.command.GetContext().GetRequestId()
+	outer, err := NewApplicationSession(stamp, &nestedApplicationExecutor{inner: inner})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := outer.Execute(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalInput{TerminalInput: &apipb.TerminalInputCommand{}}})
+	if err != nil {
+		t.Fatalf("nested ordinary request: %v", err)
+	}
+	requestID := executor.command.GetContext().GetRequestId()
+	if requestID == consumedID || result.GetRequestId() != requestID || executor.command.GetTerminalInput().GetOperation().GetOperationId() != requestID {
+		t.Fatalf("nested ordinary correlation consumed=%q request=%q result=%q operation=%q", consumedID, requestID, result.GetRequestId(), executor.command.GetTerminalInput().GetOperation().GetOperationId())
+	}
+
+	result, err = outer.ExecuteTerminal(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_FileUploadOpen{FileUploadOpen: &apipb.FileUploadOpenCommand{Path: "/tmp/demo"}}})
+	if err != nil {
+		t.Fatalf("nested terminal request: %v", err)
+	}
+	requestID = executor.command.GetContext().GetRequestId()
+	if result.GetRequestId() != requestID || executor.command.GetFileUploadOpen().GetOperation().GetOperationId() != requestID {
+		t.Fatalf("nested terminal correlation request=%q result=%q operation=%q", requestID, result.GetRequestId(), executor.command.GetFileUploadOpen().GetOperation().GetOperationId())
+	}
+}
+
+func TestNestedApplicationSessionsRejectCrossGenerationForwarding(t *testing.T) {
+	executor := &recordingProtoExecutor{}
+	inner, err := NewApplicationSession(EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 8}, executor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer, err := NewApplicationSession(EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 7}, &nestedApplicationExecutor{inner: inner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = outer.Execute(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}})
+	if CodeOf(err) != ErrorStaleSession || WasAttempted(err) || executor.command != nil {
+		t.Fatalf("cross-generation forwarding error=%#v executed=%t", err, executor.command != nil)
+	}
+}
+
+func TestNestedApplicationSessionsKeepConcurrentCorrelationsDistinct(t *testing.T) {
+	stamp := EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 7}
+	inner, err := NewApplicationSession(stamp, echoApplicationExecutor{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer, err := NewApplicationSession(stamp, &nestedApplicationExecutor{inner: inner})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const requestCount = 128
+	results := make(chan string, requestCount)
+	errors := make(chan error, requestCount)
+	var wait sync.WaitGroup
+	for range requestCount {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			result, err := outer.Execute(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}})
+			if err != nil {
+				errors <- err
+				return
+			}
+			results <- result.GetRequestId()
+		}()
+	}
+	wait.Wait()
+	close(results)
+	close(errors)
+	for err := range errors {
+		t.Errorf("concurrent nested request: %v", err)
+	}
+	seen := make(map[string]struct{}, requestCount)
+	for requestID := range results {
+		if requestID == "" {
+			t.Error("concurrent nested request returned an empty correlation")
+			continue
+		}
+		if _, duplicate := seen[requestID]; duplicate {
+			t.Errorf("concurrent nested request reused correlation %q", requestID)
+		}
+		seen[requestID] = struct{}{}
+	}
+	if len(seen) != requestCount {
+		t.Fatalf("concurrent request correlations = %d, want %d", len(seen), requestCount)
+	}
+}
+
+func TestApplicationSessionsUseDistinctRequestIdentities(t *testing.T) {
+	stamp := EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 7}
+	firstExecutor := &recordingProtoExecutor{}
+	first, err := NewApplicationSession(stamp, firstExecutor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondExecutor := &recordingProtoExecutor{}
+	second, err := NewApplicationSession(stamp, secondExecutor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}}
+	if _, err := first.Execute(context.Background(), command); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := second.Execute(context.Background(), command); err != nil {
+		t.Fatal(err)
+	}
+	firstID := firstExecutor.command.GetContext().GetRequestId()
+	secondID := secondExecutor.command.GetContext().GetRequestId()
+	if firstID == secondID {
+		t.Fatalf("separate application sessions reused request identity %q", firstID)
+	}
+}
+
+func TestApplicationSessionValidatesGenerationBeforeExecution(t *testing.T) {
+	executor := &staleApplicationExecutor{}
+	session, err := NewApplicationSession(EndpointSessionStamp{EndpointID: "studio", RouteID: "cloud", Generation: 7}, executor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = session.Execute(context.Background(), &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}})
+	if CodeOf(err) != ErrorStaleSession || executor.called {
+		t.Fatalf("stale generation error=%#v executed=%t", err, executor.called)
 	}
 }
 
