@@ -12,6 +12,8 @@ Artifact Notice Bundles
 
 Vendored And Embedded Material
 
+- internal/pty/LICENSE: 基于 go-pty v0.2.3 的跨平台 PTY 适配代码及其 MIT 许可文本。
+- third_party/conpty/LICENSE: Windows 发布包内嵌的 Microsoft Windows Terminal ConPTY 运行时及其 MIT 许可文本；版本、来源与 SHA-256 记录在 third_party/conpty/README.md。
 - vterm/internal/vt/LICENSE: Charmbracelet terminal implementation 的 MIT 文本。
 - clients/ui/src/assets/fonts/LICENSE: 当前 App 内嵌 Nerd Font Mono 字体的 attribution 与 OFL-1.1 文本。
 - clients/web/public/third-party/NPM_NOTICES.txt: Web 生产依赖清单，包括 Apache-2.0 的 file-viewer React 组件及 text/PDF/Word/spreadsheet/media/3D 渲染器；其中 3D 运行时使用的 occt-import-js 及其 Open CASCADE WebAssembly 组件按 LGPL-2.1 分发，完整许可证与上游说明一并收录。

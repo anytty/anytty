@@ -10,7 +10,7 @@ import (
 	"time"
 	"unsafe"
 
-	crosspty "github.com/aymanbagabas/go-pty"
+	crosspty "github.com/anytty/anytty/internal/pty"
 	"golang.org/x/sys/windows"
 )
 
@@ -36,6 +36,7 @@ type windowsPTYProcessPlatform struct {
 	consoleOnce sync.Once
 	pipesOnce   sync.Once
 	jobOnce     sync.Once
+	consoleErr  error
 	pipesErr    error
 	jobErr      error
 }
@@ -278,9 +279,9 @@ func (platform *windowsPTYProcessPlatform) ProcessExited() error {
 	}
 	platform.consoleOnce.Do(func() {
 		// 中文说明：先关闭 HPCON，ConPTY 才会关闭写端；readLoop 随后可排空最终输出并收到 EOF。
-		windows.ClosePseudoConsole(windows.Handle(platform.terminal.Fd()))
+		platform.consoleErr = platform.terminal.ClosePseudoConsole()
 	})
-	return nil
+	return platform.consoleErr
 }
 
 func (platform *windowsPTYProcessPlatform) OutputDrained() error {
@@ -288,7 +289,7 @@ func (platform *windowsPTYProcessPlatform) OutputDrained() error {
 		return nil
 	}
 	platform.pipesOnce.Do(func() {
-		platform.pipesErr = errors.Join(platform.terminal.InputPipe().Close(), platform.terminal.OutputPipe().Close())
+		platform.pipesErr = platform.terminal.ClosePipes()
 	})
 	return platform.pipesErr
 }
@@ -297,7 +298,7 @@ func (platform *windowsPTYProcessPlatform) Close() error {
 	if platform == nil {
 		return nil
 	}
-	_ = platform.ProcessExited()
+	consoleErr := platform.ProcessExited()
 	pipesErr := platform.OutputDrained()
 	platform.jobOnce.Do(func() {
 		platform.jobMu.Lock()
@@ -307,5 +308,5 @@ func (platform *windowsPTYProcessPlatform) Close() error {
 			platform.job = 0
 		}
 	})
-	return errors.Join(pipesErr, platform.jobErr)
+	return errors.Join(consoleErr, pipesErr, platform.jobErr)
 }

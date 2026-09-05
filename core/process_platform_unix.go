@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	crosspty "github.com/aymanbagabas/go-pty"
+	crosspty "github.com/anytty/anytty/internal/pty"
 )
 
 type ptyProcessPlatform interface {

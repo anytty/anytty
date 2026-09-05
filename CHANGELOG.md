@@ -6,6 +6,10 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+### Fixed
+
+- Windows executables now embed a lossless ConPTY runtime, preserving styled blank cells in arbitrary CLI output and the original VT scroll stream needed for complete terminal history.
+
 ## [0.0.1-beta.10] - 2026-09-04
 
 ### Added

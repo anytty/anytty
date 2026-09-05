@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	crosspty "github.com/anytty/anytty/internal/pty"
 	"github.com/anytty/anytty/shared/perftrace"
-	crosspty "github.com/aymanbagabas/go-pty"
 )
 
 type ProcessFactory interface {

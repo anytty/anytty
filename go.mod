@@ -4,7 +4,6 @@ go 1.26.7
 
 require (
 	charm.land/lipgloss/v2 v2.0.2
-	github.com/aymanbagabas/go-pty v0.2.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/charmbracelet/x/exp/ordered v0.1.0

@@ -12,6 +12,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test Windows ConPTY and history integration
+        run: go test ./core -run TestBundledConPTY -count=1
       - name: Test PowerShell installer
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1
