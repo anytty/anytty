@@ -10,6 +10,10 @@ on:
         description: Existing release tag to publish
         required: true
         type: string
+      source_ref:
+        description: Git ref to build (defaults to the workflow ref)
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -22,6 +26,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  SOURCE_REF: ${{ inputs.source_ref || github.ref_name }}
   ANDROID_NDK_VERSION: 28.2.13676358
 
 jobs:
@@ -30,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -56,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
           submodules: recursive
       - uses: actions/setup-go@v5
         with:
@@ -155,7 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
