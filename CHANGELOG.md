@@ -6,6 +6,12 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.11] - 2026-09-05
+
+### Fixed
+
+- Android terminal input no longer advertises password-like input metadata, preventing Oppo/ColorOS devices from opening the secure keyboard for normal terminal input.
+
 ## [0.0.1-beta.10] - 2026-09-04
 
 ### Added

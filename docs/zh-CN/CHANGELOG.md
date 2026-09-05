@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+## [0.0.1-beta.11] - 2026-09-05
+
+### 修复
+
+- Android terminal 输入不再声明类似密码的输入元数据，避免 Oppo/ColorOS 设备在普通 terminal 输入时错误打开安全键盘。
+
 ## [0.0.1-beta.10] - 2026-09-04
 
 ### 新增
