@@ -6,6 +6,13 @@
 
 ## Unreleased
 
+## [0.0.1-beta.12] - 2026-09-05
+
+### 变更
+
+- 统一 CLI、Web 工作区、Flutter 客户端与 GitHub Release 使用的发布版本信息。
+- Android 与 iOS Beta 构建统一使用 build number `17`。
+
 ## [0.0.1-beta.11] - 2026-09-05
 
 ### 修复

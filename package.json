@@ -1,6 +1,6 @@
 {
   "name": "anytty",
-  "version": "0.0.1-beta.11",
+  "version": "0.0.1-beta.12",
   "private": true,
   "workspaces": [
     "clients/ui",

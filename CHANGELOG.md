@@ -6,6 +6,13 @@ This file records user-visible changes. The current version is a prerelease and 
 
 ## Unreleased
 
+## [0.0.1-beta.12] - 2026-09-05
+
+### Changed
+
+- Unified the release metadata used by the CLI, web workspace, Flutter client, and GitHub release workflow.
+- Aligned the mobile build number at `17` for the Android and iOS beta artifacts.
+
 ## [0.0.1-beta.11] - 2026-09-05
 
 ### Fixed

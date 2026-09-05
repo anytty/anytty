@@ -8,15 +8,17 @@ FLUTTER_DIR := $(CURDIR)/clients/flutter
 ANDROID_ARTIFACT_DIR := $(ARTIFACT_DIR)/android
 RELEASE_VERSION ?=
 
-.PHONY: build release test test-clients test-android local-web-bundle public-check clean
+.PHONY: build release sync-version test test-clients test-android local-web-bundle public-check clean
 
 build:
 	mkdir -p "$(dir $(ANYTTY_BIN))"
 	GOWORK=off go build -trimpath -o "$(ANYTTY_BIN)" ./cmd/anytty
 
-release:
-	@test -n "$(RELEASE_VERSION)" || { echo 'RELEASE_VERSION is required' >&2; exit 2; }
-	scripts/build-release-artifacts.sh "$(RELEASE_VERSION)"
+sync-version:
+	scripts/sync-version-files.sh
+
+release: sync-version
+	eval "$$(scripts/version-info.sh)"; tag="$(if $(RELEASE_VERSION),$(RELEASE_VERSION),$$ANYTTY_RELEASE_TAG)"; scripts/build-release-artifacts.sh "$$tag"
 
 test:
 	scripts/test-install.sh
@@ -35,7 +37,7 @@ local-web-bundle:
 test-android:
 	cd "$(FLUTTER_DIR)" && flutter pub get
 	cd "$(FLUTTER_DIR)" && flutter test
-	cd "$(FLUTTER_DIR)" && flutter build apk --release --target-platform android-arm64 --split-per-abi
+	eval "$$(scripts/version-info.sh)"; cd "$(FLUTTER_DIR)" && flutter build apk --release --build-name="$$ANYTTY_RELEASE_VERSION" --build-number="$$ANYTTY_BUILD_NUMBER" --target-platform android-arm64 --split-per-abi
 	mkdir -p "$(ANDROID_ARTIFACT_DIR)"
 	cp "$(FLUTTER_DIR)/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$(ANDROID_ARTIFACT_DIR)/anytty-arm64-v8a-release.apk"
 	ANYTTY_ANDROID_EXPECTED_ABIS=arm64-v8a scripts/verify-flutter-android-apk-boundary.sh "$(ANDROID_ARTIFACT_DIR)/anytty-arm64-v8a-release.apk"
