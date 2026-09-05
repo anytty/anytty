@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../generated/proto/remoteauthpb/remote_auth.pb.dart';
@@ -41,101 +40,77 @@ final class _RouteManagementScreenState
 
   @override
   Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
     final registry = ref.watch(endpointRegistryProvider);
     final endpoint = _findEndpoint(registry.valueOrNull, widget.endpointId);
-    final palette = AnyttyPalette.of(context);
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: AnyttyUi.appBarHeight(context, subtitleLines: 2),
-        leading: AnyttyIconButton(
+        leading: IconButton(
           tooltip: 'Back to connection',
           onPressed: () => Navigator.maybePop(context),
-          icon: Icons.arrow_back_rounded,
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Routes', style: AnyttyUi.title(context)),
+            const Text(
+              'Routes',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             Text(
               _label,
-              style: AnyttyUi.muted(context),
-              maxLines: 2,
-              softWrap: true,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
         actions: [
-          Opacity(
-            opacity: endpoint != null && _busyRouteId == null ? 1 : 0.45,
-            child: DecoratedBox(
-              decoration: AnyttyUi.controlDecoration(
-                context,
-                enabled: endpoint != null && _busyRouteId == null,
-              ),
-              child: PopupMenuButton<EndpointRouteKind>(
-                tooltip: 'Add route',
-                enabled: endpoint != null && _busyRouteId == null,
-                padding: EdgeInsets.zero,
-                iconSize: 20,
-                constraints: const BoxConstraints.tightFor(
-                  width: AnyttyUi.controlSize,
-                  height: AnyttyUi.controlSize,
+          PopupMenuButton<EndpointRouteKind>(
+            tooltip: 'Add route',
+            enabled: endpoint != null && _busyRouteId == null,
+            icon: const Icon(Icons.add_rounded),
+            onSelected: (kind) => _openEditor(kind: kind),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: EndpointRouteKind.direct,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.wifi_tethering_rounded),
+                  title: Text('Direct route'),
                 ),
-                icon: Icon(Icons.add_rounded, color: palette.strong),
-                onSelected: (kind) => _openEditor(kind: kind),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: EndpointRouteKind.direct,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.wifi_tethering_rounded,
-                        color: palette.strong,
-                      ),
-                      title: Text(
-                        'Direct route',
-                        style: AnyttyUi.body(context),
-                      ),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: EndpointRouteKind.ssh,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.key_rounded, color: palette.strong),
-                      title: Text('SSH route', style: AnyttyUi.body(context)),
-                    ),
-                  ),
-                ],
               ),
-            ),
+              PopupMenuItem(
+                value: EndpointRouteKind.ssh,
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.key_rounded),
+                  title: Text('SSH route'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          AnyttyIconButton(
+          IconButton(
             tooltip: 'Refresh routes',
             onPressed: registry.isLoading || _busyRouteId != null
                 ? null
                 : () => ref.invalidate(endpointRegistryProvider),
-            icon: Icons.refresh_rounded,
-            child: registry.isLoading
+            icon: registry.isLoading
                 ? const SizedBox.square(
                     dimension: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : null,
+                : const Icon(Icons.refresh_rounded),
           ),
           const SizedBox(width: 4),
         ],
       ),
       body: registry.when(
-        loading: () => Center(
-          child: Semantics(
-            liveRegion: true,
-            label: 'Loading routes',
-            child: CircularProgressIndicator(),
-          ),
-        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _RouteLoadError(
           message: error.toString(),
           onRetry: () => ref.invalidate(endpointRegistryProvider),
@@ -155,7 +130,11 @@ final class _RouteManagementScreenState
             children: [
               Text(
                 'Routes are evaluated by the Go connection planner. Order controls priority when a route is eligible.',
-                style: AnyttyUi.muted(context),
+                style: TextStyle(
+                  color: palette.muted,
+                  fontSize: 12,
+                  height: 1.45,
+                ),
               ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -288,99 +267,69 @@ final class _RouteManagementScreenState
     required bool canRemove,
   }) async {
     final kind = endpointRouteKind(route);
-    final palette = AnyttyPalette.of(context);
     final action = await showModalBottomSheet<_RouteAction>(
       context: context,
+      sheetAnimationStyle: AnimationStyle.noAnimation,
       useSafeArea: true,
-      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  title: Text(
-                    _routeTitle(route),
-                    style: AnyttyUi.body(context),
-                  ),
-                  subtitle: Text(
-                    '${_routeKindLabel(kind)} · ${route.routeId}',
-                    style: AnyttyUi.muted(context),
-                  ),
-                  trailing: AnyttyIconButton(
-                    tooltip: 'Close route actions',
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icons.close_rounded,
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(_routeTitle(route)),
+                subtitle: Text('${_routeKindLabel(kind)} · ${route.routeId}'),
+                trailing: IconButton(
+                  tooltip: 'Close route actions',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
                 ),
-                AnyttyDivider(),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.play_circle_outline_rounded),
+                title: const Text('Test route'),
+                subtitle: const Text('Open an isolated session on this route'),
+                enabled: route.enabled,
+                onTap: route.enabled
+                    ? () => Navigator.pop(context, _RouteAction.test)
+                    : null,
+              ),
+              if (kind == EndpointRouteKind.direct ||
+                  kind == EndpointRouteKind.ssh)
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Edit route'),
+                  onTap: () => Navigator.pop(context, _RouteAction.edit),
+                ),
+              if (kind == EndpointRouteKind.ssh)
+                ListTile(
+                  leading: const Icon(Icons.key_rounded),
+                  title: const Text('Prepare SSH key'),
+                  subtitle: const Text(
+                    'Create a key in platform secure storage',
+                  ),
+                  onTap: () =>
+                      Navigator.pop(context, _RouteAction.provisionSsh),
+                ),
+              if ((kind == EndpointRouteKind.direct ||
+                      kind == EndpointRouteKind.ssh) &&
+                  canRemove)
                 ListTile(
                   leading: Icon(
-                    Icons.play_circle_outline_rounded,
-                    color: route.enabled ? palette.strong : palette.muted,
+                    Icons.delete_outline_rounded,
+                    color: AnyttyPalette.of(context).danger,
                   ),
                   title: Text(
-                    'Test route',
-                    style: AnyttyUi.body(context).copyWith(
-                      color: route.enabled ? palette.text : palette.muted,
-                    ),
+                    'Remove route',
+                    style: TextStyle(color: AnyttyPalette.of(context).danger),
                   ),
-                  subtitle: Text(
-                    'Open an isolated session on this route',
-                    style: AnyttyUi.muted(context).copyWith(
-                      color: route.enabled ? palette.muted : palette.faint,
-                    ),
-                  ),
-                  enabled: route.enabled,
-                  onTap: route.enabled
-                      ? () => Navigator.pop(context, _RouteAction.test)
-                      : null,
+                  onTap: () => Navigator.pop(context, _RouteAction.remove),
                 ),
-                if (kind == EndpointRouteKind.direct ||
-                    kind == EndpointRouteKind.ssh)
-                  ListTile(
-                    leading: Icon(Icons.edit_outlined, color: palette.strong),
-                    title: Text('Edit route', style: AnyttyUi.body(context)),
-                    onTap: () => Navigator.pop(context, _RouteAction.edit),
-                  ),
-                if (kind == EndpointRouteKind.ssh)
-                  ListTile(
-                    leading: Icon(Icons.key_rounded, color: palette.strong),
-                    title: Text(
-                      'Prepare SSH key',
-                      style: AnyttyUi.body(context),
-                    ),
-                    subtitle: Text(
-                      'Create a key in platform secure storage',
-                      style: AnyttyUi.muted(context),
-                    ),
-                    onTap: () =>
-                        Navigator.pop(context, _RouteAction.provisionSsh),
-                  ),
-                if ((kind == EndpointRouteKind.direct ||
-                        kind == EndpointRouteKind.ssh) &&
-                    canRemove)
-                  ListTile(
-                    leading: Icon(
-                      Icons.delete_outline_rounded,
-                      color: AnyttyPalette.of(context).danger,
-                    ),
-                    title: Text(
-                      'Remove route',
-                      style: AnyttyUi.body(context)
-                          .copyWith(color: AnyttyPalette.of(context).danger),
-                    ),
-                    onTap: () => Navigator.pop(context, _RouteAction.remove),
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -450,102 +399,84 @@ final class _RouteManagementScreenState
     }
   }
 
-  Future<void> _showSshKey(SSHCredentialProvisionResult result) =>
-      showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (context) => SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+  Future<void> _showSshKey(
+    SSHCredentialProvisionResult result,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    sheetAnimationStyle: AnimationStyle.noAnimation,
+    useSafeArea: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'SSH public key',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close SSH key',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'SSH public key',
-                          style: AnyttyUi.sectionTitle(context),
-                        ),
-                      ),
-                      AnyttyIconButton(
-                        tooltip: 'Close SSH key',
-                        onPressed: () => Navigator.pop(context),
-                        icon: Icons.close_rounded,
-                      ),
-                    ],
-                  ),
-                  Text(
-                    result.keyFingerprint,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: AnyttyUi.muted(context),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 180),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AnyttyPalette.of(context).surfaceRaised,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: AnyttyUi.cardDecoration(
-                        context,
-                        radius: 12,
-                        depth: 1,
-                        color: AnyttyPalette.of(context).surfaceRaised,
-                      ).boxShadow,
-                    ),
-                    child: SingleChildScrollView(
-                      child: SelectableText(
-                        result.authorizedKey,
-                        style: AnyttyUi.body(context),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DecoratedBox(
-                    decoration: AnyttyUi.pillDecoration(context),
-                    child: SizedBox(
-                      height: AnyttyUi.controlHeight(context),
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: result.authorizedKey),
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('SSH public key copied'),
-                            ),
-                          );
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                          foregroundColor: AnyttyPalette.of(context).strong,
-                        ),
-                        icon: Icon(
-                          Icons.copy_rounded,
-                          size: 18,
-                          color: AnyttyPalette.of(context).strong,
-                        ),
-                        label: const Text('Copy public key'),
-                      ),
-                    ),
-                  ),
-                ],
+            Text(
+              result.keyFingerprint,
+              style: TextStyle(
+                color: AnyttyPalette.of(context).muted,
+                fontFamily: 'JetBrainsMonoNerd',
+                fontSize: 11,
               ),
             ),
-          ),
+            const SizedBox(height: 12),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AnyttyPalette.of(context).surfaceRaised,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AnyttyPalette.of(context).border),
+              ),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  result.authorizedKey,
+                  style: const TextStyle(
+                    fontFamily: 'JetBrainsMonoNerd',
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: result.authorizedKey));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('SSH public key copied')),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy public key'),
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Future<void> _removeRoute(
     EndpointConfigV1 endpoint,
@@ -553,49 +484,24 @@ final class _RouteManagementScreenState
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(24),
-        child: AnyttyCard(
-          radius: 16,
-          depth: 2,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Remove route?',
-                style: AnyttyUi.sectionTitle(dialogContext),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '${_routeTitle(route)} will be removed. Credentials no longer referenced by any route are deleted by Go in the same registry transaction.',
-                style: AnyttyUi.body(dialogContext),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AnyttyPillButton(
-                    outlined: true,
-                    label: 'Cancel',
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                  ),
-                  AnyttyPillButton(
-                    label: 'Remove',
-                    color: AnyttyPalette.of(dialogContext).danger
-                        .withValues(alpha: 0.14),
-                    foregroundColor: AnyttyPalette.of(dialogContext).danger,
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                  ),
-                ],
-              ),
-            ],
-          ),
+      builder: (context) => AlertDialog(
+        title: const Text('Remove route?'),
+        content: Text(
+          '${_routeTitle(route)} will be removed. Credentials no longer referenced by any route are deleted by Go in the same registry transaction.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AnyttyPalette.of(context).danger,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -625,24 +531,10 @@ final class RouteEditorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(endpointRegistryProvider);
     return registry.when(
-      loading: () => Scaffold(
-        body: Center(
-          child: Semantics(
-            liveRegion: true,
-            label: 'Loading route editor',
-            child: CircularProgressIndicator(),
-          ),
-        ),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (error, _) => Scaffold(
-        appBar: AppBar(
-          leading: AnyttyIconButton(
-            tooltip: 'Back to routes',
-            onPressed: () => Navigator.maybePop(context),
-            icon: Icons.arrow_back_rounded,
-          ),
-          title: Text('Routes', style: AnyttyUi.title(context)),
-        ),
+        appBar: AppBar(),
         body: _RouteLoadError(
           message: error.toString(),
           onRetry: () => ref.invalidate(endpointRegistryProvider),
@@ -652,20 +544,8 @@ final class RouteEditorScreen extends ConsumerWidget {
         final endpoint = _findEndpoint(value, endpointId);
         if (endpoint == null) {
           return Scaffold(
-            appBar: AppBar(
-              leading: AnyttyIconButton(
-                tooltip: 'Back to routes',
-                onPressed: () => Navigator.maybePop(context),
-                icon: Icons.arrow_back_rounded,
-              ),
-              title: Text('Routes', style: AnyttyUi.title(context)),
-            ),
-            body: Center(
-              child: Text(
-                'Endpoint is not configured',
-                style: AnyttyUi.body(context),
-              ),
-            ),
+            appBar: AppBar(),
+            body: const Center(child: Text('Endpoint is not configured')),
           );
         }
         final isNew = routeId == null;
@@ -682,20 +562,8 @@ final class RouteEditorScreen extends ConsumerWidget {
         }
         if (route == null) {
           return Scaffold(
-            appBar: AppBar(
-              leading: AnyttyIconButton(
-                tooltip: 'Back to routes',
-                onPressed: () => Navigator.maybePop(context),
-                icon: Icons.arrow_back_rounded,
-              ),
-              title: Text('Routes', style: AnyttyUi.title(context)),
-            ),
-            body: Center(
-              child: Text(
-                'Route is not configured',
-                style: AnyttyUi.body(context),
-              ),
-            ),
+            appBar: AppBar(),
+            body: const Center(child: Text('Route is not configured')),
           );
         }
         return _RouteEditorForm(
@@ -804,13 +672,13 @@ final class _RouteEditorFormState extends ConsumerState<_RouteEditorForm> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: AnyttyUi.appBarHeight(context, subtitleLines: 2),
-        leading: AnyttyIconButton(
+        leading: IconButton(
           tooltip: 'Back to routes',
           onPressed: _saving ? null : () => Navigator.maybePop(context),
-          icon: Icons.arrow_back_rounded,
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -819,18 +687,13 @@ final class _RouteEditorFormState extends ConsumerState<_RouteEditorForm> {
               widget.isNew
                   ? 'Add ${_routeKindLabel(_kind)} route'
                   : 'Edit route',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AnyttyUi.title(context),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             Text(
               widget.label?.trim().isNotEmpty == true
                   ? widget.label!.trim()
                   : widget.endpoint.endpointId,
-              style: AnyttyUi.muted(context),
-              maxLines: 2,
-              softWrap: true,
-              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.muted, fontSize: 12),
             ),
           ],
         ),
@@ -860,7 +723,7 @@ final class _RouteEditorFormState extends ConsumerState<_RouteEditorForm> {
               ),
             ],
           ),
-          SizedBox(height: 24 + MediaQuery.viewPaddingOf(context).bottom),
+          const SizedBox(height: 24),
           if (_kind == EndpointRouteKind.direct) ...[
             _RouteSectionLabel(label: 'DIRECT ENDPOINTS'),
             const SizedBox(height: 8),
@@ -906,13 +769,9 @@ final class _RouteEditorFormState extends ConsumerState<_RouteEditorForm> {
                   color: Colors.transparent,
                   child: SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Separate setup and ICE ports',
-                      style: AnyttyUi.body(context),
-                    ),
-                    subtitle: Text(
+                    title: const Text('Separate setup and ICE ports'),
+                    subtitle: const Text(
                       'Enable only for legacy or explicitly split deployments',
-                      style: AnyttyUi.muted(context),
                     ),
                     value: _advancedDirect,
                     onChanged: _saving
@@ -1028,27 +887,18 @@ final class _RouteEditorFormState extends ConsumerState<_RouteEditorForm> {
               onClose: () => setState(() => _error = null),
             ),
           ],
-          SizedBox(height: 24 + MediaQuery.viewPaddingOf(context).bottom),
-          DecoratedBox(
-            decoration: AnyttyUi.pillDecoration(context, enabled: !_saving),
-            child: SizedBox(
-              height: AnyttyUi.controlHeight(context),
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                  foregroundColor: AnyttyPalette.of(context).strong,
-                ),
-                icon: _saving
-                    ? const SizedBox.square(
-                        dimension: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 18),
-                label: Text(_saving ? 'Saving...' : 'Save route'),
-              ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined, size: 18),
+              label: Text(_saving ? 'Saving...' : 'Save route'),
             ),
           ),
         ],
@@ -1163,113 +1013,96 @@ final class _RouteRow extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: AnyttyUi.cardDecoration(
-          context,
-          radius: 14,
-          depth: 1,
-        ).boxShadow,
+        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
-            child: Column(
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Semantics(
-                      label: 'Enable ${_routeTitle(route)}',
-                      toggled: route.enabled,
-                      child: Switch.adaptive(
-                        value: route.enabled,
-                        onChanged: enabled ? onToggle : null,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _routeTitle(route),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AnyttyUi.body(context).copyWith(
-                              color: route.enabled
-                                  ? palette.text
-                                  : palette.faint,
-                              fontWeight: FontWeight.normal,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_routeKindLabel(kind)} · ${route.routeId}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AnyttyUi.muted(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    AnyttyIconButton(
-                      tooltip: 'More actions for ${_routeTitle(route)}',
-                      onPressed: enabled ? onActions : null,
-                      icon: Icons.more_horiz_rounded,
-                    ),
-                  ],
+                Switch.adaptive(
+                  value: route.enabled,
+                  onChanged: enabled ? onToggle : null,
                 ),
-                if (showReorderControls)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnyttyIconButton(
-                          tooltip: 'Move ${_routeTitle(route)} up',
-                          onPressed: enabled && canMoveUp ? onMoveUp : null,
-                          icon: Icons.keyboard_arrow_up_rounded,
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _routeTitle(route),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: route.enabled ? palette.text : palette.faint,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 8),
-                        AnyttyIconButton(
-                          tooltip: 'Move ${_routeTitle(route)} down',
-                          onPressed: enabled && canMoveDown ? onMoveDown : null,
-                          icon: Icons.keyboard_arrow_down_rounded,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_routeKindLabel(kind)} · ${route.routeId}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.muted, fontSize: 11),
+                      ),
+                    ],
                   ),
+                ),
+                if (showReorderControls) ...[
+                  IconButton(
+                    tooltip: 'Move ${_routeTitle(route)} up',
+                    onPressed: enabled && canMoveUp ? onMoveUp : null,
+                    icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Move ${_routeTitle(route)} down',
+                    onPressed: enabled && canMoveDown ? onMoveDown : null,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                  ),
+                ],
+                IconButton(
+                  tooltip: 'More actions for ${_routeTitle(route)}',
+                  onPressed: enabled ? onActions : null,
+                  icon: const Icon(Icons.more_horiz_rounded),
+                ),
               ],
             ),
           ),
-          Divider(height: 1, color: palette.track),
+          Divider(height: 1, color: palette.border),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             child: Row(
               children: [
-                Icon(_routeKindIcon(kind), size: 17, color: palette.strong),
+                Icon(_routeKindIcon(kind), size: 17, color: palette.muted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _routeSummary(route),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: AnyttyUi.muted(context),
+                    style: TextStyle(
+                      color: palette.muted,
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
                   ),
                 ),
                 Text(
                   route.hasPriority() ? 'P${route.priority}' : 'AUTO',
-                  style: AnyttyUi.muted(context),
+                  style: TextStyle(
+                    color: palette.faint,
+                    fontFamily: 'JetBrainsMonoNerd',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
           ),
-          if (busy)
-            Semantics(
-              liveRegion: true,
-              label: 'Testing route',
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
+          if (busy) const LinearProgressIndicator(minHeight: 2),
         ],
       ),
     );
@@ -1288,12 +1121,8 @@ final class _RouteEditorPanel extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: AnyttyUi.cardDecoration(
-          context,
-          radius: 14,
-          depth: 1,
-        ).boxShadow,
+        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1309,8 +1138,14 @@ final class _RouteSectionLabel extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(label, style: AnyttyUi.sectionTitle(context));
+  Widget build(BuildContext context) => Text(
+    label,
+    style: TextStyle(
+      color: AnyttyPalette.of(context).muted,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+    ),
+  );
 }
 
 final class _RouteInlineError extends StatelessWidget {
@@ -1322,31 +1157,25 @@ final class _RouteInlineError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Semantics(
-      liveRegion: true,
-      container: true,
-      label: message,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        color: palette.danger.withValues(alpha: 0.09),
-        child: Row(
-          children: [
-            Icon(Icons.error_outline_rounded, color: palette.danger, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: AnyttyUi.body(context).copyWith(color: palette.text),
-              ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      color: palette.danger.withValues(alpha: 0.09),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: palette.danger, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: palette.text, fontSize: 12),
             ),
-            AnyttyIconButton(
-              tooltip: 'Dismiss error',
-              onPressed: onClose,
-              icon: Icons.close_rounded,
-              iconSize: 18,
-            ),
-          ],
-        ),
+          ),
+          IconButton(
+            tooltip: 'Dismiss error',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded, size: 18),
+          ),
+        ],
       ),
     );
   }
@@ -1359,51 +1188,22 @@ final class _RouteLoadError extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    liveRegion: true,
-    container: true,
-    label: message,
-    child: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.route_outlined,
-              size: 30,
-              color: AnyttyPalette.of(context).strong,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: AnyttyUi.body(context),
-            ),
-            const SizedBox(height: 16),
-            DecoratedBox(
-              decoration: AnyttyUi.pillDecoration(context),
-              child: SizedBox(
-                height: AnyttyUi.controlHeight(context),
-                child: OutlinedButton.icon(
-                  onPressed: onRetry,
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    side: BorderSide.none,
-                    minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                    foregroundColor: AnyttyPalette.of(context).strong,
-                  ),
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    color: AnyttyPalette.of(context).strong,
-                  ),
-                  label: const Text('Retry'),
-                ),
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.route_outlined, size: 30),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     ),
   );

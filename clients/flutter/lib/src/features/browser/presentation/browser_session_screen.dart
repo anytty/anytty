@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +8,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 import '../../../app/providers.dart';
 import '../../../native/browser_proxy_platform.dart';
 import '../data/browser_bookmark_store.dart';
@@ -346,10 +344,6 @@ final class _BrowserSessionScreenState
     final palette = AnyttyPalette.of(context);
     final state = _stateMachine.state;
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final focusedAddressHeight = math.max(
-      56.0,
-      MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5) * 2 + 20,
-    );
     final petalPreferences = ref
         .watch(terminalPetalMenuPreferencesProvider)
         .valueOrNull;
@@ -364,23 +358,13 @@ final class _BrowserSessionScreenState
           backgroundColor: palette.background,
           resizeToAvoidBottomInset: false,
           appBar: AppBar(
-            toolbarHeight: math.max(
-              AnyttyUi.appBarHeight(context, minimum: 56),
-              _addressFocusNode.hasFocus ? focusedAddressHeight : 0,
-            ),
+            toolbarHeight: 56,
             automaticallyImplyLeading: false,
-            leading: _addressFocusNode.hasFocus
-                ? null
-                : _BrowserIconButton(
-                    tooltip: anyttyText(
-                      context,
-                      en: 'Close browser',
-                      zh: '关闭浏览器',
-                    ),
-                    enabled: !_closing,
-                    onPressed: () => unawaited(_closeScreen()),
-                    icon: Icons.close_rounded,
-                  ),
+            leading: IconButton(
+              tooltip: anyttyText(context, en: 'Back', zh: '返回'),
+              onPressed: _closing ? null : () => unawaited(_closeScreen()),
+              icon: const Icon(Icons.arrow_back_rounded, size: 22),
+            ),
             titleSpacing: 0,
             title: _BrowserToolbarTitle(
               addressController: _addressController,
@@ -392,9 +376,19 @@ final class _BrowserSessionScreenState
               history: _history,
             ),
             actions: _addressFocusNode.hasFocus
-                ? const []
+                ? [
+                    IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Close address bar',
+                        zh: '关闭地址栏',
+                      ),
+                      onPressed: _addressFocusNode.unfocus,
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                    ),
+                  ]
                 : [
-                    AnyttyIconButton(
+                    IconButton(
                       tooltip: _isCurrentPageBookmarked
                           ? anyttyText(
                               context,
@@ -405,13 +399,15 @@ final class _BrowserSessionScreenState
                       onPressed: _currentPageUri == null
                           ? null
                           : () => unawaited(_toggleBookmark()),
-                      icon: _isCurrentPageBookmarked
-                          ? Icons.star_rounded
-                          : Icons.star_border_rounded,
-                      iconColor: _isCurrentPageBookmarked
+                      icon: Icon(
+                        _isCurrentPageBookmarked
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 21,
+                      ),
+                      color: _isCurrentPageBookmarked
                           ? AnyttyPalette.of(context).accent
                           : null,
-                      iconSize: 21,
                     ),
                     if (compact)
                       _BrowserTabCountButton(
@@ -419,11 +415,12 @@ final class _BrowserSessionScreenState
                         onPressed: _openTabSwitcher,
                       )
                     else
-                      _BrowserIconButton(
+                      IconButton(
                         tooltip: anyttyText(context, en: 'Reload', zh: '重新加载'),
-                        enabled: state.phase == BrowserSessionPhase.active,
-                        onPressed: () => _reload(_webViewController),
-                        icon: Icons.refresh_rounded,
+                        onPressed: state.phase == BrowserSessionPhase.active
+                            ? () => _reload(_webViewController)
+                            : null,
+                        icon: const Icon(Icons.refresh_rounded, size: 20),
                       ),
                     _BrowserOverflowMenu(
                       state: state,
@@ -649,7 +646,7 @@ final class _BrowserSessionScreenState
               Icon(
                 blocked ? Icons.route_rounded : Icons.language_rounded,
                 size: 32,
-                color: blocked ? palette.warning : palette.strong,
+                color: blocked ? palette.warning : palette.muted,
               ),
               const SizedBox(height: 14),
               Text(
@@ -665,7 +662,11 @@ final class _BrowserSessionScreenState
                         zh: '浏览器不可用',
                       ),
                 textAlign: TextAlign.center,
-                style: AnyttyUi.sectionTitle(context),
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -681,48 +682,17 @@ final class _BrowserSessionScreenState
                         zh: '网页暂时无法打开，请检查连接后重试。',
                       ),
                 textAlign: TextAlign.center,
-                style: AnyttyUi.muted(context),
+                style: TextStyle(color: palette.muted, height: 1.45),
               ),
-              if (blocked || state.phase == BrowserSessionPhase.failed) ...[
+              if (blocked) ...[
                 const SizedBox(height: 20),
-                DecoratedBox(
-                  decoration: AnyttyUi.pillDecoration(context),
-                  child: SizedBox(
-                    height: AnyttyUi.controlHeight(context),
-                    child: FilledButton.icon(
-                      onPressed: () => unawaited(
-                        _activateSession(
-                          _activeEndpointId,
-                          _activeEndpointLabel,
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: palette.strong,
-                        disabledForegroundColor: palette.muted,
-                        shadowColor: Colors.transparent,
-                        minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                      ),
-                      icon: Icon(
-                        Icons.refresh_rounded,
-                        size: 18,
-                        color: palette.strong,
-                      ),
-                      label: Text(
-                        blocked
-                            ? anyttyText(
-                                context,
-                                en: 'Retry tunnel',
-                                zh: '重试隧道',
-                              )
-                            : anyttyText(
-                                context,
-                                en: 'Retry browser',
-                                zh: '重试浏览器',
-                              ),
-                        style: AnyttyUi.body(context),
-                      ),
-                    ),
+                FilledButton.icon(
+                  onPressed: () => unawaited(
+                    _activateSession(_activeEndpointId, _activeEndpointLabel),
+                  ),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(
+                    anyttyText(context, en: 'Retry tunnel', zh: '重试隧道'),
                   ),
                 ),
               ],
@@ -731,7 +701,7 @@ final class _BrowserSessionScreenState
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
-                  style: AnyttyUi.body(context).copyWith(color: palette.danger),
+                  style: TextStyle(color: palette.danger, fontSize: 12),
                 ),
               ],
             ],
@@ -962,6 +932,13 @@ final class _BrowserSessionScreenState
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;
+          },
+          onWebResourceError: (error) {
+            if (error.isForMainFrame != true) return;
+            if (!_stateMachine.isCurrent(operation, endpointId) || !mounted) {
+              return;
+            }
+            setState(() => _error = error.description);
           },
         ),
       );
@@ -1665,45 +1642,19 @@ final class _BrowserSessionScreenState
   }) async {
     return await showDialog<bool>(
           context: context,
-          builder: (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            child: AnyttyCard(
-              radius: 16,
-              depth: 2,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AnyttyUi.sectionTitle(context)),
-                    const SizedBox(height: 10),
-                    Text(message, style: AnyttyUi.body(context)),
-                    const SizedBox(height: 18),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          AnyttyPillButton(
-                            outlined: true,
-                            label: anyttyText(context, en: 'Cancel', zh: '取消'),
-                            onPressed: () => Navigator.of(context).pop(false),
-                          ),
-                          AnyttyPillButton(
-                            label: anyttyText(context, en: 'Clear', zh: '清除'),
-                            onPressed: () => Navigator.of(context).pop(true),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
               ),
-            ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(anyttyText(context, en: 'Clear', zh: '清除')),
+              ),
+            ],
           ),
         ) ??
         false;
@@ -1745,7 +1696,6 @@ final class _BrowserSessionScreenState
   Future<void> _openBrowserSettings() async {
     var readerMode = _readerMode;
     var desktopMode = _desktopMode;
-    final palette = AnyttyPalette.of(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1762,17 +1712,17 @@ final class _BrowserSessionScreenState
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                   child: Text(
                     anyttyText(context, en: 'Browser settings', zh: '浏览器设置'),
-                    style: AnyttyUi.title(context),
+                    style: TextStyle(
+                      color: AnyttyPalette.of(context).text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 SwitchListTile.adaptive(
-                  secondary: Icon(
-                    Icons.menu_book_outlined,
-                    color: palette.strong,
-                  ),
+                  secondary: const Icon(Icons.menu_book_outlined),
                   title: Text(
                     anyttyText(context, en: 'Reader mode', zh: '阅读模式'),
-                    style: AnyttyUi.body(context),
                   ),
                   subtitle: Text(
                     anyttyText(
@@ -1780,7 +1730,6 @@ final class _BrowserSessionScreenState
                       en: 'Reduce navigation and focus on page content.',
                       zh: '收起导航和装饰，只保留页面正文。',
                     ),
-                    style: AnyttyUi.muted(context),
                   ),
                   value: readerMode,
                   onChanged: (value) {
@@ -1789,13 +1738,9 @@ final class _BrowserSessionScreenState
                   },
                 ),
                 SwitchListTile.adaptive(
-                  secondary: Icon(
-                    Icons.desktop_windows_outlined,
-                    color: palette.strong,
-                  ),
+                  secondary: const Icon(Icons.desktop_windows_outlined),
                   title: Text(
                     anyttyText(context, en: 'Desktop site', zh: '电脑模式'),
-                    style: AnyttyUi.body(context),
                   ),
                   subtitle: Text(
                     anyttyText(
@@ -1803,7 +1748,6 @@ final class _BrowserSessionScreenState
                       en: 'Request the desktop layout for this tab.',
                       zh: '为当前标签页请求桌面布局。',
                     ),
-                    style: AnyttyUi.muted(context),
                   ),
                   value: desktopMode,
                   onChanged: (value) {
@@ -1811,12 +1755,11 @@ final class _BrowserSessionScreenState
                     unawaited(_setDesktopMode(value));
                   },
                 ),
-                Divider(height: 1, color: AnyttyPalette.of(context).track),
+                const Divider(height: 1),
                 ListTile(
-                  leading: Icon(Icons.code_rounded, color: palette.strong),
+                  leading: const Icon(Icons.code_rounded),
                   title: Text(
                     anyttyText(context, en: 'JavaScript', zh: 'JavaScript'),
-                    style: AnyttyUi.body(context),
                   ),
                   subtitle: Text(
                     anyttyText(
@@ -1824,22 +1767,17 @@ final class _BrowserSessionScreenState
                       en: 'Always enabled for modern web apps.',
                       zh: '为兼容现代网站保持开启。',
                     ),
-                    style: AnyttyUi.muted(context),
                   ),
-                  trailing: Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: palette.strong,
-                  ),
+                  trailing: const Icon(Icons.check_circle_outline_rounded),
                 ),
                 ListTile(
-                  leading: Icon(Icons.history_rounded, color: palette.strong),
+                  leading: const Icon(Icons.history_rounded),
                   title: Text(
                     anyttyText(
                       context,
                       en: 'Clear browsing history',
                       zh: '清除浏览历史',
                     ),
-                    style: AnyttyUi.body(context),
                   ),
                   subtitle: Text(
                     anyttyText(
@@ -1847,7 +1785,6 @@ final class _BrowserSessionScreenState
                       en: '${_history.length} saved address${_history.length == 1 ? '' : 'es'}',
                       zh: '已保存 ${_history.length} 条地址',
                     ),
-                    style: AnyttyUi.muted(context),
                   ),
                   onTap: () async {
                     final confirmed = await _confirmBrowserAction(
@@ -1869,17 +1806,13 @@ final class _BrowserSessionScreenState
                   },
                 ),
                 ListTile(
-                  leading: Icon(
-                    Icons.delete_sweep_outlined,
-                    color: palette.strong,
-                  ),
+                  leading: const Icon(Icons.delete_sweep_outlined),
                   title: Text(
                     anyttyText(
                       context,
                       en: 'Clear cache and site data',
                       zh: '清除缓存和网站数据',
                     ),
-                    style: AnyttyUi.body(context),
                   ),
                   subtitle: Text(
                     anyttyText(
@@ -1887,7 +1820,6 @@ final class _BrowserSessionScreenState
                       en: 'Clear cookies, cache, storage, and HTTP auth.',
                       zh: '清除 Cookie、缓存、存储和 HTTP 登录信息。',
                     ),
-                    style: AnyttyUi.muted(context),
                   ),
                   onTap: () async {
                     final confirmed = await _confirmBrowserAction(
@@ -2098,48 +2030,58 @@ final class _BrowserAddressField extends StatelessWidget {
         final entries = options.toList(growable: false);
         return Align(
           alignment: Alignment.topLeft,
-          child: DecoratedBox(
-            decoration: AnyttyUi.cardDecoration(context, radius: 14, depth: 2),
-            child: Material(
-              color: Colors.transparent,
-              clipBehavior: Clip.antiAlias,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 280),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  shrinkWrap: true,
-                  itemCount: entries.length,
-                  itemBuilder: (context, index) {
-                    final entry = entries[index];
-                    return ListTile(
-                      dense: true,
-                      minVerticalPadding: 6,
-                      leading: Icon(
-                        Icons.history_rounded,
-                        size: 18,
-                        color: palette.strong,
+          child: Material(
+            color: palette.surface,
+            elevation: 8,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(color: palette.borderStrong),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                shrinkWrap: true,
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return ListTile(
+                    dense: true,
+                    minVerticalPadding: 6,
+                    leading: Icon(
+                      Icons.history_rounded,
+                      size: 18,
+                      color: palette.muted,
+                    ),
+                    title: Text(
+                      entry.title.isEmpty ? entry.url : entry.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
-                      title: Text(
-                        entry.title.isEmpty ? entry.url : entry.title,
-                        style: AnyttyUi.body(context).copyWith(
-                          color: palette.text,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(entry.url, style: AnyttyUi.muted(context)),
-                      trailing: index == 0
-                          ? Text(
-                              anyttyText(context, en: 'Tab', zh: 'Tab'),
-                              style: AnyttyUi.muted(context),
-                            )
-                          : null,
-                      onTap: () => onSelected(entry),
-                    );
-                  },
-                ),
+                    ),
+                    subtitle: Text(
+                      entry.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 11),
+                    ),
+                    trailing: index == 0
+                        ? Text(
+                            anyttyText(context, en: 'Tab', zh: 'Tab'),
+                            style: TextStyle(
+                              color: palette.faint,
+                              fontSize: 10,
+                            ),
+                          )
+                        : null,
+                    onTap: () => onSelected(entry),
+                  );
+                },
               ),
             ),
           ),
@@ -2149,13 +2091,7 @@ final class _BrowserAddressField extends StatelessWidget {
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
-            height: math.max(
-              focused ? 56 : 44,
-              MediaQuery.textScalerOf(context).scale(14.5) *
-                      (18 / 14.5) *
-                      (focused ? 2 : 1) +
-                  (focused ? 20 : 12),
-            ),
+            height: focused ? 46 : 40,
             child: TextField(
               controller: controller,
               focusNode: focusNode,
@@ -2167,35 +2103,30 @@ final class _BrowserAddressField extends StatelessWidget {
               textInputAction: TextInputAction.go,
               keyboardType: TextInputType.url,
               maxLines: 1,
-              style: AnyttyUi.body(context),
+              style: TextStyle(color: palette.text, fontSize: 14),
               decoration: InputDecoration(
-                labelText: anyttyText(context, en: 'Address', zh: '地址'),
                 hintText: anyttyText(context, en: 'Enter a URL', zh: '输入网址'),
-                hintStyle: AnyttyUi.body(context)
-                    .copyWith(color: palette.muted),
+                hintStyle: TextStyle(color: palette.faint, fontSize: 14),
                 prefixIcon: Icon(
-                  Uri.tryParse(controller.text.trim())?.scheme.toLowerCase() ==
-                          'https'
-                      ? Icons.lock_outline_rounded
-                      : Icons.public_rounded,
-                  size: 18,
-                  color: palette.strong,
+                  Icons.lock_outline_rounded,
+                  size: 16,
+                  color: palette.muted,
                 ),
                 prefixIconConstraints: const BoxConstraints(
-                  minWidth: 44,
-                  minHeight: 44,
+                  minWidth: 38,
+                  minHeight: 40,
                 ),
-                suffixIcon: focused
-                    ? null
-                    : AnyttyIconButton(
-                        tooltip: anyttyText(context, en: 'Open', zh: '打开'),
-                        onPressed: enabled
-                            ? () => unawaited(onNavigate())
-                            : null,
-                        icon: Icons.arrow_forward_rounded,
-                        iconColor: palette.accent,
-                        iconSize: 18,
-                      ),
+                suffixIcon: IconButton(
+                  tooltip: anyttyText(context, en: 'Open', zh: '打开'),
+                  onPressed: enabled ? () => unawaited(onNavigate()) : null,
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  color: palette.accent,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
                 filled: true,
                 fillColor: palette.surfaceRaised,
                 isDense: true,
@@ -2204,16 +2135,16 @@ final class _BrowserAddressField extends StatelessWidget {
                   vertical: focused ? 11 : 8,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.transparent),
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.transparent),
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Colors.transparent),
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: palette.accent, width: 1.2),
                 ),
               ),
             ),
@@ -2269,63 +2200,41 @@ final class _BrowserOverflowMenu extends StatelessWidget {
     return MenuAnchor(
       style: MenuStyle(
         minimumSize: const WidgetStatePropertyAll(Size(220, 0)),
-        backgroundColor: WidgetStatePropertyAll(palette.surfaceRaised),
-        elevation: const WidgetStatePropertyAll(2),
-        shadowColor: WidgetStatePropertyAll(Colors.black26),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(vertical: 6),
         ),
       ),
       menuChildren: [
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.arrow_back_rounded,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.arrow_back_rounded, size: 18),
           onPressed: controller != null ? onBack : null,
           child: Text(anyttyText(context, en: 'Back', zh: '后退')),
         ),
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.arrow_forward_rounded,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.arrow_forward_rounded, size: 18),
           onPressed: controller != null ? onForward : null,
           child: Text(anyttyText(context, en: 'Forward', zh: '前进')),
         ),
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.refresh_rounded,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.refresh_rounded, size: 18),
           onPressed: controller != null ? onReload : null,
           child: Text(anyttyText(context, en: 'Reload', zh: '重新加载')),
         ),
-        Divider(height: 1, color: AnyttyPalette.of(context).track),
+        const Divider(height: 1),
         MenuItemButton(
-          leadingIcon: Icon(Icons.tab_rounded, color: palette.strong, size: 18),
+          leadingIcon: const Icon(Icons.tab_rounded, size: 18),
           onPressed: onOpenTabs,
           child: Text(anyttyText(context, en: 'Tabs', zh: '标签页')),
         ),
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.history_rounded,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.history_rounded, size: 18),
           onPressed: onOpenHistory,
           child: Text(anyttyText(context, en: 'History', zh: '历史记录')),
         ),
         MenuItemButton(
           leadingIcon: Icon(
             Icons.menu_book_outlined,
-            color: readerMode ? palette.accent : palette.strong,
+            color: readerMode ? palette.accent : null,
             size: 18,
           ),
           onPressed: onToggleReaderMode,
@@ -2338,7 +2247,7 @@ final class _BrowserOverflowMenu extends StatelessWidget {
                 readerMode
                     ? anyttyText(context, en: 'On', zh: '已开启')
                     : anyttyText(context, en: 'Off', zh: '关闭'),
-                style: AnyttyUi.muted(context),
+                style: TextStyle(color: palette.muted, fontSize: 11),
               ),
             ],
           ),
@@ -2346,7 +2255,7 @@ final class _BrowserOverflowMenu extends StatelessWidget {
         MenuItemButton(
           leadingIcon: Icon(
             Icons.desktop_windows_outlined,
-            color: desktopMode ? palette.accent : palette.strong,
+            color: desktopMode ? palette.accent : null,
             size: 18,
           ),
           onPressed: onToggleDesktopMode,
@@ -2361,27 +2270,19 @@ final class _BrowserOverflowMenu extends StatelessWidget {
                 desktopMode
                     ? anyttyText(context, en: 'On', zh: '已开启')
                     : anyttyText(context, en: 'Off', zh: '关闭'),
-                style: AnyttyUi.muted(context),
+                style: TextStyle(color: palette.muted, fontSize: 11),
               ),
             ],
           ),
         ),
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.settings_outlined,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.settings_outlined, size: 18),
           onPressed: onOpenSettings,
           child: Text(anyttyText(context, en: 'Browser settings', zh: '浏览器设置')),
         ),
-        Divider(height: 1, color: palette.track),
+        const Divider(height: 1),
         MenuItemButton(
-          leadingIcon: Icon(
-            Icons.devices_rounded,
-            color: palette.strong,
-            size: 18,
-          ),
+          leadingIcon: const Icon(Icons.devices_rounded, size: 18),
           onPressed: onSwitchSession,
           child: Text(anyttyText(context, en: 'Switch session', zh: '切换会话')),
         ),
@@ -2394,14 +2295,17 @@ final class _BrowserOverflowMenu extends StatelessWidget {
                 Icon(status.icon, size: 18, color: status.color),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(status.label, style: AnyttyUi.muted(context)),
+                  child: Text(
+                    status.label,
+                    style: TextStyle(color: palette.muted, fontSize: 12),
+                  ),
                 ),
               ],
             ),
           ),
         ),
       ],
-      builder: (context, menuController, child) => AnyttyIconButton(
+      builder: (context, menuController, child) => IconButton(
         tooltip: anyttyText(context, en: 'More browser actions', zh: '更多浏览器操作'),
         onPressed: () {
           if (menuController.isOpen) {
@@ -2410,8 +2314,9 @@ final class _BrowserOverflowMenu extends StatelessWidget {
             menuController.open();
           }
         },
-        icon: Icons.more_vert_rounded,
-        iconSize: 21,
+        icon: const Icon(Icons.more_vert_rounded, size: 21),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 44, height: 48),
       ),
     );
   }
@@ -2424,34 +2329,27 @@ final class _BrowserTabCountButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    return Tooltip(
-      message: anyttyText(context, en: 'Tabs', zh: '标签页'),
-      child: SizedBox.square(
-        dimension: AnyttyUi.controlSize,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onPressed,
-            child: DecoratedBox(
-              decoration: AnyttyUi.controlDecoration(context),
-              child: Center(
-                child: Text(
-                  '$count',
-                  style: AnyttyUi.body(context).copyWith(
-                    color: palette.strong,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ),
+  Widget build(BuildContext context) => IconButton(
+    tooltip: anyttyText(context, en: 'Tabs', zh: '标签页'),
+    onPressed: onPressed,
+    icon: Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        border: Border.all(color: AnyttyPalette.of(context).muted),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(
+          color: AnyttyPalette.of(context).text,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 enum _BrowserTabActionType { newTab, select, close }
@@ -2494,15 +2392,19 @@ final class _BrowserTabsSheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       anyttyText(context, en: 'Tabs', zh: '标签页'),
-                      style: AnyttyUi.title(context),
+                      style: TextStyle(
+                        color: palette.text,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                  AnyttyIconButton(
+                  IconButton(
                     tooltip: anyttyText(context, en: 'New tab', zh: '新建标签页'),
                     onPressed: () =>
                         Navigator.of(context)
                             .pop(const _BrowserTabAction.newTab()),
-                    icon: Icons.add_rounded,
+                    icon: const Icon(Icons.add_rounded),
                   ),
                 ],
               ),
@@ -2513,85 +2415,62 @@ final class _BrowserTabsSheet extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 itemCount: tabs.length,
                 separatorBuilder: (_, _) =>
-                    Divider(height: 1, indent: 72, color: palette.track),
+                    Divider(height: 1, indent: 72, color: palette.border),
                 itemBuilder: (context, index) {
                   final tab = tabs[index];
                   final active = tab.id == activeTabId;
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 20, right: 8),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: active
-                                ? palette.accent.withValues(alpha: 0.12)
-                                : palette.surfaceRaised,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${index + 1}',
-                            style: AnyttyUi.body(context).copyWith(
-                              color: active ? palette.accent : palette.muted,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                  return ListTile(
+                    minTileHeight: 68,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? palette.accent.withValues(alpha: 0.12)
+                            : palette.surfaceRaised,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          color: active ? palette.accent : palette.muted,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () =>
-                                Navigator.of(context)
-                                    .pop(_BrowserTabAction.select(tab.id)),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    tab.title.isEmpty
-                                        ? anyttyText(
-                                            context,
-                                            en: 'New tab',
-                                            zh: '新标签页',
-                                          )
-                                        : tab.title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AnyttyUi.body(context).copyWith(
-                                      color: palette.text,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    tab.url.isEmpty ? 'about:blank' : tab.url,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AnyttyUi.muted(context),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        AnyttyIconButton(
-                          tooltip: anyttyText(
-                            context,
-                            en: 'Close tab',
-                            zh: '关闭标签页',
-                          ),
-                          onPressed: () =>
-                              Navigator.of(context)
-                                  .pop(_BrowserTabAction.close(tab.id)),
-                          icon: Icons.close_rounded,
-                          iconSize: 18,
-                        ),
-                      ],
+                      ),
                     ),
+                    title: Text(
+                      tab.title.isEmpty
+                          ? anyttyText(context, en: 'New tab', zh: '新标签页')
+                          : tab.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      tab.url.isEmpty ? 'about:blank' : tab.url,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Close tab',
+                        zh: '关闭标签页',
+                      ),
+                      onPressed: () =>
+                          Navigator.of(context)
+                              .pop(_BrowserTabAction.close(tab.id)),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    ),
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pop(_BrowserTabAction.select(tab.id)),
                   );
                 },
               ),
@@ -2629,106 +2508,21 @@ final class _BrowserHistorySheet extends StatelessWidget {
                       Expanded(
                         child: Text(
                           anyttyText(context, en: 'History', zh: '历史记录'),
-                          style: AnyttyUi.sectionTitle(context),
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                      AnyttyIconButton(
-                        tooltip: anyttyText(
-                          context,
-                          en: 'Clear history',
-                          zh: '清空历史记录',
-                        ),
+                      TextButton(
                         onPressed: currentEntries.isEmpty
                             ? null
-                            : () async {
-                                final confirmed = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => Dialog(
-                                    backgroundColor: Colors.transparent,
-                                    elevation: 0,
-                                    child: AnyttyCard(
-                                      radius: 16,
-                                      depth: 2,
-                                      padding: const EdgeInsets.fromLTRB(
-                                        20,
-                                        20,
-                                        20,
-                                        12,
-                                      ),
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 420,
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              anyttyText(
-                                                context,
-                                                en: 'Clear history?',
-                                                zh: '清空历史记录？',
-                                              ),
-                                              style: AnyttyUi.sectionTitle(
-                                                context,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              anyttyText(
-                                                context,
-                                                en: 'All saved browsing history for this device will be removed.',
-                                                zh: '将删除此设备上保存的全部浏览记录。',
-                                              ),
-                                              style: AnyttyUi.body(context),
-                                            ),
-                                            const SizedBox(height: 18),
-                                            Align(
-                                              alignment: Alignment.centerRight,
-                                              child: Wrap(
-                                                spacing: 8,
-                                                runSpacing: 8,
-                                                children: [
-                                                  AnyttyPillButton(
-                                                    outlined: true,
-                                                    label: anyttyText(
-                                                      context,
-                                                      en: 'Cancel',
-                                                      zh: '取消',
-                                                    ),
-                                                    onPressed: () =>
-                                                        Navigator.pop(context),
-                                                  ),
-                                                  AnyttyPillButton(
-                                                    label: anyttyText(
-                                                      context,
-                                                      en: 'Clear',
-                                                      zh: '清空',
-                                                    ),
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                          context,
-                                                          true,
-                                                        ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                                if (confirmed != true) return;
-                                await onClear();
-                                if (context.mounted) {
-                                  setState(() => currentEntries = const []);
-                                }
+                            : () {
+                                setState(() => currentEntries = const []);
+                                unawaited(onClear());
                               },
-                        icon: Icons.delete_sweep_outlined,
-                        iconSize: 18,
+                        child: Text(anyttyText(context, en: 'Clear', zh: '清空')),
                       ),
                     ],
                   ),
@@ -2743,7 +2537,7 @@ final class _BrowserHistorySheet extends StatelessWidget {
                           en: 'No browsing history',
                           zh: '还没有浏览记录',
                         ),
-                        style: AnyttyUi.muted(context),
+                        style: TextStyle(color: palette.muted),
                       ),
                     ),
                   )
@@ -2754,7 +2548,7 @@ final class _BrowserHistorySheet extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 12),
                       itemCount: currentEntries.length,
                       separatorBuilder: (_, _) =>
-                          Divider(height: 1, indent: 68, color: palette.track),
+                          Divider(height: 1, indent: 68, color: palette.border),
                       itemBuilder: (context, index) {
                         final entry = currentEntries[index];
                         return ListTile(
@@ -2764,18 +2558,25 @@ final class _BrowserHistorySheet extends StatelessWidget {
                           ),
                           leading: Icon(
                             Icons.history_rounded,
-                            color: palette.strong,
+                            color: palette.muted,
                           ),
                           title: Text(
                             entry.title.isEmpty ? entry.url : entry.title,
-                            style: AnyttyUi.body(context).copyWith(
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
                               color: palette.text,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           subtitle: Text(
                             entry.url,
-                            style: AnyttyUi.muted(context),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.muted,
+                              fontSize: 12,
+                            ),
                           ),
                           onTap: () => Navigator.of(context).pop(entry),
                         );
@@ -2803,55 +2604,48 @@ final class _BrowserConnectionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Semantics(
-      liveRegion: true,
-      container: true,
-      label: message,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-        decoration: AnyttyUi.cardDecoration(
-          context,
-          radius: 14,
-          depth: 1,
-          color: palette.warning.withValues(alpha: 0.94),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.cloud_off_rounded, size: 18, color: palette.strong),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: AnyttyUi.body(context)
-                    .copyWith(color: palette.text, fontWeight: FontWeight.w600),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: palette.warning.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: palette.warning),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 18, color: palette.background),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.background,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            DecoratedBox(
-              decoration: AnyttyUi.pillDecoration(context),
-              child: SizedBox(
-                height: AnyttyUi.controlHeight(context),
-                child: TextButton.icon(
-                  onPressed: onRetry,
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    size: 16,
-                    color: palette.strong,
-                  ),
-                  label: Text(
-                    anyttyText(context, en: 'Retry', zh: '重试'),
-                    style: AnyttyUi.body(context).copyWith(color: palette.text),
-                  ),
-                  style: TextButton.styleFrom(
-                    minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ),
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: Icon(
+              Icons.refresh_rounded,
+              size: 16,
+              color: palette.background,
             ),
-          ],
-        ),
+            label: Text(
+              anyttyText(context, en: 'Retry', zh: '重试'),
+              style: TextStyle(color: palette.background, fontSize: 12),
+            ),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2943,12 +2737,15 @@ final class _BrowserIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return AnyttyIconButton(
-      tooltip: tooltip,
-      onPressed: enabled ? onPressed : null,
-      icon: icon,
-      iconSize: 18,
-      iconColor: palette.strong,
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        padding: const EdgeInsets.all(11),
+        onPressed: enabled ? onPressed : null,
+        color: palette.muted,
+        icon: Icon(icon, size: 18),
+      ),
     );
   }
 }

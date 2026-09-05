@@ -62,7 +62,7 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Copy redacted diagnostics'),
       find.widgetWithText(TextButton, 'Reset saved devices'),
     ]) {
-      expect(tester.getSize(finder).height, greaterThanOrEqualTo(44));
+      expect(tester.getSize(finder).height, greaterThanOrEqualTo(48));
     }
 
     await tester.tap(find.text('Copy redacted diagnostics'));

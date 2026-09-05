@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 
 final class BrowserEndpointOption {
   const BrowserEndpointOption({
@@ -47,7 +46,11 @@ final class _BrowserEndpointPicker extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
               child: Text(
                 anyttyText(context, en: 'Web sessions', zh: 'Web 会话'),
-                style: AnyttyUi.title(context),
+                style: TextStyle(
+                  color: palette.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Flexible(
@@ -56,12 +59,11 @@ final class _BrowserEndpointPicker extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 16),
                 itemCount: endpoints.length,
                 separatorBuilder: (_, _) =>
-                    Divider(height: 1, indent: 68, color: palette.track),
+                    Divider(height: 1, indent: 68, color: palette.border),
                 itemBuilder: (context, index) {
                   final endpoint = endpoints[index];
                   return ListTile(
-                    selected: endpoint.current,
-                    minTileHeight: 76,
+                    minTileHeight: 60,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     leading: Container(
                       width: 36,
@@ -78,19 +80,23 @@ final class _BrowserEndpointPicker extends StatelessWidget {
                         size: 19,
                         color: endpoint.current
                             ? palette.accent
-                            : palette.strong,
+                            : palette.muted,
                       ),
                     ),
                     title: Text(
                       endpoint.label,
-                      style: AnyttyUi.body(context).copyWith(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
                         color: palette.text,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     subtitle: Text(
                       endpoint.endpointId,
-                      style: AnyttyUi.muted(context),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.muted, fontSize: 12),
                     ),
                     trailing: endpoint.current
                         ? Icon(Icons.check_rounded, color: palette.accent)

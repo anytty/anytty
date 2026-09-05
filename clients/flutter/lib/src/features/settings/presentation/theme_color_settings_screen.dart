@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,7 +8,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 import '../../../app/app_appearance.dart';
 import '../../../app/app_color_preferences.dart';
 import '../../../app/providers.dart';
@@ -52,6 +50,8 @@ final class _ThemeColorSettingsScreenState
     final colors = _draft ?? stored ?? AppColorPreferences.defaults;
     final appearance =
         ref.watch(appAppearanceProvider).valueOrNull ?? AppAppearance.dark;
+    final palette = AnyttyPalette.of(context);
+
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop || !_dirty) return;
@@ -61,11 +61,10 @@ final class _ThemeColorSettingsScreenState
       },
       child: Scaffold(
         appBar: AppBar(
-          toolbarHeight: AnyttyUi.appBarHeight(context, subtitleLines: 2),
-          leading: AnyttyIconButton(
+          leading: IconButton(
             tooltip: anyttyText(context, en: 'Back to settings', zh: '返回设置'),
             onPressed: () => unawaited(_close()),
-            icon: LucideIcons.chevronLeft,
+            icon: const Icon(LucideIcons.chevronLeft),
           ),
           titleSpacing: 0,
           title: Column(
@@ -73,19 +72,27 @@ final class _ThemeColorSettingsScreenState
             children: [
               Text(
                 anyttyText(context, en: 'Theme colors', zh: '主题颜色'),
-                style: AnyttyUi.title(context),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               Text(
                 anyttyText(context, en: 'Live app palette', zh: '全局实时配色'),
-                style: AnyttyUi.muted(context),
-                maxLines: 2,
-                softWrap: true,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
           actions: [
-            AnyttyIconButton(
+            IconButton(
               key: const ValueKey('theme-colors-reset'),
               tooltip: anyttyText(
                 context,
@@ -95,7 +102,7 @@ final class _ThemeColorSettingsScreenState
               onPressed: colors == AppColorPreferences.defaults
                   ? null
                   : () => unawaited(_reset()),
-              icon: LucideIcons.rotateCcw,
+              icon: const Icon(LucideIcons.rotateCcw),
             ),
             const SizedBox(width: 4),
           ],
@@ -236,8 +243,14 @@ final class _SectionLabel extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(label, style: AnyttyUi.sectionTitle(context));
+  Widget build(BuildContext context) => Text(
+    label,
+    style: TextStyle(
+      color: AnyttyPalette.of(context).muted,
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+    ),
+  );
 }
 
 final class _SectionHeader extends StatelessWidget {
@@ -248,15 +261,21 @@ final class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
     return Row(
       children: [
-        Expanded(child: Text(label, style: AnyttyUi.sectionTitle(context))),
-        Flexible(
+        Expanded(
           child: Text(
-            trailing,
-            textAlign: TextAlign.end,
-            style: AnyttyUi.muted(context)
-                .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+            label,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+        ),
+        Text(
+          trailing,
+          style: TextStyle(
+            color: palette.muted,
+            fontSize: 11,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ],
@@ -290,56 +309,30 @@ final class _ThemeModeSelector extends StatelessWidget {
       ),
     ];
     final palette = AnyttyPalette.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = MediaQuery.textScalerOf(context).scale(1);
-        final compact = constraints.maxWidth < 420 || scale > 1.5;
-        final columns = compact ? 2 : 3;
-        final gap = 4.0;
-        final lineHeight =
-            MediaQuery.textScalerOf(context).scale(14.5) * (18 / 14.5);
-        final optionHeight = math
-            .max(
-              AnyttyUi.controlHeight(context),
-              compact && scale > 1.5 ? lineHeight * 2 + 8 : 0,
-            )
-            .toDouble();
-        final rows = (options.length + columns - 1) ~/ columns;
-        final innerWidth = math.max(0.0, constraints.maxWidth - 8);
-        final width = (innerWidth - gap * (columns - 1)) / columns;
-        return Container(
-          height: optionHeight * rows + gap * (rows - 1) + 8,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: AnyttyUi.cardDecoration(
-              context,
-              radius: 14,
-              depth: 1,
-            ).boxShadow,
-          ),
-          child: Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final option in options)
-                SizedBox(
-                  width: width,
-                  height: optionHeight,
-                  child: _ModeOption(
-                    appearance: option.$1,
-                    icon: option.$2,
-                    label: option.$3,
-                    selected: value == option.$1,
-                    onPressed: () => onChanged(option.$1),
-                    height: optionHeight,
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised,
+        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          for (var index = 0; index < options.length; index += 1) ...[
+            if (index > 0) const SizedBox(width: 4),
+            Expanded(
+              child: _ModeOption(
+                appearance: options[index].$1,
+                icon: options[index].$2,
+                label: options[index].$3,
+                selected: value == options[index].$1,
+                onPressed: () => onChanged(options[index].$1),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -351,7 +344,6 @@ final class _ModeOption extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onPressed,
-    this.height,
   });
 
   final AppAppearance appearance;
@@ -359,7 +351,6 @@ final class _ModeOption extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onPressed;
-  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -376,43 +367,33 @@ final class _ModeOption extends StatelessWidget {
       onTap: onPressed,
       excludeSemantics: true,
       child: Material(
-        color: Colors.transparent,
-        child: DecoratedBox(
-          decoration: AnyttyUi.pillDecoration(
-            context,
-            selected: selected,
-            color: selected ? palette.accent : palette.surfaceRaised,
-          ),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onPressed,
-            child: SizedBox(
-              height: height ?? AnyttyUi.controlHeight(context),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    icon,
-                    size: 17,
-                    color: selected ? palette.accentText : palette.strong,
-                  ),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      softWrap: true,
-                      overflow: TextOverflow.ellipsis,
-                      style: AnyttyUi.body(context).copyWith(
-                        color: selected ? palette.accentText : palette.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+        color: selected ? palette.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onPressed,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: selected ? palette.accentText : palette.muted,
               ),
-            ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? palette.accentText : palette.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -446,12 +427,9 @@ final class _PresetPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 420 ? 2 : 4;
-        final gap = 6.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final width = (constraints.maxWidth - 18) / 4;
         return Wrap(
-          spacing: gap,
-          runSpacing: gap,
+          spacing: 6,
           children: [
             for (final preset in _presets)
               SizedBox(
@@ -491,48 +469,51 @@ final class _PresetOption extends StatelessWidget {
       label: label,
       onTap: onPressed,
       excludeSemantics: true,
-      child: AnyttyCard(
-        key: ValueKey('theme-preset-${preset.id}'),
-        radius: 14,
-        depth: selected ? 2 : 1,
+      child: Material(
         color: selected
             ? Color.alphaBlend(
                 palette.accent.withValues(alpha: 0.12),
                 palette.surfaceRaised,
               )
             : palette.surfaceRaised,
-        onTap: onPressed,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 68),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: preset.color,
-                  shape: BoxShape.circle,
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: palette.accent.withValues(alpha: 0.7),
-                            blurRadius: 5,
-                          ),
-                        ]
-                      : null,
-                ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: selected ? palette.accent : palette.border),
+        ),
+        child: InkWell(
+          key: ValueKey('theme-preset-${preset.id}'),
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 68),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: preset.color,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: palette.borderStrong, width: 2),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? palette.text : palette.muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: AnyttyUi.body(context).copyWith(
-                  color: selected ? palette.text : palette.muted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -561,12 +542,8 @@ final class _ColorEditor extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: AnyttyUi.cardDecoration(
-          context,
-          radius: 14,
-          depth: 1,
-        ).boxShadow,
+        border: Border.all(color: palette.border),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -580,13 +557,8 @@ final class _ColorEditor extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   color: color,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: AnyttyUi.cardDecoration(
-                    context,
-                    radius: 12,
-                    depth: 1,
-                    color: color,
-                  ).boxShadow,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: palette.borderStrong, width: 2),
                 ),
               ),
               const SizedBox(width: 12),
@@ -596,13 +568,18 @@ final class _ColorEditor extends StatelessWidget {
                   children: [
                     Text(
                       _tokenLabel(context, token),
-                      style: AnyttyUi.body(context)
-                          .copyWith(fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       colorHex(color),
-                      style: AnyttyUi.muted(context).copyWith(
+                      style: TextStyle(
+                        color: palette.muted,
+                        fontFamily: 'JetBrainsMonoNerd',
+                        fontSize: 12,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
@@ -619,10 +596,10 @@ final class _ColorEditor extends StatelessWidget {
             onChanged: (hue) => onColorChanged(hsv.withHue(hue).toColor()),
           ),
           const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final fields = [
-                _RgbChannelField(
+          Row(
+            children: [
+              Expanded(
+                child: _RgbChannelField(
                   key: ValueKey('theme-rgb-${token.name}-r'),
                   label: 'R',
                   semanticLabel: anyttyText(
@@ -631,11 +608,14 @@ final class _ColorEditor extends StatelessWidget {
                     zh: '红色通道',
                   ),
                   value: _channel(color, 16),
-                  labelColor: palette.strong,
+                  labelColor: const Color(0xffd95f5f),
                   onChanged: (value) =>
                       onColorChanged(_replaceChannel(color, 16, value)),
                 ),
-                _RgbChannelField(
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _RgbChannelField(
                   key: ValueKey('theme-rgb-${token.name}-g'),
                   label: 'G',
                   semanticLabel: anyttyText(
@@ -644,11 +624,14 @@ final class _ColorEditor extends StatelessWidget {
                     zh: '绿色通道',
                   ),
                   value: _channel(color, 8),
-                  labelColor: palette.strong,
+                  labelColor: const Color(0xff238b57),
                   onChanged: (value) =>
                       onColorChanged(_replaceChannel(color, 8, value)),
                 ),
-                _RgbChannelField(
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _RgbChannelField(
                   key: ValueKey('theme-rgb-${token.name}-b'),
                   label: 'B',
                   semanticLabel: anyttyText(
@@ -657,26 +640,12 @@ final class _ColorEditor extends StatelessWidget {
                     zh: '蓝色通道',
                   ),
                   value: _channel(color, 0),
-                  labelColor: palette.strong,
+                  labelColor: const Color(0xff367cc4),
                   onChanged: (value) =>
                       onColorChanged(_replaceChannel(color, 0, value)),
                 ),
-              ];
-              final width = (constraints.maxWidth - 16) / 3;
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final field in fields)
-                    SizedBox(
-                      width: constraints.maxWidth < 380
-                          ? constraints.maxWidth
-                          : width,
-                      child: field,
-                    ),
-                ],
-              );
-            },
+              ),
+            ],
           ),
         ],
       ),
@@ -693,80 +662,49 @@ final class _TokenSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = MediaQuery.textScalerOf(context).scale(1);
-        final columns = constraints.maxWidth < 420 || scale > 1.5 ? 2 : 4;
-        final gap = 4.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        final rows = (_ColorToken.values.length + columns - 1) ~/ columns;
-        final lineHeight = scale * (18 / 14.5) * 14.5;
-        final tileHeight = math
-            .max(
-              AnyttyUi.controlHeight(context),
-              scale > 1.5 ? lineHeight * 2 + 16 : 0,
-            )
-            .toDouble();
-        return Container(
-          height: tileHeight * rows + gap * (rows - 1),
-          padding: EdgeInsets.zero,
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final token in _ColorToken.values)
-                SizedBox(
-                  width: width,
-                  height: tileHeight,
-                  child: Semantics(
-                    button: true,
-                    selected: token == value,
-                    inMutuallyExclusiveGroup: true,
-                    label: _tokenLabel(context, token),
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: [
+          for (final token in _ColorToken.values)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: token == value,
+                inMutuallyExclusiveGroup: true,
+                label: _tokenLabel(context, token),
+                onTap: () => onChanged(token),
+                excludeSemantics: true,
+                child: Material(
+                  color: token == value ? palette.surface : Colors.transparent,
+                  borderRadius: BorderRadius.circular(5),
+                  child: InkWell(
+                    key: ValueKey('theme-token-${token.name}'),
+                    borderRadius: BorderRadius.circular(5),
                     onTap: () => onChanged(token),
-                    excludeSemantics: true,
-                    child: DecoratedBox(
-                      decoration: AnyttyUi.pillDecoration(
-                        context,
-                        selected: token == value,
-                        color: token == value
-                            ? palette.surface
-                            : palette.surfaceRaised,
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          key: ValueKey('theme-token-${token.name}'),
-                          customBorder: const StadiumBorder(),
-                          onTap: () => onChanged(token),
-                          child: Center(
-                            child: Text(
-                              _tokenLabel(context, token),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              softWrap: true,
-                              overflow: TextOverflow.ellipsis,
-                              style: AnyttyUi.body(context).copyWith(
-                                color: token == value
-                                    ? palette.text
-                                    : palette.muted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                    child: Center(
+                      child: Text(
+                        _tokenLabel(context, token),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: token == value ? palette.text : palette.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-        );
-      },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -780,12 +718,7 @@ final class _ColorPlane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hsv = HSVColor.fromColor(color);
-    final increasedColor = hsv
-        .withSaturation((hsv.saturation + 0.05).clamp(0.0, 1.0))
-        .toColor();
-    final decreasedColor = hsv
-        .withSaturation((hsv.saturation - 0.05).clamp(0.0, 1.0))
-        .toColor();
+    final palette = AnyttyPalette.of(context);
     return Semantics(
       label: anyttyText(
         context,
@@ -793,10 +726,7 @@ final class _ColorPlane extends StatelessWidget {
         zh: '颜色饱和度和明度',
       ),
       value: colorHex(color),
-      increasedValue: colorHex(increasedColor),
-      decreasedValue: colorHex(decreasedColor),
-      onIncrease: () => onChanged(increasedColor),
-      onDecrease: () => onChanged(decreasedColor),
+      image: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
           const height = 168.0;
@@ -821,6 +751,7 @@ final class _ColorPlane extends StatelessWidget {
                 hue: hsv.hue,
                 saturation: hsv.saturation,
                 value: hsv.value,
+                borderColor: palette.borderStrong,
               ),
             ),
           );
@@ -835,16 +766,18 @@ final class _ColorPlanePainter extends CustomPainter {
     required this.hue,
     required this.saturation,
     required this.value,
+    required this.borderColor,
   });
 
   final double hue;
   final double saturation;
   final double value;
+  final Color borderColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final radius = BorderRadius.circular(14);
+    final radius = BorderRadius.circular(8);
     canvas.save();
     canvas.clipRRect(radius.toRRect(rect));
     canvas.drawRect(
@@ -868,6 +801,13 @@ final class _ColorPlanePainter extends CustomPainter {
         ).createShader(rect),
     );
     canvas.restore();
+    canvas.drawRRect(
+      radius.toRRect(rect.deflate(0.5)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = borderColor,
+    );
     final thumb = Offset(saturation * size.width, (1 - value) * size.height);
     canvas.drawCircle(
       thumb,
@@ -890,7 +830,8 @@ final class _ColorPlanePainter extends CustomPainter {
   bool shouldRepaint(covariant _ColorPlanePainter oldDelegate) =>
       hue != oldDelegate.hue ||
       saturation != oldDelegate.saturation ||
-      value != oldDelegate.value;
+      value != oldDelegate.value ||
+      borderColor != oldDelegate.borderColor;
 }
 
 final class _HueControl extends StatelessWidget {
@@ -1027,12 +968,12 @@ final class _RgbChannelFieldState extends State<_RgbChannelField> {
         ],
         decoration: InputDecoration(
           prefixText: '${widget.label} ',
-          prefixStyle: AnyttyUi.body(context)
-              .copyWith(color: widget.labelColor),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          constraints: BoxConstraints(
-            minHeight: AnyttyUi.controlHeight(context),
+          prefixStyle: TextStyle(
+            color: widget.labelColor,
+            fontWeight: FontWeight.w800,
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          constraints: const BoxConstraints(minHeight: 48, maxHeight: 48),
         ),
         onChanged: (text) {
           final value = int.tryParse(text);

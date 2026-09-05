@@ -96,7 +96,7 @@ void main() {
     expect(find.text('System'), findsWidgets);
     expect(
       tester.getSize(find.byTooltip('Decrease font size')).height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     final light = tester.getSemantics(
       find.bySemanticsLabel('Light interface theme'),
@@ -115,11 +115,11 @@ void main() {
     expect(system.flagsCollection.isSelected, ui.Tristate.isFalse);
     expect(
       tester.getSize(find.bySemanticsLabel('Light interface theme')).height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     expect(
       tester.getSize(find.bySemanticsLabel('System interface theme')).height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
 
     final themeColorsLink = find.byKey(

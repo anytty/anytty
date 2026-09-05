@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 import '../../../app/anytty_localizations.dart';
 import 'file_transfer_controller.dart';
 
@@ -44,7 +42,7 @@ final class FileTransferCenterAction extends StatelessWidget {
     super.key,
     required this.controller,
     this.showWhenEmpty = false,
-    this.dimension = 44,
+    this.dimension = 40,
     this.iconSize = 18,
   });
 
@@ -61,42 +59,31 @@ final class FileTransferCenterAction extends StatelessWidget {
         if (!showWhenEmpty && controller.items.isEmpty) {
           return const SizedBox.shrink();
         }
-        return AnyttyIconButton(
-          tooltip: controller.hasActiveTransfers
-              ? anyttyText(
-                  context,
-                  en: 'Download center, active transfers',
-                  zh: '下载中心，有正在进行的传输',
-                )
-              : anyttyText(context, en: 'Download center', zh: '下载中心'),
-          size: math.max(dimension, AnyttyUi.controlSize),
+        return IconButton(
+          tooltip: anyttyText(context, en: 'Download center', zh: '下载中心'),
+          constraints: BoxConstraints.tightFor(
+            width: dimension,
+            height: dimension,
+          ),
+          padding: EdgeInsets.all((dimension - iconSize) / 2),
           onPressed: () => showFileTransferCenter(context, controller),
-          icon: Icons.download_rounded,
-          iconSize: iconSize,
-          child: Stack(
+          icon: Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(
-                Icons.download_rounded,
-                size: iconSize,
-                color: AnyttyPalette.of(context).strong,
-              ),
+              Icon(Icons.download_rounded, size: iconSize),
               if (controller.hasActiveTransfers)
                 Positioned(
                   right: -2,
                   top: -2,
-                  child: Semantics(
-                    label: anyttyText(
-                      context,
-                      en: 'Active transfers',
-                      zh: '有正在进行的传输',
-                    ),
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: AnyttyPalette.of(context).success,
-                        shape: BoxShape.circle,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AnyttyPalette.of(context).success,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 1.5,
                       ),
                     ),
                   ),
@@ -264,7 +251,7 @@ final class _FileTransferSheetState extends State<_FileTransferSheet> {
                     ? Center(
                         child: Text(
                           anyttyText(context, en: 'No transfers', zh: '暂无传输任务'),
-                          style: AnyttyUi.muted(context),
+                          style: TextStyle(color: palette.muted),
                         ),
                       )
                     : ListView.builder(
@@ -323,59 +310,65 @@ final class _TransferHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, right: 4, top: 8, bottom: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          anyttyText(
-                            context,
-                            en: 'Transfer Center',
-                            zh: '传输中心',
-                          ),
-                          style: AnyttyUi.title(context),
-                        ),
-                        Text(summary, style: AnyttyUi.muted(context)),
-                      ],
-                    ),
-                  ),
-                  AnyttyIconButton(
-                    tooltip: anyttyText(
-                      context,
-                      en: 'Close data transfer center',
-                      zh: '关闭传输中心',
-                    ),
-                    onPressed: onClose,
-                    icon: Icons.close_rounded,
-                  ),
-                ],
-              ),
-              if (canResumeAll) ...[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: AnyttyPillButton(
-                    onPressed: onResumeAll,
-                    icon: Icons.restart_alt_rounded,
-                    label: anyttyText(context, en: 'Resume all', zh: '全部继续'),
+    final palette = AnyttyPalette.of(context);
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.only(left: 16, right: 4),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: palette.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  anyttyText(context, en: 'Transfer Center', zh: '传输中心'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+                Text(
+                  summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: palette.muted),
+                ),
               ],
-            ],
+            ),
           ),
-        ),
-        AnyttyDivider(),
-      ],
+          if (canResumeAll)
+            FilledButton.icon(
+              onPressed: onResumeAll,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              label: Text(
+                anyttyText(context, en: 'Resume all', zh: '全部继续'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          IconButton(
+            tooltip: anyttyText(
+              context,
+              en: 'Close data transfer center',
+              zh: '关闭传输中心',
+            ),
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -399,46 +392,53 @@ final class _SelectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return Container(
-      constraints: const BoxConstraints(minHeight: 54),
+      height: 54,
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.track)),
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            AnyttyPillButton(
-              label: anyttyText(context, en: 'Cancel', zh: '取消'),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 88,
+            child: TextButton(
               onPressed: onCancel,
+              child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    anyttyText(
-                      context,
-                      en: '$selectedCount selected',
-                      zh: '已选择 $selectedCount 项',
-                    ),
-                    style: AnyttyUi.body(context)
-                        .copyWith(fontWeight: FontWeight.w600),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  anyttyText(
+                    context,
+                    en: '$selectedCount selected',
+                    zh: '已选择 $selectedCount 项',
                   ),
-                  Text(summary, style: AnyttyUi.muted(context)),
-                ],
-              ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: palette.muted),
+                ),
+              ],
             ),
-            AnyttyPillButton(
-              label: allSelected ? 'Deselect' : 'Select all',
+          ),
+          SizedBox(
+            width: 88,
+            child: TextButton(
               onPressed: onSelectAll,
+              child: Text(allSelected ? 'Deselect' : 'Select all'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -480,10 +480,13 @@ final class _TransferRow extends StatelessWidget {
         item.direction == FileTransferDirection.download &&
         item.status == FileTransferStatus.completed &&
         item.savedUri != null;
-    final directionColor = palette.strong;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final directionColor = item.direction == FileTransferDirection.download
+        ? (dark ? const Color(0xff60a5fa) : const Color(0xff2563eb))
+        : (dark ? const Color(0xffc4b5fd) : const Color(0xff7c3aed));
     final directionBackground = item.direction == FileTransferDirection.download
-        ? palette.surfaceRaised
-        : palette.surface;
+        ? (dark ? const Color(0xff172554) : const Color(0xffeff6ff))
+        : (dark ? const Color(0xff2e1065) : const Color(0xfff5f3ff));
 
     final primaryAction = canOpen
         ? onOpen
@@ -504,31 +507,35 @@ final class _TransferRow extends StatelessWidget {
 
     return Container(
       key: ValueKey('transfer-${item.id}'),
-      constraints: const BoxConstraints(minHeight: 112),
+      height: 112,
       padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: palette.track)),
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: Row(
         children: [
           if (selectionMode)
-            AnyttyIconButton(
+            IconButton(
               tooltip: selected
                   ? 'Deselect ${item.name}'
                   : 'Select ${item.name}',
               onPressed: onToggleSelected,
-              icon: selected
-                  ? Icons.check_box_rounded
-                  : Icons.check_box_outline_blank_rounded,
-              iconColor: palette.strong,
-              iconSize: 20,
-              selected: selected,
+              constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+              padding: EdgeInsets.zero,
+              icon: Icon(
+                selected
+                    ? Icons.check_box_rounded
+                    : Icons.check_box_outline_blank_rounded,
+                color: selected ? palette.text : palette.muted,
+                size: 20,
+              ),
             ),
           Container(
             width: 36,
             height: 36,
             decoration: BoxDecoration(
               color: directionBackground,
+              border: Border.all(color: palette.border),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
@@ -550,22 +557,30 @@ final class _TransferRow extends StatelessWidget {
                     onTap: opening ? null : onOpen,
                     child: Text(
                       item.name,
-                      style: AnyttyUi.body(context)
-                          .copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   )
                 else
                   Text(
                     item.name,
-                    style: AnyttyUi.body(context)
-                        .copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 const SizedBox(height: 3),
                 Text(
                   '${item.direction == FileTransferDirection.download ? anyttyText(context, en: 'From', zh: '来自') : anyttyText(context, en: 'To', zh: '发送到')} ${item.endpointLabel}  ·  ${item.remotePath}',
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AnyttyUi.muted(context),
+                  style: TextStyle(fontSize: 10, color: palette.muted),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -576,13 +591,14 @@ final class _TransferRow extends StatelessWidget {
                           zh: '无法打开此文件',
                         )
                       : _itemStatus(context, item),
-                  style: AnyttyUi.body(context).copyWith(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
                     color: failed || openFailed
                         ? palette.danger
                         : palette.muted,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 7),
                 LinearProgressIndicator(
@@ -605,33 +621,43 @@ final class _TransferRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (primaryIcon != null)
-                  AnyttyIconButton(
+                  IconButton(
                     tooltip: canOpen
                         ? 'Open ${item.name}'
                         : item.pausable
                         ? 'Pause ${item.name}'
-                        : '${failed ? 'Retry' : 'Resume'} ${item.name}',
+                        : 'Resume ${item.name}',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 40,
+                    ),
+                    padding: EdgeInsets.zero,
                     onPressed: opening ? null : primaryAction,
-                    icon: primaryIcon,
-                    iconSize: 18,
-                    child: opening
+                    icon: opening
                         ? const SizedBox.square(
                             dimension: 16,
                             child: CircularProgressIndicator(strokeWidth: 1.8),
                           )
-                        : null,
+                        : Icon(primaryIcon, size: 18),
                   ),
-                AnyttyIconButton(
+                IconButton(
                   tooltip: activeOrPaused
                       ? 'Cancel ${item.name}'
                       : 'Remove ${item.name}',
+                  constraints: const BoxConstraints.tightFor(
+                    width: 36,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
                   onPressed: activeOrPaused
                       ? () => controller.cancel(item.id)
                       : () => controller.dismiss(item.id),
-                  icon: activeOrPaused
-                      ? Icons.close_rounded
-                      : Icons.delete_outline_rounded,
-                  iconSize: 18,
+                  icon: Icon(
+                    activeOrPaused
+                        ? Icons.close_rounded
+                        : Icons.delete_outline_rounded,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
@@ -738,12 +764,10 @@ final class _BottomToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return Container(
-      constraints: BoxConstraints(
-        minHeight: AnyttyUi.controlHeight(context) + 10,
-      ),
+      height: 54,
       decoration: BoxDecoration(
         color: palette.background,
-        border: Border(top: BorderSide(color: palette.track)),
+        border: Border(top: BorderSide(color: palette.border)),
       ),
       child: Row(children: children),
     );
@@ -765,32 +789,30 @@ final class _ToolbarAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
     return Expanded(
-      child: Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact =
-                MediaQuery.textScalerOf(context).scale(1) > 1.5 ||
-                constraints.maxWidth < 120;
-            if (compact) {
-              return AnyttyIconButton(
-                tooltip: '$label: $tooltip',
-                onPressed: onPressed,
-                icon: icon,
-                iconColor: onPressed == null
-                    ? AnyttyPalette.of(context).muted
-                    : null,
-              );
-            }
-            return Tooltip(
-              message: tooltip,
-              child: AnyttyPillButton(
-                label: label,
-                onPressed: onPressed,
-                icon: icon,
-              ),
-            );
-          },
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onPressed,
+          child: Opacity(
+            opacity: onPressed == null ? 0.4 : 1,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 21, color: palette.muted),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: palette.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

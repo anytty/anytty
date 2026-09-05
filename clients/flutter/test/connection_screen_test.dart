@@ -109,7 +109,7 @@ void main() {
       tester
           .getSize(find.widgetWithText(FilledButton, 'Apply and reconnect'))
           .height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     expect(tester.takeException(), isNull);
 
@@ -127,14 +127,14 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     expect(
       tester.getSize(find.byTooltip('Copy Candidate pair')).height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     expect(find.text('Copy redacted report'), findsOneWidget);
     expect(
       tester
           .getSize(find.byKey(const ValueKey('copy-redacted-diagnostics')))
           .height,
-      greaterThanOrEqualTo(44),
+      greaterThanOrEqualTo(48),
     );
     expect(tester.takeException(), isNull);
   });

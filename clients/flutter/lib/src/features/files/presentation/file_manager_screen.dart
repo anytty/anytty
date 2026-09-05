@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/anytty_theme.dart';
-import '../../../app/anytty_ui.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/apipb/file.pb.dart';
 import '../domain/file_preview_safety.dart';
@@ -24,15 +23,14 @@ Future<void> showAnyttyFileManager({
   return Navigator.of(context).push<void>(
     PageRouteBuilder<void>(
       opaque: true,
-      transitionDuration: AnyttyMotion.quick,
-      reverseTransitionDuration: AnyttyMotion.quick,
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
       pageBuilder: (context, _, _) => FileManagerScreen(
         endpointId: endpointId,
         endpointLabel: endpointLabel,
         initialPath: initialPath,
       ),
-      transitionsBuilder: (context, animation, _, child) =>
-          FadeTransition(opacity: animation, child: child),
+      transitionsBuilder: (context, animation, _, child) => child,
     ),
   );
 }
@@ -277,17 +275,20 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
           automaticallyImplyLeading: false,
           backgroundColor: palette.background,
           foregroundColor: palette.text,
-          leading: AnyttyIconButton(
+          leading: IconButton(
             tooltip: 'Close files',
             onPressed: () => Navigator.of(context).pop(),
-            icon: Icons.chevron_left_rounded,
+            icon: const Icon(Icons.chevron_left_rounded),
           ),
           titleSpacing: 0,
           title: Row(
             children: [
-              Icon(Icons.folder_rounded, size: 20, color: palette.strong),
+              Icon(Icons.folder_rounded, size: 20, color: palette.muted),
               const SizedBox(width: 8),
-              Text('Files', style: AnyttyUi.title(context)),
+              const Text(
+                'Files',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -310,62 +311,45 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     return Container(
       decoration: BoxDecoration(
         color: palette.background,
-        border: Border(bottom: BorderSide(color: palette.track)),
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Container(
-        height: AnyttyUi.controlHeight(context),
+        height: 50,
         decoration: BoxDecoration(
           color: palette.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: AnyttyUi.cardDecoration(
-            context,
-            radius: 14,
-            depth: 1,
-          ).boxShadow,
+          border: Border.all(color: palette.border),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: ListView.separated(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           scrollDirection: Axis.horizontal,
           itemCount: breadcrumbs.length + 1,
-          separatorBuilder: (context, index) => Icon(
-            Icons.chevron_right_rounded,
-            size: 16,
-            color: palette.strong,
-          ),
+          separatorBuilder: (context, index) =>
+              Icon(Icons.chevron_right_rounded, size: 16, color: palette.faint),
           itemBuilder: (context, index) {
             if (index == 0) {
               return Icon(
                 Icons.storage_rounded,
                 size: 17,
-                color: palette.strong,
+                color: palette.muted,
               );
             }
             final breadcrumb = breadcrumbs[index - 1];
             final active = index == breadcrumbs.length;
-            return DecoratedBox(
-              decoration: AnyttyUi.pillDecoration(
-                context,
-                color: active ? palette.surfaceRaised : null,
-                enabled: !active,
+            return TextButton(
+              onPressed: active ? null : () => _loadPath(breadcrumb.path),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(24, 48),
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                foregroundColor: active ? palette.text : palette.muted,
+                disabledForegroundColor: palette.text,
               ),
-              child: SizedBox(
-                height: AnyttyUi.controlHeight(context),
-                child: TextButton(
-                  onPressed: active ? null : () => _loadPath(breadcrumb.path),
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(0, AnyttyUi.controlSize),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    foregroundColor: active ? palette.text : palette.muted,
-                    disabledForegroundColor: palette.text,
-                  ),
-                  child: Text(
-                    breadcrumb.label,
-                    style: AnyttyUi.body(context).copyWith(
-                      color: active ? palette.text : palette.muted,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                    ),
-                  ),
+              child: Text(
+                breadcrumb.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
             );
@@ -376,37 +360,27 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
   }
 
   Widget _buildSelectionHeader(AnyttyPalette palette) => Container(
-    constraints: BoxConstraints(
-      minHeight: AnyttyUi.controlHeight(context) + 10,
-    ),
+    height: 48,
     decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: palette.track)),
+      border: Border(bottom: BorderSide(color: palette.border)),
     ),
-    child: Wrap(
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 6,
+    child: Row(
       children: [
-        AnyttyPillButton(
-          label: 'Cancel',
+        TextButton(
           onPressed: () => setState(() {
             _selectionMode = false;
             _selectedPaths = const {};
           }),
+          child: const Text('Cancel'),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+        Expanded(
           child: Text(
             '${_selectedPaths.length} selected',
             textAlign: TextAlign.center,
-            style: AnyttyUi.body(context).copyWith(fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
-        AnyttyPillButton(
-          label: _selectedPaths.length == _visibleEntries.length
-              ? 'Deselect all'
-              : 'Select all',
+        TextButton(
           onPressed: () {
             final paths = _visibleEntries.map(_entryPath).toSet();
             setState(() {
@@ -415,6 +389,11 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
                   : paths;
             });
           },
+          child: Text(
+            _selectedPaths.length == _visibleEntries.length
+                ? 'Deselect all'
+                : 'Select all',
+          ),
         ),
       ],
     ),
@@ -426,7 +405,7 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     }
     if (_error case final error? when _entries.isEmpty) {
       return Center(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -437,33 +416,18 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
                 size: 32,
               ),
               const SizedBox(height: 12),
-              Semantics(
-                liveRegion: true,
-                label: error,
-                child: Text(
-                  error,
-                  textAlign: TextAlign.center,
-                  style: AnyttyUi.muted(context),
-                ),
+              Text(
+                error,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: palette.muted, fontSize: 13),
               ),
               const SizedBox(height: 12),
-              DecoratedBox(
-                decoration: AnyttyUi.pillDecoration(context),
-                child: SizedBox(
-                  height: AnyttyUi.controlHeight(context),
-                  child: OutlinedButton.icon(
-                    onPressed: () => _loadPath(_currentPath),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      side: BorderSide.none,
-                      minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                      foregroundColor: palette.strong,
-                    ),
-                    icon: Icon(Icons.refresh_rounded, color: palette.strong),
-                    label: const Text('Retry'),
-                  ),
-                ),
+              OutlinedButton.icon(
+                onPressed: () => _loadPath(_currentPath),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
               ),
             ],
           ),
@@ -494,13 +458,12 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.folder_outlined,
-                      color: palette.strong,
-                      size: 34,
-                    ),
+                    Icon(Icons.folder_outlined, color: palette.faint, size: 34),
                     const SizedBox(height: 10),
-                    Text('Empty directory', style: AnyttyUi.muted(context)),
+                    Text(
+                      'Empty directory',
+                      style: TextStyle(color: palette.muted),
+                    ),
                   ],
                 ),
               ),
@@ -528,16 +491,12 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     padding: const EdgeInsets.all(8),
     decoration: BoxDecoration(
       color: palette.surface,
-      borderRadius: BorderRadius.circular(14),
-      boxShadow: AnyttyUi.cardDecoration(
-        context,
-        radius: 14,
-        depth: 1,
-      ).boxShadow,
+      border: Border.all(color: palette.border),
+      borderRadius: BorderRadius.circular(6),
     ),
     child: Row(
       children: [
-        Icon(Icons.folder_rounded, color: palette.strong),
+        Icon(Icons.folder_rounded, color: palette.text),
         const SizedBox(width: 8),
         Expanded(
           child: TextField(
@@ -546,25 +505,24 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _createDirectory(),
             decoration: const InputDecoration(
-              labelText: 'Directory name',
               hintText: 'Directory name',
               isDense: true,
               border: InputBorder.none,
             ),
           ),
         ),
-        AnyttyIconButton(
+        IconButton(
           tooltip: 'Create directory',
           onPressed: _operationPending ? null : _createDirectory,
-          icon: Icons.check_rounded,
+          icon: const Icon(Icons.check_rounded),
         ),
-        AnyttyIconButton(
+        IconButton(
           tooltip: 'Cancel new directory',
           onPressed: () => setState(() {
             _newDirectoryOpen = false;
             _newDirectoryController.clear();
           }),
-          icon: Icons.close_rounded,
+          icon: const Icon(Icons.close_rounded),
         ),
       ],
     ),
@@ -579,114 +537,105 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       constraints: const BoxConstraints(minHeight: 56),
       decoration: BoxDecoration(
         color: selected ? palette.surfaceRaised : null,
-        border: Border(bottom: BorderSide(color: palette.track)),
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: InkWell(
-              onTap: renaming ? null : () => _activateEntry(entry),
-              onLongPress: renaming ? null : () => _startSelection(path),
-              child: Row(
-                children: [
-                  if (_selectionMode)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: Semantics(
-                        label: selected ? 'Selected' : 'Not selected',
-                        child: Icon(
-                          selected
-                              ? Icons.check_circle_rounded
-                              : Icons.radio_button_unchecked_rounded,
-                          size: 24,
-                          color: selected ? palette.accent : palette.strong,
-                        ),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: palette.surface,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        directory
-                            ? Icons.folder_rounded
-                            : _fileIcon(entry.name),
-                        size: 21,
-                        color: _operationPending
-                            ? palette.muted
-                            : palette.strong,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: renaming
-                        ? TextField(
-                            controller: _renameController,
-                            autofocus: true,
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _commitRename(path),
-                            decoration: const InputDecoration(
-                              labelText: 'Rename entry',
-                              isDense: true,
-                            ),
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  entry.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AnyttyUi.body(context).copyWith(
-                                    color: palette.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _fileMeta(entry),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AnyttyUi.muted(context),
-                                ),
-                              ],
-                            ),
-                          ),
-                  ),
-                ],
+          if (_selectionMode)
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                size: 24,
+                color: selected ? palette.accent : palette.faint,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border.all(color: palette.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                directory ? Icons.folder_rounded : _fileIcon(entry.name),
+                size: 21,
+                color: directory ? palette.text : palette.muted,
               ),
             ),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: renaming
+                ? TextField(
+                    controller: _renameController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _commitRename(path),
+                    decoration: const InputDecoration(
+                      labelText: 'Rename entry',
+                      isDense: true,
+                    ),
+                  )
+                : InkWell(
+                    onTap: () => _activateEntry(entry),
+                    onLongPress: () => _startSelection(path),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _fileMeta(entry),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
           if (renaming) ...[
-            AnyttyIconButton(
+            IconButton(
               tooltip: 'Save rename',
               onPressed: _operationPending ? null : () => _commitRename(path),
-              icon: Icons.check_rounded,
+              icon: const Icon(Icons.check_rounded),
             ),
-            AnyttyIconButton(
+            IconButton(
               tooltip: 'Cancel rename',
               onPressed: () => setState(() => _renamingPath = null),
-              icon: Icons.close_rounded,
+              icon: const Icon(Icons.close_rounded),
             ),
           ] else if (!_selectionMode) ...[
-            AnyttyIconButton(
+            IconButton(
               tooltip: 'More actions for ${entry.name}',
               onPressed: () => _openEntryActions(entry),
-              icon: Icons.more_vert_rounded,
-              iconColor: palette.strong,
+              icon: Icon(Icons.more_vert_rounded, color: palette.muted),
             ),
             SizedBox(
               width: 28,
               child: directory
-                  ? Icon(Icons.chevron_right_rounded, color: palette.strong)
+                  ? Icon(Icons.chevron_right_rounded, color: palette.faint)
                   : null,
             ),
           ],
@@ -700,64 +649,28 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       return SafeArea(
         top: false,
         child: Container(
-          constraints: BoxConstraints(
-            minHeight: AnyttyUi.controlHeight(context) + 16,
-          ),
+          height: 58,
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: palette.track)),
+            border: Border(top: BorderSide(color: palette.border)),
           ),
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
               Expanded(
-                child: DecoratedBox(
-                  decoration: AnyttyUi.pillDecoration(context),
-                  child: SizedBox(
-                    height: AnyttyUi.controlHeight(context),
-                    child: OutlinedButton.icon(
-                      onPressed: () => setState(() => _clipboard = null),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        side: BorderSide.none,
-                        minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                        foregroundColor: palette.strong,
-                      ),
-                      icon: Icon(Icons.close_rounded, color: palette.strong),
-                      label: const Text('Cancel'),
-                    ),
-                  ),
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() => _clipboard = null),
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Cancel'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: DecoratedBox(
-                  decoration: AnyttyUi.pillDecoration(
-                    context,
-                    enabled: !_operationPending,
-                  ),
-                  child: SizedBox(
-                    height: AnyttyUi.controlHeight(context),
-                    child: FilledButton.icon(
-                      onPressed: _operationPending
-                          ? null
-                          : () => _pasteClipboard(clipboard),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        minimumSize: Size(0, AnyttyUi.controlHeight(context)),
-                        foregroundColor: palette.strong,
-                        disabledForegroundColor: palette.muted,
-                      ),
-                      icon: Icon(
-                        Icons.content_paste_rounded,
-                        color: _operationPending
-                            ? palette.muted
-                            : palette.strong,
-                      ),
-                      label: const Text('Paste'),
-                    ),
-                  ),
+                child: FilledButton.icon(
+                  onPressed: _operationPending
+                      ? null
+                      : () => _pasteClipboard(clipboard),
+                  icon: const Icon(Icons.content_paste_rounded),
+                  label: const Text('Paste'),
                 ),
               ),
             ],
@@ -770,11 +683,9 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       return SafeArea(
         top: false,
         child: Container(
-          constraints: BoxConstraints(
-            minHeight: AnyttyUi.controlHeight(context) + 16,
-          ),
+          height: 60,
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: palette.track)),
+            border: Border(top: BorderSide(color: palette.border)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -809,12 +720,10 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     return SafeArea(
       top: false,
       child: Container(
-        constraints: BoxConstraints(
-          minHeight: AnyttyUi.controlHeight(context) + 16,
-        ),
+        height: 60,
         decoration: BoxDecoration(
           color: palette.background,
-          border: Border(top: BorderSide(color: palette.track)),
+          border: Border(top: BorderSide(color: palette.border)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -872,6 +781,7 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       unawaited(
         showModalBottomSheet<void>(
           context: context,
+          sheetAnimationStyle: AnimationStyle.noAnimation,
           isScrollControlled: true,
           useSafeArea: true,
           builder: (context) => FilePreviewSheet(
@@ -894,77 +804,54 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
 
   Future<void> _openEntryActions(FileEntry entry) async {
     final path = _entryPath(entry);
-    final palette = AnyttyPalette.of(context);
     final action = await showModalBottomSheet<_FileEntryAction>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: AnimationStyle.noAnimation,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!_isDirectory(entry))
-                  ListTile(
-                    leading: Icon(
-                      Icons.visibility_outlined,
-                      color: palette.strong,
-                    ),
-                    title: const Text('Preview'),
-                    onTap: () =>
-                        Navigator.pop(context, _FileEntryAction.preview),
-                  ),
-                if (!_isDirectory(entry))
-                  ListTile(
-                    leading: Icon(
-                      Icons.download_rounded,
-                      color: palette.strong,
-                    ),
-                    title: const Text('Download'),
-                    onTap: () =>
-                        Navigator.pop(context, _FileEntryAction.download),
-                  ),
-                ListTile(
-                  leading: Icon(
-                    Icons.content_copy_rounded,
-                    color: palette.strong,
-                  ),
-                  title: const Text('Copy path'),
-                  onTap: () =>
-                      Navigator.pop(context, _FileEntryAction.copyPath),
-                ),
-                ListTile(
-                  leading: Icon(Icons.copy_rounded, color: palette.strong),
-                  title: const Text('Copy'),
-                  onTap: () => Navigator.pop(context, _FileEntryAction.copy),
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.drive_file_move_outline,
-                    color: palette.strong,
-                  ),
-                  title: const Text('Cut'),
-                  onTap: () => Navigator.pop(context, _FileEntryAction.cut),
-                ),
-                ListTile(
-                  leading: Icon(Icons.edit_outlined, color: palette.strong),
-                  title: const Text('Rename'),
-                  onTap: () => Navigator.pop(context, _FileEntryAction.rename),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded),
-                  title: const Text('Delete'),
-                  textColor: palette.danger,
-                  iconColor: palette.danger,
-                  onTap: () => Navigator.pop(context, _FileEntryAction.delete),
-                ),
-              ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!_isDirectory(entry))
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined),
+                title: const Text('Preview'),
+                onTap: () => Navigator.pop(context, _FileEntryAction.preview),
+              ),
+            if (!_isDirectory(entry))
+              ListTile(
+                leading: const Icon(Icons.download_rounded),
+                title: const Text('Download'),
+                onTap: () => Navigator.pop(context, _FileEntryAction.download),
+              ),
+            ListTile(
+              leading: const Icon(Icons.content_copy_rounded),
+              title: const Text('Copy path'),
+              onTap: () => Navigator.pop(context, _FileEntryAction.copyPath),
             ),
-          ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Copy'),
+              onTap: () => Navigator.pop(context, _FileEntryAction.copy),
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outline),
+              title: const Text('Cut'),
+              onTap: () => Navigator.pop(context, _FileEntryAction.cut),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Rename'),
+              onTap: () => Navigator.pop(context, _FileEntryAction.rename),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Delete'),
+              textColor: const Color(0xffdc2626),
+              iconColor: const Color(0xffdc2626),
+              onTap: () => Navigator.pop(context, _FileEntryAction.delete),
+            ),
+          ],
         ),
       ),
     );
@@ -1002,70 +889,55 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
   }
 
   Future<void> _openDirectoryActions() async {
-    final palette = AnyttyPalette.of(context);
     final action = await showModalBottomSheet<_DirectoryAction>(
       context: context,
-      isScrollControlled: true,
+      sheetAnimationStyle: AnimationStyle.noAnimation,
       showDragHandle: true,
       builder: (context) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.refresh_rounded, color: palette.strong),
-                  title: const Text('Refresh'),
-                  onTap: () => Navigator.pop(context, _DirectoryAction.refresh),
-                ),
-                ListTile(
-                  leading: Icon(
-                    _showHidden
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: palette.strong,
-                  ),
-                  title: Text(
-                    _showHidden ? 'Hide hidden files' : 'Show hidden files',
-                  ),
-                  onTap: () => Navigator.pop(context, _DirectoryAction.hidden),
-                ),
-                if (_transfers.items.isNotEmpty)
-                  ListTile(
-                    leading: Icon(
-                      Icons.swap_vert_rounded,
-                      color: palette.strong,
-                    ),
-                    title: const Text('Transfers'),
-                    onTap: () =>
-                        Navigator.pop(context, _DirectoryAction.transfers),
-                  ),
-                for (final sort in _FileSort.values)
-                  ListTile(
-                    leading: Icon(
-                      _sort == sort ? Icons.check_rounded : _sortIcon(sort),
-                      color: palette.strong,
-                    ),
-                    title: Text('Sort by ${_sortLabel(sort)}'),
-                    trailing: _sort == sort
-                        ? Icon(
-                            _sortAscending
-                                ? Icons.arrow_upward_rounded
-                                : Icons.arrow_downward_rounded,
-                            color: palette.strong,
-                          )
-                        : null,
-                    onTap: () => Navigator.pop(
-                      context,
-                      _DirectoryAction.values[3 + sort.index],
-                    ),
-                  ),
-              ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh_rounded),
+              title: const Text('Refresh'),
+              onTap: () => Navigator.pop(context, _DirectoryAction.refresh),
             ),
-          ),
+            ListTile(
+              leading: Icon(
+                _showHidden
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+              title: Text(
+                _showHidden ? 'Hide hidden files' : 'Show hidden files',
+              ),
+              onTap: () => Navigator.pop(context, _DirectoryAction.hidden),
+            ),
+            if (_transfers.items.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.swap_vert_rounded),
+                title: const Text('Transfers'),
+                onTap: () => Navigator.pop(context, _DirectoryAction.transfers),
+              ),
+            for (final sort in _FileSort.values)
+              ListTile(
+                leading: Icon(
+                  _sort == sort ? Icons.check_rounded : _sortIcon(sort),
+                ),
+                title: Text('Sort by ${_sortLabel(sort)}'),
+                trailing: _sort == sort
+                    ? Icon(
+                        _sortAscending
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                      )
+                    : null,
+                onTap: () => Navigator.pop(
+                  context,
+                  _DirectoryAction.values[3 + sort.index],
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1118,52 +990,24 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
   }
 
   Future<void> _confirmDelete(String path) async {
-    final palette = AnyttyPalette.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: AnyttyCard(
-          radius: 16,
-          depth: 2,
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Delete entry?', style: AnyttyUi.sectionTitle(context)),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.25,
-                ),
-                child: SingleChildScrollView(
-                  child: Text(path, style: AnyttyUi.body(context)),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AnyttyPillButton(
-                    outlined: true,
-                    label: 'Cancel',
-                    onPressed: () => Navigator.pop(context, false),
-                  ),
-                  AnyttyPillButton(
-                    label: 'Delete',
-                    color: palette.danger.withValues(alpha: 0.14),
-                    foregroundColor: palette.danger,
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ],
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Delete entry?'),
+        content: Text(path),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xffdc2626),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -1177,52 +1021,25 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
 
   Future<void> _confirmBatchDelete() async {
     final paths = _selectedPaths.toList(growable: false);
-    final palette = AnyttyPalette.of(context);
     if (paths.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: AnyttyCard(
-          radius: 16,
-          depth: 2,
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Delete ${paths.length} entries?',
-                style: AnyttyUi.sectionTitle(context),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Directories and their contents will be removed.',
-                style: AnyttyUi.body(context),
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AnyttyPillButton(
-                    outlined: true,
-                    label: 'Cancel',
-                    onPressed: () => Navigator.pop(context, false),
-                  ),
-                  AnyttyPillButton(
-                    label: 'Delete',
-                    color: palette.danger.withValues(alpha: 0.14),
-                    foregroundColor: palette.danger,
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ],
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text('Delete ${paths.length} entries?'),
+        content: const Text('Directories and their contents will be removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xffdc2626),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -1427,12 +1244,25 @@ final class _FileToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: Center(
-      child: AnyttyIconButton(
-        tooltip: label,
-        onPressed: onPressed,
-        icon: icon,
-        iconColor: danger ? AnyttyPalette.of(context).danger : null,
+    child: IconButton(
+      tooltip: label,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(44, 52),
+        foregroundColor: danger ? const Color(0xffdc2626) : null,
+      ),
+      icon: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10.5),
+          ),
+        ],
       ),
     ),
   );
@@ -1454,19 +1284,18 @@ final class FilePreviewSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = AnyttyPalette.of(context);
     return FractionallySizedBox(
       heightFactor: 0.9,
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          toolbarHeight: AnyttyUi.appBarHeight(context),
-          title: Text(entry.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+          title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
           actions: [
-            AnyttyIconButton(
+            IconButton(
               tooltip: 'Close preview',
+              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
               onPressed: () => Navigator.pop(context),
-              icon: Icons.close_rounded,
+              icon: const Icon(Icons.close_rounded),
             ),
           ],
         ),
@@ -1484,17 +1313,11 @@ final class FilePreviewSheet extends ConsumerWidget {
             }
             if (snapshot.hasError) {
               return Center(
-                child: SingleChildScrollView(
+                child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Semantics(
-                    liveRegion: true,
-                    label: snapshot.error.toString(),
-                    child: Text(
-                      snapshot.error.toString(),
-                      textAlign: TextAlign.center,
-                      style: AnyttyUi.body(context)
-                          .copyWith(color: palette.danger),
-                    ),
+                  child: Text(
+                    snapshot.error.toString(),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               );
@@ -1516,7 +1339,6 @@ final class FilePreviewSheet extends ConsumerWidget {
                     ),
                     fit: BoxFit.contain,
                     gaplessPlayback: true,
-                    semanticLabel: entry.name,
                     errorBuilder: (context, error, stackTrace) => const Padding(
                       padding: EdgeInsets.all(24),
                       child: Text('The image could not be decoded safely.'),
@@ -1552,7 +1374,14 @@ final class FilePreviewSheet extends ConsumerWidget {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: SelectableText(text, style: AnyttyUi.body(context)),
+                    child: SelectableText(
+                      text,
+                      style: const TextStyle(
+                        fontFamily: 'JetBrainsMonoNerd',
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
                   ),
                 ),
               ],
