@@ -158,7 +158,7 @@ jobs:
           merge-multiple: true
       - name: Write build metadata and final checksums
         run: scripts/write-release-metadata.sh "$RELEASE_TAG" "$RUNNER_TEMP/release"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ runner.temp }}/release/*
       - name: Publish GitHub Release
