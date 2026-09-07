@@ -20,8 +20,10 @@ import (
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/apipb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/proto/remoteauthpb"
 	"github.com/anytty/anytty/proto/wire"
 	"github.com/anytty/anytty/shared/connecttrace"
+	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -84,6 +86,33 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, errors.New("Cloud route credential is missing its signed discovery grant")
 	}
 	dialer.report(clientruntime.EndpointPhaseSignaling)
+	clientName := strings.TrimSpace(dialer.ClientName)
+	if clientName == "" {
+		clientName = defaultClientName
+	}
+	verify := func(attemptCtx context.Context, opened *openedCloudPeer) error {
+		fingerprint, err := opened.RemoteCertificateFingerprint()
+		if err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
+		}
+		dialer.report(clientruntime.EndpointPhaseAuthorizing)
+		clientruntime.ReportEndpointProgress(attemptCtx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
+		connection := opened.Transport()
+		if _, err := prepared.Authenticate(attemptCtx, connection, fingerprint); err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
+		}
+		if receiver, ok := connection.(interface{ EnableReceiveBackpressure() }); ok {
+			receiver.EnableReceiveBackpressure()
+		}
+		reportTiming("datachannel_authenticated")
+		clientruntime.ReportEndpointProgress(attemptCtx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
+		opened.protocolClient = internalprotocol.NewClient(connection)
+		if err := opened.protocolClient.Hello(attemptCtx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
+		}
+		reportTiming("protocol_ready")
+		return nil
+	}
 	resolved, cachedErr := cloudclient.NewCachedCapabilityRoute(signaling.CloudEdgeLocator(), signaling.CloudRouteGrant())
 	if cachedErr != nil {
 		resolved = nil
@@ -112,7 +141,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 			} else {
 				clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
 			}
-			return openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, route, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
+			return openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, route, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report, verify)
 		},
 		func(source cloudRouteSource, route *cloudclient.RouteResolution, routeErr error) {
 			reportTiming(string(source) + "_edge_failed")
@@ -126,34 +155,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}
 		return nil, reportCloudFailure(request.Stamp().Generation, failureStage, cloudConnectionError(err))
 	}
-	fingerprint, err := opened.RemoteCertificateFingerprint()
-	if err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
-	}
-	dialer.report(clientruntime.EndpointPhaseAuthorizing)
-	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
-	connection := opened.Transport()
-	if _, err := prepared.Authenticate(ctx, connection, fingerprint); err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
-	}
-	reportTiming("datachannel_authenticated")
-	if receiver, ok := connection.(interface{ EnableReceiveBackpressure() }); ok {
-		receiver.EnableReceiveBackpressure()
-	}
-	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
-	protocolClient := internalprotocol.NewClient(connection)
-	clientName := strings.TrimSpace(dialer.ClientName)
-	if clientName == "" {
-		clientName = defaultClientName
-	}
-	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
-		_ = protocolClient.Close()
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
-	}
-	reportTiming("protocol_ready")
+	protocolClient := opened.protocolClient
 	application, err := protocoladapter.NewApplicationClientWithObservedPath(protocolClient, request.Stamp(), string(opened.ObservedPath()))
 	if err != nil {
 		_ = protocolClient.Close()
@@ -417,6 +419,17 @@ func shouldRefreshCloudRoute(err error) bool {
 	}
 	if cloudclient.SignalRejectionCode(err) != "" {
 		return false
+	}
+	var authErr *remoteauth.HandshakeError
+	if errors.As(err, &authErr) {
+		switch authErr.Code {
+		case remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_UNSPECIFIED,
+			remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_PROTOCOL,
+			remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_INTERNAL:
+		default:
+			// A definitive peer rejection cannot be repaired by rediscovering an Edge.
+			return false
+		}
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false

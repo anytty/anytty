@@ -12,9 +12,18 @@ import (
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	cloudclient "github.com/anytty/anytty/cloud/client"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestCloudPeerCredentialRejectionDoesNotRediscoverEdge(t *testing.T) {
+	err := &remoteauth.HandshakeError{Code: remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_CAPABILITY_REVOKED, Detail: "grant revoked", Cause: remoteauth.ErrGrantRevoked}
+	if shouldRefreshCloudRoute(fmt.Errorf("Cloud Relay-TCP attempt: %w", err)) {
+		t.Fatal("peer credential rejection triggered locator refresh")
+	}
+}
 
 func TestDialCloudRouteRefreshesOnceAfterCachedRouteFailure(t *testing.T) {
 	cached := testCloudResolution(t, "cached")

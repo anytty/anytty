@@ -2,12 +2,74 @@ package cloud
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/anytty/anytty/client/endpoint"
 	"github.com/anytty/anytty/client/port"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/shared/transport/memory"
 )
+
+func TestCloudPeerRaceWaitsForAuthenticationAndClosesLatePeer(t *testing.T) {
+	attempts, err := planCloudPeerAttempts(endpoint.RelayAuto, endpoint.RelayTransportAuto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directConnected := make(chan struct{})
+	tcpRejected := make(chan struct{})
+	winnerConn, winnerRemote := memory.NewPair()
+	defer winnerRemote.Close()
+	lateConn, lateRemote := memory.NewPair()
+	defer lateRemote.Close()
+	winner := &openedCloudPeer{connection: winnerConn}
+	defer winner.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := raceCloudPeerAttempts(ctx, attempts, func(ctx context.Context, attempt cloudPeerAttempt) (*openedCloudPeer, error) {
+		if attempt.icePolicy == port.ICETransportAll {
+			// This transport connected first, but has not completed authentication.
+			close(directConnected)
+			<-ctx.Done()
+			return &openedCloudPeer{connection: lateConn}, nil
+		}
+		if attempt.relayTransport == endpoint.RelayTransportTCP {
+			close(tcpRejected)
+			return nil, errors.New("capability authentication rejected")
+		}
+		<-directConnected
+		<-tcpRejected
+		return winner, nil
+	})
+	if err != nil || got != winner {
+		t.Fatalf("authenticated winner = %p, err=%v", got, err)
+	}
+	closed := make(chan error, 1)
+	go func() { _, err := lateRemote.Recv(); closed <- err }()
+	select {
+	case err := <-closed:
+		if err == nil {
+			t.Fatal("late transport was not closed")
+		}
+	case <-ctx.Done():
+		t.Fatal("losing authentication attempt was not canceled and released")
+	}
+}
+
+func TestCloudPeerRaceRetainsEveryAuthenticationFailure(t *testing.T) {
+	attempts, _ := planCloudPeerAttempts(endpoint.RelayOnly, endpoint.RelayTransportAuto)
+	tcpErr, udpErr := errors.New("TCP certificate mismatch"), errors.New("UDP capability rejected")
+	opened, err := raceCloudPeerAttempts(context.Background(), attempts, func(_ context.Context, attempt cloudPeerAttempt) (*openedCloudPeer, error) {
+		if attempt.relayTransport == endpoint.RelayTransportTCP {
+			return nil, tcpErr
+		}
+		return nil, udpErr
+	})
+	if opened != nil || !errors.Is(err, tcpErr) || !errors.Is(err, udpErr) {
+		t.Fatalf("authentication failures lost: opened=%v err=%v", opened, err)
+	}
+}
 
 func TestCloudPeerAttemptsProbeDirectAndBothRelayTransports(t *testing.T) {
 	for _, mode := range []endpoint.RelayMode{"", endpoint.RelayAuto, endpoint.RelaySmart} {

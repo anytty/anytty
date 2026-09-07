@@ -14,6 +14,7 @@ import (
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	cloudclient "github.com/anytty/anytty/cloud/client"
 	cloudprotocol "github.com/anytty/anytty/cloud/protocol"
+	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
@@ -38,12 +39,13 @@ type cloudPeerReadyWaiter interface {
 var errCloudSignalingEndedDuringPeerSetup = errors.New("Cloud signaling ended during peer setup")
 
 type openedCloudPeer struct {
-	peer       port.WebRTCPeer
-	signaling  *cloudclient.SignalSession
-	connection transport.Transport
-	path       endpoint.Path
-	closeOnce  sync.Once
-	closeErr   error
+	peer           port.WebRTCPeer
+	signaling      *cloudclient.SignalSession
+	connection     transport.Transport
+	protocolClient *internalprotocol.Client
+	path           endpoint.Path
+	closeOnce      sync.Once
+	closeErr       error
 }
 
 func openResolvedCloudPeer(
@@ -56,6 +58,7 @@ func openResolvedCloudPeer(
 	signer cloudclient.Signer,
 	product cloudv1.ClientProduct,
 	report func(clientruntime.EndpointPhase),
+	verify func(context.Context, *openedCloudPeer) error,
 ) (*openedCloudPeer, error) {
 	if ctx == nil {
 		return nil, errors.New("Cloud peer attempt context is required")
@@ -64,10 +67,23 @@ func openResolvedCloudPeer(
 	if err != nil {
 		return nil, err
 	}
-	if len(attempts) == 1 {
-		return openResolvedCloudPeerAttempt(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempts[0])
+	open := func(ctx context.Context, attempt cloudPeerAttempt) (*openedCloudPeer, error) {
+		opened, err := openResolvedCloudPeerAttempt(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempt)
+		if err != nil {
+			return nil, err
+		}
+		if verify != nil {
+			if err := verify(ctx, opened); err != nil {
+				_ = opened.Close()
+				return nil, err
+			}
+		}
+		return opened, nil
 	}
-	return raceCloudPeerAttempts(ctx, request, peers, cloud, resolved, identity, signer, product, report, attempts)
+	if len(attempts) == 1 {
+		return open(ctx, attempts[0])
+	}
+	return raceCloudPeerAttempts(ctx, attempts, open)
 }
 
 func relayTransportOptions(value endpoint.RelayTransport) ([]endpoint.RelayTransport, error) {
@@ -146,15 +162,8 @@ type cloudPeerAttemptResult struct {
 
 func raceCloudPeerAttempts(
 	ctx context.Context,
-	request clientruntime.AttemptRequest,
-	peers PeerFactory,
-	cloud *cloudclient.Client,
-	resolved *cloudclient.RouteResolution,
-	identity remoteauth.ClientAccessIdentity,
-	signer cloudclient.Signer,
-	product cloudv1.ClientProduct,
-	report func(clientruntime.EndpointPhase),
 	attempts []cloudPeerAttempt,
+	open func(context.Context, cloudPeerAttempt) (*openedCloudPeer, error),
 ) (*openedCloudPeer, error) {
 	if len(attempts) == 0 {
 		return nil, errors.New("Cloud peer attempts are required")
@@ -167,7 +176,7 @@ func raceCloudPeerAttempts(
 	results := make(chan cloudPeerAttemptResult, len(attempts))
 	for index, attempt := range attempts {
 		go func(index int, attempt cloudPeerAttempt) {
-			opened, err := openResolvedCloudPeerAttempt(raceCtx, request, peers, cloud, resolved, identity, signer, product, report, attempt)
+			opened, err := open(raceCtx, attempt)
 			results <- cloudPeerAttemptResult{index: index, opened: opened, err: err}
 		}(index, attempt)
 	}
@@ -412,6 +421,7 @@ func (opened *openedCloudPeer) Release() (port.WebRTCPeer, *cloudclient.SignalSe
 	}
 	peer, signaling := opened.peer, opened.signaling
 	opened.peer, opened.signaling, opened.connection = nil, nil, nil
+	opened.protocolClient = nil
 	return peer, signaling
 }
 
@@ -421,6 +431,9 @@ func (opened *openedCloudPeer) Close() error {
 	}
 	opened.closeOnce.Do(func() {
 		opened.closeErr = errors.Join(opened.closeErr, releaseCloudSession(opened.signaling))
+		if opened.protocolClient != nil {
+			opened.closeErr = errors.Join(opened.closeErr, opened.protocolClient.Close())
+		}
 		if opened.connection != nil {
 			opened.closeErr = errors.Join(opened.closeErr, opened.connection.Close())
 		}
