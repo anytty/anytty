@@ -7,9 +7,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:anytty_native/src/features/files/presentation/file_manager_screen.dart';
+import 'package:anytty_native/src/shared/presentation/anytty_brand_mark.dart';
 import 'package:anytty_native/src/generated/proto/apipb/file.pb.dart';
 
 void main() {
+  for (final truncated in [false, true]) {
+    testWidgets(
+      'HTML stays source-first, render action follows completeness: $truncated',
+      (tester) async {
+        const html = '<h1>Preview document</h1>';
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: FilePreviewSheet(
+                endpointId: 'same-device',
+                path: '/work/index.html',
+                entry: FileEntry(name: 'index.html'),
+                preview: Future.value(
+                  FilePreviewResult(
+                    mimeType: 'text/html',
+                    content: utf8.encode(html),
+                    truncated: truncated,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(find.text(html), findsOneWidget);
+        expect(
+          find.byTooltip('Browser preview'),
+          truncated ? findsNothing : findsOneWidget,
+        );
+        expect(find.byTooltip('Close preview'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets('keeps close available while the remote preview is offline', (
     tester,
   ) async {
@@ -46,7 +82,7 @@ void main() {
     await tester.tap(find.text('Open preview'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(AnyttyBrandLoader), findsOneWidget);
     expect(
       tester.getSize(find.byTooltip('Close preview')).height,
       greaterThanOrEqualTo(48),

@@ -271,10 +271,12 @@ message CreateMyOrderRequest {
 
 message GetMyCommerceRequest {}
 
-// ChangeMySubscriptionRequest 只承载用户可执行的取消到期和恢复动作。
+// ChangeMySubscriptionRequest 承载用户可执行的套餐切换、取消到期和恢复动作。
 message ChangeMySubscriptionRequest {
   SubscriptionTransition transition = 1;
   uint64 expected_revision = 2;
+  string target_plan_id = 3;
+  uint64 target_plan_version = 4;
 }
 
 // CompleteDevelopmentPaymentRequest 仅在显式 Development 支付模式下可用。

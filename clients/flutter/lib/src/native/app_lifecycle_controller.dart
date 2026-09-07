@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 
 import 'anytty_runtime.dart';
 
@@ -12,16 +13,17 @@ final class AnyttyAppLifecycleController with WidgetsBindingObserver {
     this._onForegroundChanged,
   );
 
-  final AnyttyRuntime _runtime;
+  final AnyttyLifecycleRuntime _runtime;
   final Connectivity _connectivity;
   final void Function(bool foreground)? _onForegroundChanged;
   StreamSubscription<List<ConnectivityResult>>? _networkSubscription;
   Future<void> _signalTail = Future.value();
   bool _connected = true;
   bool _closed = false;
+  Set<ConnectivityResult> _networkPaths = {};
 
   static Future<AnyttyAppLifecycleController> start(
-    AnyttyRuntime runtime, {
+    AnyttyLifecycleRuntime runtime, {
     Connectivity? connectivity,
     void Function(bool foreground)? onForegroundChanged,
   }) async {
@@ -36,9 +38,11 @@ final class AnyttyAppLifecycleController with WidgetsBindingObserver {
         .onConnectivityChanged
         .listen(controller._handleNetworkResults);
     try {
-      controller._connected = _hasNetwork(
-        await controller._connectivity.checkConnectivity(),
-      );
+      final results = await controller._connectivity
+          .checkConnectivity()
+          .timeout(const Duration(seconds: 2));
+      controller._networkPaths = results.toSet();
+      controller._connected = _hasNetwork(results);
     } catch (_) {
       controller._connected = true;
     }
@@ -62,7 +66,20 @@ final class AnyttyAppLifecycleController with WidgetsBindingObserver {
     if (_closed) return;
     if (state == AppLifecycleState.resumed) {
       _onForegroundChanged?.call(true);
-      _enqueue(() => _runtime.resumeForeground(connected: _connected));
+      _enqueue(() async {
+        // Connectivity callbacks can be suspended by the OS while locked.
+        try {
+          final results = await _connectivity.checkConnectivity().timeout(
+            const Duration(seconds: 2),
+          );
+          if (_closed) return;
+          _networkPaths = results.toSet();
+          _connected = _hasNetwork(results);
+        } catch (_) {
+          // Let the real endpoint handshake decide when OS detection fails.
+        }
+        if (!_closed) await _runtime.resumeForeground(connected: _connected);
+      });
       return;
     }
     if (state == AppLifecycleState.paused ||
@@ -85,7 +102,9 @@ final class AnyttyAppLifecycleController with WidgetsBindingObserver {
 
   void _handleNetworkResults(List<ConnectivityResult> results) {
     final connected = _hasNetwork(results);
-    if (_closed || connected == _connected) return;
+    final paths = results.toSet();
+    if (_closed || setEquals(paths, _networkPaths)) return;
+    _networkPaths = paths;
     _connected = connected;
     _enqueue(() async {
       _runtime.signalNetwork(

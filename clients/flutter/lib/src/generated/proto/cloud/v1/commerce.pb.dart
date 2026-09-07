@@ -2938,15 +2938,19 @@ class GetMyCommerceRequest extends $pb.GeneratedMessage {
   static GetMyCommerceRequest? _defaultInstance;
 }
 
-/// ChangeMySubscriptionRequest 只承载用户可执行的取消到期和恢复动作。
+/// ChangeMySubscriptionRequest 承载用户可执行的套餐切换、取消到期和恢复动作。
 class ChangeMySubscriptionRequest extends $pb.GeneratedMessage {
   factory ChangeMySubscriptionRequest({
     SubscriptionTransition? transition,
     $fixnum.Int64? expectedRevision,
+    $core.String? targetPlanId,
+    $fixnum.Int64? targetPlanVersion,
   }) {
     final result = create();
     if (transition != null) result.transition = transition;
     if (expectedRevision != null) result.expectedRevision = expectedRevision;
+    if (targetPlanId != null) result.targetPlanId = targetPlanId;
+    if (targetPlanVersion != null) result.targetPlanVersion = targetPlanVersion;
     return result;
   }
 
@@ -2968,6 +2972,10 @@ class ChangeMySubscriptionRequest extends $pb.GeneratedMessage {
         enumValues: SubscriptionTransition.values)
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'expectedRevision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOS(3, _omitFieldNames ? '' : 'targetPlanId')
+    ..a<$fixnum.Int64>(
+        4, _omitFieldNames ? '' : 'targetPlanVersion', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
@@ -3010,6 +3018,24 @@ class ChangeMySubscriptionRequest extends $pb.GeneratedMessage {
   $core.bool hasExpectedRevision() => $_has(1);
   @$pb.TagNumber(2)
   void clearExpectedRevision() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get targetPlanId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set targetPlanId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTargetPlanId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTargetPlanId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get targetPlanVersion => $_getI64(3);
+  @$pb.TagNumber(4)
+  set targetPlanVersion($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasTargetPlanVersion() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearTargetPlanVersion() => $_clearField(4);
 }
 
 /// CompleteDevelopmentPaymentRequest 仅在显式 Development 支付模式下可用。

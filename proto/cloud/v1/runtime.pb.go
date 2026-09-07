@@ -229,16 +229,22 @@ func (x *AgentPresence) GetBindingIssuedAt() *timestamppb.Timestamp {
 // ClientSessionSummary 是 Edge 内存中一个客户端信令会话的实时投影。
 // 该消息不包含 SDP、ICE、CapabilityGrant 或 terminal 业务内容。
 type ClientSessionSummary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	AccountId     string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	DaemonId      string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
-	ClientId      string                 `protobuf:"bytes,4,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	Product       ClientProduct          `protobuf:"varint,5,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
-	Generation    uint64                 `protobuf:"varint,6,opt,name=generation,proto3" json:"generation,omitempty"`
-	AccessMode    CloudClientAccessMode  `protobuf:"varint,7,opt,name=access_mode,json=accessMode,proto3,enum=anytty.cloud.v1.CloudClientAccessMode" json:"access_mode,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	SessionId            string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AccountId            string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DaemonId             string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
+	ClientId             string                 `protobuf:"bytes,4,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Product              ClientProduct          `protobuf:"varint,5,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
+	Generation           uint64                 `protobuf:"varint,6,opt,name=generation,proto3" json:"generation,omitempty"`
+	AccessMode           CloudClientAccessMode  `protobuf:"varint,7,opt,name=access_mode,json=accessMode,proto3,enum=anytty.cloud.v1.CloudClientAccessMode" json:"access_mode,omitempty"`
+	RelayActive          bool                   `protobuf:"varint,8,opt,name=relay_active,json=relayActive,proto3" json:"relay_active,omitempty"`
+	RelayAllocationCount uint32                 `protobuf:"varint,9,opt,name=relay_allocation_count,json=relayAllocationCount,proto3" json:"relay_allocation_count,omitempty"`
+	RelayIngressBytes    uint64                 `protobuf:"varint,10,opt,name=relay_ingress_bytes,json=relayIngressBytes,proto3" json:"relay_ingress_bytes,omitempty"`
+	RelayEgressBytes     uint64                 `protobuf:"varint,11,opt,name=relay_egress_bytes,json=relayEgressBytes,proto3" json:"relay_egress_bytes,omitempty"`
+	RelayConnectedAt     *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=relay_connected_at,json=relayConnectedAt,proto3" json:"relay_connected_at,omitempty"`
+	RelayTransports      []RelayTransport       `protobuf:"varint,13,rep,packed,name=relay_transports,json=relayTransports,proto3,enum=anytty.cloud.v1.RelayTransport" json:"relay_transports,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ClientSessionSummary) Reset() {
@@ -318,6 +324,48 @@ func (x *ClientSessionSummary) GetAccessMode() CloudClientAccessMode {
 		return x.AccessMode
 	}
 	return CloudClientAccessMode_CLOUD_CLIENT_ACCESS_MODE_UNSPECIFIED
+}
+
+func (x *ClientSessionSummary) GetRelayActive() bool {
+	if x != nil {
+		return x.RelayActive
+	}
+	return false
+}
+
+func (x *ClientSessionSummary) GetRelayAllocationCount() uint32 {
+	if x != nil {
+		return x.RelayAllocationCount
+	}
+	return 0
+}
+
+func (x *ClientSessionSummary) GetRelayIngressBytes() uint64 {
+	if x != nil {
+		return x.RelayIngressBytes
+	}
+	return 0
+}
+
+func (x *ClientSessionSummary) GetRelayEgressBytes() uint64 {
+	if x != nil {
+		return x.RelayEgressBytes
+	}
+	return 0
+}
+
+func (x *ClientSessionSummary) GetRelayConnectedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RelayConnectedAt
+	}
+	return nil
+}
+
+func (x *ClientSessionSummary) GetRelayTransports() []RelayTransport {
+	if x != nil {
+		return x.RelayTransports
+	}
+	return nil
 }
 
 // RuntimeSnapshot 是 Edge 在某个单调 revision 上的一致性运行时投影。
@@ -612,7 +660,7 @@ var File_cloud_v1_runtime_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_runtime_proto_rawDesc = "" +
 	"\n" +
-	"\x16cloud/v1/runtime.proto\x12\x0fanytty.cloud.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x02\n" +
+	"\x16cloud/v1/runtime.proto\x12\x0fanytty.cloud.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x14cloud/v1/usage.proto\"\x90\x02\n" +
 	"\rAgentPresence\x12\x1b\n" +
 	"\tdaemon_id\x18\x01 \x01(\tR\bdaemonId\x12\x1d\n" +
 	"\n" +
@@ -624,7 +672,7 @@ const file_cloud_v1_runtime_proto_rawDesc = "" +
 	"generation\x12\x1d\n" +
 	"\n" +
 	"binding_id\x18\x06 \x01(\tR\tbindingId\x12F\n" +
-	"\x11binding_issued_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0fbindingIssuedAt\"\xb1\x02\n" +
+	"\x11binding_issued_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0fbindingIssuedAt\"\xfe\x04\n" +
 	"\x14ClientSessionSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
@@ -637,7 +685,14 @@ const file_cloud_v1_runtime_proto_rawDesc = "" +
 	"generation\x18\x06 \x01(\x04R\n" +
 	"generation\x12G\n" +
 	"\vaccess_mode\x18\a \x01(\x0e2&.anytty.cloud.v1.CloudClientAccessModeR\n" +
-	"accessMode\"\xae\x01\n" +
+	"accessMode\x12!\n" +
+	"\frelay_active\x18\b \x01(\bR\vrelayActive\x124\n" +
+	"\x16relay_allocation_count\x18\t \x01(\rR\x14relayAllocationCount\x12.\n" +
+	"\x13relay_ingress_bytes\x18\n" +
+	" \x01(\x04R\x11relayIngressBytes\x12,\n" +
+	"\x12relay_egress_bytes\x18\v \x01(\x04R\x10relayEgressBytes\x12H\n" +
+	"\x12relay_connected_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\x10relayConnectedAt\x12J\n" +
+	"\x10relay_transports\x18\r \x03(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\x0frelayTransports\"\xae\x01\n" +
 	"\x0fRuntimeSnapshot\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x126\n" +
 	"\x06agents\x18\x02 \x03(\v2\x1e.anytty.cloud.v1.AgentPresenceR\x06agents\x12A\n" +
@@ -697,22 +752,25 @@ var file_cloud_v1_runtime_proto_goTypes = []any{
 	(*ClientSessionRemoved)(nil),  // 6: anytty.cloud.v1.ClientSessionRemoved
 	(*RuntimeDelta)(nil),          // 7: anytty.cloud.v1.RuntimeDelta
 	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(RelayTransport)(0),           // 9: anytty.cloud.v1.RelayTransport
 }
 var file_cloud_v1_runtime_proto_depIdxs = []int32{
-	8, // 0: anytty.cloud.v1.AgentPresence.binding_issued_at:type_name -> google.protobuf.Timestamp
-	0, // 1: anytty.cloud.v1.ClientSessionSummary.product:type_name -> anytty.cloud.v1.ClientProduct
-	1, // 2: anytty.cloud.v1.ClientSessionSummary.access_mode:type_name -> anytty.cloud.v1.CloudClientAccessMode
-	2, // 3: anytty.cloud.v1.RuntimeSnapshot.agents:type_name -> anytty.cloud.v1.AgentPresence
-	3, // 4: anytty.cloud.v1.RuntimeSnapshot.sessions:type_name -> anytty.cloud.v1.ClientSessionSummary
-	2, // 5: anytty.cloud.v1.RuntimeDelta.agent_upserted:type_name -> anytty.cloud.v1.AgentPresence
-	5, // 6: anytty.cloud.v1.RuntimeDelta.agent_removed:type_name -> anytty.cloud.v1.AgentRemoved
-	3, // 7: anytty.cloud.v1.RuntimeDelta.session_upserted:type_name -> anytty.cloud.v1.ClientSessionSummary
-	6, // 8: anytty.cloud.v1.RuntimeDelta.session_removed:type_name -> anytty.cloud.v1.ClientSessionRemoved
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	8,  // 0: anytty.cloud.v1.AgentPresence.binding_issued_at:type_name -> google.protobuf.Timestamp
+	0,  // 1: anytty.cloud.v1.ClientSessionSummary.product:type_name -> anytty.cloud.v1.ClientProduct
+	1,  // 2: anytty.cloud.v1.ClientSessionSummary.access_mode:type_name -> anytty.cloud.v1.CloudClientAccessMode
+	8,  // 3: anytty.cloud.v1.ClientSessionSummary.relay_connected_at:type_name -> google.protobuf.Timestamp
+	9,  // 4: anytty.cloud.v1.ClientSessionSummary.relay_transports:type_name -> anytty.cloud.v1.RelayTransport
+	2,  // 5: anytty.cloud.v1.RuntimeSnapshot.agents:type_name -> anytty.cloud.v1.AgentPresence
+	3,  // 6: anytty.cloud.v1.RuntimeSnapshot.sessions:type_name -> anytty.cloud.v1.ClientSessionSummary
+	2,  // 7: anytty.cloud.v1.RuntimeDelta.agent_upserted:type_name -> anytty.cloud.v1.AgentPresence
+	5,  // 8: anytty.cloud.v1.RuntimeDelta.agent_removed:type_name -> anytty.cloud.v1.AgentRemoved
+	3,  // 9: anytty.cloud.v1.RuntimeDelta.session_upserted:type_name -> anytty.cloud.v1.ClientSessionSummary
+	6,  // 10: anytty.cloud.v1.RuntimeDelta.session_removed:type_name -> anytty.cloud.v1.ClientSessionRemoved
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_runtime_proto_init() }
@@ -720,6 +778,7 @@ func file_cloud_v1_runtime_proto_init() {
 	if File_cloud_v1_runtime_proto != nil {
 		return
 	}
+	file_cloud_v1_usage_proto_init()
 	file_cloud_v1_runtime_proto_msgTypes[5].OneofWrappers = []any{
 		(*RuntimeDelta_AgentUpserted)(nil),
 		(*RuntimeDelta_AgentRemoved)(nil),

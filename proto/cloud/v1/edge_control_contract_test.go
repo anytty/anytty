@@ -51,6 +51,31 @@ func TestCloudV1DescriptorBaseline(t *testing.T) {
 	}
 }
 
+func TestRelayUsageConcurrencySnapshotFields(t *testing.T) {
+	descriptor := (&RelayUsageBatch{}).ProtoReflect().Descriptor()
+	want := map[protoreflect.Name]protoreflect.FieldNumber{
+		"concurrency_samples":             3,
+		"concurrency_snapshot_complete":   4,
+		"concurrency_sampled_at":          5,
+		"relay_sessions":                  6,
+		"relay_session_snapshot_complete": 7,
+	}
+	for name, number := range want {
+		field := descriptor.Fields().ByName(name)
+		if field == nil || field.Number() != number {
+			t.Fatalf("RelayUsageBatch.%s field=%v want=%d", name, field, number)
+		}
+	}
+	sample := (&RelayConcurrencySample{}).ProtoReflect().Descriptor()
+	if field := sample.Fields().ByName("active_relay_groups"); field == nil || field.Number() != 2 {
+		t.Fatalf("RelayConcurrencySample.active_relay_groups field=%v want=2", field)
+	}
+	session := (&RelaySessionSample{}).ProtoReflect().Descriptor()
+	if field := session.Fields().ByName("relay_allocation_count"); field == nil || field.Number() != 6 {
+		t.Fatalf("RelaySessionSample.relay_allocation_count field=%v want=6", field)
+	}
+}
+
 // TestS2GatewayContracts 锁定 challenge-first 双向流，且 envelope 不能退化成无 generation 的 unary API。
 func TestS2GatewayContracts(t *testing.T) {
 	for _, service := range []protoreflect.ServiceDescriptor{

@@ -1287,6 +1287,8 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.anytty.cloud.v1.RelayAuthorizeRequest': $5.RelayAuthorizeRequest$json,
   '.anytty.cloud.v1.RelayUsageBatch': $5.RelayUsageBatch$json,
   '.anytty.cloud.v1.RelayUsageSample': $5.RelayUsageSample$json,
+  '.anytty.cloud.v1.RelayConcurrencySample': $5.RelayConcurrencySample$json,
+  '.anytty.cloud.v1.RelaySessionSample': $5.RelaySessionSample$json,
   '.anytty.cloud.v1.DaemonStateSyncRequest': DaemonStateSyncRequest$json,
   '.anytty.cloud.v1.EdgePublicCertificateRenewRequest':
       $0.EdgePublicCertificateRenewRequest$json,

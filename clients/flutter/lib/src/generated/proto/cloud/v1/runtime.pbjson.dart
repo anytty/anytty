@@ -105,6 +105,44 @@ const ClientSessionSummary$json = {
       '6': '.anytty.cloud.v1.CloudClientAccessMode',
       '10': 'accessMode'
     },
+    {'1': 'relay_active', '3': 8, '4': 1, '5': 8, '10': 'relayActive'},
+    {
+      '1': 'relay_allocation_count',
+      '3': 9,
+      '4': 1,
+      '5': 13,
+      '10': 'relayAllocationCount'
+    },
+    {
+      '1': 'relay_ingress_bytes',
+      '3': 10,
+      '4': 1,
+      '5': 4,
+      '10': 'relayIngressBytes'
+    },
+    {
+      '1': 'relay_egress_bytes',
+      '3': 11,
+      '4': 1,
+      '5': 4,
+      '10': 'relayEgressBytes'
+    },
+    {
+      '1': 'relay_connected_at',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'relayConnectedAt'
+    },
+    {
+      '1': 'relay_transports',
+      '3': 13,
+      '4': 3,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'relayTransports'
+    },
   ],
 };
 
@@ -115,7 +153,13 @@ final $typed_data.Uint8List clientSessionSummaryDescriptor = $convert.base64Deco
     'SWQSGwoJY2xpZW50X2lkGAQgASgJUghjbGllbnRJZBI4Cgdwcm9kdWN0GAUgASgOMh4uYW55dH'
     'R5LmNsb3VkLnYxLkNsaWVudFByb2R1Y3RSB3Byb2R1Y3QSHgoKZ2VuZXJhdGlvbhgGIAEoBFIK'
     'Z2VuZXJhdGlvbhJHCgthY2Nlc3NfbW9kZRgHIAEoDjImLmFueXR0eS5jbG91ZC52MS5DbG91ZE'
-    'NsaWVudEFjY2Vzc01vZGVSCmFjY2Vzc01vZGU=');
+    'NsaWVudEFjY2Vzc01vZGVSCmFjY2Vzc01vZGUSIQoMcmVsYXlfYWN0aXZlGAggASgIUgtyZWxh'
+    'eUFjdGl2ZRI0ChZyZWxheV9hbGxvY2F0aW9uX2NvdW50GAkgASgNUhRyZWxheUFsbG9jYXRpb2'
+    '5Db3VudBIuChNyZWxheV9pbmdyZXNzX2J5dGVzGAogASgEUhFyZWxheUluZ3Jlc3NCeXRlcxIs'
+    'ChJyZWxheV9lZ3Jlc3NfYnl0ZXMYCyABKARSEHJlbGF5RWdyZXNzQnl0ZXMSSAoScmVsYXlfY2'
+    '9ubmVjdGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIQcmVsYXlDb25u'
+    'ZWN0ZWRBdBJKChByZWxheV90cmFuc3BvcnRzGA0gAygOMh8uYW55dHR5LmNsb3VkLnYxLlJlbG'
+    'F5VHJhbnNwb3J0Ug9yZWxheVRyYW5zcG9ydHM=');
 
 @$core.Deprecated('Use runtimeSnapshotDescriptor instead')
 const RuntimeSnapshot$json = {

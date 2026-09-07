@@ -1,8 +1,57 @@
+import 'dart:convert';
+
 import 'package:anytty_native/src/native/client_credential_store.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'public identity cache never masks storage deletion or key rotation',
+    () async {
+      final secure = _MemorySecureStore();
+      final store = ClientAccessCredentialStore(storage: secure);
+      final original = await store.prepareRecord('client-key', 'endpoint-a');
+      await store.bindRecord(
+        credentialRef: 'client-key',
+        endpointId: 'endpoint-a',
+        capabilityGrant: 'grant',
+        cloudRouteGrant: [],
+        cloudEdgeLocator: [],
+      );
+      final stages = <String>[];
+      await store.sign('client-key', [
+        1,
+      ], onTiming: (stage, _) => stages.add(stage));
+      expect(stages, contains('public_identity_cache_hit'));
+      final storageKey = secure.values.keys.single;
+      final value =
+          jsonDecode(secure.values[storageKey]!) as Map<String, dynamic>;
+      value['private_key_seed'] = base64Url.encode(List.filled(32, 9));
+      secure.values[storageKey] = jsonEncode(value);
+      final rotated = await store.resolveRecord('client-key', 'endpoint-a');
+      expect(rotated.publicKey, isNot(original.publicKey));
+      final signature = await store.sign('client-key', [2]);
+      expect(
+        await Ed25519().verify(
+          [2],
+          signature: Signature(
+            signature,
+            publicKey: SimplePublicKey(
+              rotated.publicKey,
+              type: KeyPairType.ed25519,
+            ),
+          ),
+        ),
+        isTrue,
+      );
+      secure.values.clear();
+      await expectLater(
+        store.sign('client-key', [3]),
+        throwsA(isA<ClientPlatformFailure>()),
+      );
+    },
+  );
+
   test(
     'prepares a stable Ed25519 identity and signs without exposing seed',
     () async {

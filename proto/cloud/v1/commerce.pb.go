@@ -2429,13 +2429,15 @@ func (*GetMyCommerceRequest) Descriptor() ([]byte, []int) {
 	return file_cloud_v1_commerce_proto_rawDescGZIP(), []int{23}
 }
 
-// ChangeMySubscriptionRequest 只承载用户可执行的取消到期和恢复动作。
+// ChangeMySubscriptionRequest 承载用户可执行的套餐切换、取消到期和恢复动作。
 type ChangeMySubscriptionRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Transition       SubscriptionTransition `protobuf:"varint,1,opt,name=transition,proto3,enum=anytty.cloud.v1.SubscriptionTransition" json:"transition,omitempty"`
-	ExpectedRevision uint64                 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Transition        SubscriptionTransition `protobuf:"varint,1,opt,name=transition,proto3,enum=anytty.cloud.v1.SubscriptionTransition" json:"transition,omitempty"`
+	ExpectedRevision  uint64                 `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	TargetPlanId      string                 `protobuf:"bytes,3,opt,name=target_plan_id,json=targetPlanId,proto3" json:"target_plan_id,omitempty"`
+	TargetPlanVersion uint64                 `protobuf:"varint,4,opt,name=target_plan_version,json=targetPlanVersion,proto3" json:"target_plan_version,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ChangeMySubscriptionRequest) Reset() {
@@ -2478,6 +2480,20 @@ func (x *ChangeMySubscriptionRequest) GetTransition() SubscriptionTransition {
 func (x *ChangeMySubscriptionRequest) GetExpectedRevision() uint64 {
 	if x != nil {
 		return x.ExpectedRevision
+	}
+	return 0
+}
+
+func (x *ChangeMySubscriptionRequest) GetTargetPlanId() string {
+	if x != nil {
+		return x.TargetPlanId
+	}
+	return ""
+}
+
+func (x *ChangeMySubscriptionRequest) GetTargetPlanVersion() uint64 {
+	if x != nil {
+		return x.TargetPlanVersion
 	}
 	return 0
 }
@@ -2738,12 +2754,14 @@ const file_cloud_v1_commerce_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\x12Z\n" +
 	"\x14requested_transition\x18\x04 \x01(\x0e2'.anytty.cloud.v1.SubscriptionTransitionR\x13requestedTransition\x12\x16\n" +
 	"\x06yearly\x18\x05 \x01(\bR\x06yearly\"\x16\n" +
-	"\x14GetMyCommerceRequest\"\x93\x01\n" +
+	"\x14GetMyCommerceRequest\"\xe9\x01\n" +
 	"\x1bChangeMySubscriptionRequest\x12G\n" +
 	"\n" +
 	"transition\x18\x01 \x01(\x0e2'.anytty.cloud.v1.SubscriptionTransitionR\n" +
 	"transition\x12+\n" +
-	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\"l\n" +
+	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\x12$\n" +
+	"\x0etarget_plan_id\x18\x03 \x01(\tR\ftargetPlanId\x12.\n" +
+	"\x13target_plan_version\x18\x04 \x01(\x04R\x11targetPlanVersion\"l\n" +
 	"!CompleteDevelopmentPaymentRequest\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12,\n" +
 	"\x12payment_attempt_id\x18\x02 \x01(\tR\x10paymentAttemptId*o\n" +

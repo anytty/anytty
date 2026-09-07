@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/datachannel"
 	pion "github.com/pion/webrtc/v4"
@@ -183,7 +184,12 @@ type Answerer struct {
 }
 
 // Answer 创建 WebRTC answer，并把唯一可靠有序的 anytty DataChannel 交给端到端授权 handler。
-func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceServers []ICEServer) (*SignalingAnswer, error) {
+func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceServers []ICEServer) (result *SignalingAnswer, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "daemon_answer")
+	defer func() { trace.End(resultErr) }()
+	if offer != nil && answerer.PionLogger != nil {
+		answerer.PionLogger.Info("anytty connect correlation", "trace_id", connecttrace.ID(ctx), "session_id", offer.SessionID)
+	}
 	if answerer.Handler == nil {
 		return nil, fmt.Errorf("remote daemon authorized data channel handler is not configured")
 	}
@@ -206,6 +212,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		}
 	}
 	peer, err := peerFactory(configuration)
+	trace.Mark("peer_created")
 	if err != nil {
 		return nil, fmt.Errorf("create remote daemon peer connection: %w", err)
 	}
@@ -301,6 +308,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, fmt.Errorf("create remote daemon answer: %w", err)
 	}
 	gatherComplete := pion.GatheringCompletePromise(peer)
+	trace.Mark("offer_applied_answer_created")
 	if err := peer.SetLocalDescription(localAnswer); err != nil {
 		lifecycle.closeAndWait()
 		return nil, fmt.Errorf("set remote daemon answer: %w", err)
@@ -314,6 +322,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, err
 	}
 	description := peer.LocalDescription()
+	trace.Mark("ice_gathered")
 	if description == nil || strings.TrimSpace(description.SDP) == "" {
 		lifecycle.closeAndWait()
 		return nil, fmt.Errorf("remote daemon answer has no local description")

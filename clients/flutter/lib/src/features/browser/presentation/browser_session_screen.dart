@@ -10,6 +10,7 @@ import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
 import '../../../app/providers.dart';
 import '../../../native/browser_proxy_platform.dart';
+import '../../../shared/presentation/anytty_brand_mark.dart';
 import '../data/browser_bookmark_store.dart';
 import '../data/browser_http_proxy.dart';
 import '../data/browser_history_store.dart';
@@ -20,6 +21,7 @@ import '../../terminal/data/endpoint_session_client.dart';
 import '../../terminal/presentation/terminal_petal_menu.dart';
 import 'browser_endpoint_picker_sheet.dart';
 import 'browser_new_tab_page.dart';
+import 'browser_address_bar.dart';
 
 final class BrowserSessionScreen extends ConsumerStatefulWidget {
   const BrowserSessionScreen({
@@ -61,6 +63,7 @@ final class _BrowserSessionScreenState
   final _addressFocusNode = FocusNode();
   final _newTabSearchController = TextEditingController();
   final _newTabSearchFocusNode = FocusNode();
+  int _addressFocusRequest = 0;
   final _stateMachine = BrowserSessionStateMachine();
 
   late final BrowserProxyPlatform _proxyPlatform;
@@ -350,7 +353,13 @@ final class _BrowserSessionScreenState
     final browser = PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_closeScreen());
+        if (!didPop) {
+          if (_addressFocusNode.hasFocus) {
+            _dismissAddressEditing();
+          } else {
+            unawaited(_closeScreen());
+          }
+        }
       },
       child: AnimatedBuilder(
         animation: _addressFocusNode,
@@ -362,7 +371,15 @@ final class _BrowserSessionScreenState
             automaticallyImplyLeading: false,
             leading: IconButton(
               tooltip: anyttyText(context, en: 'Back', zh: '返回'),
-              onPressed: _closing ? null : () => unawaited(_closeScreen()),
+              onPressed: _closing
+                  ? null
+                  : () {
+                      if (_addressFocusNode.hasFocus) {
+                        _dismissAddressEditing();
+                      } else {
+                        unawaited(_closeScreen());
+                      }
+                    },
               icon: const Icon(Icons.arrow_back_rounded, size: 22),
             ),
             titleSpacing: 0,
@@ -374,6 +391,7 @@ final class _BrowserSessionScreenState
               onBack: () => _goBack(_webViewController),
               onForward: () => _goForward(_webViewController),
               history: _history,
+              onDismiss: _dismissAddressEditing,
             ),
             actions: _addressFocusNode.hasFocus
                 ? [
@@ -383,32 +401,33 @@ final class _BrowserSessionScreenState
                         en: 'Close address bar',
                         zh: '关闭地址栏',
                       ),
-                      onPressed: _addressFocusNode.unfocus,
+                      onPressed: _dismissAddressEditing,
                       icon: const Icon(Icons.close_rounded, size: 20),
                     ),
                   ]
                 : [
-                    IconButton(
-                      tooltip: _isCurrentPageBookmarked
-                          ? anyttyText(
-                              context,
-                              en: 'Remove bookmark',
-                              zh: '取消收藏',
-                            )
-                          : anyttyText(context, en: 'Save page', zh: '收藏网页'),
-                      onPressed: _currentPageUri == null
-                          ? null
-                          : () => unawaited(_toggleBookmark()),
-                      icon: Icon(
-                        _isCurrentPageBookmarked
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        size: 21,
+                    if (!compact)
+                      IconButton(
+                        tooltip: _isCurrentPageBookmarked
+                            ? anyttyText(
+                                context,
+                                en: 'Remove bookmark',
+                                zh: '取消收藏',
+                              )
+                            : anyttyText(context, en: 'Save page', zh: '收藏网页'),
+                        onPressed: _currentPageUri == null
+                            ? null
+                            : () => unawaited(_toggleBookmark()),
+                        icon: Icon(
+                          _isCurrentPageBookmarked
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
+                          size: 21,
+                        ),
+                        color: _isCurrentPageBookmarked
+                            ? AnyttyPalette.of(context).accent
+                            : null,
                       ),
-                      color: _isCurrentPageBookmarked
-                          ? AnyttyPalette.of(context).accent
-                          : null,
-                    ),
                     if (compact)
                       _BrowserTabCountButton(
                         count: _tabsFor(_activeEndpointId).length,
@@ -423,6 +442,10 @@ final class _BrowserSessionScreenState
                         icon: const Icon(Icons.refresh_rounded, size: 20),
                       ),
                     _BrowserOverflowMenu(
+                      bookmarked: _isCurrentPageBookmarked,
+                      onToggleBookmark: _currentPageUri == null
+                          ? null
+                          : () => unawaited(_toggleBookmark()),
                       state: state,
                       hasProxy: _proxyLease != null,
                       dnsProxied: _proxyLease?.dnsProxied ?? false,
@@ -443,7 +466,21 @@ final class _BrowserSessionScreenState
           ),
           body: SafeArea(
             top: false,
-            child: Column(children: [Expanded(child: _buildContent(context))]),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildContent(context),
+                if (_addressFocusNode.hasFocus)
+                  GestureDetector(
+                    key: const ValueKey('browser-address-dismiss-region'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _dismissAddressEditing,
+                    child: ColoredBox(
+                      color: palette.background.withValues(alpha: .75),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -582,12 +619,16 @@ final class _BrowserSessionScreenState
       return BrowserNewTabPage(
         searchController: _newTabSearchController,
         searchFocusNode: _newTabSearchFocusNode,
+        addressFocusNode: _addressFocusNode,
+        addressController: _addressController,
         onSearch: _navigate,
         onFocusSearch: _focusAddressBarFromNewTab,
         bookmarks: _bookmarks,
         history: _history,
         onRemoveBookmark: _removeBookmark,
         onOpenHistory: _openHistory,
+        endpointLabel: _activeEndpointLabel,
+        onSwitchEndpoint: () => unawaited(_openEndpointPicker()),
       );
     }
     if (controller != null) {
@@ -1316,6 +1357,7 @@ final class _BrowserSessionScreenState
   }
 
   void _focusAddressBarFromNewTab() {
+    final request = ++_addressFocusRequest;
     _addressController
       ..text = _newTabSearchController.text
       ..selection = TextSelection(
@@ -1324,13 +1366,22 @@ final class _BrowserSessionScreenState
       );
     _newTabSearchFocusNode.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || request != _addressFocusRequest) return;
       _addressFocusNode.requestFocus();
       _addressController.selection = TextSelection(
         baseOffset: 0,
         extentOffset: _addressController.text.length,
       );
     });
+  }
+
+  void _dismissAddressEditing() {
+    ++_addressFocusRequest;
+    _addressFocusNode.unfocus();
+    _newTabSearchFocusNode.unfocus();
+    _newTabSearchController.clear();
+    final url = _snapshot?.url;
+    _addressController.text = _isNewTabUrl(url) ? '' : url!;
   }
 
   Uri? _resolveNavigation(String value) {
@@ -1937,6 +1988,7 @@ final class _BrowserToolbarTitle extends StatelessWidget {
     required this.onBack,
     required this.onForward,
     required this.history,
+    required this.onDismiss,
   });
 
   final TextEditingController addressController;
@@ -1946,6 +1998,7 @@ final class _BrowserToolbarTitle extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onForward;
   final List<BrowserHistoryEntry> history;
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -1973,13 +2026,13 @@ final class _BrowserToolbarTitle extends StatelessWidget {
                 const SizedBox(width: 4),
               ],
               Expanded(
-                child: _BrowserAddressField(
-                  addressController: addressController,
-                  addressFocusNode: addressFocusNode,
-                  controller: controller,
-                  focused: addressFocused,
-                  onNavigate: onNavigate,
+                child: BrowserAddressBar(
+                  controller: addressController,
+                  focusNode: addressFocusNode,
+                  enabled: controller != null,
+                  onNavigate: (value) => onNavigate(value),
                   history: history,
+                  onDismiss: onDismiss,
                 ),
               ),
             ],
@@ -1990,171 +2043,10 @@ final class _BrowserToolbarTitle extends StatelessWidget {
   }
 }
 
-final class _BrowserAddressField extends StatelessWidget {
-  const _BrowserAddressField({
-    required this.addressController,
-    required this.addressFocusNode,
-    required this.controller,
-    required this.focused,
-    required this.onNavigate,
-    required this.history,
-  });
-
-  final TextEditingController addressController;
-  final FocusNode addressFocusNode;
-  final WebViewController? controller;
-  final bool focused;
-  final Future<void> Function([String?]) onNavigate;
-  final List<BrowserHistoryEntry> history;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    final enabled = controller != null;
-    return RawAutocomplete<BrowserHistoryEntry>(
-      key: const ValueKey('browser-address-autocomplete'),
-      textEditingController: addressController,
-      focusNode: addressFocusNode,
-      displayStringForOption: (entry) => entry.url,
-      optionsBuilder: (value) {
-        final query = value.text.trim().toLowerCase();
-        return history.where(
-          (entry) =>
-              query.isEmpty ||
-              entry.url.toLowerCase().contains(query) ||
-              entry.title.toLowerCase().contains(query),
-        );
-      },
-      onSelected: (entry) => unawaited(onNavigate(entry.url)),
-      optionsViewBuilder: (context, onSelected, options) {
-        final entries = options.toList(growable: false);
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            color: palette.surface,
-            elevation: 8,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-              side: BorderSide(color: palette.borderStrong),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 280),
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                shrinkWrap: true,
-                itemCount: entries.length,
-                itemBuilder: (context, index) {
-                  final entry = entries[index];
-                  return ListTile(
-                    dense: true,
-                    minVerticalPadding: 6,
-                    leading: Icon(
-                      Icons.history_rounded,
-                      size: 18,
-                      color: palette.muted,
-                    ),
-                    title: Text(
-                      entry.title.isEmpty ? entry.url : entry.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.text,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      entry.url,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.muted, fontSize: 11),
-                    ),
-                    trailing: index == 0
-                        ? Text(
-                            anyttyText(context, en: 'Tab', zh: 'Tab'),
-                            style: TextStyle(
-                              color: palette.faint,
-                              fontSize: 10,
-                            ),
-                          )
-                        : null,
-                    onTap: () => onSelected(entry),
-                  );
-                },
-              ),
-            ),
-          ),
-        );
-      },
-      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) =>
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            height: focused ? 46 : 40,
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              enabled: enabled,
-              onSubmitted: (_) {
-                onFieldSubmitted();
-                unawaited(onNavigate());
-              },
-              textInputAction: TextInputAction.go,
-              keyboardType: TextInputType.url,
-              maxLines: 1,
-              style: TextStyle(color: palette.text, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: anyttyText(context, en: 'Enter a URL', zh: '输入网址'),
-                hintStyle: TextStyle(color: palette.faint, fontSize: 14),
-                prefixIcon: Icon(
-                  Icons.lock_outline_rounded,
-                  size: 16,
-                  color: palette.muted,
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 38,
-                  minHeight: 40,
-                ),
-                suffixIcon: IconButton(
-                  tooltip: anyttyText(context, en: 'Open', zh: '打开'),
-                  onPressed: enabled ? () => unawaited(onNavigate()) : null,
-                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                  color: palette.accent,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 40,
-                    height: 40,
-                  ),
-                  padding: EdgeInsets.zero,
-                ),
-                filled: true,
-                fillColor: palette.surfaceRaised,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: focused ? 11 : 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: palette.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: palette.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: BorderSide(color: palette.accent, width: 1.2),
-                ),
-              ),
-            ),
-          ),
-    );
-  }
-}
-
 final class _BrowserOverflowMenu extends StatelessWidget {
   const _BrowserOverflowMenu({
+    required this.bookmarked,
+    required this.onToggleBookmark,
     required this.state,
     required this.hasProxy,
     required this.dnsProxied,
@@ -2173,6 +2065,8 @@ final class _BrowserOverflowMenu extends StatelessWidget {
   });
 
   final BrowserSessionState state;
+  final bool bookmarked;
+  final VoidCallback? onToggleBookmark;
   final bool hasProxy;
   final bool dnsProxied;
   final WebViewController? controller;
@@ -2205,6 +2099,18 @@ final class _BrowserOverflowMenu extends StatelessWidget {
         ),
       ),
       menuChildren: [
+        MenuItemButton(
+          leadingIcon: Icon(
+            bookmarked ? Icons.star_rounded : Icons.star_border_rounded,
+            size: 18,
+          ),
+          onPressed: onToggleBookmark,
+          child: Text(
+            bookmarked
+                ? anyttyText(context, en: 'Remove bookmark', zh: '取消收藏')
+                : anyttyText(context, en: 'Save page', zh: '收藏网页'),
+          ),
+        ),
         MenuItemButton(
           leadingIcon: const Icon(Icons.arrow_back_rounded, size: 18),
           onPressed: controller != null ? onBack : null,
@@ -2763,10 +2669,17 @@ final class _BrowserLoadingSurface extends StatelessWidget {
       child: Center(
         child: SizedBox(
           width: 220,
-          child: Semantics(
-            label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
-            value: '${(value * 100).round()}%',
-            child: _BrowserLoadProgress(value: value),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AnyttyBrandLoader(),
+              const SizedBox(height: 24),
+              Semantics(
+                label: anyttyText(context, en: 'Loading page', zh: '正在加载页面'),
+                value: '${(value * 100).round()}%',
+                child: _BrowserLoadProgress(value: value),
+              ),
+            ],
           ),
         ),
       ),

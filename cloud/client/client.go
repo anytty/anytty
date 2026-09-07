@@ -20,6 +20,8 @@ import (
 	"github.com/anytty/anytty/cloud/ticket"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/connecttrace"
+	"github.com/anytty/anytty/shared/netpath"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -45,12 +47,14 @@ type Config struct {
 	BootID               string
 	SoftwareVersion      string
 	Now                  func() time.Time
+	TransportPool        *TransportPool
 }
 
 // Client 持有进程级 boot identity；每次 Resolve/Exchange 仍使用当前调用的 grant 和 generation。
 type Client struct {
-	config Config
-	bootID string
+	config     Config
+	bootID     string
+	transports *TransportPool
 }
 
 type daemonLifecycleError struct {
@@ -176,27 +180,28 @@ func (resolution *RouteResolution) Locator() *cloudv1.EdgeLocator {
 // SignalSession 持有一个已经完成 offer/answer 的 ClientGateway 流。
 // 该流跟随 ReadyPeerSession 存活，使 Edge 的纯内存客户端投影与真实 P2P 生命周期一致；terminal 数据仍只走 DataChannel。
 type SignalSession struct {
-	answer      *cloudv1.EdgeAnswer
-	connection  *grpc.ClientConn
-	stream      cloudv1.ClientGateway_ConnectClient
-	cancel      context.CancelFunc
-	senderID    string
-	bootID      string
-	edgeID      string
-	edgeBootID  string
-	sessionID   string
-	sendMu      sync.Mutex
-	nextSendSeq uint64
-	decisionMu  sync.Mutex
-	decision    *signalPathDecision
-	releaseMu   sync.Mutex
-	release     *signalSessionRelease
-	closeOnce   sync.Once
-	closeErr    error
-	done        chan struct{}
-	doneOnce    sync.Once
-	errMu       sync.Mutex
-	err         error
+	answer           *cloudv1.EdgeAnswer
+	connection       *grpc.ClientConn
+	releaseTransport func()
+	stream           cloudv1.ClientGateway_ConnectClient
+	cancel           context.CancelFunc
+	senderID         string
+	bootID           string
+	edgeID           string
+	edgeBootID       string
+	sessionID        string
+	sendMu           sync.Mutex
+	nextSendSeq      uint64
+	decisionMu       sync.Mutex
+	decision         *signalPathDecision
+	releaseMu        sync.Mutex
+	release          *signalSessionRelease
+	closeOnce        sync.Once
+	closeErr         error
+	done             chan struct{}
+	doneOnce         sync.Once
+	errMu            sync.Mutex
+	err              error
 }
 
 const signalPathDecisionRetryInterval = 250 * time.Millisecond
@@ -704,7 +709,9 @@ func (session *SignalSession) close() error {
 			session.closeErr = normalizeActiveSignalCloseError(session.stream.CloseSend())
 			session.sendMu.Unlock()
 		}
-		if session.connection != nil {
+		if session.releaseTransport != nil {
+			session.releaseTransport()
+		} else if session.connection != nil {
 			if err := normalizeActiveSignalCloseError(session.connection.Close()); session.closeErr == nil {
 				session.closeErr = err
 			}
@@ -740,11 +747,17 @@ func NewClient(config Config) (*Client, error) {
 	if config.Now == nil {
 		config.Now = time.Now
 	}
-	return &Client{config: config, bootID: config.BootID}, nil
+	pool := config.TransportPool
+	if pool == nil {
+		pool = NewTransportPool()
+	}
+	return &Client{config: config, bootID: config.BootID, transports: pool}, nil
 }
 
 // Resolve 只在本机没有 Edge locator 或旧 Edge 失效时查询实时 Presence；返回结果仍使用原始 daemon grant 准入。
-func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signer Signer) (*RouteResolution, error) {
+func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signer Signer) (result *RouteResolution, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "controller_resolve")
+	defer func() { trace.End(resultErr) }()
 	if client == nil || signer == nil || len(cloudRouteGrant) == 0 {
 		return nil, errors.New("Cloud route grant and signer are required")
 	}
@@ -753,17 +766,18 @@ func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signe
 	reportTiming := func(stage string) {
 		now := time.Now()
 		log.Printf("anytty cloud connect stage=%s stage_ms=%d total_ms=%d", stage, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(stage)
 		lastAt = now
 	}
 	grant := &cloudv1.SignedEnvelope{}
 	if err := proto.Unmarshal(cloudRouteGrant, grant); err != nil {
 		return nil, fmt.Errorf("decode CloudRouteGrant: %w", err)
 	}
-	connection, err := client.dial(client.config.ControllerAddress, client.config.ControllerServerName, client.config.ControllerCAPEM)
+	connection, release, err := client.acquireTransport(ctx, "controller", client.config.ControllerAddress, client.config.ControllerServerName, client.config.ControllerCAPEM, false)
 	if err != nil {
 		return nil, err
 	}
-	defer connection.Close()
+	defer release()
 	directory := cloudv1.NewDirectoryServiceClient(connection)
 	challenge, err := directory.BeginClientRoute(ctx, &cloudv1.BeginClientRouteRequest{CloudRouteGrant: grant})
 	if err != nil {
@@ -850,11 +864,11 @@ func (client *Client) ProbePresence(ctx context.Context, resolution *RouteResolu
 	if client == nil || !capabilityRoute || signer == nil || identity.ValidatePublic() != nil || product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED {
 		return false, errors.New("Cloud presence probe input is incomplete")
 	}
-	connection, err := client.dial(resolution.locator.GetPublicEndpoint(), resolution.locator.GetServerName(), resolution.locator.GetCaCertificatePem())
+	connection, release, err := client.acquireTransport(ctx, "edge", resolution.locator.GetPublicEndpoint(), resolution.locator.GetServerName(), resolution.locator.GetCaCertificatePem(), false)
 	if err != nil {
 		return false, markEdgeLocatorUnavailable(err)
 	}
-	defer connection.Close()
+	defer release()
 	if err := waitForEdgeTransport(ctx, connection, resolution.edgeTransportTimeout()); err != nil {
 		return false, markEdgeLocatorUnavailable(err)
 	}
@@ -912,6 +926,8 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if ctx == nil || client == nil || (!capabilityRoute && !pairingRoute) || signer == nil || identity.ValidatePublic() != nil || product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED || attemptGeneration == 0 || createOffer == nil {
 		return nil, errors.New("Cloud signaling input is incomplete")
 	}
+	ctx, trace := connecttrace.Start(ctx, "edge_"+relayPreference.String()+"_"+relayTransport.String())
+	defer func() { trace.End(err) }()
 	exchangeContext, cancelExchange := context.WithTimeout(ctx, resolution.edgeProtocolTimeout())
 	defer func() {
 		cancelExchange()
@@ -924,9 +940,11 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	reportTiming := func(stage string) {
 		now := time.Now()
 		log.Printf("anytty cloud connect generation=%d stage=%s stage_ms=%d total_ms=%d", attemptGeneration, stage, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(stage)
 		lastAt = now
 	}
 	sessionID := uuid.NewString()
+	log.Printf("anytty connect trace_id=%s component=edge_session session_id=%s", connecttrace.ID(ctx), sessionID)
 	var prefetchedOffer *offerFuture
 	if relayPreference == cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY {
 		// Direct offer gathering does not depend on Edge or Relay material. Run it beside
@@ -936,23 +954,24 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 		reportTiming("client_offer_started")
 	}
 	var connection *grpc.ClientConn
+	var release func()
 	if capabilityRoute {
-		connection, err = client.dial(resolution.locator.GetPublicEndpoint(), resolution.locator.GetServerName(), resolution.locator.GetCaCertificatePem())
+		connection, release, err = client.acquireTransport(exchangeContext, "edge", resolution.locator.GetPublicEndpoint(), resolution.locator.GetServerName(), resolution.locator.GetCaCertificatePem(), false)
 	} else {
-		connection, err = client.dialPinned(resolution.pairingBootstrap.GetPublicEndpoint(), resolution.pairingBootstrap.GetServerName(), resolution.pairingBootstrap.GetCaCertificateDerSha256())
+		connection, release, err = client.acquireTransport(exchangeContext, "pairing", resolution.pairingBootstrap.GetPublicEndpoint(), resolution.pairingBootstrap.GetServerName(), resolution.pairingBootstrap.GetCaCertificateDerSha256(), true)
 	}
 	if err != nil {
 		return nil, markEdgeLocatorUnavailable(err)
 	}
 	if err := waitForEdgeTransport(exchangeContext, connection, resolution.edgeTransportTimeout()); err != nil {
-		_ = connection.Close()
+		release()
 		return nil, markEdgeLocatorUnavailable(err)
 	}
 	reportTiming("edge_transport_ready")
 	closeConnection := true
 	defer func() {
 		if closeConnection {
-			_ = connection.Close()
+			release()
 		}
 	}()
 	// route racer 会在 winner 发布后取消 attempt context；ClientGateway 需要在 answer 前响应该取消，
@@ -1101,7 +1120,8 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	closeConnection = false
 	keepStream = true
 	session := &SignalSession{
-		answer: proto.Clone(response.GetAnswer()).(*cloudv1.EdgeAnswer), connection: connection, stream: stream, cancel: streamOwner.cancel,
+		releaseTransport: release,
+		answer:           proto.Clone(response.GetAnswer()).(*cloudv1.EdgeAnswer), connection: connection, stream: stream, cancel: streamOwner.cancel,
 		senderID: identity.Fingerprint, bootID: client.bootID, edgeID: challenge.GetEdgeId(), edgeBootID: challenge.GetEdgeBootId(), sessionID: sessionID, done: make(chan struct{}),
 	}
 	go session.watch()
@@ -1229,7 +1249,7 @@ func waitForEdgeTransport(ctx context.Context, connection *grpc.ClientConn, time
 	}
 }
 
-func (client *Client) dial(address, serverName string, caPEM []byte) (*grpc.ClientConn, error) {
+func (client *Client) dial(address, serverName string, caPEM []byte, traceID ...string) (*grpc.ClientConn, error) {
 	var roots *x509.CertPool
 	if len(caPEM) != 0 {
 		roots = x509.NewCertPool()
@@ -1238,23 +1258,19 @@ func (client *Client) dial(address, serverName string, caPEM []byte) (*grpc.Clie
 		}
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, ServerName: strings.TrimSpace(serverName), RootCAs: roots}
-	return grpc.NewClient(
-		strings.TrimSpace(address),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithKeepaliveParams(signalClientKeepaliveParameters()),
-	)
+	options := netpath.GRPCOptions(strings.TrimSpace(address), credentials.NewTLS(tlsConfig), traceID...)
+	options = append(options, grpc.WithKeepaliveParams(signalClientKeepaliveParameters()))
+	return grpc.NewClient("passthrough:///"+strings.TrimSpace(address), options...)
 }
 
-func (client *Client) dialPinned(address, serverName string, caCertificateDERFingerprint []byte) (*grpc.ClientConn, error) {
+func (client *Client) dialPinned(address, serverName string, caCertificateDERFingerprint []byte, traceID ...string) (*grpc.ClientConn, error) {
 	tlsConfig, err := securetransport.NewPinnedEdgeClientTLSConfig(serverName, caCertificateDERFingerprint, client.config.Now)
 	if err != nil {
 		return nil, err
 	}
-	return grpc.NewClient(
-		strings.TrimSpace(address),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithKeepaliveParams(signalClientKeepaliveParameters()),
-	)
+	options := netpath.GRPCOptions(strings.TrimSpace(address), credentials.NewTLS(tlsConfig), traceID...)
+	options = append(options, grpc.WithKeepaliveParams(signalClientKeepaliveParameters()))
+	return grpc.NewClient("passthrough:///"+strings.TrimSpace(address), options...)
 }
 
 func signalClientKeepaliveParameters() keepalive.ClientParameters {

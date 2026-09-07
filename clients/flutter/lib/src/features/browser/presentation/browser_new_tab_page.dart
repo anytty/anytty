@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
 import '../data/browser_bookmark_store.dart';
 import '../data/browser_history_store.dart';
+import 'browser_perched_mascot.dart';
 
 final class BrowserNewTabPage extends StatelessWidget {
   const BrowserNewTabPage({
@@ -18,6 +20,10 @@ final class BrowserNewTabPage extends StatelessWidget {
     required this.history,
     required this.onRemoveBookmark,
     required this.onOpenHistory,
+    this.endpointLabel,
+    this.onSwitchEndpoint,
+    this.addressFocusNode,
+    this.addressController,
   });
 
   final TextEditingController searchController;
@@ -28,54 +34,89 @@ final class BrowserNewTabPage extends StatelessWidget {
   final List<BrowserHistoryEntry> history;
   final Future<void> Function(String url) onRemoveBookmark;
   final VoidCallback onOpenHistory;
+  final String? endpointLabel;
+  final VoidCallback? onSwitchEndpoint;
+  final FocusNode? addressFocusNode;
+  final TextEditingController? addressController;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final horizontalPadding = constraints.maxWidth >= 640 ? 32.0 : 20.0;
+      final horizontalPadding = constraints.maxWidth >= 640 ? 32.0 : 24.0;
+      final compact = constraints.maxHeight < 480;
       return Material(
         color: AnyttyPalette.of(context).background,
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
-            32,
+            compact ? 16 : 32,
             horizontalPadding,
             48,
           ),
           child: Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
+              constraints: const BoxConstraints(maxWidth: 640),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _NewTabIdentity(),
-                  const SizedBox(height: 24),
-                  _NewTabSearchField(
-                    controller: searchController,
-                    focusNode: searchFocusNode,
-                    onSearch: onSearch,
-                    onFocusSearch: onFocusSearch,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 16,
+                    children: [
+                      const _NewTabIdentity(),
+                      if (endpointLabel?.trim().isNotEmpty ?? false)
+                        _NewTabEndpoint(
+                          label: endpointLabel!,
+                          onSwitch: onSwitchEndpoint,
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 8),
+                  LayoutBuilder(
+                    builder: (context, fieldConstraints) {
+                      return AnimatedBuilder(
+                        animation: Listenable.merge([
+                          searchController,
+                          searchFocusNode,
+                          addressController,
+                          addressFocusNode,
+                        ]),
+                        builder: (context, _) {
+                          final address = addressController?.text.trim() ?? '';
+                          final resting =
+                              searchController.text.trim().isEmpty &&
+                              !searchFocusNode.hasFocus &&
+                              !(addressFocusNode?.hasFocus ?? false) &&
+                              (address.isEmpty || address == 'about:blank') &&
+                              MediaQuery.viewInsetsOf(context).bottom == 0;
+                          return BrowserPerchedMascot(
+                            key: const ValueKey('browser-perched-mascot'),
+                            visible: resting,
+                            child: _NewTabSearchField(
+                              controller: searchController,
+                              focusNode: searchFocusNode,
+                              onSearch: onSearch,
+                              onFocusSearch: onFocusSearch,
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   _NewTabSectionHeader(
-                    icon: Icons.bookmark_outline_rounded,
                     title: anyttyText(context, en: 'Saved links', zh: '收藏链接'),
-                    count: bookmarks.length,
                   ),
                   const SizedBox(height: 12),
                   if (bookmarks.isEmpty)
                     _NewTabEmptyMessage(
-                      icon: Icons.bookmark_add_outlined,
                       title: anyttyText(
                         context,
                         en: 'No saved links yet',
                         zh: '还没有收藏链接',
-                      ),
-                      detail: anyttyText(
-                        context,
-                        en: 'Use the star in the toolbar to keep a page here.',
-                        zh: '点击工具栏里的星标，就能把网页保存在这里。',
                       ),
                     )
                   else
@@ -84,40 +125,29 @@ final class BrowserNewTabPage extends StatelessWidget {
                       onOpen: onSearch,
                       onRemove: onRemoveBookmark,
                     ),
-                  const SizedBox(height: 32),
-                  _NewTabSectionHeader(
-                    icon: Icons.history_rounded,
-                    title: anyttyText(context, en: 'Recent pages', zh: '最近访问'),
-                    count: history.length,
-                    trailing: history.isEmpty
-                        ? null
-                        : TextButton(
-                            onPressed: onOpenHistory,
-                            child: Text(
-                              anyttyText(context, en: 'View all', zh: '查看全部'),
-                            ),
-                          ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (history.isEmpty)
-                    _NewTabEmptyMessage(
-                      icon: Icons.language_rounded,
+                  if (history.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _NewTabSectionHeader(
                       title: anyttyText(
                         context,
-                        en: 'Your recent pages will appear here',
-                        zh: '最近打开的网页会显示在这里',
+                        en: 'Recent pages',
+                        zh: '最近访问',
                       ),
-                      detail: anyttyText(
-                        context,
-                        en: 'Search above or enter an address to get started.',
-                        zh: '在上方搜索，或输入网址开始浏览。',
-                      ),
-                    )
-                  else
+                      trailing: history.isEmpty
+                          ? null
+                          : TextButton(
+                              onPressed: onOpenHistory,
+                              child: Text(
+                                anyttyText(context, en: 'View all', zh: '查看全部'),
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 8),
                     _NewTabHistoryList(
-                      entries: history.take(6).toList(),
+                      entries: history.take(3).toList(),
                       onOpen: onSearch,
                     ),
+                  ],
                 ],
               ),
             ),
@@ -129,52 +159,43 @@ final class BrowserNewTabPage extends StatelessWidget {
 }
 
 final class _NewTabIdentity extends StatelessWidget {
+  const _NewTabIdentity();
   @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    return Row(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.accent.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(
-              Icons.explore_outlined,
-              color: palette.accent,
-              size: 28,
-            ),
+  Widget build(BuildContext context) => Text(
+    'AnyTTY',
+    style: TextStyle(
+      color: AnyttyPalette.of(context).text,
+      fontFamily: 'JetBrainsMonoNerd',
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
+    ),
+  );
+}
+
+final class _NewTabEndpoint extends StatelessWidget {
+  const _NewTabEndpoint({required this.label, this.onSwitch});
+  final String label;
+  final VoidCallback? onSwitch;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: anyttyText(context, en: 'Switch device', zh: '切换设备'),
+    child: TextButton.icon(
+      onPressed: onSwitch,
+      icon: const Icon(Icons.computer_rounded, size: 16),
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 170),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AnyttyPalette.of(context).muted,
+            fontSize: 12,
           ),
         ),
-        const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              anyttyText(context, en: 'AnyTTY browser', zh: 'AnyTTY 浏览器'),
-              style: TextStyle(
-                color: palette.text,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              anyttyText(
-                context,
-                en: 'A clean start for the pages you use remotely.',
-                zh: '从这里继续浏览远程设备上的网页。',
-              ),
-              style: TextStyle(color: palette.muted, fontSize: 13),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+      ),
+    ),
+  );
 }
 
 final class _NewTabSearchField extends StatelessWidget {
@@ -201,6 +222,7 @@ final class _NewTabSearchField extends StatelessWidget {
         controller: controller,
         focusNode: focusNode,
         onTap: onFocusSearch,
+        onTapOutside: (_) => focusNode.unfocus(),
         onSubmitted: (value) {
           if (value.trim().isNotEmpty) unawaited(onSearch(value));
         },
@@ -214,7 +236,7 @@ final class _NewTabSearchField extends StatelessWidget {
             en: 'Search or enter a web address',
             zh: '搜索或输入网址',
           ),
-          hintStyle: TextStyle(color: palette.faint, fontSize: 16),
+          hintStyle: TextStyle(color: palette.muted, fontSize: 16),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: palette.accent,
@@ -231,7 +253,7 @@ final class _NewTabSearchField extends StatelessWidget {
             color: palette.accent,
           ),
           filled: true,
-          fillColor: palette.surfaceRaised,
+          fillColor: palette.surface,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 17,
@@ -255,39 +277,40 @@ final class _NewTabSearchField extends StatelessWidget {
 }
 
 final class _NewTabSectionHeader extends StatelessWidget {
-  const _NewTabSectionHeader({
-    required this.icon,
-    required this.title,
-    required this.count,
-    this.trailing,
-  });
+  const _NewTabSectionHeader({required this.title, this.trailing});
 
-  final IconData icon;
   final String title;
-  final int count;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    return Row(
+    final splitActions = MediaQuery.textScalerOf(context).scale(14) > 21;
+    final heading = Row(
       children: [
-        Icon(icon, color: palette.text, size: 20),
-        const SizedBox(width: 9),
-        Text(
-          title,
-          style: TextStyle(
-            color: palette.text,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: palette.muted,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(width: 8),
-        Text('$count', style: TextStyle(color: palette.muted, fontSize: 12)),
-        const Spacer(),
-        ?trailing,
+        if (!splitActions) ?trailing,
       ],
     );
+    return splitActions && trailing != null
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              heading,
+              Align(alignment: Alignment.centerRight, child: trailing),
+            ],
+          )
+        : heading;
   }
 }
 
@@ -305,14 +328,17 @@ final class _NewTabBookmarkGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 520 ? 2 : 1;
+      final textScaler = MediaQuery.textScalerOf(context);
+      final columns = textScaler.scale(14) > 21
+          ? (constraints.maxWidth >= 280 ? 2 : 1)
+          : (constraints.maxWidth / 80).floor().clamp(2, 6);
       return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: bookmarks.length,
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: columns,
-          mainAxisExtent: 72,
+          mainAxisExtent: 68 + textScaler.scale(13) * 1.3,
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
         ),
@@ -335,67 +361,78 @@ final class _NewTabBookmarkTile extends StatelessWidget {
     required this.onOpen,
     required this.onRemove,
   });
-
   final BrowserBookmark bookmark;
   final VoidCallback onOpen;
   final VoidCallback onRemove;
 
+  Future<void> _showActions(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: ListTile(
+        leading: const Icon(Icons.delete_outline_rounded),
+        title: Text(anyttyText(context, en: 'Remove saved link', zh: '移除收藏链接')),
+        subtitle: Text(bookmark.title.isEmpty ? bookmark.url : bookmark.title),
+        onTap: () {
+          Navigator.of(sheetContext).pop();
+          onRemove();
+        },
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    final title = bookmark.title.isEmpty ? bookmark.url : bookmark.title;
-    return Material(
-      color: palette.surfaceRaised,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        onTap: onOpen,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-          child: Row(
-            children: [
-              Icon(Icons.public_rounded, color: palette.accent, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: palette.text,
-                        fontWeight: FontWeight.w600,
-                      ),
+    final title = bookmark.title.isEmpty
+        ? (Uri.tryParse(bookmark.url)?.host ?? bookmark.url)
+        : bookmark.title;
+    return Tooltip(
+      message: bookmark.url,
+      child: Semantics(
+        customSemanticsActions: {
+          CustomSemanticsAction(
+            label: anyttyText(context, en: 'Remove saved link', zh: '移除收藏链接'),
+          ): onRemove,
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onOpen,
+            onLongPress: () => _showActions(context),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: palette.surfaceRaised,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      bookmark.url,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.muted, fontSize: 11),
+                    child: Icon(
+                      Icons.public_rounded,
+                      color: palette.accent,
+                      size: 23,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.text,
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
-              IconButton(
-                tooltip: anyttyText(
-                  context,
-                  en: 'Remove saved link',
-                  zh: '移除收藏链接',
-                ),
-                onPressed: onRemove,
-                icon: const Icon(Icons.close_rounded, size: 17),
-                color: palette.muted,
-                constraints: const BoxConstraints.tightFor(
-                  width: 44,
-                  height: 48,
-                ),
-                padding: EdgeInsets.zero,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -443,44 +480,16 @@ final class _NewTabHistoryList extends StatelessWidget {
 }
 
 final class _NewTabEmptyMessage extends StatelessWidget {
-  const _NewTabEmptyMessage({
-    required this.icon,
-    required this.title,
-    required this.detail,
-  });
+  const _NewTabEmptyMessage({required this.title});
 
-  final IconData icon;
   final String title;
-  final String detail;
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: palette.muted, size: 21),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: palette.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(detail, style: TextStyle(color: palette.muted)),
-              ],
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(title, style: TextStyle(color: palette.muted, fontSize: 14)),
     );
   }
 }

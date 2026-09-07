@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../generated/proto/apipb/application.pb.dart'
     show CommandEnvelope, ResultEnvelope_Result;
@@ -12,6 +13,7 @@ import '../generated/proto/bindingpb/client_binding.pb.dart';
 import 'anytty_client_engine.dart';
 import 'request_id.dart';
 import 'runtime_diagnostics.dart';
+import 'platform_request_queue.dart';
 
 abstract interface class AnyttyPlatformHandler {
   Future<PlatformResponse> handle(PlatformRequest request);
@@ -44,9 +46,16 @@ abstract interface class AnyttyResourceStreamRuntime {
   void closeResourceStream(int streamHandle);
 }
 
+abstract interface class AnyttyLifecycleRuntime {
+  void signalNetwork({required bool connected, required String reason});
+  void suspendForeground({required bool connected});
+  Future<void> resumeForeground({required bool connected});
+}
+
 final class AnyttyRuntime
     implements
         AnyttyEngineRuntime,
+        AnyttyLifecycleRuntime,
         AnyttyResourceStreamRuntime,
         RuntimeDiagnosticsSink {
   AnyttyRuntime._({required this._engine, required this._platform}) {
@@ -61,6 +70,11 @@ final class AnyttyRuntime
 
   final AnyttyClientEngine _engine;
   final AnyttyPlatformHandler _platform;
+  late final _platformQueue = PlatformRequestQueue(
+    _platform.handle,
+    log: debugPrint,
+  );
+  int _platformRequestsInFlight = 0;
   final StreamController<EventEnvelope> _events =
       StreamController<EventEnvelope>.broadcast(sync: true);
   final StreamController<int> _foregroundResumes =
@@ -149,10 +163,12 @@ final class AnyttyRuntime
     return _endpointDemand.retain(endpointId);
   }
 
+  @override
   void signalNetwork({required bool connected, required String reason}) {
     _signalSupervisor(connected: connected, reason: reason, foreground: false);
   }
 
+  @override
   void suspendForeground({required bool connected}) {
     _signalSupervisor(
       connected: connected,
@@ -161,6 +177,7 @@ final class AnyttyRuntime
     );
   }
 
+  @override
   Future<void> resumeForeground({required bool connected}) async {
     final revision = _signalSupervisor(
       connected: connected,
@@ -254,6 +271,7 @@ final class AnyttyRuntime
   void closeSession(int sessionHandle) => _engine.closeSession(sessionHandle);
 
   Future<void> close() async {
+    _platformQueue.close();
     if (_closed) return;
     _closed = true;
     try {
@@ -329,19 +347,26 @@ final class AnyttyRuntime
     Uint8List bytes,
     SendPort control,
   ) async {
+    _platformRequestsInFlight++;
+    if (_platformRequestsInFlight < PlatformRequestQueue.concurrency) {
+      control.send(_PumpSignal.next);
+    }
     try {
       await _handlePlatform(bytes);
     } catch (error, stackTrace) {
       if (!_closed) _events.addError(error, stackTrace);
     } finally {
-      control.send(_PumpSignal.next);
+      final wasFull =
+          _platformRequestsInFlight == PlatformRequestQueue.concurrency;
+      _platformRequestsInFlight--;
+      if (wasFull && !_closed) control.send(_PumpSignal.next);
     }
   }
 
   Future<void> _handlePlatform(Uint8List bytes) async {
     if (_closed) return;
     final request = PlatformRequest.fromBuffer(bytes);
-    final response = await _platform.handle(request);
+    final response = await _platformQueue.submit(request);
     if (_closed) return;
     _engine.completePlatformRequest(
       Uint8List.fromList(response.writeToBuffer()),

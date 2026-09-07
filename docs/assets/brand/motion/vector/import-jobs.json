@@ -1,0 +1,90 @@
+[
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/tail.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/tail.json",
+      "idPrefix": "tail-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/body.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/body.json",
+      "idPrefix": "body-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/phone.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/phone.json",
+      "idPrefix": "phone-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/hand-left.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/hand-left.json",
+      "idPrefix": "hand-left-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/hand-right.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/hand-right.json",
+      "idPrefix": "hand-right-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/head.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/head.json",
+      "idPrefix": "head-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/eye-left.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/eye-left.json",
+      "idPrefix": "eye-left-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/eye-right.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/eye-right.json",
+      "idPrefix": "eye-right-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/pupil-left.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/pupil-left.json",
+      "idPrefix": "pupil-left-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/pupil-right.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/pupil-right.json",
+      "idPrefix": "pupil-right-"
+    }
+  },
+  {
+    "name": "riv_import_svg",
+    "arguments": {
+      "svgPath": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/nostrils.svg",
+      "outSpec": "/Users/lozzow/Documents/workdir/anytty/anytty/docs/assets/brand/motion/vector/nostrils.json",
+      "idPrefix": "nostrils-"
+    }
+  }
+]

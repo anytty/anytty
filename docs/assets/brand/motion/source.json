@@ -1,0 +1,85 @@
+{
+  "source": "../mascot.png",
+  "sha256": "de0b8d8d45cd61aeb06fd8a64f162e7ec48bddf8d79f93b563d648ae94b858fb",
+  "sourceSize": [
+    417,
+    490
+  ],
+  "artboardSize": [
+    513,
+    546
+  ],
+  "format": "traced-vector-with-pose-extensions",
+  "revision": 3,
+  "status": "review-sample",
+  "stateMachine": "Mascot",
+  "scenarios": [
+    {
+      "name": "connecting",
+      "label": "Connecting",
+      "seconds": 4,
+      "loop": true,
+      "use": "Session connection and reconnection"
+    },
+    {
+      "name": "processing",
+      "label": "Processing",
+      "seconds": 3,
+      "loop": true,
+      "use": "File loading, preview preparation, background work"
+    },
+    {
+      "name": "history",
+      "label": "History",
+      "seconds": 1.2,
+      "loop": false,
+      "use": "Entering terminal history after a pull-down gesture"
+    },
+    {
+      "name": "success",
+      "label": "Success",
+      "seconds": 1.5,
+      "loop": false,
+      "use": "A confirmed successful operation; never mere connection progress"
+    },
+    {
+      "name": "failure",
+      "label": "Connection lost",
+      "seconds": 1.8,
+      "loop": false,
+      "use": "Connection lost or a failed attempt; pair with a real retry action"
+    },
+    {
+      "name": "welcome",
+      "label": "Welcome",
+      "seconds": 2.2,
+      "loop": false,
+      "use": "An intentional greeting or first session, not a claim of network success",
+      "phone": false
+    },
+    {
+      "name": "running",
+      "label": "Running",
+      "seconds": 0.9,
+      "loop": true,
+      "use": "An active pending task or transfer with unknown duration",
+      "phone": false
+    },
+    {
+      "name": "searching",
+      "label": "Searching",
+      "seconds": 3.6,
+      "loop": true,
+      "use": "File search or device discovery while results are pending",
+      "phone": false
+    },
+    {
+      "name": "wake",
+      "label": "Wake",
+      "seconds": 2.6,
+      "loop": false,
+      "use": "An optional wake cue after background inactivity; not network recovery confirmation",
+      "phone": false
+    }
+  ]
+}

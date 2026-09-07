@@ -21,13 +21,16 @@ import (
 	"github.com/anytty/anytty/proto/apipb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const defaultClientName = "anytty-go-cloud"
 
 const cloudLocatorStoreTimeout = 2 * time.Second
+const cloudRouteRefreshHedgeDelay = 750 * time.Millisecond
 const cloudSessionReleaseTimeout = 2 * time.Second
 
 // PeerFactory 根据本次 Controller/Edge 决策创建 direct 或 single-Relay WebRTC primitive。
@@ -45,13 +48,20 @@ type Dialer struct {
 	Phase         func(clientruntime.EndpointPhase)
 }
 
-// Connect 优先复用 secure credential 中的 Edge locator；只有 locator 缺失或失效才查询 Controller。
-func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (clientruntime.ReadyPeerSession, error) {
+// Connect gives the cached Edge locator a short head start, then refreshes through Controller
+// concurrently when the cached route is slow or unavailable.
+func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (result clientruntime.ReadyPeerSession, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "cloud_route")
+	defer func() { trace.End(resultErr) }()
 	startedAt := time.Now()
 	lastAt := startedAt
+	var timingMu sync.Mutex
 	reportTiming := func(phase string) {
+		timingMu.Lock()
+		defer timingMu.Unlock()
 		now := time.Now()
 		log.Printf("anytty cloud connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, phase, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(phase)
 		lastAt = now
 	}
 	if dialer == nil || dialer.Peers == nil || dialer.Cloud == nil || dialer.Authorization == nil || dialer.Product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED {
@@ -86,6 +96,13 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 			fresh, resolveErr := dialer.Cloud.Resolve(ctx, signaling.CloudRouteGrant(), signaling)
 			if resolveErr == nil {
 				reportTiming("controller_resolved")
+				if !sameCloudRoute(resolved, fresh) {
+					locator, encodeErr := cloudclient.EncodeEdgeLocator(fresh.Locator())
+					if encodeErr != nil {
+						return nil, fmt.Errorf("encode authenticated Cloud Edge locator: %w", encodeErr)
+					}
+					storeCloudEdgeLocatorAsync(ctx, request.Stamp().Generation, signaling, locator, "controller_resolve")
+				}
 			}
 			return fresh, resolveErr
 		},
@@ -145,28 +162,29 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		_ = opened.Close()
 		return nil, err
 	}
-	var locatorToStore []byte
-	if source == cloudRouteSourceController {
-		locatorToStore, err = cloudclient.EncodeEdgeLocator(selectedResolution.Locator())
-		if err != nil {
-			_ = application.Close()
-			_ = opened.Close()
-			return nil, fmt.Errorf("encode authenticated Cloud Edge locator: %w", err)
-		}
-	}
 	dialer.report(clientruntime.EndpointPhaseReady)
 	peer, signalSession := opened.Release()
 	session := newSession(application, peer, signalSession)
-	if len(locatorToStore) > 0 {
-		// Locator is only a public optimization. Disk persistence must not delay a session that
-		// already completed end-to-end authentication and protocol Hello.
-		go func(locator []byte) {
-			storeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cloudLocatorStoreTimeout)
-			defer cancel()
-			_ = signaling.StoreCloudEdgeLocator(storeContext, locator)
-		}(append([]byte(nil), locatorToStore...))
-	}
 	return session, nil
+}
+
+type cloudEdgeLocatorStore interface {
+	StoreCloudEdgeLocator(context.Context, []byte) error
+}
+
+func storeCloudEdgeLocatorAsync(ctx context.Context, generation clientruntime.SessionGeneration, store cloudEdgeLocatorStore, locator []byte, reason string) {
+	if ctx == nil || store == nil || len(locator) == 0 {
+		return
+	}
+	go func(locator []byte) {
+		storeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cloudLocatorStoreTimeout)
+		defer cancel()
+		if err := store.StoreCloudEdgeLocator(storeContext, locator); err != nil {
+			log.Printf("anytty cloud connect generation=%d stage=locator_store_failed reason=%s error_type=%T", generation, reason, err)
+			return
+		}
+		log.Printf("anytty cloud connect generation=%d stage=locator_stored reason=%s", generation, reason)
+	}(append([]byte(nil), locator...))
 }
 
 type cloudRouteSource string
@@ -176,11 +194,9 @@ const (
 	cloudRouteSourceController cloudRouteSource = "controller"
 )
 
-// dialCloudRoute owns the bounded route recovery policy for one connection generation.
-// A cached locator is an optimization only: an unsuccessful cached Edge exchange invalidates
-// that optimization and permits exactly one authenticated Controller resolve before the caller's
-// normal supervisor backoff takes over. Permanent authorization/lifecycle failures are returned
-// immediately because resolving another Edge cannot fix them.
+// dialCloudRoute treats the cached locator as a head-start, not as a serial gate. If it has not
+// connected within the hedge delay, Controller resolution runs concurrently and a different fresh
+// Edge joins the race. Permanent authorization/lifecycle failures still stop the race immediately.
 func dialCloudRoute(
 	ctx context.Context,
 	cached *cloudclient.RouteResolution,
@@ -188,43 +204,203 @@ func dialCloudRoute(
 	open func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error),
 	onFailure func(cloudRouteSource, *cloudclient.RouteResolution, error),
 ) (*openedCloudPeer, cloudRouteSource, *cloudclient.RouteResolution, error) {
+	return dialCloudRouteWithHedge(ctx, cached, resolve, open, onFailure, cloudRouteRefreshHedgeDelay)
+}
+
+type cloudRouteAttemptResult struct {
+	opened     *openedCloudPeer
+	source     cloudRouteSource
+	resolution *cloudclient.RouteResolution
+	err        error
+}
+
+type cloudRouteResolveResult struct {
+	resolution *cloudclient.RouteResolution
+	err        error
+}
+
+func dialCloudRouteWithHedge(
+	ctx context.Context,
+	cached *cloudclient.RouteResolution,
+	resolve func(context.Context) (*cloudclient.RouteResolution, error),
+	open func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error),
+	onFailure func(cloudRouteSource, *cloudclient.RouteResolution, error),
+	hedgeDelay time.Duration,
+) (*openedCloudPeer, cloudRouteSource, *cloudclient.RouteResolution, error) {
 	if ctx == nil || resolve == nil || open == nil {
 		return nil, "", nil, errors.New("Cloud route recovery dependencies are incomplete")
 	}
-	if cached != nil {
-		opened, err := open(ctx, cached, cloudRouteSourceCached)
+	if cached == nil {
+		fresh, err := resolve(ctx)
+		if err != nil {
+			return nil, cloudRouteSourceController, nil, err
+		}
+		if fresh == nil {
+			return nil, cloudRouteSourceController, nil, errors.New("Cloud route resolver returned no route")
+		}
+		opened, err := open(ctx, fresh, cloudRouteSourceController)
 		if err == nil && opened == nil {
-			err = errors.New("cached Cloud route returned no peer")
+			err = errors.New("resolved Cloud route returned no peer")
 		}
-		if err == nil {
-			return opened, cloudRouteSourceCached, cached, nil
-		}
-		if onFailure != nil {
-			onFailure(cloudRouteSourceCached, cached, err)
-		}
-		if ctx.Err() != nil || !shouldRefreshCloudRoute(err) {
-			return nil, cloudRouteSourceCached, cached, err
-		}
-	}
-
-	fresh, err := resolve(ctx)
-	if err != nil {
-		return nil, cloudRouteSourceController, nil, err
-	}
-	if fresh == nil {
-		return nil, cloudRouteSourceController, nil, errors.New("Cloud route resolver returned no route")
-	}
-	opened, err := open(ctx, fresh, cloudRouteSourceController)
-	if err == nil && opened == nil {
-		err = errors.New("resolved Cloud route returned no peer")
-	}
-	if err != nil {
-		if onFailure != nil {
+		if err != nil && onFailure != nil {
 			onFailure(cloudRouteSourceController, fresh, err)
 		}
-		return nil, cloudRouteSourceController, fresh, err
+		return opened, cloudRouteSourceController, fresh, err
 	}
-	return opened, cloudRouteSourceController, fresh, nil
+
+	raceCtx, cancelRace := context.WithCancel(ctx)
+	defer cancelRace()
+	attemptResults := make(chan cloudRouteAttemptResult, 2)
+	resolveResults := make(chan cloudRouteResolveResult, 1)
+	pendingAttempts := 0
+	launchOpen := func(resolution *cloudclient.RouteResolution, source cloudRouteSource) {
+		pendingAttempts++
+		go func() {
+			opened, err := open(raceCtx, resolution, source)
+			if err == nil && opened == nil {
+				err = fmt.Errorf("%s Cloud route returned no peer", source)
+			}
+			attemptResults <- cloudRouteAttemptResult{opened: opened, source: source, resolution: resolution, err: err}
+		}()
+	}
+	resolveStarted := false
+	startResolve := func() {
+		if resolveStarted {
+			return
+		}
+		resolveStarted = true
+		go func() {
+			fresh, err := resolve(raceCtx)
+			if err == nil && fresh == nil {
+				err = errors.New("Cloud route resolver returned no route")
+			}
+			resolveResults <- cloudRouteResolveResult{resolution: fresh, err: err}
+		}()
+	}
+	drainAttempts := func() []cloudRouteAttemptResult {
+		cancelRace()
+		results := make([]cloudRouteAttemptResult, 0, pendingAttempts)
+		for pendingAttempts > 0 {
+			result := <-attemptResults
+			pendingAttempts--
+			if result.opened != nil {
+				_ = result.opened.Close()
+			}
+			results = append(results, result)
+		}
+		return results
+	}
+	drainAttemptsAsync := func() {
+		cancelRace()
+		remaining := pendingAttempts
+		pendingAttempts = 0
+		if remaining == 0 {
+			return
+		}
+		go func() {
+			for ; remaining > 0; remaining-- {
+				result := <-attemptResults
+				if result.opened != nil {
+					_ = result.opened.Close()
+				}
+			}
+		}()
+	}
+
+	launchOpen(cached, cloudRouteSourceCached)
+	var hedgeTimer *time.Timer
+	var hedge <-chan time.Time
+	if hedgeDelay <= 0 {
+		startResolve()
+	} else {
+		hedgeTimer = time.NewTimer(hedgeDelay)
+		hedge = hedgeTimer.C
+		defer hedgeTimer.Stop()
+	}
+
+	var cachedFailure error
+	var fresh *cloudclient.RouteResolution
+	var freshFailure error
+	resolveDone := false
+	freshStarted := false
+	freshDone := false
+	cachedDone := false
+	for {
+		select {
+		case <-ctx.Done():
+			for _, result := range drainAttempts() {
+				if result.source == cloudRouteSourceCached && result.err != nil {
+					return nil, cloudRouteSourceCached, cached, result.err
+				}
+			}
+			return nil, "", nil, ctx.Err()
+		case <-hedge:
+			hedge = nil
+			startResolve()
+		case result := <-resolveResults:
+			resolveDone = true
+			fresh = result.resolution
+			freshFailure = result.err
+			if freshFailure != nil && !errors.Is(freshFailure, context.Canceled) && !errors.Is(freshFailure, context.DeadlineExceeded) && !shouldRefreshCloudRoute(freshFailure) {
+				drainAttempts()
+				return nil, cloudRouteSourceController, nil, freshFailure
+			}
+			if freshFailure == nil && (cachedDone || !sameCloudRoute(cached, fresh)) {
+				freshStarted = true
+				launchOpen(fresh, cloudRouteSourceController)
+			}
+		case result := <-attemptResults:
+			pendingAttempts--
+			if result.err == nil {
+				drainAttemptsAsync()
+				return result.opened, result.source, result.resolution, nil
+			}
+			if onFailure != nil {
+				onFailure(result.source, result.resolution, result.err)
+			}
+			if result.source == cloudRouteSourceCached {
+				cachedDone = true
+				cachedFailure = result.err
+				if ctx.Err() != nil || !shouldRefreshCloudRoute(result.err) {
+					drainAttempts()
+					return nil, cloudRouteSourceCached, cached, result.err
+				}
+				startResolve()
+				if resolveDone && freshFailure == nil && !freshStarted {
+					freshStarted = true
+					launchOpen(fresh, cloudRouteSourceController)
+				}
+			} else {
+				freshDone = true
+				freshFailure = result.err
+			}
+		}
+
+		if cachedDone && resolveDone && freshFailure != nil && (!freshStarted || freshDone) {
+			drainAttempts()
+			return nil, cloudRouteSourceController, fresh, combinedCloudRouteFailure(cachedFailure, freshFailure)
+		}
+	}
+}
+
+func combinedCloudRouteFailure(cachedErr, controllerErr error) error {
+	cause := errors.Join(
+		fmt.Errorf("cached Cloud route failed: %w", cachedErr),
+		fmt.Errorf("Controller Cloud route failed: %w", controllerErr),
+	)
+	return &clientruntime.Error{
+		Code:      clientruntime.ErrorUnavailable,
+		Message:   cause.Error(),
+		Cause:     cause,
+		Retryable: true,
+	}
+}
+
+func sameCloudRoute(left, right *cloudclient.RouteResolution) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return proto.Equal(left.Locator(), right.Locator())
 }
 
 func shouldRefreshCloudRoute(err error) bool {
@@ -285,10 +461,19 @@ func cloudConnectionError(err error) error {
 	case failure != nil:
 		return &clientruntime.Error{Code: clientruntime.ErrorEntitlement, Message: cloudEntitlementMessage(failure), Cause: err}
 	case retryableCloudRPC(status.Code(err)):
-		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling is temporarily unavailable", Cause: err, Retryable: true}
+		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: cloudRPCFailureMessage(err), Cause: err, Retryable: true}
 	default:
 		return err
 	}
+}
+
+func cloudRPCFailureMessage(err error) string {
+	code := status.Code(err)
+	detail := strings.Join(strings.Fields(status.Convert(err).Message()), " ")
+	if detail == "" {
+		return fmt.Sprintf("Cloud connection failed (RPC %s)", code)
+	}
+	return fmt.Sprintf("Cloud connection failed (RPC %s): %s", code, detail)
 }
 
 func retryableCloudRPC(code codes.Code) bool {
@@ -371,7 +556,7 @@ func cloudSignalingTermination(err error) error {
 		if message == "" {
 			message = "This connection was closed by an administrator"
 		}
-		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: message, Cause: err}
+		return &clientruntime.Error{Code: clientruntime.ErrorConnectionStopped, Message: message, Cause: err}
 	}
 	if err != nil {
 		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling was interrupted", Cause: err, Retryable: true}

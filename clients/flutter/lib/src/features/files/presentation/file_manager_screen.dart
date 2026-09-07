@@ -6,13 +6,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/anytty_theme.dart';
+import '../../../app/anytty_localizations.dart';
 import '../../../app/providers.dart';
+import '../../../shared/presentation/anytty_brand_mark.dart';
+import '../../terminal/data/endpoint_session_client.dart';
 import '../../../generated/proto/apipb/file.pb.dart';
+import '../data/file_manager_path_store.dart';
 import '../domain/file_preview_safety.dart';
+import '../domain/file_web_preview.dart';
 import '../domain/file_path.dart';
 import 'file_transfer_controller.dart';
 import 'file_transfer_sheet.dart';
 import 'path_bookmarks_sheet.dart';
+import 'file_web_preview_screen.dart';
 
 Future<void> showAnyttyFileManager({
   required BuildContext context,
@@ -62,7 +68,19 @@ final class FileManagerScreen extends ConsumerStatefulWidget {
   ConsumerState<FileManagerScreen> createState() => _FileManagerScreenState();
 }
 
-final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
+final class _FileManagerScreenState extends ConsumerState<FileManagerScreen>
+    with WidgetsBindingObserver {
+  static const _pathStore = FileManagerPathStore();
+  static const _responseTimeout = Duration(seconds: 20);
+
+  ProviderSubscription<AsyncValue<EndpointSessionClient>>? _sessionSubscription;
+  Timer? _recoveryTimer;
+  bool _connectionReady = false;
+  bool _waitingForResume = false;
+  bool _backgrounded = false;
+  bool _initialPathLoaded = false;
+  String? _connectionError;
+
   final _scrollController = ScrollController();
   final _newDirectoryController = TextEditingController();
   final _renameController = TextEditingController();
@@ -97,11 +115,97 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       widget.endpointId,
     );
     _transfers.addListener(_handleTransfersChanged);
-    unawaited(_loadPath(_currentPath));
+    WidgetsBinding.instance.addObserver(this);
+    _sessionSubscription = ref.listenManual(
+      endpointSessionProvider(widget.endpointId),
+      (_, next) {
+        if (!mounted) return;
+        if (next.isLoading) {
+          _requestEpoch += 1;
+          setState(() {
+            _connectionReady = false;
+            _connectionError = null;
+            _loadingMore = false;
+          });
+          _startRecoveryDeadline();
+        } else if (next.hasError) {
+          _recoveryTimer?.cancel();
+          setState(() {
+            _connectionReady = false;
+            _connectionError = next.error.toString();
+          });
+        } else if (next.hasValue) {
+          if (_backgrounded) return;
+          _recoveryTimer?.cancel();
+          setState(() {
+            _connectionReady = true;
+            _waitingForResume = false;
+            _connectionError = null;
+            _loading = true;
+          });
+          if (_initialPathLoaded) {
+            unawaited(_loadPath(_currentPath));
+          } else {
+            _initialPathLoaded = true;
+            unawaited(_loadInitialPath());
+          }
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _startRecoveryDeadline() {
+    _recoveryTimer?.cancel();
+    if (_backgrounded) return;
+    _recoveryTimer = Timer(_responseTimeout, () {
+      if (!mounted || (_connectionReady && !_waitingForResume)) return;
+      setState(
+        () => _connectionError = anyttyText(
+          context,
+          en: 'The device did not respond. Check your connection and try again.',
+          zh: '设备暂时没有响应，请检查网络后重试。',
+        ),
+      );
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _backgrounded = true;
+      _requestEpoch += 1;
+      _recoveryTimer?.cancel();
+      setState(() {
+        _waitingForResume = true;
+        _connectionReady = false;
+        _loadingMore = false;
+      });
+    } else if (state == AppLifecycleState.resumed && _waitingForResume) {
+      _backgrounded = false;
+      // The runtime's foreground revision opens a fresh session; never reuse
+      // the pre-suspend directory while that handshake is still pending.
+      _startRecoveryDeadline();
+    }
+  }
+
+  void _retryConnection() {
+    _requestEpoch += 1;
+    setState(() {
+      _connectionReady = false;
+      _connectionError = null;
+      _error = null;
+    });
+    ref.invalidate(endpointSessionProvider(widget.endpointId));
+    _startRecoveryDeadline();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sessionSubscription?.close();
+    _recoveryTimer?.cancel();
     _requestEpoch += 1;
     _scrollController
       ..removeListener(_handleScroll)
@@ -131,7 +235,30 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     }
   }
 
+  Future<void> _loadInitialPath() async {
+    final fallbackPath = _currentPath;
+    String? rememberedPath;
+    try {
+      rememberedPath = await _pathStore.load(widget.endpointId);
+    } catch (_) {
+      // Local history must never prevent access to the remote file system.
+    }
+    if (!mounted || !_connectionReady || _waitingForResume) return;
+
+    if (rememberedPath != null && rememberedPath != fallbackPath) {
+      final restored = await _tryLoadPath(rememberedPath);
+      if (restored || !mounted || !_connectionReady || _waitingForResume) {
+        return;
+      }
+    }
+    await _loadPath(fallbackPath);
+  }
+
   Future<void> _loadPath(String path) async {
+    await _tryLoadPath(path);
+  }
+
+  Future<bool> _tryLoadPath(String path) async {
     final normalized = normalizeFilePath(path);
     final epoch = ++_requestEpoch;
     setState(() {
@@ -141,26 +268,40 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
       _selectedPaths = const {};
     });
     try {
-      final session = await ref.read(
-        endpointSessionProvider(widget.endpointId).future,
-      );
-      final page = await session.listFiles(path: normalized, limit: 250);
-      if (!mounted || epoch != _requestEpoch) return;
-      setState(() {
-        _currentPath = normalizeFilePath(
-          page.path.isEmpty ? normalized : page.path,
+      final page = await (() async {
+        final session = await ref.read(
+          endpointSessionProvider(widget.endpointId).future,
         );
+        return session.listFiles(path: normalized, limit: 250);
+      })().timeout(_responseTimeout);
+      if (!mounted || epoch != _requestEpoch) return false;
+      final resolvedPath = normalizeFilePath(
+        page.path.isEmpty ? normalized : page.path,
+      );
+      setState(() {
+        _currentPath = resolvedPath;
         _entries = page.entries.map((entry) => entry.deepCopy()).toList();
         _nextCursor = page.nextCursor;
         _loading = false;
       });
       if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      unawaited(_rememberPath(resolvedPath));
+      return true;
     } catch (error) {
-      if (!mounted || epoch != _requestEpoch) return;
+      if (!mounted || epoch != _requestEpoch) return false;
       setState(() {
         _loading = false;
         _error = error.toString();
       });
+      return false;
+    }
+  }
+
+  Future<void> _rememberPath(String path) async {
+    try {
+      await _pathStore.save(widget.endpointId, path);
+    } catch (_) {
+      // The current directory remains usable even if persistence is unavailable.
     }
   }
 
@@ -170,14 +311,16 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     final cursor = _nextCursor;
     setState(() => _loadingMore = true);
     try {
-      final session = await ref.read(
-        endpointSessionProvider(widget.endpointId).future,
-      );
-      final page = await session.listFiles(
-        path: _currentPath,
-        cursor: cursor,
-        limit: 250,
-      );
+      final page = await (() async {
+        final session = await ref.read(
+          endpointSessionProvider(widget.endpointId).future,
+        );
+        return session.listFiles(
+          path: _currentPath,
+          cursor: cursor,
+          limit: 250,
+        );
+      })().timeout(_responseTimeout);
       if (!mounted || epoch != _requestEpoch) return;
       final known = _entries.map(_entryPath).toSet();
       setState(() {
@@ -264,10 +407,19 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
+    final unavailable =
+        !_connectionReady ||
+        _waitingForResume ||
+        _loading ||
+        _operationPending ||
+        _connectionError != null ||
+        _error != null;
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_handleBack()) Navigator.of(context).pop();
+        if (!didPop && (unavailable || !_handleBack())) {
+          Navigator.of(context).pop();
+        }
       },
       child: Scaffold(
         backgroundColor: palette.background,
@@ -292,15 +444,96 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
             ],
           ),
         ),
-        body: Column(
-          children: [
-            if (_selectionMode)
-              _buildSelectionHeader(palette)
-            else
-              _buildPathBar(palette),
-            Expanded(child: _buildDirectoryBody(palette)),
-            _buildBottomToolbar(palette),
-          ],
+        body: SafeArea(
+          top: false,
+          child: Stack(
+            children: [
+              ExcludeSemantics(
+                excluding: unavailable,
+                child: IgnorePointer(
+                  ignoring: unavailable,
+                  child: Column(
+                    children: [
+                      if (_selectionMode)
+                        _buildSelectionHeader(palette)
+                      else
+                        _buildPathBar(palette),
+                      Expanded(child: _buildDirectoryBody(palette)),
+                      _buildBottomToolbar(palette),
+                    ],
+                  ),
+                ),
+              ),
+              if (unavailable)
+                Positioned.fill(child: _buildRecoverySurface(palette)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecoverySurface(AnyttyPalette palette) {
+    final error = _connectionError ?? _error;
+    final title = error != null
+        ? anyttyText(context, en: 'Unable to refresh files', zh: '暂时无法刷新文件')
+        : (!_connectionReady || _waitingForResume)
+        ? anyttyText(context, en: 'Restoring connection', zh: '正在恢复连接')
+        : _operationPending
+        ? anyttyText(context, en: 'Working on your files', zh: '正在处理文件')
+        : anyttyText(context, en: 'Loading files', zh: '正在读取文件');
+    return ColoredBox(
+      color: palette.background,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Semantics(
+              liveRegion: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (error == null)
+                    const AnyttyBrandLoader(scene: AnyttyMascotScene.connecting)
+                  else
+                    const AnyttyBrandLoader(scene: AnyttyMascotScene.failure),
+                  const SizedBox(height: 20),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: palette.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.endpointLabel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.muted),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      error,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: palette.muted, fontSize: 13),
+                    ),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      onPressed: _retryConnection,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: Text(anyttyText(context, en: 'Retry', zh: '重试')),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1092,15 +1325,29 @@ final class _FileManagerScreenState extends ConsumerState<FileManagerScreen> {
     Future<void> Function() operation, {
     required String success,
   }) async {
-    if (_operationPending) return false;
+    if (_operationPending || !_connectionReady || _waitingForResume) {
+      return false;
+    }
     setState(() => _operationPending = true);
     try {
-      await operation();
+      // A mutation is never replayed automatically after a timeout.
+      await operation().timeout(_responseTimeout);
       if (!mounted) return false;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(success)));
       await _loadPath(_currentPath);
       return true;
+    } on TimeoutException {
+      if (mounted) {
+        setState(
+          () => _connectionError = anyttyText(
+            context,
+            en: 'The operation result is not confirmed. Refresh files before repeating it.',
+            zh: '操作结果尚未确认，请先刷新文件列表，不要重复执行。',
+          ),
+        );
+      }
+      return false;
     } catch (error) {
       if (mounted) _showError(error);
       return false;
@@ -1268,7 +1515,7 @@ final class _FileToolbarButton extends StatelessWidget {
   );
 }
 
-final class FilePreviewSheet extends ConsumerWidget {
+final class FilePreviewSheet extends ConsumerStatefulWidget {
   const FilePreviewSheet({
     super.key,
     required this.endpointId,
@@ -1283,14 +1530,106 @@ final class FilePreviewSheet extends ConsumerWidget {
   final Future<FilePreviewResult>? preview;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FilePreviewSheet> createState() => _FilePreviewSheetState();
+}
+
+final class _FilePreviewSheetState extends ConsumerState<FilePreviewSheet> {
+  late Future<FilePreviewResult> _preview;
+  Timer? _previewDeadline;
+
+  @override
+  void initState() {
+    super.initState();
+    _preview = _loadPreview();
+  }
+
+  Future<FilePreviewResult> _loadPreview() {
+    _previewDeadline?.cancel();
+    final result = Completer<FilePreviewResult>();
+    final source =
+        widget.preview ??
+        ref
+            .read(endpointSessionProvider(widget.endpointId).future)
+            .then((session) => session.previewFile(widget.path));
+    final timer = Timer(const Duration(seconds: 20), () {
+      if (!result.isCompleted) {
+        result.completeError(
+          TimeoutException(
+            'The file did not respond. Retry when the connection is available.',
+          ),
+        );
+      }
+    });
+    _previewDeadline = timer;
+    source.then(
+      (value) {
+        timer.cancel();
+        if (!result.isCompleted) result.complete(value);
+      },
+      onError: (Object error, StackTrace stack) {
+        timer.cancel();
+        if (!result.isCompleted) result.completeError(error, stack);
+      },
+    );
+    return result.future;
+  }
+
+  @override
+  void dispose() {
+    _previewDeadline?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(FilePreviewSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.endpointId != oldWidget.endpointId ||
+        widget.path != oldWidget.path ||
+        widget.preview != oldWidget.preview) {
+      _preview = _loadPreview();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FractionallySizedBox(
       heightFactor: 0.9,
       child: Scaffold(
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: Text(
+            widget.entry.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           actions: [
+            FutureBuilder<FilePreviewResult>(
+              future: _preview,
+              builder: (context, snapshot) {
+                final data = snapshot.data;
+                if (data == null ||
+                    !supportsWebFilePreview(widget.path, data)) {
+                  return const SizedBox.shrink();
+                }
+                return IconButton(
+                  tooltip: anyttyText(
+                    context,
+                    en: 'Browser preview',
+                    zh: '浏览器预览',
+                  ),
+                  icon: const Icon(Icons.language_rounded),
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => FileWebPreviewScreen(
+                        endpointId: widget.endpointId,
+                        path: widget.path,
+                        preview: data.deepCopy(),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               tooltip: 'Close preview',
               constraints: const BoxConstraints.tightFor(width: 48, height: 48),
@@ -1300,24 +1639,39 @@ final class FilePreviewSheet extends ConsumerWidget {
           ],
         ),
         body: FutureBuilder<FilePreviewResult>(
-          future:
-              preview ??
-              ref
-                  .read(endpointSessionProvider(endpointId).future)
-                  .then((session) => session.previewFile(path)),
+          future: _preview,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              return Center(
+                child: Semantics(
+                  label: anyttyText(
+                    context,
+                    en: 'Loading preview',
+                    zh: '正在读取预览',
+                  ),
+                  child: const AnyttyBrandLoader(),
+                ),
               );
             }
             if (snapshot.hasError) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text(
-                    snapshot.error.toString(),
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        snapshot.error.toString(),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            setState(() => _preview = _loadPreview()),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: Text(anyttyText(context, en: 'Retry', zh: '重试')),
+                      ),
+                    ],
                   ),
                 ),
               );

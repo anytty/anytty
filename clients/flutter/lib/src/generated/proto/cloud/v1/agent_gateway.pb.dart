@@ -190,6 +190,7 @@ class AgentOffer extends $pb.GeneratedMessage {
     $2.RelayICEConfig? relay,
     $5.CloudClientAccessMode? accessMode,
     $core.List<$core.int>? pairingClaimSha256,
+    $2.RelayTransport? relayTransport,
   }) {
     final result = create();
     if (correlationId != null) result.correlationId = correlationId;
@@ -202,6 +203,7 @@ class AgentOffer extends $pb.GeneratedMessage {
     if (accessMode != null) result.accessMode = accessMode;
     if (pairingClaimSha256 != null)
       result.pairingClaimSha256 = pairingClaimSha256;
+    if (relayTransport != null) result.relayTransport = relayTransport;
     return result;
   }
 
@@ -235,6 +237,8 @@ class AgentOffer extends $pb.GeneratedMessage {
         enumValues: $5.CloudClientAccessMode.values)
     ..a<$core.List<$core.int>>(
         9, _omitFieldNames ? '' : 'pairingClaimSha256', $pb.PbFieldType.OY)
+    ..aE<$2.RelayTransport>(10, _omitFieldNames ? '' : 'relayTransport',
+        enumValues: $2.RelayTransport.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -331,6 +335,16 @@ class AgentOffer extends $pb.GeneratedMessage {
   $core.bool hasPairingClaimSha256() => $_has(8);
   @$pb.TagNumber(9)
   void clearPairingClaimSha256() => $_clearField(9);
+
+  /// Edge copies the client's requested TURN transport to the daemon.
+  @$pb.TagNumber(10)
+  $2.RelayTransport get relayTransport => $_getN(9);
+  @$pb.TagNumber(10)
+  set relayTransport($2.RelayTransport value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasRelayTransport() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearRelayTransport() => $_clearField(10);
 }
 
 /// AgentAuthorize 要求 owning daemon 在产生 TURN credential 前按本地 AccessStore 预检客户端。

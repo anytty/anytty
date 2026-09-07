@@ -114,6 +114,14 @@ const AgentOffer$json = {
       '5': 12,
       '10': 'pairingClaimSha256'
     },
+    {
+      '1': 'relay_transport',
+      '3': 10,
+      '4': 1,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'relayTransport'
+    },
   ],
 };
 
@@ -126,7 +134,9 @@ final $typed_data.Uint8List agentOfferDescriptor = $convert.base64Decode(
     'bnl0dHkuY2xvdWQudjEuQ2xvdWRJQ0VDYW5kaWRhdGVSCmNhbmRpZGF0ZXMSNQoFcmVsYXkYBy'
     'ABKAsyHy5hbnl0dHkuY2xvdWQudjEuUmVsYXlJQ0VDb25maWdSBXJlbGF5EkcKC2FjY2Vzc19t'
     'b2RlGAggASgOMiYuYW55dHR5LmNsb3VkLnYxLkNsb3VkQ2xpZW50QWNjZXNzTW9kZVIKYWNjZX'
-    'NzTW9kZRIwChRwYWlyaW5nX2NsYWltX3NoYTI1NhgJIAEoDFIScGFpcmluZ0NsYWltU2hhMjU2');
+    'NzTW9kZRIwChRwYWlyaW5nX2NsYWltX3NoYTI1NhgJIAEoDFIScGFpcmluZ0NsYWltU2hhMjU2'
+    'EkgKD3JlbGF5X3RyYW5zcG9ydBgKIAEoDjIfLmFueXR0eS5jbG91ZC52MS5SZWxheVRyYW5zcG'
+    '9ydFIOcmVsYXlUcmFuc3BvcnQ=');
 
 @$core.Deprecated('Use agentAuthorizeDescriptor instead')
 const AgentAuthorize$json = {

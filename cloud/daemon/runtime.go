@@ -22,6 +22,7 @@ import (
 	"github.com/anytty/anytty/proto/remoteauthpb"
 	remotedaemon "github.com/anytty/anytty/remote/daemon"
 	"github.com/anytty/anytty/remote/webrtc"
+	"github.com/anytty/anytty/shared/netpath"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -363,7 +364,7 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 		return errors.New("Edge CA certificate is invalid")
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()}
-	connection, err := grpc.NewClient(locator.GetPublicEndpoint(), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(locator.GetPublicEndpoint(), credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return err
 	}
@@ -645,6 +646,9 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 		}
 	}
 	iceServers := make([]webrtc.ICEServer, 0, 1)
+	if url := cloudprotocol.EdgeSTUNURL(runtime.currentEdgeLocator().GetPublicEndpoint()); url != "" {
+		iceServers = append(iceServers, webrtc.ICEServer{URLs: []string{url}})
+	}
 	if relay := offer.GetRelay(); relay != nil {
 		if len(relay.GetUrls()) == 0 || strings.TrimSpace(relay.GetUsername()) == "" || strings.TrimSpace(relay.GetCredential()) == "" {
 			return reject("RELAY_INVALID", "Edge supplied incomplete Relay ICE material")
@@ -1096,7 +1100,7 @@ func (runtime *Runtime) refreshBindingRequest(ctx context.Context, measurements 
 		}
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, ServerName: runtime.config.ControllerServerName, RootCAs: roots}
-	connection, err := grpc.NewClient(runtime.config.ControllerAddress, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(runtime.config.ControllerAddress, credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -1338,7 +1342,7 @@ func probeEdge(parent context.Context, locator *cloudv1.EdgeLocator) *cloudv1.Da
 		roots := x509.NewCertPool()
 		validCA := roots.AppendCertsFromPEM(locator.GetCaCertificatePem())
 		if validCA {
-			connection, err := grpc.NewClient(locator.GetPublicEndpoint(), grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()})))
+			connection, err := netpath.NewGRPCClient(locator.GetPublicEndpoint(), credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()}))
 			if err == nil {
 				_, err = grpc_health_v1.NewHealthClient(connection).Check(probeCtx, &grpc_health_v1.HealthCheckRequest{}, grpc.WaitForReady(true))
 				_ = connection.Close()
@@ -1398,7 +1402,7 @@ func EnrollWithProgress(ctx context.Context, controllerAddress, controllerServer
 	} else {
 		tlsConfig = tlsConfig.Clone()
 	}
-	connection, err := grpc.NewClient(strings.TrimSpace(controllerAddress), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(strings.TrimSpace(controllerAddress), credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}

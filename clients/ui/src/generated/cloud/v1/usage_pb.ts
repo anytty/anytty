@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file cloud/v1/usage.proto.
  */
 export const file_cloud_v1_usage: GenFile = /*@__PURE__*/
-  fileDesc("ChRjbG91ZC92MS91c2FnZS5wcm90bxIPYW55dHR5LmNsb3VkLnYxIpoFChNSZWxheVBvbGljeVNuYXBzaG90EhIKCmFjY291bnRfaWQYASABKAkSGAoQYWNjb3VudF9yZXZpc2lvbhgCIAEoBBIVCg1hY2NvdW50X3N0YXRlGAMgASgJEhcKD3N1YnNjcmlwdGlvbl9pZBgEIAEoCRIdChVzdWJzY3JpcHRpb25fcmV2aXNpb24YBSABKAQSGgoSc3Vic2NyaXB0aW9uX3N0YXRlGAYgASgJEjAKDHBlcmlvZF9zdGFydBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcGVyaW9kX2VuZBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcGxhbl9pZBgJIAEoCRIUCgxwbGFuX3ZlcnNpb24YCiABKAQSFQoNcGxhbl9yZXZpc2lvbhgLIAEoBBIVCg1yZWxheV9lbmFibGVkGAwgASgIEiIKGnJlbGF5X21heF9ieXRlc19wZXJfcGVyaW9kGA0gASgEEiMKG3JlbGF5X21heF9ieXRlc19wZXJfc2Vzc2lvbhgOIAEoBBInCh9yZWxheV9tYXhfcmF0ZV9ieXRlc19wZXJfc2Vjb25kGA8gASgEEh0KFXJlbGF5X21heF9jb25jdXJyZW5jeRgQIAEoDRIXCg9hbGxvd2VkX3JlZ2lvbnMYESADKAkSDwoHZWRnZV9pZBgSIAEoCRIVCg1lZGdlX3JldmlzaW9uGBMgASgEEhQKDGVkZ2VfZW5hYmxlZBgUIAEoCBITCgtlZGdlX3JlZ2lvbhgVIAEoCRIRCglkYWVtb25faWQYFiABKAkSHQoVZGFlbW9uX3N0YXRlX3JldmlzaW9uGBcgASgESgQIGBAdIsQBChNSZWxheVJlc2VydmVSZXF1ZXN0EhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEhIKCmFjY291bnRfaWQYAiABKAkSEQoJZGFlbW9uX2lkGAMgASgJEhEKCWNsaWVudF9pZBgEIAEoCRISCgpzZXNzaW9uX2lkGAUgASgJEi8KC29ic2VydmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5yZXF1ZXN0X2RpZ2VzdBgHIAEoDCKOAgoKUmVsYXlHcmFudBIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRISCgpzZXNzaW9uX2lkGAIgASgJEhYKDnJlc2VydmVkX2J5dGVzGAMgASgEEiEKGW1heF9yYXRlX2J5dGVzX3Blcl9zZWNvbmQYBCABKAQSFgoOcmVuZXdfc2VxdWVuY2UYBSABKAQSNAoQYXV0aG9yaXplZF91bnRpbBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcG9saWN5X2RpZ2VzdBgHIAEoDBI0CgZwb2xpY3kYCCABKAsyJC5hbnl0dHkuY2xvdWQudjEuUmVsYXlQb2xpY3lTbmFwc2hvdCK5AgoUUmVsYXlSZXNlcnZlUmVzcG9uc2USFgoOcmVzZXJ2YXRpb25faWQYASABKAkSFgoOcmVxdWVzdF9kaWdlc3QYAiABKAwSMAoEY29kZRgDIAEoDjIiLmFueXR0eS5jbG91ZC52MS5SZWxheVJlc3BvbnNlQ29kZRIqCgVncmFudBgEIAEoCzIbLmFueXR0eS5jbG91ZC52MS5SZWxheUdyYW50EjUKCHRlcm1pbmFsGAUgASgLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudEFjaxIVCg1lcnJvcl9tZXNzYWdlGAYgASgJEkUKE2VudGl0bGVtZW50X2ZhaWx1cmUYByABKAsyKC5hbnl0dHkuY2xvdWQudjEuQ2xvdWRFbnRpdGxlbWVudEZhaWx1cmUiiwEKEVJlbGF5UmVuZXdSZXF1ZXN0EhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEhYKDnJlbmV3X3NlcXVlbmNlGAIgASgEEhUKDXBvbGljeV9kaWdlc3QYAyABKAwSLwoLb2JzZXJ2ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrcCChJSZWxheVJlbmV3UmVzcG9uc2USFgoOcmVzZXJ2YXRpb25faWQYASABKAkSFgoOcmVuZXdfc2VxdWVuY2UYAiABKAQSMAoEY29kZRgDIAEoDjIiLmFueXR0eS5jbG91ZC52MS5SZWxheVJlc3BvbnNlQ29kZRIqCgVncmFudBgEIAEoCzIbLmFueXR0eS5jbG91ZC52MS5SZWxheUdyYW50EjUKCHRlcm1pbmFsGAUgASgLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudEFjaxIVCg1lcnJvcl9tZXNzYWdlGAYgASgJEkUKE2VudGl0bGVtZW50X2ZhaWx1cmUYByABKAsyKC5hbnl0dHkuY2xvdWQudjEuQ2xvdWRFbnRpdGxlbWVudEZhaWx1cmUi0gEKD1JlbGF5U2V0dGxlbWVudBIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRIyCgRraW5kGAIgASgOMiQuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudEtpbmQSFQoNaW5ncmVzc19ieXRlcxgDIAEoBBIUCgxlZ3Jlc3NfYnl0ZXMYBCABKAQSFQoNcG9saWN5X2RpZ2VzdBgFIAEoDBIvCgtvYnNlcnZlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAi5gIKElJlbGF5U2V0dGxlbWVudEFjaxIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRIyCgRraW5kGAIgASgOMiQuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudEtpbmQSFQoNaW5ncmVzc19ieXRlcxgDIAEoBBIUCgxlZ3Jlc3NfYnl0ZXMYBCABKAQSFgoOcmVjb3ZlcnlfYnl0ZXMYBSABKAQSFQoNcG9saWN5X2RpZ2VzdBgGIAEoDBIvCgtvYnNlcnZlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKc2V0dGxlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoEY29kZRgJIAEoDjIiLmFueXR0eS5jbG91ZC52MS5SZWxheVJlc3BvbnNlQ29kZRIVCg1lcnJvcl9tZXNzYWdlGAogASgJIisKEVJlbGF5UXVlcnlSZXF1ZXN0EhYKDnJlc2VydmF0aW9uX2lkGAEgASgJIp8CChJSZWxheVF1ZXJ5UmVzcG9uc2USFgoOcmVzZXJ2YXRpb25faWQYASABKAkSMAoEY29kZRgCIAEoDjIiLmFueXR0eS5jbG91ZC52MS5SZWxheVJlc3BvbnNlQ29kZRIqCgVncmFudBgDIAEoCzIbLmFueXR0eS5jbG91ZC52MS5SZWxheUdyYW50EjUKCHRlcm1pbmFsGAQgASgLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudEFjaxIVCg1lcnJvcl9tZXNzYWdlGAUgASgJEkUKE2VudGl0bGVtZW50X2ZhaWx1cmUYBiABKAsyKC5hbnl0dHkuY2xvdWQudjEuQ2xvdWRFbnRpdGxlbWVudEZhaWx1cmUixwIKElJlbGF5UnVudGltZVBvbGljeRISCgphY2NvdW50X2lkGAEgASgJEhcKD3N1YnNjcmlwdGlvbl9pZBgCIAEoCRIPCgdwbGFuX2lkGAMgASgJEhcKD3BvbGljeV9yZXZpc2lvbhgEIAEoBBIVCg1yZWxheV9lbmFibGVkGAUgASgIEicKH3JlbGF5X21heF9yYXRlX2J5dGVzX3Blcl9zZWNvbmQYBiABKAQSHQoVcmVsYXlfbWF4X2NvbmN1cnJlbmN5GAcgASgNEhkKEXJlbGF5X3F1b3RhX2J5dGVzGAggASgEEjAKDHBlcmlvZF9zdGFydBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcGVyaW9kX2VuZBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAilwEKFVJlbGF5QXV0aG9yaXplUmVxdWVzdBISCgpyZXF1ZXN0X2lkGAEgASgJEhIKCmFjY291bnRfaWQYAiABKAkSEQoJZGFlbW9uX2lkGAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSLwoLb2JzZXJ2ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqgBChZSZWxheUF1dGhvcml6ZVJlc3BvbnNlEhIKCnJlcXVlc3RfaWQYASABKAkSMwoGcG9saWN5GAIgASgLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5UnVudGltZVBvbGljeRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAMgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlIncKEFJlbGF5VXNhZ2VTYW1wbGUSEgoKYWNjb3VudF9pZBgBIAEoCRIfChdjdW11bGF0aXZlX2VncmVzc19ieXRlcxgCIAEoBBIuCgpzYW1wbGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJdCg9SZWxheVVzYWdlQmF0Y2gSFgoOYmF0Y2hfc2VxdWVuY2UYASABKAQSMgoHc2FtcGxlcxgCIAMoCzIhLmFueXR0eS5jbG91ZC52MS5SZWxheVVzYWdlU2FtcGxlIpUCChJSZWxheUFjY291bnRBY3Rpb24SEgoKYWNjb3VudF9pZBgBIAEoCRI3CgZhY3Rpb24YAiABKA4yJy5hbnl0dHkuY2xvdWQudjEuUmVsYXlBY2NvdW50QWN0aW9uVHlwZRIXCg9hY3Rpb25fcmV2aXNpb24YAyABKAQSEgoKdXNlZF9ieXRlcxgEIAEoBBITCgtxdW90YV9ieXRlcxgFIAEoBBIwCgxwZXJpb2Rfc3RhcnQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnBlcmlvZF9lbmQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnJlYXNvbhgIIAEoCSKPAQoNUmVsYXlVc2FnZUFjaxIWCg5iYXRjaF9zZXF1ZW5jZRgBIAEoBBI0CgdhY3Rpb25zGAIgAygLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5QWNjb3VudEFjdGlvbhIwCgxwcm9jZXNzZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIowBCg5SZWxheUlDRUNvbmZpZxIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRIMCgR1cmxzGAIgAygJEhAKCHVzZXJuYW1lGAMgASgJEhIKCmNyZWRlbnRpYWwYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAioAIKElJlbGF5Sm91cm5hbFJlY29yZBIWCg5zY2hlbWFfdmVyc2lvbhgBIAEoDRIxCgVzdGFnZRgCIAEoDjIiLmFueXR0eS5jbG91ZC52MS5SZWxheUpvdXJuYWxTdGFnZRI9Cg9yZXNlcnZlX3JlcXVlc3QYAyABKAsyJC5hbnl0dHkuY2xvdWQudjEuUmVsYXlSZXNlcnZlUmVxdWVzdBIqCgVncmFudBgEIAEoCzIbLmFueXR0eS5jbG91ZC52MS5SZWxheUdyYW50Eh4KFnBlbmRpbmdfcmVuZXdfc2VxdWVuY2UYBSABKAQSNAoKc2V0dGxlbWVudBgGIAEoCzIgLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnQqkQEKD1JlbGF5UHJlZmVyZW5jZRIgChxSRUxBWV9QUkVGRVJFTkNFX1VOU1BFQ0lGSUVEEAASGQoVUkVMQVlfUFJFRkVSRU5DRV9BVVRPEAESIAocUkVMQVlfUFJFRkVSRU5DRV9ESVJFQ1RfT05MWRACEh8KG1JFTEFZX1BSRUZFUkVOQ0VfUkVMQVlfT05MWRADKnwKDlJlbGF5VHJhbnNwb3J0Eh8KG1JFTEFZX1RSQU5TUE9SVF9VTlNQRUNJRklFRBAAEhcKE1JFTEFZX1RSQU5TUE9SVF9VRFAQARIXChNSRUxBWV9UUkFOU1BPUlRfVENQEAISFwoTUkVMQVlfVFJBTlNQT1JUX1RMUxADKoUBChNSZWxheVNldHRsZW1lbnRLaW5kEiUKIVJFTEFZX1NFVFRMRU1FTlRfS0lORF9VTlNQRUNJRklFRBAAEh8KG1JFTEFZX1NFVFRMRU1FTlRfS0lORF9FWEFDVBABEiYKIlJFTEFZX1NFVFRMRU1FTlRfS0lORF9SRUNPVkVSWV9NQVgQAiqEAgoRUmVsYXlSZXNwb25zZUNvZGUSIwofUkVMQVlfUkVTUE9OU0VfQ09ERV9VTlNQRUNJRklFRBAAEh8KG1JFTEFZX1JFU1BPTlNFX0NPREVfQVBQTElFRBABEh4KGlJFTEFZX1JFU1BPTlNFX0NPREVfUkVQTEFZEAISIAocUkVMQVlfUkVTUE9OU0VfQ09ERV9URVJNSU5BTBADEiAKHFJFTEFZX1JFU1BPTlNFX0NPREVfUkVKRUNURUQQBBIgChxSRUxBWV9SRVNQT05TRV9DT0RFX0NPTkZMSUNUEAUSIwofUkVMQVlfUkVTUE9OU0VfQ09ERV9VTkFWQUlMQUJMRRAGKpYBChZSZWxheUFjY291bnRBY3Rpb25UeXBlEikKJVJFTEFZX0FDQ09VTlRfQUNUSU9OX1RZUEVfVU5TUEVDSUZJRUQQABIjCh9SRUxBWV9BQ0NPVU5UX0FDVElPTl9UWVBFX0FMTE9XEAESLAooUkVMQVlfQUNDT1VOVF9BQ1RJT05fVFlQRV9ERU5ZX0FORF9DTE9TRRACKpgCChFSZWxheUpvdXJuYWxTdGFnZRIjCh9SRUxBWV9KT1VSTkFMX1NUQUdFX1VOU1BFQ0lGSUVEEAASIQodUkVMQVlfSk9VUk5BTF9TVEFHRV9SRVFVRVNURUQQARImCiJSRUxBWV9KT1VSTkFMX1NUQUdFX0hFTERfVU5FWFBPU0VEEAISHwobUkVMQVlfSk9VUk5BTF9TVEFHRV9FWFBPU0VEEAMSJQohUkVMQVlfSk9VUk5BTF9TVEFHRV9SRU5FV19QRU5ESU5HEAQSHwobUkVMQVlfSk9VUk5BTF9TVEFHRV9DTE9TSU5HEAUSKgomUkVMQVlfSk9VUk5BTF9TVEFHRV9TRVRUTEVNRU5UX0RVUkFCTEUQBkIxWi9naXRodWIuY29tL2FueXR0eS9hbnl0dHkvcHJvdG8vY2xvdWQvdjE7Y2xvdWR2MWIGcHJvdG8z", [file_cloud_v1_common, file_google_protobuf_timestamp]);
+  fileDesc("ChRjbG91ZC92MS91c2FnZS5wcm90bxIPYW55dHR5LmNsb3VkLnYxIpoFChNSZWxheVBvbGljeVNuYXBzaG90EhIKCmFjY291bnRfaWQYASABKAkSGAoQYWNjb3VudF9yZXZpc2lvbhgCIAEoBBIVCg1hY2NvdW50X3N0YXRlGAMgASgJEhcKD3N1YnNjcmlwdGlvbl9pZBgEIAEoCRIdChVzdWJzY3JpcHRpb25fcmV2aXNpb24YBSABKAQSGgoSc3Vic2NyaXB0aW9uX3N0YXRlGAYgASgJEjAKDHBlcmlvZF9zdGFydBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcGVyaW9kX2VuZBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDwoHcGxhbl9pZBgJIAEoCRIUCgxwbGFuX3ZlcnNpb24YCiABKAQSFQoNcGxhbl9yZXZpc2lvbhgLIAEoBBIVCg1yZWxheV9lbmFibGVkGAwgASgIEiIKGnJlbGF5X21heF9ieXRlc19wZXJfcGVyaW9kGA0gASgEEiMKG3JlbGF5X21heF9ieXRlc19wZXJfc2Vzc2lvbhgOIAEoBBInCh9yZWxheV9tYXhfcmF0ZV9ieXRlc19wZXJfc2Vjb25kGA8gASgEEh0KFXJlbGF5X21heF9jb25jdXJyZW5jeRgQIAEoDRIXCg9hbGxvd2VkX3JlZ2lvbnMYESADKAkSDwoHZWRnZV9pZBgSIAEoCRIVCg1lZGdlX3JldmlzaW9uGBMgASgEEhQKDGVkZ2VfZW5hYmxlZBgUIAEoCBITCgtlZGdlX3JlZ2lvbhgVIAEoCRIRCglkYWVtb25faWQYFiABKAkSHQoVZGFlbW9uX3N0YXRlX3JldmlzaW9uGBcgASgESgQIGBAdIsQBChNSZWxheVJlc2VydmVSZXF1ZXN0EhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEhIKCmFjY291bnRfaWQYAiABKAkSEQoJZGFlbW9uX2lkGAMgASgJEhEKCWNsaWVudF9pZBgEIAEoCRISCgpzZXNzaW9uX2lkGAUgASgJEi8KC29ic2VydmVkX2F0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5yZXF1ZXN0X2RpZ2VzdBgHIAEoDCKhAgoKUmVsYXlHcmFudBIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRISCgpzZXNzaW9uX2lkGAIgASgJEhYKDnJlc2VydmVkX2J5dGVzGAMgASgEEiEKGW1heF9yYXRlX2J5dGVzX3Blcl9zZWNvbmQYBCABKAQSFgoOcmVuZXdfc2VxdWVuY2UYBSABKAQSNAoQYXV0aG9yaXplZF91bnRpbBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFQoNcG9saWN5X2RpZ2VzdBgHIAEoDBI0CgZwb2xpY3kYCCABKAsyJC5hbnl0dHkuY2xvdWQudjEuUmVsYXlQb2xpY3lTbmFwc2hvdBIRCgljbGllbnRfaWQYCSABKAkiuQIKFFJlbGF5UmVzZXJ2ZVJlc3BvbnNlEhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEhYKDnJlcXVlc3RfZGlnZXN0GAIgASgMEjAKBGNvZGUYAyABKA4yIi5hbnl0dHkuY2xvdWQudjEuUmVsYXlSZXNwb25zZUNvZGUSKgoFZ3JhbnQYBCABKAsyGy5hbnl0dHkuY2xvdWQudjEuUmVsYXlHcmFudBI1Cgh0ZXJtaW5hbBgFIAEoCzIjLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnRBY2sSFQoNZXJyb3JfbWVzc2FnZRgGIAEoCRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAcgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlIosBChFSZWxheVJlbmV3UmVxdWVzdBIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCRIWCg5yZW5ld19zZXF1ZW5jZRgCIAEoBBIVCg1wb2xpY3lfZGlnZXN0GAMgASgMEi8KC29ic2VydmVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCK3AgoSUmVsYXlSZW5ld1Jlc3BvbnNlEhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEhYKDnJlbmV3X3NlcXVlbmNlGAIgASgEEjAKBGNvZGUYAyABKA4yIi5hbnl0dHkuY2xvdWQudjEuUmVsYXlSZXNwb25zZUNvZGUSKgoFZ3JhbnQYBCABKAsyGy5hbnl0dHkuY2xvdWQudjEuUmVsYXlHcmFudBI1Cgh0ZXJtaW5hbBgFIAEoCzIjLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnRBY2sSFQoNZXJyb3JfbWVzc2FnZRgGIAEoCRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAcgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlItIBCg9SZWxheVNldHRsZW1lbnQSFgoOcmVzZXJ2YXRpb25faWQYASABKAkSMgoEa2luZBgCIAEoDjIkLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnRLaW5kEhUKDWluZ3Jlc3NfYnl0ZXMYAyABKAQSFAoMZWdyZXNzX2J5dGVzGAQgASgEEhUKDXBvbGljeV9kaWdlc3QYBSABKAwSLwoLb2JzZXJ2ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIuYCChJSZWxheVNldHRsZW1lbnRBY2sSFgoOcmVzZXJ2YXRpb25faWQYASABKAkSMgoEa2luZBgCIAEoDjIkLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnRLaW5kEhUKDWluZ3Jlc3NfYnl0ZXMYAyABKAQSFAoMZWdyZXNzX2J5dGVzGAQgASgEEhYKDnJlY292ZXJ5X2J5dGVzGAUgASgEEhUKDXBvbGljeV9kaWdlc3QYBiABKAwSLwoLb2JzZXJ2ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnNldHRsZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKBGNvZGUYCSABKA4yIi5hbnl0dHkuY2xvdWQudjEuUmVsYXlSZXNwb25zZUNvZGUSFQoNZXJyb3JfbWVzc2FnZRgKIAEoCSIrChFSZWxheVF1ZXJ5UmVxdWVzdBIWCg5yZXNlcnZhdGlvbl9pZBgBIAEoCSKfAgoSUmVsYXlRdWVyeVJlc3BvbnNlEhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEjAKBGNvZGUYAiABKA4yIi5hbnl0dHkuY2xvdWQudjEuUmVsYXlSZXNwb25zZUNvZGUSKgoFZ3JhbnQYAyABKAsyGy5hbnl0dHkuY2xvdWQudjEuUmVsYXlHcmFudBI1Cgh0ZXJtaW5hbBgEIAEoCzIjLmFueXR0eS5jbG91ZC52MS5SZWxheVNldHRsZW1lbnRBY2sSFQoNZXJyb3JfbWVzc2FnZRgFIAEoCRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAYgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlIuECChJSZWxheVJ1bnRpbWVQb2xpY3kSEgoKYWNjb3VudF9pZBgBIAEoCRIXCg9zdWJzY3JpcHRpb25faWQYAiABKAkSDwoHcGxhbl9pZBgDIAEoCRIXCg9wb2xpY3lfcmV2aXNpb24YBCABKAQSFQoNcmVsYXlfZW5hYmxlZBgFIAEoCBInCh9yZWxheV9tYXhfcmF0ZV9ieXRlc19wZXJfc2Vjb25kGAYgASgEEh0KFXJlbGF5X21heF9jb25jdXJyZW5jeRgHIAEoDRIZChFyZWxheV9xdW90YV9ieXRlcxgIIAEoBBIwCgxwZXJpb2Rfc3RhcnQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnBlcmlvZF9lbmQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKEGFjY291bnRfcmV2aXNpb24YCyABKAQiuwEKFVJlbGF5QXV0aG9yaXplUmVxdWVzdBISCgpyZXF1ZXN0X2lkGAEgASgJEhIKCmFjY291bnRfaWQYAiABKAkSEQoJZGFlbW9uX2lkGAMgASgJEhIKCnNlc3Npb25faWQYBCABKAkSLwoLb2JzZXJ2ZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWNsaWVudF9pZBgGIAEoCRIPCgdyZWxlYXNlGAcgASgIIqgBChZSZWxheUF1dGhvcml6ZVJlc3BvbnNlEhIKCnJlcXVlc3RfaWQYASABKAkSMwoGcG9saWN5GAIgASgLMiMuYW55dHR5LmNsb3VkLnYxLlJlbGF5UnVudGltZVBvbGljeRJFChNlbnRpdGxlbWVudF9mYWlsdXJlGAMgASgLMiguYW55dHR5LmNsb3VkLnYxLkNsb3VkRW50aXRsZW1lbnRGYWlsdXJlIncKEFJlbGF5VXNhZ2VTYW1wbGUSEgoKYWNjb3VudF9pZBgBIAEoCRIfChdjdW11bGF0aXZlX2VncmVzc19ieXRlcxgCIAEoBBIuCgpzYW1wbGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJJChZSZWxheUNvbmN1cnJlbmN5U2FtcGxlEhIKCmFjY291bnRfaWQYASABKAkSGwoTYWN0aXZlX3JlbGF5X2dyb3VwcxgCIAEoDSKsAgoSUmVsYXlTZXNzaW9uU2FtcGxlEhIKCnNlc3Npb25faWQYASABKAkSEgoKYWNjb3VudF9pZBgCIAEoCRIRCglkYWVtb25faWQYAyABKAkSEQoJY2xpZW50X2lkGAQgASgJEhQKDHJlbGF5X2FjdGl2ZRgFIAEoCBIeChZyZWxheV9hbGxvY2F0aW9uX2NvdW50GAYgASgNEhUKDWluZ3Jlc3NfYnl0ZXMYByABKAQSFAoMZWdyZXNzX2J5dGVzGAggASgEEjAKDGNvbm5lY3RlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoKdHJhbnNwb3J0cxgKIAMoDjIfLmFueXR0eS5jbG91ZC52MS5SZWxheVRyYW5zcG9ydCLsAgoPUmVsYXlVc2FnZUJhdGNoEhYKDmJhdGNoX3NlcXVlbmNlGAEgASgEEjIKB3NhbXBsZXMYAiADKAsyIS5hbnl0dHkuY2xvdWQudjEuUmVsYXlVc2FnZVNhbXBsZRJEChNjb25jdXJyZW5jeV9zYW1wbGVzGAMgAygLMicuYW55dHR5LmNsb3VkLnYxLlJlbGF5Q29uY3VycmVuY3lTYW1wbGUSJQodY29uY3VycmVuY3lfc25hcHNob3RfY29tcGxldGUYBCABKAgSOgoWY29uY3VycmVuY3lfc2FtcGxlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASOwoOcmVsYXlfc2Vzc2lvbnMYBiADKAsyIy5hbnl0dHkuY2xvdWQudjEuUmVsYXlTZXNzaW9uU2FtcGxlEicKH3JlbGF5X3Nlc3Npb25fc25hcHNob3RfY29tcGxldGUYByABKAgiyAIKElJlbGF5QWNjb3VudEFjdGlvbhISCgphY2NvdW50X2lkGAEgASgJEjcKBmFjdGlvbhgCIAEoDjInLmFueXR0eS5jbG91ZC52MS5SZWxheUFjY291bnRBY3Rpb25UeXBlEhcKD2FjdGlvbl9yZXZpc2lvbhgDIAEoBBISCgp1c2VkX2J5dGVzGAQgASgEEhMKC3F1b3RhX2J5dGVzGAUgASgEEjAKDHBlcmlvZF9zdGFydBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcGVyaW9kX2VuZBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGcmVhc29uGAggASgJEhcKD3BvbGljeV9yZXZpc2lvbhgJIAEoBBIYChBhY2NvdW50X3JldmlzaW9uGAogASgEIo8BCg1SZWxheVVzYWdlQWNrEhYKDmJhdGNoX3NlcXVlbmNlGAEgASgEEjQKB2FjdGlvbnMYAiADKAsyIy5hbnl0dHkuY2xvdWQudjEuUmVsYXlBY2NvdW50QWN0aW9uEjAKDHByb2Nlc3NlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAijAEKDlJlbGF5SUNFQ29uZmlnEhYKDnJlc2VydmF0aW9uX2lkGAEgASgJEgwKBHVybHMYAiADKAkSEAoIdXNlcm5hbWUYAyABKAkSEgoKY3JlZGVudGlhbBgEIAEoCRIuCgpleHBpcmVzX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCKgAgoSUmVsYXlKb3VybmFsUmVjb3JkEhYKDnNjaGVtYV92ZXJzaW9uGAEgASgNEjEKBXN0YWdlGAIgASgOMiIuYW55dHR5LmNsb3VkLnYxLlJlbGF5Sm91cm5hbFN0YWdlEj0KD3Jlc2VydmVfcmVxdWVzdBgDIAEoCzIkLmFueXR0eS5jbG91ZC52MS5SZWxheVJlc2VydmVSZXF1ZXN0EioKBWdyYW50GAQgASgLMhsuYW55dHR5LmNsb3VkLnYxLlJlbGF5R3JhbnQSHgoWcGVuZGluZ19yZW5ld19zZXF1ZW5jZRgFIAEoBBI0CgpzZXR0bGVtZW50GAYgASgLMiAuYW55dHR5LmNsb3VkLnYxLlJlbGF5U2V0dGxlbWVudCqRAQoPUmVsYXlQcmVmZXJlbmNlEiAKHFJFTEFZX1BSRUZFUkVOQ0VfVU5TUEVDSUZJRUQQABIZChVSRUxBWV9QUkVGRVJFTkNFX0FVVE8QARIgChxSRUxBWV9QUkVGRVJFTkNFX0RJUkVDVF9PTkxZEAISHwobUkVMQVlfUFJFRkVSRU5DRV9SRUxBWV9PTkxZEAMqfAoOUmVsYXlUcmFuc3BvcnQSHwobUkVMQVlfVFJBTlNQT1JUX1VOU1BFQ0lGSUVEEAASFwoTUkVMQVlfVFJBTlNQT1JUX1VEUBABEhcKE1JFTEFZX1RSQU5TUE9SVF9UQ1AQAhIXChNSRUxBWV9UUkFOU1BPUlRfVExTEAMqhQEKE1JlbGF5U2V0dGxlbWVudEtpbmQSJQohUkVMQVlfU0VUVExFTUVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASHwobUkVMQVlfU0VUVExFTUVOVF9LSU5EX0VYQUNUEAESJgoiUkVMQVlfU0VUVExFTUVOVF9LSU5EX1JFQ09WRVJZX01BWBACKoQCChFSZWxheVJlc3BvbnNlQ29kZRIjCh9SRUxBWV9SRVNQT05TRV9DT0RFX1VOU1BFQ0lGSUVEEAASHwobUkVMQVlfUkVTUE9OU0VfQ09ERV9BUFBMSUVEEAESHgoaUkVMQVlfUkVTUE9OU0VfQ09ERV9SRVBMQVkQAhIgChxSRUxBWV9SRVNQT05TRV9DT0RFX1RFUk1JTkFMEAMSIAocUkVMQVlfUkVTUE9OU0VfQ09ERV9SRUpFQ1RFRBAEEiAKHFJFTEFZX1JFU1BPTlNFX0NPREVfQ09ORkxJQ1QQBRIjCh9SRUxBWV9SRVNQT05TRV9DT0RFX1VOQVZBSUxBQkxFEAYqlgEKFlJlbGF5QWNjb3VudEFjdGlvblR5cGUSKQolUkVMQVlfQUNDT1VOVF9BQ1RJT05fVFlQRV9VTlNQRUNJRklFRBAAEiMKH1JFTEFZX0FDQ09VTlRfQUNUSU9OX1RZUEVfQUxMT1cQARIsCihSRUxBWV9BQ0NPVU5UX0FDVElPTl9UWVBFX0RFTllfQU5EX0NMT1NFEAIqmAIKEVJlbGF5Sm91cm5hbFN0YWdlEiMKH1JFTEFZX0pPVVJOQUxfU1RBR0VfVU5TUEVDSUZJRUQQABIhCh1SRUxBWV9KT1VSTkFMX1NUQUdFX1JFUVVFU1RFRBABEiYKIlJFTEFZX0pPVVJOQUxfU1RBR0VfSEVMRF9VTkVYUE9TRUQQAhIfChtSRUxBWV9KT1VSTkFMX1NUQUdFX0VYUE9TRUQQAxIlCiFSRUxBWV9KT1VSTkFMX1NUQUdFX1JFTkVXX1BFTkRJTkcQBBIfChtSRUxBWV9KT1VSTkFMX1NUQUdFX0NMT1NJTkcQBRIqCiZSRUxBWV9KT1VSTkFMX1NUQUdFX1NFVFRMRU1FTlRfRFVSQUJMRRAGQjFaL2dpdGh1Yi5jb20vYW55dHR5L2FueXR0eS9wcm90by9jbG91ZC92MTtjbG91ZHYxYgZwcm90bzM", [file_cloud_v1_common, file_google_protobuf_timestamp]);
 
 /**
  * RelayPolicySnapshot contains only inputs that actually authorize Relay.
@@ -236,6 +236,11 @@ export type RelayGrant = Message<"anytty.cloud.v1.RelayGrant"> & {
    * @generated from field: anytty.cloud.v1.RelayPolicySnapshot policy = 8;
    */
   policy?: RelayPolicySnapshot | undefined;
+
+  /**
+   * @generated from field: string client_id = 9;
+   */
+  clientId: string;
 };
 
 /**
@@ -535,8 +540,8 @@ export const RelayQueryResponseSchema: GenMessage<RelayQueryResponse> = /*@__PUR
   messageDesc(file_cloud_v1_usage, 9);
 
 /**
- * RelayRuntimePolicy is a versioned commercial policy snapshot used by an
- * Edge for local Relay admission. It does not reserve bytes or require renewal.
+ * RelayRuntimePolicy is the versioned commercial policy returned with an
+ * account-wide logical Relay slot. It does not reserve bytes or require renewal.
  *
  * @generated from message anytty.cloud.v1.RelayRuntimePolicy
  */
@@ -590,6 +595,11 @@ export type RelayRuntimePolicy = Message<"anytty.cloud.v1.RelayRuntimePolicy"> &
    * @generated from field: google.protobuf.Timestamp period_end = 10;
    */
   periodEnd?: Timestamp | undefined;
+
+  /**
+   * @generated from field: uint64 account_revision = 11;
+   */
+  accountRevision: bigint;
 };
 
 /**
@@ -600,8 +610,8 @@ export const RelayRuntimePolicySchema: GenMessage<RelayRuntimePolicy> = /*@__PUR
   messageDesc(file_cloud_v1_usage, 10);
 
 /**
- * RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
- * has no local account policy. It never creates a durable reservation.
+ * RelayAuthorizeRequest atomically claims or releases one account-wide logical
+ * Relay slot. A claim is mandatory before an Edge issues TURN credentials.
  *
  * @generated from message anytty.cloud.v1.RelayAuthorizeRequest
  */
@@ -630,6 +640,16 @@ export type RelayAuthorizeRequest = Message<"anytty.cloud.v1.RelayAuthorizeReque
    * @generated from field: google.protobuf.Timestamp observed_at = 5;
    */
   observedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string client_id = 6;
+   */
+  clientId: string;
+
+  /**
+   * @generated from field: bool release = 7;
+   */
+  release: boolean;
 };
 
 /**
@@ -697,6 +717,97 @@ export const RelayUsageSampleSchema: GenMessage<RelayUsageSample> = /*@__PURE__*
   messageDesc(file_cloud_v1_usage, 13);
 
 /**
+ * RelayConcurrencySample counts the logical Relay groups that consume the
+ * account concurrency limit on one Edge.
+ *
+ * @generated from message anytty.cloud.v1.RelayConcurrencySample
+ */
+export type RelayConcurrencySample = Message<"anytty.cloud.v1.RelayConcurrencySample"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: uint32 active_relay_groups = 2;
+   */
+  activeRelayGroups: number;
+};
+
+/**
+ * Describes the message anytty.cloud.v1.RelayConcurrencySample.
+ * Use `create(RelayConcurrencySampleSchema)` to create a new message.
+ */
+export const RelayConcurrencySampleSchema: GenMessage<RelayConcurrencySample> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_usage, 14);
+
+/**
+ * RelaySessionSample is a complete logical Relay projection from one Edge.
+ * Controller admission is immediate; this periodic snapshot refreshes
+ * liveness and reconciles sessions after an interrupted close.
+ *
+ * @generated from message anytty.cloud.v1.RelaySessionSample
+ */
+export type RelaySessionSample = Message<"anytty.cloud.v1.RelaySessionSample"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string daemon_id = 3;
+   */
+  daemonId: string;
+
+  /**
+   * @generated from field: string client_id = 4;
+   */
+  clientId: string;
+
+  /**
+   * @generated from field: bool relay_active = 5;
+   */
+  relayActive: boolean;
+
+  /**
+   * @generated from field: uint32 relay_allocation_count = 6;
+   */
+  relayAllocationCount: number;
+
+  /**
+   * @generated from field: uint64 ingress_bytes = 7;
+   */
+  ingressBytes: bigint;
+
+  /**
+   * @generated from field: uint64 egress_bytes = 8;
+   */
+  egressBytes: bigint;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp connected_at = 9;
+   */
+  connectedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: repeated anytty.cloud.v1.RelayTransport transports = 10;
+   */
+  transports: RelayTransport[];
+};
+
+/**
+ * Describes the message anytty.cloud.v1.RelaySessionSample.
+ * Use `create(RelaySessionSampleSchema)` to create a new message.
+ */
+export const RelaySessionSampleSchema: GenMessage<RelaySessionSample> = /*@__PURE__*/
+  messageDesc(file_cloud_v1_usage, 15);
+
+/**
  * @generated from message anytty.cloud.v1.RelayUsageBatch
  */
 export type RelayUsageBatch = Message<"anytty.cloud.v1.RelayUsageBatch"> & {
@@ -709,6 +820,34 @@ export type RelayUsageBatch = Message<"anytty.cloud.v1.RelayUsageBatch"> & {
    * @generated from field: repeated anytty.cloud.v1.RelayUsageSample samples = 2;
    */
   samples: RelayUsageSample[];
+
+  /**
+   * A complete snapshot replaces all previously reported groups for this Edge.
+   * The Controller uses its receive time, not this sample time, for expiry.
+   *
+   * @generated from field: repeated anytty.cloud.v1.RelayConcurrencySample concurrency_samples = 3;
+   */
+  concurrencySamples: RelayConcurrencySample[];
+
+  /**
+   * @generated from field: bool concurrency_snapshot_complete = 4;
+   */
+  concurrencySnapshotComplete: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp concurrency_sampled_at = 5;
+   */
+  concurrencySampledAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: repeated anytty.cloud.v1.RelaySessionSample relay_sessions = 6;
+   */
+  relaySessions: RelaySessionSample[];
+
+  /**
+   * @generated from field: bool relay_session_snapshot_complete = 7;
+   */
+  relaySessionSnapshotComplete: boolean;
 };
 
 /**
@@ -716,7 +855,7 @@ export type RelayUsageBatch = Message<"anytty.cloud.v1.RelayUsageBatch"> & {
  * Use `create(RelayUsageBatchSchema)` to create a new message.
  */
 export const RelayUsageBatchSchema: GenMessage<RelayUsageBatch> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_usage, 14);
+  messageDesc(file_cloud_v1_usage, 16);
 
 /**
  * @generated from message anytty.cloud.v1.RelayAccountAction
@@ -761,6 +900,16 @@ export type RelayAccountAction = Message<"anytty.cloud.v1.RelayAccountAction"> &
    * @generated from field: string reason = 8;
    */
   reason: string;
+
+  /**
+   * @generated from field: uint64 policy_revision = 9;
+   */
+  policyRevision: bigint;
+
+  /**
+   * @generated from field: uint64 account_revision = 10;
+   */
+  accountRevision: bigint;
 };
 
 /**
@@ -768,7 +917,7 @@ export type RelayAccountAction = Message<"anytty.cloud.v1.RelayAccountAction"> &
  * Use `create(RelayAccountActionSchema)` to create a new message.
  */
 export const RelayAccountActionSchema: GenMessage<RelayAccountAction> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_usage, 15);
+  messageDesc(file_cloud_v1_usage, 17);
 
 /**
  * @generated from message anytty.cloud.v1.RelayUsageAck
@@ -795,7 +944,7 @@ export type RelayUsageAck = Message<"anytty.cloud.v1.RelayUsageAck"> & {
  * Use `create(RelayUsageAckSchema)` to create a new message.
  */
 export const RelayUsageAckSchema: GenMessage<RelayUsageAck> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_usage, 16);
+  messageDesc(file_cloud_v1_usage, 18);
 
 /**
  * RelayICEConfig is derived from a committed Controller grant. It is durable
@@ -835,7 +984,7 @@ export type RelayICEConfig = Message<"anytty.cloud.v1.RelayICEConfig"> & {
  * Use `create(RelayICEConfigSchema)` to create a new message.
  */
 export const RelayICEConfigSchema: GenMessage<RelayICEConfig> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_usage, 17);
+  messageDesc(file_cloud_v1_usage, 19);
 
 /**
  * RelayJournalRecord is the single durable bbolt value for one reservation.
@@ -879,7 +1028,7 @@ export type RelayJournalRecord = Message<"anytty.cloud.v1.RelayJournalRecord"> &
  * Use `create(RelayJournalRecordSchema)` to create a new message.
  */
 export const RelayJournalRecordSchema: GenMessage<RelayJournalRecord> = /*@__PURE__*/
-  messageDesc(file_cloud_v1_usage, 18);
+  messageDesc(file_cloud_v1_usage, 20);
 
 /**
  * RelayPreference is the ICE policy for one Cloud connection attempt.

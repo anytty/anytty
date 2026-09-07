@@ -12,7 +12,9 @@ import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../generated/proto/remoteauthpb/remote_auth.pb.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
+import '../../../shared/presentation/anytty_brand_mark.dart';
 import '../../browser/data/browser_device_data.dart';
+import '../../files/data/file_manager_path_store.dart';
 import '../../files/presentation/file_transfer_sheet.dart';
 import '../data/endpoint_repository.dart';
 import '../domain/device_search.dart';
@@ -81,13 +83,22 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'ANYTTY',
-              style: TextStyle(
-                color: AnyttyPalette.of(context).accent,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (MediaQuery.textScalerOf(context).scale(10) < 16) ...[
+                  const ExcludeSemantics(child: AnyttyBrandMark(height: 18)),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  'ANYTTY',
+                  style: TextStyle(
+                    color: AnyttyPalette.of(context).text,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -528,7 +539,7 @@ final class _DeviceSectionHeading extends StatelessWidget {
               controller: searchController,
               focusNode: searchFocusNode,
               onClose: onCloseSearch,
-          )
+            )
           : Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -650,7 +661,7 @@ final class _DeviceRow extends ConsumerWidget {
             if (authorizationRequired) {
               _showPairingSheet(context, reauthorizeEndpoint: endpoint);
             } else {
-              context.push(
+              context.go(
                 '/terminal/${Uri.encodeComponent(endpoint.endpointId)}'
                 '?label=${Uri.encodeQueryComponent(label)}',
               );
@@ -1437,7 +1448,10 @@ final class _DeviceActionsSheetState
       action: () async {
         final endpointId = widget.endpoint.endpointId;
         await (await _repository()).deleteEndpoint(endpointId);
-        await clearBrowserDeviceData(endpointId);
+        await Future.wait([
+          clearBrowserDeviceData(endpointId),
+          const FileManagerPathStore().remove(endpointId),
+        ]);
         ref.invalidate(endpointRegistryProvider);
       },
     );

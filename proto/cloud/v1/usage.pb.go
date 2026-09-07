@@ -672,6 +672,7 @@ type RelayGrant struct {
 	AuthorizedUntil       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=authorized_until,json=authorizedUntil,proto3" json:"authorized_until,omitempty"`
 	PolicyDigest          []byte                 `protobuf:"bytes,7,opt,name=policy_digest,json=policyDigest,proto3" json:"policy_digest,omitempty"`
 	Policy                *RelayPolicySnapshot   `protobuf:"bytes,8,opt,name=policy,proto3" json:"policy,omitempty"`
+	ClientId              string                 `protobuf:"bytes,9,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -760,6 +761,13 @@ func (x *RelayGrant) GetPolicy() *RelayPolicySnapshot {
 		return x.Policy
 	}
 	return nil
+}
+
+func (x *RelayGrant) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
 }
 
 type RelayReserveResponse struct {
@@ -1342,8 +1350,8 @@ func (x *RelayQueryResponse) GetEntitlementFailure() *CloudEntitlementFailure {
 	return nil
 }
 
-// RelayRuntimePolicy is a versioned commercial policy snapshot used by an
-// Edge for local Relay admission. It does not reserve bytes or require renewal.
+// RelayRuntimePolicy is the versioned commercial policy returned with an
+// account-wide logical Relay slot. It does not reserve bytes or require renewal.
 type RelayRuntimePolicy struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	AccountId                  string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -1468,8 +1476,8 @@ func (x *RelayRuntimePolicy) GetAccountRevision() uint64 {
 	return 0
 }
 
-// RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
-// has no local account policy. It never creates a durable reservation.
+// RelayAuthorizeRequest atomically claims or releases one account-wide logical
+// Relay slot. A claim is mandatory before an Edge issues TURN credentials.
 type RelayAuthorizeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -1477,6 +1485,8 @@ type RelayAuthorizeRequest struct {
 	DaemonId      string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
 	SessionId     string                 `protobuf:"bytes,4,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	ObservedAt    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	ClientId      string                 `protobuf:"bytes,6,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Release       bool                   `protobuf:"varint,7,opt,name=release,proto3" json:"release,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1544,6 +1554,20 @@ func (x *RelayAuthorizeRequest) GetObservedAt() *timestamppb.Timestamp {
 		return x.ObservedAt
 	}
 	return nil
+}
+
+func (x *RelayAuthorizeRequest) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *RelayAuthorizeRequest) GetRelease() bool {
+	if x != nil {
+		return x.Release
+	}
+	return false
 }
 
 type RelayAuthorizeResponse struct {
@@ -1668,17 +1692,197 @@ func (x *RelayUsageSample) GetSampledAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// RelayConcurrencySample counts the logical Relay groups that consume the
+// account concurrency limit on one Edge.
+type RelayConcurrencySample struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AccountId         string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ActiveRelayGroups uint32                 `protobuf:"varint,2,opt,name=active_relay_groups,json=activeRelayGroups,proto3" json:"active_relay_groups,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RelayConcurrencySample) Reset() {
+	*x = RelayConcurrencySample{}
+	mi := &file_cloud_v1_usage_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RelayConcurrencySample) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RelayConcurrencySample) ProtoMessage() {}
+
+func (x *RelayConcurrencySample) ProtoReflect() protoreflect.Message {
+	mi := &file_cloud_v1_usage_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RelayConcurrencySample.ProtoReflect.Descriptor instead.
+func (*RelayConcurrencySample) Descriptor() ([]byte, []int) {
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RelayConcurrencySample) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *RelayConcurrencySample) GetActiveRelayGroups() uint32 {
+	if x != nil {
+		return x.ActiveRelayGroups
+	}
+	return 0
+}
+
+// RelaySessionSample is a complete logical Relay projection from one Edge.
+// Controller admission is immediate; this periodic snapshot refreshes
+// liveness and reconciles sessions after an interrupted close.
+type RelaySessionSample struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	SessionId            string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AccountId            string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DaemonId             string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
+	ClientId             string                 `protobuf:"bytes,4,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	RelayActive          bool                   `protobuf:"varint,5,opt,name=relay_active,json=relayActive,proto3" json:"relay_active,omitempty"`
+	RelayAllocationCount uint32                 `protobuf:"varint,6,opt,name=relay_allocation_count,json=relayAllocationCount,proto3" json:"relay_allocation_count,omitempty"`
+	IngressBytes         uint64                 `protobuf:"varint,7,opt,name=ingress_bytes,json=ingressBytes,proto3" json:"ingress_bytes,omitempty"`
+	EgressBytes          uint64                 `protobuf:"varint,8,opt,name=egress_bytes,json=egressBytes,proto3" json:"egress_bytes,omitempty"`
+	ConnectedAt          *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=connected_at,json=connectedAt,proto3" json:"connected_at,omitempty"`
+	Transports           []RelayTransport       `protobuf:"varint,10,rep,packed,name=transports,proto3,enum=anytty.cloud.v1.RelayTransport" json:"transports,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *RelaySessionSample) Reset() {
+	*x = RelaySessionSample{}
+	mi := &file_cloud_v1_usage_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RelaySessionSample) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RelaySessionSample) ProtoMessage() {}
+
+func (x *RelaySessionSample) ProtoReflect() protoreflect.Message {
+	mi := &file_cloud_v1_usage_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RelaySessionSample.ProtoReflect.Descriptor instead.
+func (*RelaySessionSample) Descriptor() ([]byte, []int) {
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RelaySessionSample) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RelaySessionSample) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *RelaySessionSample) GetDaemonId() string {
+	if x != nil {
+		return x.DaemonId
+	}
+	return ""
+}
+
+func (x *RelaySessionSample) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *RelaySessionSample) GetRelayActive() bool {
+	if x != nil {
+		return x.RelayActive
+	}
+	return false
+}
+
+func (x *RelaySessionSample) GetRelayAllocationCount() uint32 {
+	if x != nil {
+		return x.RelayAllocationCount
+	}
+	return 0
+}
+
+func (x *RelaySessionSample) GetIngressBytes() uint64 {
+	if x != nil {
+		return x.IngressBytes
+	}
+	return 0
+}
+
+func (x *RelaySessionSample) GetEgressBytes() uint64 {
+	if x != nil {
+		return x.EgressBytes
+	}
+	return 0
+}
+
+func (x *RelaySessionSample) GetConnectedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConnectedAt
+	}
+	return nil
+}
+
+func (x *RelaySessionSample) GetTransports() []RelayTransport {
+	if x != nil {
+		return x.Transports
+	}
+	return nil
+}
+
 type RelayUsageBatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	BatchSequence uint64                 `protobuf:"varint,1,opt,name=batch_sequence,json=batchSequence,proto3" json:"batch_sequence,omitempty"`
 	Samples       []*RelayUsageSample    `protobuf:"bytes,2,rep,name=samples,proto3" json:"samples,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// A complete snapshot replaces all previously reported groups for this Edge.
+	// The Controller uses its receive time, not this sample time, for expiry.
+	ConcurrencySamples           []*RelayConcurrencySample `protobuf:"bytes,3,rep,name=concurrency_samples,json=concurrencySamples,proto3" json:"concurrency_samples,omitempty"`
+	ConcurrencySnapshotComplete  bool                      `protobuf:"varint,4,opt,name=concurrency_snapshot_complete,json=concurrencySnapshotComplete,proto3" json:"concurrency_snapshot_complete,omitempty"`
+	ConcurrencySampledAt         *timestamppb.Timestamp    `protobuf:"bytes,5,opt,name=concurrency_sampled_at,json=concurrencySampledAt,proto3" json:"concurrency_sampled_at,omitempty"`
+	RelaySessions                []*RelaySessionSample     `protobuf:"bytes,6,rep,name=relay_sessions,json=relaySessions,proto3" json:"relay_sessions,omitempty"`
+	RelaySessionSnapshotComplete bool                      `protobuf:"varint,7,opt,name=relay_session_snapshot_complete,json=relaySessionSnapshotComplete,proto3" json:"relay_session_snapshot_complete,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *RelayUsageBatch) Reset() {
 	*x = RelayUsageBatch{}
-	mi := &file_cloud_v1_usage_proto_msgTypes[14]
+	mi := &file_cloud_v1_usage_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1690,7 +1894,7 @@ func (x *RelayUsageBatch) String() string {
 func (*RelayUsageBatch) ProtoMessage() {}
 
 func (x *RelayUsageBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_usage_proto_msgTypes[14]
+	mi := &file_cloud_v1_usage_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1703,7 +1907,7 @@ func (x *RelayUsageBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayUsageBatch.ProtoReflect.Descriptor instead.
 func (*RelayUsageBatch) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{14}
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RelayUsageBatch) GetBatchSequence() uint64 {
@@ -1718,6 +1922,41 @@ func (x *RelayUsageBatch) GetSamples() []*RelayUsageSample {
 		return x.Samples
 	}
 	return nil
+}
+
+func (x *RelayUsageBatch) GetConcurrencySamples() []*RelayConcurrencySample {
+	if x != nil {
+		return x.ConcurrencySamples
+	}
+	return nil
+}
+
+func (x *RelayUsageBatch) GetConcurrencySnapshotComplete() bool {
+	if x != nil {
+		return x.ConcurrencySnapshotComplete
+	}
+	return false
+}
+
+func (x *RelayUsageBatch) GetConcurrencySampledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConcurrencySampledAt
+	}
+	return nil
+}
+
+func (x *RelayUsageBatch) GetRelaySessions() []*RelaySessionSample {
+	if x != nil {
+		return x.RelaySessions
+	}
+	return nil
+}
+
+func (x *RelayUsageBatch) GetRelaySessionSnapshotComplete() bool {
+	if x != nil {
+		return x.RelaySessionSnapshotComplete
+	}
+	return false
 }
 
 type RelayAccountAction struct {
@@ -1738,7 +1977,7 @@ type RelayAccountAction struct {
 
 func (x *RelayAccountAction) Reset() {
 	*x = RelayAccountAction{}
-	mi := &file_cloud_v1_usage_proto_msgTypes[15]
+	mi := &file_cloud_v1_usage_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1750,7 +1989,7 @@ func (x *RelayAccountAction) String() string {
 func (*RelayAccountAction) ProtoMessage() {}
 
 func (x *RelayAccountAction) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_usage_proto_msgTypes[15]
+	mi := &file_cloud_v1_usage_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1763,7 +2002,7 @@ func (x *RelayAccountAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayAccountAction.ProtoReflect.Descriptor instead.
 func (*RelayAccountAction) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{15}
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RelayAccountAction) GetAccountId() string {
@@ -1847,7 +2086,7 @@ type RelayUsageAck struct {
 
 func (x *RelayUsageAck) Reset() {
 	*x = RelayUsageAck{}
-	mi := &file_cloud_v1_usage_proto_msgTypes[16]
+	mi := &file_cloud_v1_usage_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1859,7 +2098,7 @@ func (x *RelayUsageAck) String() string {
 func (*RelayUsageAck) ProtoMessage() {}
 
 func (x *RelayUsageAck) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_usage_proto_msgTypes[16]
+	mi := &file_cloud_v1_usage_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1872,7 +2111,7 @@ func (x *RelayUsageAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayUsageAck.ProtoReflect.Descriptor instead.
 func (*RelayUsageAck) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{16}
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *RelayUsageAck) GetBatchSequence() uint64 {
@@ -1911,7 +2150,7 @@ type RelayICEConfig struct {
 
 func (x *RelayICEConfig) Reset() {
 	*x = RelayICEConfig{}
-	mi := &file_cloud_v1_usage_proto_msgTypes[17]
+	mi := &file_cloud_v1_usage_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1923,7 +2162,7 @@ func (x *RelayICEConfig) String() string {
 func (*RelayICEConfig) ProtoMessage() {}
 
 func (x *RelayICEConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_usage_proto_msgTypes[17]
+	mi := &file_cloud_v1_usage_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1936,7 +2175,7 @@ func (x *RelayICEConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayICEConfig.ProtoReflect.Descriptor instead.
 func (*RelayICEConfig) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{17}
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RelayICEConfig) GetReservationId() string {
@@ -1989,7 +2228,7 @@ type RelayJournalRecord struct {
 
 func (x *RelayJournalRecord) Reset() {
 	*x = RelayJournalRecord{}
-	mi := &file_cloud_v1_usage_proto_msgTypes[18]
+	mi := &file_cloud_v1_usage_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2001,7 +2240,7 @@ func (x *RelayJournalRecord) String() string {
 func (*RelayJournalRecord) ProtoMessage() {}
 
 func (x *RelayJournalRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_cloud_v1_usage_proto_msgTypes[18]
+	mi := &file_cloud_v1_usage_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2014,7 +2253,7 @@ func (x *RelayJournalRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelayJournalRecord.ProtoReflect.Descriptor instead.
 func (*RelayJournalRecord) Descriptor() ([]byte, []int) {
-	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{18}
+	return file_cloud_v1_usage_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RelayJournalRecord) GetSchemaVersion() uint32 {
@@ -2102,7 +2341,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"session_id\x18\x05 \x01(\tR\tsessionId\x12;\n" +
 	"\vobserved_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"observedAt\x12%\n" +
-	"\x0erequest_digest\x18\a \x01(\fR\rrequestDigest\"\x84\x03\n" +
+	"\x0erequest_digest\x18\a \x01(\fR\rrequestDigest\"\xa1\x03\n" +
 	"\n" +
 	"RelayGrant\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\x12\x1d\n" +
@@ -2113,7 +2352,8 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\x0erenew_sequence\x18\x05 \x01(\x04R\rrenewSequence\x12E\n" +
 	"\x10authorized_until\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x0fauthorizedUntil\x12#\n" +
 	"\rpolicy_digest\x18\a \x01(\fR\fpolicyDigest\x12<\n" +
-	"\x06policy\x18\b \x01(\v2$.anytty.cloud.v1.RelayPolicySnapshotR\x06policy\"\x90\x03\n" +
+	"\x06policy\x18\b \x01(\v2$.anytty.cloud.v1.RelayPolicySnapshotR\x06policy\x12\x1b\n" +
+	"\tclient_id\x18\t \x01(\tR\bclientId\"\x90\x03\n" +
 	"\x14RelayReserveResponse\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\x12%\n" +
 	"\x0erequest_digest\x18\x02 \x01(\fR\rrequestDigest\x126\n" +
@@ -2181,7 +2421,7 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\n" +
 	"period_end\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tperiodEnd\x12)\n" +
-	"\x10account_revision\x18\v \x01(\x04R\x0faccountRevision\"\xce\x01\n" +
+	"\x10account_revision\x18\v \x01(\x04R\x0faccountRevision\"\x85\x02\n" +
 	"\x15RelayAuthorizeRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1d\n" +
@@ -2191,7 +2431,9 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x04 \x01(\tR\tsessionId\x12;\n" +
 	"\vobserved_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"observedAt\"\xcf\x01\n" +
+	"observedAt\x12\x1b\n" +
+	"\tclient_id\x18\x06 \x01(\tR\bclientId\x12\x18\n" +
+	"\arelease\x18\a \x01(\bR\arelease\"\xcf\x01\n" +
 	"\x16RelayAuthorizeResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12;\n" +
@@ -2202,10 +2444,35 @@ const file_cloud_v1_usage_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x126\n" +
 	"\x17cumulative_egress_bytes\x18\x02 \x01(\x04R\x15cumulativeEgressBytes\x129\n" +
 	"\n" +
-	"sampled_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tsampledAt\"u\n" +
+	"sampled_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tsampledAt\"g\n" +
+	"\x16RelayConcurrencySample\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12.\n" +
+	"\x13active_relay_groups\x18\x02 \x01(\rR\x11activeRelayGroups\"\xad\x03\n" +
+	"\x12RelaySessionSample\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tdaemon_id\x18\x03 \x01(\tR\bdaemonId\x12\x1b\n" +
+	"\tclient_id\x18\x04 \x01(\tR\bclientId\x12!\n" +
+	"\frelay_active\x18\x05 \x01(\bR\vrelayActive\x124\n" +
+	"\x16relay_allocation_count\x18\x06 \x01(\rR\x14relayAllocationCount\x12#\n" +
+	"\ringress_bytes\x18\a \x01(\x04R\fingressBytes\x12!\n" +
+	"\fegress_bytes\x18\b \x01(\x04R\vegressBytes\x12=\n" +
+	"\fconnected_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vconnectedAt\x12?\n" +
+	"\n" +
+	"transports\x18\n" +
+	" \x03(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\n" +
+	"transports\"\xf8\x03\n" +
 	"\x0fRelayUsageBatch\x12%\n" +
 	"\x0ebatch_sequence\x18\x01 \x01(\x04R\rbatchSequence\x12;\n" +
-	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\"\xc3\x03\n" +
+	"\asamples\x18\x02 \x03(\v2!.anytty.cloud.v1.RelayUsageSampleR\asamples\x12X\n" +
+	"\x13concurrency_samples\x18\x03 \x03(\v2'.anytty.cloud.v1.RelayConcurrencySampleR\x12concurrencySamples\x12B\n" +
+	"\x1dconcurrency_snapshot_complete\x18\x04 \x01(\bR\x1bconcurrencySnapshotComplete\x12P\n" +
+	"\x16concurrency_sampled_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x14concurrencySampledAt\x12J\n" +
+	"\x0erelay_sessions\x18\x06 \x03(\v2#.anytty.cloud.v1.RelaySessionSampleR\rrelaySessions\x12E\n" +
+	"\x1frelay_session_snapshot_complete\x18\a \x01(\bR\x1crelaySessionSnapshotComplete\"\xc3\x03\n" +
 	"\x12RelayAccountAction\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12?\n" +
@@ -2292,7 +2559,7 @@ func file_cloud_v1_usage_proto_rawDescGZIP() []byte {
 }
 
 var file_cloud_v1_usage_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_cloud_v1_usage_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_cloud_v1_usage_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_cloud_v1_usage_proto_goTypes = []any{
 	(RelayPreference)(0),            // 0: anytty.cloud.v1.RelayPreference
 	(RelayTransport)(0),             // 1: anytty.cloud.v1.RelayTransport
@@ -2314,61 +2581,68 @@ var file_cloud_v1_usage_proto_goTypes = []any{
 	(*RelayAuthorizeRequest)(nil),   // 17: anytty.cloud.v1.RelayAuthorizeRequest
 	(*RelayAuthorizeResponse)(nil),  // 18: anytty.cloud.v1.RelayAuthorizeResponse
 	(*RelayUsageSample)(nil),        // 19: anytty.cloud.v1.RelayUsageSample
-	(*RelayUsageBatch)(nil),         // 20: anytty.cloud.v1.RelayUsageBatch
-	(*RelayAccountAction)(nil),      // 21: anytty.cloud.v1.RelayAccountAction
-	(*RelayUsageAck)(nil),           // 22: anytty.cloud.v1.RelayUsageAck
-	(*RelayICEConfig)(nil),          // 23: anytty.cloud.v1.RelayICEConfig
-	(*RelayJournalRecord)(nil),      // 24: anytty.cloud.v1.RelayJournalRecord
-	(*timestamppb.Timestamp)(nil),   // 25: google.protobuf.Timestamp
-	(*CloudEntitlementFailure)(nil), // 26: anytty.cloud.v1.CloudEntitlementFailure
+	(*RelayConcurrencySample)(nil),  // 20: anytty.cloud.v1.RelayConcurrencySample
+	(*RelaySessionSample)(nil),      // 21: anytty.cloud.v1.RelaySessionSample
+	(*RelayUsageBatch)(nil),         // 22: anytty.cloud.v1.RelayUsageBatch
+	(*RelayAccountAction)(nil),      // 23: anytty.cloud.v1.RelayAccountAction
+	(*RelayUsageAck)(nil),           // 24: anytty.cloud.v1.RelayUsageAck
+	(*RelayICEConfig)(nil),          // 25: anytty.cloud.v1.RelayICEConfig
+	(*RelayJournalRecord)(nil),      // 26: anytty.cloud.v1.RelayJournalRecord
+	(*timestamppb.Timestamp)(nil),   // 27: google.protobuf.Timestamp
+	(*CloudEntitlementFailure)(nil), // 28: anytty.cloud.v1.CloudEntitlementFailure
 }
 var file_cloud_v1_usage_proto_depIdxs = []int32{
-	25, // 0: anytty.cloud.v1.RelayPolicySnapshot.period_start:type_name -> google.protobuf.Timestamp
-	25, // 1: anytty.cloud.v1.RelayPolicySnapshot.period_end:type_name -> google.protobuf.Timestamp
-	25, // 2: anytty.cloud.v1.RelayReserveRequest.observed_at:type_name -> google.protobuf.Timestamp
-	25, // 3: anytty.cloud.v1.RelayGrant.authorized_until:type_name -> google.protobuf.Timestamp
+	27, // 0: anytty.cloud.v1.RelayPolicySnapshot.period_start:type_name -> google.protobuf.Timestamp
+	27, // 1: anytty.cloud.v1.RelayPolicySnapshot.period_end:type_name -> google.protobuf.Timestamp
+	27, // 2: anytty.cloud.v1.RelayReserveRequest.observed_at:type_name -> google.protobuf.Timestamp
+	27, // 3: anytty.cloud.v1.RelayGrant.authorized_until:type_name -> google.protobuf.Timestamp
 	6,  // 4: anytty.cloud.v1.RelayGrant.policy:type_name -> anytty.cloud.v1.RelayPolicySnapshot
 	3,  // 5: anytty.cloud.v1.RelayReserveResponse.code:type_name -> anytty.cloud.v1.RelayResponseCode
 	8,  // 6: anytty.cloud.v1.RelayReserveResponse.grant:type_name -> anytty.cloud.v1.RelayGrant
 	13, // 7: anytty.cloud.v1.RelayReserveResponse.terminal:type_name -> anytty.cloud.v1.RelaySettlementAck
-	26, // 8: anytty.cloud.v1.RelayReserveResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	25, // 9: anytty.cloud.v1.RelayRenewRequest.observed_at:type_name -> google.protobuf.Timestamp
+	28, // 8: anytty.cloud.v1.RelayReserveResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	27, // 9: anytty.cloud.v1.RelayRenewRequest.observed_at:type_name -> google.protobuf.Timestamp
 	3,  // 10: anytty.cloud.v1.RelayRenewResponse.code:type_name -> anytty.cloud.v1.RelayResponseCode
 	8,  // 11: anytty.cloud.v1.RelayRenewResponse.grant:type_name -> anytty.cloud.v1.RelayGrant
 	13, // 12: anytty.cloud.v1.RelayRenewResponse.terminal:type_name -> anytty.cloud.v1.RelaySettlementAck
-	26, // 13: anytty.cloud.v1.RelayRenewResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	28, // 13: anytty.cloud.v1.RelayRenewResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
 	2,  // 14: anytty.cloud.v1.RelaySettlement.kind:type_name -> anytty.cloud.v1.RelaySettlementKind
-	25, // 15: anytty.cloud.v1.RelaySettlement.observed_at:type_name -> google.protobuf.Timestamp
+	27, // 15: anytty.cloud.v1.RelaySettlement.observed_at:type_name -> google.protobuf.Timestamp
 	2,  // 16: anytty.cloud.v1.RelaySettlementAck.kind:type_name -> anytty.cloud.v1.RelaySettlementKind
-	25, // 17: anytty.cloud.v1.RelaySettlementAck.observed_at:type_name -> google.protobuf.Timestamp
-	25, // 18: anytty.cloud.v1.RelaySettlementAck.settled_at:type_name -> google.protobuf.Timestamp
+	27, // 17: anytty.cloud.v1.RelaySettlementAck.observed_at:type_name -> google.protobuf.Timestamp
+	27, // 18: anytty.cloud.v1.RelaySettlementAck.settled_at:type_name -> google.protobuf.Timestamp
 	3,  // 19: anytty.cloud.v1.RelaySettlementAck.code:type_name -> anytty.cloud.v1.RelayResponseCode
 	3,  // 20: anytty.cloud.v1.RelayQueryResponse.code:type_name -> anytty.cloud.v1.RelayResponseCode
 	8,  // 21: anytty.cloud.v1.RelayQueryResponse.grant:type_name -> anytty.cloud.v1.RelayGrant
 	13, // 22: anytty.cloud.v1.RelayQueryResponse.terminal:type_name -> anytty.cloud.v1.RelaySettlementAck
-	26, // 23: anytty.cloud.v1.RelayQueryResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	25, // 24: anytty.cloud.v1.RelayRuntimePolicy.period_start:type_name -> google.protobuf.Timestamp
-	25, // 25: anytty.cloud.v1.RelayRuntimePolicy.period_end:type_name -> google.protobuf.Timestamp
-	25, // 26: anytty.cloud.v1.RelayAuthorizeRequest.observed_at:type_name -> google.protobuf.Timestamp
+	28, // 23: anytty.cloud.v1.RelayQueryResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	27, // 24: anytty.cloud.v1.RelayRuntimePolicy.period_start:type_name -> google.protobuf.Timestamp
+	27, // 25: anytty.cloud.v1.RelayRuntimePolicy.period_end:type_name -> google.protobuf.Timestamp
+	27, // 26: anytty.cloud.v1.RelayAuthorizeRequest.observed_at:type_name -> google.protobuf.Timestamp
 	16, // 27: anytty.cloud.v1.RelayAuthorizeResponse.policy:type_name -> anytty.cloud.v1.RelayRuntimePolicy
-	26, // 28: anytty.cloud.v1.RelayAuthorizeResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
-	25, // 29: anytty.cloud.v1.RelayUsageSample.sampled_at:type_name -> google.protobuf.Timestamp
-	19, // 30: anytty.cloud.v1.RelayUsageBatch.samples:type_name -> anytty.cloud.v1.RelayUsageSample
-	4,  // 31: anytty.cloud.v1.RelayAccountAction.action:type_name -> anytty.cloud.v1.RelayAccountActionType
-	25, // 32: anytty.cloud.v1.RelayAccountAction.period_start:type_name -> google.protobuf.Timestamp
-	25, // 33: anytty.cloud.v1.RelayAccountAction.period_end:type_name -> google.protobuf.Timestamp
-	21, // 34: anytty.cloud.v1.RelayUsageAck.actions:type_name -> anytty.cloud.v1.RelayAccountAction
-	25, // 35: anytty.cloud.v1.RelayUsageAck.processed_at:type_name -> google.protobuf.Timestamp
-	25, // 36: anytty.cloud.v1.RelayICEConfig.expires_at:type_name -> google.protobuf.Timestamp
-	5,  // 37: anytty.cloud.v1.RelayJournalRecord.stage:type_name -> anytty.cloud.v1.RelayJournalStage
-	7,  // 38: anytty.cloud.v1.RelayJournalRecord.reserve_request:type_name -> anytty.cloud.v1.RelayReserveRequest
-	8,  // 39: anytty.cloud.v1.RelayJournalRecord.grant:type_name -> anytty.cloud.v1.RelayGrant
-	12, // 40: anytty.cloud.v1.RelayJournalRecord.settlement:type_name -> anytty.cloud.v1.RelaySettlement
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	28, // 28: anytty.cloud.v1.RelayAuthorizeResponse.entitlement_failure:type_name -> anytty.cloud.v1.CloudEntitlementFailure
+	27, // 29: anytty.cloud.v1.RelayUsageSample.sampled_at:type_name -> google.protobuf.Timestamp
+	27, // 30: anytty.cloud.v1.RelaySessionSample.connected_at:type_name -> google.protobuf.Timestamp
+	1,  // 31: anytty.cloud.v1.RelaySessionSample.transports:type_name -> anytty.cloud.v1.RelayTransport
+	19, // 32: anytty.cloud.v1.RelayUsageBatch.samples:type_name -> anytty.cloud.v1.RelayUsageSample
+	20, // 33: anytty.cloud.v1.RelayUsageBatch.concurrency_samples:type_name -> anytty.cloud.v1.RelayConcurrencySample
+	27, // 34: anytty.cloud.v1.RelayUsageBatch.concurrency_sampled_at:type_name -> google.protobuf.Timestamp
+	21, // 35: anytty.cloud.v1.RelayUsageBatch.relay_sessions:type_name -> anytty.cloud.v1.RelaySessionSample
+	4,  // 36: anytty.cloud.v1.RelayAccountAction.action:type_name -> anytty.cloud.v1.RelayAccountActionType
+	27, // 37: anytty.cloud.v1.RelayAccountAction.period_start:type_name -> google.protobuf.Timestamp
+	27, // 38: anytty.cloud.v1.RelayAccountAction.period_end:type_name -> google.protobuf.Timestamp
+	23, // 39: anytty.cloud.v1.RelayUsageAck.actions:type_name -> anytty.cloud.v1.RelayAccountAction
+	27, // 40: anytty.cloud.v1.RelayUsageAck.processed_at:type_name -> google.protobuf.Timestamp
+	27, // 41: anytty.cloud.v1.RelayICEConfig.expires_at:type_name -> google.protobuf.Timestamp
+	5,  // 42: anytty.cloud.v1.RelayJournalRecord.stage:type_name -> anytty.cloud.v1.RelayJournalStage
+	7,  // 43: anytty.cloud.v1.RelayJournalRecord.reserve_request:type_name -> anytty.cloud.v1.RelayReserveRequest
+	8,  // 44: anytty.cloud.v1.RelayJournalRecord.grant:type_name -> anytty.cloud.v1.RelayGrant
+	12, // 45: anytty.cloud.v1.RelayJournalRecord.settlement:type_name -> anytty.cloud.v1.RelaySettlement
+	46, // [46:46] is the sub-list for method output_type
+	46, // [46:46] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_usage_proto_init() }
@@ -2383,7 +2657,7 @@ func file_cloud_v1_usage_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cloud_v1_usage_proto_rawDesc), len(file_cloud_v1_usage_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

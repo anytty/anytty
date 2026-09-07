@@ -8,6 +8,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@napi-rs/canvas": "0.1.100",
     "esbuild": "0.28.1",
     "eslint": "10.8.0",
     "eslint-plugin-react-hooks": "7.1.1",
@@ -30,6 +31,9 @@
     "undici-types": "7.19.2"
   },
   "scripts": {
+    "preview:build": "node scripts/build-mobile-file-viewer.mjs",
+    "icons": "node scripts/generate-app-icons.mjs",
+    "icons:check": "node scripts/generate-app-icons.mjs --check && node scripts/check-app-icons.mjs",
     "proto": "npm run proto --workspace @anytty/ui",
     "lint": "npm run lint --workspace @anytty/ui && npm run lint --workspace @anytty/web",
     "test": "npm test --workspace @anytty/ui && npm test --workspace @anytty/web",

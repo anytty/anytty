@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/transport"
 )
 
@@ -52,7 +53,9 @@ type ClientHandshake struct {
 
 // Authenticate 完成 daemon pin、actual channel binding、grant issuer/subject、ClientAccessIdentity possession 和 accepted scope 验证。
 // 成功后 transport 才能切换到 anytty protocol；失败时调用方必须关闭当前 transport，不能回退到 v1 bearer/HMAC。
-func (handshake ClientHandshake) Authenticate(ctx context.Context, connection transport.Transport, request ClientHandshakeRequest) (Claims, error) {
+func (handshake ClientHandshake) Authenticate(ctx context.Context, connection transport.Transport, request ClientHandshakeRequest) (resultClaims Claims, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "datachannel_auth")
+	defer func() { trace.End(resultErr) }()
 	if connection == nil {
 		return Claims{}, newHandshakeError(remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_PROTOCOL, "remote auth transport is nil", nil)
 	}
@@ -74,6 +77,7 @@ func (handshake ClientHandshake) Authenticate(ctx context.Context, connection tr
 		return Claims{}, newHandshakeError(remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_SUBJECT_KEY_MISMATCH, "capability subject does not match ClientAccessIdentity", ErrGrantSubjectMismatch)
 	}
 	helloEnvelope, err := receiveAuthEnvelope(ctx, connection)
+	trace.Mark("device_hello_received")
 	if err != nil {
 		return Claims{}, err
 	}
@@ -85,6 +89,7 @@ func (handshake ClientHandshake) Authenticate(ctx context.Context, connection tr
 		return Claims{}, err
 	}
 	clientNonce, err := randomBytes(handshake.random(), authNonceBytes)
+	trace.Mark("device_identity_verified")
 	if err != nil {
 		return Claims{}, newHandshakeError(remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_INTERNAL, "generate client nonce", err)
 	}
@@ -94,6 +99,7 @@ func (handshake ClientHandshake) Authenticate(ctx context.Context, connection tr
 		return Claims{}, err
 	}
 	open := &remoteauthpb.AuthEnvelope{
+		// The proof remains fresh and bound to this channel.
 		Protocol: AuthProtocol, Version: AuthVersion, AuthSessionId: helloEnvelope.GetAuthSessionId(),
 		Payload: &remoteauthpb.AuthEnvelope_CapabilityOpen{CapabilityOpen: &remoteauthpb.CapabilityOpen{
 			Grant:           strings.TrimSpace(request.Credential.CapabilityGrant),
@@ -103,7 +109,9 @@ func (handshake ClientHandshake) Authenticate(ctx context.Context, connection tr
 	if err := sendAuthEnvelope(ctx, connection, open); err != nil {
 		return Claims{}, err
 	}
+	trace.Mark("proof_signed_and_sent")
 	result, err := receiveAuthEnvelope(ctx, connection)
+	trace.Mark("daemon_auth_reply")
 	if err != nil {
 		return Claims{}, err
 	}

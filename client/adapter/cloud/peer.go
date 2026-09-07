@@ -13,6 +13,7 @@ import (
 	"github.com/anytty/anytty/client/port"
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	cloudclient "github.com/anytty/anytty/cloud/client"
+	cloudprotocol "github.com/anytty/anytty/cloud/protocol"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
@@ -172,13 +173,23 @@ func raceCloudPeerAttempts(
 	}
 
 	orderedErrors := make([]error, len(attempts))
-	var winner *openedCloudPeer
 	for remaining := len(attempts); remaining > 0; remaining-- {
 		result := <-results
-		if result.err == nil && result.opened != nil && winner == nil {
-			winner = result.opened
+		if result.err == nil && result.opened != nil {
 			cancel()
-			continue
+			go func(count int) {
+				for ; count > 0; count-- {
+					late := <-results
+					if late.opened != nil {
+						_ = late.opened.Close()
+					}
+				}
+			}(remaining - 1)
+			if ctx.Err() != nil {
+				_ = result.opened.Close()
+				return nil, ctx.Err()
+			}
+			return result.opened, nil
 		}
 		if result.opened != nil {
 			_ = result.opened.Close()
@@ -187,9 +198,6 @@ func raceCloudPeerAttempts(
 			result.err = errors.New("Cloud peer attempt returned no peer")
 		}
 		orderedErrors[result.index] = fmt.Errorf("Cloud %s attempt: %w", attempts[result.index].label(), result.err)
-	}
-	if winner != nil {
-		return winner, nil
 	}
 	if err := context.Cause(ctx); err != nil {
 		return nil, err
@@ -228,6 +236,9 @@ func openResolvedCloudPeerAttempt(
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseSignaling, clientruntime.EndpointStageSignaling)
 	signalSession, err := cloud.Exchange(ctx, resolved, identity, signer, product, uint64(request.Stamp().Generation), attempt.preference, relayTransportProto(attempt.relayTransport), func(ctx context.Context, ready *cloudv1.ClientReady) (string, error) {
 		peerConfig := port.WebRTCConfig{Policy: attempt.icePolicy}
+		if url := cloudprotocol.EdgeSTUNURL(resolved.Locator().GetPublicEndpoint()); url != "" && attempt.icePolicy == port.ICETransportAll {
+			peerConfig.Servers = append(peerConfig.Servers, port.ICEServer{URLs: []string{url}})
+		}
 		if relay := ready.GetRelay(); relay != nil && attempt.preference != cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY {
 			urls, filterErr := filterManagedICEURLs(relay.GetUrls(), attempt.relayTransport)
 			if filterErr != nil {

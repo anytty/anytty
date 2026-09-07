@@ -3,6 +3,7 @@ syntax = "proto3";
 package anytty.cloud.v1;
 
 import "google/protobuf/timestamp.proto";
+import "cloud/v1/usage.proto";
 
 option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
 
@@ -46,6 +47,12 @@ message ClientSessionSummary {
   ClientProduct product = 5;
   uint64 generation = 6;
   CloudClientAccessMode access_mode = 7;
+  bool relay_active = 8;
+  uint32 relay_allocation_count = 9;
+  uint64 relay_ingress_bytes = 10;
+  uint64 relay_egress_bytes = 11;
+  google.protobuf.Timestamp relay_connected_at = 12;
+  repeated RelayTransport relay_transports = 13;
 }
 
 // RuntimeSnapshot 是 Edge 在某个单调 revision 上的一致性运行时投影。

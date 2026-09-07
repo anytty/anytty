@@ -87,6 +87,7 @@ message RelayGrant {
   google.protobuf.Timestamp authorized_until = 6;
   bytes policy_digest = 7;
   RelayPolicySnapshot policy = 8;
+  string client_id = 9;
 }
 
 message RelayReserveResponse {
@@ -151,8 +152,8 @@ message RelayQueryResponse {
   CloudEntitlementFailure entitlement_failure = 6;
 }
 
-// RelayRuntimePolicy is a versioned commercial policy snapshot used by an
-// Edge for local Relay admission. It does not reserve bytes or require renewal.
+// RelayRuntimePolicy is the versioned commercial policy returned with an
+// account-wide logical Relay slot. It does not reserve bytes or require renewal.
 message RelayRuntimePolicy {
   string account_id = 1;
   string subscription_id = 2;
@@ -167,14 +168,16 @@ message RelayRuntimePolicy {
   uint64 account_revision = 11;
 }
 
-// RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
-// has no local account policy. It never creates a durable reservation.
+// RelayAuthorizeRequest atomically claims or releases one account-wide logical
+// Relay slot. A claim is mandatory before an Edge issues TURN credentials.
 message RelayAuthorizeRequest {
   string request_id = 1;
   string account_id = 2;
   string daemon_id = 3;
   string session_id = 4;
   google.protobuf.Timestamp observed_at = 5;
+  string client_id = 6;
+  bool release = 7;
 }
 
 message RelayAuthorizeResponse {
@@ -191,9 +194,39 @@ message RelayUsageSample {
   google.protobuf.Timestamp sampled_at = 3;
 }
 
+// RelayConcurrencySample counts the logical Relay groups that consume the
+// account concurrency limit on one Edge.
+message RelayConcurrencySample {
+  string account_id = 1;
+  uint32 active_relay_groups = 2;
+}
+
+// RelaySessionSample is a complete logical Relay projection from one Edge.
+// Controller admission is immediate; this periodic snapshot refreshes
+// liveness and reconciles sessions after an interrupted close.
+message RelaySessionSample {
+  string session_id = 1;
+  string account_id = 2;
+  string daemon_id = 3;
+  string client_id = 4;
+  bool relay_active = 5;
+  uint32 relay_allocation_count = 6;
+  uint64 ingress_bytes = 7;
+  uint64 egress_bytes = 8;
+  google.protobuf.Timestamp connected_at = 9;
+  repeated RelayTransport transports = 10;
+}
+
 message RelayUsageBatch {
   uint64 batch_sequence = 1;
   repeated RelayUsageSample samples = 2;
+  // A complete snapshot replaces all previously reported groups for this Edge.
+  // The Controller uses its receive time, not this sample time, for expiry.
+  repeated RelayConcurrencySample concurrency_samples = 3;
+  bool concurrency_snapshot_complete = 4;
+  google.protobuf.Timestamp concurrency_sampled_at = 5;
+  repeated RelaySessionSample relay_sessions = 6;
+  bool relay_session_snapshot_complete = 7;
 }
 
 enum RelayAccountActionType {

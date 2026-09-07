@@ -53,8 +53,9 @@ final class EndpointRepository {
   }
 
   Future<EndpointCloudPresenceGetResult> getCloudPresence(
-    String endpointId,
-  ) async {
+    String endpointId, {
+    Future<void>? cancelWhen,
+  }) async {
     final id = _requireEndpointId(endpointId);
     final result = await runBindingOperation<EndpointCloudPresenceGetResult>(
       runtime: _runtime,
@@ -73,6 +74,7 @@ final class EndpointRepository {
       operationHandle: (value) => value.operationHandle.toInt(),
       timeoutMessage: 'Device presence request timed out',
       timeout: const Duration(seconds: 15),
+      cancelWhen: cancelWhen,
     );
     _throwResultError(
       result.hasError(),

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnyTTY Browser Motion</title>
+<style>
+  *{box-sizing:border-box;letter-spacing:0}body{margin:0;background:#f1f6f5;color:#0b1c1a;font:16px system-ui,sans-serif}
+  body.dark{background:#0e1111;color:#f0f6f5;--surface:#181c1c;--border:#303737;--accent:#29cecb;--muted:#a2aaaa}
+  body{--surface:#fbfdfd;--border:#dce4e3;--accent:#219c99;--muted:#667775}
+  header{border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  h1{margin:0;font:700 20px Menlo,Consolas,monospace}button{background:transparent;border:1px solid var(--border);border-radius:6px;color:inherit;width:44px;height:44px;cursor:pointer;display:inline-grid;place-items:center}
+  button svg{width:20px;height:20px}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .controls{display:flex;gap:8px;align-items:center}label{display:flex;gap:8px;align-items:center;min-height:44px}
+  main{max-width:640px;margin:64px auto 40px;padding:0 24px}h2{font:700 28px Menlo,Consolas,monospace;margin:0 0 8px;text-align:center}
+  .caption{text-align:center;color:var(--muted);margin:0 0 8px}.perch{position:relative;padding-top:91.6667px}
+  canvas{position:absolute;right:16px;top:0;width:220px;height:100.8333px;pointer-events:none;transition:opacity 140ms}
+  .field{display:flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;height:58px;padding:0 12px;gap:12px}
+  .field>svg{width:23px;height:23px;color:var(--accent);flex:none}.field input{width:100%;min-width:0;font:16px system-ui;background:transparent;border:0;color:inherit;outline:none}
+  .field:focus-within{border-color:var(--accent)}.field input::placeholder{color:var(--muted)}.field button{color:var(--accent);border:0;flex:none}
+  .captures{display:flex;gap:24px;flex-wrap:wrap;margin-top:40px;border-top:1px solid var(--border);padding-top:20px}.captures a{color:var(--accent);line-height:2}
+  #result{min-height:24px;color:var(--muted);overflow-wrap:anywhere}
+  @media(max-width:480px){header{padding:12px 16px;flex-wrap:wrap}h1{font-size:18px}main{margin-top:32px}.controls{gap:6px}}
+  @media(prefers-reduced-motion:reduce){canvas{transition:none}}
+</style>
+<header><h1>AnyTTY Browser Motion</h1><div class="controls">
+  <button id="replay" title="重播" aria-label="重播"><!-- ICON_REPLAY --></button>
+  <label><input id="dark" type="checkbox">深色</label>
+</div></header>
+<main>
+  <h2>AnyTTY</h2><p class="caption">浏览器</p>
+  <form class="perch" id="form">
+    <div class="field"><!-- ICON_SEARCH --><input id="query" aria-label="搜索或输入网址" placeholder="搜索或输入网址" autocomplete="off"><button type="submit" title="预览提交" aria-label="预览提交"><!-- ICON_ARROW --></button></div>
+    <canvas id="mascot" width="480" height="220" aria-hidden="true"></canvas>
+  </form>
+  <p id="result" role="status"></p>
+  <div class="captures"><a href="browser-light-phone-zh.png">App 浅色截图</a><a href="browser-dark-phone-zh.png">App 深色截图</a></div>
+</main>
+<script>
+  const canvas=document.querySelector('#mascot'),ctx=canvas.getContext('2d');
+  const query=document.querySelector('#query'),reduced=matchMedia('(prefers-reduced-motion:reduce)');
+  const sprite=new Image();sprite.src='perch-sprite.png';
+  let elapsed=0,last=0,raf=0,loaded=false;
+  const visible=()=>!query.value.trim()&&document.activeElement!==query;
+  function draw(){if(!loaded)return;const frame=Math.min(359,Math.floor(elapsed/12000*359));ctx.clearRect(0,0,480,220);ctx.drawImage(sprite,(frame%12)*480,Math.floor(frame/12)*220,480,220,0,0,480,220)}
+  function stop(){cancelAnimationFrame(raf);raf=0;last=0}
+  function tick(now){raf=0;if(last)elapsed=Math.min(12000,elapsed+now-last);last=now;draw();if(elapsed<12000)raf=requestAnimationFrame(tick)}
+  function sync(){stop();canvas.style.opacity=visible()?'1':'0';if(reduced.matches)elapsed=0;draw();if(loaded&&visible()&&!document.hidden&&!reduced.matches&&elapsed<12000)raf=requestAnimationFrame(tick)}
+  sprite.onload=()=>{loaded=true;sync()};sprite.onerror=()=>{document.querySelector('#result').textContent='动画资源加载失败'};
+  query.addEventListener('focus',sync);query.addEventListener('input',sync);query.addEventListener('blur',()=>{if(visible())elapsed=0;sync()});
+  document.querySelector('#replay').onclick=()=>{elapsed=0;sync()};
+  document.querySelector('#dark').onchange=e=>document.body.classList.toggle('dark',e.target.checked);
+  document.querySelector('#form').onsubmit=e=>{e.preventDefault();if(query.value.trim())document.querySelector('#result').textContent='已输入：'+query.value.trim()};
+  document.addEventListener('visibilitychange',sync);reduced.addEventListener('change',sync);
+</script>
+</html>

@@ -19,16 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountService_Login_FullMethodName                      = "/anytty.cloud.v1.AccountService/Login"
-	AccountService_Refresh_FullMethodName                    = "/anytty.cloud.v1.AccountService/Refresh"
-	AccountService_Logout_FullMethodName                     = "/anytty.cloud.v1.AccountService/Logout"
-	AccountService_GetCurrent_FullMethodName                 = "/anytty.cloud.v1.AccountService/GetCurrent"
-	AccountService_VerifyRecentAuthentication_FullMethodName = "/anytty.cloud.v1.AccountService/VerifyRecentAuthentication"
-	AccountService_ListRefreshTokens_FullMethodName          = "/anytty.cloud.v1.AccountService/ListRefreshTokens"
-	AccountService_ChangePassword_FullMethodName             = "/anytty.cloud.v1.AccountService/ChangePassword"
-	AccountService_RedeemAccountSetup_FullMethodName         = "/anytty.cloud.v1.AccountService/RedeemAccountSetup"
-	AccountService_RevokeRefreshToken_FullMethodName         = "/anytty.cloud.v1.AccountService/RevokeRefreshToken"
-	AccountService_DeleteAccount_FullMethodName              = "/anytty.cloud.v1.AccountService/DeleteAccount"
+	AccountService_Login_FullMethodName              = "/anytty.cloud.v1.AccountService/Login"
+	AccountService_Refresh_FullMethodName            = "/anytty.cloud.v1.AccountService/Refresh"
+	AccountService_Logout_FullMethodName             = "/anytty.cloud.v1.AccountService/Logout"
+	AccountService_GetCurrent_FullMethodName         = "/anytty.cloud.v1.AccountService/GetCurrent"
+	AccountService_ListRefreshTokens_FullMethodName  = "/anytty.cloud.v1.AccountService/ListRefreshTokens"
+	AccountService_ChangePassword_FullMethodName     = "/anytty.cloud.v1.AccountService/ChangePassword"
+	AccountService_RedeemAccountSetup_FullMethodName = "/anytty.cloud.v1.AccountService/RedeemAccountSetup"
+	AccountService_RevokeRefreshToken_FullMethodName = "/anytty.cloud.v1.AccountService/RevokeRefreshToken"
+	AccountService_DeleteAccount_FullMethodName      = "/anytty.cloud.v1.AccountService/DeleteAccount"
 )
 
 // AccountServiceClient is the client API for AccountService service.
@@ -41,7 +40,6 @@ type AccountServiceClient interface {
 	Refresh(ctx context.Context, in *RefreshAccountTokenRequest, opts ...grpc.CallOption) (*RefreshAccountTokenResponse, error)
 	Logout(ctx context.Context, in *LogoutAccountRequest, opts ...grpc.CallOption) (*LogoutAccountResponse, error)
 	GetCurrent(ctx context.Context, in *GetCurrentAccountRequest, opts ...grpc.CallOption) (*GetCurrentAccountResponse, error)
-	VerifyRecentAuthentication(ctx context.Context, in *VerifyRecentAuthenticationRequest, opts ...grpc.CallOption) (*VerifyRecentAuthenticationResponse, error)
 	ListRefreshTokens(ctx context.Context, in *ListAccountRefreshTokensRequest, opts ...grpc.CallOption) (*ListAccountRefreshTokensResponse, error)
 	ChangePassword(ctx context.Context, in *ChangeAccountPasswordRequest, opts ...grpc.CallOption) (*ChangeAccountPasswordResponse, error)
 	RedeemAccountSetup(ctx context.Context, in *RedeemAccountSetupRequest, opts ...grpc.CallOption) (*RedeemAccountSetupResponse, error)
@@ -91,16 +89,6 @@ func (c *accountServiceClient) GetCurrent(ctx context.Context, in *GetCurrentAcc
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetCurrentAccountResponse)
 	err := c.cc.Invoke(ctx, AccountService_GetCurrent_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountServiceClient) VerifyRecentAuthentication(ctx context.Context, in *VerifyRecentAuthenticationRequest, opts ...grpc.CallOption) (*VerifyRecentAuthenticationResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(VerifyRecentAuthenticationResponse)
-	err := c.cc.Invoke(ctx, AccountService_VerifyRecentAuthentication_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +155,6 @@ type AccountServiceServer interface {
 	Refresh(context.Context, *RefreshAccountTokenRequest) (*RefreshAccountTokenResponse, error)
 	Logout(context.Context, *LogoutAccountRequest) (*LogoutAccountResponse, error)
 	GetCurrent(context.Context, *GetCurrentAccountRequest) (*GetCurrentAccountResponse, error)
-	VerifyRecentAuthentication(context.Context, *VerifyRecentAuthenticationRequest) (*VerifyRecentAuthenticationResponse, error)
 	ListRefreshTokens(context.Context, *ListAccountRefreshTokensRequest) (*ListAccountRefreshTokensResponse, error)
 	ChangePassword(context.Context, *ChangeAccountPasswordRequest) (*ChangeAccountPasswordResponse, error)
 	RedeemAccountSetup(context.Context, *RedeemAccountSetupRequest) (*RedeemAccountSetupResponse, error)
@@ -194,9 +181,6 @@ func (UnimplementedAccountServiceServer) Logout(context.Context, *LogoutAccountR
 }
 func (UnimplementedAccountServiceServer) GetCurrent(context.Context, *GetCurrentAccountRequest) (*GetCurrentAccountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCurrent not implemented")
-}
-func (UnimplementedAccountServiceServer) VerifyRecentAuthentication(context.Context, *VerifyRecentAuthenticationRequest) (*VerifyRecentAuthenticationResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method VerifyRecentAuthentication not implemented")
 }
 func (UnimplementedAccountServiceServer) ListRefreshTokens(context.Context, *ListAccountRefreshTokensRequest) (*ListAccountRefreshTokensResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRefreshTokens not implemented")
@@ -302,24 +286,6 @@ func _AccountService_GetCurrent_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).GetCurrent(ctx, req.(*GetCurrentAccountRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountService_VerifyRecentAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(VerifyRecentAuthenticationRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountServiceServer).VerifyRecentAuthentication(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountService_VerifyRecentAuthentication_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).VerifyRecentAuthentication(ctx, req.(*VerifyRecentAuthenticationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -436,10 +402,6 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCurrent",
 			Handler:    _AccountService_GetCurrent_Handler,
-		},
-		{
-			MethodName: "VerifyRecentAuthentication",
-			Handler:    _AccountService_VerifyRecentAuthentication_Handler,
 		},
 		{
 			MethodName: "ListRefreshTokens",

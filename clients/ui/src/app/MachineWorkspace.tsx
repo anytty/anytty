@@ -51,6 +51,7 @@ import { NativeSelect } from '../ui/native-select'
 import { Textarea } from '../ui/textarea'
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
 import { Spinner } from '../ui/spinner'
+import { BrandMotion } from '../brand/BrandMotion'
 import { WebTerminalSettingsDialog } from './WebTerminalSettingsDialog'
 import { WebTerminalPickerDialog } from './WebTerminalPickerDialog'
 import { WebTerminalDropOverlay, type WebPaneDropTarget } from './WebTerminalDropOverlay'
@@ -3257,8 +3258,8 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
   if (!machine) {
     return (
       <div className={`flex h-full min-h-0 items-center justify-center bg-zinc-50 ${className || ''}`}>
-        <div className="flex items-center gap-2 text-sm text-zinc-500">
-          <Spinner className="text-zinc-600" aria-hidden="true" />
+        <div className="flex flex-col items-center gap-2 text-sm text-zinc-500" role="status">
+          <BrandMotion scene="connecting" />
           {t('workspace.connectingAnyTTY')}
         </div>
       </div>

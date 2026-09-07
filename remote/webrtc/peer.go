@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/netpath"
 	pion "github.com/pion/webrtc/v4"
 )
 
@@ -27,6 +28,8 @@ func NewPeerConnectionWithLogger(configuration pion.Configuration, logger *slog.
 	EnsureLoggerFactory(&settingEngine, logger)
 	if containsLoopbackTURN(configuration.ICEServers) {
 		settingEngine.SetIncludeLoopbackCandidate(true)
+	} else if network, err := netpath.NewICENetwork(); err == nil {
+		settingEngine.SetNet(network)
 	}
 	return newPeerConnectionAPI(settingEngine).NewPeerConnection(configuration)
 }

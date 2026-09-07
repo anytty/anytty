@@ -1205,15 +1205,24 @@ const ChangeMySubscriptionRequest$json = {
       '5': 4,
       '10': 'expectedRevision'
     },
+    {'1': 'target_plan_id', '3': 3, '4': 1, '5': 9, '10': 'targetPlanId'},
+    {
+      '1': 'target_plan_version',
+      '3': 4,
+      '4': 1,
+      '5': 4,
+      '10': 'targetPlanVersion'
+    },
   ],
 };
 
 /// Descriptor for `ChangeMySubscriptionRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List changeMySubscriptionRequestDescriptor =
-    $convert.base64Decode(
-        'ChtDaGFuZ2VNeVN1YnNjcmlwdGlvblJlcXVlc3QSRwoKdHJhbnNpdGlvbhgBIAEoDjInLmFueX'
-        'R0eS5jbG91ZC52MS5TdWJzY3JpcHRpb25UcmFuc2l0aW9uUgp0cmFuc2l0aW9uEisKEWV4cGVj'
-        'dGVkX3JldmlzaW9uGAIgASgEUhBleHBlY3RlZFJldmlzaW9u');
+final $typed_data.Uint8List changeMySubscriptionRequestDescriptor = $convert.base64Decode(
+    'ChtDaGFuZ2VNeVN1YnNjcmlwdGlvblJlcXVlc3QSRwoKdHJhbnNpdGlvbhgBIAEoDjInLmFueX'
+    'R0eS5jbG91ZC52MS5TdWJzY3JpcHRpb25UcmFuc2l0aW9uUgp0cmFuc2l0aW9uEisKEWV4cGVj'
+    'dGVkX3JldmlzaW9uGAIgASgEUhBleHBlY3RlZFJldmlzaW9uEiQKDnRhcmdldF9wbGFuX2lkGA'
+    'MgASgJUgx0YXJnZXRQbGFuSWQSLgoTdGFyZ2V0X3BsYW5fdmVyc2lvbhgEIAEoBFIRdGFyZ2V0'
+    'UGxhblZlcnNpb24=');
 
 @$core.Deprecated('Use completeDevelopmentPaymentRequestDescriptor instead')
 const CompleteDevelopmentPaymentRequest$json = {

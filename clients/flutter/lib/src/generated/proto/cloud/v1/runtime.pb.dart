@@ -18,6 +18,7 @@ import 'package:protobuf/well_known_types/google/protobuf/timestamp.pb.dart'
     as $0;
 
 import 'runtime.pbenum.dart';
+import 'usage.pbenum.dart' as $1;
 
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
@@ -168,6 +169,12 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
     ClientProduct? product,
     $fixnum.Int64? generation,
     CloudClientAccessMode? accessMode,
+    $core.bool? relayActive,
+    $core.int? relayAllocationCount,
+    $fixnum.Int64? relayIngressBytes,
+    $fixnum.Int64? relayEgressBytes,
+    $0.Timestamp? relayConnectedAt,
+    $core.Iterable<$1.RelayTransport>? relayTransports,
   }) {
     final result = create();
     if (sessionId != null) result.sessionId = sessionId;
@@ -177,6 +184,13 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
     if (product != null) result.product = product;
     if (generation != null) result.generation = generation;
     if (accessMode != null) result.accessMode = accessMode;
+    if (relayActive != null) result.relayActive = relayActive;
+    if (relayAllocationCount != null)
+      result.relayAllocationCount = relayAllocationCount;
+    if (relayIngressBytes != null) result.relayIngressBytes = relayIngressBytes;
+    if (relayEgressBytes != null) result.relayEgressBytes = relayEgressBytes;
+    if (relayConnectedAt != null) result.relayConnectedAt = relayConnectedAt;
+    if (relayTransports != null) result.relayTransports.addAll(relayTransports);
     return result;
   }
 
@@ -205,6 +219,22 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aE<CloudClientAccessMode>(7, _omitFieldNames ? '' : 'accessMode',
         enumValues: CloudClientAccessMode.values)
+    ..aOB(8, _omitFieldNames ? '' : 'relayActive')
+    ..aI(9, _omitFieldNames ? '' : 'relayAllocationCount',
+        fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(
+        10, _omitFieldNames ? '' : 'relayIngressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        11, _omitFieldNames ? '' : 'relayEgressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOM<$0.Timestamp>(12, _omitFieldNames ? '' : 'relayConnectedAt',
+        subBuilder: $0.Timestamp.create)
+    ..pc<$1.RelayTransport>(
+        13, _omitFieldNames ? '' : 'relayTransports', $pb.PbFieldType.KE,
+        valueOf: $1.RelayTransport.valueOf,
+        enumValues: $1.RelayTransport.values,
+        defaultEnumValue: $1.RelayTransport.RELAY_TRANSPORT_UNSPECIFIED)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -288,6 +318,56 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
   $core.bool hasAccessMode() => $_has(6);
   @$pb.TagNumber(7)
   void clearAccessMode() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get relayActive => $_getBF(7);
+  @$pb.TagNumber(8)
+  set relayActive($core.bool value) => $_setBool(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasRelayActive() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearRelayActive() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.int get relayAllocationCount => $_getIZ(8);
+  @$pb.TagNumber(9)
+  set relayAllocationCount($core.int value) => $_setUnsignedInt32(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasRelayAllocationCount() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearRelayAllocationCount() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $fixnum.Int64 get relayIngressBytes => $_getI64(9);
+  @$pb.TagNumber(10)
+  set relayIngressBytes($fixnum.Int64 value) => $_setInt64(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasRelayIngressBytes() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearRelayIngressBytes() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $fixnum.Int64 get relayEgressBytes => $_getI64(10);
+  @$pb.TagNumber(11)
+  set relayEgressBytes($fixnum.Int64 value) => $_setInt64(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasRelayEgressBytes() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearRelayEgressBytes() => $_clearField(11);
+
+  @$pb.TagNumber(12)
+  $0.Timestamp get relayConnectedAt => $_getN(11);
+  @$pb.TagNumber(12)
+  set relayConnectedAt($0.Timestamp value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasRelayConnectedAt() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearRelayConnectedAt() => $_clearField(12);
+  @$pb.TagNumber(12)
+  $0.Timestamp ensureRelayConnectedAt() => $_ensure(11);
+
+  @$pb.TagNumber(13)
+  $pb.PbList<$1.RelayTransport> get relayTransports => $_getList(12);
 }
 
 /// RuntimeSnapshot 是 Edge 在某个单调 revision 上的一致性运行时投影。

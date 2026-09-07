@@ -27,6 +27,7 @@ import (
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/proto/remoteauthpb"
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/datachannel"
@@ -74,7 +75,9 @@ type Dialer struct {
 
 // Connect 只尝试 request 指定的 Direct Route；任何失败都会关闭 peer、DataChannel 和 protocol client。
 // signaling locator 变化不改变 Endpoint identity，answer 必须由 pin 对应的 daemon DeviceIdentity 签名。
-func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (clientruntime.ReadyPeerSession, error) {
+func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (result clientruntime.ReadyPeerSession, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "direct_route")
+	defer func() { trace.End(resultErr) }()
 	if dialer == nil {
 		return nil, fmt.Errorf("direct WebRTC connector is required")
 	}
@@ -97,6 +100,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	stage := func(name string) {
 		now := time.Now()
 		log.Printf("anytty direct connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, name, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(name)
 		lastAt = now
 	}
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageAuthorizationPreparing)
@@ -611,14 +615,16 @@ func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []strin
 		}
 	}
 	if exchangeContext.Err() != nil && ctx.Err() == nil {
+		cause := errors.Join(append(dialErrors, exchangeContext.Err())...)
 		return nil, &clientruntime.Error{
-			Code: clientruntime.ErrorUnavailable, Message: "direct signaling timed out",
-			Cause: exchangeContext.Err(), Attempted: true, Retryable: true,
+			Code: clientruntime.ErrorUnavailable, Message: fmt.Sprintf("direct signaling timed out: %v", cause),
+			Cause: cause, Attempted: true, Retryable: true,
 		}
 	}
+	cause := errors.Join(dialErrors...)
 	return nil, &clientruntime.Error{
-		Code: clientruntime.ErrorUnavailable, Message: "direct signaling is unavailable",
-		Cause: errors.Join(dialErrors...), Attempted: true, Retryable: true,
+		Code: clientruntime.ErrorUnavailable, Message: fmt.Sprintf("direct signaling is unavailable: %v", cause),
+		Cause: cause, Attempted: true, Retryable: true,
 	}
 }
 

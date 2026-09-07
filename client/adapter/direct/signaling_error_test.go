@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,11 @@ func TestTCPSignalingClientClassifiesUnreachableAddressesAsRetryable(t *testing.
 	}
 	if !errors.Is(err, cause) {
 		t.Fatalf("Exchange error = %v, want wrapped dial cause", err)
+	}
+	for _, detail := range []string{"first.test:1", "second.test:2", "connection refused"} {
+		if !strings.Contains(err.Error(), detail) {
+			t.Fatalf("visible error %q omits %q", err, detail)
+		}
 	}
 }
 

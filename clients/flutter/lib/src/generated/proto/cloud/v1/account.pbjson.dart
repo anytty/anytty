@@ -295,14 +295,9 @@ const GetCurrentAccountResponse$json = {
       '6': '.anytty.cloud.v1.AccountRole',
       '10': 'roles'
     },
-    {
-      '1': 'recent_auth_expires_at',
-      '3': 3,
-      '4': 1,
-      '5': 11,
-      '6': '.google.protobuf.Timestamp',
-      '10': 'recentAuthExpiresAt'
-    },
+  ],
+  '9': [
+    {'1': 3, '2': 4},
   ],
 };
 
@@ -310,53 +305,7 @@ const GetCurrentAccountResponse$json = {
 final $typed_data.Uint8List getCurrentAccountResponseDescriptor = $convert.base64Decode(
     'ChlHZXRDdXJyZW50QWNjb3VudFJlc3BvbnNlEjkKB2FjY291bnQYASABKAsyHy5hbnl0dHkuY2'
     'xvdWQudjEuQWNjb3VudFByb2ZpbGVSB2FjY291bnQSMgoFcm9sZXMYAiADKA4yHC5hbnl0dHku'
-    'Y2xvdWQudjEuQWNjb3VudFJvbGVSBXJvbGVzEk8KFnJlY2VudF9hdXRoX2V4cGlyZXNfYXQYAy'
-    'ABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUhNyZWNlbnRBdXRoRXhwaXJlc0F0');
-
-@$core.Deprecated('Use verifyRecentAuthenticationRequestDescriptor instead')
-const VerifyRecentAuthenticationRequest$json = {
-  '1': 'VerifyRecentAuthenticationRequest',
-  '2': [
-    {'1': 'password', '3': 1, '4': 1, '5': 9, '10': 'password'},
-  ],
-};
-
-/// Descriptor for `VerifyRecentAuthenticationRequest`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List verifyRecentAuthenticationRequestDescriptor =
-    $convert.base64Decode(
-        'CiFWZXJpZnlSZWNlbnRBdXRoZW50aWNhdGlvblJlcXVlc3QSGgoIcGFzc3dvcmQYASABKAlSCH'
-        'Bhc3N3b3Jk');
-
-@$core.Deprecated('Use verifyRecentAuthenticationResponseDescriptor instead')
-const VerifyRecentAuthenticationResponse$json = {
-  '1': 'VerifyRecentAuthenticationResponse',
-  '2': [
-    {
-      '1': 'expires_at',
-      '3': 1,
-      '4': 1,
-      '5': 11,
-      '6': '.google.protobuf.Timestamp',
-      '10': 'expiresAt'
-    },
-    {
-      '1': 'credential',
-      '3': 2,
-      '4': 1,
-      '5': 11,
-      '6': '.anytty.cloud.v1.AccountTokenCredential',
-      '10': 'credential'
-    },
-  ],
-};
-
-/// Descriptor for `VerifyRecentAuthenticationResponse`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List verifyRecentAuthenticationResponseDescriptor =
-    $convert.base64Decode(
-        'CiJWZXJpZnlSZWNlbnRBdXRoZW50aWNhdGlvblJlc3BvbnNlEjkKCmV4cGlyZXNfYXQYASABKA'
-        'syGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSRwoKY3JlZGVudGlhbBgC'
-        'IAEoCzInLmFueXR0eS5jbG91ZC52MS5BY2NvdW50VG9rZW5DcmVkZW50aWFsUgpjcmVkZW50aW'
-        'Fs');
+    'Y2xvdWQudjEuQWNjb3VudFJvbGVSBXJvbGVzSgQIAxAE');
 
 @$core.Deprecated('Use accountRefreshTokenProjectionDescriptor instead')
 const AccountRefreshTokenProjection$json = {
@@ -380,15 +329,10 @@ const AccountRefreshTokenProjection$json = {
       '6': '.google.protobuf.Timestamp',
       '10': 'expiresAt'
     },
-    {
-      '1': 'recent_auth_expires_at',
-      '3': 5,
-      '4': 1,
-      '5': 11,
-      '6': '.google.protobuf.Timestamp',
-      '10': 'recentAuthExpiresAt'
-    },
     {'1': 'revision', '3': 6, '4': 1, '5': 4, '10': 'revision'},
+  ],
+  '9': [
+    {'1': 5, '2': 6},
   ],
 };
 
@@ -397,9 +341,8 @@ final $typed_data.Uint8List accountRefreshTokenProjectionDescriptor = $convert.b
     'Ch1BY2NvdW50UmVmcmVzaFRva2VuUHJvamVjdGlvbhIdCgpyZWZyZXNoX2lkGAEgASgJUglyZW'
     'ZyZXNoSWQSGAoHY3VycmVudBgCIAEoCFIHY3VycmVudBI5CgpjcmVhdGVkX2F0GAMgASgLMhou'
     'Z29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFIJY3JlYXRlZEF0EjkKCmV4cGlyZXNfYXQYBCABKA'
-    'syGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSTwoWcmVjZW50X2F1dGhf'
-    'ZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSE3JlY2VudEF1dG'
-    'hFeHBpcmVzQXQSGgoIcmV2aXNpb24YBiABKARSCHJldmlzaW9u');
+    'syGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglleHBpcmVzQXQSGgoIcmV2aXNpb24YBiAB'
+    'KARSCHJldmlzaW9uSgQIBRAG');
 
 @$core.Deprecated('Use listAccountRefreshTokensRequestDescriptor instead')
 const ListAccountRefreshTokensRequest$json = {
@@ -436,16 +379,18 @@ final $typed_data.Uint8List listAccountRefreshTokensResponseDescriptor =
 const ChangeAccountPasswordRequest$json = {
   '1': 'ChangeAccountPasswordRequest',
   '2': [
-    {'1': 'current_password', '3': 1, '4': 1, '5': 9, '10': 'currentPassword'},
     {'1': 'new_password', '3': 2, '4': 1, '5': 9, '10': 'newPassword'},
+  ],
+  '9': [
+    {'1': 1, '2': 2},
   ],
 };
 
 /// Descriptor for `ChangeAccountPasswordRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List changeAccountPasswordRequestDescriptor =
     $convert.base64Decode(
-        'ChxDaGFuZ2VBY2NvdW50UGFzc3dvcmRSZXF1ZXN0EikKEGN1cnJlbnRfcGFzc3dvcmQYASABKA'
-        'lSD2N1cnJlbnRQYXNzd29yZBIhCgxuZXdfcGFzc3dvcmQYAiABKAlSC25ld1Bhc3N3b3Jk');
+        'ChxDaGFuZ2VBY2NvdW50UGFzc3dvcmRSZXF1ZXN0EiEKDG5ld19wYXNzd29yZBgCIAEoCVILbm'
+        'V3UGFzc3dvcmRKBAgBEAI=');
 
 @$core.Deprecated('Use changeAccountPasswordResponseDescriptor instead')
 const ChangeAccountPasswordResponse$json = {
@@ -547,15 +492,14 @@ final $typed_data.Uint8List revokeAccountRefreshTokenResponseDescriptor =
 @$core.Deprecated('Use deleteAccountRequestDescriptor instead')
 const DeleteAccountRequest$json = {
   '1': 'DeleteAccountRequest',
-  '2': [
-    {'1': 'password', '3': 1, '4': 1, '5': 9, '10': 'password'},
+  '9': [
+    {'1': 1, '2': 2},
   ],
 };
 
 /// Descriptor for `DeleteAccountRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List deleteAccountRequestDescriptor =
-    $convert.base64Decode(
-        'ChREZWxldGVBY2NvdW50UmVxdWVzdBIaCghwYXNzd29yZBgBIAEoCVIIcGFzc3dvcmQ=');
+    $convert.base64Decode('ChREZWxldGVBY2NvdW50UmVxdWVzdEoECAEQAg==');
 
 @$core.Deprecated('Use deleteAccountResponseDescriptor instead')
 const DeleteAccountResponse$json = {
@@ -588,11 +532,6 @@ const $core.Map<$core.String, $core.dynamic> AccountServiceBase$json = {
       '1': 'GetCurrent',
       '2': '.anytty.cloud.v1.GetCurrentAccountRequest',
       '3': '.anytty.cloud.v1.GetCurrentAccountResponse'
-    },
-    {
-      '1': 'VerifyRecentAuthentication',
-      '2': '.anytty.cloud.v1.VerifyRecentAuthenticationRequest',
-      '3': '.anytty.cloud.v1.VerifyRecentAuthenticationResponse'
     },
     {
       '1': 'ListRefreshTokens',
@@ -638,10 +577,6 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
   '.anytty.cloud.v1.LogoutAccountResponse': LogoutAccountResponse$json,
   '.anytty.cloud.v1.GetCurrentAccountRequest': GetCurrentAccountRequest$json,
   '.anytty.cloud.v1.GetCurrentAccountResponse': GetCurrentAccountResponse$json,
-  '.anytty.cloud.v1.VerifyRecentAuthenticationRequest':
-      VerifyRecentAuthenticationRequest$json,
-  '.anytty.cloud.v1.VerifyRecentAuthenticationResponse':
-      VerifyRecentAuthenticationResponse$json,
   '.anytty.cloud.v1.ListAccountRefreshTokensRequest':
       ListAccountRefreshTokensRequest$json,
   '.anytty.cloud.v1.ListAccountRefreshTokensResponse':
@@ -672,16 +607,14 @@ final $typed_data.Uint8List accountServiceDescriptor = $convert.base64Decode(
     'eS5jbG91ZC52MS5Mb2dvdXRBY2NvdW50UmVxdWVzdBomLmFueXR0eS5jbG91ZC52MS5Mb2dvdX'
     'RBY2NvdW50UmVzcG9uc2USYwoKR2V0Q3VycmVudBIpLmFueXR0eS5jbG91ZC52MS5HZXRDdXJy'
     'ZW50QWNjb3VudFJlcXVlc3QaKi5hbnl0dHkuY2xvdWQudjEuR2V0Q3VycmVudEFjY291bnRSZX'
-    'Nwb25zZRKFAQoaVmVyaWZ5UmVjZW50QXV0aGVudGljYXRpb24SMi5hbnl0dHkuY2xvdWQudjEu'
-    'VmVyaWZ5UmVjZW50QXV0aGVudGljYXRpb25SZXF1ZXN0GjMuYW55dHR5LmNsb3VkLnYxLlZlcm'
-    'lmeVJlY2VudEF1dGhlbnRpY2F0aW9uUmVzcG9uc2USeAoRTGlzdFJlZnJlc2hUb2tlbnMSMC5h'
-    'bnl0dHkuY2xvdWQudjEuTGlzdEFjY291bnRSZWZyZXNoVG9rZW5zUmVxdWVzdBoxLmFueXR0eS'
-    '5jbG91ZC52MS5MaXN0QWNjb3VudFJlZnJlc2hUb2tlbnNSZXNwb25zZRJvCg5DaGFuZ2VQYXNz'
-    'd29yZBItLmFueXR0eS5jbG91ZC52MS5DaGFuZ2VBY2NvdW50UGFzc3dvcmRSZXF1ZXN0Gi4uYW'
-    '55dHR5LmNsb3VkLnYxLkNoYW5nZUFjY291bnRQYXNzd29yZFJlc3BvbnNlEm0KElJlZGVlbUFj'
-    'Y291bnRTZXR1cBIqLmFueXR0eS5jbG91ZC52MS5SZWRlZW1BY2NvdW50U2V0dXBSZXF1ZXN0Gi'
-    'suYW55dHR5LmNsb3VkLnYxLlJlZGVlbUFjY291bnRTZXR1cFJlc3BvbnNlEnsKElJldm9rZVJl'
-    'ZnJlc2hUb2tlbhIxLmFueXR0eS5jbG91ZC52MS5SZXZva2VBY2NvdW50UmVmcmVzaFRva2VuUm'
-    'VxdWVzdBoyLmFueXR0eS5jbG91ZC52MS5SZXZva2VBY2NvdW50UmVmcmVzaFRva2VuUmVzcG9u'
-    'c2USXgoNRGVsZXRlQWNjb3VudBIlLmFueXR0eS5jbG91ZC52MS5EZWxldGVBY2NvdW50UmVxdW'
-    'VzdBomLmFueXR0eS5jbG91ZC52MS5EZWxldGVBY2NvdW50UmVzcG9uc2U=');
+    'Nwb25zZRJ4ChFMaXN0UmVmcmVzaFRva2VucxIwLmFueXR0eS5jbG91ZC52MS5MaXN0QWNjb3Vu'
+    'dFJlZnJlc2hUb2tlbnNSZXF1ZXN0GjEuYW55dHR5LmNsb3VkLnYxLkxpc3RBY2NvdW50UmVmcm'
+    'VzaFRva2Vuc1Jlc3BvbnNlEm8KDkNoYW5nZVBhc3N3b3JkEi0uYW55dHR5LmNsb3VkLnYxLkNo'
+    'YW5nZUFjY291bnRQYXNzd29yZFJlcXVlc3QaLi5hbnl0dHkuY2xvdWQudjEuQ2hhbmdlQWNjb3'
+    'VudFBhc3N3b3JkUmVzcG9uc2USbQoSUmVkZWVtQWNjb3VudFNldHVwEiouYW55dHR5LmNsb3Vk'
+    'LnYxLlJlZGVlbUFjY291bnRTZXR1cFJlcXVlc3QaKy5hbnl0dHkuY2xvdWQudjEuUmVkZWVtQW'
+    'Njb3VudFNldHVwUmVzcG9uc2USewoSUmV2b2tlUmVmcmVzaFRva2VuEjEuYW55dHR5LmNsb3Vk'
+    'LnYxLlJldm9rZUFjY291bnRSZWZyZXNoVG9rZW5SZXF1ZXN0GjIuYW55dHR5LmNsb3VkLnYxLl'
+    'Jldm9rZUFjY291bnRSZWZyZXNoVG9rZW5SZXNwb25zZRJeCg1EZWxldGVBY2NvdW50EiUuYW55'
+    'dHR5LmNsb3VkLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GiYuYW55dHR5LmNsb3VkLnYxLkRlbG'
+    'V0ZUFjY291bnRSZXNwb25zZQ==');

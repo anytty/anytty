@@ -45,6 +45,7 @@ import '../../terminal/domain/terminal_settings.dart';
 import '../../terminal/domain/terminal_soft_input.dart';
 import '../../terminal/domain/terminal_split_layout.dart';
 import 'terminal_canvas.dart';
+import 'terminal_history_transition.dart';
 import 'terminal_command_bar.dart';
 import 'terminal_keyboard_inset.dart';
 import 'terminal_petal_menu.dart';
@@ -2778,8 +2779,12 @@ final class _TerminalListLoadingState
                                               event.attemptedRouteKind.value,
                                               event.connectionStage,
                                             )),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                            maxLines:
+                                                event.connectionStage ==
+                                                    'attempt_failed'
+                                                ? 6
+                                                : 2,
+                                            overflow: TextOverflow.fade,
                                             style: TextStyle(
                                               color:
                                                   event.connectionStage ==
@@ -3058,7 +3063,11 @@ String _connectionAttemptLabel(
     ),
     _ => _connectionLoadingLabel(context, event.phase),
   };
-  return '$route · $stage';
+  final detail = event.connectionStage == 'attempt_failed' && event.hasError()
+      ? event.error.message.trim()
+      : '';
+  if (detail.isEmpty) return '$route · $stage';
+  return '$route · $stage\n$detail';
 }
 
 final class _DirectOnlyConnectionHelp extends StatelessWidget {
@@ -5599,24 +5608,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }
 
   Widget _buildTerminalContent() {
-    if (_readOnly) {
-      if (_history case final history?) {
-        return TerminalHistoryPresentation(
-          ready: _historyPresented,
-          fallback: ColoredBox(
-            color: _terminalThemeColor(widget.settings.theme.background),
-          ),
-          child: _buildHistoryContent(history),
-        );
-      }
-      if (_historyLoading) {
-        if (_historyLoadingVisible) {
-          return const _WaitingForSnapshot(label: 'Loading history');
-        }
-        return ColoredBox(
-          color: _terminalThemeColor(widget.settings.theme.background),
-        );
-      }
+    if (_readOnly && _history == null && !_historyLoading) {
       if (_historyError case final historyError?) {
         return _TerminalFailure(
           dark: true,
@@ -5627,10 +5619,18 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     }
 
     final history = _history;
-    return TerminalHistoryPresentation(
+    return TerminalHistoryTransition(
+      key: ObjectKey(widget.connection),
+      active: history != null || _historyLoading,
       ready: history != null && _historyPresented,
-      fallbackInteractive: history == null && !_historyLoading,
-      fallback: _buildLiveTerminalContent(),
+      background: _terminalThemeColor(widget.settings.theme.background),
+      foreground: _terminalThemeColor(widget.settings.theme.foreground),
+      onCancel: _readOnly ? null : () => unawaited(_toggleHistory()),
+      fallback: _readOnly
+          ? ColoredBox(
+              color: _terminalThemeColor(widget.settings.theme.background),
+            )
+          : _buildLiveTerminalContent(),
       child: history == null
           ? const SizedBox.expand()
           : _buildHistoryContent(history),
@@ -5737,8 +5737,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                       message: 'Reconnecting terminal',
                       error: false,
                     ),
-                  if (_historyLoadingVisible)
-                    const _HistoryLoadingStatus(label: 'Loading history'),
                 ],
               ),
             ),
@@ -6189,26 +6187,28 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }) => switch (id) {
     'history' => TerminalPetalMenuItem(
       id: 'history',
-      label: _history == null ? 'History' : 'Live',
+      label: _history == null
+          ? _terminalPetalLabel('History', '历史')
+          : _terminalPetalLabel('Live', '实时'),
       icon: LucideIcons.history,
       enabled: !_readOnly || _history == null,
       children: children,
     ),
     'search' => TerminalPetalMenuItem(
       id: 'search',
-      label: 'Search',
+      label: _terminalPetalLabel('Search', '搜索'),
       icon: LucideIcons.search,
       children: children,
     ),
     'selection' => TerminalPetalMenuItem(
       id: 'selection',
-      label: 'Select',
+      label: _terminalPetalLabel('Select', '选择'),
       icon: LucideIcons.scanText,
       children: children,
     ),
     'paste' => TerminalPetalMenuItem(
       id: 'paste',
-      label: 'Paste',
+      label: _terminalPetalLabel('Paste', '粘贴'),
       icon: LucideIcons.clipboardPaste,
       enabled:
           !_readOnly &&
@@ -6219,7 +6219,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'enter' => TerminalPetalMenuItem(
       id: 'enter',
-      label: 'Enter',
+      label: _terminalPetalLabel('Enter', '回车'),
       icon: LucideIcons.cornerDownLeft,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -6233,60 +6233,60 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'resources' => TerminalPetalMenuItem(
       id: 'resources',
-      label: 'Resources',
+      label: _terminalPetalLabel('Resources', '资源'),
       icon: LucideIcons.activity,
       children: children,
     ),
     'more' => TerminalPetalMenuItem(
       id: 'more',
-      label: 'More',
+      label: _terminalPetalLabel('More', '更多'),
       icon: LucideIcons.ellipsis,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'input-tools' => TerminalPetalMenuItem(
       id: 'input-tools',
-      label: 'Input',
+      label: _terminalPetalLabel('Input', '输入'),
       icon: LucideIcons.command,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'navigation-tools' => TerminalPetalMenuItem(
       id: 'navigation-tools',
-      label: 'Navigate',
+      label: _terminalPetalLabel('Navigate', '导航'),
       icon: LucideIcons.navigation,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'session-tools' => TerminalPetalMenuItem(
       id: 'session-tools',
-      label: 'Layout',
+      label: _terminalPetalLabel('Layout', '布局'),
       icon: LucideIcons.panelsTopLeft,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'command-bar' => TerminalPetalMenuItem(
       id: 'command-bar',
-      label: 'Shortcut',
+      label: _terminalPetalLabel('Shortcut', '快捷栏'),
       icon: LucideIcons.slidersHorizontal,
       children: children,
     ),
     'copy-screen' => TerminalPetalMenuItem(
       id: 'copy-screen',
-      label: 'Copy',
+      label: _terminalPetalLabel('Copy', '复制'),
       icon: LucideIcons.copy,
       children: children,
     ),
     'quick-keys' => TerminalPetalMenuItem(
       id: 'quick-keys',
-      label: 'Quick Keys',
+      label: _terminalPetalLabel('Quick Keys', '快捷键'),
       icon: LucideIcons.zap,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'keyboard' => TerminalPetalMenuItem(
       id: 'keyboard',
-      label: 'Keyboard',
+      label: _terminalPetalLabel('Keyboard', '键盘'),
       icon: LucideIcons.keyboard,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -6300,14 +6300,14 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'backspace' => TerminalPetalMenuItem(
       id: 'backspace',
-      label: 'Backspace',
+      label: _terminalPetalLabel('Backspace', '退格'),
       icon: LucideIcons.delete,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'delete' => TerminalPetalMenuItem(
       id: 'delete',
-      label: 'Delete',
+      label: _terminalPetalLabel('Delete', '删除'),
       icon: LucideIcons.eraser,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -6335,122 +6335,127 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'clear' => TerminalPetalMenuItem(
       id: 'clear',
-      label: 'Clear',
+      label: _terminalPetalLabel('Clear', '清屏'),
       icon: LucideIcons.eraser,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-left' => TerminalPetalMenuItem(
       id: 'arrow-left',
-      label: 'Left',
+      label: _terminalPetalLabel('Left', '左'),
       icon: LucideIcons.arrowLeft,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-down' => TerminalPetalMenuItem(
       id: 'arrow-down',
-      label: 'Down',
+      label: _terminalPetalLabel('Down', '下'),
       icon: LucideIcons.arrowDown,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-up' => TerminalPetalMenuItem(
       id: 'arrow-up',
-      label: 'Up',
+      label: _terminalPetalLabel('Up', '上'),
       icon: LucideIcons.arrowUp,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-right' => TerminalPetalMenuItem(
       id: 'arrow-right',
-      label: 'Right',
+      label: _terminalPetalLabel('Right', '右'),
       icon: LucideIcons.arrowRight,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'home' => TerminalPetalMenuItem(
       id: 'home',
-      label: 'Home',
+      label: _terminalPetalLabel('Home', '行首'),
       icon: LucideIcons.home,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'end' => TerminalPetalMenuItem(
       id: 'end',
-      label: 'End',
+      label: _terminalPetalLabel('End', '行尾'),
       icon: LucideIcons.arrowRightToLine,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'page-up' => TerminalPetalMenuItem(
       id: 'page-up',
-      label: 'PgUp',
+      label: _terminalPetalLabel('PgUp', '上翻'),
       icon: LucideIcons.chevronsUp,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'page-down' => TerminalPetalMenuItem(
       id: 'page-down',
-      label: 'PgDn',
+      label: _terminalPetalLabel('PgDn', '下翻'),
       icon: LucideIcons.chevronsDown,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'split' => TerminalPetalMenuItem(
       id: 'split',
-      label: 'Split',
+      label: _terminalPetalLabel('Split', '分屏'),
       icon: LucideIcons.rows2,
       enabled: widget.canSplit,
       children: children,
     ),
     'split-rows' => TerminalPetalMenuItem(
       id: 'split-rows',
-      label: 'Rows',
+      label: _terminalPetalLabel('Rows', '上下'),
       icon: LucideIcons.rows2,
       enabled: widget.canSplit,
       children: children,
     ),
     'split-columns' => TerminalPetalMenuItem(
       id: 'split-columns',
-      label: 'Columns',
+      label: _terminalPetalLabel('Columns', '左右'),
       icon: LucideIcons.columns2,
       enabled: widget.canSplit,
       children: children,
     ),
     'sync-input' => TerminalPetalMenuItem(
       id: 'sync-input',
-      label: widget.syncInput ? 'Synced' : 'Sync',
+      label: widget.syncInput
+          ? _terminalPetalLabel('Synced', '已同步')
+          : _terminalPetalLabel('Sync', '同步'),
       icon: LucideIcons.gitCompareArrows,
       enabled: widget.splitOpen,
       children: children,
     ),
     'resize' => TerminalPetalMenuItem(
       id: 'resize',
-      label: 'Resize',
+      label: _terminalPetalLabel('Resize', '调整'),
       icon: LucideIcons.maximize2,
       enabled: !_readOnly,
       children: children,
     ),
     'files' => TerminalPetalMenuItem(
       id: 'files',
-      label: 'Files',
+      label: _terminalPetalLabel('Files', '文件'),
       icon: LucideIcons.folderOpen,
       children: children,
     ),
     'reconnect' => TerminalPetalMenuItem(
       id: 'reconnect',
-      label: 'Reconnect',
+      label: _terminalPetalLabel('Reconnect', '重连'),
       icon: LucideIcons.refreshCw,
       children: children,
     ),
     'settings' => TerminalPetalMenuItem(
       id: 'settings',
-      label: 'Settings',
+      label: _terminalPetalLabel('Settings', '设置'),
       icon: LucideIcons.settings,
       children: children,
     ),
     _ => null,
   };
+
+  String _terminalPetalLabel(String en, String zh) =>
+      anyttyText(context, en: en, zh: zh);
 
   bool get _terminalPetalInputEnabled =>
       !_readOnly &&
@@ -6562,7 +6567,8 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             selectionActive: _selectionMode,
             status: _historyLoadingVisible
                 ? 'Loading older rows'
-                : '${history.rows.length} / ${history.logicalTotal}',
+                : '${anyttyText(context, en: 'History', zh: '历史模式')} '
+                      '${history.rows.length} / ${history.logicalTotal}',
             onLive: _toggleHistory,
             onSearch: _toggleSearch,
             onSelection: _openSelection,
@@ -6639,7 +6645,10 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       _releaseHistory(widget.connection, history);
       return;
     }
-    if (_historyLoading) return;
+    if (_historyLoading) {
+      setState(_cancelHistoryRequest);
+      return;
+    }
     await _ensureHistory();
   }
 
@@ -6657,8 +6666,14 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       _historyPresented = false;
       _fnOpen = false;
     });
-    _scheduleHistoryLoadingIndicator(requestEpoch);
     try {
+      // Paint entry feedback before starting native history work.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted ||
+          requestEpoch != _historyRequestEpoch ||
+          connection != widget.connection) {
+        return null;
+      }
       final merged = await connection.openHistory(cols: projectionCols);
       if (!mounted ||
           requestEpoch != _historyRequestEpoch ||
@@ -8152,23 +8167,26 @@ final class _HistoryContextBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Container(
-            constraints: const BoxConstraints(minHeight: 28),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: palette.surface.withValues(alpha: 0.94),
-              border: Border.all(color: palette.border),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              status,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.muted,
-                fontFamily: 'JetBrainsMonoNerd',
-                fontSize: 9,
+          Flexible(
+            flex: 3,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: palette.surface.withValues(alpha: 0.94),
+                border: Border.all(color: palette.border),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.muted,
+                  fontFamily: 'JetBrainsMonoNerd',
+                  fontSize: 9,
+                ),
               ),
             ),
           ),
@@ -8506,56 +8524,6 @@ final class _TerminalDeliveryBanner extends StatelessWidget {
   }
 }
 
-final class _HistoryLoadingStatus extends StatelessWidget {
-  const _HistoryLoadingStatus({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    return Positioned(
-      right: 8,
-      bottom: 8,
-      child: Semantics(
-        container: true,
-        liveRegion: true,
-        label: label,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(
-                  dimension: 13,
-                  child: CircularProgressIndicator(
-                    color: palette.accent,
-                    strokeWidth: 1.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: palette.text,
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 final class _TerminalFailure extends StatelessWidget {
   const _TerminalFailure({
     required this.message,
@@ -8572,32 +8540,32 @@ final class _TerminalFailure extends StatelessWidget {
     final palette = AnyttyPalette.of(context);
     return ColoredBox(
       color: palette.background,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.error_outline_rounded,
-                color: palette.danger,
-                size: 34,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                message,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: palette.text, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-              ),
-            ],
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: palette.danger,
+                  size: 34,
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: palette.text, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

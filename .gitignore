@@ -1,4 +1,6 @@
 /.artifacts/
+/artifacts/
+/clients/flutter/artifacts/
 /cmd/*/cloud_bundle/
 .DS_Store
 .swp

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -108,6 +109,67 @@ func TestEndpointSupervisorPermanentFailureBlocksWithoutRetry(t *testing.T) {
 	projection := onlySupervisorProjection(t, supervisor)
 	if projection.DialCount != 1 || projection.ErrorCode != ErrorAuthorization {
 		t.Fatalf("projection = %#v", projection)
+	}
+}
+
+func TestEndpointSupervisorAcquireDeadlinePreservesLastRouteFailure(t *testing.T) {
+	controller := newSupervisorController("studio", 0)
+	controller.connectFailures = []error{&Error{
+		Code:      ErrorUnavailable,
+		Message:   `route "cloud" (managed-webrtc) failed: WebRTC DataChannel timed out`,
+		Attempted: true,
+		Retryable: true,
+	}}
+	supervisor, err := NewEndpointSupervisor(controller, EndpointSupervisorOptions{
+		ProbeTimeout: time.Second,
+		DialTimeout:  time.Second,
+		Backoff:      []time.Duration{time.Hour},
+		Logf:         func(string, ...any) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorBackoff)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	_, err = supervisor.Acquire(ctx, "studio")
+	var runtimeErr *Error
+	if !errors.As(err, &runtimeErr) || runtimeErr.Code != ErrorUnavailable || !runtimeErr.Retryable || !runtimeErr.Attempted {
+		t.Fatalf("Acquire error = %#v", err)
+	}
+	if !strings.Contains(runtimeErr.Message, "did not become ready before timeout") || !strings.Contains(runtimeErr.Message, "WebRTC DataChannel timed out") {
+		t.Fatalf("Acquire diagnostic = %q", runtimeErr.Message)
+	}
+}
+
+func TestEndpointSupervisorAdministrativeStopWaitsForNewDemand(t *testing.T) {
+	controller := newSupervisorController("studio", 7)
+	supervisor := newTestEndpointSupervisor(t, controller, nil)
+	defer supervisor.Close()
+	replaceTestDemand(t, supervisor, 1, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+
+	controller.finishCurrent(runtimeError(ErrorConnectionStopped, "closed from connection manager", nil))
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorBlocked)
+	if err := supervisor.Signal(EndpointHostSignal{Revision: 1, Connected: true, Foreground: true, Reason: "foreground_resume"}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	projection := onlySupervisorProjection(t, supervisor)
+	if projection.Phase != EndpointSupervisorBlocked || projection.ErrorCode != ErrorConnectionStopped || controller.connectCount() != 0 {
+		t.Fatalf("stopped projection = %#v, connect_count = %d", projection, controller.connectCount())
+	}
+
+	if err := supervisor.ReplaceDemand(EndpointDemandSnapshot{AttachmentID: "renderer", DemandRevision: 2}); err != nil {
+		t.Fatal(err)
+	}
+	replaceTestDemand(t, supervisor, 3, EndpointSupervisorTakeover)
+	waitSupervisorPhase(t, supervisor, EndpointSupervisorReady)
+	if controller.connectCount() != 1 {
+		t.Fatalf("connect count after new demand = %d, want 1", controller.connectCount())
 	}
 }
 
@@ -398,10 +460,21 @@ func (controller *supervisorController) invalidatedStamps() []EndpointSessionSta
 	return append([]EndpointSessionStamp(nil), controller.invalidated...)
 }
 
+func (controller *supervisorController) finishCurrent(err error) {
+	controller.mu.Lock()
+	current := controller.current
+	controller.mu.Unlock()
+	if current != nil {
+		current.finish(err)
+	}
+}
+
 type supervisorPhysicalSession struct {
 	stamp EndpointSessionStamp
 	done  chan struct{}
 	once  sync.Once
+	errMu sync.Mutex
+	err   error
 }
 
 func newSupervisorPhysicalSession(endpointID endpoint.EndpointID, generation SessionGeneration) *supervisorPhysicalSession {
@@ -411,7 +484,16 @@ func newSupervisorPhysicalSession(endpointID endpoint.EndpointID, generation Ses
 	}
 }
 
-func (session *supervisorPhysicalSession) close() { session.once.Do(func() { close(session.done) }) }
+func (session *supervisorPhysicalSession) close() { session.finish(nil) }
+
+func (session *supervisorPhysicalSession) finish(err error) {
+	session.once.Do(func() {
+		session.errMu.Lock()
+		session.err = err
+		session.errMu.Unlock()
+		close(session.done)
+	})
+}
 
 type supervisorLease struct{ physical *supervisorPhysicalSession }
 
@@ -421,8 +503,12 @@ func (lease *supervisorLease) Readiness() ReadyPeerSessionEvidence {
 	return ReadyPeerSessionEvidence{IdentityVerified: true, AuthorizationVerified: true, ProtocolVersion: 1}
 }
 func (lease *supervisorLease) Done() <-chan struct{} { return lease.physical.done }
-func (lease *supervisorLease) Err() error            { return nil }
-func (lease *supervisorLease) Close() error          { return nil }
+func (lease *supervisorLease) Err() error {
+	lease.physical.errMu.Lock()
+	defer lease.physical.errMu.Unlock()
+	return lease.physical.err
+}
+func (lease *supervisorLease) Close() error { return nil }
 func (lease *supervisorLease) ExecuteApplication(context.Context, *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
 	return &apipb.ResultEnvelope{Result: &apipb.ResultEnvelope_TerminalDefaults{TerminalDefaults: &apipb.TerminalDefaultsResult{}}}, nil
 }

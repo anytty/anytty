@@ -16,40 +16,40 @@ import 'dart:core' as $core;
 import 'package:protobuf/protobuf.dart' as $pb;
 
 import 'edge_config.pb.dart' as $3;
-import 'operator.pb.dart' as $5;
+import 'operator.pb.dart' as $6;
 import 'operator.pbjson.dart';
 
 export 'operator.pb.dart';
 
 abstract class OperatorServiceBase extends $pb.GeneratedService {
-  $async.Future<$5.GetOperatorOverviewResponse> getOverview(
-      $pb.ServerContext ctx, $5.GetOperatorOverviewRequest request);
-  $async.Future<$5.ListOperatorAccountsResponse> listAccounts(
-      $pb.ServerContext ctx, $5.ListOperatorAccountsRequest request);
-  $async.Future<$5.GetOperatorAccountResponse> getAccount(
-      $pb.ServerContext ctx, $5.GetOperatorAccountRequest request);
-  $async.Future<$5.ProvisionAccountResponse> provisionAccount(
-      $pb.ServerContext ctx, $5.ProvisionAccountRequest request);
-  $async.Future<$5.ResetAccountSetupResponse> resetAccountSetup(
-      $pb.ServerContext ctx, $5.ResetAccountSetupRequest request);
-  $async.Future<$5.ListRuntimeSessionsResponse> listRuntimeSessions(
-      $pb.ServerContext ctx, $5.ListRuntimeSessionsRequest request);
-  $async.Future<$5.ListOperatorOrdersResponse> listOrders(
-      $pb.ServerContext ctx, $5.ListOperatorOrdersRequest request);
-  $async.Future<$5.ListOperatorSubscriptionsResponse> listSubscriptions(
-      $pb.ServerContext ctx, $5.ListOperatorSubscriptionsRequest request);
-  $async.Future<$5.ListOperatorUsageResponse> listUsage(
-      $pb.ServerContext ctx, $5.ListOperatorUsageRequest request);
-  $async.Future<$5.ListOperatorAuditResponse> listAudit(
-      $pb.ServerContext ctx, $5.ListOperatorAuditRequest request);
-  $async.Future<$5.SetAccountStateResponse> setAccountState(
-      $pb.ServerContext ctx, $5.SetAccountStateRequest request);
-  $async.Future<$5.SetAccountRoleResponse> setAccountRole(
-      $pb.ServerContext ctx, $5.SetAccountRoleRequest request);
-  $async.Future<$5.DisconnectDaemonResponse> disconnectDaemon(
-      $pb.ServerContext ctx, $5.DisconnectDaemonRequest request);
-  $async.Future<$5.DisconnectSessionResponse> disconnectSession(
-      $pb.ServerContext ctx, $5.DisconnectSessionRequest request);
+  $async.Future<$6.GetOperatorOverviewResponse> getOverview(
+      $pb.ServerContext ctx, $6.GetOperatorOverviewRequest request);
+  $async.Future<$6.ListOperatorAccountsResponse> listAccounts(
+      $pb.ServerContext ctx, $6.ListOperatorAccountsRequest request);
+  $async.Future<$6.GetOperatorAccountResponse> getAccount(
+      $pb.ServerContext ctx, $6.GetOperatorAccountRequest request);
+  $async.Future<$6.ProvisionAccountResponse> provisionAccount(
+      $pb.ServerContext ctx, $6.ProvisionAccountRequest request);
+  $async.Future<$6.ResetAccountSetupResponse> resetAccountSetup(
+      $pb.ServerContext ctx, $6.ResetAccountSetupRequest request);
+  $async.Future<$6.ListRuntimeSessionsResponse> listRuntimeSessions(
+      $pb.ServerContext ctx, $6.ListRuntimeSessionsRequest request);
+  $async.Future<$6.ListOperatorOrdersResponse> listOrders(
+      $pb.ServerContext ctx, $6.ListOperatorOrdersRequest request);
+  $async.Future<$6.ListOperatorSubscriptionsResponse> listSubscriptions(
+      $pb.ServerContext ctx, $6.ListOperatorSubscriptionsRequest request);
+  $async.Future<$6.ListOperatorUsageResponse> listUsage(
+      $pb.ServerContext ctx, $6.ListOperatorUsageRequest request);
+  $async.Future<$6.ListOperatorAuditResponse> listAudit(
+      $pb.ServerContext ctx, $6.ListOperatorAuditRequest request);
+  $async.Future<$6.SetAccountStateResponse> setAccountState(
+      $pb.ServerContext ctx, $6.SetAccountStateRequest request);
+  $async.Future<$6.SetAccountRoleResponse> setAccountRole(
+      $pb.ServerContext ctx, $6.SetAccountRoleRequest request);
+  $async.Future<$6.DisconnectDaemonResponse> disconnectDaemon(
+      $pb.ServerContext ctx, $6.DisconnectDaemonRequest request);
+  $async.Future<$6.DisconnectSessionResponse> disconnectSession(
+      $pb.ServerContext ctx, $6.DisconnectSessionRequest request);
   $async.Future<$3.DeleteEdgeResponse> deleteEdge(
       $pb.ServerContext ctx, $3.DeleteEdgeRequest request);
   $async.Future<$3.CreateEdgeIdentityRecoveryResponse>
@@ -59,33 +59,33 @@ abstract class OperatorServiceBase extends $pb.GeneratedService {
   $pb.GeneratedMessage createRequest($core.String methodName) {
     switch (methodName) {
       case 'GetOverview':
-        return $5.GetOperatorOverviewRequest();
+        return $6.GetOperatorOverviewRequest();
       case 'ListAccounts':
-        return $5.ListOperatorAccountsRequest();
+        return $6.ListOperatorAccountsRequest();
       case 'GetAccount':
-        return $5.GetOperatorAccountRequest();
+        return $6.GetOperatorAccountRequest();
       case 'ProvisionAccount':
-        return $5.ProvisionAccountRequest();
+        return $6.ProvisionAccountRequest();
       case 'ResetAccountSetup':
-        return $5.ResetAccountSetupRequest();
+        return $6.ResetAccountSetupRequest();
       case 'ListRuntimeSessions':
-        return $5.ListRuntimeSessionsRequest();
+        return $6.ListRuntimeSessionsRequest();
       case 'ListOrders':
-        return $5.ListOperatorOrdersRequest();
+        return $6.ListOperatorOrdersRequest();
       case 'ListSubscriptions':
-        return $5.ListOperatorSubscriptionsRequest();
+        return $6.ListOperatorSubscriptionsRequest();
       case 'ListUsage':
-        return $5.ListOperatorUsageRequest();
+        return $6.ListOperatorUsageRequest();
       case 'ListAudit':
-        return $5.ListOperatorAuditRequest();
+        return $6.ListOperatorAuditRequest();
       case 'SetAccountState':
-        return $5.SetAccountStateRequest();
+        return $6.SetAccountStateRequest();
       case 'SetAccountRole':
-        return $5.SetAccountRoleRequest();
+        return $6.SetAccountRoleRequest();
       case 'DisconnectDaemon':
-        return $5.DisconnectDaemonRequest();
+        return $6.DisconnectDaemonRequest();
       case 'DisconnectSession':
-        return $5.DisconnectSessionRequest();
+        return $6.DisconnectSessionRequest();
       case 'DeleteEdge':
         return $3.DeleteEdgeRequest();
       case 'CreateEdgeIdentityRecovery':
@@ -99,35 +99,35 @@ abstract class OperatorServiceBase extends $pb.GeneratedService {
       $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
       case 'GetOverview':
-        return getOverview(ctx, request as $5.GetOperatorOverviewRequest);
+        return getOverview(ctx, request as $6.GetOperatorOverviewRequest);
       case 'ListAccounts':
-        return listAccounts(ctx, request as $5.ListOperatorAccountsRequest);
+        return listAccounts(ctx, request as $6.ListOperatorAccountsRequest);
       case 'GetAccount':
-        return getAccount(ctx, request as $5.GetOperatorAccountRequest);
+        return getAccount(ctx, request as $6.GetOperatorAccountRequest);
       case 'ProvisionAccount':
-        return provisionAccount(ctx, request as $5.ProvisionAccountRequest);
+        return provisionAccount(ctx, request as $6.ProvisionAccountRequest);
       case 'ResetAccountSetup':
-        return resetAccountSetup(ctx, request as $5.ResetAccountSetupRequest);
+        return resetAccountSetup(ctx, request as $6.ResetAccountSetupRequest);
       case 'ListRuntimeSessions':
         return listRuntimeSessions(
-            ctx, request as $5.ListRuntimeSessionsRequest);
+            ctx, request as $6.ListRuntimeSessionsRequest);
       case 'ListOrders':
-        return listOrders(ctx, request as $5.ListOperatorOrdersRequest);
+        return listOrders(ctx, request as $6.ListOperatorOrdersRequest);
       case 'ListSubscriptions':
         return listSubscriptions(
-            ctx, request as $5.ListOperatorSubscriptionsRequest);
+            ctx, request as $6.ListOperatorSubscriptionsRequest);
       case 'ListUsage':
-        return listUsage(ctx, request as $5.ListOperatorUsageRequest);
+        return listUsage(ctx, request as $6.ListOperatorUsageRequest);
       case 'ListAudit':
-        return listAudit(ctx, request as $5.ListOperatorAuditRequest);
+        return listAudit(ctx, request as $6.ListOperatorAuditRequest);
       case 'SetAccountState':
-        return setAccountState(ctx, request as $5.SetAccountStateRequest);
+        return setAccountState(ctx, request as $6.SetAccountStateRequest);
       case 'SetAccountRole':
-        return setAccountRole(ctx, request as $5.SetAccountRoleRequest);
+        return setAccountRole(ctx, request as $6.SetAccountRoleRequest);
       case 'DisconnectDaemon':
-        return disconnectDaemon(ctx, request as $5.DisconnectDaemonRequest);
+        return disconnectDaemon(ctx, request as $6.DisconnectDaemonRequest);
       case 'DisconnectSession':
-        return disconnectSession(ctx, request as $5.DisconnectSessionRequest);
+        return disconnectSession(ctx, request as $6.DisconnectSessionRequest);
       case 'DeleteEdge':
         return deleteEdge(ctx, request as $3.DeleteEdgeRequest);
       case 'CreateEdgeIdentityRecovery':

@@ -18,6 +18,7 @@ import (
 	"github.com/anytty/anytty/client/port"
 	"github.com/anytty/anytty/proto/wire"
 	remotewebrtc "github.com/anytty/anytty/remote/webrtc"
+	"github.com/anytty/anytty/shared/netpath"
 	pionice "github.com/pion/ice/v4"
 	"github.com/pion/transport/v4"
 	pionwebrtc "github.com/pion/webrtc/v4"
@@ -79,7 +80,7 @@ func (factory Factory) OpenDirectPeerForRoute(ctx context.Context, route endpoin
 // DialContextForRoute uses the same source network for embedded signaling.
 func (factory Factory) DialContextForRoute(ctx context.Context, route endpoint.AccessRoute, network, address string) (net.Conn, error) {
 	if route.NetworkHandle == 0 || factory.RouteNetworkFactory == nil {
-		return (&net.Dialer{}).DialContext(ctx, network, address)
+		return netpath.Default.DialContext(ctx, network, address)
 	}
 	routeNetwork, err := factory.RouteNetworkFactory(route.NetworkHandle)
 	if err != nil {
@@ -209,6 +210,9 @@ func (factory Factory) network() (transport.Net, error) {
 		return nil, fmt.Errorf("Pion network and network factory are mutually exclusive")
 	}
 	if factory.NetworkFactory == nil {
+		if factory.Network == nil {
+			return netpath.NewICENetwork()
+		}
 		return factory.Network, nil
 	}
 	network, err := factory.NetworkFactory()

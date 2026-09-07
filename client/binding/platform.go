@@ -8,6 +8,7 @@ import (
 	"github.com/anytty/anytty/client/endpoint"
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/bindingpb"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -107,9 +108,14 @@ func NewPlatformBroker() *PlatformBroker {
 
 // Exchange 发布一条平台请求并等待 request_id 匹配的响应。
 // 调用方 context 取消后会移除 pending；迟到响应返回 invalid request，不能命中新请求。
-func (broker *PlatformBroker) Exchange(ctx context.Context, request *bindingpb.PlatformRequest) (*bindingpb.PlatformResponse, error) {
+func (broker *PlatformBroker) Exchange(ctx context.Context, request *bindingpb.PlatformRequest) (result *bindingpb.PlatformResponse, resultErr error) {
 	if broker == nil || request == nil || request.GetRequest() == nil {
 		return nil, fmt.Errorf("platform request is incomplete")
+	}
+	var trace *connecttrace.Trace
+	if connecttrace.ID(ctx) != "" {
+		ctx, trace = connecttrace.Start(ctx, fmt.Sprintf("platform_%T", request.GetRequest()))
+		defer func() { trace.End(resultErr) }()
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -121,6 +127,9 @@ func (broker *PlatformBroker) Exchange(ctx context.Context, request *bindingpb.P
 	}
 	broker.nextID++
 	requestID := broker.nextID
+	if trace != nil {
+		trace.Mark(fmt.Sprintf("request_created request_id=%d", requestID))
+	}
 	responseChannel := make(chan *bindingpb.PlatformResponse, 1)
 	broker.pending[requestID] = responseChannel
 	broker.mu.Unlock()
@@ -144,6 +153,9 @@ func (broker *PlatformBroker) Exchange(ctx context.Context, request *bindingpb.P
 		broker.removePending(requestID)
 		return nil, ErrClosed
 	case broker.queue <- payload:
+	}
+	if trace != nil {
+		trace.Mark("queued")
 	}
 	select {
 	case <-ctx.Done():

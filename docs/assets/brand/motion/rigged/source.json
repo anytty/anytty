@@ -1,0 +1,11 @@
+{
+  "revision": 4,
+  "status": "review-sample",
+  "source": "../scene.json",
+  "sourceSha256": "199a947f57847ce396bff5d405b6ba21505a1c15abdbbd0ebfe89432718435b3",
+  "rig": "Four-bone, distance-weighted tail mesh; independent Rive control nodes for rigid facial parts and limbs",
+  "tailTexture": "3x transparent rasterization of the existing traced vector; not the white-matted logo PNG",
+  "browser": "Fixed right-edge perch; original opaque body contour behind the input; gaze only follows caret/pointer, without horizontal travel or stepping",
+  "bodyContourSha256": "01fcc0db675ca45c488c5b96d1c7c09a58d8ebaff85626c24b491f1a9acf1479",
+  "appIntegrated": false
+}

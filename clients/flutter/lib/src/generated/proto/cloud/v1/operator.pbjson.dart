@@ -232,6 +232,44 @@ const RuntimeSessionProjection$json = {
       '10': 'daemonDisplayName'
     },
     {'1': 'edge_name', '3': 13, '4': 1, '5': 9, '10': 'edgeName'},
+    {'1': 'relay_active', '3': 14, '4': 1, '5': 8, '10': 'relayActive'},
+    {
+      '1': 'relay_allocation_count',
+      '3': 15,
+      '4': 1,
+      '5': 13,
+      '10': 'relayAllocationCount'
+    },
+    {
+      '1': 'relay_ingress_bytes',
+      '3': 16,
+      '4': 1,
+      '5': 4,
+      '10': 'relayIngressBytes'
+    },
+    {
+      '1': 'relay_egress_bytes',
+      '3': 17,
+      '4': 1,
+      '5': 4,
+      '10': 'relayEgressBytes'
+    },
+    {
+      '1': 'relay_connected_at',
+      '3': 18,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'relayConnectedAt'
+    },
+    {
+      '1': 'relay_transports',
+      '3': 19,
+      '4': 3,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'relayTransports'
+    },
   ],
   '9': [
     {'1': 7, '2': 8},
@@ -248,7 +286,13 @@ final $typed_data.Uint8List runtimeSessionProjectionDescriptor = $convert.base64
     'gJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSC2Nvbm5lY3RlZEF0EjAKFGFjY291'
     'bnRfZGlzcGxheV9uYW1lGAogASgJUhJhY2NvdW50RGlzcGxheU5hbWUSIwoNYWNjb3VudF9lbW'
     'FpbBgLIAEoCVIMYWNjb3VudEVtYWlsEi4KE2RhZW1vbl9kaXNwbGF5X25hbWUYDCABKAlSEWRh'
-    'ZW1vbkRpc3BsYXlOYW1lEhsKCWVkZ2VfbmFtZRgNIAEoCVIIZWRnZU5hbWVKBAgHEAg=');
+    'ZW1vbkRpc3BsYXlOYW1lEhsKCWVkZ2VfbmFtZRgNIAEoCVIIZWRnZU5hbWUSIQoMcmVsYXlfYW'
+    'N0aXZlGA4gASgIUgtyZWxheUFjdGl2ZRI0ChZyZWxheV9hbGxvY2F0aW9uX2NvdW50GA8gASgN'
+    'UhRyZWxheUFsbG9jYXRpb25Db3VudBIuChNyZWxheV9pbmdyZXNzX2J5dGVzGBAgASgEUhFyZW'
+    'xheUluZ3Jlc3NCeXRlcxIsChJyZWxheV9lZ3Jlc3NfYnl0ZXMYESABKARSEHJlbGF5RWdyZXNz'
+    'Qnl0ZXMSSAoScmVsYXlfY29ubmVjdGVkX2F0GBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbW'
+    'VzdGFtcFIQcmVsYXlDb25uZWN0ZWRBdBJKChByZWxheV90cmFuc3BvcnRzGBMgAygOMh8uYW55'
+    'dHR5LmNsb3VkLnYxLlJlbGF5VHJhbnNwb3J0Ug9yZWxheVRyYW5zcG9ydHNKBAgHEAg=');
 
 @$core.Deprecated('Use operatorAuditEventDescriptor instead')
 const OperatorAuditEvent$json = {

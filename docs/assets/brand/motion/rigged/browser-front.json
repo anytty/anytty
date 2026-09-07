@@ -1,0 +1,1116 @@
+{
+  "artboard": {
+    "name": "AnyTTY Browser",
+    "width": 1600,
+    "height": 174
+  },
+  "groups": [
+    {
+      "id": "character",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "tail",
+      "parent": "character",
+      "x": 44,
+      "y": 118,
+      "rotation": -105,
+      "scaleX": 0.2,
+      "scaleY": 0.2
+    },
+    {
+      "id": "body",
+      "parent": "character",
+      "x": 7,
+      "y": 0,
+      "scaleX": 0.28,
+      "scaleY": 0.28
+    },
+    {
+      "id": "head",
+      "parent": "character",
+      "x": 77,
+      "y": 64.68,
+      "scaleX": 0.28,
+      "scaleY": 0.28
+    },
+    {
+      "id": "eye-left",
+      "parent": "head",
+      "x": -70,
+      "y": -58
+    },
+    {
+      "id": "pupil-left",
+      "parent": "eye-left",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "foot-left",
+      "parent": "character",
+      "x": 70,
+      "y": 126,
+      "rotation": -40,
+      "scaleX": -0.23,
+      "scaleY": 0.23
+    },
+    {
+      "id": "grip-left",
+      "parent": "character",
+      "x": 45,
+      "y": 69,
+      "rotation": 90,
+      "scaleX": 0.17,
+      "scaleY": 0.17
+    },
+    {
+      "id": "eye-right",
+      "parent": "head",
+      "x": 104,
+      "y": -132
+    },
+    {
+      "id": "pupil-right",
+      "parent": "eye-right",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "foot-right",
+      "parent": "character",
+      "x": 96,
+      "y": 126,
+      "rotation": 40,
+      "scaleX": 0.23,
+      "scaleY": 0.23
+    },
+    {
+      "id": "grip-right",
+      "parent": "character",
+      "x": 108,
+      "y": 69,
+      "rotation": -90,
+      "scaleX": 0.17,
+      "scaleY": 0.17
+    }
+  ],
+  "shapes": [
+    {
+      "id": "grip-left-hand-left-p0",
+      "type": "polygon",
+      "x": 8.381500000000017,
+      "y": -9.140499999999975,
+      "subpaths": [
+        {
+          "closed": false,
+          "points": [
+            {
+              "x": -22.381500000000017,
+              "y": -43.01550000000003,
+              "cubic": {
+                "rotation": 154.32542906238902,
+                "inRotation": 0,
+                "inDistance": 0,
+                "outDistance": 33.178758777265905
+              }
+            },
+            {
+              "x": -32.206500000000005,
+              "y": 40.265499999999975,
+              "cubic": {
+                "rotation": 44.58090257185051,
+                "inRotation": -135.42024373673908,
+                "inDistance": 35.47791572231942,
+                "outDistance": 31.321425669978694
+              }
+            },
+            {
+              "x": 24.118499999999983,
+              "y": 43.015499999999975,
+              "cubic": {
+                "rotation": -90,
+                "inRotation": 90,
+                "inDistance": 20.896000000000015,
+                "outDistance": 6.0400000000000205
+              }
+            },
+            {
+              "x": 13.384499999999974,
+              "y": 30.974499999999978,
+              "cubic": {
+                "rotation": -159.9723142676504,
+                "inRotation": 20.033257753811373,
+                "inDistance": 8.491805756139271,
+                "outDistance": 7.247261896744183
+              }
+            },
+            {
+              "x": 7.285499999999985,
+              "y": 23.20649999999995,
+              "cubic": {
+                "rotation": -55.001798026689286,
+                "inRotation": 125.01904983368676,
+                "inDistance": 3.9940837497478823,
+                "outDistance": 3.0372204398100515
+              }
+            },
+            {
+              "x": 20.856499999999983,
+              "y": 23.829499999999996,
+              "cubic": {
+                "rotation": 17.93364965415926,
+                "inRotation": -162.05755291084122,
+                "inDistance": 9.7123459575944,
+                "outDistance": 8.674459637349187
+              }
+            },
+            {
+              "x": 32.20649999999998,
+              "y": 14.757499999999993,
+              "cubic": {
+                "rotation": -100.62422504640485,
+                "inRotation": 79.3739060312386,
+                "inDistance": 8.19961127127375,
+                "outDistance": 5.391422539553024
+              }
+            },
+            {
+              "x": 20.75849999999997,
+              "y": 9.567499999999995,
+              "cubic": {
+                "rotation": 175.0114271287828,
+                "inRotation": -4.982972309232294,
+                "inDistance": 9.003026435593782,
+                "outDistance": 9.751939755761386
+              }
+            },
+            {
+              "x": 6.998499999999979,
+              "y": 6.516499999999951,
+              "cubic": {
+                "rotation": -104.10184512052922,
+                "inRotation": 75.92559609846383,
+                "inDistance": 3.2773846280228063,
+                "outDistance": 3.8129050604492956
+              }
+            },
+            {
+              "x": 13.773499999999984,
+              "y": 1.1404999999999745,
+              "cubic": {
+                "rotation": 0,
+                "inRotation": 180,
+                "inDistance": 5.588999999999999,
+                "outDistance": 16.300999999999988
+              }
+            },
+            {
+              "x": 21.90149999999997,
+              "y": -22.539500000000032,
+              "cubic": {
+                "rotation": -149.62743419187018,
+                "inRotation": 30.372841749846305,
+                "inDistance": 15.731029845499634,
+                "outDistance": 4.936506558285909
+              }
+            },
+            {
+              "x": 7.031499999999994,
+              "y": -24.561500000000024,
+              "cubic": {
+                "rotation": 176.7562781270522,
+                "inRotation": -3.2375349145440886,
+                "inDistance": 9.968910572374499,
+                "outDistance": 11.540489287720883
+              }
+            },
+            {
+              "x": -1.8815000000000168,
+              "y": -30.859500000000025,
+              "cubic": {
+                "rotation": -60.2469007198219,
+                "inRotation": 119.75571560841726,
+                "inDistance": 7.2153487095219475,
+                "outDistance": 11.242012319865154
+              }
+            },
+            {
+              "x": -22.381500000000017,
+              "y": -43.01550000000003,
+              "cubic": {
+                "rotation": 0,
+                "inRotation": -25.67130040548256,
+                "inDistance": 13.503915765436313,
+                "outDistance": 0
+              }
+            }
+          ]
+        }
+      ],
+      "fill": {
+        "color": "#1bb3ff"
+      },
+      "parent": "grip-left"
+    },
+    {
+      "id": "grip-right-hand-right-p0",
+      "type": "polygon",
+      "x": 1.8664999999999736,
+      "y": -2.2445000000000164,
+      "subpaths": [
+        {
+          "closed": false,
+          "points": [
+            {
+              "x": -1.5625,
+              "y": -49.799499999999966,
+              "cubic": {
+                "rotation": 148.62486929073162,
+                "inRotation": 0,
+                "inDistance": 0,
+                "outDistance": 6.7359520485228925
+              }
+            },
+            {
+              "x": -6.339499999999987,
+              "y": -37.67349999999999,
+              "cubic": {
+                "rotation": 71.62233131564676,
+                "inRotation": -108.37494728051274,
+                "inDistance": 6.34131886913121,
+                "outDistance": 6.95891169652266
+              }
+            },
+            {
+              "x": -16.76049999999998,
+              "y": -31.430499999999995,
+              "cubic": {
+                "rotation": -177.20077522561323,
+                "inRotation": 2.8018299852130637,
+                "inDistance": 12.233624360752616,
+                "outDistance": 10.914022631459046
+              }
+            },
+            {
+              "x": -34.87149999999997,
+              "y": -24.514499999999998,
+              "cubic": {
+                "rotation": 121.37380268556458,
+                "inRotation": -58.63598279859729,
+                "inDistance": 7.168472780167316,
+                "outDistance": 10.47214328587995
+              }
+            },
+            {
+              "x": -22.642499999999984,
+              "y": -6.468500000000006,
+              "cubic": {
+                "rotation": 5.6192877523786855,
+                "inRotation": -174.37819537575123,
+                "inDistance": 12.392606061680459,
+                "outDistance": 7.1182065859316035
+              }
+            },
+            {
+              "x": -14.866499999999974,
+              "y": -1.763499999999965,
+              "cubic": {
+                "rotation": 90,
+                "inRotation": -90,
+                "inDistance": 3.590000000000032,
+                "outDistance": 3.697999999999979
+              }
+            },
+            {
+              "x": -27.365499999999997,
+              "y": 2.0434999999999945,
+              "cubic": {
+                "rotation": -178.00911729258712,
+                "inRotation": 1.9919565750295958,
+                "inDistance": 10.903588858719914,
+                "outDistance": 11.51395019096395
+              }
+            },
+            {
+              "x": -38.3485,
+              "y": 14.279500000000041,
+              "cubic": {
+                "rotation": 62.65339289450463,
+                "inRotation": -117.34114129912622,
+                "inDistance": 9.44288689967218,
+                "outDistance": 4.294991734567138
+              }
+            },
+            {
+              "x": -26.8125,
+              "y": 16.820500000000038,
+              "cubic": {
+                "rotation": -16.534471491057253,
+                "inRotation": 163.4577345226867,
+                "inDistance": 6.817162606246054,
+                "outDistance": 7.027600515111848
+              }
+            },
+            {
+              "x": -14.79649999999998,
+              "y": 16.82850000000002,
+              "cubic": {
+                "rotation": 50.31402721240662,
+                "inRotation": -129.6930113834025,
+                "inDistance": 2.6069639429804514,
+                "outDistance": 3.6189702955398846
+              }
+            },
+            {
+              "x": -22.866499999999974,
+              "y": 24.797500000000014,
+              "cubic": {
+                "rotation": 158.67614434522326,
+                "inRotation": -21.32377081265664,
+                "inDistance": 9.110715559164403,
+                "outDistance": 19.494602355523973
+              }
+            },
+            {
+              "x": -9.64749999999998,
+              "y": 49.79950000000002,
+              "cubic": {
+                "rotation": -6.457147343865493,
+                "inRotation": 173.54696694800603,
+                "inDistance": 20.802799931739948,
+                "outDistance": 18.66440240136286
+              }
+            },
+            {
+              "x": 33.28150000000005,
+              "y": 18.244500000000016,
+              "cubic": {
+                "rotation": -64.38888408835678,
+                "inRotation": 115.61412275276584,
+                "inDistance": 19.75211993685741,
+                "outDistance": 5.184371321577964
+              }
+            },
+            {
+              "x": 38.32850000000002,
+              "y": 7.874500000000012,
+              "cubic": {
+                "rotation": -62.538300602526014,
+                "inRotation": 117.42707540456735,
+                "inDistance": 1.1593088458215022,
+                "outDistance": 2.714918967483189
+              }
+            },
+            {
+              "x": 38.3485,
+              "y": -16.41550000000001,
+              "cubic": {
+                "rotation": -117.32984929381195,
+                "inRotation": 62.65206213596342,
+                "inDistance": 2.7166289772437033,
+                "outDistance": 1.139154511029986
+              }
+            },
+            {
+              "x": 36.694500000000005,
+              "y": -22.142499999999984,
+              "cubic": {
+                "rotation": -100.24871378835581,
+                "inRotation": 79.76591814677033,
+                "inDistance": 2.1725653039667,
+                "outDistance": 17.62013467598928
+              }
+            },
+            {
+              "x": -1.5625,
+              "y": -49.799499999999966,
+              "cubic": {
+                "rotation": 0,
+                "inRotation": -31.36949255363414,
+                "inDistance": 13.247397367030286,
+                "outDistance": 0
+              }
+            }
+          ]
+        }
+      ],
+      "fill": {
+        "color": "#1bb3ff"
+      },
+      "parent": "grip-right"
+    }
+  ],
+  "animations": [
+    {
+      "name": "idle",
+      "fps": 60,
+      "duration": 840,
+      "loop": "loop",
+      "tracks": [
+        {
+          "target": "tail-joint-0",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 40,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 75,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 110,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 150,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 200,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 350,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 393,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 441,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 510,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": -163.30075576600638,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "tail-joint-1",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 45,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 80,
+              "value": 48.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 115,
+              "value": 37.549370817692875,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 155,
+              "value": 43.28937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 205,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 355,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 398,
+              "value": 36.84937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 446,
+              "value": 44.549370817692875,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 515,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 41.74937081769288,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "tail-joint-2",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 50,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 85,
+              "value": 55.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 120,
+              "value": 32.74451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 160,
+              "value": 44.22451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 210,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 360,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 403,
+              "value": 31.34451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 451,
+              "value": 46.74451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 520,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 41.14451921104383,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "tail-joint-3",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 55,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 90,
+              "value": 20.50058874882751,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 125,
+              "value": -9.89941125117249,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 165,
+              "value": 5.68058874882751,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 215,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 365,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 408,
+              "value": -11.799411251172488,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 456,
+              "value": 9.100588748827512,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 525,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 1.5005887488275107,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "eye-left",
+          "property": "scaleY",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 140,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 145,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 148,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 157,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 360,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 365,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 368,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 377,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 678,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 683,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 686,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 695,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 1,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "foot-left",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 250,
+              "value": -40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 265,
+              "value": -45,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 290,
+              "value": -40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": -40,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "eye-right",
+          "property": "scaleY",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 141,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 146,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 149,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 158,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 361,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 366,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 369,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 378,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 679,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 684,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 687,
+              "value": 0.035,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 696,
+              "value": 1,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 1,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "foot-right",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 250,
+              "value": 40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 265,
+              "value": 43,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 290,
+              "value": 40,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 840,
+              "value": 40,
+              "easing": "ease-in-out"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gaze-x",
+      "fps": 60,
+      "duration": 60,
+      "loop": "oneshot",
+      "tracks": [
+        {
+          "target": "pupil-left",
+          "property": "x",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -12,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 30,
+              "value": 0,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 60,
+              "value": 12,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "pupil-right",
+          "property": "x",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -12,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 30,
+              "value": 0,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 60,
+              "value": 12,
+              "easing": "ease-in-out"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gaze-y",
+      "fps": 60,
+      "duration": 60,
+      "loop": "oneshot",
+      "tracks": [
+        {
+          "target": "pupil-left",
+          "property": "y",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -12,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 30,
+              "value": 0,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 60,
+              "value": 12,
+              "easing": "ease-in-out"
+            }
+          ]
+        },
+        {
+          "target": "pupil-right",
+          "property": "y",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -12,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 30,
+              "value": 0,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 60,
+              "value": 12,
+              "easing": "ease-in-out"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "head-follow",
+      "fps": 60,
+      "duration": 60,
+      "loop": "oneshot",
+      "tracks": [
+        {
+          "target": "head",
+          "property": "rotation",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": -3,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 30,
+              "value": 0,
+              "easing": "ease-in-out"
+            },
+            {
+              "frame": 60,
+              "value": 3,
+              "easing": "ease-in-out"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "placement",
+      "fps": 60,
+      "duration": 60,
+      "loop": "oneshot",
+      "tracks": [
+        {
+          "target": "character",
+          "property": "x",
+          "keyframes": [
+            {
+              "frame": 0,
+              "value": 0
+            },
+            {
+              "frame": 60,
+              "value": 1460,
+              "easing": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bones": [
+    {
+      "id": "tail-joint-0",
+      "parent": "tail",
+      "x": 0,
+      "y": 0,
+      "length": 62.6418390534633,
+      "rotation": -163.30075576600638
+    },
+    {
+      "id": "tail-joint-1",
+      "parent": "tail-joint-0",
+      "x": 0,
+      "y": 0,
+      "length": 66.88796603276258,
+      "rotation": 41.74937081769288
+    },
+    {
+      "id": "tail-joint-2",
+      "parent": "tail-joint-1",
+      "x": 0,
+      "y": 0,
+      "length": 72.00694410957875,
+      "rotation": 41.14451921104383
+    },
+    {
+      "id": "tail-joint-3",
+      "parent": "tail-joint-2",
+      "x": 0,
+      "y": 0,
+      "length": 51.97114584074514,
+      "rotation": 1.5005887488275107
+    }
+  ],
+  "images": [],
+  "stateMachine": {
+    "name": "Browser",
+    "inputs": [],
+    "states": [
+      {
+        "name": "idle",
+        "animation": "idle"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "entry",
+        "to": "idle"
+      }
+    ]
+  }
+}

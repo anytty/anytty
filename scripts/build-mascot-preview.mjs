@@ -1,0 +1,21 @@
+import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root=fileURLToPath(new URL('../',import.meta.url));
+const tools=process.argv[2];
+if(!tools)throw new Error('Pass the temporary authoring dependency directory.');
+const out=path.join(root,'docs/assets/brand/motion');
+const runtime=path.join(tools,'node_modules/@rive-app/canvas');
+const lucide=path.join(tools,'node_modules/lucide-static');
+const pkg=JSON.parse(await readFile(path.join(runtime,'package.json'),'utf8'));
+await mkdir(path.join(out,'runtime'),{recursive:true});
+await copyFile(path.join(runtime,'rive.js'),path.join(out,'runtime/rive.js'));
+await copyFile(path.join(tools,'RIVE-LICENSE'),path.join(out,'runtime/RIVE-LICENSE'));
+await copyFile(path.join(lucide,'LICENSE'),path.join(out,'runtime/LUCIDE-LICENSE'));
+const data={runtimeVersion:pkg.version,wasm:(await readFile(path.join(runtime,'rive.wasm'))).toString('base64'),riv:(await readFile(path.join(out,'anytty-mascot.riv'))).toString('base64'),scenarios:JSON.parse(await readFile(path.join(out,'scenarios.json'),'utf8'))};
+await writeFile(path.join(out,'preview-data.js'),`// Generated offline preview data. Rive runtime ${pkg.version}; see runtime/RIVE-LICENSE.\nwindow.ANYTTY_MOTION=Object.freeze(${JSON.stringify(data)});\n`);
+let html=await readFile(path.join(root,'scripts/templates/mascot-motion.html'),'utf8');
+for(const [key,name]of Object.entries({PLAY:'play',PAUSE:'pause',REPLAY:'rotate-ccw',DOWNLOAD:'download'}))html=html.replace(`<!-- ICON_${key} -->`,await readFile(path.join(lucide,'icons',`${name}.svg`),'utf8'));
+await writeFile(path.join(out,'index.html'),html);
+console.log(`Built offline Rive ${pkg.version} preview.`);

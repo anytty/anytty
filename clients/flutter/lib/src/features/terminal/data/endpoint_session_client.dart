@@ -41,7 +41,14 @@ final class NativeSessionException implements Exception {
   final bool attempted;
 
   @override
-  String toString() => message;
+  String toString() {
+    final value = code;
+    if (value == null) return message;
+    final codeName = value.name
+        .replaceFirst('API_ERROR_CODE_', '')
+        .toLowerCase();
+    return '$message\ncode=$codeName; retryable=$retryable; attempted=$attempted';
+  }
 }
 
 enum TerminalDeliveryState { awaitingFrame, ready, recovering, stalled }

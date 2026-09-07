@@ -629,6 +629,7 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
     $fixnum.Int64? attemptGeneration,
     $3.RelayPreference? relayPreference,
     $core.bool? presenceProbe,
+    $3.RelayTransport? relayTransport,
   }) {
     final result = create();
     if (challenge != null) result.challenge = challenge;
@@ -648,6 +649,7 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
     if (attemptGeneration != null) result.attemptGeneration = attemptGeneration;
     if (relayPreference != null) result.relayPreference = relayPreference;
     if (presenceProbe != null) result.presenceProbe = presenceProbe;
+    if (relayTransport != null) result.relayTransport = relayTransport;
     return result;
   }
 
@@ -693,6 +695,8 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
     ..aE<$3.RelayPreference>(15, _omitFieldNames ? '' : 'relayPreference',
         enumValues: $3.RelayPreference.values)
     ..aOB(16, _omitFieldNames ? '' : 'presenceProbe')
+    ..aE<$3.RelayTransport>(17, _omitFieldNames ? '' : 'relayTransport',
+        enumValues: $3.RelayTransport.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -864,6 +868,15 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
   $core.bool hasPresenceProbe() => $_has(15);
   @$pb.TagNumber(16)
   void clearPresenceProbe() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $3.RelayTransport get relayTransport => $_getN(16);
+  @$pb.TagNumber(17)
+  set relayTransport($3.RelayTransport value) => $_setField(17, value);
+  @$pb.TagNumber(17)
+  $core.bool hasRelayTransport() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearRelayTransport() => $_clearField(17);
 }
 
 const $core.bool _omitFieldNames =
