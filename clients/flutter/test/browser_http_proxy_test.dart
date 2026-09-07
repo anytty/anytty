@@ -249,6 +249,53 @@ void main() {
     });
   }
 
+  for (final initial in [true, false]) {
+    test('upload write failure is diagnosed initial=$initial', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+      session.runtime.beforeBrowserData = () async {
+        throw const SocketException(
+          'token=do-not-log-this',
+          osError: OSError('private-target', 101),
+        );
+      };
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final connected = Completer<void>();
+      final ended = Completer<void>();
+      final subscription = socket.listen((_) {
+        if (!connected.isCompleted) connected.complete();
+      }, onDone: ended.complete);
+      addTearDown(subscription.cancel);
+      socket.add(
+        ascii.encode(
+          initial
+              ? 'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n'
+              : 'CONNECT example.test:443 HTTP/1.1\r\nHost: example.test\r\n\r\n',
+        ),
+      );
+      if (!initial) {
+        await connected.future.timeout(const Duration(seconds: 1));
+        socket.add([1, 2, 3]);
+      }
+      await ended.future.timeout(const Duration(seconds: 1));
+      final diagnostic = logs.join('\n');
+      expect(diagnostic, contains('request_id=1 stage=upload_write'));
+      expect(diagnostic, contains('error_type=SocketException'));
+      expect(diagnostic, contains('os_error_code=101'));
+      expect(diagnostic, isNot(contains('token=do-not-log-this')));
+      expect(diagnostic, isNot(contains('private-target')));
+      expect(session.runtime.closed, contains(41));
+    });
+  }
+
   test('negotiated downloads return only consumed cumulative credit', () async {
     session.receiveWindowBytes = 64 * 1024;
     const total = 4 * 1024 * 1024;
@@ -735,6 +782,7 @@ final class _FakeResourceRuntime
   final uploaded = Completer<void>();
   bool failOpen = false;
   Future<void> Function()? beforeAcknowledgement;
+  Future<void> Function()? beforeBrowserData;
   void Function(wire.FileTransferAck)? onAcknowledgement;
   void Function(List<int>)? onBrowserData;
 
@@ -749,6 +797,10 @@ final class _FakeResourceRuntime
       if (frame.type ==
           ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK) {
         await beforeAcknowledgement?.call();
+      }
+      if (frame.type ==
+          ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
+        await beforeBrowserData?.call();
       }
       if (sendDelay != Duration.zero) await Future<void>.delayed(sendDelay);
       sendResourceStreamFrame(streamHandle, frame);

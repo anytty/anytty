@@ -114,11 +114,23 @@ final class BrowserHttpProxy {
     var downloadAckMs = 0;
     var downloadWriting = false;
     var remoteEnded = false;
+    var preparationStage = 'headers';
 
     void trace(String message) {
       final entry = 'proxy_port=$port request_id=$requestId $message';
       developer.log(entry, name: 'anytty.browser.proxy');
       debugPrint('anytty.browser.proxy $entry');
+    }
+
+    void traceFailure(String stage, Object error, {int? waitMs}) {
+      final osError = error is SocketException ? error.osError : null;
+      // Exception messages can include target URLs, credentials or payloads.
+      trace(
+        'stage=$stage failed=true error_type=${error.runtimeType} '
+        'timeout=${error is TimeoutException}'
+        '${osError == null ? '' : ' os_error_code=${osError.errorCode}'}'
+        '${waitMs == null ? '' : ' wait_ms=$waitMs'}',
+      );
     }
 
     void finish() {
@@ -163,10 +175,20 @@ final class BrowserHttpProxy {
           rethrow;
         }
         final end = offset + count;
-        await stream!.sendAsync(
-          ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
-          bytes.sublist(offset, end),
-        );
+        final writeStart = elapsed.elapsedMilliseconds;
+        try {
+          await stream!.sendAsync(
+            ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
+            bytes.sublist(offset, end),
+          );
+        } catch (error) {
+          traceFailure(
+            'upload_write',
+            error,
+            waitMs: elapsed.elapsedMilliseconds - writeStart,
+          );
+          rethrow;
+        }
         uploadedBytes += end - offset;
         final sendMs = elapsed.elapsedMilliseconds - sendStart;
         sendWaitMs += sendMs;
@@ -187,9 +209,11 @@ final class BrowserHttpProxy {
         'connect=${request.connect} websocket=${request.websocketUpgrade}',
       );
       final queueStart = elapsed.elapsedMilliseconds;
+      preparationStage = 'resource_queue';
       resourceLease = await _resourceLimiter.acquire();
       final queueMs = elapsed.elapsedMilliseconds - queueStart;
       final openStart = elapsed.elapsedMilliseconds;
+      preparationStage = 'resource_open';
       final resource = await _session.openBrowserProxy(
         host: request.host,
         port: request.port,
@@ -199,6 +223,7 @@ final class BrowserHttpProxy {
         'queue_ms=$queueMs open_ms=${elapsed.elapsedMilliseconds - openStart}',
       );
       final receiveWindow = resource.receiveWindowBytes;
+      preparationStage = 'resource_stream_open';
       stream = await _session.openBrowserResourceStream(resource.resource);
       _streams.add(stream);
       if (receiveWindow > 1024 * 1024 ||
@@ -280,7 +305,10 @@ final class BrowserHttpProxy {
             }, onError: (Object error, StackTrace stackTrace) => finish()),
           );
         },
-        onError: (Object error, StackTrace stackTrace) => finish(),
+        onError: (Object error, StackTrace stackTrace) {
+          traceFailure('local_socket_read', error);
+          finish();
+        },
         onDone: finish,
         cancelOnError: true,
       );
@@ -340,7 +368,10 @@ final class BrowserHttpProxy {
             endDownloads();
           }
         },
-        onError: (Object error, StackTrace stackTrace) => finish(),
+        onError: (Object error, StackTrace stackTrace) {
+          traceFailure('remote_stream_read', error);
+          finish();
+        },
         onDone: endDownloads,
         cancelOnError: true,
       );
@@ -354,18 +385,17 @@ final class BrowserHttpProxy {
               finish();
             }
           },
-          onError: (Object error, StackTrace stackTrace) => finish(),
+          onError: (Object error, StackTrace stackTrace) {
+            traceFailure('native_close', error);
+            finish();
+          },
         ),
       );
+      preparationStage = 'initial_upload';
       await initialSend;
       await done.future;
-    } catch (error, stackTrace) {
-      developer.log(
-        'request failed error=$error',
-        name: 'anytty.browser.proxy',
-        error: error,
-        stackTrace: stackTrace,
-      );
+    } catch (error) {
+      traceFailure(preparationStage, error);
       if (!done.isCompleted) {
         try {
           socket.add(
