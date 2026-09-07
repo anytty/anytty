@@ -26,6 +26,73 @@ void main() {
     await session.runtime.close();
   });
 
+  test('large uploads await bounded asynchronous writes in order', () async {
+    session.runtime.sendDelay = const Duration(milliseconds: 2);
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      proxy.port,
+    );
+    final connected = Completer<void>();
+    final subscription = socket.listen((bytes) {
+      if (!connected.isCompleted) connected.complete();
+    });
+    addTearDown(() async {
+      socket.destroy();
+      await subscription.cancel();
+    });
+    socket.add(
+      ascii.encode(
+        'CONNECT example.test:443 HTTP/1.1\r\nHost: example.test:443\r\n\r\n',
+      ),
+    );
+    await connected.future.timeout(const Duration(seconds: 1));
+    final payload = List<int>.generate(1024 * 1024, (index) => index % 251);
+    session.runtime.expectedBytes = payload.length;
+    var timerTicks = 0;
+    final timer = Timer.periodic(
+      const Duration(milliseconds: 1),
+      (_) => timerTicks++,
+    );
+    addTearDown(timer.cancel);
+    socket.add(payload);
+    await socket.flush();
+    await session.runtime.uploaded.future.timeout(const Duration(seconds: 5));
+    expect(session.sentPayloads.expand((bytes) => bytes), payload);
+    expect(
+      session.sentPayloads.every((bytes) => bytes.length <= 32 * 1024),
+      isTrue,
+    );
+    expect(session.runtime.maximumInFlight, 1);
+    expect(timerTicks, greaterThan(1));
+  });
+
+  test(
+    'remote close flushes the final response before destroying socket',
+    () async {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      final response = socket.fold<List<int>>(
+        <int>[],
+        (all, chunk) => all..addAll(chunk),
+      );
+      socket.add(
+        ascii.encode(
+          'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n',
+        ),
+      );
+      await session.firstData.future.timeout(const Duration(seconds: 1));
+      final payload = ascii.encode(
+        'HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello',
+      );
+      session.emitRemoteData(payload);
+      session.runtime.closeResourceStream(41);
+      expect(await response.timeout(const Duration(seconds: 2)), payload);
+      socket.destroy();
+    },
+  );
+
   test('forwards CONNECT leftover bytes exactly once', () async {
     final socket = await Socket.connect(
       InternetAddress.loopbackIPv4,
@@ -235,11 +302,45 @@ final class _FakeBrowserProxySession implements BrowserProxySession {
 }
 
 final class _FakeResourceRuntime
-    implements AnyttyEngineRuntime, AnyttyResourceStreamRuntime {
+    implements
+        AnyttyEngineRuntime,
+        AnyttyResourceStreamRuntime,
+        AnyttyAsyncResourceStreamRuntime {
   final _events = StreamController<EventEnvelope>.broadcast(sync: true);
   final firstData = Completer<void>();
   final sentPayloads = <List<int>>[];
   final closed = <int>[];
+  Duration sendDelay = Duration.zero;
+  int inFlight = 0;
+  int maximumInFlight = 0;
+  int sentBytes = 0;
+  int? expectedBytes;
+  final uploaded = Completer<void>();
+
+  @override
+  Future<void> sendResourceStreamFrameAsync(
+    int streamHandle,
+    ResourceStreamFrame frame,
+  ) async {
+    inFlight++;
+    if (inFlight > maximumInFlight) maximumInFlight = inFlight;
+    try {
+      if (sendDelay != Duration.zero) await Future<void>.delayed(sendDelay);
+      sendResourceStreamFrame(streamHandle, frame);
+      sentBytes += frame.payload.length;
+      if (expectedBytes != null &&
+          sentBytes >= expectedBytes! &&
+          !uploaded.isCompleted) {
+        uploaded.complete();
+      }
+    } finally {
+      inFlight--;
+    }
+  }
+
+  @override
+  Future<void> closeResourceStreamAsync(int streamHandle) async =>
+      closeResourceStream(streamHandle);
 
   @override
   Stream<EventEnvelope> get events => _events.stream;

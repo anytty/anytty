@@ -14,6 +14,7 @@ import 'anytty_client_engine.dart';
 import 'request_id.dart';
 import 'runtime_diagnostics.dart';
 import 'platform_request_queue.dart';
+import 'native_resource_writer.dart';
 
 abstract interface class AnyttyPlatformHandler {
   Future<PlatformResponse> handle(PlatformRequest request);
@@ -46,6 +47,14 @@ abstract interface class AnyttyResourceStreamRuntime {
   void closeResourceStream(int streamHandle);
 }
 
+abstract interface class AnyttyAsyncResourceStreamRuntime {
+  Future<void> sendResourceStreamFrameAsync(
+    int streamHandle,
+    ResourceStreamFrame frame,
+  );
+  Future<void> closeResourceStreamAsync(int streamHandle);
+}
+
 abstract interface class AnyttyLifecycleRuntime {
   void signalNetwork({required bool connected, required String reason});
   void suspendForeground({required bool connected});
@@ -57,6 +66,7 @@ final class AnyttyRuntime
         AnyttyEngineRuntime,
         AnyttyLifecycleRuntime,
         AnyttyResourceStreamRuntime,
+        AnyttyAsyncResourceStreamRuntime,
         RuntimeDiagnosticsSink {
   AnyttyRuntime._({required this._engine, required this._platform}) {
     _endpointDemand = EndpointDemandCoordinator(
@@ -88,6 +98,7 @@ final class AnyttyRuntime
   final Set<int> _operationHandles = {};
   final Set<int> _sessionHandles = {};
   final Set<int> _streamHandles = {};
+  Future<NativeResourceWriter>? _resourceWriter;
   final Map<int, int> _sessionGenerations = {};
   final Map<int, int> _streamGenerations = {};
   final Map<String, EndpointConnectionEvent> _endpointConnectionEvents = {};
@@ -248,6 +259,28 @@ final class AnyttyRuntime
     );
   }
 
+  Future<NativeResourceWriter> _writer() {
+    _ensureOpen();
+    return _resourceWriter ??= NativeResourceWriter.start(_engine.handle);
+  }
+
+  @override
+  Future<void> sendResourceStreamFrameAsync(
+    int streamHandle,
+    ResourceStreamFrame frame,
+  ) async {
+    final writer = await _writer();
+    _ensureOpen();
+    await writer.send(streamHandle, Uint8List.fromList(frame.writeToBuffer()));
+  }
+
+  @override
+  Future<void> closeResourceStreamAsync(int streamHandle) async {
+    final writer = await _writer();
+    _ensureOpen();
+    await writer.closeStream(streamHandle);
+  }
+
   @override
   void closeResourceStream(int streamHandle) {
     _ensureOpen();
@@ -286,6 +319,12 @@ final class AnyttyRuntime
     }
     for (final subscription in _subscriptions) {
       await subscription.cancel();
+    }
+    final writer = _resourceWriter;
+    if (writer != null) {
+      try {
+        (await writer).dispose();
+      } catch (_) {}
     }
     for (final port in _ports) {
       port.close();

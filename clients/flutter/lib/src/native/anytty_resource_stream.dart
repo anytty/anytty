@@ -137,9 +137,46 @@ final class AnyttyResourceStream {
     );
   }
 
+  Future<void> sendAsync(
+    ResourceStreamFrameType type,
+    List<int> payload,
+  ) async {
+    if (_closeRequested || _closed.isCompleted) {
+      throw StateError('AnyTTY resource stream is closed');
+    }
+    final runtime = _runtime;
+    if (runtime is AnyttyAsyncResourceStreamRuntime) {
+      await (runtime as AnyttyAsyncResourceStreamRuntime)
+          .sendResourceStreamFrameAsync(
+            handle,
+            ResourceStreamFrame(
+              streamHandle: Int64(handle),
+              type: type,
+              payload: payload,
+            ),
+          );
+    } else {
+      send(type, payload);
+    }
+  }
+
   void close() {
     if (_closeRequested || _closed.isCompleted) return;
     _closeRequested = true;
+    final runtime = _runtime;
+    if (runtime is AnyttyAsyncResourceStreamRuntime) {
+      unawaited(
+        (runtime as AnyttyAsyncResourceStreamRuntime)
+            .closeResourceStreamAsync(handle)
+            .catchError((Object error, StackTrace stackTrace) {
+              _release();
+              if (!_closed.isCompleted) {
+                _closed.completeError(error, stackTrace);
+              }
+            }),
+      );
+      return;
+    }
     try {
       (_runtime as AnyttyResourceStreamRuntime).closeResourceStream(handle);
     } catch (error, stackTrace) {

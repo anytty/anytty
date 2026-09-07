@@ -5,6 +5,8 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../../../generated/proto/apipb/common.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../native/anytty_resource_stream.dart';
@@ -34,6 +36,7 @@ final class BrowserHttpProxy {
   static const _maximumConcurrentResources = 16;
   static const _requestHeaderTimeout = Duration(seconds: 10);
   static const _maximumConcurrentSockets = 64;
+  static const _dataChunkBytes = 32 * 1024;
 
   final BrowserProxySession _session;
   final ServerSocket _server;
@@ -45,6 +48,7 @@ final class BrowserHttpProxy {
     _maximumConcurrentResources,
   );
   bool _closed = false;
+  int _requestSequence = 0;
 
   int get port => _server.port;
 
@@ -85,15 +89,32 @@ final class BrowserHttpProxy {
   }
 
   Future<void> _serve(Socket socket) async {
+    final requestId = ++_requestSequence;
     final input = _SocketInput(socket);
     AnyttyResourceStream? stream;
     StreamSubscription<Uint8List>? localSubscription;
     StreamSubscription<ResourceStreamFrame>? remoteSubscription;
     _SemaphoreLease? resourceLease;
     final done = Completer<void>();
+    final elapsed = Stopwatch()..start();
+    var uploadedBytes = 0;
+    var downloadedBytes = 0;
+    var maximumSendMs = 0;
+    var sendWaitMs = 0;
+
+    void trace(String message) {
+      final entry = 'proxy_port=$port request_id=$requestId $message';
+      developer.log(entry, name: 'anytty.browser.proxy');
+      debugPrint('anytty.browser.proxy $entry');
+    }
 
     void finish() {
       if (done.isCompleted) return;
+      trace(
+        'stage=closed total_ms=${elapsed.elapsedMilliseconds} '
+        'upload_bytes=$uploadedBytes download_bytes=$downloadedBytes '
+        'send_wait_ms=$sendWaitMs max_send_ms=$maximumSendMs',
+      );
       done.complete();
       unawaited(localSubscription?.cancel() ?? Future<void>.value());
       unawaited(remoteSubscription?.cancel() ?? Future<void>.value());
@@ -104,25 +125,50 @@ final class BrowserHttpProxy {
       input.close();
     }
 
+    Future<void> finishAfterFlush() async {
+      try {
+        await socket.flush().timeout(const Duration(seconds: 5));
+      } catch (_) {}
+      finish();
+    }
+
+    Future<void> sendData(List<int> bytes) async {
+      for (var offset = 0; offset < bytes.length; offset += _dataChunkBytes) {
+        final end = (offset + _dataChunkBytes).clamp(0, bytes.length);
+        final sendStart = elapsed.elapsedMilliseconds;
+        await stream!.sendAsync(
+          ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
+          bytes.sublist(offset, end),
+        );
+        uploadedBytes += end - offset;
+        final sendMs = elapsed.elapsedMilliseconds - sendStart;
+        sendWaitMs += sendMs;
+        if (sendMs > maximumSendMs) maximumSendMs = sendMs;
+      }
+    }
+
     try {
       final request = await input.request.timeout(
         _headerTimeout,
         onTimeout: () =>
             throw TimeoutException('HTTP proxy request headers timed out'),
       );
-      developer.log(
-        'request target=${request.host}:${request.port} '
+      trace(
+        'stage=headers total_ms=${elapsed.elapsedMilliseconds} '
+        'target=${request.host}:${request.port} '
         'connect=${request.connect} websocket=${request.websocketUpgrade}',
-        name: 'anytty.browser.proxy',
       );
+      final queueStart = elapsed.elapsedMilliseconds;
       resourceLease = await _resourceLimiter.acquire();
+      final queueMs = elapsed.elapsedMilliseconds - queueStart;
+      final openStart = elapsed.elapsedMilliseconds;
       final resource = await _session.openBrowserProxy(
         host: request.host,
         port: request.port,
       );
-      developer.log(
-        'resource opened target=${request.host}:${request.port}',
-        name: 'anytty.browser.proxy',
+      trace(
+        'stage=resource_open target=${request.host}:${request.port} '
+        'queue_ms=$queueMs open_ms=${elapsed.elapsedMilliseconds - openStart}',
       );
       stream = await _session.openBrowserResourceStream(resource);
       _streams.add(stream);
@@ -136,22 +182,17 @@ final class BrowserHttpProxy {
         ...request.leftover,
       ];
       if (initialPayload.isNotEmpty) {
-        stream.send(
-          ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
-          initialPayload,
-        );
+        await sendData(initialPayload);
       }
 
       localSubscription = input.body.listen(
         (bytes) {
-          try {
-            stream!.send(
-              ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
-              bytes,
-            );
-          } catch (_) {
-            finish();
-          }
+          localSubscription!.pause();
+          unawaited(
+            sendData(bytes).then((_) {
+              if (!done.isCompleted) localSubscription?.resume();
+            }, onError: (Object error, StackTrace stackTrace) => finish()),
+          );
         },
         onError: (Object error, StackTrace stackTrace) => finish(),
         onDone: finish,
@@ -161,20 +202,25 @@ final class BrowserHttpProxy {
         (frame) {
           if (frame.type ==
               ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
-            socket.add(frame.payload);
+            try {
+              socket.add(frame.payload);
+              downloadedBytes += frame.payload.length;
+            } catch (_) {
+              finish();
+            }
           } else if (frame.type ==
               ResourceStreamFrameType
                   .RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED) {
-            finish();
+            unawaited(finishAfterFlush());
           }
         },
         onError: (Object error, StackTrace stackTrace) => finish(),
-        onDone: finish,
+        onDone: () => unawaited(finishAfterFlush()),
         cancelOnError: true,
       );
       unawaited(
         stream.closed.then(
-          (_) => finish(),
+          (_) => finishAfterFlush(),
           onError: (Object error, StackTrace stackTrace) => finish(),
         ),
       );
@@ -301,6 +347,12 @@ final class _ProxyRequest {
 
 final class _SocketInput {
   _SocketInput(Socket socket) {
+    _body = StreamController<Uint8List>(
+      onListen: () => _subscription.resume(),
+      onPause: () => _subscription.pause(),
+      onResume: () => _subscription.resume(),
+      onCancel: () => _subscription.cancel(),
+    );
     _subscription = socket.listen(
       _onData,
       onError: _onError,
@@ -309,7 +361,7 @@ final class _SocketInput {
     );
   }
 
-  final StreamController<Uint8List> _body = StreamController<Uint8List>();
+  late final StreamController<Uint8List> _body;
   final List<int> _header = <int>[];
   late final StreamSubscription<Uint8List> _subscription;
   final Completer<_ProxyRequest> _request = Completer<_ProxyRequest>();
@@ -327,16 +379,21 @@ final class _SocketInput {
     }
     _header.addAll(bytes);
     _headerBytes += bytes.length;
-    if (_headerBytes > BrowserHttpProxy._maximumHeaderBytes) {
+    final all = Uint8List.fromList(_header);
+    final marker = _findHeaderEnd(all);
+    if ((marker < 0 ? _headerBytes : marker + 4) >
+        BrowserHttpProxy._maximumHeaderBytes) {
       _onError(const FormatException('HTTP proxy header is too large'));
       return;
     }
-    final all = Uint8List.fromList(_header);
-    final marker = _findHeaderEnd(all);
     if (marker < 0) return;
     _headerDone = true;
+    // Stop reading while the remote resource opens, then propagate upload
+    // backpressure from the native sender all the way to the local socket.
+    _subscription.pause();
     final head = all.sublist(0, marker);
     final leftover = all.sublist(marker + 4);
+    _header.clear();
     try {
       _request.complete(_parseRequest(head, leftover));
     } catch (error, stackTrace) {
