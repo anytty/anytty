@@ -7,9 +7,12 @@ import 'package:anytty_native/src/generated/proto/apipb/application.pb.dart'
     as application;
 import 'package:anytty_native/src/generated/proto/apipb/common.pb.dart';
 import 'package:anytty_native/src/generated/proto/bindingpb/client_binding.pb.dart';
+import 'package:anytty_native/src/generated/proto/wirepb/terminal.pb.dart'
+    as wire;
 import 'package:anytty_native/src/native/anytty_resource_stream.dart';
 import 'package:anytty_native/src/native/anytty_runtime.dart';
 import 'package:fixnum/fixnum.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -177,6 +180,74 @@ void main() {
     expect(received.length, payload.length);
     expect(received, payload);
   });
+
+  for (final failureKind in ['protocol', 'malformed', 'native']) {
+    test('$failureKind failure closes the browser socket with safe diagnostics', () async {
+      final logs = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final response = socket.drain<void>();
+      socket.add(
+        ascii.encode(
+          'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n',
+        ),
+      );
+      await session.firstData.future.timeout(const Duration(seconds: 1));
+      const sensitiveMessage = 'token=do-not-log-this';
+      if (failureKind == 'native') {
+        session.runtime._events.add(
+          EventEnvelope(
+            resourceStreamClosed: ResourceStreamClosedEvent(
+              streamHandle: Int64(41),
+              error: ApiError(
+                code: ApiErrorCode.API_ERROR_CODE_RESOURCE_EXHAUSTED,
+                message: sensitiveMessage,
+              ),
+            ),
+          ),
+        );
+      } else {
+        session.runtime._events.add(
+          EventEnvelope(
+            resourceStreamFrame: ResourceStreamFrame(
+              streamHandle: Int64(41),
+              type: ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_ERROR,
+              payload: failureKind == 'malformed'
+                  ? [255]
+                  : wire.ErrorEnvelope(
+                      error: wire.ProtocolError(
+                        code: 42,
+                        message: sensitiveMessage,
+                      ),
+                    ).writeToBuffer(),
+            ),
+          ),
+        );
+      }
+      await response.timeout(const Duration(seconds: 1));
+      final diagnostic = logs.join('\n');
+      expect(diagnostic, contains('request_id=1'));
+      expect(diagnostic, isNot(contains(sensitiveMessage)));
+      expect(
+        diagnostic,
+        contains(switch (failureKind) {
+          'native' =>
+            'stage=native_error code=API_ERROR_CODE_RESOURCE_EXHAUSTED',
+          'malformed' => 'stage=remote_error malformed=true',
+          _ => 'stage=remote_error code=42',
+        }),
+      );
+      if (failureKind != 'native') expect(session.runtime.closed, contains(41));
+    });
+  }
 
   test('forwards CONNECT leftover bytes exactly once', () async {
     final socket = await Socket.connect(

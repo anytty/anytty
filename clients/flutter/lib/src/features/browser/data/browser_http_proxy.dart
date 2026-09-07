@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../generated/proto/apipb/common.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
+import '../../../generated/proto/wirepb/terminal.pb.dart' as wire;
 import '../../../native/anytty_resource_stream.dart';
 
 abstract interface class BrowserProxySession {
@@ -209,6 +210,18 @@ final class BrowserHttpProxy {
               finish();
             }
           } else if (frame.type ==
+              ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_ERROR) {
+            try {
+              final failure = wire.ErrorEnvelope.fromBuffer(frame.payload);
+              if (!failure.hasError()) {
+                throw const FormatException('missing protocol error');
+              }
+              trace('stage=remote_error code=${failure.error.code}');
+            } catch (_) {
+              trace('stage=remote_error malformed=true');
+            }
+            finish();
+          } else if (frame.type ==
               ResourceStreamFrameType
                   .RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED) {
             unawaited(finishAfterFlush());
@@ -222,7 +235,12 @@ final class BrowserHttpProxy {
         stream.closed.then(
           // Native closure can arrive while frames are still queued in Dart.
           // The frame stream's onDone owns successful response completion.
-          (_) {},
+          (closed) {
+            if (closed.hasError() && !done.isCompleted) {
+              trace('stage=native_error code=${closed.error.code.name}');
+              finish();
+            }
+          },
           onError: (Object error, StackTrace stackTrace) => finish(),
         ),
       );
