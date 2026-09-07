@@ -779,6 +779,7 @@ func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signe
 	}
 	defer release()
 	directory := cloudv1.NewDirectoryServiceClient(connection)
+	reportTiming("controller_transport_acquired")
 	challenge, err := directory.BeginClientRoute(ctx, &cloudv1.BeginClientRouteRequest{CloudRouteGrant: grant})
 	if err != nil {
 		return nil, fmt.Errorf("begin Cloud route resolution: %w", classifyDaemonLifecycleError(err))
@@ -1022,6 +1023,7 @@ func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution,
 	if err := stream.Send(hello); err != nil {
 		return nil, err
 	}
+	reportTiming("edge_hello_sent")
 	ready, err := stream.Recv()
 	if err != nil {
 		return nil, err

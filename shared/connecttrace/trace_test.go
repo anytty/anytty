@@ -28,3 +28,19 @@ func TestTraceRejectsUntrustedInvalidIDs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestConcurrentComponentsHaveDistinctSpansWithinOneTrace(t *testing.T) {
+	ctx, parent := Start(context.Background(), "cloud_route")
+	_, first := Start(ctx, "edge_session")
+	_, second := Start(ctx, "edge_session")
+	if parent.id != first.id || first.id != second.id {
+		t.Fatal("attempts lost shared trace identity")
+	}
+	seen := map[string]bool{}
+	for _, trace := range []*Trace{parent, first, second} {
+		if id, err := uuid.Parse(trace.spanID); err != nil || id == uuid.Nil || seen[trace.spanID] {
+			t.Fatal("attempt span is invalid or reused")
+		}
+		seen[trace.spanID] = true
+	}
+}

@@ -29,9 +29,9 @@ func Attach(ctx context.Context, id string) context.Context {
 }
 
 type Trace struct {
-	mu            sync.Mutex
-	id, component string
-	started, last time.Time
+	mu                    sync.Mutex
+	id, component, spanID string
+	started, last         time.Time
 }
 
 // Start propagates a diagnostic-only ID. It is never authorization evidence.
@@ -57,7 +57,7 @@ func Start(ctx context.Context, component string) (context.Context, *Trace) {
 	md.Set(header, id)
 	ctx = metadata.NewOutgoingContext(ctx, md)
 	now := time.Now()
-	trace := &Trace{id: id, component: component, started: now, last: now}
+	trace := &Trace{id: id, component: component, spanID: uuid.NewString(), started: now, last: now}
 	trace.Mark("start")
 	return ctx, trace
 }
@@ -78,7 +78,7 @@ func (trace *Trace) Mark(stage string) {
 	trace.mu.Lock()
 	defer trace.mu.Unlock()
 	now := time.Now()
-	log.Printf("anytty connect trace_id=%s component=%s stage=%s stage_ms=%d total_ms=%d", trace.id, trace.component, stage, now.Sub(trace.last).Milliseconds(), now.Sub(trace.started).Milliseconds())
+	log.Printf("anytty connect trace_id=%s component=%s stage=%s stage_ms=%d total_ms=%d span_id=%s", trace.id, trace.component, stage, now.Sub(trace.last).Milliseconds(), now.Sub(trace.started).Milliseconds(), trace.spanID)
 	trace.last = now
 }
 
