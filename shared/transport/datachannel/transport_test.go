@@ -404,6 +404,48 @@ func TestTransportSendDrainTimeoutClosesTransport(t *testing.T) {
 	}
 }
 
+func TestTransportDrainNotificationsDoNotRenewSendDeadline(t *testing.T) {
+	channel, _ := newFakeChannelPair()
+	channel.setBufferedAmount(defaultSendBufferHigh + 1)
+	transport := New(&noisyDrainChannel{fakeChannel: channel})
+	transport.drainTimeout = 20 * time.Millisecond
+	sendDone := make(chan error, 1)
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		sendDone <- transport.Send([]byte("stalled browser upload"))
+	}()
+	t.Cleanup(func() {
+		_ = transport.Close()
+		<-workerDone
+	})
+	select {
+	case err := <-sendDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("send error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("repeated drain notifications renewed the send deadline")
+	}
+	select {
+	case <-transport.Done():
+	default:
+		t.Fatal("expired send left transport alive")
+	}
+	if calls := channelCloseCalls(channel); calls != 1 {
+		t.Fatalf("channel close calls = %d, want 1", calls)
+	}
+}
+
+type noisyDrainChannel struct{ *fakeChannel }
+
+func (channel *noisyDrainChannel) BufferedAmount() uint64 {
+	// Notifications are hints: a delayed/duplicate callback need not mean that
+	// the amount observed by this sender is below the high watermark.
+	channel.signalBufferedAmountLow()
+	return channel.fakeChannel.BufferedAmount()
+}
+
 func TestTransportCloseUnblocksInFlightChannelSend(t *testing.T) {
 	channel := newBlockingSendChannel()
 	transport := New(channel)

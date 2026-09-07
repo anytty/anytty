@@ -102,19 +102,19 @@ func (transport *Transport) Send(frame []byte) error {
 	if transport == nil || transport.channel == nil {
 		return io.EOF
 	}
+	var drainTimer *time.Timer
 	for transport.channel.BufferedAmount() > defaultSendBufferHigh {
-		timer := time.NewTimer(transport.drainTimeout)
+		if drainTimer == nil {
+			// Drain notifications are only hints; repeated wakeups must not
+			// extend this send's total backpressure wait indefinitely.
+			drainTimer = time.NewTimer(transport.drainTimeout)
+			defer drainTimer.Stop()
+		}
 		select {
 		case <-transport.drainCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
 		case <-transport.done:
-			if !timer.Stop() {
-				<-timer.C
-			}
 			return io.EOF
-		case <-timer.C:
+		case <-drainTimer.C:
 			transport.failSend(context.DeadlineExceeded)
 			return context.DeadlineExceeded
 		}
