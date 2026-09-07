@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -57,6 +58,7 @@ type SignalingAnswer struct {
 // peerLifecycle owns one Pion peer and its single authorized protocol handler.
 // Finalization always runs outside Pion callbacks and the handler goroutine.
 type peerLifecycle struct {
+	traceID          string
 	peer             *pion.PeerConnection
 	cancel           context.CancelFunc
 	onPeerClosed     func()
@@ -75,7 +77,8 @@ type peerLifecycle struct {
 
 func newPeerLifecycle(ctx context.Context, peer *pion.PeerConnection, cancel context.CancelFunc, onPeerClosed func(), closePeerForTest func(*pion.PeerConnection) error) *peerLifecycle {
 	lifecycle := &peerLifecycle{
-		peer: peer, cancel: cancel, onPeerClosed: onPeerClosed, closePeerForTest: closePeerForTest,
+		traceID: connecttrace.ID(ctx),
+		peer:    peer, cancel: cancel, onPeerClosed: onPeerClosed, closePeerForTest: closePeerForTest,
 		handlerDone: make(chan struct{}), closing: make(chan struct{}), watcherDone: make(chan struct{}), done: make(chan struct{}),
 	}
 	go func() {
@@ -136,22 +139,41 @@ func (lifecycle *peerLifecycle) closeAndWait() {
 }
 
 func (lifecycle *peerLifecycle) finalize() {
+	_, trace := connecttrace.Start(connecttrace.Attach(context.Background(), lifecycle.traceID), "daemon_peer_close")
+	var closeErr error
+	trace.Mark("peer_close_started")
 	func() {
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() != nil {
+				closeErr = errors.New("peer close panicked")
+			}
+		}()
 		if lifecycle.closePeerForTest != nil {
-			_ = lifecycle.closePeerForTest(lifecycle.peer)
+			closeErr = lifecycle.closePeerForTest(lifecycle.peer)
 		} else if lifecycle.peer != nil {
-			_ = lifecycle.peer.GracefulClose()
+			closeErr = lifecycle.peer.GracefulClose()
 		}
 	}()
+	trace.Mark("peer_close_returned")
+	trace.Mark("handler_wait_started")
 	<-lifecycle.handlerDone
+	trace.Mark("handler_finished")
+	trace.Mark("watcher_wait_started")
 	<-lifecycle.watcherDone
+	trace.Mark("watcher_finished")
+	trace.Mark("callback_started")
 	func() {
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() != nil {
+				closeErr = errors.Join(closeErr, errors.New("peer close callback panicked"))
+			}
+		}()
 		if lifecycle.onPeerClosed != nil {
 			lifecycle.onPeerClosed()
 		}
 	}()
+	trace.Mark("callback_finished")
+	trace.End(closeErr)
 	close(lifecycle.done)
 }
 
