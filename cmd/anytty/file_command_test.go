@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -104,4 +105,36 @@ func executeFileCLI(t *testing.T, args ...string) string {
 		t.Fatalf("anytty %s: %v", strings.Join(args, " "), err)
 	}
 	return output.String()
+}
+
+func TestFileDownloadAcrossCreditWindows(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	socketPath, _, closeServer := startCLIEndpointServer(t)
+	defer closeServer()
+	if err := endpointdomain.Save("", endpointdomain.Registry{
+		Version: endpointdomain.RegistryVersion, Default: endpointdomain.DefaultEndpointID,
+		Endpoints: map[endpointdomain.EndpointID]endpointdomain.Endpoint{
+			endpointdomain.DefaultEndpointID: testLocalEndpoint(endpointdomain.DefaultEndpointID, "Local", socketPath, endpointdomain.ConnectAuto, true),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, size := range []int{(1 << 20) - 1, 1 << 20, (1 << 20) + 1, (3 << 20) + 17} {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
+			content := make([]byte, size)
+			for index := range content {
+				content[index] = byte(index % 251)
+			}
+			source := filepath.Join(t.TempDir(), "source.bin")
+			destination := filepath.Join(t.TempDir(), "download.bin")
+			if err := os.WriteFile(source, content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			executeFileCLI(t, "--timeout", "5s", "file", "download", "local", source, destination, "--json")
+			actual, err := os.ReadFile(destination)
+			if err != nil || !bytes.Equal(actual, content) {
+				t.Fatalf("download length=%d want=%d error=%v", len(actual), size, err)
+			}
+		})
+	}
 }
