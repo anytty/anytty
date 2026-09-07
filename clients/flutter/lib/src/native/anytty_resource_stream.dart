@@ -61,6 +61,7 @@ final class AnyttyResourceStream {
       switch (event.whichEvent()) {
         case EventEnvelope_Event.resourceStreamFrame:
           if (event.resourceStreamFrame.streamHandle.toInt() == handle &&
+              !closed.isCompleted &&
               !frames.isClosed) {
             frames.add(event.resourceStreamFrame.deepCopy());
           }
@@ -102,14 +103,14 @@ final class AnyttyResourceStream {
           (_) async {
             stream._released = released;
             stream._release();
-            await frames.close();
             await subscription.cancel();
+            unawaited(frames.close());
           },
           onError: (Object _, StackTrace _) async {
             stream._released = released;
             stream._release();
-            await frames.close();
             await subscription.cancel();
+            unawaited(frames.close());
           },
         ),
       );
@@ -117,7 +118,9 @@ final class AnyttyResourceStream {
     } catch (_) {
       releaseHandle();
       await subscription.cancel();
-      await frames.close();
+      // A single-subscription controller may never finish close without a
+      // listener. Cleanup must not hide the original native open failure.
+      unawaited(frames.close());
       rethrow;
     }
   }

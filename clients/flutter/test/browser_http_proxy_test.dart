@@ -26,6 +26,65 @@ void main() {
     await session.runtime.close();
   });
 
+  test(
+    'resource open failure does not wait for an absent frame listener',
+    () async {
+      session.runtime.failOpen = true;
+      await expectLater(
+        AnyttyResourceStream.open(
+          runtime: session.runtime,
+          sessionHandle: 1,
+          request: OpenResourceStreamRequest(),
+        ).timeout(const Duration(milliseconds: 500)),
+        throwsStateError,
+      );
+      expect(session.runtime._events.hasListener, isFalse);
+    },
+  );
+
+  test(
+    'closed resource detaches runtime even when its consumer is paused',
+    () async {
+      final stream = await AnyttyResourceStream.open(
+        runtime: session.runtime,
+        sessionHandle: 1,
+        request: OpenResourceStreamRequest(),
+      );
+      final frames = stream.frames.listen((_) {})..pause();
+      try {
+        session.runtime.emitRemoteData([1, 2, 3]);
+        session.runtime.closeResourceStream(stream.handle);
+        await stream.closed;
+        await Future<void>.delayed(Duration.zero);
+        expect(session.runtime._events.hasListener, isFalse);
+      } finally {
+        await frames.cancel();
+      }
+    },
+  );
+
+  test(
+    'resource close preserves queued data but rejects trailing frames',
+    () async {
+      final stream = await AnyttyResourceStream.open(
+        runtime: session.runtime,
+        sessionHandle: 1,
+        request: OpenResourceStreamRequest(),
+      );
+      session.runtime.emitRemoteData([1, 2, 3]);
+      session.runtime.closeResourceStream(stream.handle);
+      session.runtime.emitRemoteData([4, 5, 6]);
+      await stream.closed;
+      final frames = await stream.frames.toList().timeout(
+        const Duration(seconds: 1),
+      );
+      expect(frames.map((frame) => frame.payload), [
+        [1, 2, 3],
+      ]);
+      expect(session.runtime._events.hasListener, isFalse);
+    },
+  );
+
   test('large uploads await bounded asynchronous writes in order', () async {
     session.runtime.sendDelay = const Duration(milliseconds: 2);
     final socket = await Socket.connect(
@@ -316,6 +375,7 @@ final class _FakeResourceRuntime
   int sentBytes = 0;
   int? expectedBytes;
   final uploaded = Completer<void>();
+  bool failOpen = false;
 
   @override
   Future<void> sendResourceStreamFrameAsync(
@@ -372,10 +432,10 @@ final class _FakeResourceRuntime
   void closeSession(int sessionHandle) {}
 
   @override
-  int openResourceStream(
-    int sessionHandle,
-    OpenResourceStreamRequest request,
-  ) => 41;
+  int openResourceStream(int sessionHandle, OpenResourceStreamRequest request) {
+    if (failOpen) throw StateError('native open failed');
+    return 41;
+  }
 
   @override
   void sendResourceStreamFrame(int streamHandle, ResourceStreamFrame frame) {
