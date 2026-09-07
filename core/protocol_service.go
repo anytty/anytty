@@ -157,6 +157,7 @@ type applicationEventSubscription struct {
 }
 
 type sessionBrowserProxy struct {
+	receiveWindow  *browserReceiveWindow
 	channel        uint16
 	token          []byte
 	conn           net.Conn
@@ -171,7 +172,12 @@ func (proxy *sessionBrowserProxy) close() {
 	if proxy == nil || proxy.conn == nil {
 		return
 	}
-	proxy.closeOnce.Do(func() { _ = proxy.conn.Close() })
+	proxy.closeOnce.Do(func() {
+		if proxy.receiveWindow != nil {
+			proxy.receiveWindow.close()
+		}
+		_ = proxy.conn.Close()
+	})
 }
 
 // protocolAttachment 是 daemon-side channel/view registry；它不保存 TUI workspace/pane truth。
@@ -551,6 +557,10 @@ func (session *protocolSession) handleStreamFrame(ctx context.Context, channel u
 		return session.handleBrowserProxyFrame(proxy, typ, payload)
 	}
 	if browserClosed {
+		if typ == wire.TypeFileAck {
+			_, err := protocol.DecodeFileTransferAck(payload)
+			return err
+		}
 		if typ == wire.TypeBrowserData || typ == wire.TypeClosed && len(payload) == 0 {
 			return nil
 		}

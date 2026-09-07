@@ -168,7 +168,10 @@ func (session *protocolSession) ReleaseApplicationResource(_ context.Context, to
 
 // ApplicationBrowserProxyOpen dials from the daemon host and publishes the
 // resulting bidirectional byte stream only after the connection succeeds.
-func (session *protocolSession) ApplicationBrowserProxyOpen(ctx context.Context, host string, port uint16) (BrowserProxy, error) {
+func (session *protocolSession) ApplicationBrowserProxyOpen(ctx context.Context, host string, port uint16, receiveWindow uint32) (BrowserProxy, error) {
+	if receiveWindow > BrowserProxyMaximumReceiveWindow {
+		return BrowserProxy{}, errors.New("browser receive window exceeds maximum")
+	}
 	if !session.scope.AllowDaemon {
 		return BrowserProxy{}, ErrApplicationForbidden
 	}
@@ -206,6 +209,9 @@ func (session *protocolSession) ApplicationBrowserProxyOpen(ctx context.Context,
 		return BrowserProxy{}, err
 	}
 	proxy := &sessionBrowserProxy{channel: channel, token: token, conn: conn}
+	if receiveWindow != 0 {
+		proxy.receiveWindow = newBrowserReceiveWindow(receiveWindow)
+	}
 	session.browserMu.Lock()
 	session.browserChannels[channel] = proxy
 	session.browserTokens[string(token)] = channel
@@ -217,7 +223,7 @@ func (session *protocolSession) ApplicationBrowserProxyOpen(ctx context.Context,
 		"host", host,
 		"port", port,
 	)
-	return BrowserProxy{Token: append([]byte(nil), token...)}, nil
+	return BrowserProxy{Token: append([]byte(nil), token...), ReceiveWindowBytes: receiveWindow}, nil
 }
 
 // ApplicationTerminalDefaults 返回 owning daemon 机器的默认 shell 与 cwd。

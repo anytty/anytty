@@ -23,6 +23,7 @@ final class AnyttyResourceStream {
   Stream<ResourceStreamFrame> get frames => _frames.stream;
 
   Future<ResourceStreamClosedEvent> get closed => _closed.future;
+  bool get isClosed => _closeRequested || _closed.isCompleted;
 
   static Future<AnyttyResourceStream> open({
     required AnyttyEngineRuntime runtime,

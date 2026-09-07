@@ -1,11 +1,14 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"time"
 
+	"github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/wire"
 )
 
@@ -14,6 +17,15 @@ const browserProxyWriteTimeout = 30 * time.Second
 
 func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserProxy, typ uint8, payload []byte) error {
 	switch typ {
+	case wire.TypeFileAck:
+		if proxy.receiveWindow == nil {
+			return fmt.Errorf("browser receive window was not negotiated")
+		}
+		ack, err := protocol.DecodeFileTransferAck(payload)
+		if err != nil {
+			return err
+		}
+		return proxy.receiveWindow.acknowledge(ack.Offset, ack.WindowBytes)
 	case wire.TypeBrowserData:
 		proxy.clientDataOnce.Do(func() {
 			session.server.cfg.logger.Info(
@@ -76,9 +88,31 @@ func (session *protocolSession) browserChannelState(channel uint16) (*sessionBro
 func (session *protocolSession) forwardBrowserProxy(proxy *sessionBrowserProxy) {
 	buffer := make([]byte, 32<<10)
 	for {
+		limit := len(buffer)
+		if proxy.receiveWindow != nil {
+			var err error
+			limit, err = proxy.receiveWindow.available(limit, browserProxyWriteTimeout)
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					session.server.cfg.logger.Warn("browser proxy receive credit timed out", "session_id", session.sessionID, "channel", proxy.channel, "stage", "receive_credit", "timeout_ms", browserProxyWriteTimeout.Milliseconds())
+				}
+				if session.removeBrowserProxy(proxy) {
+					_ = session.sendFrame(proxy.channel, wire.TypeBrowserClosed, nil)
+				}
+				return
+			}
+		}
 		_ = proxy.conn.SetReadDeadline(time.Now().Add(browserProxyIdleTimeout))
-		count, err := proxy.conn.Read(buffer)
+		count, err := proxy.conn.Read(buffer[:limit])
 		if count > 0 {
+			if proxy.receiveWindow != nil {
+				if windowErr := proxy.receiveWindow.recordSent(count); windowErr != nil {
+					if session.removeBrowserProxy(proxy) {
+						_ = session.sendFrame(proxy.channel, wire.TypeBrowserClosed, nil)
+					}
+					return
+				}
+			}
 			_ = proxy.conn.SetReadDeadline(time.Now().Add(browserProxyIdleTimeout))
 			proxy.serverDataOnce.Do(func() {
 				session.server.cfg.logger.Info(

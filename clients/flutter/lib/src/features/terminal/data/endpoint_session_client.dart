@@ -358,13 +358,17 @@ final class EndpointSessionClient implements BrowserProxySession {
   }
 
   @override
-  Future<ResourceHandle> openBrowserProxy({
+  Future<BrowserProxyOpenResult> openBrowserProxy({
     required String host,
     required int port,
   }) async {
     final result = await execute(
       CommandEnvelope(
-        browserProxyOpen: BrowserProxyOpenCommand(host: host, port: port),
+        browserProxyOpen: BrowserProxyOpenCommand(
+          host: host,
+          port: port,
+          receiveWindowBytes: 512 * 1024,
+        ),
       ),
     );
     if (result.whichResult() != ResultEnvelope_Result.browserProxyOpen ||
@@ -373,7 +377,7 @@ final class EndpointSessionClient implements BrowserProxySession {
         'Browser proxy response was incomplete',
       );
     }
-    return result.browserProxyOpen.resource.deepCopy();
+    return result.browserProxyOpen.deepCopy();
   }
 
   @override

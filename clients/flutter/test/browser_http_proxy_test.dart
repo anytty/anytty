@@ -249,6 +249,56 @@ void main() {
     });
   }
 
+  test('negotiated downloads return only consumed cumulative credit', () async {
+    session.receiveWindowBytes = 64 * 1024;
+    const total = 4 * 1024 * 1024;
+    final payload = List<int>.generate(total, (index) => index % 251);
+    var sent = 0;
+    var acknowledged = 0;
+    var maximumOutstanding = 0;
+    void pump() {
+      while (sent < total && sent - acknowledged < session.receiveWindowBytes) {
+        final next = sent + 32 * 1024;
+        final chunk = payload.sublist(sent, next);
+        sent = next;
+        if (sent - acknowledged > maximumOutstanding) {
+          maximumOutstanding = sent - acknowledged;
+        }
+        session.emitRemoteData(chunk);
+      }
+      if (acknowledged == total) session.runtime.closeResourceStream(41);
+    }
+
+    session.runtime.onAcknowledgement = (ack) {
+      expect(ack.offset.toInt(), greaterThan(acknowledged));
+      expect(ack.offset.toInt(), lessThanOrEqualTo(sent));
+      expect(ack.windowBytes.toInt(), ack.offset.toInt() - acknowledged);
+      acknowledged = ack.offset.toInt();
+      pump();
+    };
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      proxy.port,
+    );
+    addTearDown(socket.destroy);
+    final response = socket.fold<List<int>>(
+      <int>[],
+      (all, chunk) => all..addAll(chunk),
+    );
+    socket.add(
+      ascii.encode(
+        'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n',
+      ),
+    );
+    await session.firstData.future.timeout(const Duration(seconds: 1));
+    pump();
+    final received = await response.timeout(const Duration(seconds: 10));
+    expect(received.length, total);
+    expect(received, payload);
+    expect(acknowledged, total);
+    expect(maximumOutstanding, session.receiveWindowBytes);
+  });
+
   test('forwards CONNECT leftover bytes exactly once', () async {
     final socket = await Socket.connect(
       InternetAddress.loopbackIPv4,
@@ -422,6 +472,7 @@ void main() {
 }
 
 final class _FakeBrowserProxySession implements BrowserProxySession {
+  int receiveWindowBytes = 0;
   final runtime = _FakeResourceRuntime();
   String expectedHost = 'example.test';
   int expectedPort = 443;
@@ -433,15 +484,18 @@ final class _FakeBrowserProxySession implements BrowserProxySession {
   void emitRemoteData(List<int> payload) => runtime.emitRemoteData(payload);
 
   @override
-  Future<ResourceHandle> openBrowserProxy({
+  Future<application.BrowserProxyOpenResult> openBrowserProxy({
     required String host,
     required int port,
   }) async {
     expect(host, expectedHost);
     expect(port, expectedPort);
-    return ResourceHandle(
-      opaqueToken: <int>[1, 2, 3],
-      kind: ResourceKind.RESOURCE_KIND_BROWSER_PROXY,
+    return application.BrowserProxyOpenResult(
+      receiveWindowBytes: receiveWindowBytes,
+      resource: ResourceHandle(
+        opaqueToken: <int>[1, 2, 3],
+        kind: ResourceKind.RESOURCE_KIND_BROWSER_PROXY,
+      ),
     );
   }
 
@@ -473,6 +527,7 @@ final class _FakeResourceRuntime
   int? expectedBytes;
   final uploaded = Completer<void>();
   bool failOpen = false;
+  void Function(wire.FileTransferAck)? onAcknowledgement;
 
   @override
   Future<void> sendResourceStreamFrameAsync(
@@ -536,6 +591,11 @@ final class _FakeResourceRuntime
 
   @override
   void sendResourceStreamFrame(int streamHandle, ResourceStreamFrame frame) {
+    if (frame.type ==
+        ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK) {
+      onAcknowledgement?.call(wire.FileTransferAck.fromBuffer(frame.payload));
+      return;
+    }
     if (frame.type ==
         ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
       sentPayloads.add(List<int>.of(frame.payload));

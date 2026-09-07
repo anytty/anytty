@@ -197,7 +197,8 @@ type TerminalResizeResult struct {
 
 // BrowserProxy 是一个已经由 daemon 拨号并绑定到当前 protocol session 的 TCP resource。
 type BrowserProxy struct {
-	Token []byte
+	Token              []byte
+	ReceiveWindowBytes uint32
 }
 
 // ApplicationSessionPort 是单条 protocol connection 暴露给 API Layer 的 core-native 窄边界。
@@ -210,7 +211,7 @@ type ApplicationSessionPort interface {
 	// ReleaseApplicationResource 按 opaque token 释放当前 session owning resource。
 	ReleaseApplicationResource(context.Context, []byte) error
 	// ApplicationBrowserProxyOpen 在 daemon 所在机器打开一个 session-bound TCP resource。
-	ApplicationBrowserProxyOpen(context.Context, string, uint16) (BrowserProxy, error)
+	ApplicationBrowserProxyOpen(context.Context, string, uint16, uint32) (BrowserProxy, error)
 	// ApplicationTerminalDefaults 返回 owning daemon 机器的 shell/cwd 默认值。
 	ApplicationTerminalDefaults(context.Context) (TerminalDefaults, error)
 	// ApplicationTerminalCreate 把 core record 交给 terminal lifecycle owner。

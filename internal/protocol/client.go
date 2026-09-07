@@ -646,6 +646,10 @@ func (c *Client) SendFileFrame(channel uint16, typ uint8, payload []byte) error 
 func (c *Client) SendBrowserFrame(channel uint16, typ uint8, payload []byte) error {
 	switch typ {
 	case wire.TypeBrowserData:
+	case wire.TypeFileAck:
+		if _, err := DecodeFileTransferAck(payload); err != nil {
+			return err
+		}
 	case wire.TypeClosed:
 		if len(payload) != 0 {
 			return fmt.Errorf("browser proxy close payload must be empty")

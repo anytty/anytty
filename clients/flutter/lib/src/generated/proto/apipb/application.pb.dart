@@ -147,10 +147,13 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
   factory BrowserProxyOpenCommand({
     $core.String? host,
     $core.int? port,
+    $core.int? receiveWindowBytes,
   }) {
     final result = create();
     if (host != null) result.host = host;
     if (port != null) result.port = port;
+    if (receiveWindowBytes != null)
+      result.receiveWindowBytes = receiveWindowBytes;
     return result;
   }
 
@@ -169,6 +172,8 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'host')
     ..aI(2, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
+    ..aI(3, _omitFieldNames ? '' : 'receiveWindowBytes',
+        fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -208,6 +213,16 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
   $core.bool hasPort() => $_has(1);
   @$pb.TagNumber(2)
   void clearPort() => $_clearField(2);
+
+  /// Zero preserves legacy streaming; nonzero requests bounded receive credit.
+  @$pb.TagNumber(3)
+  $core.int get receiveWindowBytes => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set receiveWindowBytes($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasReceiveWindowBytes() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearReceiveWindowBytes() => $_clearField(3);
 }
 
 enum CommandEnvelope_Command {
@@ -2319,9 +2334,12 @@ class ResultEnvelope extends $pb.GeneratedMessage {
 class BrowserProxyOpenResult extends $pb.GeneratedMessage {
   factory BrowserProxyOpenResult({
     $0.ResourceHandle? resource,
+    $core.int? receiveWindowBytes,
   }) {
     final result = create();
     if (resource != null) result.resource = resource;
+    if (receiveWindowBytes != null)
+      result.receiveWindowBytes = receiveWindowBytes;
     return result;
   }
 
@@ -2340,6 +2358,8 @@ class BrowserProxyOpenResult extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOM<$0.ResourceHandle>(1, _omitFieldNames ? '' : 'resource',
         subBuilder: $0.ResourceHandle.create)
+    ..aI(2, _omitFieldNames ? '' : 'receiveWindowBytes',
+        fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2372,6 +2392,16 @@ class BrowserProxyOpenResult extends $pb.GeneratedMessage {
   void clearResource() => $_clearField(1);
   @$pb.TagNumber(1)
   $0.ResourceHandle ensureResource() => $_ensure(0);
+
+  /// Echoed only when the daemon supports per-resource receive acknowledgements.
+  @$pb.TagNumber(2)
+  $core.int get receiveWindowBytes => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set receiveWindowBytes($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasReceiveWindowBytes() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearReceiveWindowBytes() => $_clearField(2);
 }
 
 class OperationCancelledEvent extends $pb.GeneratedMessage {

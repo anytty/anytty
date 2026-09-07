@@ -6,14 +6,16 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:fixnum/fixnum.dart';
 
+import '../../../generated/proto/apipb/application.pb.dart';
 import '../../../generated/proto/apipb/common.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../generated/proto/wirepb/terminal.pb.dart' as wire;
 import '../../../native/anytty_resource_stream.dart';
 
 abstract interface class BrowserProxySession {
-  Future<ResourceHandle> openBrowserProxy({
+  Future<BrowserProxyOpenResult> openBrowserProxy({
     required String host,
     required int port,
   });
@@ -171,8 +173,12 @@ final class BrowserHttpProxy {
         'stage=resource_open target=${request.host}:${request.port} '
         'queue_ms=$queueMs open_ms=${elapsed.elapsedMilliseconds - openStart}',
       );
-      stream = await _session.openBrowserResourceStream(resource);
+      final receiveWindow = resource.receiveWindowBytes;
+      stream = await _session.openBrowserResourceStream(resource.resource);
       _streams.add(stream);
+      if (receiveWindow > 1024 * 1024) {
+        throw const FormatException('Invalid browser receive window');
+      }
       final activeStream = stream;
 
       if (request.connect) {
@@ -206,6 +212,27 @@ final class BrowserHttpProxy {
             try {
               socket.add(frame.payload);
               downloadedBytes += frame.payload.length;
+              if (receiveWindow != 0) {
+                remoteSubscription!.pause();
+                unawaited(() async {
+                  try {
+                    await socket.flush().timeout(const Duration(seconds: 30));
+                    if (!done.isCompleted && !activeStream.isClosed) {
+                      await activeStream.sendAsync(
+                        ResourceStreamFrameType
+                            .RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
+                        wire.FileTransferAck(
+                          offset: Int64(downloadedBytes),
+                          windowBytes: Int64(frame.payload.length),
+                        ).writeToBuffer(),
+                      );
+                    }
+                    if (!done.isCompleted) remoteSubscription?.resume();
+                  } catch (_) {
+                    finish();
+                  }
+                }());
+              }
             } catch (_) {
               finish();
             }
