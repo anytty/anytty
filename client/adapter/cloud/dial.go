@@ -139,6 +139,9 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
 	}
 	reportTiming("datachannel_authenticated")
+	if receiver, ok := connection.(interface{ EnableReceiveBackpressure() }); ok {
+		receiver.EnableReceiveBackpressure()
+	}
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 	protocolClient := internalprotocol.NewClient(connection)
 	clientName := strings.TrimSpace(dialer.ClientName)

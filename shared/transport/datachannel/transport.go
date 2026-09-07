@@ -46,6 +46,8 @@ type Transport struct {
 	recvClosed       bool
 	recvErr          error
 	recvNotify       chan struct{}
+	recvSpace        chan struct{}
+	recvBackpressure bool
 	drainCh          chan struct{}
 	done             chan struct{}
 	sendMu           sync.Mutex
@@ -61,6 +63,7 @@ func New(channel Channel) *Transport {
 		channel:      channel,
 		recvQueue:    make([][]byte, 0, defaultReceiveQueueCapacity),
 		recvNotify:   make(chan struct{}, 1),
+		recvSpace:    make(chan struct{}, 1),
 		drainCh:      make(chan struct{}, 1),
 		done:         make(chan struct{}),
 		drainTimeout: defaultDrainTimeout,
@@ -79,6 +82,15 @@ func New(channel Channel) *Transport {
 		}
 	})
 	return transport
+}
+
+// EnableReceiveBackpressure may be called only after peer authentication. The
+// ordered channel callback then waits for bounded queue space instead of
+// treating a temporarily slow authenticated consumer as an unauthenticated flood.
+func (transport *Transport) EnableReceiveBackpressure() {
+	transport.recvMu.Lock()
+	transport.recvBackpressure = true
+	transport.recvMu.Unlock()
 }
 
 // Send 发送一个完整 anytty protocol frame。
@@ -184,6 +196,10 @@ func (transport *Transport) Recv() ([]byte, error) {
 			transport.recvQueue = transport.recvQueue[:last]
 			transport.recvQueuedBytes -= len(frame)
 			transport.recvMu.Unlock()
+			select {
+			case transport.recvSpace <- struct{}{}:
+			default:
+			}
 			return frame, nil
 		}
 		transport.recvMu.Unlock()
@@ -228,16 +244,39 @@ func (transport *Transport) handleMessage(payload []byte) {
 		transport.closeForReceiveOverflow(wire.ErrFrameTooLarge)
 		return
 	}
-	transport.recvMu.Lock()
-	if transport.recvClosed {
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
+	for {
+		transport.recvMu.Lock()
+		if transport.recvClosed {
+			transport.recvMu.Unlock()
+			return
+		}
+		if len(transport.recvQueue) < defaultReceiveQueueCapacity && len(payload) <= maxReceiveQueuedBytes-transport.recvQueuedBytes {
+			break
+		}
+		if !transport.recvBackpressure {
+			transport.closeReceiveLocked(ErrReceiveQueueExhausted)
+			transport.recvMu.Unlock()
+			transport.closeChannel()
+			return
+		}
 		transport.recvMu.Unlock()
-		return
-	}
-	if len(transport.recvQueue) >= defaultReceiveQueueCapacity || len(payload) > maxReceiveQueuedBytes-transport.recvQueuedBytes {
-		transport.closeReceiveLocked(ErrReceiveQueueExhausted)
-		transport.recvMu.Unlock()
-		transport.closeChannel()
-		return
+		if timer == nil {
+			timer = time.NewTimer(transport.drainTimeout)
+		}
+		select {
+		case <-transport.done:
+			return
+		case <-timer.C:
+			transport.closeForReceiveOverflow(errors.Join(ErrReceiveQueueExhausted, context.DeadlineExceeded))
+			return
+		case <-transport.recvSpace:
+		}
 	}
 	transport.recvQueuedBytes += len(payload)
 	frame := append([]byte(nil), payload...)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -148,6 +149,83 @@ func TestTransportPreAuthReceiveQueueFrameOverflowReturnsStableError(t *testing.
 	}
 	if calls := channelCloseCalls(receiverChannel); calls != 1 {
 		t.Fatalf("pre-auth frame overflow channel close calls = %d want=1", calls)
+	}
+}
+
+func TestAuthenticatedReceiveBackpressurePreservesFramesAndBounds(t *testing.T) {
+	_, channel := newFakeChannelPair()
+	receiver := New(channel)
+	receiver.EnableReceiveBackpressure()
+	defer receiver.Close()
+	chunk := bytes.Repeat([]byte{42}, 32<<10)
+	for range defaultReceiveQueueCapacity {
+		receiver.handleMessage(chunk)
+	}
+	done := make(chan struct{})
+	go func() {
+		receiver.handleMessage([]byte("last"))
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatal("full authenticated queue did not backpressure the producer")
+	case <-time.After(20 * time.Millisecond):
+	}
+	if got := receiveQueuedBytes(receiver); got != maxReceiveQueuedBytes {
+		t.Fatalf("queue bytes = %d", got)
+	}
+	for range defaultReceiveQueueCapacity {
+		frame, err := receiver.Recv()
+		if err != nil || !bytes.Equal(frame, chunk) {
+			t.Fatalf("queued frame changed: len=%d err=%v", len(frame), err)
+		}
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("consumer did not unblock producer")
+	}
+	frame, err := receiver.Recv()
+	if err != nil || string(frame) != "last" {
+		t.Fatalf("last frame = %q, %v", frame, err)
+	}
+}
+
+func TestAuthenticatedReceiveBackpressureTerminates(t *testing.T) {
+	for _, closeEarly := range []bool{false, true} {
+		t.Run(fmt.Sprint("close=", closeEarly), func(t *testing.T) {
+			_, channel := newFakeChannelPair()
+			receiver := New(channel)
+			receiver.drainTimeout = 40 * time.Millisecond
+			receiver.EnableReceiveBackpressure()
+			defer receiver.Close()
+			for range defaultReceiveQueueCapacity {
+				receiver.handleMessage(nil)
+			}
+			done := make(chan struct{})
+			go func() {
+				receiver.handleMessage([]byte("blocked"))
+				close(done)
+			}()
+			if closeEarly {
+				_ = receiver.Close()
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("receive producer leaked after close/timeout")
+			}
+			_, err := receiver.Recv()
+			if closeEarly && !errors.Is(err, io.EOF) {
+				t.Fatalf("close error = %v", err)
+			}
+			if !closeEarly && (!errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrReceiveQueueExhausted)) {
+				t.Fatalf("timeout error = %v", err)
+			}
+			if got := receiveQueuedBytes(receiver); got != 0 {
+				t.Fatalf("closed queue retained %d bytes", got)
+			}
+		})
 	}
 }
 

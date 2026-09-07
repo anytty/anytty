@@ -137,6 +137,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, reportDirectFailure(request.Stamp().Generation, directFailureDataChannelAuth, fmt.Errorf("authenticate direct endpoint DataChannel: %w", err))
 	}
 	stage("authorization")
+	connection.EnableReceiveBackpressure()
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 	protocolClient := internalprotocol.NewClient(connection)
 	clientName := strings.TrimSpace(dialer.ClientName)
