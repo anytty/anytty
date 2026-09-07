@@ -51,7 +51,9 @@ type Config struct {
 	BindingRefreshBefore  time.Duration
 	ConnectAttemptTimeout time.Duration
 	SessionCleanupTimeout time.Duration
-	Now                   func() time.Time
+	// MaxCloudSessions includes active and closing peers; nonpositive uses 256.
+	MaxCloudSessions int
+	Now              func() time.Time
 }
 
 // Runtime 持有可刷新的 enrollment 路由材料和当前 AgentGateway 在线状态。
@@ -82,9 +84,12 @@ type Runtime struct {
 
 var errEdgeReselected = errors.New("daemon Edge reselection requested")
 
+var errCloudSessionCapacity = errors.New("daemon Cloud session capacity is exhausted")
+
 const (
 	defaultBindingRefreshBefore  = 30 * 24 * time.Hour
 	defaultSessionCleanupTimeout = 5 * time.Second
+	defaultMaxCloudSessions      = 256
 )
 
 type agentDiagnosticStage string
@@ -664,9 +669,9 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 		}
 		iceServers = append(iceServers, webrtc.ICEServer{URLs: urls, Username: relay.GetUsername(), Credential: relay.GetCredential()})
 	}
-	sessionCtx, session, ok := runtime.beginCloudSession(ctx, offer.GetSessionId(), peers)
-	if !ok {
-		return reject("DAEMON_UNAVAILABLE", "daemon Cloud access is not active")
+	sessionCtx, session, admissionErr := runtime.beginCloudSession(ctx, offer.GetSessionId(), peers)
+	if admissionErr != nil {
+		return reject("DAEMON_UNAVAILABLE", admissionErr.Error())
 	}
 	answerer := runtime.config.Answerer
 	onPeerClosed := answerer.OnPeerClosed
@@ -773,17 +778,28 @@ func (runtime *Runtime) applyDaemonState(ctx context.Context, state *cloudv1.Dae
 	return nil
 }
 
-func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID string, peers *sync.WaitGroup) (context.Context, *cloudSession, bool) {
+func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID string, peers *sync.WaitGroup) (context.Context, *cloudSession, error) {
 	runtime.lifecycleMu.Lock()
 	defer runtime.lifecycleMu.Unlock()
-	if !runtime.cloudActiveLocked() || runtime.cloudSessions[sessionID] != nil || runtime.cloudClosingSessions[sessionID] != nil {
-		return nil, nil, false
+	if !runtime.cloudActiveLocked() {
+		return nil, nil, errors.New("daemon Cloud access is not active")
+	}
+	if runtime.cloudSessions[sessionID] != nil || runtime.cloudClosingSessions[sessionID] != nil {
+		return nil, nil, errors.New("daemon Cloud session ID is already active or closing")
+	}
+	limit := runtime.config.MaxCloudSessions
+	if limit <= 0 {
+		limit = defaultMaxCloudSessions
+	}
+	// Detached peers retain their slot until their real finalizer returns.
+	if len(runtime.cloudSessions)+len(runtime.cloudClosingSessions) >= limit {
+		return nil, nil, errCloudSessionCapacity
 	}
 	ctx, cancel := context.WithCancel(parent)
 	session := &cloudSession{cancel: cancel, done: make(chan struct{})}
 	peers.Add(1)
 	runtime.cloudSessions[sessionID] = session
-	return ctx, session, true
+	return ctx, session, nil
 }
 
 func waitWorkerCompletion(done <-chan struct{}, count int, timeout time.Duration) bool {
