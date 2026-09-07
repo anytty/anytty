@@ -466,6 +466,7 @@ func WithRelayAcceptanceMinWait(wait time.Duration) AgentOption {
 		}
 
 		a.relayAcceptanceMinWait = wait
+		a.relayAcceptanceMinWaitExplicit = true
 
 		return nil
 	}

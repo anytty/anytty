@@ -258,6 +258,7 @@ func (config *AgentConfig) initWithDefaults(agent *Agent) { //nolint:cyclop
 		agent.relayAcceptanceMinWait = defaultRelayAcceptanceMinWaitFor(config.CandidateTypes)
 	} else {
 		agent.relayAcceptanceMinWait = *config.RelayAcceptanceMinWait
+		agent.relayAcceptanceMinWaitExplicit = true
 	}
 
 	if config.STUNGatherTimeout == nil {

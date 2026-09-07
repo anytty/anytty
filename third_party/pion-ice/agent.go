@@ -72,11 +72,12 @@ type Agent struct {
 
 	maxBindingRequests uint16
 
-	hostAcceptanceMinWait  time.Duration
-	srflxAcceptanceMinWait time.Duration
-	prflxAcceptanceMinWait time.Duration
-	relayAcceptanceMinWait time.Duration
-	stunGatherTimeout      time.Duration
+	hostAcceptanceMinWait          time.Duration
+	srflxAcceptanceMinWait         time.Duration
+	prflxAcceptanceMinWait         time.Duration
+	relayAcceptanceMinWait         time.Duration
+	relayAcceptanceMinWaitExplicit bool
+	stunGatherTimeout              time.Duration
 
 	tcpPriorityOffset uint16
 	disableActiveTCP  bool
@@ -452,6 +453,11 @@ func newAgentWithConfig(agent *Agent, opts ...AgentOption) (*Agent, error) {
 		if err = opt(agent); err != nil {
 			return nil, err
 		}
+	}
+	// Candidate options are applied after legacy defaults. Derive the wait
+	// from the final candidate set without overriding either explicit API.
+	if !agent.relayAcceptanceMinWaitExplicit {
+		agent.relayAcceptanceMinWait = defaultRelayAcceptanceMinWaitFor(agent.candidateTypes)
 	}
 
 	agent.connectionStateNotifier = &handlerNotifier{
