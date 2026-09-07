@@ -220,7 +220,9 @@ final class BrowserHttpProxy {
       );
       unawaited(
         stream.closed.then(
-          (_) => finishAfterFlush(),
+          // Native closure can arrive while frames are still queued in Dart.
+          // The frame stream's onDone owns successful response completion.
+          (_) {},
           onError: (Object error, StackTrace stackTrace) => finish(),
         ),
       );

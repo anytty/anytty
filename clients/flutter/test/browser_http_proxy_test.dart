@@ -152,6 +152,32 @@ void main() {
     },
   );
 
+  test('remote closure drains every queued response frame in order', () async {
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      proxy.port,
+    );
+    addTearDown(socket.destroy);
+    final response = socket.fold<List<int>>(
+      <int>[],
+      (all, chunk) => all..addAll(chunk),
+    );
+    socket.add(
+      ascii.encode(
+        'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n',
+      ),
+    );
+    await session.firstData.future.timeout(const Duration(seconds: 1));
+    final payload = List<int>.generate(2 * 1024 * 1024, (index) => index % 251);
+    for (var offset = 0; offset < payload.length; offset += 32 * 1024) {
+      session.emitRemoteData(payload.sublist(offset, offset + 32 * 1024));
+    }
+    session.runtime.closeResourceStream(41);
+    final received = await response.timeout(const Duration(seconds: 5));
+    expect(received.length, payload.length);
+    expect(received, payload);
+  });
+
   test('forwards CONNECT leftover bytes exactly once', () async {
     final socket = await Socket.connect(
       InternetAddress.loopbackIPv4,
