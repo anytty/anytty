@@ -98,6 +98,7 @@ final class BrowserHttpProxy {
     StreamSubscription<Uint8List>? localSubscription;
     StreamSubscription<ResourceStreamFrame>? remoteSubscription;
     _SemaphoreLease? resourceLease;
+    _BrowserUploadCredit? uploadCredit;
     final done = Completer<void>();
     final elapsed = Stopwatch()..start();
     var uploadedBytes = 0;
@@ -119,6 +120,7 @@ final class BrowserHttpProxy {
         'send_wait_ms=$sendWaitMs max_send_ms=$maximumSendMs',
       );
       done.complete();
+      uploadCredit?.close();
       unawaited(localSubscription?.cancel() ?? Future<void>.value());
       unawaited(remoteSubscription?.cancel() ?? Future<void>.value());
       try {
@@ -136,9 +138,19 @@ final class BrowserHttpProxy {
     }
 
     Future<void> sendData(List<int> bytes) async {
-      for (var offset = 0; offset < bytes.length; offset += _dataChunkBytes) {
-        final end = (offset + _dataChunkBytes).clamp(0, bytes.length);
+      for (var offset = 0; offset < bytes.length;) {
         final sendStart = elapsed.elapsedMilliseconds;
+        final requested = (_dataChunkBytes).clamp(0, bytes.length - offset);
+        int count;
+        try {
+          count = uploadCredit == null
+              ? requested
+              : await uploadCredit.reserve(requested);
+        } on TimeoutException {
+          trace('stage=upload_credit timeout_ms=30000');
+          rethrow;
+        }
+        final end = offset + count;
         await stream!.sendAsync(
           ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
           bytes.sublist(offset, end),
@@ -147,6 +159,7 @@ final class BrowserHttpProxy {
         final sendMs = elapsed.elapsedMilliseconds - sendStart;
         sendWaitMs += sendMs;
         if (sendMs > maximumSendMs) maximumSendMs = sendMs;
+        offset = end;
       }
     }
 
@@ -176,8 +189,12 @@ final class BrowserHttpProxy {
       final receiveWindow = resource.receiveWindowBytes;
       stream = await _session.openBrowserResourceStream(resource.resource);
       _streams.add(stream);
-      if (receiveWindow > 1024 * 1024) {
+      if (receiveWindow > 1024 * 1024 ||
+          resource.sendWindowBytes > 1024 * 1024) {
         throw const FormatException('Invalid browser receive window');
+      }
+      if (resource.sendWindowBytes != 0) {
+        uploadCredit = _BrowserUploadCredit(resource.sendWindowBytes);
       }
       final activeStream = stream;
 
@@ -188,15 +205,13 @@ final class BrowserHttpProxy {
         if (!request.connect) ...request.forwardedHeader,
         ...request.leftover,
       ];
-      if (initialPayload.isNotEmpty) {
-        await sendData(initialPayload);
-      }
+      final initialSend = sendData(initialPayload);
 
       localSubscription = input.body.listen(
         (bytes) {
           localSubscription!.pause();
           unawaited(
-            sendData(bytes).then((_) {
+            initialSend.then((_) => sendData(bytes)).then((_) {
               if (!done.isCompleted) localSubscription?.resume();
             }, onError: (Object error, StackTrace stackTrace) => finish()),
           );
@@ -208,6 +223,21 @@ final class BrowserHttpProxy {
       remoteSubscription = activeStream.frames.listen(
         (frame) {
           if (frame.type ==
+              ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK) {
+            try {
+              if (uploadCredit == null) {
+                throw const FormatException(
+                  'Unnegotiated browser upload credit',
+                );
+              }
+              uploadCredit.acknowledge(
+                wire.FileTransferAck.fromBuffer(frame.payload),
+              );
+            } catch (_) {
+              trace('stage=upload_credit malformed=true');
+              finish();
+            }
+          } else if (frame.type ==
               ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
             try {
               socket.add(frame.payload);
@@ -271,6 +301,7 @@ final class BrowserHttpProxy {
           onError: (Object error, StackTrace stackTrace) => finish(),
         ),
       );
+      await initialSend;
       await done.future;
     } catch (error, stackTrace) {
       developer.log(
@@ -312,6 +343,51 @@ final class BrowserHttpProxy {
     }
     _streams.clear();
     _sockets.clear();
+  }
+}
+
+final class _BrowserUploadCredit {
+  _BrowserUploadCredit(this.maximum);
+
+  final int maximum;
+  int _sent = 0;
+  int _acknowledged = 0;
+  bool _closed = false;
+  Completer<void>? _changed;
+
+  Future<int> reserve(int requested) async {
+    while (true) {
+      if (_closed) throw StateError('Browser upload closed');
+      final available = maximum - (_sent - _acknowledged);
+      if (available > 0) {
+        final count = requested.clamp(0, available);
+        _sent += count;
+        return count;
+      }
+      _changed ??= Completer<void>();
+      await _changed!.future.timeout(const Duration(seconds: 30));
+    }
+  }
+
+  void acknowledge(wire.FileTransferAck ack) {
+    final offset = ack.offset.toInt();
+    final credit = ack.windowBytes.toInt();
+    if (offset < _acknowledged ||
+        offset > _sent ||
+        credit != offset - _acknowledged) {
+      throw const FormatException('Invalid browser upload credit');
+    }
+    _acknowledged = offset;
+    if (credit > 0) {
+      _changed?.complete();
+      _changed = null;
+    }
+  }
+
+  void close() {
+    _closed = true;
+    _changed?.complete();
+    _changed = null;
   }
 }
 

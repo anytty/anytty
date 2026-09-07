@@ -299,6 +299,81 @@ void main() {
     expect(maximumOutstanding, session.receiveWindowBytes);
   });
 
+  test(
+    'negotiated upload waits for consumed credit including initial bytes',
+    () async {
+      session.sendWindowBytes = 64 * 1024;
+      const total = 1024 * 1024;
+      session.runtime.expectedBytes = total;
+      var sent = 0;
+      var acknowledged = 0;
+      var maximumOutstanding = 0;
+      session.runtime.onBrowserData = (bytes) {
+        sent += bytes.length;
+        final outstanding = sent - acknowledged;
+        if (outstanding > maximumOutstanding) maximumOutstanding = outstanding;
+        expect(outstanding, lessThanOrEqualTo(session.sendWindowBytes));
+        final offset = sent;
+        Timer(const Duration(milliseconds: 2), () {
+          final credit = offset - acknowledged;
+          acknowledged = offset;
+          session.runtime.emitUploadAcknowledgement(offset, credit);
+        });
+      };
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final response = socket.listen((_) {});
+      addTearDown(response.cancel);
+      final payload = List<int>.generate(total, (index) => index % 251);
+      socket.add(<int>[
+        ...ascii.encode(
+          'CONNECT example.test:443 HTTP/1.1\r\nHost: example.test\r\n\r\n',
+        ),
+        ...payload,
+      ]);
+      await session.runtime.uploaded.future.timeout(
+        const Duration(seconds: 10),
+      );
+      expect(session.sentPayloads.expand((chunk) => chunk).toList(), payload);
+      expect(maximumOutstanding, session.sendWindowBytes);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(acknowledged, total);
+    },
+  );
+
+  for (final invalidAck in <bool>[false, true]) {
+    test('blocked upload closes promptly invalidAck=$invalidAck', () async {
+      session.sendWindowBytes = 1;
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final response = socket.fold<int>(
+        0,
+        (total, bytes) => total + bytes.length,
+      );
+      socket.add(<int>[
+        ...ascii.encode(
+          'CONNECT example.test:443 HTTP/1.1\r\nHost: example.test\r\n\r\n',
+        ),
+        ...List<int>.filled(128 * 1024, 1),
+      ]);
+      await session.firstData.future.timeout(const Duration(seconds: 1));
+      if (invalidAck) {
+        session.runtime.emitUploadAcknowledgement(2, 2);
+      } else {
+        await proxy.close();
+      }
+      await response.timeout(const Duration(seconds: 1));
+      expect(session.sentPayloads.expand((chunk) => chunk).length, 1);
+      expect(session.runtime.closed, contains(41));
+    });
+  }
+
   test('forwards CONNECT leftover bytes exactly once', () async {
     final socket = await Socket.connect(
       InternetAddress.loopbackIPv4,
@@ -473,6 +548,7 @@ void main() {
 
 final class _FakeBrowserProxySession implements BrowserProxySession {
   int receiveWindowBytes = 0;
+  int sendWindowBytes = 0;
   final runtime = _FakeResourceRuntime();
   String expectedHost = 'example.test';
   int expectedPort = 443;
@@ -492,6 +568,7 @@ final class _FakeBrowserProxySession implements BrowserProxySession {
     expect(port, expectedPort);
     return application.BrowserProxyOpenResult(
       receiveWindowBytes: receiveWindowBytes,
+      sendWindowBytes: sendWindowBytes,
       resource: ResourceHandle(
         opaqueToken: <int>[1, 2, 3],
         kind: ResourceKind.RESOURCE_KIND_BROWSER_PROXY,
@@ -528,6 +605,7 @@ final class _FakeResourceRuntime
   final uploaded = Completer<void>();
   bool failOpen = false;
   void Function(wire.FileTransferAck)? onAcknowledgement;
+  void Function(List<int>)? onBrowserData;
 
   @override
   Future<void> sendResourceStreamFrameAsync(
@@ -599,6 +677,7 @@ final class _FakeResourceRuntime
     if (frame.type ==
         ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
       sentPayloads.add(List<int>.of(frame.payload));
+      onBrowserData?.call(frame.payload);
       if (!firstData.isCompleted) firstData.complete();
     }
   }
@@ -610,6 +689,21 @@ final class _FakeResourceRuntime
           streamHandle: Int64(41),
           type: ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
           payload: payload,
+        ),
+      ),
+    );
+  }
+
+  void emitUploadAcknowledgement(int offset, int credit) {
+    _events.add(
+      EventEnvelope(
+        resourceStreamFrame: ResourceStreamFrame(
+          streamHandle: Int64(41),
+          type: ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
+          payload: wire.FileTransferAck(
+            offset: Int64(offset),
+            windowBytes: Int64(credit),
+          ).writeToBuffer(),
         ),
       ),
     );

@@ -49,13 +49,16 @@ func ValidateBrowserProxyCommand(command *apipb.CommandEnvelope) error {
 	if value.BrowserProxyOpen.GetReceiveWindowBytes() > corev2.BrowserProxyMaximumReceiveWindow {
 		return validation("browser_proxy_open.receive_window_bytes", "exceeds maximum receive window")
 	}
+	if value.BrowserProxyOpen.GetSendWindowBytes() > corev2.BrowserProxyMaximumReceiveWindow {
+		return validation("browser_proxy_open.send_window_bytes", "exceeds maximum send window")
+	}
 	return nil
 }
 
 // BrowserProxyToProto creates the public resource handle while keeping the
 // daemon connection token opaque to the client API.
 func BrowserProxyToProto(origin *apipb.EndpointSessionStamp, proxy corev2.BrowserProxy) *apipb.BrowserProxyOpenResult {
-	return &apipb.BrowserProxyOpenResult{ReceiveWindowBytes: proxy.ReceiveWindowBytes, Resource: &apipb.ResourceHandle{
+	return &apipb.BrowserProxyOpenResult{ReceiveWindowBytes: proxy.ReceiveWindowBytes, SendWindowBytes: proxy.SendWindowBytes, Resource: &apipb.ResourceHandle{
 		OpaqueToken: cloneBytes(proxy.Token),
 		Kind:        apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY,
 		Session:     cloneSessionStamp(origin),

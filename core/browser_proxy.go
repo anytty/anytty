@@ -27,6 +27,15 @@ func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserPro
 		}
 		return proxy.receiveWindow.acknowledge(ack.Offset, ack.WindowBytes)
 	case wire.TypeBrowserData:
+		if proxy.uploadQueue != nil {
+			if err := proxy.uploadQueue.enqueue(payload); err != nil {
+				session.removeBrowserProxy(proxy)
+				return err
+			}
+			proxy.uploadOnce.Do(func() { go session.writeBrowserProxyUploads(proxy) })
+			proxy.forwardOnce.Do(func() { go session.forwardBrowserProxy(proxy) })
+			return nil
+		}
 		proxy.clientDataOnce.Do(func() {
 			session.server.cfg.logger.Info(
 				"browser proxy received client data",
@@ -57,6 +66,45 @@ func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserPro
 		return nil
 	default:
 		return fmt.Errorf("unsupported browser proxy frame type %d", typ)
+	}
+}
+
+func (session *protocolSession) writeBrowserProxyUploads(proxy *sessionBrowserProxy) {
+	buffer := make([]byte, 32<<10)
+	var offset int64
+	var writeWait, maximumWrite time.Duration
+	defer func() {
+		session.server.cfg.logger.Info("browser proxy upload worker stopped", "session_id", session.sessionID, "channel", proxy.channel, "stage", "target_write", "upload_bytes", offset, "write_wait_ms", writeWait.Milliseconds(), "max_write_ms", maximumWrite.Milliseconds())
+	}()
+	for {
+		count, err := proxy.uploadQueue.peek(buffer)
+		if err != nil {
+			return
+		}
+		started := time.Now()
+		_ = proxy.conn.SetReadDeadline(time.Now().Add(browserProxyIdleTimeout))
+		written, err := writeBrowserProxyData(proxy.conn, buffer[:count])
+		duration := time.Since(started)
+		writeWait += duration
+		maximumWrite = max(maximumWrite, duration)
+		if err != nil {
+			session.server.cfg.logger.Warn("browser proxy target write failed", "session_id", session.sessionID, "channel", proxy.channel, "stage", "target_write", "written_bytes", written, "elapsed_ms", time.Since(started).Milliseconds(), "error", err)
+			if session.removeBrowserProxy(proxy) {
+				_ = session.sendFrame(proxy.channel, wire.TypeBrowserClosed, nil)
+			}
+			return
+		}
+		proxy.uploadQueue.consume(count)
+		_ = proxy.conn.SetReadDeadline(time.Now().Add(browserProxyIdleTimeout))
+		offset += int64(count)
+		ack, err := protocol.EncodeFileTransferAck(protocol.FileTransferAck{Offset: offset, WindowBytes: int64(count)})
+		if err == nil {
+			err = session.sendFrame(proxy.channel, wire.TypeFileAck, ack)
+		}
+		if err != nil {
+			session.removeBrowserProxy(proxy)
+			return
+		}
 	}
 }
 

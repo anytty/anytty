@@ -42,7 +42,7 @@ func TestBrowserProxyDownloadWaitsForPerResourceCredit(t *testing.T) {
 	defer server.Close()
 	session := newProtocolSession(NewServer(), server, fullDaemonTransportScope())
 	defer session.releaseAllBrowserProxies()
-	resource, err := session.ApplicationBrowserProxyOpen(context.Background(), "127.0.0.1", uint16(listener.Addr().(*net.TCPAddr).Port), windowSize)
+	resource, err := session.ApplicationBrowserProxyOpen(context.Background(), "127.0.0.1", uint16(listener.Addr().(*net.TCPAddr).Port), windowSize, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestBrowserProxyStreamsLargeUploadToRealTCPTarget(t *testing.T) {
 	defer session.releaseAllBrowserProxies()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	resource, err := session.ApplicationBrowserProxyOpen(ctx, "127.0.0.1", uint16(listener.Addr().(*net.TCPAddr).Port), 0)
+	resource, err := session.ApplicationBrowserProxyOpen(ctx, "127.0.0.1", uint16(listener.Addr().(*net.TCPAddr).Port), 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,6 +239,11 @@ func TestBrowserProxyWriteFailureOnlyClosesItsResource(t *testing.T) {
 }
 
 func TestBrowserProxyResourceDialsFromDaemonAndReturnsRemoteBytes(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) { testBrowserProxyResourceRoundTrip(t, 0) })
+	t.Run("negotiated", func(t *testing.T) { testBrowserProxyResourceRoundTrip(t, 64<<10) })
+}
+
+func testBrowserProxyResourceRoundTrip(t *testing.T, window uint32) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -273,8 +278,10 @@ func TestBrowserProxyResourceDialsFromDaemonAndReturnsRemoteBytes(t *testing.T) 
 		},
 		Command: &apipb.CommandEnvelope_BrowserProxyOpen{
 			BrowserProxyOpen: &apipb.BrowserProxyOpenCommand{
-				Host: "127.0.0.1",
-				Port: uint32(listener.Addr().(*net.TCPAddr).Port),
+				Host:               "127.0.0.1",
+				Port:               uint32(listener.Addr().(*net.TCPAddr).Port),
+				ReceiveWindowBytes: window,
+				SendWindowBytes:    window,
 			},
 		},
 	})
@@ -295,6 +302,9 @@ func TestBrowserProxyResourceDialsFromDaemonAndReturnsRemoteBytes(t *testing.T) 
 		t.Fatal(err)
 	}
 	resource := result.GetBrowserProxyOpen().GetResource()
+	if result.GetBrowserProxyOpen().GetReceiveWindowBytes() != window || result.GetBrowserProxyOpen().GetSendWindowBytes() != window {
+		t.Fatal("API did not preserve negotiated windows")
+	}
 	if resource == nil || resource.GetKind() != apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY || len(resource.GetOpaqueToken()) < 2 {
 		t.Fatalf("browser result = %#v error = %#v", result.GetBrowserProxyOpen(), result.GetError())
 	}
@@ -302,9 +312,33 @@ func TestBrowserProxyResourceDialsFromDaemonAndReturnsRemoteBytes(t *testing.T) 
 	if err := sendBrowserTestFrame(clientTransport, channel, wire.TypeBrowserData, []byte("from-client")); err != nil {
 		t.Fatal(err)
 	}
-	_, typ, payload = receiveProtocolFrame(t, clientTransport)
-	if typ != wire.TypeBrowserData || string(payload) != "from-client" {
-		t.Fatalf("browser data response = type %d payload %q", typ, payload)
+	dataReceived, creditReceived := false, window == 0
+	for !dataReceived || !creditReceived {
+		_, typ, payload = receiveProtocolFrame(t, clientTransport)
+		switch typ {
+		case wire.TypeBrowserData:
+			if dataReceived || string(payload) != "from-client" {
+				t.Fatalf("browser data response = %q", payload)
+			}
+			dataReceived = true
+			if window != 0 {
+				ack, err := protocol.EncodeFileTransferAck(protocol.FileTransferAck{Offset: int64(len(payload)), WindowBytes: int64(len(payload))})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := sendBrowserTestFrame(clientTransport, channel, wire.TypeFileAck, ack); err != nil {
+					t.Fatal(err)
+				}
+			}
+		case wire.TypeFileAck:
+			ack, err := protocol.DecodeFileTransferAck(payload)
+			if creditReceived || err != nil || ack.Offset != 11 || ack.WindowBytes != 11 {
+				t.Fatalf("upload credit = %+v err = %v", ack, err)
+			}
+			creditReceived = true
+		default:
+			t.Fatalf("unexpected browser frame %d", typ)
+		}
 	}
 	if err := sendBrowserTestFrame(clientTransport, channel, wire.TypeClosed, nil); err != nil {
 		t.Fatal(err)
@@ -350,12 +384,12 @@ func (executor browserProxyTestExecutor) Execute(ctx context.Context, command *a
 		return result
 	}
 	defer lease.Release()
-	proxy, err := executor.port.ApplicationBrowserProxyOpen(ctx, command.GetBrowserProxyOpen().GetHost(), uint16(command.GetBrowserProxyOpen().GetPort()), command.GetBrowserProxyOpen().GetReceiveWindowBytes())
+	proxy, err := executor.port.ApplicationBrowserProxyOpen(ctx, command.GetBrowserProxyOpen().GetHost(), uint16(command.GetBrowserProxyOpen().GetPort()), command.GetBrowserProxyOpen().GetReceiveWindowBytes(), command.GetBrowserProxyOpen().GetSendWindowBytes())
 	if err != nil {
 		result.Result = &apipb.ResultEnvelope_Error{Error: &apipb.ApiError{Message: err.Error()}}
 		return result
 	}
-	result.Result = &apipb.ResultEnvelope_BrowserProxyOpen{BrowserProxyOpen: &apipb.BrowserProxyOpenResult{ReceiveWindowBytes: proxy.ReceiveWindowBytes, Resource: &apipb.ResourceHandle{
+	result.Result = &apipb.ResultEnvelope_BrowserProxyOpen{BrowserProxyOpen: &apipb.BrowserProxyOpenResult{ReceiveWindowBytes: proxy.ReceiveWindowBytes, SendWindowBytes: proxy.SendWindowBytes, Resource: &apipb.ResourceHandle{
 		OpaqueToken: proxy.Token,
 		Kind:        apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY,
 		Session:     cloneApplicationTestSession(request.GetSession()),

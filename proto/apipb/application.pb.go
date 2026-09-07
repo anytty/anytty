@@ -117,8 +117,10 @@ type BrowserProxyOpenCommand struct {
 	Port  uint32                 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
 	// Zero preserves legacy streaming; nonzero requests bounded receive credit.
 	ReceiveWindowBytes uint32 `protobuf:"varint,3,opt,name=receive_window_bytes,json=receiveWindowBytes,proto3" json:"receive_window_bytes,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Zero preserves legacy uploads; nonzero requests independent bounded writes.
+	SendWindowBytes uint32 `protobuf:"varint,4,opt,name=send_window_bytes,json=sendWindowBytes,proto3" json:"send_window_bytes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *BrowserProxyOpenCommand) Reset() {
@@ -168,6 +170,13 @@ func (x *BrowserProxyOpenCommand) GetPort() uint32 {
 func (x *BrowserProxyOpenCommand) GetReceiveWindowBytes() uint32 {
 	if x != nil {
 		return x.ReceiveWindowBytes
+	}
+	return 0
+}
+
+func (x *BrowserProxyOpenCommand) GetSendWindowBytes() uint32 {
+	if x != nil {
+		return x.SendWindowBytes
 	}
 	return 0
 }
@@ -1793,8 +1802,10 @@ type BrowserProxyOpenResult struct {
 	Resource *ResourceHandle        `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
 	// Echoed only when the daemon supports per-resource receive acknowledgements.
 	ReceiveWindowBytes uint32 `protobuf:"varint,2,opt,name=receive_window_bytes,json=receiveWindowBytes,proto3" json:"receive_window_bytes,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Upload credit returned only after bytes are written to the target socket.
+	SendWindowBytes uint32 `protobuf:"varint,3,opt,name=send_window_bytes,json=sendWindowBytes,proto3" json:"send_window_bytes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *BrowserProxyOpenResult) Reset() {
@@ -1837,6 +1848,13 @@ func (x *BrowserProxyOpenResult) GetResource() *ResourceHandle {
 func (x *BrowserProxyOpenResult) GetReceiveWindowBytes() uint32 {
 	if x != nil {
 		return x.ReceiveWindowBytes
+	}
+	return 0
+}
+
+func (x *BrowserProxyOpenResult) GetSendWindowBytes() uint32 {
+	if x != nil {
+		return x.SendWindowBytes
 	}
 	return 0
 }
@@ -2107,11 +2125,12 @@ const file_apipb_application_proto_rawDesc = "" +
 	"\x16CancelOperationCommand\x12;\n" +
 	"\toperation\x18\x02 \x01(\v2\x1d.anytty.api.v1.OperationStampR\toperationJ\x04\b\x01\x10\x02\"Y\n" +
 	"\x16ReleaseResourceCommand\x129\n" +
-	"\bresource\x18\x02 \x01(\v2\x1d.anytty.api.v1.ResourceHandleR\bresourceJ\x04\b\x01\x10\x02\"s\n" +
+	"\bresource\x18\x02 \x01(\v2\x1d.anytty.api.v1.ResourceHandleR\bresourceJ\x04\b\x01\x10\x02\"\x9f\x01\n" +
 	"\x17BrowserProxyOpenCommand\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x120\n" +
-	"\x14receive_window_bytes\x18\x03 \x01(\rR\x12receiveWindowBytes\"\xab$\n" +
+	"\x14receive_window_bytes\x18\x03 \x01(\rR\x12receiveWindowBytes\x12*\n" +
+	"\x11send_window_bytes\x18\x04 \x01(\rR\x0fsendWindowBytes\"\xab$\n" +
 	"\x0fCommandEnvelope\x127\n" +
 	"\acontext\x18\x01 \x01(\v2\x1d.anytty.api.v1.RequestContextR\acontext\x12R\n" +
 	"\x10cancel_operation\x18\n" +
@@ -2222,10 +2241,11 @@ const file_apipb_application_proto_rawDesc = "" +
 	"\x12remote_cloud_edges\x18q \x01(\v2%.anytty.api.v1.RemoteCloudEdgesResultH\x00R\x10remoteCloudEdges\x12X\n" +
 	"\x13remote_cloud_status\x18r \x01(\v2&.anytty.api.v1.RemoteCloudStatusResultH\x00R\x11remoteCloudStatus\x12U\n" +
 	"\x12browser_proxy_open\x18s \x01(\v2%.anytty.api.v1.BrowserProxyOpenResultH\x00R\x10browserProxyOpenB\b\n" +
-	"\x06result\"\x85\x01\n" +
+	"\x06result\"\xb1\x01\n" +
 	"\x16BrowserProxyOpenResult\x129\n" +
 	"\bresource\x18\x01 \x01(\v2\x1d.anytty.api.v1.ResourceHandleR\bresource\x120\n" +
-	"\x14receive_window_bytes\x18\x02 \x01(\rR\x12receiveWindowBytes\"V\n" +
+	"\x14receive_window_bytes\x18\x02 \x01(\rR\x12receiveWindowBytes\x12*\n" +
+	"\x11send_window_bytes\x18\x03 \x01(\rR\x0fsendWindowBytes\"V\n" +
 	"\x17OperationCancelledEvent\x12;\n" +
 	"\toperation\x18\x01 \x01(\v2\x1d.anytty.api.v1.OperationStampR\toperation\"R\n" +
 	"\x15ResourceReleasedEvent\x129\n" +

@@ -157,6 +157,8 @@ type applicationEventSubscription struct {
 }
 
 type sessionBrowserProxy struct {
+	uploadQueue    *browserUploadQueue
+	uploadOnce     sync.Once
 	receiveWindow  *browserReceiveWindow
 	channel        uint16
 	token          []byte
@@ -173,6 +175,9 @@ func (proxy *sessionBrowserProxy) close() {
 		return
 	}
 	proxy.closeOnce.Do(func() {
+		if proxy.uploadQueue != nil {
+			proxy.uploadQueue.close()
+		}
 		if proxy.receiveWindow != nil {
 			proxy.receiveWindow.close()
 		}

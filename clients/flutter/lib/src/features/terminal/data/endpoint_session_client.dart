@@ -368,6 +368,7 @@ final class EndpointSessionClient implements BrowserProxySession {
           host: host,
           port: port,
           receiveWindowBytes: 512 * 1024,
+          sendWindowBytes: 512 * 1024,
         ),
       ),
     );
