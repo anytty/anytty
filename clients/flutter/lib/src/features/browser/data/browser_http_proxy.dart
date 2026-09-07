@@ -40,6 +40,8 @@ final class BrowserHttpProxy {
   static const _requestHeaderTimeout = Duration(seconds: 10);
   static const _maximumConcurrentSockets = 64;
   static const _dataChunkBytes = 32 * 1024;
+  static const _maximumLegacyDownloadBytes = 4 * 1024 * 1024;
+  static const _maximumDownloadFrames = 4096;
 
   final BrowserProxySession _session;
   final ServerSocket _server;
@@ -105,6 +107,13 @@ final class BrowserHttpProxy {
     var downloadedBytes = 0;
     var maximumSendMs = 0;
     var sendWaitMs = 0;
+    final downloads = Queue<List<int>>();
+    var queuedDownloadBytes = 0;
+    var maximumQueuedDownloadBytes = 0;
+    var downloadFlushMs = 0;
+    var downloadAckMs = 0;
+    var downloadWriting = false;
+    var remoteEnded = false;
 
     void trace(String message) {
       final entry = 'proxy_port=$port request_id=$requestId $message';
@@ -117,10 +126,13 @@ final class BrowserHttpProxy {
       trace(
         'stage=closed total_ms=${elapsed.elapsedMilliseconds} '
         'upload_bytes=$uploadedBytes download_bytes=$downloadedBytes '
-        'send_wait_ms=$sendWaitMs max_send_ms=$maximumSendMs',
+        'send_wait_ms=$sendWaitMs max_send_ms=$maximumSendMs '
+        'max_download_queue_bytes=$maximumQueuedDownloadBytes '
+        'download_flush_ms=$downloadFlushMs download_ack_ms=$downloadAckMs',
       );
       done.complete();
       uploadCredit?.close();
+      downloads.clear();
       unawaited(localSubscription?.cancel() ?? Future<void>.value());
       unawaited(remoteSubscription?.cancel() ?? Future<void>.value());
       try {
@@ -197,6 +209,58 @@ final class BrowserHttpProxy {
         uploadCredit = _BrowserUploadCredit(resource.sendWindowBytes);
       }
       final activeStream = stream;
+      final maximumDownloadBytes = receiveWindow == 0
+          ? _maximumLegacyDownloadBytes
+          : receiveWindow;
+
+      // Keep receiving control frames while the browser or ACK write is slow.
+      // Only this bounded worker writes downloads, preserving response order.
+      Future<void> drainDownloads() async {
+        if (downloadWriting || done.isCompleted) return;
+        downloadWriting = true;
+        var stage = 'download_socket_flush';
+        try {
+          while (downloads.isNotEmpty && !done.isCompleted) {
+            final bytes = downloads.removeFirst();
+            stage = 'download_socket_flush';
+            final flushStart = elapsed.elapsedMilliseconds;
+            socket.add(bytes);
+            await socket.flush().timeout(const Duration(seconds: 30));
+            downloadFlushMs += elapsed.elapsedMilliseconds - flushStart;
+            if (done.isCompleted) return;
+            queuedDownloadBytes -= bytes.length;
+            downloadedBytes += bytes.length;
+            if (receiveWindow != 0 && !activeStream.isClosed) {
+              stage = 'download_ack';
+              final ackStart = elapsed.elapsedMilliseconds;
+              await activeStream
+                  .sendAsync(
+                    ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
+                    wire.FileTransferAck(
+                      offset: Int64(downloadedBytes),
+                      windowBytes: Int64(bytes.length),
+                    ).writeToBuffer(),
+                  )
+                  .timeout(const Duration(seconds: 30));
+              downloadAckMs += elapsed.elapsedMilliseconds - ackStart;
+            }
+          }
+          if (remoteEnded && !done.isCompleted) await finishAfterFlush();
+        } catch (error) {
+          trace(
+            'stage=$stage failed=true error_type=${error.runtimeType} '
+            'timeout=${error is TimeoutException}',
+          );
+          finish();
+        } finally {
+          downloadWriting = false;
+        }
+      }
+
+      void endDownloads() {
+        remoteEnded = true;
+        unawaited(drainDownloads());
+      }
 
       if (request.connect) {
         socket.add(ascii.encode('HTTP/1.1 200 Connection Established\r\n\r\n'));
@@ -239,33 +303,25 @@ final class BrowserHttpProxy {
             }
           } else if (frame.type ==
               ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA) {
-            try {
-              socket.add(frame.payload);
-              downloadedBytes += frame.payload.length;
-              if (receiveWindow != 0) {
-                remoteSubscription!.pause();
-                unawaited(() async {
-                  try {
-                    await socket.flush().timeout(const Duration(seconds: 30));
-                    if (!done.isCompleted && !activeStream.isClosed) {
-                      await activeStream.sendAsync(
-                        ResourceStreamFrameType
-                            .RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
-                        wire.FileTransferAck(
-                          offset: Int64(downloadedBytes),
-                          windowBytes: Int64(frame.payload.length),
-                        ).writeToBuffer(),
-                      );
-                    }
-                    if (!done.isCompleted) remoteSubscription?.resume();
-                  } catch (_) {
-                    finish();
-                  }
-                }());
-              }
-            } catch (_) {
+            if (remoteEnded || done.isCompleted) return;
+            if (frame.payload.isEmpty) return;
+            if (frame.payload.length >
+                    maximumDownloadBytes - queuedDownloadBytes ||
+                downloads.length >= _maximumDownloadFrames) {
+              trace(
+                'stage=download_queue overflow=true '
+                'queued_bytes=$queuedDownloadBytes frame_bytes=${frame.payload.length} '
+                'limit_bytes=$maximumDownloadBytes',
+              );
               finish();
+              return;
             }
+            queuedDownloadBytes += frame.payload.length;
+            if (queuedDownloadBytes > maximumQueuedDownloadBytes) {
+              maximumQueuedDownloadBytes = queuedDownloadBytes;
+            }
+            downloads.addLast(frame.payload);
+            unawaited(drainDownloads());
           } else if (frame.type ==
               ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_ERROR) {
             try {
@@ -281,11 +337,11 @@ final class BrowserHttpProxy {
           } else if (frame.type ==
               ResourceStreamFrameType
                   .RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED) {
-            unawaited(finishAfterFlush());
+            endDownloads();
           }
         },
         onError: (Object error, StackTrace stackTrace) => finish(),
-        onDone: () => unawaited(finishAfterFlush()),
+        onDone: endDownloads,
         cancelOnError: true,
       );
       unawaited(

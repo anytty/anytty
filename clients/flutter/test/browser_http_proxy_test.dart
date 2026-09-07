@@ -299,6 +299,136 @@ void main() {
     expect(maximumOutstanding, session.receiveWindowBytes);
   });
 
+  test('download acknowledgement does not block upload credit', () async {
+    session.receiveWindowBytes = 64 * 1024;
+    session.sendWindowBytes = 1;
+    final acknowledgementStarted = Completer<void>();
+    final releaseAcknowledgement = Completer<void>();
+    session.runtime.beforeAcknowledgement = () async {
+      if (!acknowledgementStarted.isCompleted) {
+        acknowledgementStarted.complete();
+      }
+      await releaseAcknowledgement.future;
+    };
+    addTearDown(() {
+      if (!releaseAcknowledgement.isCompleted) {
+        releaseAcknowledgement.complete();
+      }
+    });
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      proxy.port,
+    );
+    addTearDown(socket.destroy);
+    final connected = Completer<void>();
+    final response = socket.listen((_) {
+      if (!connected.isCompleted) connected.complete();
+    });
+    addTearDown(response.cancel);
+    socket.add(ascii.encode('CONNECT example.test:443 HTTP/1.1\r\n\r\n'));
+    await connected.future.timeout(const Duration(seconds: 1));
+    session.emitRemoteData([42]);
+    await acknowledgementStarted.future.timeout(const Duration(seconds: 1));
+    final uploaded = Completer<void>();
+    var sent = 0;
+    session.runtime.onBrowserData = (bytes) {
+      sent += bytes.length;
+      session.runtime.emitUploadAcknowledgement(sent, bytes.length);
+      if (sent == 2) uploaded.complete();
+    };
+    socket.add([1, 2]);
+    await uploaded.future.timeout(const Duration(seconds: 1));
+    expect(releaseAcknowledgement.isCompleted, isFalse);
+    releaseAcknowledgement.complete();
+  });
+
+  test(
+    'download exceeding negotiated buffer closes only its resource',
+    () async {
+      session.receiveWindowBytes = 64 * 1024;
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final response = socket.drain<void>();
+      socket.add(ascii.encode('GET http://example.test:443/ HTTP/1.1\r\n\r\n'));
+      await session.firstData.future.timeout(const Duration(seconds: 1));
+      session.emitRemoteData(
+        List<int>.filled(session.receiveWindowBytes + 1, 1),
+      );
+      await response.timeout(const Duration(seconds: 1));
+      expect(session.runtime.closed, [41]);
+    },
+  );
+
+  for (final tinyFrames in [false, true]) {
+    test(
+      'queued downloads are bounded with blocked ACK tinyFrames=$tinyFrames',
+      () async {
+        session.receiveWindowBytes = 64 * 1024;
+        final acknowledgementStarted = Completer<void>();
+        final releaseAcknowledgement = Completer<void>();
+        session.runtime.beforeAcknowledgement = () async {
+          if (!acknowledgementStarted.isCompleted) {
+            acknowledgementStarted.complete();
+          }
+          await releaseAcknowledgement.future;
+        };
+        addTearDown(() {
+          if (!releaseAcknowledgement.isCompleted) {
+            releaseAcknowledgement.complete();
+          }
+        });
+        final socket = await Socket.connect(
+          InternetAddress.loopbackIPv4,
+          proxy.port,
+        );
+        addTearDown(socket.destroy);
+        final response = socket.drain<void>();
+        socket.add(
+          ascii.encode('GET http://example.test:443/ HTTP/1.1\r\n\r\n'),
+        );
+        await session.firstData.future.timeout(const Duration(seconds: 1));
+        session.emitRemoteData([42]);
+        await acknowledgementStarted.future.timeout(const Duration(seconds: 1));
+        final payload = List<int>.filled(tinyFrames ? 1 : 32 * 1024, 1);
+        for (var index = 0; index < (tinyFrames ? 4097 : 3); index++) {
+          session.emitRemoteData(payload);
+        }
+        await response.timeout(const Duration(seconds: 1));
+        expect(session.runtime.closed, [41]);
+        expect(releaseAcknowledgement.isCompleted, isFalse);
+        releaseAcknowledgement.complete();
+      },
+    );
+  }
+
+  test(
+    'negotiated remote closure drains queued bytes without late ACK',
+    () async {
+      session.receiveWindowBytes = 64 * 1024;
+      session.runtime.onAcknowledgement = (_) =>
+          fail('ACK after native closure');
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        proxy.port,
+      );
+      addTearDown(socket.destroy);
+      final response = socket.fold<List<int>>(
+        <int>[],
+        (all, bytes) => all..addAll(bytes),
+      );
+      socket.add(ascii.encode('GET http://example.test:443/ HTTP/1.1\r\n\r\n'));
+      await session.firstData.future.timeout(const Duration(seconds: 1));
+      final payload = List<int>.generate(64 * 1024, (index) => index % 251);
+      session.emitRemoteData(payload.sublist(0, 32 * 1024));
+      session.emitRemoteData(payload.sublist(32 * 1024));
+      session.runtime.closeResourceStream(41);
+      expect(await response.timeout(const Duration(seconds: 2)), payload);
+    },
+  );
+
   test(
     'negotiated upload waits for consumed credit including initial bytes',
     () async {
@@ -604,6 +734,7 @@ final class _FakeResourceRuntime
   int? expectedBytes;
   final uploaded = Completer<void>();
   bool failOpen = false;
+  Future<void> Function()? beforeAcknowledgement;
   void Function(wire.FileTransferAck)? onAcknowledgement;
   void Function(List<int>)? onBrowserData;
 
@@ -615,6 +746,10 @@ final class _FakeResourceRuntime
     inFlight++;
     if (inFlight > maximumInFlight) maximumInFlight = inFlight;
     try {
+      if (frame.type ==
+          ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK) {
+        await beforeAcknowledgement?.call();
+      }
       if (sendDelay != Duration.zero) await Future<void>.delayed(sendDelay);
       sendResourceStreamFrame(streamHandle, frame);
       sentBytes += frame.payload.length;
