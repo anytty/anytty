@@ -627,6 +627,10 @@ func (peer *webRTCPeer) Close() error {
 		return nil
 	}
 	peer.closeOnce.Do(func() {
+		started := time.Now()
+		defer func() {
+			log.Printf("anytty webrtc close mode=%s elapsed_ms=%d error_type=%T", peer.diagnosticMode, time.Since(started).Milliseconds(), peer.closeErr)
+		}()
 		peer.stopDisconnectGrace()
 		peer.closeProtocolChannel()
 		peer.closeErr = peer.channelCloseErr

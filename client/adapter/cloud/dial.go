@@ -541,7 +541,7 @@ type cloudSessionSignaling interface {
 	ReleaseAndWait(context.Context) error
 }
 
-func releaseCloudSession(signaling cloudSessionSignaling) error {
+func releaseCloudSession(signaling cloudSessionSignaling) (err error) {
 	if signaling == nil || !signaling.PathConfirmed() {
 		return nil
 	}
@@ -554,6 +554,10 @@ func releaseCloudSession(signaling cloudSessionSignaling) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cloudSessionReleaseTimeout)
 	defer cancel()
+	started := time.Now()
+	defer func() {
+		log.Printf("anytty cloud close stage=edge_release elapsed_ms=%d error_type=%T", time.Since(started).Milliseconds(), err)
+	}()
 	return signaling.ReleaseAndWait(ctx)
 }
 
