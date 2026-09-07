@@ -921,6 +921,22 @@ func TestConnectEdgeWaitsForClaimedDataChannelHandler(t *testing.T) {
 	}
 }
 
+func TestConnectEdgeEarlyCancellationDoesNotWaitForUnstartedWorkers(t *testing.T) {
+	runtime, _ := daemonRuntimeFixture(t, webrtc.Answerer{})
+	runtime.config.SessionCleanupTimeout = time.Second
+	locator := startDaemonTestAgentGateway(t, &daemonTestAgentGateway{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := time.Now()
+	err := runtime.connectEdge(ctx, runtime.currentRecord().DaemonID, &cloudv1.SignedEnvelope{KeyId: "test-binding"}, locator, 0)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("connectEdge error = %v, want cancellation", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 500*time.Millisecond {
+		t.Fatalf("early cancellation waited for workers that never started: %s", elapsed)
+	}
+}
+
 func TestConnectEdgeBoundsStalledPeerCleanup(t *testing.T) {
 	api := daemonLoopbackWebRTCAPI()
 	handler := &daemonGatedHandler{started: make(chan struct{}), release: make(chan struct{})}

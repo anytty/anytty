@@ -375,12 +375,13 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	stopAttemptTimeout := connectAttemptTimeoutGuard(connectAttemptTimeout, cancelAttempt)
 	var peers sync.WaitGroup
 	workerDone := make(chan struct{}, 2)
+	startedWorkers := 0
 	defer func() {
 		stopAttemptTimeout()
 		runtime.clearActiveAttempt(attemptID)
 		cancelAttempt()
 		_ = connection.Close()
-		if !waitWorkerCompletion(workerDone, 2, runtime.config.SessionCleanupTimeout) {
+		if !waitWorkerCompletion(workerDone, startedWorkers, runtime.config.SessionCleanupTimeout) {
 			if runtime.config.Logger != nil {
 				runtime.config.Logger.Warn("anytty cloud daemon AgentGateway worker cleanup timed out", "timeout", runtime.config.SessionCleanupTimeout)
 			}
@@ -441,6 +442,7 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	outbound := make(chan *cloudv1.AgentEvent, 32)
 	writerErrors := make(chan error, 1)
 	receive := make(chan error, 1)
+	startedWorkers = 2
 	go func() {
 		defer func() { workerDone <- struct{}{} }()
 		runtime.runAgentWriter(attemptCtx, stream, daemonID, runtime.bootID, connectionID, 1, outbound, writerErrors)
