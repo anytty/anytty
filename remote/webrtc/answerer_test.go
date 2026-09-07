@@ -96,6 +96,79 @@ func stringPointer(value string) *string { return &value }
 
 func uint16Pointer(value uint16) *uint16 { return &value }
 
+type drainingAuthorizedHandler struct{}
+
+func (drainingAuthorizedHandler) ServeDataChannel(_ context.Context, connection transport.Transport, _ string) error {
+	for {
+		if _, err := connection.Recv(); err != nil {
+			return err
+		}
+	}
+}
+
+func TestAnswererRepeatedRemoteChannelCloseFinalizesPeers(t *testing.T) {
+	var finalized atomic.Int32
+	for attempt := 0; attempt < 30; attempt++ {
+		t.Run(fmt.Sprint(attempt), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			closed := make(chan struct{})
+			started := make(chan struct{})
+			answerer := Answerer{
+				Handler:        drainingAuthorizedHandler{},
+				OnPeerClosed:   func() { finalized.Add(1); close(closed) },
+				OnSessionStart: func() { close(started) },
+			}
+			client, err := pion.NewPeerConnection(pion.Configuration{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			channel, err := client.CreateDataChannel(protocolChannelLabel, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opened := make(chan struct{})
+			channel.OnOpen(func() { close(opened) })
+			offer := createGatheredOffer(t, client)
+			answer, err := answerer.Answer(ctx, &SignalingOffer{SessionID: fmt.Sprint(attempt), SDP: offer.SDP}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer answer.lifecycle.requestClose()
+			if err := client.SetRemoteDescription(pion.SessionDescription{Type: pion.SDPTypeAnswer, SDP: answer.SDP}); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-opened:
+			case <-time.After(5 * time.Second):
+				t.Fatal("DataChannel did not open")
+			}
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				t.Fatal("daemon did not claim the protocol handler")
+			}
+			if err := channel.Close(); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-closed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("remote DataChannel close did not finalize daemon peer")
+			}
+			select {
+			case <-answer.lifecycle.done:
+			case <-time.After(time.Second):
+				t.Fatal("peer callback did not finish lifecycle")
+			}
+			if got := finalized.Load(); got != int32(attempt+1) {
+				t.Fatalf("finalized peers=%d, want %d", got, attempt+1)
+			}
+		})
+	}
+}
+
 func TestAnswererFailsClosedWithoutAuthorizedHandler(t *testing.T) {
 	if _, err := (Answerer{}).Answer(context.Background(), &SignalingOffer{SDP: "not-used"}, nil); err == nil {
 		t.Fatal("missing authorized handler must fail before WebRTC session creation")
