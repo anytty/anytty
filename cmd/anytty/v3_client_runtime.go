@@ -35,6 +35,7 @@ type cliEndpointPlanSource struct {
 	sshCredentials sshadapter.AgentCredentialSource
 	initialTarget  clientendpoint.Endpoint
 	cloudAvailable bool
+	probePolicy    endpointProbePolicy
 }
 
 const (
@@ -57,6 +58,12 @@ func (source cliEndpointPlanSource) Snapshot(ctx context.Context, endpointID cli
 			return clientruntime.EndpointPlanSnapshot{}, &clientruntime.Error{Code: clientruntime.ErrorNotFound, Message: fmt.Sprintf("endpoint %q is not configured", endpointID)}
 		}
 		target = source.initialTarget
+	}
+	if source.probePolicy.endpointID == endpointID {
+		target, err = endpointProbeOverrides(target, source.probePolicy.routeID, source.probePolicy.relayMode, source.probePolicy.relayTransport)
+		if err != nil {
+			return clientruntime.EndpointPlanSnapshot{}, err
+		}
 	}
 	environment := cliRoutePlanEnvironment(ctx, target, source.credentials, source.sshCredentials, source.cloudAvailable)
 	configKey, err := cliEndpointConfigKey(target, source.localOptions, environment)
@@ -180,8 +187,10 @@ func newCLIEndpointRuntimeWithRegistry(ctx context.Context, owner *clientruntime
 	if err != nil {
 		return nil, err
 	}
+	probePolicy, _ := ctx.Value(endpointProbePolicyKey{}).(endpointProbePolicy)
 	runtime, err := clientruntime.NewClientRuntime(owner, cliEndpointPlanSource{
 		registryPath: registryPath, localOptions: localOptions, credentials: credentials, sshCredentials: sshCredentials, initialTarget: target, cloudAvailable: cloudProtocol != nil,
+		probePolicy: probePolicy,
 	}, systemadapter.Clock{}, dialers)
 	if err != nil {
 		return nil, err

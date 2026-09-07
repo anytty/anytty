@@ -58,32 +58,34 @@ type endpointView struct {
 }
 
 type endpointTestView struct {
-	SchemaVersion        int     `json:"schema_version"`
-	Kind                 string  `json:"kind"`
-	ID                   string  `json:"id"`
-	RouteID              string  `json:"route_id"`
-	RouteKind            string  `json:"route_kind"`
-	State                string  `json:"state"`
-	ObservedPath         string  `json:"observed_path,omitempty"`
-	RouteSelectionReason string  `json:"route_selection_reason,omitempty"`
-	SnapshotAvailable    bool    `json:"snapshot_available"`
-	SampledAt            string  `json:"sampled_at,omitempty"`
-	RoundTripMillis      float64 `json:"round_trip_ms,omitempty"`
-	LocalIP              string  `json:"local_ip,omitempty"`
-	RemoteIP             string  `json:"remote_ip,omitempty"`
-	LocalPort            uint16  `json:"local_port,omitempty"`
-	RemotePort           uint16  `json:"remote_port,omitempty"`
-	LocalCandidateType   string  `json:"local_candidate_type,omitempty"`
-	RemoteCandidateType  string  `json:"remote_candidate_type,omitempty"`
-	LocalProtocol        string  `json:"local_protocol,omitempty"`
-	RemoteProtocol       string  `json:"remote_protocol,omitempty"`
-	RelayTransport       string  `json:"relay_transport,omitempty"`
-	NetworkClass         string  `json:"network_class,omitempty"`
-	BytesSent            uint64  `json:"bytes_sent,omitempty"`
-	BytesReceived        uint64  `json:"bytes_received,omitempty"`
-	PacketsSent          uint64  `json:"packets_sent,omitempty"`
-	LossEvents           uint64  `json:"loss_events,omitempty"`
-	Connected            bool    `json:"connected"`
+	RequestedRelayMode      string  `json:"requested_relay_mode,omitempty"`
+	RequestedRelayTransport string  `json:"requested_relay_transport,omitempty"`
+	SchemaVersion           int     `json:"schema_version"`
+	Kind                    string  `json:"kind"`
+	ID                      string  `json:"id"`
+	RouteID                 string  `json:"route_id"`
+	RouteKind               string  `json:"route_kind"`
+	State                   string  `json:"state"`
+	ObservedPath            string  `json:"observed_path,omitempty"`
+	RouteSelectionReason    string  `json:"route_selection_reason,omitempty"`
+	SnapshotAvailable       bool    `json:"snapshot_available"`
+	SampledAt               string  `json:"sampled_at,omitempty"`
+	RoundTripMillis         float64 `json:"round_trip_ms,omitempty"`
+	LocalIP                 string  `json:"local_ip,omitempty"`
+	RemoteIP                string  `json:"remote_ip,omitempty"`
+	LocalPort               uint16  `json:"local_port,omitempty"`
+	RemotePort              uint16  `json:"remote_port,omitempty"`
+	LocalCandidateType      string  `json:"local_candidate_type,omitempty"`
+	RemoteCandidateType     string  `json:"remote_candidate_type,omitempty"`
+	LocalProtocol           string  `json:"local_protocol,omitempty"`
+	RemoteProtocol          string  `json:"remote_protocol,omitempty"`
+	RelayTransport          string  `json:"relay_transport,omitempty"`
+	NetworkClass            string  `json:"network_class,omitempty"`
+	BytesSent               uint64  `json:"bytes_sent,omitempty"`
+	BytesReceived           uint64  `json:"bytes_received,omitempty"`
+	PacketsSent             uint64  `json:"packets_sent,omitempty"`
+	LossEvents              uint64  `json:"loss_events,omitempty"`
+	Connected               bool    `json:"connected"`
 }
 
 type endpointPolicyView struct {
@@ -600,6 +602,7 @@ func newEndpointRouteToggleCommand(runtime *endpointCommandRuntime, enabled bool
 func newEndpointTestCommand(runtime *endpointCommandRuntime) *cobra.Command {
 	var jsonOutput bool
 	var routeValue string
+	var relayMode, relayTransport string
 	command := &cobra.Command{
 		Use: "test ID", Short: "Dial one route and verify anytty protocol reachability", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -615,14 +618,24 @@ func newEndpointTestCommand(runtime *endpointCommandRuntime) *cobra.Command {
 			if !endpoint.Enabled {
 				return &cliError{code: 4, message: fmt.Sprintf("endpoint %s is disabled", id)}
 			}
+			endpoint, err = endpointProbeOverrides(endpoint, endpointdomain.RouteID(routeValue), relayMode, relayTransport)
+			if err != nil {
+				return &cliError{code: 2, message: err.Error()}
+			}
 			cmd.Root().SilenceUsage = true
-			routeID, observedPath, selectionReason, snapshot, snapshotAvailable, closeClient, err := probeEndpointProtocolClient(cmd.Context(), endpoint, endpointdomain.RouteID(routeValue), runtime.registryPath, *runtime.socket, *runtime.logFile)
+			probeContext := cmd.Context()
+			if relayMode != "" || relayTransport != "" {
+				probeContext = context.WithValue(probeContext, endpointProbePolicyKey{}, endpointProbePolicy{endpointID: id, routeID: endpointdomain.RouteID(routeValue), relayMode: relayMode, relayTransport: relayTransport})
+			}
+			routeID, observedPath, selectionReason, snapshot, snapshotAvailable, closeClient, err := probeEndpointProtocolClient(probeContext, endpoint, endpointdomain.RouteID(routeValue), runtime.registryPath, *runtime.socket, *runtime.logFile)
 			if err != nil {
 				return classifyCLIError(err)
 			}
 			defer closeClient()
 			route, _ := endpoint.Route(routeID)
 			view := endpointTestViewFromSnapshot(id, route, observedPath, selectionReason, snapshot, snapshotAvailable)
+			view.RequestedRelayMode = relayMode
+			view.RequestedRelayTransport = relayTransport
 			if jsonOutput {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(view)
 			}
@@ -631,7 +644,51 @@ func newEndpointTestCommand(runtime *endpointCommandRuntime) *cobra.Command {
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	command.Flags().StringVar(&routeValue, "route", "", "explicit route ID (required when multiple routes are eligible before CONN003)")
+	command.Flags().StringVar(&relayMode, "relay", "", "probe-only Cloud path: auto, direct, relay_only, or smart_route; requires --route")
+	command.Flags().StringVar(&relayTransport, "relay-transport", "", "probe-only Relay transport: auto, udp, or tcp; requires --route")
 	return command
+}
+
+// Probe policy is copied in memory; diagnostics must not change saved routes.
+type endpointProbePolicyKey struct{}
+
+type endpointProbePolicy struct {
+	endpointID                endpointdomain.EndpointID
+	routeID                   endpointdomain.RouteID
+	relayMode, relayTransport string
+}
+
+func endpointProbeOverrides(target endpointdomain.Endpoint, routeID endpointdomain.RouteID, relayMode, relayTransport string) (endpointdomain.Endpoint, error) {
+	if relayMode == "" && relayTransport == "" {
+		return target, nil
+	}
+	route, ok := target.Route(routeID)
+	if routeID == "" || !ok || route.Kind != endpointdomain.RouteManagedWebRTC {
+		return endpointdomain.Endpoint{}, fmt.Errorf("Relay probe overrides require --route naming a managed-webrtc route")
+	}
+	if relayMode != "" {
+		switch endpointdomain.RelayMode(relayMode) {
+		case endpointdomain.RelayAuto, endpointdomain.RelayDirect, endpointdomain.RelayOnly, endpointdomain.RelaySmart:
+			route.RelayMode = endpointdomain.RelayMode(relayMode)
+		default:
+			return endpointdomain.Endpoint{}, fmt.Errorf("unknown probe Relay mode %q", relayMode)
+		}
+	}
+	if relayTransport != "" {
+		switch endpointdomain.RelayTransport(relayTransport) {
+		case endpointdomain.RelayTransportAuto, endpointdomain.RelayTransportUDP, endpointdomain.RelayTransportTCP:
+			route.RelayTransport = endpointdomain.RelayTransport(relayTransport)
+		default:
+			return endpointdomain.Endpoint{}, fmt.Errorf("unknown probe Relay transport %q", relayTransport)
+		}
+	}
+	routes := make(map[endpointdomain.RouteID]endpointdomain.AccessRoute, len(target.Routes))
+	for id, existing := range target.Routes {
+		routes[id] = existing
+	}
+	routes[routeID] = route
+	target.Routes = routes
+	return target, nil
 }
 
 func endpointTestViewFromSnapshot(id endpointdomain.EndpointID, route endpointdomain.AccessRoute, observedPath, selectionReason string, snapshot clientruntime.ConnectionSnapshot, valid bool) endpointTestView {

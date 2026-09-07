@@ -44,6 +44,33 @@ func TestEndpointMutationHonorsRootTimeoutWhileRegistryLocked(t *testing.T) {
 	}
 }
 
+func TestEndpointProbeOverridesAreEphemeralAndScoped(t *testing.T) {
+	target := endpointdomain.Endpoint{Routes: map[endpointdomain.RouteID]endpointdomain.AccessRoute{
+		"cloud":  {ID: "cloud", Kind: endpointdomain.RouteManagedWebRTC, RelayMode: endpointdomain.RelayAuto, RelayTransport: endpointdomain.RelayTransportAuto},
+		"other":  {ID: "other", Kind: endpointdomain.RouteManagedWebRTC, RelayMode: endpointdomain.RelayDirect},
+		"direct": {ID: "direct", Kind: endpointdomain.RouteDirectWebRTCTCP},
+	}}
+	probe, err := endpointProbeOverrides(target, "cloud", "relay_only", "tcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if probe.Routes["cloud"].RelayMode != endpointdomain.RelayOnly || probe.Routes["cloud"].RelayTransport != endpointdomain.RelayTransportTCP {
+		t.Fatal("override missing")
+	}
+	if target.Routes["cloud"].RelayMode != endpointdomain.RelayAuto || target.Routes["cloud"].RelayTransport != endpointdomain.RelayTransportAuto || probe.Routes["other"].RelayMode != endpointdomain.RelayDirect {
+		t.Fatal("probe mutated original or unrelated route")
+	}
+	for _, input := range [][3]string{{"", "relay_only", ""}, {"direct", "relay_only", ""}, {"missing", "relay_only", ""}, {"cloud", "invalid", ""}, {"cloud", "", "invalid"}} {
+		if _, err := endpointProbeOverrides(target, endpointdomain.RouteID(input[0]), input[1], input[2]); err == nil {
+			t.Fatalf("invalid override accepted: %v", input)
+		}
+	}
+	transportOnly, err := endpointProbeOverrides(target, "cloud", "", "udp")
+	if err != nil || transportOnly.Routes["cloud"].RelayMode != endpointdomain.RelayAuto || transportOnly.Routes["cloud"].RelayTransport != endpointdomain.RelayTransportUDP {
+		t.Fatal("transport-only override changed path policy")
+	}
+}
+
 func TestEndpointRegistryCommandLifecycle(t *testing.T) {
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
