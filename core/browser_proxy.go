@@ -3,12 +3,14 @@ package core
 import (
 	"fmt"
 	"io"
+	"net"
 	"time"
 
 	"github.com/anytty/anytty/proto/wire"
 )
 
 const browserProxyIdleTimeout = 2 * time.Minute
+const browserProxyWriteTimeout = 30 * time.Second
 
 func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserProxy, typ uint8, payload []byte) error {
 	switch typ {
@@ -24,15 +26,14 @@ func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserPro
 		proxy.writeMu.Lock()
 		defer proxy.writeMu.Unlock()
 		_ = proxy.conn.SetReadDeadline(time.Now().Add(browserProxyIdleTimeout))
-		for len(payload) > 0 {
-			written, err := proxy.conn.Write(payload)
-			if err != nil {
-				return fmt.Errorf("write browser proxy data: %w", err)
+		started := time.Now()
+		written, err := writeBrowserProxyData(proxy.conn, payload)
+		if err != nil {
+			session.server.cfg.logger.Warn("browser proxy target write failed", "session_id", session.sessionID, "channel", proxy.channel, "written_bytes", written, "elapsed_ms", time.Since(started).Milliseconds(), "error", err)
+			if session.removeBrowserProxy(proxy) {
+				return session.sendFrame(proxy.channel, wire.TypeBrowserClosed, nil)
 			}
-			if written <= 0 {
-				return io.ErrShortWrite
-			}
-			payload = payload[written:]
+			return nil
 		}
 		proxy.forwardOnce.Do(func() { go session.forwardBrowserProxy(proxy) })
 		return nil
@@ -45,6 +46,31 @@ func (session *protocolSession) handleBrowserProxyFrame(proxy *sessionBrowserPro
 	default:
 		return fmt.Errorf("unsupported browser proxy frame type %d", typ)
 	}
+}
+
+func writeBrowserProxyData(conn net.Conn, payload []byte) (int, error) {
+	if err := conn.SetWriteDeadline(time.Now().Add(browserProxyWriteTimeout)); err != nil {
+		return 0, fmt.Errorf("set browser proxy write deadline: %w", err)
+	}
+	total := 0
+	for len(payload) > 0 {
+		written, err := conn.Write(payload)
+		total += written
+		if err != nil {
+			return total, fmt.Errorf("write browser proxy data: %w", err)
+		}
+		if written <= 0 {
+			return total, io.ErrShortWrite
+		}
+		payload = payload[written:]
+	}
+	return total, nil
+}
+
+func (session *protocolSession) browserChannelState(channel uint16) (*sessionBrowserProxy, bool) {
+	session.browserMu.Lock()
+	defer session.browserMu.Unlock()
+	return session.browserChannels[channel], session.closedBrowserChannels[channel/64]&(uint64(1)<<(channel%64)) != 0
 }
 
 func (session *protocolSession) forwardBrowserProxy(proxy *sessionBrowserProxy) {
@@ -77,9 +103,8 @@ func (session *protocolSession) forwardBrowserProxy(proxy *sessionBrowserProxy) 
 }
 
 func (session *protocolSession) browserProxyForChannel(channel uint16) *sessionBrowserProxy {
-	session.browserMu.Lock()
-	defer session.browserMu.Unlock()
-	return session.browserChannels[channel]
+	proxy, _ := session.browserChannelState(channel)
+	return proxy
 }
 
 func (session *protocolSession) browserProxyForToken(token []byte) *sessionBrowserProxy {
@@ -104,6 +129,9 @@ func (session *protocolSession) removeBrowserProxy(proxy *sessionBrowserProxy) b
 	}
 	delete(session.browserChannels, proxy.channel)
 	delete(session.browserTokens, string(proxy.token))
+	// Channel IDs are never reused within a session. A fixed 8 KiB bitmap
+	// recognizes in-flight frames without retaining closed sockets or tokens.
+	session.closedBrowserChannels[proxy.channel/64] |= uint64(1) << (proxy.channel % 64)
 	session.browserMu.Unlock()
 	session.releaseChannel(proxy.channel, protocolChannelBrowserProxy)
 	proxy.close()

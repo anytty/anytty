@@ -131,6 +131,7 @@ type protocolSession struct {
 	browserMu                     sync.Mutex
 	browserChannels               map[uint16]*sessionBrowserProxy
 	browserTokens                 map[string]uint16
+	closedBrowserChannels         [1024]uint64
 	browserCount                  int
 	lifecycleObserver             TransportLifecycleObserver
 	helloAccepted                 bool
@@ -545,8 +546,15 @@ func (session *protocolSession) remoteService() (RemoteService, error) {
 }
 
 func (session *protocolSession) handleStreamFrame(ctx context.Context, channel uint16, typ uint8, payload []byte) error {
-	if proxy := session.browserProxyForChannel(channel); proxy != nil {
+	proxy, browserClosed := session.browserChannelState(channel)
+	if proxy != nil {
 		return session.handleBrowserProxyFrame(proxy, typ, payload)
+	}
+	if browserClosed {
+		if typ == wire.TypeBrowserData || typ == wire.TypeClosed && len(payload) == 0 {
+			return nil
+		}
+		return fmt.Errorf("invalid frame for closed browser channel %d", channel)
 	}
 	if transfer := session.fileTransferForChannel(channel); transfer != nil {
 		return session.handleFileTransferFrame(ctx, transfer, typ, payload)
