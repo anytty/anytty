@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/anytty/anytty/shared/connecttrace"
+	"github.com/anytty/anytty/shared/perftrace"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/datachannel"
 	pion "github.com/pion/webrtc/v4"
@@ -244,6 +245,9 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, fmt.Errorf("create remote daemon peer connection: %w", err)
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)
+	if perftrace.Current() != nil && answerer.PionLogger != nil {
+		go tracePeerPerformance(sessionCtx, peer, answerer.PionLogger, offer.SessionID)
+	}
 	lifecycle := newPeerLifecycle(ctx, peer, cancel, answerer.OnPeerClosed, answerer.closePeerForTest)
 	var candidateMu sync.Mutex
 	candidates := make([]ICECandidate, 0, 4)
