@@ -181,6 +181,43 @@ void main() {
     expect(received, payload);
   });
 
+  test('ACK failure after remote close preserves queued response', () async {
+    session.receiveWindowBytes = 512 * 1024;
+    final ackStarted = Completer<void>();
+    final releaseAck = Completer<void>();
+    session.runtime.beforeAcknowledgement = () async {
+      if (!ackStarted.isCompleted) ackStarted.complete();
+      await releaseAck.future;
+      throw StateError('resource closed during ACK');
+    };
+    final socket = await Socket.connect(
+      InternetAddress.loopbackIPv4,
+      proxy.port,
+    );
+    addTearDown(socket.destroy);
+    final response = socket.fold<List<int>>(
+      <int>[],
+      (all, bytes) => all..addAll(bytes),
+    );
+    socket.add(
+      ascii.encode(
+        'GET http://example.test:443/ HTTP/1.1\r\nHost: example.test\r\n\r\n',
+      ),
+    );
+    await session.firstData.future.timeout(const Duration(seconds: 1));
+    final first = List<int>.filled(1024, 1);
+    final last = List<int>.filled(32768, 2);
+    session.emitRemoteData(first);
+    await ackStarted.future.timeout(const Duration(seconds: 1));
+    session.emitRemoteData(last);
+    session.runtime.closeResourceStream(41);
+    releaseAck.complete();
+    expect(await response.timeout(const Duration(seconds: 2)), [
+      ...first,
+      ...last,
+    ]);
+  });
+
   for (final failureKind in ['protocol', 'malformed', 'native']) {
     test('$failureKind failure closes the browser socket with safe diagnostics', () async {
       final logs = <String>[];

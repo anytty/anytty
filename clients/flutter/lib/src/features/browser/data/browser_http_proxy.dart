@@ -107,6 +107,8 @@ final class BrowserHttpProxy {
     var downloadedBytes = 0;
     var maximumSendMs = 0;
     var sendWaitMs = 0;
+    var uploadCreditWaitMs = 0;
+    var nativeSendWaitMs = 0;
     final downloads = Queue<List<int>>();
     var queuedDownloadBytes = 0;
     var maximumQueuedDownloadBytes = 0;
@@ -139,6 +141,7 @@ final class BrowserHttpProxy {
         'stage=closed total_ms=${elapsed.elapsedMilliseconds} '
         'upload_bytes=$uploadedBytes download_bytes=$downloadedBytes '
         'send_wait_ms=$sendWaitMs max_send_ms=$maximumSendMs '
+        'upload_credit_wait_ms=$uploadCreditWaitMs native_send_wait_ms=$nativeSendWaitMs '
         'max_download_queue_bytes=$maximumQueuedDownloadBytes '
         'download_flush_ms=$downloadFlushMs download_ack_ms=$downloadAckMs',
       );
@@ -173,6 +176,8 @@ final class BrowserHttpProxy {
         } on TimeoutException {
           trace('stage=upload_credit timeout_ms=30000');
           rethrow;
+        } finally {
+          uploadCreditWaitMs += elapsed.elapsedMilliseconds - sendStart;
         }
         final end = offset + count;
         final writeStart = elapsed.elapsedMilliseconds;
@@ -188,6 +193,8 @@ final class BrowserHttpProxy {
             waitMs: elapsed.elapsedMilliseconds - writeStart,
           );
           rethrow;
+        } finally {
+          nativeSendWaitMs += elapsed.elapsedMilliseconds - writeStart;
         }
         uploadedBytes += end - offset;
         final sendMs = elapsed.elapsedMilliseconds - sendStart;
@@ -255,19 +262,28 @@ final class BrowserHttpProxy {
             if (done.isCompleted) return;
             queuedDownloadBytes -= bytes.length;
             downloadedBytes += bytes.length;
-            if (receiveWindow != 0 && !activeStream.isClosed) {
+            if (receiveWindow != 0 && !remoteEnded && !activeStream.isClosed) {
               stage = 'download_ack';
               final ackStart = elapsed.elapsedMilliseconds;
-              await activeStream
-                  .sendAsync(
-                    ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
-                    wire.FileTransferAck(
-                      offset: Int64(downloadedBytes),
-                      windowBytes: Int64(bytes.length),
-                    ).writeToBuffer(),
-                  )
-                  .timeout(const Duration(seconds: 30));
-              downloadAckMs += elapsed.elapsedMilliseconds - ackStart;
+              try {
+                await activeStream
+                    .sendAsync(
+                      ResourceStreamFrameType
+                          .RESOURCE_STREAM_FRAME_TYPE_FILE_ACK,
+                      wire.FileTransferAck(
+                        offset: Int64(downloadedBytes),
+                        windowBytes: Int64(bytes.length),
+                      ).writeToBuffer(),
+                    )
+                    .timeout(const Duration(seconds: 30));
+              } on StateError {
+                // EOF can overtake an asynchronous ACK. Already received
+                // response bytes still belong to the browser and must drain.
+                if (!remoteEnded && !activeStream.isClosed) rethrow;
+                trace('stage=download_ack skipped=true reason=remote_closed');
+              } finally {
+                downloadAckMs += elapsed.elapsedMilliseconds - ackStart;
+              }
             }
           }
           if (remoteEnded && !done.isCompleted) await finishAfterFlush();
