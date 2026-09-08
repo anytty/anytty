@@ -17,6 +17,7 @@ import '../data/browser_history_store.dart';
 import '../data/browser_session_store.dart';
 import '../domain/browser_load_progress.dart';
 import '../domain/browser_session.dart';
+import '../domain/browser_session_recovery.dart';
 import '../../terminal/data/endpoint_session_client.dart';
 import '../../terminal/presentation/terminal_petal_menu.dart';
 import 'browser_endpoint_picker_sheet.dart';
@@ -80,7 +81,7 @@ final class _BrowserSessionScreenState
   String? _error;
   bool _pageReady = false;
   bool _closing = false;
-  bool _sessionRecoveryPending = false;
+  BrowserSessionRecovery? _sessionRecovery;
   List<BrowserHistoryEntry> _history = const [];
   List<BrowserBookmark> _bookmarks = const [];
   final _tabsByEndpoint = <String, List<BrowserTabSnapshot>>{};
@@ -113,6 +114,7 @@ final class _BrowserSessionScreenState
   @override
   void dispose() {
     _closing = true;
+    _sessionRecovery?.cancel();
     _loadProgressTimer?.cancel();
     _loadProgressTimer = null;
     final controller = _webViewController;
@@ -757,6 +759,7 @@ final class _BrowserSessionScreenState
     String endpointLabel, {
     bool forceReconnect = false,
   }) {
+    if (!forceReconnect) _sessionRecovery?.cancel();
     final next = _transitionTail.then(
       (_) => _activateSessionNow(
         endpointId,
@@ -778,6 +781,7 @@ final class _BrowserSessionScreenState
     String endpointLabel, {
     bool forceReconnect = false,
   }) async {
+    if (_closing || !mounted) return;
     final previousEndpointId = _activeEndpointId;
     final previousEndpointLabel = _activeEndpointLabel;
     final hasLiveSession =
@@ -1144,24 +1148,25 @@ final class _BrowserSessionScreenState
   }
 
   void _scheduleSessionRecovery(String endpointId) {
-    if (_sessionRecoveryPending || _closing || !mounted) return;
-    _sessionRecoveryPending = true;
+    if (_sessionRecovery?.isRunning == true || _closing || !mounted) return;
     final label = _activeEndpointLabel;
-    unawaited(
-      _activateSession(endpointId, label, forceReconnect: true).whenComplete(
-        () {
-          _sessionRecoveryPending = false;
-          final session = _activeEndpointSession;
-          if (session != null &&
-              session.isClosed &&
-              !_closing &&
-              mounted &&
-              _activeEndpointId == endpointId) {
-            _scheduleSessionRecovery(endpointId);
-          }
-        },
-      ),
-    );
+    _sessionRecovery = BrowserSessionRecovery(
+      recover: () => _activateSession(endpointId, label, forceReconnect: true),
+      needsRecovery: () =>
+          !_closing &&
+          mounted &&
+          _activeEndpointId == endpointId &&
+          _activeEndpointSession?.isClosed == true,
+      onError: (error, stack) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stack,
+            library: 'anytty browser session recovery',
+          ),
+        );
+      },
+    )..start();
   }
 
   void _beginPageLoad() {
@@ -1558,6 +1563,7 @@ final class _BrowserSessionScreenState
     }
     if (_closing) return;
     _closing = true;
+    _sessionRecovery?.cancel();
     await _parkLiveSession();
     if (mounted) Navigator.of(context).pop();
   }
