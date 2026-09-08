@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:isolate';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import 'anytty_client_engine.dart';
 
@@ -15,6 +18,7 @@ final class NativeResourceWriter {
   final _exits = ReceivePort('anytty-resource-writer-exits');
   final _ready = Completer<SendPort>();
   final _pending = <int, Completer<void>>{};
+  final _timings = <int, _WriterTiming>{};
   Isolate? _isolate;
   SendPort? _commands;
   int _sequence = 0;
@@ -71,6 +75,7 @@ final class NativeResourceWriter {
         id,
         handle,
         frame == null ? null : TransferableTypedData.fromList([frame]),
+        developer.Timeline.now,
       ),
     );
     return done.future;
@@ -82,6 +87,27 @@ final class NativeResourceWriter {
     } else if (message is _WriterResult) {
       final pending = _pending.remove(message.id);
       if (pending == null) return;
+      // Remote closure may release a resource without a close command here.
+      // Bound diagnostic state independently of resource lifetime.
+      if (!_timings.containsKey(message.handle) &&
+          _timings.length >= maximumPending) {
+        _timings.remove(_timings.keys.first);
+      }
+      final timing = _timings.putIfAbsent(message.handle, _WriterTiming.new);
+      timing.count++;
+      timing.queueUs += message.queueUs;
+      timing.nativeUs += message.nativeUs;
+      timing.returnUs += developer.Timeline.now - message.completedUs;
+      if (message.closing || message.error != null || timing.count >= 64) {
+        final entry =
+            'stream=${message.handle} writes=${timing.count} '
+            'queue_us=${timing.queueUs} native_us=${timing.nativeUs} '
+            'return_us=${timing.returnUs} closing=${message.closing} '
+            'failed=${message.error != null}';
+        developer.log(entry, name: 'anytty.resource.writer');
+        debugPrint('anytty.resource.writer $entry');
+        _timings.remove(message.handle);
+      }
       if (message.error == null) {
         pending.complete();
       } else {
@@ -98,6 +124,7 @@ final class NativeResourceWriter {
       pending.completeError(error);
     }
     _pending.clear();
+    _timings.clear();
   }
 
   void dispose() {
@@ -116,16 +143,37 @@ final class _WriterStart {
 }
 
 final class _WriterCommand {
-  const _WriterCommand(this.id, this.handle, this.frame);
+  const _WriterCommand(this.id, this.handle, this.frame, this.submittedUs);
   final int id;
   final int handle;
   final TransferableTypedData? frame;
+  final int submittedUs;
+}
+
+final class _WriterTiming {
+  int count = 0;
+  int queueUs = 0;
+  int nativeUs = 0;
+  int returnUs = 0;
 }
 
 final class _WriterResult {
-  const _WriterResult(this.id, this.error);
+  const _WriterResult(
+    this.id,
+    this.handle,
+    this.closing,
+    this.error,
+    this.queueUs,
+    this.nativeUs,
+    this.completedUs,
+  );
   final int id;
+  final int handle;
+  final bool closing;
   final String? error;
+  final int queueUs;
+  final int nativeUs;
+  final int completedUs;
 }
 
 void _runWriter(_WriterStart start) {
@@ -134,6 +182,7 @@ void _runWriter(_WriterStart start) {
   start.responses.send(commands.sendPort);
   commands.listen((dynamic message) {
     if (message is! _WriterCommand) return;
+    final startedUs = developer.Timeline.now;
     String? error;
     try {
       final frame = message.frame;
@@ -148,6 +197,17 @@ void _runWriter(_WriterStart start) {
     } catch (failure) {
       error = failure.toString();
     }
-    start.responses.send(_WriterResult(message.id, error));
+    final completedUs = developer.Timeline.now;
+    start.responses.send(
+      _WriterResult(
+        message.id,
+        message.handle,
+        message.frame == null,
+        error,
+        startedUs - message.submittedUs,
+        completedUs - startedUs,
+        completedUs,
+      ),
+    );
   });
 }

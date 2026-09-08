@@ -702,12 +702,12 @@ func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTC
 
 // ExecuteApplication 通过当前 generation 的 ApplicationSession 写入 correlation stamp 后执行 generated Proto command。
 func (session *Session) ExecuteApplication(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.Execute(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, false)
 }
 
 // ExecuteApplicationTerminal 为 resource-producing command 保留有界 terminal response，并使用同一 generation fence。
 func (session *Session) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.ExecuteTerminal(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, true)
 }
 
 // ConnectionSnapshot 投影 Direct ReadySession 的实际 selected ICE-TCP pair。

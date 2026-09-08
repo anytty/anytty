@@ -3121,6 +3121,151 @@ func (x *SSHCredentialProvisionResult) GetError() *apipb.ApiError {
 	return nil
 }
 
+// One listener per session. Stop carries its port to fence stale UI cleanup.
+type BrowserProxyListenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	SessionHandle uint64                 `protobuf:"varint,2,opt,name=session_handle,json=sessionHandle,proto3" json:"session_handle,omitempty"`
+	Stop          bool                   `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
+	Port          uint32                 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserProxyListenRequest) Reset() {
+	*x = BrowserProxyListenRequest{}
+	mi := &file_bindingpb_client_binding_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserProxyListenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserProxyListenRequest) ProtoMessage() {}
+
+func (x *BrowserProxyListenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bindingpb_client_binding_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserProxyListenRequest.ProtoReflect.Descriptor instead.
+func (*BrowserProxyListenRequest) Descriptor() ([]byte, []int) {
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *BrowserProxyListenRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *BrowserProxyListenRequest) GetSessionHandle() uint64 {
+	if x != nil {
+		return x.SessionHandle
+	}
+	return 0
+}
+
+func (x *BrowserProxyListenRequest) GetStop() bool {
+	if x != nil {
+		return x.Stop
+	}
+	return false
+}
+
+func (x *BrowserProxyListenRequest) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+type BrowserProxyListenResult struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RequestId       string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	OperationHandle uint64                 `protobuf:"varint,2,opt,name=operation_handle,json=operationHandle,proto3" json:"operation_handle,omitempty"`
+	SessionHandle   uint64                 `protobuf:"varint,3,opt,name=session_handle,json=sessionHandle,proto3" json:"session_handle,omitempty"`
+	Port            uint32                 `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	Error           *apipb.ApiError        `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *BrowserProxyListenResult) Reset() {
+	*x = BrowserProxyListenResult{}
+	mi := &file_bindingpb_client_binding_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserProxyListenResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserProxyListenResult) ProtoMessage() {}
+
+func (x *BrowserProxyListenResult) ProtoReflect() protoreflect.Message {
+	mi := &file_bindingpb_client_binding_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserProxyListenResult.ProtoReflect.Descriptor instead.
+func (*BrowserProxyListenResult) Descriptor() ([]byte, []int) {
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *BrowserProxyListenResult) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *BrowserProxyListenResult) GetOperationHandle() uint64 {
+	if x != nil {
+		return x.OperationHandle
+	}
+	return 0
+}
+
+func (x *BrowserProxyListenResult) GetSessionHandle() uint64 {
+	if x != nil {
+		return x.SessionHandle
+	}
+	return 0
+}
+
+func (x *BrowserProxyListenResult) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *BrowserProxyListenResult) GetError() *apipb.ApiError {
+	if x != nil {
+		return x.Error
+	}
+	return nil
+}
+
 type EngineCommand struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Command:
@@ -3139,6 +3284,7 @@ type EngineCommand struct {
 	//	*EngineCommand_SessionInvalidate
 	//	*EngineCommand_EndpointDisconnect
 	//	*EngineCommand_EndpointCloudPresenceGet
+	//	*EngineCommand_BrowserProxyListen
 	Command       isEngineCommand_Command `protobuf_oneof:"command"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3146,7 +3292,7 @@ type EngineCommand struct {
 
 func (x *EngineCommand) Reset() {
 	*x = EngineCommand{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[35]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3158,7 +3304,7 @@ func (x *EngineCommand) String() string {
 func (*EngineCommand) ProtoMessage() {}
 
 func (x *EngineCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[35]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3171,7 +3317,7 @@ func (x *EngineCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCommand.ProtoReflect.Descriptor instead.
 func (*EngineCommand) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{35}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *EngineCommand) GetCommand() isEngineCommand_Command {
@@ -3307,6 +3453,15 @@ func (x *EngineCommand) GetEndpointCloudPresenceGet() *EndpointCloudPresenceGetR
 	return nil
 }
 
+func (x *EngineCommand) GetBrowserProxyListen() *BrowserProxyListenRequest {
+	if x != nil {
+		if x, ok := x.Command.(*EngineCommand_BrowserProxyListen); ok {
+			return x.BrowserProxyListen
+		}
+	}
+	return nil
+}
+
 type isEngineCommand_Command interface {
 	isEngineCommand_Command()
 }
@@ -3367,6 +3522,10 @@ type EngineCommand_EndpointCloudPresenceGet struct {
 	EndpointCloudPresenceGet *EndpointCloudPresenceGetRequest `protobuf:"bytes,14,opt,name=endpoint_cloud_presence_get,json=endpointCloudPresenceGet,proto3,oneof"`
 }
 
+type EngineCommand_BrowserProxyListen struct {
+	BrowserProxyListen *BrowserProxyListenRequest `protobuf:"bytes,15,opt,name=browser_proxy_listen,json=browserProxyListen,proto3,oneof"`
+}
+
 func (*EngineCommand_ImportPairing) isEngineCommand_Command() {}
 
 func (*EngineCommand_DeleteCredential) isEngineCommand_Command() {}
@@ -3395,6 +3554,8 @@ func (*EngineCommand_EndpointDisconnect) isEngineCommand_Command() {}
 
 func (*EngineCommand_EndpointCloudPresenceGet) isEngineCommand_Command() {}
 
+func (*EngineCommand_BrowserProxyListen) isEngineCommand_Command() {}
+
 type OpenSessionResult struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	RequestId       string                      `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -3409,7 +3570,7 @@ type OpenSessionResult struct {
 
 func (x *OpenSessionResult) Reset() {
 	*x = OpenSessionResult{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[36]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3421,7 +3582,7 @@ func (x *OpenSessionResult) String() string {
 func (*OpenSessionResult) ProtoMessage() {}
 
 func (x *OpenSessionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[36]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3434,7 +3595,7 @@ func (x *OpenSessionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenSessionResult.ProtoReflect.Descriptor instead.
 func (*OpenSessionResult) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{36}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *OpenSessionResult) GetRequestId() string {
@@ -3491,7 +3652,7 @@ type ExecuteResult struct {
 
 func (x *ExecuteResult) Reset() {
 	*x = ExecuteResult{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[37]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3503,7 +3664,7 @@ func (x *ExecuteResult) String() string {
 func (*ExecuteResult) ProtoMessage() {}
 
 func (x *ExecuteResult) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[37]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3516,7 +3677,7 @@ func (x *ExecuteResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteResult.ProtoReflect.Descriptor instead.
 func (*ExecuteResult) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{37}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ExecuteResult) GetOperationHandle() uint64 {
@@ -3557,7 +3718,7 @@ type ApplicationEvent struct {
 
 func (x *ApplicationEvent) Reset() {
 	*x = ApplicationEvent{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[38]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3569,7 +3730,7 @@ func (x *ApplicationEvent) String() string {
 func (*ApplicationEvent) ProtoMessage() {}
 
 func (x *ApplicationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[38]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3582,7 +3743,7 @@ func (x *ApplicationEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplicationEvent.ProtoReflect.Descriptor instead.
 func (*ApplicationEvent) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{38}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ApplicationEvent) GetSessionHandle() uint64 {
@@ -3609,7 +3770,7 @@ type OpenResourceStreamRequest struct {
 
 func (x *OpenResourceStreamRequest) Reset() {
 	*x = OpenResourceStreamRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[39]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3621,7 +3782,7 @@ func (x *OpenResourceStreamRequest) String() string {
 func (*OpenResourceStreamRequest) ProtoMessage() {}
 
 func (x *OpenResourceStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[39]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3634,7 +3795,7 @@ func (x *OpenResourceStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenResourceStreamRequest.ProtoReflect.Descriptor instead.
 func (*OpenResourceStreamRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{39}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *OpenResourceStreamRequest) GetResource() *apipb.ResourceHandle {
@@ -3662,7 +3823,7 @@ type ResourceStreamFrame struct {
 
 func (x *ResourceStreamFrame) Reset() {
 	*x = ResourceStreamFrame{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[40]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3674,7 +3835,7 @@ func (x *ResourceStreamFrame) String() string {
 func (*ResourceStreamFrame) ProtoMessage() {}
 
 func (x *ResourceStreamFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[40]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3687,7 +3848,7 @@ func (x *ResourceStreamFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceStreamFrame.ProtoReflect.Descriptor instead.
 func (*ResourceStreamFrame) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{40}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ResourceStreamFrame) GetStreamHandle() uint64 {
@@ -3721,7 +3882,7 @@ type ResourceStreamClosedEvent struct {
 
 func (x *ResourceStreamClosedEvent) Reset() {
 	*x = ResourceStreamClosedEvent{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[41]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3733,7 +3894,7 @@ func (x *ResourceStreamClosedEvent) String() string {
 func (*ResourceStreamClosedEvent) ProtoMessage() {}
 
 func (x *ResourceStreamClosedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[41]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3746,7 +3907,7 @@ func (x *ResourceStreamClosedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceStreamClosedEvent.ProtoReflect.Descriptor instead.
 func (*ResourceStreamClosedEvent) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{41}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ResourceStreamClosedEvent) GetStreamHandle() uint64 {
@@ -3774,7 +3935,7 @@ type SessionClosedEvent struct {
 
 func (x *SessionClosedEvent) Reset() {
 	*x = SessionClosedEvent{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[42]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3786,7 +3947,7 @@ func (x *SessionClosedEvent) String() string {
 func (*SessionClosedEvent) ProtoMessage() {}
 
 func (x *SessionClosedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[42]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3799,7 +3960,7 @@ func (x *SessionClosedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionClosedEvent.ProtoReflect.Descriptor instead.
 func (*SessionClosedEvent) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{42}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *SessionClosedEvent) GetSessionHandle() uint64 {
@@ -3848,7 +4009,7 @@ type EndpointConnectionEvent struct {
 
 func (x *EndpointConnectionEvent) Reset() {
 	*x = EndpointConnectionEvent{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[43]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3860,7 +4021,7 @@ func (x *EndpointConnectionEvent) String() string {
 func (*EndpointConnectionEvent) ProtoMessage() {}
 
 func (x *EndpointConnectionEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[43]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3873,7 +4034,7 @@ func (x *EndpointConnectionEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointConnectionEvent.ProtoReflect.Descriptor instead.
 func (*EndpointConnectionEvent) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{43}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *EndpointConnectionEvent) GetRequestId() string {
@@ -3973,6 +4134,7 @@ type EventEnvelope struct {
 	//	*EventEnvelope_EndpointConnection
 	//	*EventEnvelope_EndpointDisconnect
 	//	*EventEnvelope_EndpointCloudPresenceGet
+	//	*EventEnvelope_BrowserProxyListen
 	Event         isEventEnvelope_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3980,7 +4142,7 @@ type EventEnvelope struct {
 
 func (x *EventEnvelope) Reset() {
 	*x = EventEnvelope{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[44]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3992,7 +4154,7 @@ func (x *EventEnvelope) String() string {
 func (*EventEnvelope) ProtoMessage() {}
 
 func (x *EventEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[44]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4005,7 +4167,7 @@ func (x *EventEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventEnvelope.ProtoReflect.Descriptor instead.
 func (*EventEnvelope) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{44}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *EventEnvelope) GetAbiVersion() uint32 {
@@ -4218,6 +4380,15 @@ func (x *EventEnvelope) GetEndpointCloudPresenceGet() *EndpointCloudPresenceGetR
 	return nil
 }
 
+func (x *EventEnvelope) GetBrowserProxyListen() *BrowserProxyListenResult {
+	if x != nil {
+		if x, ok := x.Event.(*EventEnvelope_BrowserProxyListen); ok {
+			return x.BrowserProxyListen
+		}
+	}
+	return nil
+}
+
 type isEventEnvelope_Event interface {
 	isEventEnvelope_Event()
 }
@@ -4306,6 +4477,10 @@ type EventEnvelope_EndpointCloudPresenceGet struct {
 	EndpointCloudPresenceGet *EndpointCloudPresenceGetResult `protobuf:"bytes,30,opt,name=endpoint_cloud_presence_get,json=endpointCloudPresenceGet,proto3,oneof"`
 }
 
+type EventEnvelope_BrowserProxyListen struct {
+	BrowserProxyListen *BrowserProxyListenResult `protobuf:"bytes,31,opt,name=browser_proxy_listen,json=browserProxyListen,proto3,oneof"`
+}
+
 func (*EventEnvelope_OpenSession) isEventEnvelope_Event() {}
 
 func (*EventEnvelope_Execute) isEventEnvelope_Event() {}
@@ -4348,6 +4523,8 @@ func (*EventEnvelope_EndpointDisconnect) isEventEnvelope_Event() {}
 
 func (*EventEnvelope_EndpointCloudPresenceGet) isEventEnvelope_Event() {}
 
+func (*EventEnvelope_BrowserProxyListen) isEventEnvelope_Event() {}
+
 type CredentialResolveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	EndpointId    string                 `protobuf:"bytes,1,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
@@ -4358,7 +4535,7 @@ type CredentialResolveRequest struct {
 
 func (x *CredentialResolveRequest) Reset() {
 	*x = CredentialResolveRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[45]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4370,7 +4547,7 @@ func (x *CredentialResolveRequest) String() string {
 func (*CredentialResolveRequest) ProtoMessage() {}
 
 func (x *CredentialResolveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[45]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4383,7 +4560,7 @@ func (x *CredentialResolveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialResolveRequest.ProtoReflect.Descriptor instead.
 func (*CredentialResolveRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{45}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *CredentialResolveRequest) GetEndpointId() string {
@@ -4410,7 +4587,7 @@ type CredentialPrepareRequest struct {
 
 func (x *CredentialPrepareRequest) Reset() {
 	*x = CredentialPrepareRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[46]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4422,7 +4599,7 @@ func (x *CredentialPrepareRequest) String() string {
 func (*CredentialPrepareRequest) ProtoMessage() {}
 
 func (x *CredentialPrepareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[46]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4435,7 +4612,7 @@ func (x *CredentialPrepareRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialPrepareRequest.ProtoReflect.Descriptor instead.
 func (*CredentialPrepareRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{46}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *CredentialPrepareRequest) GetEndpointId() string {
@@ -4461,7 +4638,7 @@ type CredentialDeleteRequest struct {
 
 func (x *CredentialDeleteRequest) Reset() {
 	*x = CredentialDeleteRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[47]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4473,7 +4650,7 @@ func (x *CredentialDeleteRequest) String() string {
 func (*CredentialDeleteRequest) ProtoMessage() {}
 
 func (x *CredentialDeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[47]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4486,7 +4663,7 @@ func (x *CredentialDeleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialDeleteRequest.ProtoReflect.Descriptor instead.
 func (*CredentialDeleteRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{47}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *CredentialDeleteRequest) GetCredentialRef() string {
@@ -4510,7 +4687,7 @@ type CredentialBindRequest struct {
 
 func (x *CredentialBindRequest) Reset() {
 	*x = CredentialBindRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[48]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4522,7 +4699,7 @@ func (x *CredentialBindRequest) String() string {
 func (*CredentialBindRequest) ProtoMessage() {}
 
 func (x *CredentialBindRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[48]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4535,7 +4712,7 @@ func (x *CredentialBindRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialBindRequest.ProtoReflect.Descriptor instead.
 func (*CredentialBindRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{48}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *CredentialBindRequest) GetEndpointId() string {
@@ -4589,7 +4766,7 @@ type CredentialRecord struct {
 
 func (x *CredentialRecord) Reset() {
 	*x = CredentialRecord{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[49]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4601,7 +4778,7 @@ func (x *CredentialRecord) String() string {
 func (*CredentialRecord) ProtoMessage() {}
 
 func (x *CredentialRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[49]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4614,7 +4791,7 @@ func (x *CredentialRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialRecord.ProtoReflect.Descriptor instead.
 func (*CredentialRecord) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{49}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *CredentialRecord) GetEndpointId() string {
@@ -4683,7 +4860,7 @@ type CredentialSignRequest struct {
 
 func (x *CredentialSignRequest) Reset() {
 	*x = CredentialSignRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[50]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4695,7 +4872,7 @@ func (x *CredentialSignRequest) String() string {
 func (*CredentialSignRequest) ProtoMessage() {}
 
 func (x *CredentialSignRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[50]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4708,7 +4885,7 @@ func (x *CredentialSignRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialSignRequest.ProtoReflect.Descriptor instead.
 func (*CredentialSignRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{50}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *CredentialSignRequest) GetCredentialRef() string {
@@ -4734,7 +4911,7 @@ type CredentialSignResponse struct {
 
 func (x *CredentialSignResponse) Reset() {
 	*x = CredentialSignResponse{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[51]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4746,7 +4923,7 @@ func (x *CredentialSignResponse) String() string {
 func (*CredentialSignResponse) ProtoMessage() {}
 
 func (x *CredentialSignResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[51]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4759,7 +4936,7 @@ func (x *CredentialSignResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CredentialSignResponse.ProtoReflect.Descriptor instead.
 func (*CredentialSignResponse) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{51}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CredentialSignResponse) GetSignature() []byte {
@@ -4780,7 +4957,7 @@ type CloudProfileResolveRequest struct {
 
 func (x *CloudProfileResolveRequest) Reset() {
 	*x = CloudProfileResolveRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[52]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4792,7 +4969,7 @@ func (x *CloudProfileResolveRequest) String() string {
 func (*CloudProfileResolveRequest) ProtoMessage() {}
 
 func (x *CloudProfileResolveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[52]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4805,7 +4982,7 @@ func (x *CloudProfileResolveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloudProfileResolveRequest.ProtoReflect.Descriptor instead.
 func (*CloudProfileResolveRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{52}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CloudProfileResolveRequest) GetAccountProfileRef() string {
@@ -4827,7 +5004,7 @@ type CloudProfileRecord struct {
 
 func (x *CloudProfileRecord) Reset() {
 	*x = CloudProfileRecord{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[53]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4839,7 +5016,7 @@ func (x *CloudProfileRecord) String() string {
 func (*CloudProfileRecord) ProtoMessage() {}
 
 func (x *CloudProfileRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[53]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4852,7 +5029,7 @@ func (x *CloudProfileRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloudProfileRecord.ProtoReflect.Descriptor instead.
 func (*CloudProfileRecord) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{53}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *CloudProfileRecord) GetAccountProfileRef() string {
@@ -4895,7 +5072,7 @@ type SSHCredentialLookupRequest struct {
 
 func (x *SSHCredentialLookupRequest) Reset() {
 	*x = SSHCredentialLookupRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[54]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4907,7 +5084,7 @@ func (x *SSHCredentialLookupRequest) String() string {
 func (*SSHCredentialLookupRequest) ProtoMessage() {}
 
 func (x *SSHCredentialLookupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[54]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4920,7 +5097,7 @@ func (x *SSHCredentialLookupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHCredentialLookupRequest.ProtoReflect.Descriptor instead.
 func (*SSHCredentialLookupRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{54}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *SSHCredentialLookupRequest) GetCredentialRef() string {
@@ -4946,7 +5123,7 @@ type SSHCredentialDeleteRequest struct {
 
 func (x *SSHCredentialDeleteRequest) Reset() {
 	*x = SSHCredentialDeleteRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[55]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4958,7 +5135,7 @@ func (x *SSHCredentialDeleteRequest) String() string {
 func (*SSHCredentialDeleteRequest) ProtoMessage() {}
 
 func (x *SSHCredentialDeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[55]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4971,7 +5148,7 @@ func (x *SSHCredentialDeleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHCredentialDeleteRequest.ProtoReflect.Descriptor instead.
 func (*SSHCredentialDeleteRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{55}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SSHCredentialDeleteRequest) GetCredentialRef() string {
@@ -4993,7 +5170,7 @@ type SSHCredentialRecord struct {
 
 func (x *SSHCredentialRecord) Reset() {
 	*x = SSHCredentialRecord{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[56]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5005,7 +5182,7 @@ func (x *SSHCredentialRecord) String() string {
 func (*SSHCredentialRecord) ProtoMessage() {}
 
 func (x *SSHCredentialRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[56]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5018,7 +5195,7 @@ func (x *SSHCredentialRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHCredentialRecord.ProtoReflect.Descriptor instead.
 func (*SSHCredentialRecord) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{56}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SSHCredentialRecord) GetCredentialRef() string {
@@ -5055,7 +5232,7 @@ type SSHCredentialSignRequest struct {
 
 func (x *SSHCredentialSignRequest) Reset() {
 	*x = SSHCredentialSignRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[57]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5067,7 +5244,7 @@ func (x *SSHCredentialSignRequest) String() string {
 func (*SSHCredentialSignRequest) ProtoMessage() {}
 
 func (x *SSHCredentialSignRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[57]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5080,7 +5257,7 @@ func (x *SSHCredentialSignRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHCredentialSignRequest.ProtoReflect.Descriptor instead.
 func (*SSHCredentialSignRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{57}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *SSHCredentialSignRequest) GetCredentialRef() string {
@@ -5113,7 +5290,7 @@ type SSHCredentialSignResponse struct {
 
 func (x *SSHCredentialSignResponse) Reset() {
 	*x = SSHCredentialSignResponse{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[58]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5125,7 +5302,7 @@ func (x *SSHCredentialSignResponse) String() string {
 func (*SSHCredentialSignResponse) ProtoMessage() {}
 
 func (x *SSHCredentialSignResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[58]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5138,7 +5315,7 @@ func (x *SSHCredentialSignResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SSHCredentialSignResponse.ProtoReflect.Descriptor instead.
 func (*SSHCredentialSignResponse) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{58}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SSHCredentialSignResponse) GetSignature() []byte {
@@ -5157,7 +5334,7 @@ type EndpointRegistryLoadRequest struct {
 
 func (x *EndpointRegistryLoadRequest) Reset() {
 	*x = EndpointRegistryLoadRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[59]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5169,7 +5346,7 @@ func (x *EndpointRegistryLoadRequest) String() string {
 func (*EndpointRegistryLoadRequest) ProtoMessage() {}
 
 func (x *EndpointRegistryLoadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[59]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5182,7 +5359,7 @@ func (x *EndpointRegistryLoadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointRegistryLoadRequest.ProtoReflect.Descriptor instead.
 func (*EndpointRegistryLoadRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{59}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{61}
 }
 
 type EndpointRegistryStoreRequest struct {
@@ -5195,7 +5372,7 @@ type EndpointRegistryStoreRequest struct {
 
 func (x *EndpointRegistryStoreRequest) Reset() {
 	*x = EndpointRegistryStoreRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[60]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5207,7 +5384,7 @@ func (x *EndpointRegistryStoreRequest) String() string {
 func (*EndpointRegistryStoreRequest) ProtoMessage() {}
 
 func (x *EndpointRegistryStoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[60]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5220,7 +5397,7 @@ func (x *EndpointRegistryStoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointRegistryStoreRequest.ProtoReflect.Descriptor instead.
 func (*EndpointRegistryStoreRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{60}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *EndpointRegistryStoreRequest) GetRegistryProto() []byte {
@@ -5246,7 +5423,7 @@ type EndpointRegistryLoaded struct {
 
 func (x *EndpointRegistryLoaded) Reset() {
 	*x = EndpointRegistryLoaded{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[61]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5258,7 +5435,7 @@ func (x *EndpointRegistryLoaded) String() string {
 func (*EndpointRegistryLoaded) ProtoMessage() {}
 
 func (x *EndpointRegistryLoaded) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[61]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5271,7 +5448,7 @@ func (x *EndpointRegistryLoaded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointRegistryLoaded.ProtoReflect.Descriptor instead.
 func (*EndpointRegistryLoaded) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{61}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *EndpointRegistryLoaded) GetRegistryProto() []byte {
@@ -5293,7 +5470,7 @@ type LocalDiscoveryLookupRequest struct {
 
 func (x *LocalDiscoveryLookupRequest) Reset() {
 	*x = LocalDiscoveryLookupRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[62]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5305,7 +5482,7 @@ func (x *LocalDiscoveryLookupRequest) String() string {
 func (*LocalDiscoveryLookupRequest) ProtoMessage() {}
 
 func (x *LocalDiscoveryLookupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[62]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5318,7 +5495,7 @@ func (x *LocalDiscoveryLookupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalDiscoveryLookupRequest.ProtoReflect.Descriptor instead.
 func (*LocalDiscoveryLookupRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{62}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *LocalDiscoveryLookupRequest) GetDeviceId() string {
@@ -5350,7 +5527,7 @@ type LocalDiscoveryCandidate struct {
 
 func (x *LocalDiscoveryCandidate) Reset() {
 	*x = LocalDiscoveryCandidate{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[63]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5362,7 +5539,7 @@ func (x *LocalDiscoveryCandidate) String() string {
 func (*LocalDiscoveryCandidate) ProtoMessage() {}
 
 func (x *LocalDiscoveryCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[63]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5375,7 +5552,7 @@ func (x *LocalDiscoveryCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalDiscoveryCandidate.ProtoReflect.Descriptor instead.
 func (*LocalDiscoveryCandidate) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{63}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *LocalDiscoveryCandidate) GetAddress() string {
@@ -5422,7 +5599,7 @@ type LocalDiscoveryLookupResult struct {
 
 func (x *LocalDiscoveryLookupResult) Reset() {
 	*x = LocalDiscoveryLookupResult{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[64]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5434,7 +5611,7 @@ func (x *LocalDiscoveryLookupResult) String() string {
 func (*LocalDiscoveryLookupResult) ProtoMessage() {}
 
 func (x *LocalDiscoveryLookupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[64]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5447,7 +5624,7 @@ func (x *LocalDiscoveryLookupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalDiscoveryLookupResult.ProtoReflect.Descriptor instead.
 func (*LocalDiscoveryLookupResult) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{64}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *LocalDiscoveryLookupResult) GetCandidates() []*LocalDiscoveryCandidate {
@@ -5467,7 +5644,7 @@ type PlatformEvent struct {
 
 func (x *PlatformEvent) Reset() {
 	*x = PlatformEvent{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[65]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5479,7 +5656,7 @@ func (x *PlatformEvent) String() string {
 func (*PlatformEvent) ProtoMessage() {}
 
 func (x *PlatformEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[65]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5492,7 +5669,7 @@ func (x *PlatformEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlatformEvent.ProtoReflect.Descriptor instead.
 func (*PlatformEvent) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{65}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{67}
 }
 
 type PlatformRequest struct {
@@ -5519,7 +5696,7 @@ type PlatformRequest struct {
 
 func (x *PlatformRequest) Reset() {
 	*x = PlatformRequest{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[66]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5531,7 +5708,7 @@ func (x *PlatformRequest) String() string {
 func (*PlatformRequest) ProtoMessage() {}
 
 func (x *PlatformRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[66]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5544,7 +5721,7 @@ func (x *PlatformRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlatformRequest.ProtoReflect.Descriptor instead.
 func (*PlatformRequest) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{66}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *PlatformRequest) GetRequestId() uint64 {
@@ -5765,7 +5942,7 @@ type PlatformResponse struct {
 
 func (x *PlatformResponse) Reset() {
 	*x = PlatformResponse{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[67]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5777,7 +5954,7 @@ func (x *PlatformResponse) String() string {
 func (*PlatformResponse) ProtoMessage() {}
 
 func (x *PlatformResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[67]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5790,7 +5967,7 @@ func (x *PlatformResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlatformResponse.ProtoReflect.Descriptor instead.
 func (*PlatformResponse) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{67}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *PlatformResponse) GetRequestId() uint64 {
@@ -5932,7 +6109,7 @@ type PTYStreamSyncLost struct {
 
 func (x *PTYStreamSyncLost) Reset() {
 	*x = PTYStreamSyncLost{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[68]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5944,7 +6121,7 @@ func (x *PTYStreamSyncLost) String() string {
 func (*PTYStreamSyncLost) ProtoMessage() {}
 
 func (x *PTYStreamSyncLost) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[68]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5957,7 +6134,7 @@ func (x *PTYStreamSyncLost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PTYStreamSyncLost.ProtoReflect.Descriptor instead.
 func (*PTYStreamSyncLost) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{68}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *PTYStreamSyncLost) GetDroppedBytes() uint64 {
@@ -5976,7 +6153,7 @@ type PTYStreamClosed struct {
 
 func (x *PTYStreamClosed) Reset() {
 	*x = PTYStreamClosed{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[69]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5988,7 +6165,7 @@ func (x *PTYStreamClosed) String() string {
 func (*PTYStreamClosed) ProtoMessage() {}
 
 func (x *PTYStreamClosed) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[69]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6001,7 +6178,7 @@ func (x *PTYStreamClosed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PTYStreamClosed.ProtoReflect.Descriptor instead.
 func (*PTYStreamClosed) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{69}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *PTYStreamClosed) GetExitCode() int32 {
@@ -6021,7 +6198,7 @@ type EndpointSupervisorDemand struct {
 
 func (x *EndpointSupervisorDemand) Reset() {
 	*x = EndpointSupervisorDemand{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[70]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6033,7 +6210,7 @@ func (x *EndpointSupervisorDemand) String() string {
 func (*EndpointSupervisorDemand) ProtoMessage() {}
 
 func (x *EndpointSupervisorDemand) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[70]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6046,7 +6223,7 @@ func (x *EndpointSupervisorDemand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointSupervisorDemand.ProtoReflect.Descriptor instead.
 func (*EndpointSupervisorDemand) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{70}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *EndpointSupervisorDemand) GetEndpointId() string {
@@ -6074,7 +6251,7 @@ type EndpointSupervisorDemandSnapshot struct {
 
 func (x *EndpointSupervisorDemandSnapshot) Reset() {
 	*x = EndpointSupervisorDemandSnapshot{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[71]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6086,7 +6263,7 @@ func (x *EndpointSupervisorDemandSnapshot) String() string {
 func (*EndpointSupervisorDemandSnapshot) ProtoMessage() {}
 
 func (x *EndpointSupervisorDemandSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[71]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6099,7 +6276,7 @@ func (x *EndpointSupervisorDemandSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointSupervisorDemandSnapshot.ProtoReflect.Descriptor instead.
 func (*EndpointSupervisorDemandSnapshot) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{71}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *EndpointSupervisorDemandSnapshot) GetAttachmentId() string {
@@ -6137,7 +6314,7 @@ type EndpointSupervisorHostSignal struct {
 
 func (x *EndpointSupervisorHostSignal) Reset() {
 	*x = EndpointSupervisorHostSignal{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[72]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6149,7 +6326,7 @@ func (x *EndpointSupervisorHostSignal) String() string {
 func (*EndpointSupervisorHostSignal) ProtoMessage() {}
 
 func (x *EndpointSupervisorHostSignal) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[72]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6162,7 +6339,7 @@ func (x *EndpointSupervisorHostSignal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointSupervisorHostSignal.ProtoReflect.Descriptor instead.
 func (*EndpointSupervisorHostSignal) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{72}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *EndpointSupervisorHostSignal) GetRevision() uint64 {
@@ -6212,7 +6389,7 @@ type EndpointSupervisorProjection struct {
 
 func (x *EndpointSupervisorProjection) Reset() {
 	*x = EndpointSupervisorProjection{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[73]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6224,7 +6401,7 @@ func (x *EndpointSupervisorProjection) String() string {
 func (*EndpointSupervisorProjection) ProtoMessage() {}
 
 func (x *EndpointSupervisorProjection) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[73]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6237,7 +6414,7 @@ func (x *EndpointSupervisorProjection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointSupervisorProjection.ProtoReflect.Descriptor instead.
 func (*EndpointSupervisorProjection) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{73}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *EndpointSupervisorProjection) GetEndpointId() string {
@@ -6326,7 +6503,7 @@ type EndpointSupervisorSnapshot struct {
 
 func (x *EndpointSupervisorSnapshot) Reset() {
 	*x = EndpointSupervisorSnapshot{}
-	mi := &file_bindingpb_client_binding_proto_msgTypes[74]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6338,7 +6515,7 @@ func (x *EndpointSupervisorSnapshot) String() string {
 func (*EndpointSupervisorSnapshot) ProtoMessage() {}
 
 func (x *EndpointSupervisorSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_bindingpb_client_binding_proto_msgTypes[74]
+	mi := &file_bindingpb_client_binding_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6351,7 +6528,7 @@ func (x *EndpointSupervisorSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointSupervisorSnapshot.ProtoReflect.Descriptor instead.
 func (*EndpointSupervisorSnapshot) Descriptor() ([]byte, []int) {
-	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{74}
+	return file_bindingpb_client_binding_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *EndpointSupervisorSnapshot) GetEndpoints() []*EndpointSupervisorProjection {
@@ -6615,7 +6792,20 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x0ecredential_ref\x18\x05 \x01(\tR\rcredentialRef\x12%\n" +
 	"\x0eauthorized_key\x18\x06 \x01(\tR\rauthorizedKey\x12'\n" +
 	"\x0fkey_fingerprint\x18\a \x01(\tR\x0ekeyFingerprint\x12-\n" +
-	"\x05error\x18\b \x01(\v2\x17.anytty.api.v1.ApiErrorR\x05error\"\xe2\v\n" +
+	"\x05error\x18\b \x01(\v2\x17.anytty.api.v1.ApiErrorR\x05error\"\x89\x01\n" +
+	"\x19BrowserProxyListenRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12%\n" +
+	"\x0esession_handle\x18\x02 \x01(\x04R\rsessionHandle\x12\x12\n" +
+	"\x04stop\x18\x03 \x01(\bR\x04stop\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\rR\x04port\"\xce\x01\n" +
+	"\x18BrowserProxyListenResult\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12)\n" +
+	"\x10operation_handle\x18\x02 \x01(\x04R\x0foperationHandle\x12%\n" +
+	"\x0esession_handle\x18\x03 \x01(\x04R\rsessionHandle\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\rR\x04port\x12-\n" +
+	"\x05error\x18\x05 \x01(\v2\x17.anytty.api.v1.ApiErrorR\x05error\"\xcb\f\n" +
 	"\rEngineCommand\x12W\n" +
 	"\x0eimport_pairing\x18\x01 \x01(\v2..anytty.client.binding.v1.ImportPairingRequestH\x00R\rimportPairing\x12`\n" +
 	"\x11delete_credential\x18\x02 \x01(\v21.anytty.client.binding.v1.DeleteCredentialRequestH\x00R\x10deleteCredential\x12j\n" +
@@ -6631,7 +6821,8 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x17connection_snapshot_get\x18\v \x01(\v26.anytty.client.binding.v1.ConnectionSnapshotGetRequestH\x00R\x15connectionSnapshotGet\x12c\n" +
 	"\x12session_invalidate\x18\f \x01(\v22.anytty.client.binding.v1.SessionInvalidateRequestH\x00R\x11sessionInvalidate\x12f\n" +
 	"\x13endpoint_disconnect\x18\r \x01(\v23.anytty.client.binding.v1.EndpointDisconnectRequestH\x00R\x12endpointDisconnect\x12z\n" +
-	"\x1bendpoint_cloud_presence_get\x18\x0e \x01(\v29.anytty.client.binding.v1.EndpointCloudPresenceGetRequestH\x00R\x18endpointCloudPresenceGetB\t\n" +
+	"\x1bendpoint_cloud_presence_get\x18\x0e \x01(\v29.anytty.client.binding.v1.EndpointCloudPresenceGetRequestH\x00R\x18endpointCloudPresenceGet\x12g\n" +
+	"\x14browser_proxy_listen\x18\x0f \x01(\v23.anytty.client.binding.v1.BrowserProxyListenRequestH\x00R\x12browserProxyListenB\t\n" +
 	"\acommand\"\xc0\x02\n" +
 	"\x11OpenSessionResult\x12\x1d\n" +
 	"\n" +
@@ -6678,7 +6869,7 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x05error\x18\b \x01(\v2\x17.anytty.api.v1.ApiErrorR\x05error\x12_\n" +
 	"\x14attempted_route_kind\x18\t \x01(\x0e2-.anytty.client.binding.v1.ConnectionRouteKindR\x12attemptedRouteKind\x12)\n" +
 	"\x10connection_stage\x18\n" +
-	" \x01(\tR\x0fconnectionStage\"\x85\x11\n" +
+	" \x01(\tR\x0fconnectionStage\"\xed\x11\n" +
 	"\rEventEnvelope\x12\x1f\n" +
 	"\vabi_version\x18\x01 \x01(\rR\n" +
 	"abiVersion\x12\x1a\n" +
@@ -6704,7 +6895,8 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x12session_invalidate\x18\x1b \x01(\v21.anytty.client.binding.v1.SessionInvalidateResultH\x00R\x11sessionInvalidate\x12d\n" +
 	"\x13endpoint_connection\x18\x1c \x01(\v21.anytty.client.binding.v1.EndpointConnectionEventH\x00R\x12endpointConnection\x12e\n" +
 	"\x13endpoint_disconnect\x18\x1d \x01(\v22.anytty.client.binding.v1.EndpointDisconnectResultH\x00R\x12endpointDisconnect\x12y\n" +
-	"\x1bendpoint_cloud_presence_get\x18\x1e \x01(\v28.anytty.client.binding.v1.EndpointCloudPresenceGetResultH\x00R\x18endpointCloudPresenceGetB\a\n" +
+	"\x1bendpoint_cloud_presence_get\x18\x1e \x01(\v28.anytty.client.binding.v1.EndpointCloudPresenceGetResultH\x00R\x18endpointCloudPresenceGet\x12f\n" +
+	"\x14browser_proxy_listen\x18\x1f \x01(\v22.anytty.client.binding.v1.BrowserProxyListenResultH\x00R\x12browserProxyListenB\a\n" +
 	"\x05event\"b\n" +
 	"\x18CredentialResolveRequest\x12\x1f\n" +
 	"\vendpoint_id\x18\x01 \x01(\tR\n" +
@@ -6930,7 +7122,7 @@ func file_bindingpb_client_binding_proto_rawDescGZIP() []byte {
 }
 
 var file_bindingpb_client_binding_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_bindingpb_client_binding_proto_msgTypes = make([]protoimpl.MessageInfo, 75)
+var file_bindingpb_client_binding_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
 var file_bindingpb_client_binding_proto_goTypes = []any{
 	(ConnectIntent)(0),                                // 0: anytty.client.binding.v1.ConnectIntent
 	(ResourceStreamFrameType)(0),                      // 1: anytty.client.binding.v1.ResourceStreamFrameType
@@ -6976,58 +7168,60 @@ var file_bindingpb_client_binding_proto_goTypes = []any{
 	(*EndpointShareCommitResult)(nil),                 // 41: anytty.client.binding.v1.EndpointShareCommitResult
 	(*SSHCredentialProvisionRequest)(nil),             // 42: anytty.client.binding.v1.SSHCredentialProvisionRequest
 	(*SSHCredentialProvisionResult)(nil),              // 43: anytty.client.binding.v1.SSHCredentialProvisionResult
-	(*EngineCommand)(nil),                             // 44: anytty.client.binding.v1.EngineCommand
-	(*OpenSessionResult)(nil),                         // 45: anytty.client.binding.v1.OpenSessionResult
-	(*ExecuteResult)(nil),                             // 46: anytty.client.binding.v1.ExecuteResult
-	(*ApplicationEvent)(nil),                          // 47: anytty.client.binding.v1.ApplicationEvent
-	(*OpenResourceStreamRequest)(nil),                 // 48: anytty.client.binding.v1.OpenResourceStreamRequest
-	(*ResourceStreamFrame)(nil),                       // 49: anytty.client.binding.v1.ResourceStreamFrame
-	(*ResourceStreamClosedEvent)(nil),                 // 50: anytty.client.binding.v1.ResourceStreamClosedEvent
-	(*SessionClosedEvent)(nil),                        // 51: anytty.client.binding.v1.SessionClosedEvent
-	(*EndpointConnectionEvent)(nil),                   // 52: anytty.client.binding.v1.EndpointConnectionEvent
-	(*EventEnvelope)(nil),                             // 53: anytty.client.binding.v1.EventEnvelope
-	(*CredentialResolveRequest)(nil),                  // 54: anytty.client.binding.v1.CredentialResolveRequest
-	(*CredentialPrepareRequest)(nil),                  // 55: anytty.client.binding.v1.CredentialPrepareRequest
-	(*CredentialDeleteRequest)(nil),                   // 56: anytty.client.binding.v1.CredentialDeleteRequest
-	(*CredentialBindRequest)(nil),                     // 57: anytty.client.binding.v1.CredentialBindRequest
-	(*CredentialRecord)(nil),                          // 58: anytty.client.binding.v1.CredentialRecord
-	(*CredentialSignRequest)(nil),                     // 59: anytty.client.binding.v1.CredentialSignRequest
-	(*CredentialSignResponse)(nil),                    // 60: anytty.client.binding.v1.CredentialSignResponse
-	(*CloudProfileResolveRequest)(nil),                // 61: anytty.client.binding.v1.CloudProfileResolveRequest
-	(*CloudProfileRecord)(nil),                        // 62: anytty.client.binding.v1.CloudProfileRecord
-	(*SSHCredentialLookupRequest)(nil),                // 63: anytty.client.binding.v1.SSHCredentialLookupRequest
-	(*SSHCredentialDeleteRequest)(nil),                // 64: anytty.client.binding.v1.SSHCredentialDeleteRequest
-	(*SSHCredentialRecord)(nil),                       // 65: anytty.client.binding.v1.SSHCredentialRecord
-	(*SSHCredentialSignRequest)(nil),                  // 66: anytty.client.binding.v1.SSHCredentialSignRequest
-	(*SSHCredentialSignResponse)(nil),                 // 67: anytty.client.binding.v1.SSHCredentialSignResponse
-	(*EndpointRegistryLoadRequest)(nil),               // 68: anytty.client.binding.v1.EndpointRegistryLoadRequest
-	(*EndpointRegistryStoreRequest)(nil),              // 69: anytty.client.binding.v1.EndpointRegistryStoreRequest
-	(*EndpointRegistryLoaded)(nil),                    // 70: anytty.client.binding.v1.EndpointRegistryLoaded
-	(*LocalDiscoveryLookupRequest)(nil),               // 71: anytty.client.binding.v1.LocalDiscoveryLookupRequest
-	(*LocalDiscoveryCandidate)(nil),                   // 72: anytty.client.binding.v1.LocalDiscoveryCandidate
-	(*LocalDiscoveryLookupResult)(nil),                // 73: anytty.client.binding.v1.LocalDiscoveryLookupResult
-	(*PlatformEvent)(nil),                             // 74: anytty.client.binding.v1.PlatformEvent
-	(*PlatformRequest)(nil),                           // 75: anytty.client.binding.v1.PlatformRequest
-	(*PlatformResponse)(nil),                          // 76: anytty.client.binding.v1.PlatformResponse
-	(*PTYStreamSyncLost)(nil),                         // 77: anytty.client.binding.v1.PTYStreamSyncLost
-	(*PTYStreamClosed)(nil),                           // 78: anytty.client.binding.v1.PTYStreamClosed
-	(*EndpointSupervisorDemand)(nil),                  // 79: anytty.client.binding.v1.EndpointSupervisorDemand
-	(*EndpointSupervisorDemandSnapshot)(nil),          // 80: anytty.client.binding.v1.EndpointSupervisorDemandSnapshot
-	(*EndpointSupervisorHostSignal)(nil),              // 81: anytty.client.binding.v1.EndpointSupervisorHostSignal
-	(*EndpointSupervisorProjection)(nil),              // 82: anytty.client.binding.v1.EndpointSupervisorProjection
-	(*EndpointSupervisorSnapshot)(nil),                // 83: anytty.client.binding.v1.EndpointSupervisorSnapshot
-	(remoteauthpb.EndpointRoutePreference)(0),         // 84: anytty.remote.auth.v1.EndpointRoutePreference
-	(remoteauthpb.ManagedWebRTCRelayMode)(0),          // 85: anytty.remote.auth.v1.ManagedWebRTCRelayMode
-	(remoteauthpb.ManagedWebRTCRelayTransport)(0),     // 86: anytty.remote.auth.v1.ManagedWebRTCRelayTransport
-	(*apipb.ApiError)(nil),                            // 87: anytty.api.v1.ApiError
-	(*remoteauthpb.EndpointConfigV1)(nil),             // 88: anytty.remote.auth.v1.EndpointConfigV1
-	(*remoteauthpb.EndpointRegistryV1)(nil),           // 89: anytty.remote.auth.v1.EndpointRegistryV1
-	(*remoteauthpb.EndpointDaemonIdentity)(nil),       // 90: anytty.remote.auth.v1.EndpointDaemonIdentity
-	(*remoteauthpb.EndpointCredentialDescriptor)(nil), // 91: anytty.remote.auth.v1.EndpointCredentialDescriptor
-	(*apipb.EndpointSessionStamp)(nil),                // 92: anytty.api.v1.EndpointSessionStamp
-	(*apipb.ResultEnvelope)(nil),                      // 93: anytty.api.v1.ResultEnvelope
-	(*apipb.EventEnvelope)(nil),                       // 94: anytty.api.v1.EventEnvelope
-	(*apipb.ResourceHandle)(nil),                      // 95: anytty.api.v1.ResourceHandle
+	(*BrowserProxyListenRequest)(nil),                 // 44: anytty.client.binding.v1.BrowserProxyListenRequest
+	(*BrowserProxyListenResult)(nil),                  // 45: anytty.client.binding.v1.BrowserProxyListenResult
+	(*EngineCommand)(nil),                             // 46: anytty.client.binding.v1.EngineCommand
+	(*OpenSessionResult)(nil),                         // 47: anytty.client.binding.v1.OpenSessionResult
+	(*ExecuteResult)(nil),                             // 48: anytty.client.binding.v1.ExecuteResult
+	(*ApplicationEvent)(nil),                          // 49: anytty.client.binding.v1.ApplicationEvent
+	(*OpenResourceStreamRequest)(nil),                 // 50: anytty.client.binding.v1.OpenResourceStreamRequest
+	(*ResourceStreamFrame)(nil),                       // 51: anytty.client.binding.v1.ResourceStreamFrame
+	(*ResourceStreamClosedEvent)(nil),                 // 52: anytty.client.binding.v1.ResourceStreamClosedEvent
+	(*SessionClosedEvent)(nil),                        // 53: anytty.client.binding.v1.SessionClosedEvent
+	(*EndpointConnectionEvent)(nil),                   // 54: anytty.client.binding.v1.EndpointConnectionEvent
+	(*EventEnvelope)(nil),                             // 55: anytty.client.binding.v1.EventEnvelope
+	(*CredentialResolveRequest)(nil),                  // 56: anytty.client.binding.v1.CredentialResolveRequest
+	(*CredentialPrepareRequest)(nil),                  // 57: anytty.client.binding.v1.CredentialPrepareRequest
+	(*CredentialDeleteRequest)(nil),                   // 58: anytty.client.binding.v1.CredentialDeleteRequest
+	(*CredentialBindRequest)(nil),                     // 59: anytty.client.binding.v1.CredentialBindRequest
+	(*CredentialRecord)(nil),                          // 60: anytty.client.binding.v1.CredentialRecord
+	(*CredentialSignRequest)(nil),                     // 61: anytty.client.binding.v1.CredentialSignRequest
+	(*CredentialSignResponse)(nil),                    // 62: anytty.client.binding.v1.CredentialSignResponse
+	(*CloudProfileResolveRequest)(nil),                // 63: anytty.client.binding.v1.CloudProfileResolveRequest
+	(*CloudProfileRecord)(nil),                        // 64: anytty.client.binding.v1.CloudProfileRecord
+	(*SSHCredentialLookupRequest)(nil),                // 65: anytty.client.binding.v1.SSHCredentialLookupRequest
+	(*SSHCredentialDeleteRequest)(nil),                // 66: anytty.client.binding.v1.SSHCredentialDeleteRequest
+	(*SSHCredentialRecord)(nil),                       // 67: anytty.client.binding.v1.SSHCredentialRecord
+	(*SSHCredentialSignRequest)(nil),                  // 68: anytty.client.binding.v1.SSHCredentialSignRequest
+	(*SSHCredentialSignResponse)(nil),                 // 69: anytty.client.binding.v1.SSHCredentialSignResponse
+	(*EndpointRegistryLoadRequest)(nil),               // 70: anytty.client.binding.v1.EndpointRegistryLoadRequest
+	(*EndpointRegistryStoreRequest)(nil),              // 71: anytty.client.binding.v1.EndpointRegistryStoreRequest
+	(*EndpointRegistryLoaded)(nil),                    // 72: anytty.client.binding.v1.EndpointRegistryLoaded
+	(*LocalDiscoveryLookupRequest)(nil),               // 73: anytty.client.binding.v1.LocalDiscoveryLookupRequest
+	(*LocalDiscoveryCandidate)(nil),                   // 74: anytty.client.binding.v1.LocalDiscoveryCandidate
+	(*LocalDiscoveryLookupResult)(nil),                // 75: anytty.client.binding.v1.LocalDiscoveryLookupResult
+	(*PlatformEvent)(nil),                             // 76: anytty.client.binding.v1.PlatformEvent
+	(*PlatformRequest)(nil),                           // 77: anytty.client.binding.v1.PlatformRequest
+	(*PlatformResponse)(nil),                          // 78: anytty.client.binding.v1.PlatformResponse
+	(*PTYStreamSyncLost)(nil),                         // 79: anytty.client.binding.v1.PTYStreamSyncLost
+	(*PTYStreamClosed)(nil),                           // 80: anytty.client.binding.v1.PTYStreamClosed
+	(*EndpointSupervisorDemand)(nil),                  // 81: anytty.client.binding.v1.EndpointSupervisorDemand
+	(*EndpointSupervisorDemandSnapshot)(nil),          // 82: anytty.client.binding.v1.EndpointSupervisorDemandSnapshot
+	(*EndpointSupervisorHostSignal)(nil),              // 83: anytty.client.binding.v1.EndpointSupervisorHostSignal
+	(*EndpointSupervisorProjection)(nil),              // 84: anytty.client.binding.v1.EndpointSupervisorProjection
+	(*EndpointSupervisorSnapshot)(nil),                // 85: anytty.client.binding.v1.EndpointSupervisorSnapshot
+	(remoteauthpb.EndpointRoutePreference)(0),         // 86: anytty.remote.auth.v1.EndpointRoutePreference
+	(remoteauthpb.ManagedWebRTCRelayMode)(0),          // 87: anytty.remote.auth.v1.ManagedWebRTCRelayMode
+	(remoteauthpb.ManagedWebRTCRelayTransport)(0),     // 88: anytty.remote.auth.v1.ManagedWebRTCRelayTransport
+	(*apipb.ApiError)(nil),                            // 89: anytty.api.v1.ApiError
+	(*remoteauthpb.EndpointConfigV1)(nil),             // 90: anytty.remote.auth.v1.EndpointConfigV1
+	(*remoteauthpb.EndpointRegistryV1)(nil),           // 91: anytty.remote.auth.v1.EndpointRegistryV1
+	(*remoteauthpb.EndpointDaemonIdentity)(nil),       // 92: anytty.remote.auth.v1.EndpointDaemonIdentity
+	(*remoteauthpb.EndpointCredentialDescriptor)(nil), // 93: anytty.remote.auth.v1.EndpointCredentialDescriptor
+	(*apipb.EndpointSessionStamp)(nil),                // 94: anytty.api.v1.EndpointSessionStamp
+	(*apipb.ResultEnvelope)(nil),                      // 95: anytty.api.v1.ResultEnvelope
+	(*apipb.EventEnvelope)(nil),                       // 96: anytty.api.v1.EventEnvelope
+	(*apipb.ResourceHandle)(nil),                      // 97: anytty.api.v1.ResourceHandle
 }
 var file_bindingpb_client_binding_proto_depIdxs = []int32{
 	2,   // 0: anytty.client.binding.v1.ConnectionSnapshot.route_kind:type_name -> anytty.client.binding.v1.ConnectionRouteKind
@@ -7037,129 +7231,132 @@ var file_bindingpb_client_binding_proto_depIdxs = []int32{
 	5,   // 4: anytty.client.binding.v1.ConnectionSnapshot.local_protocol:type_name -> anytty.client.binding.v1.ConnectionTransport
 	5,   // 5: anytty.client.binding.v1.ConnectionSnapshot.remote_protocol:type_name -> anytty.client.binding.v1.ConnectionTransport
 	5,   // 6: anytty.client.binding.v1.ConnectionSnapshot.relay_transport:type_name -> anytty.client.binding.v1.ConnectionTransport
-	84,  // 7: anytty.client.binding.v1.ConnectionPolicy.route_preference:type_name -> anytty.remote.auth.v1.EndpointRoutePreference
-	85,  // 8: anytty.client.binding.v1.ConnectionPolicy.cloud_relay_mode:type_name -> anytty.remote.auth.v1.ManagedWebRTCRelayMode
-	86,  // 9: anytty.client.binding.v1.ConnectionPolicy.relay_transport:type_name -> anytty.remote.auth.v1.ManagedWebRTCRelayTransport
+	86,  // 7: anytty.client.binding.v1.ConnectionPolicy.route_preference:type_name -> anytty.remote.auth.v1.EndpointRoutePreference
+	87,  // 8: anytty.client.binding.v1.ConnectionPolicy.cloud_relay_mode:type_name -> anytty.remote.auth.v1.ManagedWebRTCRelayMode
+	88,  // 9: anytty.client.binding.v1.ConnectionPolicy.relay_transport:type_name -> anytty.remote.auth.v1.ManagedWebRTCRelayTransport
 	2,   // 10: anytty.client.binding.v1.ConnectionPolicyRouteAvailability.route_kind:type_name -> anytty.client.binding.v1.ConnectionRouteKind
 	6,   // 11: anytty.client.binding.v1.ConnectionPolicyRouteAvailability.reason:type_name -> anytty.client.binding.v1.ConnectionPolicyAvailabilityReason
 	10,  // 12: anytty.client.binding.v1.ConnectionPolicyState.policy:type_name -> anytty.client.binding.v1.ConnectionPolicy
 	11,  // 13: anytty.client.binding.v1.ConnectionPolicyState.routes:type_name -> anytty.client.binding.v1.ConnectionPolicyRouteAvailability
 	12,  // 14: anytty.client.binding.v1.ConnectionPolicyGetResult.state:type_name -> anytty.client.binding.v1.ConnectionPolicyState
-	87,  // 15: anytty.client.binding.v1.ConnectionPolicyGetResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 15: anytty.client.binding.v1.ConnectionPolicyGetResult.error:type_name -> anytty.api.v1.ApiError
 	10,  // 16: anytty.client.binding.v1.ConnectionPolicyApplyRequest.policy:type_name -> anytty.client.binding.v1.ConnectionPolicy
 	12,  // 17: anytty.client.binding.v1.ConnectionPolicyApplyResult.state:type_name -> anytty.client.binding.v1.ConnectionPolicyState
-	87,  // 18: anytty.client.binding.v1.ConnectionPolicyApplyResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 18: anytty.client.binding.v1.ConnectionPolicyApplyResult.error:type_name -> anytty.api.v1.ApiError
 	9,   // 19: anytty.client.binding.v1.ConnectionSnapshotGetResult.connection:type_name -> anytty.client.binding.v1.ConnectionSnapshot
-	87,  // 20: anytty.client.binding.v1.ConnectionSnapshotGetResult.error:type_name -> anytty.api.v1.ApiError
-	87,  // 21: anytty.client.binding.v1.SessionInvalidateResult.error:type_name -> anytty.api.v1.ApiError
-	87,  // 22: anytty.client.binding.v1.EndpointDisconnectResult.error:type_name -> anytty.api.v1.ApiError
-	87,  // 23: anytty.client.binding.v1.EndpointCloudPresenceGetResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 20: anytty.client.binding.v1.ConnectionSnapshotGetResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 21: anytty.client.binding.v1.SessionInvalidateResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 22: anytty.client.binding.v1.EndpointDisconnectResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 23: anytty.client.binding.v1.EndpointCloudPresenceGetResult.error:type_name -> anytty.api.v1.ApiError
 	0,   // 24: anytty.client.binding.v1.OpenSessionRequest.intent:type_name -> anytty.client.binding.v1.ConnectIntent
-	88,  // 25: anytty.client.binding.v1.ImportPairingResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
-	87,  // 26: anytty.client.binding.v1.ImportPairingResult.error:type_name -> anytty.api.v1.ApiError
-	89,  // 27: anytty.client.binding.v1.ImportPairingResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 28: anytty.client.binding.v1.DeleteCredentialResult.error:type_name -> anytty.api.v1.ApiError
-	89,  // 29: anytty.client.binding.v1.EndpointRegistryGetResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 30: anytty.client.binding.v1.EndpointRegistryGetResult.error:type_name -> anytty.api.v1.ApiError
-	88,  // 31: anytty.client.binding.v1.EndpointUpsertRequest.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
-	88,  // 32: anytty.client.binding.v1.EndpointUpsertResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
-	89,  // 33: anytty.client.binding.v1.EndpointUpsertResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 34: anytty.client.binding.v1.EndpointUpsertResult.error:type_name -> anytty.api.v1.ApiError
-	89,  // 35: anytty.client.binding.v1.EndpointDeleteResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 36: anytty.client.binding.v1.EndpointDeleteResult.error:type_name -> anytty.api.v1.ApiError
-	90,  // 37: anytty.client.binding.v1.EndpointSharePreview.identity:type_name -> anytty.remote.auth.v1.EndpointDaemonIdentity
+	90,  // 25: anytty.client.binding.v1.ImportPairingResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
+	89,  // 26: anytty.client.binding.v1.ImportPairingResult.error:type_name -> anytty.api.v1.ApiError
+	91,  // 27: anytty.client.binding.v1.ImportPairingResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 28: anytty.client.binding.v1.DeleteCredentialResult.error:type_name -> anytty.api.v1.ApiError
+	91,  // 29: anytty.client.binding.v1.EndpointRegistryGetResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 30: anytty.client.binding.v1.EndpointRegistryGetResult.error:type_name -> anytty.api.v1.ApiError
+	90,  // 31: anytty.client.binding.v1.EndpointUpsertRequest.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
+	90,  // 32: anytty.client.binding.v1.EndpointUpsertResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
+	91,  // 33: anytty.client.binding.v1.EndpointUpsertResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 34: anytty.client.binding.v1.EndpointUpsertResult.error:type_name -> anytty.api.v1.ApiError
+	91,  // 35: anytty.client.binding.v1.EndpointDeleteResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 36: anytty.client.binding.v1.EndpointDeleteResult.error:type_name -> anytty.api.v1.ApiError
+	92,  // 37: anytty.client.binding.v1.EndpointSharePreview.identity:type_name -> anytty.remote.auth.v1.EndpointDaemonIdentity
 	37,  // 38: anytty.client.binding.v1.EndpointSharePreview.route_diffs:type_name -> anytty.client.binding.v1.EndpointShareRouteDiff
-	91,  // 39: anytty.client.binding.v1.EndpointSharePreview.credential_descriptors:type_name -> anytty.remote.auth.v1.EndpointCredentialDescriptor
+	93,  // 39: anytty.client.binding.v1.EndpointSharePreview.credential_descriptors:type_name -> anytty.remote.auth.v1.EndpointCredentialDescriptor
 	38,  // 40: anytty.client.binding.v1.EndpointShareReceiveResult.preview:type_name -> anytty.client.binding.v1.EndpointSharePreview
-	87,  // 41: anytty.client.binding.v1.EndpointShareReceiveResult.error:type_name -> anytty.api.v1.ApiError
-	88,  // 42: anytty.client.binding.v1.EndpointShareCommitResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
-	89,  // 43: anytty.client.binding.v1.EndpointShareCommitResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 44: anytty.client.binding.v1.EndpointShareCommitResult.error:type_name -> anytty.api.v1.ApiError
-	88,  // 45: anytty.client.binding.v1.SSHCredentialProvisionResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
-	89,  // 46: anytty.client.binding.v1.SSHCredentialProvisionResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
-	87,  // 47: anytty.client.binding.v1.SSHCredentialProvisionResult.error:type_name -> anytty.api.v1.ApiError
-	26,  // 48: anytty.client.binding.v1.EngineCommand.import_pairing:type_name -> anytty.client.binding.v1.ImportPairingRequest
-	28,  // 49: anytty.client.binding.v1.EngineCommand.delete_credential:type_name -> anytty.client.binding.v1.DeleteCredentialRequest
-	30,  // 50: anytty.client.binding.v1.EngineCommand.endpoint_registry_get:type_name -> anytty.client.binding.v1.EndpointRegistryGetRequest
-	32,  // 51: anytty.client.binding.v1.EngineCommand.endpoint_upsert:type_name -> anytty.client.binding.v1.EndpointUpsertRequest
-	34,  // 52: anytty.client.binding.v1.EngineCommand.endpoint_delete:type_name -> anytty.client.binding.v1.EndpointDeleteRequest
-	36,  // 53: anytty.client.binding.v1.EngineCommand.endpoint_share_receive:type_name -> anytty.client.binding.v1.EndpointShareReceiveRequest
-	40,  // 54: anytty.client.binding.v1.EngineCommand.endpoint_share_commit:type_name -> anytty.client.binding.v1.EndpointShareCommitRequest
-	42,  // 55: anytty.client.binding.v1.EngineCommand.ssh_credential_provision:type_name -> anytty.client.binding.v1.SSHCredentialProvisionRequest
-	13,  // 56: anytty.client.binding.v1.EngineCommand.connection_policy_get:type_name -> anytty.client.binding.v1.ConnectionPolicyGetRequest
-	15,  // 57: anytty.client.binding.v1.EngineCommand.connection_policy_apply:type_name -> anytty.client.binding.v1.ConnectionPolicyApplyRequest
-	17,  // 58: anytty.client.binding.v1.EngineCommand.connection_snapshot_get:type_name -> anytty.client.binding.v1.ConnectionSnapshotGetRequest
-	19,  // 59: anytty.client.binding.v1.EngineCommand.session_invalidate:type_name -> anytty.client.binding.v1.SessionInvalidateRequest
-	21,  // 60: anytty.client.binding.v1.EngineCommand.endpoint_disconnect:type_name -> anytty.client.binding.v1.EndpointDisconnectRequest
-	23,  // 61: anytty.client.binding.v1.EngineCommand.endpoint_cloud_presence_get:type_name -> anytty.client.binding.v1.EndpointCloudPresenceGetRequest
-	92,  // 62: anytty.client.binding.v1.OpenSessionResult.session:type_name -> anytty.api.v1.EndpointSessionStamp
-	87,  // 63: anytty.client.binding.v1.OpenSessionResult.error:type_name -> anytty.api.v1.ApiError
-	9,   // 64: anytty.client.binding.v1.OpenSessionResult.connection:type_name -> anytty.client.binding.v1.ConnectionSnapshot
-	93,  // 65: anytty.client.binding.v1.ExecuteResult.result:type_name -> anytty.api.v1.ResultEnvelope
-	87,  // 66: anytty.client.binding.v1.ExecuteResult.error:type_name -> anytty.api.v1.ApiError
-	94,  // 67: anytty.client.binding.v1.ApplicationEvent.event:type_name -> anytty.api.v1.EventEnvelope
-	95,  // 68: anytty.client.binding.v1.OpenResourceStreamRequest.resource:type_name -> anytty.api.v1.ResourceHandle
-	1,   // 69: anytty.client.binding.v1.ResourceStreamFrame.type:type_name -> anytty.client.binding.v1.ResourceStreamFrameType
-	87,  // 70: anytty.client.binding.v1.ResourceStreamClosedEvent.error:type_name -> anytty.api.v1.ApiError
-	92,  // 71: anytty.client.binding.v1.SessionClosedEvent.session:type_name -> anytty.api.v1.EndpointSessionStamp
-	87,  // 72: anytty.client.binding.v1.SessionClosedEvent.error:type_name -> anytty.api.v1.ApiError
-	92,  // 73: anytty.client.binding.v1.EndpointConnectionEvent.session:type_name -> anytty.api.v1.EndpointSessionStamp
-	7,   // 74: anytty.client.binding.v1.EndpointConnectionEvent.phase:type_name -> anytty.client.binding.v1.EndpointConnectionPhase
-	3,   // 75: anytty.client.binding.v1.EndpointConnectionEvent.observed_path:type_name -> anytty.client.binding.v1.ConnectionObservedPath
-	87,  // 76: anytty.client.binding.v1.EndpointConnectionEvent.error:type_name -> anytty.api.v1.ApiError
-	2,   // 77: anytty.client.binding.v1.EndpointConnectionEvent.attempted_route_kind:type_name -> anytty.client.binding.v1.ConnectionRouteKind
-	45,  // 78: anytty.client.binding.v1.EventEnvelope.open_session:type_name -> anytty.client.binding.v1.OpenSessionResult
-	46,  // 79: anytty.client.binding.v1.EventEnvelope.execute:type_name -> anytty.client.binding.v1.ExecuteResult
-	47,  // 80: anytty.client.binding.v1.EventEnvelope.application:type_name -> anytty.client.binding.v1.ApplicationEvent
-	51,  // 81: anytty.client.binding.v1.EventEnvelope.session_closed:type_name -> anytty.client.binding.v1.SessionClosedEvent
-	27,  // 82: anytty.client.binding.v1.EventEnvelope.import_pairing:type_name -> anytty.client.binding.v1.ImportPairingResult
-	29,  // 83: anytty.client.binding.v1.EventEnvelope.delete_credential:type_name -> anytty.client.binding.v1.DeleteCredentialResult
-	49,  // 84: anytty.client.binding.v1.EventEnvelope.resource_stream_frame:type_name -> anytty.client.binding.v1.ResourceStreamFrame
-	50,  // 85: anytty.client.binding.v1.EventEnvelope.resource_stream_closed:type_name -> anytty.client.binding.v1.ResourceStreamClosedEvent
-	31,  // 86: anytty.client.binding.v1.EventEnvelope.endpoint_registry_get:type_name -> anytty.client.binding.v1.EndpointRegistryGetResult
-	33,  // 87: anytty.client.binding.v1.EventEnvelope.endpoint_upsert:type_name -> anytty.client.binding.v1.EndpointUpsertResult
-	35,  // 88: anytty.client.binding.v1.EventEnvelope.endpoint_delete:type_name -> anytty.client.binding.v1.EndpointDeleteResult
-	39,  // 89: anytty.client.binding.v1.EventEnvelope.endpoint_share_receive:type_name -> anytty.client.binding.v1.EndpointShareReceiveResult
-	41,  // 90: anytty.client.binding.v1.EventEnvelope.endpoint_share_commit:type_name -> anytty.client.binding.v1.EndpointShareCommitResult
-	43,  // 91: anytty.client.binding.v1.EventEnvelope.ssh_credential_provision:type_name -> anytty.client.binding.v1.SSHCredentialProvisionResult
-	14,  // 92: anytty.client.binding.v1.EventEnvelope.connection_policy_get:type_name -> anytty.client.binding.v1.ConnectionPolicyGetResult
-	16,  // 93: anytty.client.binding.v1.EventEnvelope.connection_policy_apply:type_name -> anytty.client.binding.v1.ConnectionPolicyApplyResult
-	18,  // 94: anytty.client.binding.v1.EventEnvelope.connection_snapshot_get:type_name -> anytty.client.binding.v1.ConnectionSnapshotGetResult
-	20,  // 95: anytty.client.binding.v1.EventEnvelope.session_invalidate:type_name -> anytty.client.binding.v1.SessionInvalidateResult
-	52,  // 96: anytty.client.binding.v1.EventEnvelope.endpoint_connection:type_name -> anytty.client.binding.v1.EndpointConnectionEvent
-	22,  // 97: anytty.client.binding.v1.EventEnvelope.endpoint_disconnect:type_name -> anytty.client.binding.v1.EndpointDisconnectResult
-	24,  // 98: anytty.client.binding.v1.EventEnvelope.endpoint_cloud_presence_get:type_name -> anytty.client.binding.v1.EndpointCloudPresenceGetResult
-	72,  // 99: anytty.client.binding.v1.LocalDiscoveryLookupResult.candidates:type_name -> anytty.client.binding.v1.LocalDiscoveryCandidate
-	54,  // 100: anytty.client.binding.v1.PlatformRequest.credential_resolve:type_name -> anytty.client.binding.v1.CredentialResolveRequest
-	55,  // 101: anytty.client.binding.v1.PlatformRequest.credential_prepare:type_name -> anytty.client.binding.v1.CredentialPrepareRequest
-	56,  // 102: anytty.client.binding.v1.PlatformRequest.credential_delete:type_name -> anytty.client.binding.v1.CredentialDeleteRequest
-	59,  // 103: anytty.client.binding.v1.PlatformRequest.credential_sign:type_name -> anytty.client.binding.v1.CredentialSignRequest
-	57,  // 104: anytty.client.binding.v1.PlatformRequest.credential_bind:type_name -> anytty.client.binding.v1.CredentialBindRequest
-	68,  // 105: anytty.client.binding.v1.PlatformRequest.endpoint_registry_load:type_name -> anytty.client.binding.v1.EndpointRegistryLoadRequest
-	69,  // 106: anytty.client.binding.v1.PlatformRequest.endpoint_registry_store:type_name -> anytty.client.binding.v1.EndpointRegistryStoreRequest
-	63,  // 107: anytty.client.binding.v1.PlatformRequest.ssh_credential_lookup:type_name -> anytty.client.binding.v1.SSHCredentialLookupRequest
-	66,  // 108: anytty.client.binding.v1.PlatformRequest.ssh_credential_sign:type_name -> anytty.client.binding.v1.SSHCredentialSignRequest
-	64,  // 109: anytty.client.binding.v1.PlatformRequest.ssh_credential_delete:type_name -> anytty.client.binding.v1.SSHCredentialDeleteRequest
-	61,  // 110: anytty.client.binding.v1.PlatformRequest.cloud_profile_resolve:type_name -> anytty.client.binding.v1.CloudProfileResolveRequest
-	71,  // 111: anytty.client.binding.v1.PlatformRequest.local_discovery_lookup:type_name -> anytty.client.binding.v1.LocalDiscoveryLookupRequest
-	87,  // 112: anytty.client.binding.v1.PlatformResponse.error:type_name -> anytty.api.v1.ApiError
-	58,  // 113: anytty.client.binding.v1.PlatformResponse.credential:type_name -> anytty.client.binding.v1.CredentialRecord
-	60,  // 114: anytty.client.binding.v1.PlatformResponse.credential_sign:type_name -> anytty.client.binding.v1.CredentialSignResponse
-	70,  // 115: anytty.client.binding.v1.PlatformResponse.endpoint_registry:type_name -> anytty.client.binding.v1.EndpointRegistryLoaded
-	65,  // 116: anytty.client.binding.v1.PlatformResponse.ssh_credential:type_name -> anytty.client.binding.v1.SSHCredentialRecord
-	67,  // 117: anytty.client.binding.v1.PlatformResponse.ssh_credential_sign:type_name -> anytty.client.binding.v1.SSHCredentialSignResponse
-	62,  // 118: anytty.client.binding.v1.PlatformResponse.cloud_profile:type_name -> anytty.client.binding.v1.CloudProfileRecord
-	73,  // 119: anytty.client.binding.v1.PlatformResponse.local_discovery:type_name -> anytty.client.binding.v1.LocalDiscoveryLookupResult
-	8,   // 120: anytty.client.binding.v1.EndpointSupervisorDemand.mode:type_name -> anytty.client.binding.v1.EndpointSupervisorMode
-	79,  // 121: anytty.client.binding.v1.EndpointSupervisorDemandSnapshot.endpoints:type_name -> anytty.client.binding.v1.EndpointSupervisorDemand
-	8,   // 122: anytty.client.binding.v1.EndpointSupervisorProjection.mode:type_name -> anytty.client.binding.v1.EndpointSupervisorMode
-	92,  // 123: anytty.client.binding.v1.EndpointSupervisorProjection.session:type_name -> anytty.api.v1.EndpointSessionStamp
-	82,  // 124: anytty.client.binding.v1.EndpointSupervisorSnapshot.endpoints:type_name -> anytty.client.binding.v1.EndpointSupervisorProjection
-	125, // [125:125] is the sub-list for method output_type
-	125, // [125:125] is the sub-list for method input_type
-	125, // [125:125] is the sub-list for extension type_name
-	125, // [125:125] is the sub-list for extension extendee
-	0,   // [0:125] is the sub-list for field type_name
+	89,  // 41: anytty.client.binding.v1.EndpointShareReceiveResult.error:type_name -> anytty.api.v1.ApiError
+	90,  // 42: anytty.client.binding.v1.EndpointShareCommitResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
+	91,  // 43: anytty.client.binding.v1.EndpointShareCommitResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 44: anytty.client.binding.v1.EndpointShareCommitResult.error:type_name -> anytty.api.v1.ApiError
+	90,  // 45: anytty.client.binding.v1.SSHCredentialProvisionResult.endpoint:type_name -> anytty.remote.auth.v1.EndpointConfigV1
+	91,  // 46: anytty.client.binding.v1.SSHCredentialProvisionResult.registry:type_name -> anytty.remote.auth.v1.EndpointRegistryV1
+	89,  // 47: anytty.client.binding.v1.SSHCredentialProvisionResult.error:type_name -> anytty.api.v1.ApiError
+	89,  // 48: anytty.client.binding.v1.BrowserProxyListenResult.error:type_name -> anytty.api.v1.ApiError
+	26,  // 49: anytty.client.binding.v1.EngineCommand.import_pairing:type_name -> anytty.client.binding.v1.ImportPairingRequest
+	28,  // 50: anytty.client.binding.v1.EngineCommand.delete_credential:type_name -> anytty.client.binding.v1.DeleteCredentialRequest
+	30,  // 51: anytty.client.binding.v1.EngineCommand.endpoint_registry_get:type_name -> anytty.client.binding.v1.EndpointRegistryGetRequest
+	32,  // 52: anytty.client.binding.v1.EngineCommand.endpoint_upsert:type_name -> anytty.client.binding.v1.EndpointUpsertRequest
+	34,  // 53: anytty.client.binding.v1.EngineCommand.endpoint_delete:type_name -> anytty.client.binding.v1.EndpointDeleteRequest
+	36,  // 54: anytty.client.binding.v1.EngineCommand.endpoint_share_receive:type_name -> anytty.client.binding.v1.EndpointShareReceiveRequest
+	40,  // 55: anytty.client.binding.v1.EngineCommand.endpoint_share_commit:type_name -> anytty.client.binding.v1.EndpointShareCommitRequest
+	42,  // 56: anytty.client.binding.v1.EngineCommand.ssh_credential_provision:type_name -> anytty.client.binding.v1.SSHCredentialProvisionRequest
+	13,  // 57: anytty.client.binding.v1.EngineCommand.connection_policy_get:type_name -> anytty.client.binding.v1.ConnectionPolicyGetRequest
+	15,  // 58: anytty.client.binding.v1.EngineCommand.connection_policy_apply:type_name -> anytty.client.binding.v1.ConnectionPolicyApplyRequest
+	17,  // 59: anytty.client.binding.v1.EngineCommand.connection_snapshot_get:type_name -> anytty.client.binding.v1.ConnectionSnapshotGetRequest
+	19,  // 60: anytty.client.binding.v1.EngineCommand.session_invalidate:type_name -> anytty.client.binding.v1.SessionInvalidateRequest
+	21,  // 61: anytty.client.binding.v1.EngineCommand.endpoint_disconnect:type_name -> anytty.client.binding.v1.EndpointDisconnectRequest
+	23,  // 62: anytty.client.binding.v1.EngineCommand.endpoint_cloud_presence_get:type_name -> anytty.client.binding.v1.EndpointCloudPresenceGetRequest
+	44,  // 63: anytty.client.binding.v1.EngineCommand.browser_proxy_listen:type_name -> anytty.client.binding.v1.BrowserProxyListenRequest
+	94,  // 64: anytty.client.binding.v1.OpenSessionResult.session:type_name -> anytty.api.v1.EndpointSessionStamp
+	89,  // 65: anytty.client.binding.v1.OpenSessionResult.error:type_name -> anytty.api.v1.ApiError
+	9,   // 66: anytty.client.binding.v1.OpenSessionResult.connection:type_name -> anytty.client.binding.v1.ConnectionSnapshot
+	95,  // 67: anytty.client.binding.v1.ExecuteResult.result:type_name -> anytty.api.v1.ResultEnvelope
+	89,  // 68: anytty.client.binding.v1.ExecuteResult.error:type_name -> anytty.api.v1.ApiError
+	96,  // 69: anytty.client.binding.v1.ApplicationEvent.event:type_name -> anytty.api.v1.EventEnvelope
+	97,  // 70: anytty.client.binding.v1.OpenResourceStreamRequest.resource:type_name -> anytty.api.v1.ResourceHandle
+	1,   // 71: anytty.client.binding.v1.ResourceStreamFrame.type:type_name -> anytty.client.binding.v1.ResourceStreamFrameType
+	89,  // 72: anytty.client.binding.v1.ResourceStreamClosedEvent.error:type_name -> anytty.api.v1.ApiError
+	94,  // 73: anytty.client.binding.v1.SessionClosedEvent.session:type_name -> anytty.api.v1.EndpointSessionStamp
+	89,  // 74: anytty.client.binding.v1.SessionClosedEvent.error:type_name -> anytty.api.v1.ApiError
+	94,  // 75: anytty.client.binding.v1.EndpointConnectionEvent.session:type_name -> anytty.api.v1.EndpointSessionStamp
+	7,   // 76: anytty.client.binding.v1.EndpointConnectionEvent.phase:type_name -> anytty.client.binding.v1.EndpointConnectionPhase
+	3,   // 77: anytty.client.binding.v1.EndpointConnectionEvent.observed_path:type_name -> anytty.client.binding.v1.ConnectionObservedPath
+	89,  // 78: anytty.client.binding.v1.EndpointConnectionEvent.error:type_name -> anytty.api.v1.ApiError
+	2,   // 79: anytty.client.binding.v1.EndpointConnectionEvent.attempted_route_kind:type_name -> anytty.client.binding.v1.ConnectionRouteKind
+	47,  // 80: anytty.client.binding.v1.EventEnvelope.open_session:type_name -> anytty.client.binding.v1.OpenSessionResult
+	48,  // 81: anytty.client.binding.v1.EventEnvelope.execute:type_name -> anytty.client.binding.v1.ExecuteResult
+	49,  // 82: anytty.client.binding.v1.EventEnvelope.application:type_name -> anytty.client.binding.v1.ApplicationEvent
+	53,  // 83: anytty.client.binding.v1.EventEnvelope.session_closed:type_name -> anytty.client.binding.v1.SessionClosedEvent
+	27,  // 84: anytty.client.binding.v1.EventEnvelope.import_pairing:type_name -> anytty.client.binding.v1.ImportPairingResult
+	29,  // 85: anytty.client.binding.v1.EventEnvelope.delete_credential:type_name -> anytty.client.binding.v1.DeleteCredentialResult
+	51,  // 86: anytty.client.binding.v1.EventEnvelope.resource_stream_frame:type_name -> anytty.client.binding.v1.ResourceStreamFrame
+	52,  // 87: anytty.client.binding.v1.EventEnvelope.resource_stream_closed:type_name -> anytty.client.binding.v1.ResourceStreamClosedEvent
+	31,  // 88: anytty.client.binding.v1.EventEnvelope.endpoint_registry_get:type_name -> anytty.client.binding.v1.EndpointRegistryGetResult
+	33,  // 89: anytty.client.binding.v1.EventEnvelope.endpoint_upsert:type_name -> anytty.client.binding.v1.EndpointUpsertResult
+	35,  // 90: anytty.client.binding.v1.EventEnvelope.endpoint_delete:type_name -> anytty.client.binding.v1.EndpointDeleteResult
+	39,  // 91: anytty.client.binding.v1.EventEnvelope.endpoint_share_receive:type_name -> anytty.client.binding.v1.EndpointShareReceiveResult
+	41,  // 92: anytty.client.binding.v1.EventEnvelope.endpoint_share_commit:type_name -> anytty.client.binding.v1.EndpointShareCommitResult
+	43,  // 93: anytty.client.binding.v1.EventEnvelope.ssh_credential_provision:type_name -> anytty.client.binding.v1.SSHCredentialProvisionResult
+	14,  // 94: anytty.client.binding.v1.EventEnvelope.connection_policy_get:type_name -> anytty.client.binding.v1.ConnectionPolicyGetResult
+	16,  // 95: anytty.client.binding.v1.EventEnvelope.connection_policy_apply:type_name -> anytty.client.binding.v1.ConnectionPolicyApplyResult
+	18,  // 96: anytty.client.binding.v1.EventEnvelope.connection_snapshot_get:type_name -> anytty.client.binding.v1.ConnectionSnapshotGetResult
+	20,  // 97: anytty.client.binding.v1.EventEnvelope.session_invalidate:type_name -> anytty.client.binding.v1.SessionInvalidateResult
+	54,  // 98: anytty.client.binding.v1.EventEnvelope.endpoint_connection:type_name -> anytty.client.binding.v1.EndpointConnectionEvent
+	22,  // 99: anytty.client.binding.v1.EventEnvelope.endpoint_disconnect:type_name -> anytty.client.binding.v1.EndpointDisconnectResult
+	24,  // 100: anytty.client.binding.v1.EventEnvelope.endpoint_cloud_presence_get:type_name -> anytty.client.binding.v1.EndpointCloudPresenceGetResult
+	45,  // 101: anytty.client.binding.v1.EventEnvelope.browser_proxy_listen:type_name -> anytty.client.binding.v1.BrowserProxyListenResult
+	74,  // 102: anytty.client.binding.v1.LocalDiscoveryLookupResult.candidates:type_name -> anytty.client.binding.v1.LocalDiscoveryCandidate
+	56,  // 103: anytty.client.binding.v1.PlatformRequest.credential_resolve:type_name -> anytty.client.binding.v1.CredentialResolveRequest
+	57,  // 104: anytty.client.binding.v1.PlatformRequest.credential_prepare:type_name -> anytty.client.binding.v1.CredentialPrepareRequest
+	58,  // 105: anytty.client.binding.v1.PlatformRequest.credential_delete:type_name -> anytty.client.binding.v1.CredentialDeleteRequest
+	61,  // 106: anytty.client.binding.v1.PlatformRequest.credential_sign:type_name -> anytty.client.binding.v1.CredentialSignRequest
+	59,  // 107: anytty.client.binding.v1.PlatformRequest.credential_bind:type_name -> anytty.client.binding.v1.CredentialBindRequest
+	70,  // 108: anytty.client.binding.v1.PlatformRequest.endpoint_registry_load:type_name -> anytty.client.binding.v1.EndpointRegistryLoadRequest
+	71,  // 109: anytty.client.binding.v1.PlatformRequest.endpoint_registry_store:type_name -> anytty.client.binding.v1.EndpointRegistryStoreRequest
+	65,  // 110: anytty.client.binding.v1.PlatformRequest.ssh_credential_lookup:type_name -> anytty.client.binding.v1.SSHCredentialLookupRequest
+	68,  // 111: anytty.client.binding.v1.PlatformRequest.ssh_credential_sign:type_name -> anytty.client.binding.v1.SSHCredentialSignRequest
+	66,  // 112: anytty.client.binding.v1.PlatformRequest.ssh_credential_delete:type_name -> anytty.client.binding.v1.SSHCredentialDeleteRequest
+	63,  // 113: anytty.client.binding.v1.PlatformRequest.cloud_profile_resolve:type_name -> anytty.client.binding.v1.CloudProfileResolveRequest
+	73,  // 114: anytty.client.binding.v1.PlatformRequest.local_discovery_lookup:type_name -> anytty.client.binding.v1.LocalDiscoveryLookupRequest
+	89,  // 115: anytty.client.binding.v1.PlatformResponse.error:type_name -> anytty.api.v1.ApiError
+	60,  // 116: anytty.client.binding.v1.PlatformResponse.credential:type_name -> anytty.client.binding.v1.CredentialRecord
+	62,  // 117: anytty.client.binding.v1.PlatformResponse.credential_sign:type_name -> anytty.client.binding.v1.CredentialSignResponse
+	72,  // 118: anytty.client.binding.v1.PlatformResponse.endpoint_registry:type_name -> anytty.client.binding.v1.EndpointRegistryLoaded
+	67,  // 119: anytty.client.binding.v1.PlatformResponse.ssh_credential:type_name -> anytty.client.binding.v1.SSHCredentialRecord
+	69,  // 120: anytty.client.binding.v1.PlatformResponse.ssh_credential_sign:type_name -> anytty.client.binding.v1.SSHCredentialSignResponse
+	64,  // 121: anytty.client.binding.v1.PlatformResponse.cloud_profile:type_name -> anytty.client.binding.v1.CloudProfileRecord
+	75,  // 122: anytty.client.binding.v1.PlatformResponse.local_discovery:type_name -> anytty.client.binding.v1.LocalDiscoveryLookupResult
+	8,   // 123: anytty.client.binding.v1.EndpointSupervisorDemand.mode:type_name -> anytty.client.binding.v1.EndpointSupervisorMode
+	81,  // 124: anytty.client.binding.v1.EndpointSupervisorDemandSnapshot.endpoints:type_name -> anytty.client.binding.v1.EndpointSupervisorDemand
+	8,   // 125: anytty.client.binding.v1.EndpointSupervisorProjection.mode:type_name -> anytty.client.binding.v1.EndpointSupervisorMode
+	94,  // 126: anytty.client.binding.v1.EndpointSupervisorProjection.session:type_name -> anytty.api.v1.EndpointSessionStamp
+	84,  // 127: anytty.client.binding.v1.EndpointSupervisorSnapshot.endpoints:type_name -> anytty.client.binding.v1.EndpointSupervisorProjection
+	128, // [128:128] is the sub-list for method output_type
+	128, // [128:128] is the sub-list for method input_type
+	128, // [128:128] is the sub-list for extension type_name
+	128, // [128:128] is the sub-list for extension extendee
+	0,   // [0:128] is the sub-list for field type_name
 }
 
 func init() { file_bindingpb_client_binding_proto_init() }
@@ -7167,7 +7364,7 @@ func file_bindingpb_client_binding_proto_init() {
 	if File_bindingpb_client_binding_proto != nil {
 		return
 	}
-	file_bindingpb_client_binding_proto_msgTypes[35].OneofWrappers = []any{
+	file_bindingpb_client_binding_proto_msgTypes[37].OneofWrappers = []any{
 		(*EngineCommand_ImportPairing)(nil),
 		(*EngineCommand_DeleteCredential)(nil),
 		(*EngineCommand_EndpointRegistryGet)(nil),
@@ -7182,8 +7379,9 @@ func file_bindingpb_client_binding_proto_init() {
 		(*EngineCommand_SessionInvalidate)(nil),
 		(*EngineCommand_EndpointDisconnect)(nil),
 		(*EngineCommand_EndpointCloudPresenceGet)(nil),
+		(*EngineCommand_BrowserProxyListen)(nil),
 	}
-	file_bindingpb_client_binding_proto_msgTypes[44].OneofWrappers = []any{
+	file_bindingpb_client_binding_proto_msgTypes[46].OneofWrappers = []any{
 		(*EventEnvelope_OpenSession)(nil),
 		(*EventEnvelope_Execute)(nil),
 		(*EventEnvelope_Application)(nil),
@@ -7205,8 +7403,9 @@ func file_bindingpb_client_binding_proto_init() {
 		(*EventEnvelope_EndpointConnection)(nil),
 		(*EventEnvelope_EndpointDisconnect)(nil),
 		(*EventEnvelope_EndpointCloudPresenceGet)(nil),
+		(*EventEnvelope_BrowserProxyListen)(nil),
 	}
-	file_bindingpb_client_binding_proto_msgTypes[66].OneofWrappers = []any{
+	file_bindingpb_client_binding_proto_msgTypes[68].OneofWrappers = []any{
 		(*PlatformRequest_CredentialResolve)(nil),
 		(*PlatformRequest_CredentialPrepare)(nil),
 		(*PlatformRequest_CredentialDelete)(nil),
@@ -7220,7 +7419,7 @@ func file_bindingpb_client_binding_proto_init() {
 		(*PlatformRequest_CloudProfileResolve)(nil),
 		(*PlatformRequest_LocalDiscoveryLookup)(nil),
 	}
-	file_bindingpb_client_binding_proto_msgTypes[67].OneofWrappers = []any{
+	file_bindingpb_client_binding_proto_msgTypes[69].OneofWrappers = []any{
 		(*PlatformResponse_Credential)(nil),
 		(*PlatformResponse_CredentialSign)(nil),
 		(*PlatformResponse_EndpointRegistry)(nil),
@@ -7235,7 +7434,7 @@ func file_bindingpb_client_binding_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bindingpb_client_binding_proto_rawDesc), len(file_bindingpb_client_binding_proto_rawDesc)),
 			NumEnums:      9,
-			NumMessages:   75,
+			NumMessages:   77,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

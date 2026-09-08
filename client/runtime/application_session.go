@@ -167,6 +167,22 @@ func (session *ApplicationSession) ExecuteTerminal(ctx context.Context, command 
 	return session.execute(ctx, command, true)
 }
 
+// Forward preserves a prepared caller's correlation across route wrappers.
+// Unprepared binding commands are stamped here, as before. Prepared commands
+// must belong to this exact generation; response correlation is still checked.
+func (session *ApplicationSession) Forward(ctx context.Context, command *apipb.CommandEnvelope, terminal bool) (*apipb.ResultEnvelope, error) {
+	if command.GetContext() == nil {
+		return session.execute(ctx, command, terminal)
+	}
+	if err := session.ValidateCurrent(); err != nil {
+		return nil, err
+	}
+	if command.GetContext().GetRequestId() == "" || !applicationSessionStampsEqual(command.GetContext().GetSession(), session.protoStamp()) {
+		return nil, runtimeError(ErrorStaleSession, "forwarded application context does not match session", nil)
+	}
+	return session.executeSnapshot(ctx, proto.Clone(command).(*apipb.CommandEnvelope), terminal)
+}
+
 func (session *ApplicationSession) execute(ctx context.Context, command *apipb.CommandEnvelope, terminal bool) (*apipb.ResultEnvelope, error) {
 	if session == nil || session.executor == nil {
 		return nil, runtimeError(ErrorUnavailable, "application session is unavailable", nil)
@@ -180,6 +196,12 @@ func (session *ApplicationSession) execute(ctx context.Context, command *apipb.C
 	snapshot := proto.Clone(command).(*apipb.CommandEnvelope)
 	snapshot.Context = &apipb.RequestContext{RequestId: requestID, ApiVersion: &apipb.ApiVersion{Major: 1}, Session: stamp}
 	bindOperationStamp(snapshot, stamp, requestID)
+	return session.executeSnapshot(ctx, snapshot, terminal)
+}
+
+func (session *ApplicationSession) executeSnapshot(ctx context.Context, snapshot *apipb.CommandEnvelope, terminal bool) (*apipb.ResultEnvelope, error) {
+	requestID := snapshot.GetContext().GetRequestId()
+	stamp := snapshot.GetContext().GetSession()
 	var result *apipb.ResultEnvelope
 	var err error
 	if terminal {

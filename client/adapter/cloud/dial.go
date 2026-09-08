@@ -501,12 +501,12 @@ func (session *Session) finish(cause error) {
 
 // ExecuteApplication 执行 generated Proto application command。
 func (session *Session) ExecuteApplication(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.Execute(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, false)
 }
 
 // ExecuteApplicationTerminal 为 resource-producing command 保留 terminal result。
 func (session *Session) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.ExecuteTerminal(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, true)
 }
 
 // ConnectionSnapshot 返回 P2P selected pair 的地址与网络计数。

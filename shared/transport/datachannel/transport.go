@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"sync"
 	"time"
 
@@ -102,6 +103,19 @@ func (transport *Transport) Send(frame []byte) error {
 	if transport == nil || transport.channel == nil {
 		return io.EOF
 	}
+	started := time.Now()
+	initialBuffered := transport.channel.BufferedAmount()
+	var drainDuration, lockDuration time.Duration
+	drainEnded := false
+	defer func() {
+		elapsed := time.Since(started)
+		if !drainEnded {
+			drainDuration = elapsed
+		}
+		if elapsed >= 100*time.Millisecond {
+			log.Printf("anytty transport stage=datachannel_send bytes=%d total_us=%d drain_us=%d lock_us=%d channel_us=%d initial_buffered=%d final_buffered=%d", len(frame), elapsed.Microseconds(), drainDuration.Microseconds(), lockDuration.Microseconds(), (elapsed - drainDuration - lockDuration).Microseconds(), initialBuffered, transport.channel.BufferedAmount())
+		}
+	}()
 	var drainTimer *time.Timer
 	for transport.channel.BufferedAmount() > defaultSendBufferHigh {
 		if drainTimer == nil {
@@ -119,7 +133,11 @@ func (transport *Transport) Send(frame []byte) error {
 			return context.DeadlineExceeded
 		}
 	}
+	drainDuration = time.Since(started)
+	drainEnded = true
+	lockStarted := time.Now()
 	transport.sendMu.Lock()
+	lockDuration = time.Since(lockStarted)
 	defer transport.sendMu.Unlock()
 	select {
 	case <-transport.done:

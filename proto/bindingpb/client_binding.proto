@@ -369,6 +369,22 @@ message SSHCredentialProvisionResult {
   anytty.api.v1.ApiError error = 8;
 }
 
+// One listener per session. Stop carries its port to fence stale UI cleanup.
+message BrowserProxyListenRequest {
+  string request_id = 1;
+  uint64 session_handle = 2;
+  bool stop = 3;
+  uint32 port = 4;
+}
+
+message BrowserProxyListenResult {
+  string request_id = 1;
+  uint64 operation_handle = 2;
+  uint64 session_handle = 3;
+  uint32 port = 4;
+  anytty.api.v1.ApiError error = 5;
+}
+
 message EngineCommand {
   oneof command {
     ImportPairingRequest import_pairing = 1;
@@ -385,6 +401,7 @@ message EngineCommand {
     SessionInvalidateRequest session_invalidate = 12;
     EndpointDisconnectRequest endpoint_disconnect = 13;
     EndpointCloudPresenceGetRequest endpoint_cloud_presence_get = 14;
+    BrowserProxyListenRequest browser_proxy_listen = 15;
   }
 }
 
@@ -488,6 +505,7 @@ message EventEnvelope {
     EndpointConnectionEvent endpoint_connection = 28;
     EndpointDisconnectResult endpoint_disconnect = 29;
     EndpointCloudPresenceGetResult endpoint_cloud_presence_get = 30;
+    BrowserProxyListenResult browser_proxy_listen = 31;
   }
 }
 

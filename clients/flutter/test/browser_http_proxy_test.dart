@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:anytty_native/src/features/browser/data/browser_http_proxy.dart';
+import 'support/legacy_browser_http_proxy.dart';
+
 import 'package:anytty_native/src/generated/proto/apipb/application.pb.dart'
     as application;
 import 'package:anytty_native/src/generated/proto/apipb/common.pb.dart';

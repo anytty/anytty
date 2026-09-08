@@ -358,41 +358,48 @@ final class EndpointSessionClient implements BrowserProxySession {
   }
 
   @override
-  Future<BrowserProxyOpenResult> openBrowserProxy({
-    required String host,
-    required int port,
-  }) async {
-    final result = await execute(
-      CommandEnvelope(
-        browserProxyOpen: BrowserProxyOpenCommand(
-          host: host,
-          port: port,
-          receiveWindowBytes: 512 * 1024,
-          sendWindowBytes: 512 * 1024,
-        ),
-      ),
-    );
-    if (result.whichResult() != ResultEnvelope_Result.browserProxyOpen ||
-        !result.browserProxyOpen.hasResource()) {
-      throw const NativeSessionException(
-        'Browser proxy response was incomplete',
-      );
-    }
-    return result.browserProxyOpen.deepCopy();
-  }
+  Future<int> startBrowserProxy() async => (await _browserProxyListen()).port;
 
   @override
-  Future<AnyttyResourceStream> openBrowserResourceStream(
-    ResourceHandle resource,
-  ) {
-    if (resource.kind != ResourceKind.RESOURCE_KIND_BROWSER_PROXY) {
-      throw const NativeSessionException('Browser proxy resource was invalid');
-    }
-    return AnyttyResourceStream.open(
+  Future<void> stopBrowserProxy(int port) async {
+    if (_closeRequested || isClosed) return;
+    await _browserProxyListen(stopPort: port);
+  }
+
+  Future<BrowserProxyListenResult> _browserProxyListen({
+    int stopPort = 0,
+  }) async {
+    final result = await runBindingOperation<BrowserProxyListenResult>(
       runtime: _runtime,
-      sessionHandle: sessionHandle,
-      request: OpenResourceStreamRequest(resource: resource),
+      begin: () => _runtime.command(
+        EngineCommand(
+          browserProxyListen: BrowserProxyListenRequest(
+            requestId: newRequestId(),
+            sessionHandle: Int64(sessionHandle),
+            stop: stopPort != 0,
+            port: stopPort,
+          ),
+        ),
+      ),
+      select: (event) =>
+          event.whichEvent() == EventEnvelope_Event.browserProxyListen
+          ? event.browserProxyListen.deepCopy()
+          : null,
+      operationHandle: (value) => value.operationHandle.toInt(),
+      timeoutMessage: 'Native browser proxy operation timed out',
+      timeout: const Duration(seconds: 15),
     );
+    if (result.hasError()) {
+      throw NativeSessionException(
+        result.error.message,
+        code: result.error.code,
+        retryable: result.error.retryable,
+      );
+    }
+    if (result.sessionHandle.toInt() != sessionHandle) {
+      throw const NativeSessionException('Browser proxy session did not match');
+    }
+    return result;
   }
 
   Future<void> cancelFileTransfer(FileTransferHandle transfer) async {

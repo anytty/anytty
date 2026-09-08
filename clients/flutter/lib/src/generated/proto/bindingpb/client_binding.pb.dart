@@ -3698,6 +3698,212 @@ class SSHCredentialProvisionResult extends $pb.GeneratedMessage {
   $0.ApiError ensureError() => $_ensure(7);
 }
 
+/// One listener per session. Stop carries its port to fence stale UI cleanup.
+class BrowserProxyListenRequest extends $pb.GeneratedMessage {
+  factory BrowserProxyListenRequest({
+    $core.String? requestId,
+    $fixnum.Int64? sessionHandle,
+    $core.bool? stop,
+    $core.int? port,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (sessionHandle != null) result.sessionHandle = sessionHandle;
+    if (stop != null) result.stop = stop;
+    if (port != null) result.port = port;
+    return result;
+  }
+
+  BrowserProxyListenRequest._();
+
+  factory BrowserProxyListenRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BrowserProxyListenRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BrowserProxyListenRequest',
+      package: const $pb.PackageName(
+          _omitMessageNames ? '' : 'anytty.client.binding.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'requestId')
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'sessionHandle', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOB(3, _omitFieldNames ? '' : 'stop')
+    ..aI(4, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyListenRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyListenRequest copyWith(
+          void Function(BrowserProxyListenRequest) updates) =>
+      super.copyWith((message) => updates(message as BrowserProxyListenRequest))
+          as BrowserProxyListenRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyListenRequest create() => BrowserProxyListenRequest._();
+  @$core.override
+  BrowserProxyListenRequest createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyListenRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyListenRequest>(create);
+  static BrowserProxyListenRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get requestId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set requestId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get sessionHandle => $_getI64(1);
+  @$pb.TagNumber(2)
+  set sessionHandle($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasSessionHandle() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSessionHandle() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get stop => $_getBF(2);
+  @$pb.TagNumber(3)
+  set stop($core.bool value) => $_setBool(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasStop() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearStop() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get port => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set port($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPort() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPort() => $_clearField(4);
+}
+
+class BrowserProxyListenResult extends $pb.GeneratedMessage {
+  factory BrowserProxyListenResult({
+    $core.String? requestId,
+    $fixnum.Int64? operationHandle,
+    $fixnum.Int64? sessionHandle,
+    $core.int? port,
+    $0.ApiError? error,
+  }) {
+    final result = create();
+    if (requestId != null) result.requestId = requestId;
+    if (operationHandle != null) result.operationHandle = operationHandle;
+    if (sessionHandle != null) result.sessionHandle = sessionHandle;
+    if (port != null) result.port = port;
+    if (error != null) result.error = error;
+    return result;
+  }
+
+  BrowserProxyListenResult._();
+
+  factory BrowserProxyListenResult.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory BrowserProxyListenResult.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BrowserProxyListenResult',
+      package: const $pb.PackageName(
+          _omitMessageNames ? '' : 'anytty.client.binding.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'requestId')
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'operationHandle', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        3, _omitFieldNames ? '' : 'sessionHandle', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aI(4, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
+    ..aOM<$0.ApiError>(5, _omitFieldNames ? '' : 'error',
+        subBuilder: $0.ApiError.create)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyListenResult clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BrowserProxyListenResult copyWith(
+          void Function(BrowserProxyListenResult) updates) =>
+      super.copyWith((message) => updates(message as BrowserProxyListenResult))
+          as BrowserProxyListenResult;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyListenResult create() => BrowserProxyListenResult._();
+  @$core.override
+  BrowserProxyListenResult createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static BrowserProxyListenResult getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyListenResult>(create);
+  static BrowserProxyListenResult? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get requestId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set requestId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get operationHandle => $_getI64(1);
+  @$pb.TagNumber(2)
+  set operationHandle($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasOperationHandle() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearOperationHandle() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get sessionHandle => $_getI64(2);
+  @$pb.TagNumber(3)
+  set sessionHandle($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSessionHandle() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSessionHandle() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get port => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set port($core.int value) => $_setUnsignedInt32(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasPort() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPort() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $0.ApiError get error => $_getN(4);
+  @$pb.TagNumber(5)
+  set error($0.ApiError value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasError() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearError() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.ApiError ensureError() => $_ensure(4);
+}
+
 enum EngineCommand_Command {
   importPairing,
   deleteCredential,
@@ -3713,6 +3919,7 @@ enum EngineCommand_Command {
   sessionInvalidate,
   endpointDisconnect,
   endpointCloudPresenceGet,
+  browserProxyListen,
   notSet
 }
 
@@ -3732,6 +3939,7 @@ class EngineCommand extends $pb.GeneratedMessage {
     SessionInvalidateRequest? sessionInvalidate,
     EndpointDisconnectRequest? endpointDisconnect,
     EndpointCloudPresenceGetRequest? endpointCloudPresenceGet,
+    BrowserProxyListenRequest? browserProxyListen,
   }) {
     final result = create();
     if (importPairing != null) result.importPairing = importPairing;
@@ -3757,6 +3965,8 @@ class EngineCommand extends $pb.GeneratedMessage {
       result.endpointDisconnect = endpointDisconnect;
     if (endpointCloudPresenceGet != null)
       result.endpointCloudPresenceGet = endpointCloudPresenceGet;
+    if (browserProxyListen != null)
+      result.browserProxyListen = browserProxyListen;
     return result;
   }
 
@@ -3785,6 +3995,7 @@ class EngineCommand extends $pb.GeneratedMessage {
     12: EngineCommand_Command.sessionInvalidate,
     13: EngineCommand_Command.endpointDisconnect,
     14: EngineCommand_Command.endpointCloudPresenceGet,
+    15: EngineCommand_Command.browserProxyListen,
     0: EngineCommand_Command.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -3792,7 +4003,7 @@ class EngineCommand extends $pb.GeneratedMessage {
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.client.binding.v1'),
       createEmptyInstance: create)
-    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+    ..oo(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
     ..aOM<ImportPairingRequest>(1, _omitFieldNames ? '' : 'importPairing',
         subBuilder: ImportPairingRequest.create)
     ..aOM<DeleteCredentialRequest>(2, _omitFieldNames ? '' : 'deleteCredential',
@@ -3831,6 +4042,9 @@ class EngineCommand extends $pb.GeneratedMessage {
     ..aOM<EndpointCloudPresenceGetRequest>(
         14, _omitFieldNames ? '' : 'endpointCloudPresenceGet',
         subBuilder: EndpointCloudPresenceGetRequest.create)
+    ..aOM<BrowserProxyListenRequest>(
+        15, _omitFieldNames ? '' : 'browserProxyListen',
+        subBuilder: BrowserProxyListenRequest.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3866,6 +4080,7 @@ class EngineCommand extends $pb.GeneratedMessage {
   @$pb.TagNumber(12)
   @$pb.TagNumber(13)
   @$pb.TagNumber(14)
+  @$pb.TagNumber(15)
   EngineCommand_Command whichCommand() =>
       _EngineCommand_CommandByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
@@ -3882,6 +4097,7 @@ class EngineCommand extends $pb.GeneratedMessage {
   @$pb.TagNumber(12)
   @$pb.TagNumber(13)
   @$pb.TagNumber(14)
+  @$pb.TagNumber(15)
   void clearCommand() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -4048,6 +4264,18 @@ class EngineCommand extends $pb.GeneratedMessage {
   @$pb.TagNumber(14)
   EndpointCloudPresenceGetRequest ensureEndpointCloudPresenceGet() =>
       $_ensure(13);
+
+  @$pb.TagNumber(15)
+  BrowserProxyListenRequest get browserProxyListen => $_getN(14);
+  @$pb.TagNumber(15)
+  set browserProxyListen(BrowserProxyListenRequest value) =>
+      $_setField(15, value);
+  @$pb.TagNumber(15)
+  $core.bool hasBrowserProxyListen() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearBrowserProxyListen() => $_clearField(15);
+  @$pb.TagNumber(15)
+  BrowserProxyListenRequest ensureBrowserProxyListen() => $_ensure(14);
 }
 
 class OpenSessionResult extends $pb.GeneratedMessage {
@@ -4872,6 +5100,7 @@ enum EventEnvelope_Event {
   endpointConnection,
   endpointDisconnect,
   endpointCloudPresenceGet,
+  browserProxyListen,
   notSet
 }
 
@@ -4900,6 +5129,7 @@ class EventEnvelope extends $pb.GeneratedMessage {
     EndpointConnectionEvent? endpointConnection,
     EndpointDisconnectResult? endpointDisconnect,
     EndpointCloudPresenceGetResult? endpointCloudPresenceGet,
+    BrowserProxyListenResult? browserProxyListen,
   }) {
     final result = create();
     if (abiVersion != null) result.abiVersion = abiVersion;
@@ -4937,6 +5167,8 @@ class EventEnvelope extends $pb.GeneratedMessage {
       result.endpointDisconnect = endpointDisconnect;
     if (endpointCloudPresenceGet != null)
       result.endpointCloudPresenceGet = endpointCloudPresenceGet;
+    if (browserProxyListen != null)
+      result.browserProxyListen = browserProxyListen;
     return result;
   }
 
@@ -4972,6 +5204,7 @@ class EventEnvelope extends $pb.GeneratedMessage {
     28: EventEnvelope_Event.endpointConnection,
     29: EventEnvelope_Event.endpointDisconnect,
     30: EventEnvelope_Event.endpointCloudPresenceGet,
+    31: EventEnvelope_Event.browserProxyListen,
     0: EventEnvelope_Event.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -5000,7 +5233,8 @@ class EventEnvelope extends $pb.GeneratedMessage {
       27,
       28,
       29,
-      30
+      30,
+      31
     ])
     ..aI(1, _omitFieldNames ? '' : 'abiVersion', fieldType: $pb.PbFieldType.OU3)
     ..a<$fixnum.Int64>(
@@ -5060,6 +5294,9 @@ class EventEnvelope extends $pb.GeneratedMessage {
     ..aOM<EndpointCloudPresenceGetResult>(
         30, _omitFieldNames ? '' : 'endpointCloudPresenceGet',
         subBuilder: EndpointCloudPresenceGetResult.create)
+    ..aOM<BrowserProxyListenResult>(
+        31, _omitFieldNames ? '' : 'browserProxyListen',
+        subBuilder: BrowserProxyListenResult.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5102,6 +5339,7 @@ class EventEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(28)
   @$pb.TagNumber(29)
   @$pb.TagNumber(30)
+  @$pb.TagNumber(31)
   EventEnvelope_Event whichEvent() =>
       _EventEnvelope_EventByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -5125,6 +5363,7 @@ class EventEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(28)
   @$pb.TagNumber(29)
   @$pb.TagNumber(30)
+  @$pb.TagNumber(31)
   void clearEvent() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -5387,6 +5626,18 @@ class EventEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(30)
   EndpointCloudPresenceGetResult ensureEndpointCloudPresenceGet() =>
       $_ensure(22);
+
+  @$pb.TagNumber(31)
+  BrowserProxyListenResult get browserProxyListen => $_getN(23);
+  @$pb.TagNumber(31)
+  set browserProxyListen(BrowserProxyListenResult value) =>
+      $_setField(31, value);
+  @$pb.TagNumber(31)
+  $core.bool hasBrowserProxyListen() => $_has(23);
+  @$pb.TagNumber(31)
+  void clearBrowserProxyListen() => $_clearField(31);
+  @$pb.TagNumber(31)
+  BrowserProxyListenResult ensureBrowserProxyListen() => $_ensure(23);
 }
 
 class CredentialResolveRequest extends $pb.GeneratedMessage {

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anytty/anytty/client/browserproxy"
 	"github.com/anytty/anytty/client/endpoint"
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/apipb"
@@ -84,6 +85,7 @@ type operation struct {
 }
 
 type sessionRecord struct {
+	browserProxy *browserproxy.Server
 	session      clientruntime.ApplicationReadyPeerSession
 	rendererID   uint64
 	activeOps    int
@@ -551,6 +553,10 @@ func (engine *Engine) CloseSession(sessionHandle uint64) error {
 		return nil
 	}
 	record.closing = true
+	if record.browserProxy != nil {
+		_ = record.browserProxy.Close()
+		record.browserProxy = nil
+	}
 	session := record.session
 	closeSession := record.activeOps == 0
 	if closeSession {

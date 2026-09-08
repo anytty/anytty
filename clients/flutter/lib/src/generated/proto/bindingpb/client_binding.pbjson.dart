@@ -1335,6 +1335,49 @@ final $typed_data.Uint8List sSHCredentialProvisionResultDescriptor = $convert.ba
     'Z2VycHJpbnQYByABKAlSDmtleUZpbmdlcnByaW50Ei0KBWVycm9yGAggASgLMhcuYW55dHR5Lm'
     'FwaS52MS5BcGlFcnJvclIFZXJyb3I=');
 
+@$core.Deprecated('Use browserProxyListenRequestDescriptor instead')
+const BrowserProxyListenRequest$json = {
+  '1': 'BrowserProxyListenRequest',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 9, '10': 'requestId'},
+    {'1': 'session_handle', '3': 2, '4': 1, '5': 4, '10': 'sessionHandle'},
+    {'1': 'stop', '3': 3, '4': 1, '5': 8, '10': 'stop'},
+    {'1': 'port', '3': 4, '4': 1, '5': 13, '10': 'port'},
+  ],
+};
+
+/// Descriptor for `BrowserProxyListenRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List browserProxyListenRequestDescriptor = $convert.base64Decode(
+    'ChlCcm93c2VyUHJveHlMaXN0ZW5SZXF1ZXN0Eh0KCnJlcXVlc3RfaWQYASABKAlSCXJlcXVlc3'
+    'RJZBIlCg5zZXNzaW9uX2hhbmRsZRgCIAEoBFINc2Vzc2lvbkhhbmRsZRISCgRzdG9wGAMgASgI'
+    'UgRzdG9wEhIKBHBvcnQYBCABKA1SBHBvcnQ=');
+
+@$core.Deprecated('Use browserProxyListenResultDescriptor instead')
+const BrowserProxyListenResult$json = {
+  '1': 'BrowserProxyListenResult',
+  '2': [
+    {'1': 'request_id', '3': 1, '4': 1, '5': 9, '10': 'requestId'},
+    {'1': 'operation_handle', '3': 2, '4': 1, '5': 4, '10': 'operationHandle'},
+    {'1': 'session_handle', '3': 3, '4': 1, '5': 4, '10': 'sessionHandle'},
+    {'1': 'port', '3': 4, '4': 1, '5': 13, '10': 'port'},
+    {
+      '1': 'error',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.ApiError',
+      '10': 'error'
+    },
+  ],
+};
+
+/// Descriptor for `BrowserProxyListenResult`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List browserProxyListenResultDescriptor = $convert.base64Decode(
+    'ChhCcm93c2VyUHJveHlMaXN0ZW5SZXN1bHQSHQoKcmVxdWVzdF9pZBgBIAEoCVIJcmVxdWVzdE'
+    'lkEikKEG9wZXJhdGlvbl9oYW5kbGUYAiABKARSD29wZXJhdGlvbkhhbmRsZRIlCg5zZXNzaW9u'
+    'X2hhbmRsZRgDIAEoBFINc2Vzc2lvbkhhbmRsZRISCgRwb3J0GAQgASgNUgRwb3J0Ei0KBWVycm'
+    '9yGAUgASgLMhcuYW55dHR5LmFwaS52MS5BcGlFcnJvclIFZXJyb3I=');
+
 @$core.Deprecated('Use engineCommandDescriptor instead')
 const EngineCommand$json = {
   '1': 'EngineCommand',
@@ -1465,6 +1508,15 @@ const EngineCommand$json = {
       '9': 0,
       '10': 'endpointCloudPresenceGet'
     },
+    {
+      '1': 'browser_proxy_listen',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.client.binding.v1.BrowserProxyListenRequest',
+      '9': 0,
+      '10': 'browserProxyListen'
+    },
   ],
   '8': [
     {'1': 'command'},
@@ -1499,8 +1551,10 @@ final $typed_data.Uint8List engineCommandDescriptor = $convert.base64Decode(
     'ludF9kaXNjb25uZWN0GA0gASgLMjMuYW55dHR5LmNsaWVudC5iaW5kaW5nLnYxLkVuZHBvaW50'
     'RGlzY29ubmVjdFJlcXVlc3RIAFISZW5kcG9pbnREaXNjb25uZWN0EnoKG2VuZHBvaW50X2Nsb3'
     'VkX3ByZXNlbmNlX2dldBgOIAEoCzI5LmFueXR0eS5jbGllbnQuYmluZGluZy52MS5FbmRwb2lu'
-    'dENsb3VkUHJlc2VuY2VHZXRSZXF1ZXN0SABSGGVuZHBvaW50Q2xvdWRQcmVzZW5jZUdldEIJCg'
-    'djb21tYW5k');
+    'dENsb3VkUHJlc2VuY2VHZXRSZXF1ZXN0SABSGGVuZHBvaW50Q2xvdWRQcmVzZW5jZUdldBJnCh'
+    'Ricm93c2VyX3Byb3h5X2xpc3RlbhgPIAEoCzIzLmFueXR0eS5jbGllbnQuYmluZGluZy52MS5C'
+    'cm93c2VyUHJveHlMaXN0ZW5SZXF1ZXN0SABSEmJyb3dzZXJQcm94eUxpc3RlbkIJCgdjb21tYW'
+    '5k');
 
 @$core.Deprecated('Use openSessionResultDescriptor instead')
 const OpenSessionResult$json = {
@@ -1968,6 +2022,15 @@ const EventEnvelope$json = {
       '9': 0,
       '10': 'endpointCloudPresenceGet'
     },
+    {
+      '1': 'browser_proxy_listen',
+      '3': 31,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.client.binding.v1.BrowserProxyListenResult',
+      '9': 0,
+      '10': 'browserProxyListen'
+    },
   ],
   '8': [
     {'1': 'event'},
@@ -2015,7 +2078,9 @@ final $typed_data.Uint8List eventEnvelopeDescriptor = $convert.base64Decode(
     'Zy52MS5FbmRwb2ludERpc2Nvbm5lY3RSZXN1bHRIAFISZW5kcG9pbnREaXNjb25uZWN0EnkKG2'
     'VuZHBvaW50X2Nsb3VkX3ByZXNlbmNlX2dldBgeIAEoCzI4LmFueXR0eS5jbGllbnQuYmluZGlu'
     'Zy52MS5FbmRwb2ludENsb3VkUHJlc2VuY2VHZXRSZXN1bHRIAFIYZW5kcG9pbnRDbG91ZFByZX'
-    'NlbmNlR2V0QgcKBWV2ZW50');
+    'NlbmNlR2V0EmYKFGJyb3dzZXJfcHJveHlfbGlzdGVuGB8gASgLMjIuYW55dHR5LmNsaWVudC5i'
+    'aW5kaW5nLnYxLkJyb3dzZXJQcm94eUxpc3RlblJlc3VsdEgAUhJicm93c2VyUHJveHlMaXN0ZW'
+    '5CBwoFZXZlbnQ=');
 
 @$core.Deprecated('Use credentialResolveRequestDescriptor instead')
 const CredentialResolveRequest$json = {
