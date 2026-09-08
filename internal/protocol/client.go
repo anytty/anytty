@@ -802,8 +802,12 @@ func (c *Client) sendRequestCancel(id uint64) error {
 }
 
 func (c *Client) send(frame []byte) error {
+	queueDone := perftrace.Measure("protocol.client.send_queue")
 	c.sendMu.Lock()
+	queueDone(len(frame))
 	defer c.sendMu.Unlock()
+	transportDone := perftrace.Measure("protocol.client.transport_send")
+	defer transportDone(len(frame))
 	return c.transport.Send(frame)
 }
 
