@@ -674,6 +674,7 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 		return reject("DAEMON_UNAVAILABLE", admissionErr.Error())
 	}
 	answerer := runtime.config.Answerer
+	answerer.RequireRelay = answerer.RequireRelay || requiresDaemonRelayCandidate(offer)
 	onPeerClosed := answerer.OnPeerClosed
 	var peerClosed sync.Once
 	finish := func() {

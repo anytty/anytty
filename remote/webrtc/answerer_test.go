@@ -13,6 +13,29 @@ import (
 	pion "github.com/pion/webrtc/v4"
 )
 
+func TestAnswererEnforcesRelayPolicy(t *testing.T) {
+	for _, required := range []bool{false, true} {
+		stop := errors.New("configuration captured")
+		answerer := Answerer{
+			Handler: &recordingAuthorizedHandler{}, RequireRelay: required,
+			PeerConnections: func(configuration pion.Configuration) (*pion.PeerConnection, error) {
+				want := pion.ICETransportPolicyAll
+				if required {
+					want = pion.ICETransportPolicyRelay
+				}
+				if configuration.ICETransportPolicy != want {
+					t.Fatalf("policy=%s, want %s", configuration.ICETransportPolicy, want)
+				}
+				return nil, stop
+			},
+		}
+		_, err := answerer.Answer(context.Background(), &SignalingOffer{SDP: "configuration-only"}, nil)
+		if !errors.Is(err, stop) {
+			t.Fatalf("answer error: %v", err)
+		}
+	}
+}
+
 func TestAnswererHandsReliableChannelToAuthorizedHandler(t *testing.T) {
 	handler := &recordingAuthorizedHandler{called: make(chan struct{}), result: make(chan error)}
 	sessionStarted := make(chan struct{}, 1)

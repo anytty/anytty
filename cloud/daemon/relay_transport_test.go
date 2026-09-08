@@ -7,6 +7,29 @@ import (
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
+func TestRequiresDaemonRelayCandidate(t *testing.T) {
+	for _, transport := range []cloudv1.RelayTransport{
+		cloudv1.RelayTransport_RELAY_TRANSPORT_UNSPECIFIED,
+		cloudv1.RelayTransport_RELAY_TRANSPORT_UDP,
+		cloudv1.RelayTransport_RELAY_TRANSPORT_TCP,
+		cloudv1.RelayTransport_RELAY_TRANSPORT_TLS,
+	} {
+		for _, hasRelay := range []bool{false, true} {
+			offer := &cloudv1.AgentOffer{RelayTransport: transport}
+			if hasRelay {
+				offer.Relay = &cloudv1.RelayICEConfig{}
+			}
+			want := hasRelay && (transport == cloudv1.RelayTransport_RELAY_TRANSPORT_TCP || transport == cloudv1.RelayTransport_RELAY_TRANSPORT_TLS)
+			if got := requiresDaemonRelayCandidate(offer); got != want {
+				t.Fatalf("transport=%s relay=%t: got %t, want %t", transport, hasRelay, got, want)
+			}
+		}
+	}
+	if requiresDaemonRelayCandidate(nil) {
+		t.Fatal("nil offer required relay")
+	}
+}
+
 func TestFilterDaemonRelayICEURLs(t *testing.T) {
 	values := []string{
 		"stun:relay.example:3478",

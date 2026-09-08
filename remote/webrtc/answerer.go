@@ -189,6 +189,8 @@ type DataChannelSessionHandler interface {
 // PeerConnection 只负责 ICE/DTLS/SCTP，不接收 grant、terminal payload 或 Cloud runtime 类型。
 type Answerer struct {
 	Handler DataChannelSessionHandler
+	// RequireRelay prevents host/srflx candidates from bypassing a stream Relay path.
+	RequireRelay bool
 	// PeerConnections 只允许注入 Pion primitive 创建策略；nil 保持当前生产默认配置。
 	PeerConnections PeerConnectionFactory
 	// PionLogger owns embedded Pion diagnostics when PeerConnections is nil.
@@ -219,6 +221,9 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, fmt.Errorf("remote daemon signaling offer is empty")
 	}
 	configuration := pion.Configuration{ICEServers: make([]pion.ICEServer, 0, len(iceServers))}
+	if answerer.RequireRelay {
+		configuration.ICETransportPolicy = pion.ICETransportPolicyRelay
+	}
 	for _, server := range iceServers {
 		if len(server.URLs) == 0 {
 			continue
@@ -242,7 +247,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	lifecycle := newPeerLifecycle(ctx, peer, cancel, answerer.OnPeerClosed, answerer.closePeerForTest)
 	var candidateMu sync.Mutex
 	candidates := make([]ICECandidate, 0, 4)
-	gathering := NewICEGatheringWaiter(false, len(iceServers) == 0, ICEGatheringPreferredGrace(len(iceServers) > 0))
+	gathering := NewICEGatheringWaiter(answerer.RequireRelay, len(iceServers) == 0, ICEGatheringPreferredGrace(len(iceServers) > 0))
 	peer.OnICECandidate(func(candidate *pion.ICECandidate) {
 		if candidate == nil {
 			return

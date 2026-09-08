@@ -8,6 +8,14 @@ import (
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
+func requiresDaemonRelayCandidate(offer *cloudv1.AgentOffer) bool {
+	if offer.GetRelay() == nil {
+		return false
+	}
+	return offer.GetRelayTransport() == cloudv1.RelayTransport_RELAY_TRANSPORT_TCP ||
+		offer.GetRelayTransport() == cloudv1.RelayTransport_RELAY_TRANSPORT_TLS
+}
+
 // filterDaemonRelayICEURLs keeps both peers on the transport selected by the
 // client attempt. STUN remains available for ICE bookkeeping, while TURN URLs
 // are restricted to the requested allocation transport.
