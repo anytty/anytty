@@ -61,165 +61,59 @@ func TestDialCloudRouteRefreshesOnceAfterCachedRouteFailure(t *testing.T) {
 	}
 }
 
-func TestDialCloudRouteHedgesDifferentControllerLocator(t *testing.T) {
-	cached := testCloudResolution(t, "cached")
+func TestDialCloudRouteMissingCacheQueriesController(t *testing.T) {
 	fresh := testCloudResolution(t, "fresh")
-	cachedCanceled := make(chan struct{})
-
-	opened, source, selected, err := dialCloudRouteWithHedge(
-		context.Background(),
-		cached,
-		func(context.Context) (*cloudclient.RouteResolution, error) {
-			return fresh, nil
-		},
-		func(ctx context.Context, _ *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
-			if source == cloudRouteSourceController {
-				return &openedCloudPeer{}, nil
+	var calls int
+	opened, source, selected, err := dialCloudRoute(context.Background(), nil,
+		func(context.Context) (*cloudclient.RouteResolution, error) { calls++; return fresh, nil },
+		func(_ context.Context, route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+			if calls != 1 || route != fresh || source != cloudRouteSourceController {
+				t.Fatal("unexpected fallback order")
 			}
-			<-ctx.Done()
-			close(cachedCanceled)
-			return nil, ctx.Err()
-		},
-		nil,
-		0,
-	)
-	if err != nil {
-		t.Fatalf("dialCloudRouteWithHedge() error = %v", err)
-	}
-	if opened == nil || source != cloudRouteSourceController || selected != fresh {
-		t.Fatalf("route result = opened:%p source:%q selected:%p", opened, source, selected)
-	}
-	select {
-	case <-cachedCanceled:
-	case <-time.After(time.Second):
-		t.Fatal("winning Controller route did not cancel the cached route")
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || selected != fresh || source != cloudRouteSourceController || calls != 1 {
+		t.Fatalf("missing cache result: source=%s calls=%d error=%v", source, calls, err)
 	}
 }
 
-func TestDialCloudRouteWinnerDoesNotWaitForLoserCleanup(t *testing.T) {
-	cached := testCloudResolution(t, "cached")
-	fresh := testCloudResolution(t, "fresh")
-	loserCanceled := make(chan struct{})
-	releaseLoser := make(chan struct{})
-	t.Cleanup(func() { close(releaseLoser) })
-	type routeResult struct {
-		opened   *openedCloudPeer
-		source   cloudRouteSource
-		selected *cloudclient.RouteResolution
-		err      error
-	}
-	result := make(chan routeResult, 1)
-	go func() {
-		opened, source, selected, err := dialCloudRouteWithHedge(
-			context.Background(),
-			cached,
-			func(context.Context) (*cloudclient.RouteResolution, error) { return fresh, nil },
-			func(ctx context.Context, _ *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
-				if source == cloudRouteSourceController {
-					return &openedCloudPeer{}, nil
-				}
-				<-ctx.Done()
-				close(loserCanceled)
-				<-releaseLoser
-				return nil, ctx.Err()
-			},
-			nil,
-			0,
-		)
-		result <- routeResult{opened: opened, source: source, selected: selected, err: err}
-	}()
-	select {
-	case got := <-result:
-		if got.err != nil || got.opened == nil || got.source != cloudRouteSourceController || got.selected != fresh {
-			t.Fatalf("route result = opened:%p source:%q selected:%p err:%v", got.opened, got.source, got.selected, got.err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("winning Controller route waited for cached route cleanup")
-	}
-	select {
-	case <-loserCanceled:
-	case <-time.After(time.Second):
-		t.Fatal("winning Controller route did not cancel the cached route")
-	}
-}
-
-func TestDialCloudRouteDoesNotDuplicateEquivalentControllerLocator(t *testing.T) {
+func TestDialCloudRouteRetriesEquivalentLocatorOnlyAfterFailure(t *testing.T) {
 	cached := testCloudResolution(t, "edge-a")
 	equivalent := testCloudResolution(t, "edge-a")
-	resolved := make(chan struct{})
-	releaseCached := make(chan struct{})
-	var controllerOpens atomic.Int32
-	type routeResult struct {
-		opened   *openedCloudPeer
-		source   cloudRouteSource
-		selected *cloudclient.RouteResolution
-		err      error
-	}
-	result := make(chan routeResult, 1)
-	go func() {
-		opened, source, selected, err := dialCloudRouteWithHedge(
-			context.Background(),
-			cached,
-			func(context.Context) (*cloudclient.RouteResolution, error) {
-				close(resolved)
-				return equivalent, nil
-			},
-			func(_ context.Context, _ *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
-				if source == cloudRouteSourceController {
-					controllerOpens.Add(1)
-					return &openedCloudPeer{}, nil
-				}
-				<-releaseCached
-				return &openedCloudPeer{}, nil
-			},
-			nil,
-			0,
-		)
-		result <- routeResult{opened: opened, source: source, selected: selected, err: err}
-	}()
-	select {
-	case <-resolved:
-	case <-time.After(time.Second):
-		t.Fatal("Controller resolve did not start")
-	}
-	close(releaseCached)
-	select {
-	case got := <-result:
-		if got.err != nil || got.opened == nil || got.source != cloudRouteSourceCached || got.selected != cached {
-			t.Fatalf("route result = opened:%p source:%q selected:%p err:%v", got.opened, got.source, got.selected, got.err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("cached route did not complete")
-	}
-	if controllerOpens.Load() != 0 {
-		t.Fatalf("equivalent Controller locator opened %d duplicate routes", controllerOpens.Load())
+	var opens, resolves int
+	opened, source, _, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) {
+			if opens != 1 {
+				t.Fatal("resolved before cached attempt finished")
+			}
+			resolves++
+			return equivalent, nil
+		},
+		func(_ context.Context, route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+			opens++
+			if source == cloudRouteSourceCached {
+				return nil, errors.New("cached exchange timed out")
+			}
+			if resolves != 1 || route != equivalent {
+				t.Fatal("invalid fallback")
+			}
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || source != cloudRouteSourceController || opens != 2 || resolves != 1 {
+		t.Fatalf("equivalent fallback: source=%s opens=%d resolves=%d error=%v", source, opens, resolves, err)
 	}
 }
 
 func TestDialCloudRouteStopsForPermanentControllerFailure(t *testing.T) {
 	cached := testCloudResolution(t, "cached")
 	wantErr := status.Error(codes.PermissionDenied, "credential rejected")
-	var cachedCanceled atomic.Bool
-
-	opened, source, selected, err := dialCloudRouteWithHedge(
-		context.Background(),
-		cached,
-		func(context.Context) (*cloudclient.RouteResolution, error) {
-			return nil, wantErr
-		},
-		func(ctx context.Context, _ *cloudclient.RouteResolution, _ cloudRouteSource) (*openedCloudPeer, error) {
-			<-ctx.Done()
-			cachedCanceled.Store(true)
-			return nil, ctx.Err()
-		},
-		nil,
-		0,
-	)
+	opened, source, selected, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) { return nil, wantErr },
+		func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error) {
+			return nil, errors.New("cached route failed")
+		}, nil)
 	if opened != nil || source != cloudRouteSourceController || selected != nil || !errors.Is(err, wantErr) {
-		t.Fatalf("route result = opened:%p source:%q selected:%p err:%v", opened, source, selected, err)
-	}
-	if !cachedCanceled.Load() {
-		t.Fatal("permanent Controller failure did not cancel the cached route")
+		t.Fatalf("fallback rejection: source=%s error=%v", source, err)
 	}
 }
 
@@ -246,6 +140,26 @@ func TestDialCloudRouteDoesNotResolveWhenCachedRouteSucceeds(t *testing.T) {
 	}
 	if resolveCalls.Load() != 0 {
 		t.Fatalf("resolve calls = %d, want 0", resolveCalls.Load())
+	}
+}
+
+func TestDialCloudRouteSlowCachedSuccessNeverQueriesController(t *testing.T) {
+	cached := testCloudResolution(t, "cached")
+	var calls atomic.Int32
+	opened, source, _, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) {
+			calls.Add(1)
+			return nil, status.Error(codes.Unavailable, "controller offline")
+		},
+		func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error) {
+			time.Sleep(time.Second)
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || source != cloudRouteSourceCached {
+		t.Fatalf("cached connection failed: source=%s error=%v", source, err)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("healthy slow cache triggered %d Controller calls", calls.Load())
 	}
 }
 
