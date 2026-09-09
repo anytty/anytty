@@ -288,7 +288,8 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	peer.OnICEConnectionStateChange(func(state pion.ICEConnectionState) {
 		if answerer.PionLogger != nil {
 			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "ice", "value", state.String())
-			logDaemonSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "ice_"+state.String())
+			// ICE graceful shutdown waits for this synchronous callback while
+			// holding the gatherer lock. Read pair stats in the async peer callback.
 		}
 	})
 	peer.OnDataChannel(func(channel *pion.DataChannel) {

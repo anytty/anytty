@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -139,6 +141,7 @@ func TestAnswererRepeatedRemoteChannelCloseFinalizesPeers(t *testing.T) {
 			started := make(chan struct{})
 			answerer := Answerer{
 				Handler:        drainingAuthorizedHandler{},
+				PionLogger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 				OnPeerClosed:   func() { finalized.Add(1); close(closed) },
 				OnSessionStart: func() { close(started) },
 			}
