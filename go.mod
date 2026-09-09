@@ -26,7 +26,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.10.2
 	go.opentelemetry.io/otel v1.44.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/mod v0.38.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.47.0
