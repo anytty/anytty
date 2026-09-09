@@ -186,9 +186,10 @@ void main() {
         expect(hashes.length, greaterThan(1));
       }
       await tester.pump(const Duration(seconds: 15));
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
       expect(tester.binding.hasScheduledFrame, isFalse);
-      await tester.pumpWidget(const SizedBox());
     },
   );
 }

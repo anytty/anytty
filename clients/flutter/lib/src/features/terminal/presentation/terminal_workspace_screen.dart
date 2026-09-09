@@ -515,14 +515,17 @@ final class _TerminalWorkspaceScreenState
         Positioned.fill(
           child: Offstage(
             offstage: !browserVisible,
-            child: BrowserSessionScreen(
-              endpointId: widget.endpointId,
-              endpointLabel: endpointLabel,
-              navigationRequestId: _browserNavigationRequestId,
-              navigationUrl: _browserNavigationUrl,
-              onExit: () {
-                if (mounted) setState(() => _browserVisible = false);
-              },
+            child: TickerMode(
+              enabled: browserVisible,
+              child: BrowserSessionScreen(
+                endpointId: widget.endpointId,
+                endpointLabel: endpointLabel,
+                navigationRequestId: _browserNavigationRequestId,
+                navigationUrl: _browserNavigationUrl,
+                onExit: () {
+                  if (mounted) setState(() => _browserVisible = false);
+                },
+              ),
             ),
           ),
         ),

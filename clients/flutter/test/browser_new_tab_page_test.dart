@@ -61,7 +61,8 @@ void main() {
 
     await tester.ensureVisible(find.byTooltip('https://anytty.dev'));
     await tester.longPress(find.byTooltip('https://anytty.dev'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('Remove saved link'));
     await tester.pump();
     expect(removed, 'https://anytty.dev');
@@ -69,6 +70,7 @@ void main() {
     await tester.ensureVisible(find.text('View all'));
     await tester.tap(find.text('View all'));
     expect(historyOpened, isTrue);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets(

@@ -29,6 +29,7 @@ final class AnyttyRive extends StatefulWidget {
     this.loop = true,
     this.visible = true,
     this.crop = const Rect.fromLTWH(0, 0, 513, 546),
+    this.gaze = Offset.zero,
   });
   final String asset;
   final String timeline;
@@ -36,6 +37,7 @@ final class AnyttyRive extends StatefulWidget {
   final bool loop;
   final bool visible;
   final Rect crop;
+  final Offset gaze;
   @override
   State<AnyttyRive> createState() => _AnyttyRiveState();
 }
@@ -209,6 +211,7 @@ final class _AnyttyRiveState extends State<AnyttyRive>
                   _clock,
                   widget.seconds,
                   widget.crop,
+                  AnyttyMotion.disabled(context) ? Offset.zero : widget.gaze,
                 ),
               ),
       ),
@@ -223,19 +226,22 @@ final class _MascotPainter extends CustomPainter {
     this.clock,
     this.seconds,
     this.crop,
+    this.gaze,
   ) : super(repaint: clock);
   final rive.Artboard artboard;
   final Map<String, rive.Animation> animations;
   final Animation<double> clock;
   final double seconds;
   final Rect crop;
+  final Offset gaze;
   @override
   void paint(Canvas canvas, Size size) {
     for (final entry in animations.entries) {
-      entry.value.time =
-          entry.key.startsWith('gaze-') || entry.key == 'head-follow'
-          ? .5
-          : clock.value * seconds;
+      entry.value.time = switch (entry.key) {
+        'gaze-x' || 'head-follow' => (gaze.dx + 1) / 2,
+        'gaze-y' => (gaze.dy + 1) / 2,
+        _ => clock.value * seconds,
+      };
       entry.value.advanceAndApply(0);
     }
     canvas.save();
@@ -257,5 +263,6 @@ final class _MascotPainter extends CustomPainter {
   bool shouldRepaint(_MascotPainter oldDelegate) =>
       oldDelegate.artboard != artboard ||
       oldDelegate.crop != crop ||
+      oldDelegate.gaze != gaze ||
       oldDelegate.seconds != seconds;
 }

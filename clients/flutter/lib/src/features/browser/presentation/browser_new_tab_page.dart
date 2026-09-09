@@ -75,36 +75,15 @@ final class BrowserNewTabPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  LayoutBuilder(
-                    builder: (context, fieldConstraints) {
-                      return AnimatedBuilder(
-                        animation: Listenable.merge([
-                          searchController,
-                          searchFocusNode,
-                          addressController,
-                          addressFocusNode,
-                        ]),
-                        builder: (context, _) {
-                          final address = addressController?.text.trim() ?? '';
-                          final resting =
-                              searchController.text.trim().isEmpty &&
-                              !searchFocusNode.hasFocus &&
-                              !(addressFocusNode?.hasFocus ?? false) &&
-                              (address.isEmpty || address == 'about:blank') &&
-                              MediaQuery.viewInsetsOf(context).bottom == 0;
-                          return BrowserPerchedMascot(
-                            key: const ValueKey('browser-perched-mascot'),
-                            visible: resting,
-                            child: _NewTabSearchField(
-                              controller: searchController,
-                              focusNode: searchFocusNode,
-                              onSearch: onSearch,
-                              onFocusSearch: onFocusSearch,
-                            ),
-                          );
-                        },
-                      );
-                    },
+                  BrowserPerchedMascot(
+                    key: const ValueKey('browser-perched-mascot'),
+                    visible: true,
+                    child: _NewTabSearchField(
+                      controller: searchController,
+                      focusNode: searchFocusNode,
+                      onSearch: onSearch,
+                      onFocusSearch: onFocusSearch,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   _NewTabSectionHeader(

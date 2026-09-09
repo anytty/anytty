@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/anytty_localizations.dart';
@@ -16,10 +15,10 @@ import '../data/browser_http_proxy.dart';
 import '../data/browser_history_store.dart';
 import '../data/browser_session_store.dart';
 import '../domain/browser_load_progress.dart';
+import '../domain/browser_navigation.dart';
 import '../domain/browser_session.dart';
 import '../domain/browser_session_recovery.dart';
 import '../../terminal/data/endpoint_session_client.dart';
-import '../../terminal/presentation/terminal_petal_menu.dart';
 import 'browser_endpoint_picker_sheet.dart';
 import 'browser_new_tab_page.dart';
 import 'browser_address_bar.dart';
@@ -108,7 +107,28 @@ final class _BrowserSessionScreenState
     _retainEndpointSession(_activeEndpointId);
     unawaited(_loadHistory(_activeEndpointId));
     unawaited(_loadBookmarks(_activeEndpointId));
-    unawaited(_activateSession(_activeEndpointId, _activeEndpointLabel));
+    unawaited(_restoreInitialSession());
+  }
+
+  Future<void> _restoreInitialSession() async {
+    BrowserSessionSnapshot? saved;
+    try {
+      saved = await _sessionStore.load(_activeEndpointId);
+    } catch (_) {}
+    if (!mounted || _closing) return;
+    final snapshot =
+        saved ??
+        BrowserSessionSnapshot.empty(
+          sessionId: _activeEndpointId,
+          endpointId: _activeEndpointId,
+          endpointLabel: _activeEndpointLabel,
+        );
+    setState(() {
+      _snapshot = snapshot;
+      _installSessionTabs(snapshot);
+      _addressController.text = _isNewTabUrl(snapshot.url) ? '' : snapshot.url;
+    });
+    await _activateSession(_activeEndpointId, _activeEndpointLabel);
   }
 
   @override
@@ -349,10 +369,7 @@ final class _BrowserSessionScreenState
     final palette = AnyttyPalette.of(context);
     final state = _stateMachine.state;
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final petalPreferences = ref
-        .watch(terminalPetalMenuPreferencesProvider)
-        .valueOrNull;
-    final browser = PopScope<Object?>(
+    return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
@@ -372,7 +389,7 @@ final class _BrowserSessionScreenState
             toolbarHeight: 56,
             automaticallyImplyLeading: false,
             leading: IconButton(
-              tooltip: anyttyText(context, en: 'Back', zh: '返回'),
+              tooltip: anyttyText(context, en: 'Back to terminal', zh: '返回终端'),
               onPressed: _closing
                   ? null
                   : () {
@@ -382,7 +399,7 @@ final class _BrowserSessionScreenState
                         unawaited(_closeScreen());
                       }
                     },
-              icon: const Icon(Icons.arrow_back_rounded, size: 22),
+              icon: const Icon(Icons.keyboard_return_rounded, size: 22),
             ),
             titleSpacing: 0,
             title: _BrowserToolbarTitle(
@@ -478,7 +495,9 @@ final class _BrowserSessionScreenState
                     behavior: HitTestBehavior.opaque,
                     onTap: _dismissAddressEditing,
                     child: ColoredBox(
-                      color: palette.background.withValues(alpha: .75),
+                      color: _isNewTabUrl(_snapshot?.url)
+                          ? Colors.transparent
+                          : palette.background.withValues(alpha: .75),
                     ),
                   ),
               ],
@@ -487,128 +506,6 @@ final class _BrowserSessionScreenState
         ),
       ),
     );
-    return TerminalPetalMenuOverlay(
-      child: TerminalPetalMenuRegion(
-        actions: _browserPetalActions(context),
-        enabled: petalPreferences?.enabled ?? true,
-        hapticsEnabled: petalPreferences?.hapticsEnabled ?? true,
-        onOpened: _addressFocusNode.unfocus,
-        onSelected: (action) => unawaited(_handleBrowserPetalAction(action.id)),
-        child: browser,
-      ),
-    );
-  }
-
-  List<TerminalPetalMenuItem> _browserPetalActions(BuildContext context) => [
-    TerminalPetalMenuItem(
-      id: 'browser-navigation',
-      label: anyttyText(context, en: 'Navigate', zh: '导航'),
-      icon: LucideIcons.navigation,
-      enabled: _webViewController != null,
-      children: [
-        TerminalPetalMenuItem(
-          id: 'browser-back',
-          label: anyttyText(context, en: 'Back', zh: '后退'),
-          icon: LucideIcons.arrowLeft,
-          enabled: _webViewController != null,
-        ),
-        TerminalPetalMenuItem(
-          id: 'browser-forward',
-          label: anyttyText(context, en: 'Forward', zh: '前进'),
-          icon: LucideIcons.arrowRight,
-          enabled: _webViewController != null,
-        ),
-        TerminalPetalMenuItem(
-          id: 'browser-reload',
-          label: anyttyText(context, en: 'Reload', zh: '刷新'),
-          icon: LucideIcons.refreshCw,
-          enabled: _webViewController != null,
-        ),
-      ],
-    ),
-    TerminalPetalMenuItem(
-      id: 'browser-tabs',
-      label: anyttyText(context, en: 'Tabs', zh: '标签页'),
-      icon: LucideIcons.panelsTopLeft,
-      children: [
-        TerminalPetalMenuItem(
-          id: 'browser-new-tab',
-          label: anyttyText(context, en: 'New tab', zh: '新建标签页'),
-          icon: LucideIcons.plus,
-        ),
-        TerminalPetalMenuItem(
-          id: 'browser-open-tabs',
-          label: anyttyText(context, en: 'Switch tab', zh: '切换标签页'),
-          icon: LucideIcons.listFilter,
-        ),
-      ],
-    ),
-    TerminalPetalMenuItem(
-      id: 'browser-history',
-      label: anyttyText(context, en: 'History', zh: '历史记录'),
-      icon: LucideIcons.history,
-    ),
-    TerminalPetalMenuItem(
-      id: 'browser-reader',
-      label: anyttyText(context, en: 'Reader', zh: '阅读模式'),
-      icon: LucideIcons.copy,
-      enabled: _webViewController != null,
-    ),
-    TerminalPetalMenuItem(
-      id: 'browser-desktop',
-      label: anyttyText(context, en: 'Desktop site', zh: '电脑模式'),
-      icon: LucideIcons.monitor,
-      enabled: _webViewController != null,
-    ),
-    TerminalPetalMenuItem(
-      id: 'browser-session',
-      label: anyttyText(context, en: 'Session', zh: '会话'),
-      icon: LucideIcons.gitCompareArrows,
-      children: [
-        TerminalPetalMenuItem(
-          id: 'browser-switch-session',
-          label: anyttyText(context, en: 'Switch session', zh: '切换会话'),
-          icon: LucideIcons.gitCompareArrows,
-        ),
-        TerminalPetalMenuItem(
-          id: 'browser-settings',
-          label: anyttyText(context, en: 'Browser settings', zh: '浏览器设置'),
-          icon: LucideIcons.settings,
-        ),
-        TerminalPetalMenuItem(
-          id: 'browser-exit',
-          label: anyttyText(context, en: 'Close browser', zh: '关闭浏览器'),
-          icon: LucideIcons.x,
-        ),
-      ],
-    ),
-  ];
-
-  Future<void> _handleBrowserPetalAction(String id) async {
-    switch (id) {
-      case 'browser-back':
-        _goBack(_webViewController);
-      case 'browser-forward':
-        _goForward(_webViewController);
-      case 'browser-reload':
-        _reload(_webViewController);
-      case 'browser-new-tab':
-        await _createTab();
-      case 'browser-open-tabs':
-        await _openTabSwitcher();
-      case 'browser-history':
-        await _openHistory();
-      case 'browser-reader':
-        await _toggleReaderMode();
-      case 'browser-desktop':
-        await _toggleDesktopMode();
-      case 'browser-switch-session':
-        await _openEndpointPicker();
-      case 'browser-settings':
-        await _openBrowserSettings();
-      case 'browser-exit':
-        await _closeScreen();
-    }
   }
 
   Widget _buildContent(BuildContext context) {
@@ -616,7 +513,9 @@ final class _BrowserSessionScreenState
     final controller = _webViewController;
     final palette = AnyttyPalette.of(context);
     final isNewTab =
-        controller != null && _pageReady && _isNewTabUrl(_snapshot?.url);
+        _snapshot != null &&
+        _isNewTabUrl(_snapshot?.url) &&
+        (controller == null || _pageReady);
     if (isNewTab) {
       return BrowserNewTabPage(
         searchController: _newTabSearchController,
@@ -1338,7 +1237,7 @@ final class _BrowserSessionScreenState
     if (requestedValue != null && _pendingNavigationUrl == requestedValue) {
       _pendingNavigationUrl = null;
     }
-    final uri = _resolveNavigation(value);
+    final uri = resolveBrowserNavigation(value);
     if (uri == null || !_allowedUri(uri)) {
       setState(
         () => _error = anyttyText(
@@ -1387,24 +1286,6 @@ final class _BrowserSessionScreenState
     _newTabSearchController.clear();
     final url = _snapshot?.url;
     _addressController.text = _isNewTabUrl(url) ? '' : url!;
-  }
-
-  Uri? _resolveNavigation(String value) {
-    if (value == 'about:blank' || value.startsWith('about:')) {
-      return Uri.tryParse(value);
-    }
-    if (value.contains('://')) return Uri.tryParse(value);
-    if (!value.contains(RegExp(r'\s'))) {
-      final address = Uri.tryParse('https://$value');
-      final host = address?.host ?? '';
-      if (host.contains('.') ||
-          value.startsWith('localhost') ||
-          value.startsWith('127.0.0.1') ||
-          value.startsWith('[')) {
-        return address;
-      }
-    }
-    return Uri.https('www.google.com', '/search', {'q': value});
   }
 
   Future<void> _recordHistory(BrowserHistoryEntry entry) async {
@@ -1592,6 +1473,8 @@ final class _BrowserSessionScreenState
     _activeTabIds[_activeEndpointId] = tab.id;
     final snapshot = _snapshotForTab(tab);
     _snapshot = snapshot;
+    _pendingNavigationUrl = null;
+    _addressController.text = _isNewTabUrl(tab.url) ? '' : tab.url;
     if (_isNewTabUrl(tab.url)) _newTabSearchController.clear();
     await _sessionStore.save(snapshot);
     if (mounted) {
