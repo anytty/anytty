@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/anytty/anytty/proto/apipb"
@@ -34,9 +33,9 @@ func TestForwardPreparedCommandPreservesOuterCorrelation(t *testing.T) {
 		inner, _ := NewApplicationSession(stamp, raw)
 		command := &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalList{TerminalList: &apipb.TerminalListCommand{}}}
 		_, _ = inner.Execute(context.Background(), command)
-		broken, _ := NewApplicationSession(stamp, forwardingExecutor{inner: inner, restamp: true})
-		if _, err := broken.execute(context.Background(), command, terminal); err == nil || !strings.Contains(err.Error(), "request correlation mismatch") {
-			t.Fatalf("double-stamping reproducer: %v", err)
+		nested, _ := NewApplicationSession(stamp, forwardingExecutor{inner: inner, restamp: true})
+		if _, err := nested.execute(context.Background(), command, terminal); err != nil {
+			t.Fatalf("nested Execute must preserve the prepared correlation: %v", err)
 		}
 		outer, _ := NewApplicationSession(stamp, forwardingExecutor{inner: inner})
 		if _, err := outer.execute(context.Background(), command, terminal); err != nil {
