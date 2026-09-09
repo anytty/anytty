@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:anytty_native/src/app/anytty_theme.dart';
 import 'package:anytty_native/src/app/providers.dart';
 import 'package:anytty_native/src/features/browser/data/browser_session_store.dart';
@@ -6,8 +8,11 @@ import 'package:anytty_native/src/features/browser/presentation/browser_new_tab_
 import 'package:anytty_native/src/features/browser/presentation/browser_address_bar.dart';
 import 'package:anytty_native/src/features/browser/presentation/browser_session_screen.dart';
 import 'package:anytty_native/src/features/terminal/presentation/terminal_petal_menu.dart';
+import 'package:anytty_native/src/features/terminal/data/endpoint_session_client.dart';
+import 'package:anytty_native/src/generated/proto/remoteauthpb/remote_auth.pb.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,8 +37,27 @@ void main() {
         ),
       );
       final store = _SessionStore();
+      final pendingSession = Completer<EndpointSessionClient>();
       final container = ProviderContainer(
         overrides: [
+          endpointRegistryProvider.overrideWith(
+            (ref) async => EndpointRegistryV1(
+              endpoints: [
+                EndpointConfigV1(
+                  endpointId: 'offline',
+                  label: 'Offline',
+                  enabled: true,
+                ),
+                EndpointConfigV1(
+                  endpointId: 'pending',
+                  label: 'Slow device',
+                  enabled: true,
+                ),
+              ],
+            ),
+          ),
+          endpointSessionProvider('pending')
+              .overrideWith((ref) => pendingSession.future),
           endpointSessionProvider('offline')
               .overrideWith((ref) => throw StateError('Device offline')),
         ],
@@ -73,7 +97,7 @@ void main() {
       expect(store.snapshot.tabs.single.url, isEmpty);
       tester.view.physicalSize = const Size(1000, 400);
       await tester.pump();
-      expect(find.byIcon(Icons.keyboard_return_rounded), findsOneWidget);
+      expect(find.byIcon(LucideIcons.undo2), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
       expect(
         find.descendant(
@@ -83,6 +107,29 @@ void main() {
         findsOneWidget,
       );
       expect(find.byTooltip('Back to terminal'), findsOneWidget);
+      await tester.tap(find.byTooltip('Switch device'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.text('Slow device'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Connecting to Slow device...'), findsOneWidget);
+      expect(find.byTooltip('More browser actions'), findsNothing);
+      await tester.pump(const Duration(seconds: 9));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('browser-session-switch-loading')),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('Unable to switch to Slow device'),
+        findsOneWidget,
+      );
+      expect(find.byType(BrowserNewTabPage), findsOneWidget);
+      expect(store.snapshot.endpointId, 'offline');
+      pendingSession.completeError(StateError('Still offline'));
+      await tester.pump();
+      expect(find.byType(BrowserNewTabPage), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await tester.pump();

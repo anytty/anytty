@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/anytty_localizations.dart';
@@ -78,6 +79,7 @@ final class _BrowserSessionScreenState
   ProviderSubscription<AsyncValue<EndpointSessionClient>>?
   _endpointSessionSubscription;
   String? _error;
+  String? _switchingEndpointLabel;
   bool _pageReady = false;
   bool _closing = false;
   BrowserSessionRecovery? _sessionRecovery;
@@ -399,20 +401,25 @@ final class _BrowserSessionScreenState
                         unawaited(_closeScreen());
                       }
                     },
-              icon: const Icon(Icons.keyboard_return_rounded, size: 22),
+              icon: const Icon(LucideIcons.undo2, size: 22),
             ),
             titleSpacing: 0,
-            title: _BrowserToolbarTitle(
-              addressController: _addressController,
-              addressFocusNode: _addressFocusNode,
-              controller: _webViewController,
-              onNavigate: _navigate,
-              onBack: () => _goBack(_webViewController),
-              onForward: () => _goForward(_webViewController),
-              history: _history,
-              onDismiss: _dismissAddressEditing,
+            title: IgnorePointer(
+              ignoring: _switchingEndpointLabel != null,
+              child: _BrowserToolbarTitle(
+                addressController: _addressController,
+                addressFocusNode: _addressFocusNode,
+                controller: _webViewController,
+                onNavigate: _navigate,
+                onBack: () => _goBack(_webViewController),
+                onForward: () => _goForward(_webViewController),
+                history: _history,
+                onDismiss: _dismissAddressEditing,
+              ),
             ),
-            actions: _addressFocusNode.hasFocus
+            actions: _switchingEndpointLabel != null
+                ? const <Widget>[]
+                : _addressFocusNode.hasFocus
                 ? [
                     IconButton(
                       tooltip: anyttyText(
@@ -489,6 +496,41 @@ final class _BrowserSessionScreenState
               fit: StackFit.expand,
               children: [
                 _buildContent(context),
+                if (_switchingEndpointLabel case final label?)
+                  Positioned.fill(
+                    child: AbsorbPointer(
+                      child: ColoredBox(
+                        key: const ValueKey('browser-session-switch-loading'),
+                        color: palette.background.withValues(alpha: .94),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const AnyttyBrandLoader(
+                                    scene: AnyttyMascotScene.connecting,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    anyttyText(
+                                      context,
+                                      en: 'Connecting to $label...',
+                                      zh: '正在连接 $label…',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: palette.text),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_addressFocusNode.hasFocus)
                   GestureDetector(
                     key: const ValueKey('browser-address-dismiss-region'),
@@ -689,7 +731,7 @@ final class _BrowserSessionScreenState
       return;
     }
 
-    final switching = hasLiveSession && endpointId != previousEndpointId;
+    final switching = endpointId != previousEndpointId;
     if (mounted && switching) {
       setState(() => _error = null);
     }
@@ -1790,6 +1832,7 @@ final class _BrowserSessionScreenState
   }
 
   Future<void> _openEndpointPicker() async {
+    if (_switchingEndpointLabel != null) return;
     List<BrowserEndpointOption> endpoints;
     try {
       final registry = await ref.read(endpointRegistryProvider.future);
@@ -1824,7 +1867,15 @@ final class _BrowserSessionScreenState
     final endpoint = endpoints.firstWhere(
       (item) => item.endpointId == selected,
     );
-    await _activateSession(endpoint.endpointId, endpoint.label);
+    _dismissAddressEditing();
+    setState(() => _switchingEndpointLabel = endpoint.label);
+    try {
+      await _activateSession(endpoint.endpointId, endpoint.label);
+    } catch (error) {
+      if (mounted) _showSwitchError(endpoint.label, error);
+    } finally {
+      if (mounted) setState(() => _switchingEndpointLabel = null);
+    }
   }
 
   String _labelFor(String endpointId, String? label) {
