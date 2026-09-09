@@ -1,6 +1,7 @@
 # AnyTTY Brand Asset Inventory
 
-Updated: 2026-09-07. Local assets are prepared; no store submission or app release has been made.
+Updated: 2026-09-09. Mobile store assets are prepared and saved as store drafts;
+final store submission and publication await the owner's decision.
 
 ## Approved Source
 
@@ -23,8 +24,8 @@ before making large print artwork; do not invent a replacement mascot.
 | README / documentation | [logo.png](assets/logo.png) | New mascot, existing README layout retained |
 | Google Play listing icon | `artifacts/store-screenshots/google-play/assets/app-icon-512.png` (local output) | 32-bit PNG, opaque artwork, no pre-applied store mask |
 | App Store source icon | `artifacts/store-screenshots/app-store/assets/app-icon-1024.png` (local output) | RGB PNG without alpha |
-| Google Play feature graphic | `artifacts/store-screenshots/google-play/assets/feature-graphic-{en,zh}.png` (local outputs) | 1024 x 500; new logo and core / multi-client copy |
-| Existing five promotional pages | `artifacts/store-screenshots/2026-09-05/android/promo/rendered` (local outputs) | New masthead logo; original product screenshots retained |
+| Google Play feature graphic | `artifacts/store-screenshots/google-play/assets/feature-graphic-{en,zh}.png` (local outputs) | 1024 x 500; mobile-app copy and proportionate phone bezel |
+| Android promotional pages | `artifacts/store-screenshots/2026-09-05/android/promo/rendered` and `artifacts/store-screenshots/2026-09-09/google-play` (local outputs) | Four selected Chinese and four English pages; inaccurate empty-browser artwork excluded |
 | Marketing repository | `anytty-site/docs/assets/logo.png`, `anytty-site/site/public/assets/app-icon.webp` | Documentation and compatibility asset updated in that repository |
 
 Open `artifacts/brand-refresh/2026-09-07/index.html` locally to inspect the exports.
@@ -61,14 +62,21 @@ recaptured from the new binary if reused for marketing.
 - Recapture any launch / home-screen images from the new app. Keep terminal, Web,
   TUI and mobile screenshots faithful to the actual client being advertised.
 
-Suggested shared copy:
+App store copy (updated 2026-09-09):
 
-> One core. Every client.
+> Your terminal. Wherever you are.
 >
-> Sessions keep running on your own machines. Connect from TUI, CLI, Web and mobile.
+> Connect to your computers from your phone. Keep terminal sessions running,
+> manage files and open development pages.
 
-The Chinese feature graphic uses the approved positioning: multi-client coexistence
-and freedom of the core. Existing feature descriptions were otherwise preserved.
+The Chinese headline is “终端随行，工作不停。” Store artwork describes the mobile
+app, rather than the architecture of the entire AnyTTY project. The canonical
+feature template is `docs/assets/brand/store/feature-graphic.html`; the English
+phone screenshot template is `docs/assets/brand/store/phone-screenshot.html`.
+The latter explicitly labels its real Android screenshots as Chinese UI.
+
+The browser promotional image showing an empty start page and the cropped legacy
+Android tablet screenshots are excluded from this release's selected assets.
 
 ## Regenerate And Verify
 
@@ -78,6 +86,7 @@ From the public repository root, with dependencies installed:
 npm run icons
 npm run icons:check
 node scripts/render-store-branding.mjs
+node scripts/render-store-phone-screenshots.mjs
 node artifacts/store-screenshots/2026-09-05/android/promo/render.mjs
 ```
 
@@ -85,6 +94,9 @@ The two renderers require Google Chrome and a locally available `playwright` mod
 If it is installed outside this repository, set `PLAYWRIGHT_MODULE` to its absolute
 module path. It is a build-time tool, not an application dependency. The existing
 promotional renderer also requires the fonts referenced by its template.
+Store templates use retained real device captures under
+`artifacts/store-screenshots/2026-09-05/android/phone/`; these local inputs are not
+included in a clean checkout. Supply those captures before running the renderers.
 
 Icon checks cover output sizes, source consistency, PNG channel format, opacity,
 Google Play's size limit, iOS catalog slots and Android adaptive-mask safety.

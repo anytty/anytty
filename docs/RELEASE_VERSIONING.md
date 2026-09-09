@@ -32,8 +32,11 @@ Android uses the Flutter values directly:
 - `versionName`: the part before `+`, for example `0.0.1-beta.12`
 - `versionCode`: the part after `+`, for example `17`
 
-App Store Connect does not allow a new build to use a marketing version lower
-than an existing version. The current iOS store record is `1.1.0`, so the
-iOS representation of this release is `1.1.0 (17)`. The build number remains
-the same as Android and the GitHub release; only the iOS marketing version is
-different because of Apple's monotonic store constraint.
+iOS uses the numeric base version as its marketing version and the same mobile
+build number. For `0.0.1-beta.13+19`, upload `0.0.1 (19)`; retain `beta.13` in the
+release notes and artifact provenance because Apple's marketing version field
+does not accept prerelease suffixes.
+
+The unsubmitted App Store draft previously named `1.1.0` was changed to `0.0.1`
+on 2026-09-09. It had not been released, so it did not require retaining `1.1.0`.
+Do not apply the earlier marketing-version override to subsequent builds.

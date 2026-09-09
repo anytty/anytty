@@ -14,7 +14,7 @@ const report = [];
 try {
   const page = await browser.newPage({ viewport: { width: 1024, height: 500 }, deviceScaleFactor: 1 });
   for (const language of ['en', 'zh']) {
-    await page.goto(`${pathToFileURL(join(assets, 'feature-graphic-en.html'))}?lang=${language}`);
+    await page.goto(`${pathToFileURL(join(root, 'docs/assets/brand/store/feature-graphic.html'))}?lang=${language}`);
     await page.evaluate(async () => {
       await document.fonts.ready;
       await Promise.all([...document.images].map(image => image.decode()));
