@@ -8,7 +8,7 @@
   ],
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@napi-rs/canvas": "0.1.100",
+    "@napi-rs/canvas": "1.0.8",
     "esbuild": "0.28.1",
     "eslint": "10.8.0",
     "eslint-plugin-react-hooks": "7.1.1",
