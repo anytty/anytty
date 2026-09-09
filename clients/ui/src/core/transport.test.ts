@@ -120,7 +120,7 @@ describe('RtcSession public interfaces', () => {
   })
 
   it('exposes only bounded user policy for relay transport selection', () => {
-    expectTypeOf<RelayTransportPreference>().toEqualTypeOf<'auto' | 'udp' | 'tcp'>()
+    expectTypeOf<RelayTransportPreference>().toEqualTypeOf<'tcp' | 'udp'>()
     expectTypeOf<ConnectionPolicy>().toEqualTypeOf<{
       route: 'auto' | 'direct' | 'ssh' | 'cloud'
       cloud: 'auto' | 'p2p' | 'relay'

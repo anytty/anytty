@@ -89,7 +89,7 @@ func openResolvedCloudPeer(
 func relayTransportOptions(value endpoint.RelayTransport) ([]endpoint.RelayTransport, error) {
 	switch value {
 	case "", endpoint.RelayTransportAuto:
-		return []endpoint.RelayTransport{endpoint.RelayTransportTCP, endpoint.RelayTransportUDP}, nil
+		return []endpoint.RelayTransport{endpoint.RelayTransportTCP}, nil
 	case endpoint.RelayTransportUDP, endpoint.RelayTransportTCP:
 		return []endpoint.RelayTransport{value}, nil
 	default:

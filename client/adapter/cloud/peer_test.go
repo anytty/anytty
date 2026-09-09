@@ -13,12 +13,11 @@ import (
 )
 
 func TestCloudPeerRaceWaitsForAuthenticationAndClosesLatePeer(t *testing.T) {
-	attempts, err := planCloudPeerAttempts(endpoint.RelayAuto, endpoint.RelayTransportAuto)
+	attempts, err := planCloudPeerAttempts(endpoint.RelayAuto, endpoint.RelayTransportTCP)
 	if err != nil {
 		t.Fatal(err)
 	}
 	directConnected := make(chan struct{})
-	tcpRejected := make(chan struct{})
 	winnerConn, winnerRemote := memory.NewPair()
 	defer winnerRemote.Close()
 	lateConn, lateRemote := memory.NewPair()
@@ -34,12 +33,7 @@ func TestCloudPeerRaceWaitsForAuthenticationAndClosesLatePeer(t *testing.T) {
 			<-ctx.Done()
 			return &openedCloudPeer{connection: lateConn}, nil
 		}
-		if attempt.relayTransport == endpoint.RelayTransportTCP {
-			close(tcpRejected)
-			return nil, errors.New("capability authentication rejected")
-		}
 		<-directConnected
-		<-tcpRejected
 		return winner, nil
 	})
 	if err != nil || got != winner {
@@ -58,7 +52,10 @@ func TestCloudPeerRaceWaitsForAuthenticationAndClosesLatePeer(t *testing.T) {
 }
 
 func TestCloudPeerRaceRetainsEveryAuthenticationFailure(t *testing.T) {
-	attempts, _ := planCloudPeerAttempts(endpoint.RelayOnly, endpoint.RelayTransportAuto)
+	attempts := []cloudPeerAttempt{
+		{relayTransport: endpoint.RelayTransportTCP},
+		{relayTransport: endpoint.RelayTransportUDP},
+	}
 	tcpErr, udpErr := errors.New("TCP certificate mismatch"), errors.New("UDP capability rejected")
 	opened, err := raceCloudPeerAttempts(context.Background(), attempts, func(_ context.Context, attempt cloudPeerAttempt) (*openedCloudPeer, error) {
 		if attempt.relayTransport == endpoint.RelayTransportTCP {
@@ -71,20 +68,22 @@ func TestCloudPeerRaceRetainsEveryAuthenticationFailure(t *testing.T) {
 	}
 }
 
-func TestCloudPeerAttemptsProbeDirectAndBothRelayTransports(t *testing.T) {
+func TestCloudPeerAttemptsDefaultToDirectAndTCPRelay(t *testing.T) {
 	for _, mode := range []endpoint.RelayMode{"", endpoint.RelayAuto, endpoint.RelaySmart} {
-		attempts, err := planCloudPeerAttempts(mode, endpoint.RelayTransportAuto)
-		if err != nil {
-			t.Fatalf("planCloudPeerAttempts(%q): %v", mode, err)
-		}
-		if len(attempts) != 3 {
-			t.Fatalf("planCloudPeerAttempts(%q) returned %d attempts", mode, len(attempts))
-		}
-		if attempts[0].preference != cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY || attempts[0].icePolicy != port.ICETransportAll {
-			t.Fatalf("direct attempt for %q = %#v", mode, attempts[0])
-		}
-		if attempts[1].relayTransport != endpoint.RelayTransportTCP || attempts[2].relayTransport != endpoint.RelayTransportUDP {
-			t.Fatalf("relay attempts for %q = %#v", mode, attempts[1:])
+		for _, preference := range []endpoint.RelayTransport{"", endpoint.RelayTransportAuto} {
+			attempts, err := planCloudPeerAttempts(mode, preference)
+			if err != nil {
+				t.Fatalf("planCloudPeerAttempts(%q): %v", mode, err)
+			}
+			if len(attempts) != 2 {
+				t.Fatalf("planCloudPeerAttempts(%q) returned %d attempts", mode, len(attempts))
+			}
+			if attempts[0].preference != cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY || attempts[0].icePolicy != port.ICETransportAll {
+				t.Fatalf("direct attempt for %q = %#v", mode, attempts[0])
+			}
+			if attempts[1].relayTransport != endpoint.RelayTransportTCP || attempts[1].icePolicy != port.ICETransportRelayOnly {
+				t.Fatalf("relay attempts for %q = %#v", mode, attempts[1:])
+			}
 		}
 	}
 }
@@ -98,9 +97,24 @@ func TestCloudPeerAttemptsPreserveExplicitPolicies(t *testing.T) {
 	if err != nil || len(relay) != 1 || relay[0].preference != cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY || relay[0].icePolicy != port.ICETransportRelayOnly || relay[0].relayTransport != endpoint.RelayTransportTCP {
 		t.Fatalf("relay attempts=%#v err=%v", relay, err)
 	}
-	relay, err = planCloudPeerAttempts(endpoint.RelayOnly, endpoint.RelayTransportAuto)
-	if err != nil || len(relay) != 2 || relay[0].relayTransport != endpoint.RelayTransportTCP || relay[1].relayTransport != endpoint.RelayTransportUDP {
-		t.Fatalf("automatic relay attempts=%#v err=%v", relay, err)
+	for _, preference := range []endpoint.RelayTransport{"", endpoint.RelayTransportAuto} {
+		relay, err = planCloudPeerAttempts(endpoint.RelayOnly, preference)
+		if err != nil || len(relay) != 1 || relay[0].relayTransport != endpoint.RelayTransportTCP {
+			t.Fatalf("automatic relay attempts=%#v err=%v", relay, err)
+		}
+	}
+	for _, mode := range []endpoint.RelayMode{endpoint.RelayAuto, endpoint.RelaySmart, endpoint.RelayOnly} {
+		attempts, err := planCloudPeerAttempts(mode, endpoint.RelayTransportUDP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantCount := 2
+		if mode == endpoint.RelayOnly {
+			wantCount = 1
+		}
+		if len(attempts) != wantCount || attempts[len(attempts)-1].relayTransport != endpoint.RelayTransportUDP {
+			t.Fatalf("explicit UDP mode=%q attempts=%#v", mode, attempts)
+		}
 	}
 	if _, err := planCloudPeerAttempts("invalid", endpoint.RelayTransportAuto); err == nil {
 		t.Fatal("invalid relay mode was accepted")

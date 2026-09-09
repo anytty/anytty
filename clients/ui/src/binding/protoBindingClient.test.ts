@@ -440,7 +440,7 @@ describe('ProtoBindingConnector route policy', () => {
     const connector = new ProtoBindingConnector(() => client, { endpointId: 'studio' })
 
     await expect(connector.getConnectionPolicy()).resolves.toEqual({
-      policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' },
+      policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' },
       available: { direct: true, ssh: false, cloud: true },
       unavailableReasons: { ssh: 'credential_unavailable' },
     })

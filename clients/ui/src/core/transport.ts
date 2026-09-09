@@ -54,7 +54,7 @@ export type ConnectionRoutePreference = 'auto' | 'direct' | 'ssh' | 'cloud'
 export type CloudConnectionPreference = 'auto' | 'p2p' | 'relay'
 
 /** RelayTransportPreference 只收缩 managed TURN 的 UDP/TCP 候选；实际 transport 仍来自 Go connection snapshot。 */
-export type RelayTransportPreference = 'auto' | 'udp' | 'tcp'
+export type RelayTransportPreference = 'tcp' | 'udp'
 
 /** ConnectionPolicy 是 Go-owned Endpoint 策略的 UI 投影，应用后由 Go 持久化并建立新的 session generation。 */
 export interface ConnectionPolicy {

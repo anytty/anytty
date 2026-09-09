@@ -3806,7 +3806,7 @@ export function MachineWorkspace({ api, connector, retainConnectionDemand, class
           onRefresh={openConnectionInfo}
       onRetry={retryConnectionPolicyFailure}
       onApply={applyConnectionPolicy}
-          onRestoreAuto={() => applyConnectionPolicy({ route: 'auto', cloud: 'auto', relayTransport: 'auto' })}
+          onRestoreAuto={() => applyConnectionPolicy({ route: 'auto', cloud: 'auto', relayTransport: 'tcp' })}
           routeManagement={connector.routeManagement}
           endpointId={machine.machineId}
           cloudPresence={cloudPresence}
@@ -4029,7 +4029,7 @@ export function ConnectionInfoDialog({
   cloudPresence?: CloudPresenceSnapshot | undefined
 }) {
   const { t } = useTranslation()
-  const [draft, setDraft] = useState<ConnectionPolicy>({ route: 'auto', cloud: 'auto', relayTransport: 'auto' })
+  const [draft, setDraft] = useState<ConnectionPolicy>({ route: 'auto', cloud: 'auto', relayTransport: 'tcp' })
   useEffect(() => {
     if (policyState) setDraft(policyState.policy)
   }, [policyState])
@@ -4133,7 +4133,7 @@ export function ConnectionInfoDialog({
                 ['auto', t('workspace.connection.cloudAuto')], ['p2p', t('workspace.connection.cloudP2P')], ['relay', t('workspace.connection.cloudRelay')],
               ]} disabled={!policyState?.available.cloud || (draft.route !== 'auto' && draft.route !== 'cloud')} onChange={(cloud) => setDraft((current) => ({ ...current, cloud }))} />
               <ConnectionRadioGroup label={t('workspace.connection.relayTransport')} name="relay-transport" value={draft.relayTransport} options={[
-                ['auto', t('workspace.connection.transportAuto')], ['udp', t('workspace.connection.transportUDP')], ['tcp', t('workspace.connection.transportTCP')],
+                ['tcp', t('workspace.connection.transportTCP')], ['udp', t('workspace.connection.transportUDP')],
               ]} disabled={!policyState?.available.cloud || (draft.route !== 'auto' && draft.route !== 'cloud') || draft.cloud === 'p2p'} onChange={(relayTransport) => setDraft((current) => ({ ...current, relayTransport }))} />
             </div>
           </details>

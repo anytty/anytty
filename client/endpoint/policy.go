@@ -98,7 +98,7 @@ func SetConnectionPolicy(registry Registry, endpointID EndpointID, policy Connec
 		return Registry{}, connectionError(ErrorConfig, "unknown Cloud relay mode %q", policy.CloudRelayMode)
 	}
 	switch policy.RelayTransport {
-	case RelayTransportAuto, RelayTransportUDP, RelayTransportTCP:
+	case RelayTransportUDP, RelayTransportTCP:
 	default:
 		return Registry{}, connectionError(ErrorConfig, "unknown Relay transport %q", policy.RelayTransport)
 	}

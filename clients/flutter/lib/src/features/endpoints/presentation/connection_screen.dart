@@ -677,7 +677,7 @@ final class _CloudPolicyControls extends StatelessWidget {
           _ControlLabel(
             label: 'Relay transport',
             hint: relayEnabled
-                ? 'Auto prefers the transport selected by Go'
+                ? 'TCP / UDP'
                 : 'Relay transport is not active for this path',
           ),
           const SizedBox(height: 8),
@@ -686,18 +686,13 @@ final class _CloudPolicyControls extends StatelessWidget {
             segments: const [
               ButtonSegment(
                 value: ManagedWebRTCRelayTransport
-                    .MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO,
-                label: Text('Auto'),
+                    .MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
+                label: Text('TCP'),
               ),
               ButtonSegment(
                 value: ManagedWebRTCRelayTransport
                     .MANAGED_WEBRTC_RELAY_TRANSPORT_UDP,
                 label: Text('UDP'),
-              ),
-              ButtonSegment(
-                value: ManagedWebRTCRelayTransport
-                    .MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
-                label: Text('TCP'),
               ),
             ],
             selected: {_normalizeRelayTransport(policy.relayTransport)},
@@ -1141,7 +1136,7 @@ ManagedWebRTCRelayTransport _normalizeRelayTransport(
     value == ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_UDP ||
         value == ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP
     ? value
-    : ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO;
+    : ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP;
 
 bool _samePolicy(ConnectionPolicy left, ConnectionPolicy right) =>
     _normalizeRoutePreference(left.routePreference) ==

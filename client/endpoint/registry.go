@@ -201,7 +201,7 @@ const (
 )
 
 const (
-	// RelayTransportAuto 保留 Relay lease 明确提供的 UDP/TCP transport。
+	// RelayTransportAuto 仅兼容旧配置，读取时归一化为 TCP。
 	RelayTransportAuto RelayTransport = "auto"
 	// RelayTransportUDP 只允许 TURN/UDP。
 	RelayTransportUDP RelayTransport = "udp"
@@ -940,8 +940,8 @@ func (route AccessRoute) withDefaults() AccessRoute {
 		if route.RelayMode == "" {
 			route.RelayMode = RelayAuto
 		}
-		if route.RelayTransport == "" {
-			route.RelayTransport = RelayTransportAuto
+		if route.RelayTransport == "" || route.RelayTransport == RelayTransportAuto {
+			route.RelayTransport = RelayTransportTCP
 		}
 	}
 	route.HostKeyFingerprints = normalizeStrings(route.HostKeyFingerprints)

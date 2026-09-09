@@ -223,7 +223,7 @@ func TestHostPublicCloudEntriesShareBootIdentity(t *testing.T) {
 	assertReachedSignaling("new Host ImportPairing", pair(otherHost))
 
 	hostCaptures := gateway.capturesForBoot(host.cloudBootID)
-	const cloudAttemptsPerRoute = 3
+	const cloudAttemptsPerRoute = 2
 	if len(hostCaptures) != (4+concurrentAttempts)*cloudAttemptsPerRoute {
 		t.Fatalf("public same-Host Hello count=%d want %d", len(hostCaptures), (4+concurrentAttempts)*cloudAttemptsPerRoute)
 	}
@@ -292,12 +292,25 @@ func TestEndpointCloudPresenceRefreshesStaleLocatorAndStoresCurrentEdge(t *testi
 
 func assertCloudBootGenerations(t *testing.T, captures []cloudBootCapture, bootID string) {
 	t.Helper()
-	const cloudAttemptsPerRoute = 3
+	const cloudAttemptsPerRoute = 2
 	if len(captures)%cloudAttemptsPerRoute != 0 {
 		t.Fatalf("Cloud Hello count=%d is not divisible by attempts per route=%d", len(captures), cloudAttemptsPerRoute)
 	}
 	generations := make([]uint64, 0, len(captures))
 	for _, capture := range captures {
+		hello := capture.hello.GetHello()
+		switch hello.GetRelayPreference() {
+		case cloudv1.RelayPreference_RELAY_PREFERENCE_DIRECT_ONLY:
+			if hello.GetRelayTransport() != cloudv1.RelayTransport_RELAY_TRANSPORT_UNSPECIFIED {
+				t.Fatal("direct attempt unexpectedly constrained the relay transport")
+			}
+		case cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY:
+			if hello.GetRelayTransport() != cloudv1.RelayTransport_RELAY_TRANSPORT_TCP {
+				t.Fatalf("default relay transport=%v, want TCP", hello.GetRelayTransport())
+			}
+		default:
+			t.Fatalf("unexpected default attempt preference=%v", hello.GetRelayPreference())
+		}
 		if capture.hello.GetBootId() != bootID {
 			t.Fatalf("wire boot_id=%q want %q", capture.hello.GetBootId(), bootID)
 		}

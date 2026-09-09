@@ -200,8 +200,9 @@ func connectionPolicyFromProto(policy *bindingpb.ConnectionPolicy) (endpoint.Rou
 	}
 	var relayTransport endpoint.RelayTransport
 	switch policy.GetRelayTransport() {
-	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO:
-		relayTransport = endpoint.RelayTransportAuto
+	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_UNSPECIFIED,
+		remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO:
+		relayTransport = endpoint.RelayTransportTCP
 	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_UDP:
 		relayTransport = endpoint.RelayTransportUDP
 	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_TCP:
@@ -216,7 +217,7 @@ func connectionPolicyToProto(target endpoint.Endpoint) *bindingpb.ConnectionPoli
 	policy := &bindingpb.ConnectionPolicy{
 		RoutePreference: remoteauthpb.EndpointRoutePreference_ENDPOINT_ROUTE_PREFERENCE_AUTO,
 		CloudRelayMode:  remoteauthpb.ManagedWebRTCRelayMode_MANAGED_WEBRTC_RELAY_MODE_AUTO,
-		RelayTransport:  remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO,
+		RelayTransport:  remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
 	}
 	switch target.SelectionPolicy.RoutePreference {
 	case endpoint.RoutePreferenceDirect:

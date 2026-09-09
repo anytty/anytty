@@ -72,6 +72,7 @@ func TestSetConnectionPolicyUpdatesEveryManagedRouteAtomically(t *testing.T) {
 
 func TestSetConnectionPolicyRejectsUnknownValues(t *testing.T) {
 	for _, policy := range []ConnectionPolicy{
+		{RoutePreference: RoutePreferenceAuto, CloudRelayMode: RelayAuto, RelayTransport: RelayTransportAuto},
 		{RoutePreference: "bad", CloudRelayMode: RelayAuto, RelayTransport: RelayTransportAuto},
 		{RoutePreference: RoutePreferenceAuto, CloudRelayMode: "bad", RelayTransport: RelayTransportAuto},
 		{RoutePreference: RoutePreferenceAuto, CloudRelayMode: RelayAuto, RelayTransport: "bad"},
@@ -80,6 +81,40 @@ func TestSetConnectionPolicyRejectsUnknownValues(t *testing.T) {
 		if _, err := SetConnectionPolicy(registry, "studio", policy); err == nil {
 			t.Fatalf("invalid policy accepted: %#v", policy)
 		}
+	}
+}
+
+func TestLegacyRelayTransportNormalizesToTCP(t *testing.T) {
+	for _, value := range []RelayTransport{"", RelayTransportAuto, RelayTransportTCP, RelayTransportUDP} {
+		t.Run(string(value), func(t *testing.T) {
+			target := plannerEndpoint()
+			route := target.Routes["cloud"]
+			route.RelayTransport = value
+			target.Routes["cloud"] = route
+			registry := Registry{Version: RegistryVersion, Default: "studio", Endpoints: map[EndpointID]Endpoint{"studio": target}}
+			want := RelayTransportTCP
+			if value == RelayTransportUDP {
+				want = RelayTransportUDP
+			}
+			normalized, err := registry.Normalize()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := normalized.Endpoints["studio"].Routes["cloud"].RelayTransport; got != want {
+				t.Fatalf("normalized=%q want=%q", got, want)
+			}
+			wire, err := RegistryToProto(registry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			roundTrip, err := RegistryFromProto(wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := roundTrip.Endpoints["studio"].Routes["cloud"].RelayTransport; got != want {
+				t.Fatalf("round trip=%q want=%q", got, want)
+			}
+		})
 	}
 }
 

@@ -286,7 +286,7 @@ func mapWireRelayTransport(value remoteauthpb.ManagedWebRTCRelayTransport) Relay
 	switch value {
 	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_UNSPECIFIED,
 		remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO:
-		return RelayTransportAuto
+		return RelayTransportTCP
 	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_UDP:
 		return RelayTransportUDP
 	case remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_TCP:
@@ -299,7 +299,7 @@ func mapWireRelayTransport(value remoteauthpb.ManagedWebRTCRelayTransport) Relay
 func wireRelayTransport(value RelayTransport) remoteauthpb.ManagedWebRTCRelayTransport {
 	switch value {
 	case RelayTransportAuto:
-		return remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO
+		return remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_TCP
 	case RelayTransportUDP:
 		return remoteauthpb.ManagedWebRTCRelayTransport_MANAGED_WEBRTC_RELAY_TRANSPORT_UDP
 	case RelayTransportTCP:

@@ -88,7 +88,7 @@ describe('MachineWorkspace connection policy ownership', () => {
 describe('ConnectionInfoDialog', () => {
   it('keeps the Go-owned policy editable when the current session is unavailable', async () => {
     const policyState = {
-      policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' } as const,
+      policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' } as const,
       available: { direct: false, ssh: false, cloud: false },
       unavailableReasons: { direct: 'route_not_configured', ssh: 'credential_unavailable', cloud: 'cloud_unavailable' },
     }
@@ -110,7 +110,7 @@ describe('ConnectionInfoDialog', () => {
       info={{ path: 'local', routeKind: 'direct', observedPath: 'direct', connectionId: 'studio:7', machineId: 'studio', relayInUse: false, type: 'p2p', localAddr: '182.138.142.220:41000', localBaseAddr: '192.168.123.168:40000', remoteAddr: '[2001:db8::20]:41121', candidateType: 'srflx', remoteCandidateType: 'host', candidatePairId: 'pair-selected', generation: 7n }}
       loading={false}
       error={null}
-      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: false, cloud: true }, unavailableReasons: { ssh: 'credential_unavailable' } }}
+      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' }, available: { direct: true, ssh: false, cloud: true }, unavailableReasons: { ssh: 'credential_unavailable' } }}
       applying={false}
       onClose={vi.fn()}
       onRefresh={vi.fn()}
@@ -143,7 +143,7 @@ describe('ConnectionInfoDialog', () => {
       info={{ path: 'hub', routeKind: 'cloud', observedPath: 'direct', connectionId: 'studio:8', machineId: 'studio', relayInUse: false, type: 'p2p', localAddr: '203.0.113.8:42000', remoteAddr: '203.0.113.8:43000', localBaseAddr: '192.168.1.10:41120', remoteBaseAddr: '192.168.1.20:41120', candidateType: 'srflx', remoteCandidateType: 'srflx' }}
       loading={false}
       error={null}
-      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
+      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
       applying={false}
       onClose={vi.fn()}
       onRefresh={vi.fn()}
@@ -164,7 +164,7 @@ describe('ConnectionInfoDialog', () => {
       loading={false}
       connecting
       error={null}
-      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
+      policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
       applying={false}
       onClose={vi.fn()}
       onRefresh={vi.fn()}
@@ -185,7 +185,7 @@ describe('ConnectionInfoDialog', () => {
       info={null}
       loading={false}
       error="Direct route is unavailable"
-      policyState={{ policy: { route: 'direct', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
+      policyState={{ policy: { route: 'direct', cloud: 'auto', relayTransport: 'tcp' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
       applying={false}
       onClose={vi.fn()}
       onRefresh={vi.fn()}
@@ -213,7 +213,7 @@ describe('ConnectionInfoDialog', () => {
         info={null}
         loading={false}
         error={null}
-        policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
+        policyState={{ policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' }, available: { direct: true, ssh: true, cloud: true }, unavailableReasons: {} }}
         applying={false}
         onClose={onClose}
         onRefresh={vi.fn()}

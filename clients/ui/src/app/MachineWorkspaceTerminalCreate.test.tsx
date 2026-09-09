@@ -1674,7 +1674,7 @@ describe('MachineWorkspace terminal creation', () => {
         connect,
         reconnect,
         getConnectionPolicy: vi.fn(async () => ({
-          policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' },
+          policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' },
           available: { direct: true, ssh: true, cloud: true },
           unavailableReasons: {},
         })),

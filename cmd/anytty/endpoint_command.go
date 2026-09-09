@@ -645,7 +645,7 @@ func newEndpointTestCommand(runtime *endpointCommandRuntime) *cobra.Command {
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	command.Flags().StringVar(&routeValue, "route", "", "explicit route ID (required when multiple routes are eligible before CONN003)")
 	command.Flags().StringVar(&relayMode, "relay", "", "probe-only Cloud path: auto, direct, relay_only, or smart_route; requires --route")
-	command.Flags().StringVar(&relayTransport, "relay-transport", "", "probe-only Relay transport: auto, udp, or tcp; requires --route")
+	command.Flags().StringVar(&relayTransport, "relay-transport", "", "probe-only Relay transport: tcp or udp; requires --route")
 	return command
 }
 
@@ -676,7 +676,7 @@ func endpointProbeOverrides(target endpointdomain.Endpoint, routeID endpointdoma
 	}
 	if relayTransport != "" {
 		switch endpointdomain.RelayTransport(relayTransport) {
-		case endpointdomain.RelayTransportAuto, endpointdomain.RelayTransportUDP, endpointdomain.RelayTransportTCP:
+		case endpointdomain.RelayTransportUDP, endpointdomain.RelayTransportTCP:
 			route.RelayTransport = endpointdomain.RelayTransport(relayTransport)
 		default:
 			return endpointdomain.Endpoint{}, fmt.Errorf("unknown probe Relay transport %q", relayTransport)
@@ -831,13 +831,13 @@ func newEndpointPolicySetCommand(runtime *endpointCommandRuntime) *cobra.Command
 	}}
 	command.Flags().StringVar(&route, "route", "", "auto, direct, ssh, or cloud")
 	command.Flags().StringVar(&cloudPath, "cloud-path", "", "auto, p2p, relay, or smart_route")
-	command.Flags().StringVar(&relayTransport, "relay-transport", "", "auto, udp, or tcp")
+	command.Flags().StringVar(&relayTransport, "relay-transport", "", "tcp or udp")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
 	return command
 }
 
 func endpointPolicyViewFromEndpoint(target endpointdomain.Endpoint) endpointPolicyView {
-	view := endpointPolicyView{SchemaVersion: 1, Kind: "endpoint_policy", EndpointID: string(target.ID), Route: "auto", CloudPath: "auto", RelayTransport: "auto"}
+	view := endpointPolicyView{SchemaVersion: 1, Kind: "endpoint_policy", EndpointID: string(target.ID), Route: "auto", CloudPath: "auto", RelayTransport: "tcp"}
 	switch target.SelectionPolicy.RoutePreference {
 	case endpointdomain.RoutePreferenceDirect:
 		view.Route = "direct"
@@ -858,7 +858,7 @@ func endpointPolicyViewFromEndpoint(target endpointdomain.Endpoint) endpointPoli
 		case endpointdomain.RelaySmart:
 			view.CloudPath = "smart_route"
 		}
-		if item.RelayTransport != "" {
+		if item.RelayTransport != "" && item.RelayTransport != endpointdomain.RelayTransportAuto {
 			view.RelayTransport = string(item.RelayTransport)
 		}
 		break
@@ -892,8 +892,8 @@ func endpointPolicyFromView(view endpointPolicyView) (endpointdomain.ConnectionP
 	default:
 		return endpointdomain.ConnectionPolicy{}, usageCLIError("cloud-path must be auto, p2p, relay, or smart_route")
 	}
-	if policy.RelayTransport != endpointdomain.RelayTransportAuto && policy.RelayTransport != endpointdomain.RelayTransportUDP && policy.RelayTransport != endpointdomain.RelayTransportTCP {
-		return endpointdomain.ConnectionPolicy{}, usageCLIError("relay-transport must be auto, udp, or tcp")
+	if policy.RelayTransport != endpointdomain.RelayTransportUDP && policy.RelayTransport != endpointdomain.RelayTransportTCP {
+		return endpointdomain.ConnectionPolicy{}, usageCLIError("relay-transport must be tcp or udp")
 	}
 	return policy, nil
 }
@@ -954,7 +954,7 @@ func bindRouteEditFlags(command *cobra.Command, flags *routeEditFlags, kind endp
 		command.Flags().StringVar(&flags.targetDeviceID, "target-device-id", "", "managed target device ID")
 		command.Flags().StringVar(&flags.accountProfileRef, "account-profile-ref", "", "local Cloud account profile reference")
 		command.Flags().StringVar(&flags.relayMode, "relay", string(endpointdomain.RelayAuto), "auto, direct, relay_only, or smart_route")
-		command.Flags().StringVar(&flags.relayTransport, "relay-transport", string(endpointdomain.RelayTransportAuto), "auto, udp, or tcp")
+		command.Flags().StringVar(&flags.relayTransport, "relay-transport", string(endpointdomain.RelayTransportTCP), "tcp or udp")
 	}
 }
 
