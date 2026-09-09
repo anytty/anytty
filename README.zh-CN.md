@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/assets/logo.png" alt="AnyTTY Logo" width="120">
   <h1>AnyTTY</h1>
-  <p><strong>终端一直跑着，你随时回来接管</strong></p>
+  <p><strong>Any machine. Any task.<br>Any client. Any time.<br>That's AnyTTY.</strong></p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-3d7ea6" alt="Apache-2.0 License"></a>
     <a href="https://github.com/anytty/anytty/releases"><img src="https://img.shields.io/github/v/release/anytty/anytty?include_prereleases&amp;sort=semver&amp;label=latest%20beta" alt="Latest Beta Release"></a>
