@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:anytty_native/src/app/anytty_app.dart';
+import 'package:anytty_native/src/shared/presentation/anytty_brand_mark.dart';
 import 'package:anytty_native/src/app/providers.dart';
 import 'package:anytty_native/src/generated/proto/apipb/common.pb.dart';
 import 'package:anytty_native/src/generated/proto/apipb/terminal.pb.dart';
@@ -76,6 +77,116 @@ void main() {
     expect(find.text('Connecting to device'), findsOneWidget);
     expect(find.text('ICE negotiation'), findsNothing);
     expect(find.text('Load terminal list'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('keeps AUTO route errors hidden until the connection fails', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    anyttyRouter.go('/');
+
+    final endpoint = EndpointConfigV1(
+      endpointId: 'loading-test',
+      label: 'Loading test',
+      enabled: true,
+    );
+    final events = StreamController<EndpointConnectionEvent>();
+    addTearDown(() {
+      unawaited(events.close());
+    });
+    final inventory = Completer<List<TerminalInfo>>();
+    addTearDown(() {
+      if (!inventory.isCompleted) inventory.complete(const []);
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          endpointRegistryProvider.overrideWith(
+            (ref) async =>
+                EndpointRegistryV1(schemaVersion: 1, endpoints: [endpoint]),
+          ),
+          terminalListProvider.overrideWith(
+            (ref, endpointId) => inventory.future,
+          ),
+          endpointConnectionProgressProvider.overrideWith(
+            (ref, endpointId) => events.stream,
+          ),
+          connectionPolicyProvider.overrideWith(
+            (ref, endpointId) async => ConnectionPolicyState(
+              policy: ConnectionPolicy(
+                routePreference:
+                    EndpointRoutePreference.ENDPOINT_ROUTE_PREFERENCE_AUTO,
+              ),
+            ),
+          ),
+          connectionDiagnosticsProvider.overrideWith((ref, endpointId) async {
+            return (
+              session: EndpointSessionStamp(endpointId: endpointId),
+              snapshot: ConnectionSnapshot(connected: false),
+            );
+          }),
+        ],
+        child: const AnyttyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Loading test'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final logoPosition = tester.getTopLeft(find.byType(AnyttyBrandLoader));
+
+    Future<void> emit(EndpointConnectionEvent event) async {
+      events.add(event);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    await emit(
+      EndpointConnectionEvent(
+        phase: EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_CONNECTING,
+        attemptedRouteKind: ConnectionRouteKind.CONNECTION_ROUTE_KIND_SSH,
+        connectionStage: 'ssh_connecting',
+      ),
+    );
+    await emit(
+      EndpointConnectionEvent(
+        phase: EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_CONNECTING,
+        attemptedRouteKind: ConnectionRouteKind.CONNECTION_ROUTE_KIND_DIRECT,
+        connectionStage: 'attempt_failed',
+        error: ApiError(message: 'direct timed out'),
+      ),
+    );
+    expect(tester.getTopLeft(find.byType(AnyttyBrandLoader)), logoPosition);
+    expect(find.text('SSH · establishing SSH connection'), findsOneWidget);
+    expect(find.text('Direct · unavailable'), findsOneWidget);
+    expect(find.text('Show errors'), findsNothing);
+    expect(find.textContaining('direct timed out'), findsNothing);
+    await emit(
+      EndpointConnectionEvent(
+        phase: EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_OFFLINE,
+        error: ApiError(message: 'No routes available'),
+      ),
+    );
+    expect(find.text('Show errors'), findsOneWidget);
+    expect(find.textContaining('direct timed out'), findsNothing);
+    await tester.tap(find.text('Show errors'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('direct timed out'), findsOneWidget);
+    expect(find.textContaining('No routes available'), findsOneWidget);
+    expect(tester.getTopLeft(find.byType(AnyttyBrandLoader)), logoPosition);
+    await emit(
+      EndpointConnectionEvent(
+        phase: EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_PLANNING,
+      ),
+    );
+    expect(find.text('Show errors'), findsNothing);
+    expect(find.text('Direct · unavailable'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -171,6 +282,11 @@ void main() {
 
       expect(find.text('Direct connection unavailable'), findsOneWidget);
       expect(find.text('Use Automatic'), findsOneWidget);
+      expect(find.text('Show errors'), findsOneWidget);
+      expect(find.textContaining('direct route unavailable'), findsNothing);
+      await tester.tap(find.text('Show errors'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('direct route unavailable'), findsOneWidget);
       expect(find.text('Connection settings'), findsOneWidget);
 
       await tester.tap(find.text('Connection settings'));

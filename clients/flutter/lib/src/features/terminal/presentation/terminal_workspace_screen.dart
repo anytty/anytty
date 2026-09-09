@@ -22,6 +22,7 @@ import '../../../native/android_ime_inset_platform.dart';
 import '../../../native/android_terminal_input_platform.dart';
 import '../../../native/external_uri_platform.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
+import '../../../shared/presentation/anytty_brand_mark.dart';
 import '../../endpoints/data/connection_repository.dart';
 import '../../endpoints/data/endpoint_repository.dart';
 import '../../browser/presentation/browser_session_screen.dart';
@@ -2132,6 +2133,7 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
       ),
       error: (error, _) => _TerminalFailure(
         message: error.toString(),
+        collapseDetails: true,
         onRetry: () => ref.invalidate(terminalListProvider(widget.endpointId)),
       ),
       data: (items) {
@@ -2662,12 +2664,6 @@ final class _TerminalListLoadingState
         EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_PLANNING;
     final waitingForNetwork =
         phase == EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_OFFLINE;
-    final connectionFailed =
-        waitingForNetwork || progress.valueOrNull?.hasError() == true;
-    final showDirectHelp =
-        directOnly &&
-        phase != EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_READY &&
-        connectionFailed;
     final attempts = Map<ConnectionRouteKind, EndpointConnectionEvent>.of(
       _attempts,
     );
@@ -2679,135 +2675,184 @@ final class _TerminalListLoadingState
       attempts[latest.attemptedRouteKind] = latest;
     }
     final attemptEvents = _orderedConnectionAttempts(attempts);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: AnimatedSwitcher(
-            duration: AnyttyMotion.resolve(context, AnyttyMotion.quick),
-            child: showDirectHelp
-                ? _DirectOnlyConnectionHelp(
-                    key: const ValueKey('direct-only-help'),
-                    applying: _applyingAuto,
-                    error: _actionError,
-                    onUseAuto: policyState == null
-                        ? null
-                        : () => _useAutomaticConnection(policyState),
-                    onOpenSettings: _openConnectionSettings,
-                  )
-                : Row(
-                    key: const ValueKey('connection-progress'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: palette.surfaceRaised,
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(color: palette.border),
-                        ),
-                        child: SizedBox.square(
-                          dimension: 18,
-                          child: _ConnectionSpinner(
-                            color: waitingForNetwork
-                                ? palette.warning
-                                : palette.accent,
+    final selectedKind = switch (policyState?.policy.routePreference) {
+      EndpointRoutePreference.ENDPOINT_ROUTE_PREFERENCE_DIRECT =>
+        ConnectionRouteKind.CONNECTION_ROUTE_KIND_DIRECT,
+      EndpointRoutePreference.ENDPOINT_ROUTE_PREFERENCE_SSH =>
+        ConnectionRouteKind.CONNECTION_ROUTE_KIND_SSH,
+      EndpointRoutePreference.ENDPOINT_ROUTE_PREFERENCE_MANAGED_CLOUD =>
+        ConnectionRouteKind.CONNECTION_ROUTE_KIND_CLOUD,
+      _ => null,
+    };
+    // A losing AUTO route is not an overall failure. The runtime emits OFFLINE
+    // when the planner has exhausted its routes, including routes not yet started.
+    final selectedFailed =
+        selectedKind != null &&
+        attempts[selectedKind]?.connectionStage == 'attempt_failed';
+    final connectionFailed =
+        phase != EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_READY &&
+        (waitingForNetwork || progress.hasError || selectedFailed);
+    final errors = connectionFailed
+        ? [
+            for (final event in attemptEvents)
+              if (event.hasError() &&
+                  (selectedKind == null ||
+                      event.attemptedRouteKind == selectedKind))
+                _connectionAttemptLabel(context, event, includeError: true),
+            if (latest != null &&
+                latest.hasError() &&
+                latest.attemptedRouteKind ==
+                    ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED)
+              latest.error.message,
+            if (progress.hasError) progress.error.toString(),
+          ]
+        : <String>[];
+    return LayoutBuilder(
+      builder: (context, constraints) => Padding(
+        // Anchor the mascot to the viewport, never to the changing route list.
+        padding: EdgeInsets.fromLTRB(
+          24,
+          (constraints.maxHeight * 0.22).clamp(16.0, 160.0),
+          24,
+          16,
+        ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              children: [
+                ExcludeSemantics(
+                  child: AnyttyBrandLoader(
+                    height: 96,
+                    scene: connectionFailed
+                        ? AnyttyMascotScene.failure
+                        : AnyttyMascotScene.connecting,
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: palette.text,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Semantics(
+                        const SizedBox(height: 6),
+                        Semantics(
                           liveRegion: true,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _connectionModeLabel(
-                                  context,
-                                  policyState?.policy.routePreference,
-                                ),
-                                style: TextStyle(
-                                  color: palette.muted,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              if (attemptEvents.isEmpty)
-                                Text(
-                                  _connectionLoadingLabel(context, phase),
-                                  key: ValueKey(phase.value),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: waitingForNetwork
-                                        ? palette.warning
-                                        : palette.text,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                )
-                              else
+                          child: Text(
+                            connectionFailed
+                                ? anyttyText(
+                                    context,
+                                    en: 'Connection unavailable',
+                                    zh: '暂时无法连接',
+                                  )
+                                : _connectionLoadingLabel(context, phase),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: palette.muted,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _connectionModeLabel(
+                            context,
+                            policyState?.policy.routePreference,
+                          ),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: palette.muted, fontSize: 11),
+                        ),
+                        if (attemptEvents.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: palette.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: palette.border),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 for (final event in attemptEvents)
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 7,
+                                    ),
                                     child: Row(
-                                      mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Container(
-                                          width: 6,
-                                          height: 6,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color:
-                                                event.connectionStage ==
-                                                    'attempt_failed'
-                                                ? palette.warning
-                                                : palette.accent,
+                                        _ConnectionRouteDot(
+                                          key: ValueKey(
+                                            event.attemptedRouteKind,
                                           ),
+                                          active:
+                                              !connectionFailed &&
+                                              event.connectionStage !=
+                                                  'attempt_failed' &&
+                                              event.phase !=
+                                                  EndpointConnectionPhase
+                                                      .ENDPOINT_CONNECTION_PHASE_READY,
+                                          color:
+                                              event.connectionStage ==
+                                                  'attempt_failed'
+                                              ? palette.faint
+                                              : palette.accent,
                                         ),
-                                        const SizedBox(width: 7),
-                                        Flexible(
+                                        const SizedBox(width: 12),
+                                        Expanded(
                                           child: Text(
                                             _connectionAttemptLabel(
                                               context,
                                               event,
                                             ),
-                                            key: ValueKey((
-                                              event.attemptedRouteKind.value,
-                                              event.connectionStage,
-                                            )),
-                                            maxLines:
-                                                event.connectionStage ==
-                                                    'attempt_failed'
-                                                ? 6
-                                                : 2,
-                                            overflow: TextOverflow.fade,
                                             style: TextStyle(
-                                              color:
-                                                  event.connectionStage ==
-                                                      'attempt_failed'
-                                                  ? palette.warning
-                                                  : palette.text,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
+                                              color: palette.muted,
+                                              fontSize: 12,
+                                              height: 1.5,
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                        if (connectionFailed && directOnly) ...[
+                          const SizedBox(height: 20),
+                          _DirectOnlyConnectionHelp(
+                            applying: _applyingAuto,
+                            error: _actionError,
+                            onUseAuto: policyState == null
+                                ? null
+                                : () => _useAutomaticConnection(policyState),
+                            onOpenSettings: _openConnectionSettings,
+                          ),
+                        ],
+                        if (errors.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _ConnectionErrorDetails(message: errors.join('\n\n')),
+                        ],
+                      ],
+                    ),
                   ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2866,6 +2911,102 @@ bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
   return event.connectionStage == 'attempt_failed' &&
       event.hasError() &&
       event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
+}
+
+final class _ConnectionErrorDetails extends StatelessWidget {
+  const _ConnectionErrorDetails({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+    key: ValueKey(message),
+    initiallyExpanded: false,
+    tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+    childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+    shape: const Border(),
+    collapsedShape: const Border(),
+    title: Text(
+      anyttyText(context, en: 'Show errors', zh: '查看错误详情'),
+      style: TextStyle(color: AnyttyPalette.of(context).muted, fontSize: 12),
+    ),
+    children: [
+      Align(
+        alignment: Alignment.centerLeft,
+        child: SelectableText(
+          message,
+          style: TextStyle(
+            color: AnyttyPalette.of(context).muted,
+            fontSize: 12,
+            height: 1.5,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+final class _ConnectionRouteDot extends StatefulWidget {
+  const _ConnectionRouteDot({
+    super.key,
+    required this.active,
+    required this.color,
+  });
+  final bool active;
+  final Color color;
+
+  @override
+  State<_ConnectionRouteDot> createState() => _ConnectionRouteDotState();
+}
+
+final class _ConnectionRouteDotState extends State<_ConnectionRouteDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  late final Animation<double> _opacity = Tween(
+    begin: 0.35,
+    end: 1.0,
+  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+
+  void _updateMotion() {
+    if (widget.active && !MediaQuery.disableAnimationsOf(context)) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 1;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _updateMotion();
+  }
+
+  @override
+  void didUpdateWidget(_ConnectionRouteDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateMotion();
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: widget.color),
+      ),
+    ),
+  );
 }
 
 final class _ConnectionSpinner extends StatelessWidget {
@@ -2959,8 +3100,9 @@ List<EndpointConnectionEvent> _orderedConnectionAttempts(
 
 String _connectionAttemptLabel(
   BuildContext context,
-  EndpointConnectionEvent event,
-) {
+  EndpointConnectionEvent event, {
+  bool includeError = false,
+}) {
   final route = switch (event.attemptedRouteKind) {
     ConnectionRouteKind.CONNECTION_ROUTE_KIND_DIRECT => anyttyText(
       context,
@@ -2978,7 +3120,7 @@ String _connectionAttemptLabel(
   };
   final stage = switch (event.connectionStage) {
     'attempt_starting' => anyttyText(context, en: 'starting route', zh: '开始尝试'),
-    'attempt_failed' => anyttyText(context, en: 'route failed', zh: '线路尝试失败'),
+    'attempt_failed' => anyttyText(context, en: 'unavailable', zh: '暂不可用'),
     'authorization_preparing' => anyttyText(
       context,
       en: 'preparing authorization',
@@ -3066,7 +3208,10 @@ String _connectionAttemptLabel(
     ),
     _ => _connectionLoadingLabel(context, event.phase),
   };
-  final detail = event.connectionStage == 'attempt_failed' && event.hasError()
+  final detail =
+      includeError &&
+          event.connectionStage == 'attempt_failed' &&
+          event.hasError()
       ? event.error.message.trim()
       : '';
   if (detail.isEmpty) return '$route · $stage';
@@ -3075,7 +3220,6 @@ String _connectionAttemptLabel(
 
 final class _DirectOnlyConnectionHelp extends StatelessWidget {
   const _DirectOnlyConnectionHelp({
-    super.key,
     required this.applying,
     required this.error,
     required this.onUseAuto,
@@ -8532,8 +8676,10 @@ final class _TerminalFailure extends StatelessWidget {
     required this.message,
     required this.onRetry,
     this.dark = false,
+    this.collapseDetails = false,
   });
 
+  final bool collapseDetails;
   final String message;
   final VoidCallback onRetry;
   final bool dark;
@@ -8556,11 +8702,25 @@ final class _TerminalFailure extends StatelessWidget {
                   size: 34,
                 ),
                 const SizedBox(height: 12),
-                SelectableText(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: palette.text, fontSize: 13),
-                ),
+                if (collapseDetails) ...[
+                  Text(
+                    anyttyText(
+                      context,
+                      en: 'Could not load terminals',
+                      zh: '无法加载终端列表',
+                    ),
+                    style: TextStyle(color: palette.text, fontSize: 15),
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: _ConnectionErrorDetails(message: message),
+                  ),
+                ] else
+                  SelectableText(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.text, fontSize: 13),
+                  ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
                   onPressed: onRetry,
