@@ -64,13 +64,17 @@ recaptured from the new binary if reused for marketing.
 
 App store copy (updated 2026-09-09):
 
-> Your terminal. Wherever you are.
+> Any machine. Any task.
+> Any client. Any time.
+> That's AnyTTY.
 >
 > Connect to your computers from your phone. Keep terminal sessions running,
 > manage files and open development pages.
 
-The Chinese headline is “终端随行，工作不停。” Store artwork describes the mobile
-app, rather than the architecture of the entire AnyTTY project. The canonical
+Use this same English slogan in every locale. Preserve the order and punctuation;
+use three lines for display artwork or one line for metadata. Do not invent
+shorter or translated slogans. In compact controls, keep only the product name.
+Feature descriptions below the slogan describe the actual client capabilities. The canonical
 feature template is `docs/assets/brand/store/feature-graphic.html`; the English
 phone screenshot template is `docs/assets/brand/store/phone-screenshot.html`.
 The latter explicitly labels its real Android screenshots as Chinese UI.

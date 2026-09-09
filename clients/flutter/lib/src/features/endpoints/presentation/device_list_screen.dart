@@ -105,21 +105,6 @@ final class _DeviceListScreenState extends ConsumerState<DeviceListScreen> {
               anyttyText(context, en: 'Devices', zh: '设备'),
               style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 3),
-            Text(
-              anyttyText(
-                context,
-                en: 'Return to your workspace anytime',
-                zh: '随时回到你的工作现场',
-              ),
-              style: TextStyle(
-                color: AnyttyPalette.of(context).muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
           ],
         ),
         actions: [
