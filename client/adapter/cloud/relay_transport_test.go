@@ -21,7 +21,7 @@ func TestFilterManagedICEURLsHonorsRelayTransport(t *testing.T) {
 		preference endpoint.RelayTransport
 		want       []string
 	}{
-		{name: "auto", preference: endpoint.RelayTransportAuto, want: values},
+		{name: "auto", preference: endpoint.RelayTransportAuto, want: []string{values[0], values[3], values[4]}},
 		{name: "udp", preference: endpoint.RelayTransportUDP, want: values[:3]},
 		{name: "tcp", preference: endpoint.RelayTransportTCP, want: []string{values[0], values[3], values[4]}},
 	}

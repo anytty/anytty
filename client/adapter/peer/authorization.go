@@ -12,6 +12,7 @@ import (
 
 	"github.com/anytty/anytty/client/endpoint"
 	clientruntime "github.com/anytty/anytty/client/runtime"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
 )
@@ -73,12 +74,15 @@ type CapabilityAuthorizer struct {
 
 // Prepare 在 signaling 之前验证 credential 的 endpoint、issuer、subject 和有效期。
 // 成功结果冻结本次 attempt 使用的 credential，防止连接过程中 secure-store ref 被替换后混入其他身份。
-func (authorizer CapabilityAuthorizer) Prepare(ctx context.Context, request clientruntime.AttemptRequest) (PreparedAuthorization, error) {
+func (authorizer CapabilityAuthorizer) Prepare(ctx context.Context, request clientruntime.AttemptRequest) (result PreparedAuthorization, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "credential_prepare")
+	defer func() { trace.End(resultErr) }()
 	if authorizer.Credentials == nil {
 		return nil, fmt.Errorf("peer endpoint credential source is required")
 	}
 	route := request.Route()
 	credential, err := authorizer.Credentials.ResolveClientCredential(ctx, string(request.EndpointID()), route.CredentialRef)
+	trace.Mark("credential_resolved")
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +105,7 @@ func (authorizer CapabilityAuthorizer) Prepare(ctx context.Context, request clie
 		}
 	}
 	endpointID := string(request.EndpointID())
+	trace.Mark("signer_resolved")
 	if strings.TrimSpace(credential.EndpointID) != endpointID || credential.Identity.EndpointID != endpointID {
 		return nil, fmt.Errorf("peer endpoint credential belongs to endpoint %q, not %q", credential.EndpointID, endpointID)
 	}

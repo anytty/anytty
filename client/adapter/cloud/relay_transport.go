@@ -12,7 +12,7 @@ import (
 func filterManagedICEURLs(values []string, preference endpoint.RelayTransport) ([]string, error) {
 	switch preference {
 	case "", endpoint.RelayTransportAuto:
-		return append([]string(nil), values...), nil
+		preference = endpoint.RelayTransportTCP
 	case endpoint.RelayTransportUDP, endpoint.RelayTransportTCP:
 	default:
 		return nil, fmt.Errorf("unsupported Cloud relay transport %q", preference)

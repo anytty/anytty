@@ -306,7 +306,7 @@ func (adapter *coreApplicationAdapter) FileTransferCancel(ctx context.Context, _
 }
 
 func (adapter *coreApplicationAdapter) BrowserProxyOpen(ctx context.Context, origin *apipb.EndpointSessionStamp, command *apipb.BrowserProxyOpenCommand) (*apipb.BrowserProxyOpenResult, error) {
-	proxy, err := adapter.port.ApplicationBrowserProxyOpen(ctx, command.GetHost(), uint16(command.GetPort()))
+	proxy, err := adapter.port.ApplicationBrowserProxyOpen(ctx, command.GetHost(), uint16(command.GetPort()), command.GetReceiveWindowBytes(), command.GetSendWindowBytes())
 	if err != nil {
 		return nil, apimapping.CoreError(err)
 	}

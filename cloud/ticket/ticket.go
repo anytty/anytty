@@ -312,7 +312,8 @@ func ClientHelloProofBytes(challenge *cloudv1.EdgeChallenge, event *cloudv1.Clie
 		event.GetSentAt() == nil || event.GetSentAt().CheckValid() != nil || len(event.GetHello().GetClientPublicKey()) != ed25519.PublicKeySize ||
 		event.GetHello().GetProduct() < cloudv1.ClientProduct_CLIENT_PRODUCT_TUI || event.GetHello().GetProduct() > cloudv1.ClientProduct_CLIENT_PRODUCT_DESKTOP_GUI ||
 		strings.TrimSpace(event.GetHello().GetSoftwareVersion()) == "" || event.GetHello().GetAttemptGeneration() == 0 ||
-		event.GetHello().GetRelayPreference() < cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO || event.GetHello().GetRelayPreference() > cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY {
+		event.GetHello().GetRelayPreference() < cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO || event.GetHello().GetRelayPreference() > cloudv1.RelayPreference_RELAY_PREFERENCE_RELAY_ONLY ||
+		event.GetHello().GetRelayTransport() < cloudv1.RelayTransport_RELAY_TRANSPORT_UNSPECIFIED || event.GetHello().GetRelayTransport() > cloudv1.RelayTransport_RELAY_TRANSPORT_TLS {
 		return nil, errors.New("ClientHello proof input is incomplete")
 	}
 	var authorization proto.Message
@@ -354,6 +355,7 @@ func ClientHelloProofBytes(challenge *cloudv1.EdgeChallenge, event *cloudv1.Clie
 		AttemptGeneration:   event.GetHello().GetAttemptGeneration(),
 		RelayPreference:     event.GetHello().GetRelayPreference(),
 		PresenceProbe:       event.GetHello().GetPresenceProbe(),
+		RelayTransport:      event.GetHello().GetRelayTransport(),
 	})
 	if err != nil {
 		return nil, err

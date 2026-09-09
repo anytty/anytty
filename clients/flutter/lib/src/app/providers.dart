@@ -113,9 +113,12 @@ final endpointRegistryProvider = FutureProvider<EndpointRegistryV1>((
 
 final endpointCloudPresenceProvider = FutureProvider.autoDispose
     .family<EndpointCloudPresenceGetResult, String>((ref, endpointId) async {
+      final disposed = Completer<void>();
+      ref.onDispose(disposed.complete);
       ref.watch(foregroundResumeRevisionProvider);
       final runtime = await ref.watch(anyttyRuntimeProvider.future);
-      return EndpointRepository(runtime).getCloudPresence(endpointId);
+      return EndpointRepository(runtime)
+          .getCloudPresence(endpointId, cancelWhen: disposed.future);
     });
 
 final connectionPolicyProvider = FutureProvider.autoDispose

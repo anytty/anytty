@@ -11,6 +11,8 @@ import (
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/bindingpb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/shared/netpath"
+	"github.com/pion/transport/v4"
 )
 
 var androidSessionAuthority = clientruntime.NewSessionGenerationAuthority()
@@ -24,10 +26,17 @@ type androidProductionHost struct {
 
 func newAndroidProductionHost() (*androidProductionHost, error) {
 	return newAndroidProductionHostWithPeers(pionadapter.Factory{
-		NetworkFactory:      pionadapter.NewDefaultRouteNet,
+		NetworkFactory:      androidAllNetworks,
 		RouteNetworkFactory: newAndroidRouteNetwork,
 		Logger:              nil,
 	})
+}
+
+func androidAllNetworks() (transport.Net, error) {
+	if network, err := netpath.NewICENetwork(); err == nil {
+		return network, nil
+	}
+	return pionadapter.NewDefaultRouteNet()
 }
 
 func newAndroidProductionHostWithPeers(peers pionadapter.Factory) (*androidProductionHost, error) {

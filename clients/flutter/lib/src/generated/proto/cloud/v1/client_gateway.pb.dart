@@ -239,6 +239,7 @@ class ClientHello extends $pb.GeneratedMessage {
     $fixnum.Int64? attemptGeneration,
     $1.RelayPreference? relayPreference,
     $core.bool? presenceProbe,
+    $1.RelayTransport? relayTransport,
     $0.SignedEnvelope? cloudRouteGrant,
     PairingAdmission? pairingAdmission,
   }) {
@@ -250,6 +251,7 @@ class ClientHello extends $pb.GeneratedMessage {
     if (attemptGeneration != null) result.attemptGeneration = attemptGeneration;
     if (relayPreference != null) result.relayPreference = relayPreference;
     if (presenceProbe != null) result.presenceProbe = presenceProbe;
+    if (relayTransport != null) result.relayTransport = relayTransport;
     if (cloudRouteGrant != null) result.cloudRouteGrant = cloudRouteGrant;
     if (pairingAdmission != null) result.pairingAdmission = pairingAdmission;
     return result;
@@ -289,6 +291,8 @@ class ClientHello extends $pb.GeneratedMessage {
     ..aE<$1.RelayPreference>(7, _omitFieldNames ? '' : 'relayPreference',
         enumValues: $1.RelayPreference.values)
     ..aOB(8, _omitFieldNames ? '' : 'presenceProbe')
+    ..aE<$1.RelayTransport>(9, _omitFieldNames ? '' : 'relayTransport',
+        enumValues: $1.RelayTransport.values)
     ..aOM<$0.SignedEnvelope>(10, _omitFieldNames ? '' : 'cloudRouteGrant',
         subBuilder: $0.SignedEnvelope.create)
     ..aOM<PairingAdmission>(11, _omitFieldNames ? '' : 'pairingAdmission',
@@ -387,29 +391,40 @@ class ClientHello extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   void clearPresenceProbe() => $_clearField(8);
 
+  /// Relay transport requested for this attempt. Edge must forward it to the
+  /// daemon so both WebRTC peers use the same TURN transport.
+  @$pb.TagNumber(9)
+  $1.RelayTransport get relayTransport => $_getN(7);
+  @$pb.TagNumber(9)
+  set relayTransport($1.RelayTransport value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasRelayTransport() => $_has(7);
+  @$pb.TagNumber(9)
+  void clearRelayTransport() => $_clearField(9);
+
   /// cloud_route_grant 是 owning daemon 签发给已配对 ClientAccessIdentity 的长期发现和信令授权。
   @$pb.TagNumber(10)
-  $0.SignedEnvelope get cloudRouteGrant => $_getN(7);
+  $0.SignedEnvelope get cloudRouteGrant => $_getN(8);
   @$pb.TagNumber(10)
   set cloudRouteGrant($0.SignedEnvelope value) => $_setField(10, value);
   @$pb.TagNumber(10)
-  $core.bool hasCloudRouteGrant() => $_has(7);
+  $core.bool hasCloudRouteGrant() => $_has(8);
   @$pb.TagNumber(10)
   void clearCloudRouteGrant() => $_clearField(10);
   @$pb.TagNumber(10)
-  $0.SignedEnvelope ensureCloudRouteGrant() => $_ensure(7);
+  $0.SignedEnvelope ensureCloudRouteGrant() => $_ensure(8);
 
   /// pairing_admission 只允许 Edge 向在线 daemon 请求一次性 pairing 预检。
   @$pb.TagNumber(11)
-  PairingAdmission get pairingAdmission => $_getN(8);
+  PairingAdmission get pairingAdmission => $_getN(9);
   @$pb.TagNumber(11)
   set pairingAdmission(PairingAdmission value) => $_setField(11, value);
   @$pb.TagNumber(11)
-  $core.bool hasPairingAdmission() => $_has(8);
+  $core.bool hasPairingAdmission() => $_has(9);
   @$pb.TagNumber(11)
   void clearPairingAdmission() => $_clearField(11);
   @$pb.TagNumber(11)
-  PairingAdmission ensurePairingAdmission() => $_ensure(8);
+  PairingAdmission ensurePairingAdmission() => $_ensure(9);
 }
 
 class ClientReady extends $pb.GeneratedMessage {

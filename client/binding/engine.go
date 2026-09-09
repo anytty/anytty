@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anytty/anytty/client/browserproxy"
 	"github.com/anytty/anytty/client/endpoint"
 	clientruntime "github.com/anytty/anytty/client/runtime"
 	"github.com/anytty/anytty/proto/apipb"
@@ -84,6 +85,7 @@ type operation struct {
 }
 
 type sessionRecord struct {
+	browserProxy *browserproxy.Server
 	session      clientruntime.ApplicationReadyPeerSession
 	rendererID   uint64
 	activeOps    int
@@ -551,6 +553,10 @@ func (engine *Engine) CloseSession(sessionHandle uint64) error {
 		return nil
 	}
 	record.closing = true
+	if record.browserProxy != nil {
+		_ = record.browserProxy.Close()
+		record.browserProxy = nil
+	}
 	session := record.session
 	closeSession := record.activeOps == 0
 	if closeSession {
@@ -1354,15 +1360,10 @@ func apiError(err error) *apipb.ApiError {
 	message := "binding operation failed"
 	retryable := false
 	attempted := true
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, "client session timed out", true
-	case errors.Is(err, context.Canceled):
-		code, message = apipb.ApiErrorCode_API_ERROR_CODE_CANCELLED, "binding operation was cancelled"
-	case errors.Is(err, ErrInvalidHandle):
+	if errors.Is(err, ErrInvalidHandle) {
 		code, message, attempted = apipb.ApiErrorCode_API_ERROR_CODE_INVALID_REQUEST, "binding handle is invalid", false
-	default:
-		switch clientruntime.CodeOf(err) {
+	} else if runtimeErr := (*clientruntime.Error)(nil); errors.As(err, &runtimeErr) {
+		switch runtimeErr.Code {
 		case clientruntime.ErrorInvalidRequest:
 			code, message, attempted = apipb.ApiErrorCode_API_ERROR_CODE_INVALID_REQUEST, "client runtime rejected the request", false
 		case clientruntime.ErrorIdentity, clientruntime.ErrorAuthorization:
@@ -1391,19 +1392,20 @@ func apiError(err error) *apipb.ApiError {
 			code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_BLOCKED, "daemon Cloud access is temporarily disabled", true
 		case clientruntime.ErrorDaemonDeleted:
 			code, message = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_DELETED, "daemon Cloud enrollment was deleted"
+		case clientruntime.ErrorConnectionStopped:
+			code, message = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, "client connection was stopped"
 		case clientruntime.ErrorUnavailable, clientruntime.ErrorUnsupportedRoute:
 			code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, "client session is unavailable", true
 		}
-		var runtimeErr *clientruntime.Error
-		if errors.As(err, &runtimeErr) {
-			attempted = runtimeErr.Attempted
-			retryable = runtimeErr.Retryable
-			if strings.TrimSpace(runtimeErr.Message) != "" && (runtimeErr.Code == clientruntime.ErrorResourceExhausted || runtimeErr.Code == clientruntime.ErrorEntitlement || runtimeErr.Code == clientruntime.ErrorUnavailable ||
-				runtimeErr.Code == clientruntime.ErrorRelayNotInPlan || runtimeErr.Code == clientruntime.ErrorRelayQuotaExhausted || runtimeErr.Code == clientruntime.ErrorRelayConcurrencyExhausted ||
-				runtimeErr.Code == clientruntime.ErrorSubscriptionInactive || runtimeErr.Code == clientruntime.ErrorRelayRegionUnavailable) {
-				message = runtimeErr.Message
-			}
+		attempted = runtimeErr.Attempted
+		retryable = runtimeErr.Retryable
+		if detail := strings.TrimSpace(runtimeErr.Message); detail != "" {
+			message = detail
 		}
+	} else if errors.Is(err, context.DeadlineExceeded) {
+		code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, "client session timed out", true
+	} else if errors.Is(err, context.Canceled) {
+		code, message = apipb.ApiErrorCode_API_ERROR_CODE_CANCELLED, "binding operation was cancelled"
 	}
 	return &apipb.ApiError{Code: code, Message: message, Retryable: retryable, Attempted: attempted}
 }

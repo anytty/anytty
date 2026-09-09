@@ -9,6 +9,7 @@ import 'package:anytty_native/src/generated/proto/remoteauthpb/remote_auth.pb.da
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -42,9 +43,17 @@ void main() {
     expect(find.byKey(const ValueKey('device-header-status')), findsOneWidget);
     expect(find.text('Studio Mac'), findsOneWidget);
     expect(find.textContaining('darwin'), findsOneWidget);
-    expect(find.text('Search devices'), findsOneWidget);
+    expect(find.byTooltip('Search devices'), findsOneWidget);
+    expect(find.byKey(const ValueKey('device-search-field')), findsNothing);
     expect(find.byTooltip('Download center'), findsOneWidget);
 
+    await tester.tap(find.byTooltip('Search devices'));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('device-search-field')), findsNothing);
+    await tester.tap(find.byTooltip('Search devices'));
+    await tester.pump();
     await tester.enterText(
       find.byKey(const ValueKey('device-search-field')),
       'missing',
@@ -58,6 +67,9 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Studio Mac'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close search'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('device-search-field')), findsNothing);
 
     await tester.tap(find.byTooltip('More actions for Studio Mac'));
     await tester.pumpAndSettle();

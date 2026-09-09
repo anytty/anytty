@@ -15,15 +15,9 @@ if [[ ! -d "$asset_dir" ]]; then
   exit 1
 fi
 
-source_version="$(tr -d '[:space:]' <"$repo_root/VERSION")"
-[[ "$source_version" == "$version" ]] || {
-  echo "release tag $version does not match VERSION $source_version" >&2
-  exit 1
-}
-
-package_version="$(node -e 'const p=require(process.argv[1]); process.stdout.write(p.version)' "$repo_root/package.json")"
-[[ "v$package_version" == "$version" ]] || {
-  echo "release tag $version does not match package.json v$package_version" >&2
+eval "$("$repo_root/scripts/version-info.sh")"
+[[ "$ANYTTY_RELEASE_TAG" == "$version" ]] || {
+  echo "release tag $version does not match VERSION tag $ANYTTY_RELEASE_TAG" >&2
   exit 1
 }
 
@@ -64,12 +58,14 @@ if (( android_assets_present > 0 && android_assets_present != ${#android_assets[
   exit 1
 fi
 if (( android_assets_present == ${#android_assets[@]} )); then
-  cat >>"$build_info" <<'EOF'
+  cat >>"$build_info" <<EOF
 
 Android:
 - Package: com.anytty.app
 - Minimum SDK: 24
 - Target SDK: 36
+- Version name: $ANYTTY_RELEASE_VERSION
+- Version code: $ANYTTY_BUILD_NUMBER
 - APKs: armeabi-v7a, arm64-v8a, x86_64, universal
 - Play bundle: signed AAB with ABI splits enabled
 - ABIs: armeabi-v7a, arm64-v8a, x86_64

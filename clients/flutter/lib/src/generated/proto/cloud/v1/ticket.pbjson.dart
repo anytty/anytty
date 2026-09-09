@@ -298,6 +298,14 @@ const GatewayClientHelloProofInput$json = {
       '10': 'relayPreference'
     },
     {'1': 'presence_probe', '3': 16, '4': 1, '5': 8, '10': 'presenceProbe'},
+    {
+      '1': 'relay_transport',
+      '3': 17,
+      '4': 1,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'relayTransport'
+    },
   ],
 };
 
@@ -317,4 +325,5 @@ final $typed_data.Uint8List gatewayClientHelloProofInputDescriptor = $convert.ba
     'EoCVIPc29mdHdhcmVWZXJzaW9uEi0KEmF0dGVtcHRfZ2VuZXJhdGlvbhgOIAEoBFIRYXR0ZW1w'
     'dEdlbmVyYXRpb24SSwoQcmVsYXlfcHJlZmVyZW5jZRgPIAEoDjIgLmFueXR0eS5jbG91ZC52MS'
     '5SZWxheVByZWZlcmVuY2VSD3JlbGF5UHJlZmVyZW5jZRIlCg5wcmVzZW5jZV9wcm9iZRgQIAEo'
-    'CFINcHJlc2VuY2VQcm9iZQ==');
+    'CFINcHJlc2VuY2VQcm9iZRJICg9yZWxheV90cmFuc3BvcnQYESABKA4yHy5hbnl0dHkuY2xvdW'
+    'QudjEuUmVsYXlUcmFuc3BvcnRSDnJlbGF5VHJhbnNwb3J0');

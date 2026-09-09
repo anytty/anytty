@@ -70,25 +70,18 @@ message LogoutAccountResponse {}
 message GetCurrentAccountRequest {}
 
 message GetCurrentAccountResponse {
+  reserved 3;
   AccountProfile account = 1;
   repeated AccountRole roles = 2;
-  google.protobuf.Timestamp recent_auth_expires_at = 3;
-}
-
-message VerifyRecentAuthenticationRequest { string password = 1; }
-
-message VerifyRecentAuthenticationResponse {
-  google.protobuf.Timestamp expires_at = 1;
-  AccountTokenCredential credential = 2;
 }
 
 // AccountRefreshTokenProjection 是用户可见的持久登录凭据元数据，不包含 token 摘要或原始值。
 message AccountRefreshTokenProjection {
+  reserved 5;
   string refresh_id = 1;
   bool current = 2;
   google.protobuf.Timestamp created_at = 3;
   google.protobuf.Timestamp expires_at = 4;
-  google.protobuf.Timestamp recent_auth_expires_at = 5;
   uint64 revision = 6;
 }
 
@@ -96,7 +89,7 @@ message ListAccountRefreshTokensRequest {}
 message ListAccountRefreshTokensResponse { repeated AccountRefreshTokenProjection refresh_tokens = 1; }
 
 message ChangeAccountPasswordRequest {
-  string current_password = 1;
+  reserved 1;
   string new_password = 2;
 }
 message ChangeAccountPasswordResponse { AccountProfile account = 1; }
@@ -114,10 +107,8 @@ message RedeemAccountSetupResponse {
 message RevokeAccountRefreshTokenRequest { string refresh_id = 1; }
 message RevokeAccountRefreshTokenResponse {}
 
-// DeleteAccountRequest 由账号所有者提交：验证当前密码后永久删除账号及其个人数据（GDPR）。
-message DeleteAccountRequest {
-  string password = 1;
-}
+// DeleteAccountRequest 由已登录账号所有者提交，永久删除账号及其个人数据（GDPR）。
+message DeleteAccountRequest { reserved 1; }
 message DeleteAccountResponse {}
 
 // AccountService 是账号、credential、Access JWT 和 Refresh token 的唯一公共应用 API。
@@ -126,7 +117,6 @@ service AccountService {
   rpc Refresh(RefreshAccountTokenRequest) returns (RefreshAccountTokenResponse);
   rpc Logout(LogoutAccountRequest) returns (LogoutAccountResponse);
   rpc GetCurrent(GetCurrentAccountRequest) returns (GetCurrentAccountResponse);
-  rpc VerifyRecentAuthentication(VerifyRecentAuthenticationRequest) returns (VerifyRecentAuthenticationResponse);
   rpc ListRefreshTokens(ListAccountRefreshTokensRequest) returns (ListAccountRefreshTokensResponse);
   rpc ChangePassword(ChangeAccountPasswordRequest) returns (ChangeAccountPasswordResponse);
   rpc RedeemAccountSetup(RedeemAccountSetupRequest) returns (RedeemAccountSetupResponse);

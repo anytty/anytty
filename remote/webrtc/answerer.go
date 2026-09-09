@@ -2,12 +2,15 @@ package webrtc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/anytty/anytty/shared/connecttrace"
+	"github.com/anytty/anytty/shared/perftrace"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/datachannel"
 	pion "github.com/pion/webrtc/v4"
@@ -56,6 +59,7 @@ type SignalingAnswer struct {
 // peerLifecycle owns one Pion peer and its single authorized protocol handler.
 // Finalization always runs outside Pion callbacks and the handler goroutine.
 type peerLifecycle struct {
+	traceID          string
 	peer             *pion.PeerConnection
 	cancel           context.CancelFunc
 	onPeerClosed     func()
@@ -74,7 +78,8 @@ type peerLifecycle struct {
 
 func newPeerLifecycle(ctx context.Context, peer *pion.PeerConnection, cancel context.CancelFunc, onPeerClosed func(), closePeerForTest func(*pion.PeerConnection) error) *peerLifecycle {
 	lifecycle := &peerLifecycle{
-		peer: peer, cancel: cancel, onPeerClosed: onPeerClosed, closePeerForTest: closePeerForTest,
+		traceID: connecttrace.ID(ctx),
+		peer:    peer, cancel: cancel, onPeerClosed: onPeerClosed, closePeerForTest: closePeerForTest,
 		handlerDone: make(chan struct{}), closing: make(chan struct{}), watcherDone: make(chan struct{}), done: make(chan struct{}),
 	}
 	go func() {
@@ -135,22 +140,41 @@ func (lifecycle *peerLifecycle) closeAndWait() {
 }
 
 func (lifecycle *peerLifecycle) finalize() {
+	_, trace := connecttrace.Start(connecttrace.Attach(context.Background(), lifecycle.traceID), "daemon_peer_close")
+	var closeErr error
+	trace.Mark("peer_close_started")
 	func() {
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() != nil {
+				closeErr = errors.New("peer close panicked")
+			}
+		}()
 		if lifecycle.closePeerForTest != nil {
-			_ = lifecycle.closePeerForTest(lifecycle.peer)
+			closeErr = lifecycle.closePeerForTest(lifecycle.peer)
 		} else if lifecycle.peer != nil {
-			_ = lifecycle.peer.GracefulClose()
+			closeErr = lifecycle.peer.GracefulClose()
 		}
 	}()
+	trace.Mark("peer_close_returned")
+	trace.Mark("handler_wait_started")
 	<-lifecycle.handlerDone
+	trace.Mark("handler_finished")
+	trace.Mark("watcher_wait_started")
 	<-lifecycle.watcherDone
+	trace.Mark("watcher_finished")
+	trace.Mark("callback_started")
 	func() {
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() != nil {
+				closeErr = errors.Join(closeErr, errors.New("peer close callback panicked"))
+			}
+		}()
 		if lifecycle.onPeerClosed != nil {
 			lifecycle.onPeerClosed()
 		}
 	}()
+	trace.Mark("callback_finished")
+	trace.End(closeErr)
 	close(lifecycle.done)
 }
 
@@ -166,6 +190,8 @@ type DataChannelSessionHandler interface {
 // PeerConnection 只负责 ICE/DTLS/SCTP，不接收 grant、terminal payload 或 Cloud runtime 类型。
 type Answerer struct {
 	Handler DataChannelSessionHandler
+	// RequireRelay prevents host/srflx candidates from bypassing a stream Relay path.
+	RequireRelay bool
 	// PeerConnections 只允许注入 Pion primitive 创建策略；nil 保持当前生产默认配置。
 	PeerConnections PeerConnectionFactory
 	// PionLogger owns embedded Pion diagnostics when PeerConnections is nil.
@@ -183,7 +209,12 @@ type Answerer struct {
 }
 
 // Answer 创建 WebRTC answer，并把唯一可靠有序的 anytty DataChannel 交给端到端授权 handler。
-func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceServers []ICEServer) (*SignalingAnswer, error) {
+func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceServers []ICEServer) (result *SignalingAnswer, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "daemon_answer")
+	defer func() { trace.End(resultErr) }()
+	if offer != nil && answerer.PionLogger != nil {
+		answerer.PionLogger.Info("anytty connect correlation", "trace_id", connecttrace.ID(ctx), "session_id", offer.SessionID)
+	}
 	if answerer.Handler == nil {
 		return nil, fmt.Errorf("remote daemon authorized data channel handler is not configured")
 	}
@@ -191,6 +222,9 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, fmt.Errorf("remote daemon signaling offer is empty")
 	}
 	configuration := pion.Configuration{ICEServers: make([]pion.ICEServer, 0, len(iceServers))}
+	if answerer.RequireRelay {
+		configuration.ICETransportPolicy = pion.ICETransportPolicyRelay
+	}
 	for _, server := range iceServers {
 		if len(server.URLs) == 0 {
 			continue
@@ -206,14 +240,18 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		}
 	}
 	peer, err := peerFactory(configuration)
+	trace.Mark("peer_created")
 	if err != nil {
 		return nil, fmt.Errorf("create remote daemon peer connection: %w", err)
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)
+	if perftrace.Current() != nil && answerer.PionLogger != nil {
+		go tracePeerPerformance(sessionCtx, peer, answerer.PionLogger, offer.SessionID)
+	}
 	lifecycle := newPeerLifecycle(ctx, peer, cancel, answerer.OnPeerClosed, answerer.closePeerForTest)
 	var candidateMu sync.Mutex
 	candidates := make([]ICECandidate, 0, 4)
-	gathering := NewICEGatheringWaiter(false, len(iceServers) == 0, ICEGatheringPreferredGrace(len(iceServers) > 0))
+	gathering := NewICEGatheringWaiter(answerer.RequireRelay, len(iceServers) == 0, ICEGatheringPreferredGrace(len(iceServers) > 0))
 	peer.OnICECandidate(func(candidate *pion.ICECandidate) {
 		if candidate == nil {
 			return
@@ -250,7 +288,8 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	peer.OnICEConnectionStateChange(func(state pion.ICEConnectionState) {
 		if answerer.PionLogger != nil {
 			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "ice", "value", state.String())
-			logDaemonSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "ice_"+state.String())
+			// ICE graceful shutdown waits for this synchronous callback while
+			// holding the gatherer lock. Read pair stats in the async peer callback.
 		}
 	})
 	peer.OnDataChannel(func(channel *pion.DataChannel) {
@@ -301,6 +340,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, fmt.Errorf("create remote daemon answer: %w", err)
 	}
 	gatherComplete := pion.GatheringCompletePromise(peer)
+	trace.Mark("offer_applied_answer_created")
 	if err := peer.SetLocalDescription(localAnswer); err != nil {
 		lifecycle.closeAndWait()
 		return nil, fmt.Errorf("set remote daemon answer: %w", err)
@@ -314,6 +354,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 		return nil, err
 	}
 	description := peer.LocalDescription()
+	trace.Mark("ice_gathered")
 	if description == nil || strings.TrimSpace(description.SDP) == "" {
 		lifecycle.closeAndWait()
 		return nil, fmt.Errorf("remote daemon answer has no local description")

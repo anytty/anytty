@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../generated/proto/bindingpb/client_binding.pb.dart';
 
+typedef CredentialTiming = void Function(String stage, int elapsedMilliseconds);
+
 final class ClientPlatformFailure implements Exception {
   const ClientPlatformFailure(this.code, this.message);
 
@@ -51,6 +53,8 @@ final class ClientAccessCredentialStore {
 
   final SecureValueStore _storage;
   final Ed25519 _algorithm = Ed25519();
+  final Map<String, ({String seedDigest, Future<SimplePublicKey> key})>
+  _publicKeys = {};
 
   Future<CredentialRecord> prepareRecord(
     String credentialRef,
@@ -82,11 +86,12 @@ final class ClientAccessCredentialStore {
 
   Future<CredentialRecord> resolveRecord(
     String credentialRef,
-    String endpointId,
-  ) async {
+    String endpointId, {
+    CredentialTiming? onTiming,
+  }) async {
     final ref = _validateRef(credentialRef);
     final endpoint = _validateEndpoint(endpointId);
-    final value = await _read(ref, requireGrant: true);
+    final value = await _read(ref, requireGrant: true, onTiming: onTiming);
     if (value == null) {
       throw const ClientPlatformFailure(
         'unauthenticated',
@@ -130,36 +135,50 @@ final class ClientAccessCredentialStore {
     return _record(ref, value);
   }
 
-  Future<List<int>> sign(String credentialRef, List<int> payload) async {
+  Future<List<int>> sign(
+    String credentialRef,
+    List<int> payload, {
+    CredentialTiming? onTiming,
+  }) async {
     final ref = _validateRef(credentialRef);
-    final value = await _read(ref, requireGrant: false);
+    final value = await _read(ref, requireGrant: false, onTiming: onTiming);
     if (value == null) {
       throw const ClientPlatformFailure(
         'unauthenticated',
         'client access credential is missing',
       );
     }
-    final keyPair = await _algorithm.newKeyPairFromSeed(value.privateKeySeed);
+    final clock = Stopwatch()..start();
+    final keyPair = SimpleKeyPairData(
+      value.privateKeySeed,
+      publicKey: SimplePublicKey(value.publicKey, type: KeyPairType.ed25519),
+      type: KeyPairType.ed25519,
+    );
     final signature = await _algorithm.sign(payload, keyPair: keyPair);
+    onTiming?.call('signature', clock.elapsedMilliseconds);
     return signature.bytes;
   }
 
   Future<void> delete(String credentialRef) {
     final ref = _validateRef(credentialRef);
+    _publicKeys.remove(ref);
     return _storage.delete(_storageKey(ref));
   }
 
   Future<void> deleteMany(Iterable<String> credentialRefs) async {
     for (final ref in credentialRefs.map(_validateRef).toSet()) {
-      await _storage.delete(_storageKey(ref));
+      await delete(ref);
     }
   }
 
   Future<_StoredCredential?> _read(
     String ref, {
     required bool requireGrant,
+    CredentialTiming? onTiming,
   }) async {
+    final clock = Stopwatch()..start();
     final encoded = await _storage.read(_storageKey(ref));
+    onTiming?.call('secure_storage_read', clock.elapsedMilliseconds);
     if (encoded == null) return null;
     try {
       final value = jsonDecode(encoded);
@@ -175,8 +194,9 @@ final class ClientAccessCredentialStore {
       }
       final seed = _decode(value['private_key_seed'] as String);
       if (seed.length != 32) throw const FormatException();
-      final keyPair = await _algorithm.newKeyPairFromSeed(seed);
-      final publicKey = await keyPair.extractPublicKey();
+      clock.reset();
+      final publicKey = await _publicKey(ref, seed, onTiming);
+      onTiming?.call('public_identity', clock.elapsedMilliseconds);
       final credential = _StoredCredential(
         endpointId: (value['endpoint_id'] as String).trim(),
         privateKeySeed: seed,
@@ -196,6 +216,32 @@ final class ClientAccessCredentialStore {
         'unauthenticated',
         'client access credential could not be decrypted',
       );
+    }
+  }
+
+  // Cache only a public projection. Storage and seed identity are rechecked on
+  // every call, so deletion, rotation and grant changes cannot use stale secrets.
+  Future<SimplePublicKey> _publicKey(
+    String ref,
+    List<int> seed,
+    CredentialTiming? onTiming,
+  ) async {
+    final digest = _encode((await Sha256().hash(seed)).bytes);
+    final cached = _publicKeys[ref];
+    if (cached != null && cached.seedDigest == digest) {
+      onTiming?.call('public_identity_cache_hit', 0);
+      return cached.key;
+    }
+    final key = _algorithm
+        .newKeyPairFromSeed(seed)
+        .then((pair) => pair.extractPublicKey());
+    if (_publicKeys.length >= 16) _publicKeys.remove(_publicKeys.keys.first);
+    _publicKeys[ref] = (seedDigest: digest, key: key);
+    try {
+      return await key;
+    } catch (_) {
+      if (_publicKeys[ref]?.key == key) _publicKeys.remove(ref);
+      rethrow;
     }
   }
 

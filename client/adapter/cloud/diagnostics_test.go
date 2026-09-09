@@ -91,6 +91,9 @@ func TestCloudConnectionErrorMarksTransientRPCFailuresRetryable(t *testing.T) {
 			if runtimeError.Code != clientruntime.ErrorUnavailable || !runtimeError.Retryable || status.Code(mapped) != code {
 				t.Fatalf("mapped error = %#v, rpc code = %s", runtimeError, status.Code(mapped))
 			}
+			if !strings.Contains(runtimeError.Message, "RPC "+code.String()) || !strings.Contains(runtimeError.Message, "backend detail") {
+				t.Fatalf("diagnostic message = %q", runtimeError.Message)
+			}
 		})
 	}
 }

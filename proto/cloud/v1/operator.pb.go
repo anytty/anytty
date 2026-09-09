@@ -385,21 +385,27 @@ func (x *AccountSummary) GetUsage() *UsagePeriodProjection {
 }
 
 type RuntimeSessionProjection struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	SessionId          string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	AccountId          string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	DaemonId           string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
-	EdgeId             string                 `protobuf:"bytes,4,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
-	ClientId           string                 `protobuf:"bytes,5,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	Product            ClientProduct          `protobuf:"varint,6,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
-	Generation         uint64                 `protobuf:"varint,8,opt,name=generation,proto3" json:"generation,omitempty"`
-	ConnectedAt        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=connected_at,json=connectedAt,proto3" json:"connected_at,omitempty"`
-	AccountDisplayName string                 `protobuf:"bytes,10,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
-	AccountEmail       string                 `protobuf:"bytes,11,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
-	DaemonDisplayName  string                 `protobuf:"bytes,12,opt,name=daemon_display_name,json=daemonDisplayName,proto3" json:"daemon_display_name,omitempty"`
-	EdgeName           string                 `protobuf:"bytes,13,opt,name=edge_name,json=edgeName,proto3" json:"edge_name,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	SessionId            string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	AccountId            string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	DaemonId             string                 `protobuf:"bytes,3,opt,name=daemon_id,json=daemonId,proto3" json:"daemon_id,omitempty"`
+	EdgeId               string                 `protobuf:"bytes,4,opt,name=edge_id,json=edgeId,proto3" json:"edge_id,omitempty"`
+	ClientId             string                 `protobuf:"bytes,5,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Product              ClientProduct          `protobuf:"varint,6,opt,name=product,proto3,enum=anytty.cloud.v1.ClientProduct" json:"product,omitempty"`
+	Generation           uint64                 `protobuf:"varint,8,opt,name=generation,proto3" json:"generation,omitempty"`
+	ConnectedAt          *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=connected_at,json=connectedAt,proto3" json:"connected_at,omitempty"`
+	AccountDisplayName   string                 `protobuf:"bytes,10,opt,name=account_display_name,json=accountDisplayName,proto3" json:"account_display_name,omitempty"`
+	AccountEmail         string                 `protobuf:"bytes,11,opt,name=account_email,json=accountEmail,proto3" json:"account_email,omitempty"`
+	DaemonDisplayName    string                 `protobuf:"bytes,12,opt,name=daemon_display_name,json=daemonDisplayName,proto3" json:"daemon_display_name,omitempty"`
+	EdgeName             string                 `protobuf:"bytes,13,opt,name=edge_name,json=edgeName,proto3" json:"edge_name,omitempty"`
+	RelayActive          bool                   `protobuf:"varint,14,opt,name=relay_active,json=relayActive,proto3" json:"relay_active,omitempty"`
+	RelayAllocationCount uint32                 `protobuf:"varint,15,opt,name=relay_allocation_count,json=relayAllocationCount,proto3" json:"relay_allocation_count,omitempty"`
+	RelayIngressBytes    uint64                 `protobuf:"varint,16,opt,name=relay_ingress_bytes,json=relayIngressBytes,proto3" json:"relay_ingress_bytes,omitempty"`
+	RelayEgressBytes     uint64                 `protobuf:"varint,17,opt,name=relay_egress_bytes,json=relayEgressBytes,proto3" json:"relay_egress_bytes,omitempty"`
+	RelayConnectedAt     *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=relay_connected_at,json=relayConnectedAt,proto3" json:"relay_connected_at,omitempty"`
+	RelayTransports      []RelayTransport       `protobuf:"varint,19,rep,packed,name=relay_transports,json=relayTransports,proto3,enum=anytty.cloud.v1.RelayTransport" json:"relay_transports,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *RuntimeSessionProjection) Reset() {
@@ -514,6 +520,48 @@ func (x *RuntimeSessionProjection) GetEdgeName() string {
 		return x.EdgeName
 	}
 	return ""
+}
+
+func (x *RuntimeSessionProjection) GetRelayActive() bool {
+	if x != nil {
+		return x.RelayActive
+	}
+	return false
+}
+
+func (x *RuntimeSessionProjection) GetRelayAllocationCount() uint32 {
+	if x != nil {
+		return x.RelayAllocationCount
+	}
+	return 0
+}
+
+func (x *RuntimeSessionProjection) GetRelayIngressBytes() uint64 {
+	if x != nil {
+		return x.RelayIngressBytes
+	}
+	return 0
+}
+
+func (x *RuntimeSessionProjection) GetRelayEgressBytes() uint64 {
+	if x != nil {
+		return x.RelayEgressBytes
+	}
+	return 0
+}
+
+func (x *RuntimeSessionProjection) GetRelayConnectedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RelayConnectedAt
+	}
+	return nil
+}
+
+func (x *RuntimeSessionProjection) GetRelayTransports() []RelayTransport {
+	if x != nil {
+		return x.RelayTransports
+	}
+	return nil
 }
 
 type OperatorAuditEvent struct {
@@ -2129,7 +2177,7 @@ var File_cloud_v1_operator_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_operator_proto_rawDesc = "" +
 	"\n" +
-	"\x17cloud/v1/operator.proto\x12\x0fanytty.cloud.v1\x1a\x16cloud/v1/account.proto\x1a\x17cloud/v1/commerce.proto\x1a\x1acloud/v1/edge_config.proto\x1a\x16cloud/v1/runtime.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"l\n" +
+	"\x17cloud/v1/operator.proto\x12\x0fanytty.cloud.v1\x1a\x16cloud/v1/account.proto\x1a\x17cloud/v1/commerce.proto\x1a\x1acloud/v1/edge_config.proto\x1a\x16cloud/v1/runtime.proto\x1a\x14cloud/v1/usage.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"l\n" +
 	"\vPageRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\rR\bpageSize\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
@@ -2153,7 +2201,7 @@ const file_cloud_v1_operator_proto_rawDesc = "" +
 	"\fdaemon_count\x18\x03 \x01(\x04R\vdaemonCount\x12K\n" +
 	"\fsubscription\x18\x04 \x01(\v2'.anytty.cloud.v1.SubscriptionProjectionR\fsubscription\x12G\n" +
 	"\ventitlement\x18\x05 \x01(\v2%.anytty.cloud.v1.EffectiveEntitlementR\ventitlement\x12<\n" +
-	"\x05usage\x18\x06 \x01(\v2&.anytty.cloud.v1.UsagePeriodProjectionR\x05usage\"\xee\x03\n" +
+	"\x05usage\x18\x06 \x01(\v2&.anytty.cloud.v1.UsagePeriodProjectionR\x05usage\"\xbb\x06\n" +
 	"\x18RuntimeSessionProjection\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
@@ -2171,7 +2219,13 @@ const file_cloud_v1_operator_proto_rawDesc = "" +
 	" \x01(\tR\x12accountDisplayName\x12#\n" +
 	"\raccount_email\x18\v \x01(\tR\faccountEmail\x12.\n" +
 	"\x13daemon_display_name\x18\f \x01(\tR\x11daemonDisplayName\x12\x1b\n" +
-	"\tedge_name\x18\r \x01(\tR\bedgeNameJ\x04\b\a\x10\b\"\xf9\x02\n" +
+	"\tedge_name\x18\r \x01(\tR\bedgeName\x12!\n" +
+	"\frelay_active\x18\x0e \x01(\bR\vrelayActive\x124\n" +
+	"\x16relay_allocation_count\x18\x0f \x01(\rR\x14relayAllocationCount\x12.\n" +
+	"\x13relay_ingress_bytes\x18\x10 \x01(\x04R\x11relayIngressBytes\x12,\n" +
+	"\x12relay_egress_bytes\x18\x11 \x01(\x04R\x10relayEgressBytes\x12H\n" +
+	"\x12relay_connected_at\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\x10relayConnectedAt\x12J\n" +
+	"\x10relay_transports\x18\x13 \x03(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\x0frelayTransportsJ\x04\b\a\x10\b\"\xf9\x02\n" +
 	"\x12OperatorAuditEvent\x12\x19\n" +
 	"\baudit_id\x18\x01 \x01(\tR\aauditId\x12(\n" +
 	"\x10actor_account_id\x18\x02 \x01(\tR\x0eactorAccountId\x12,\n" +
@@ -2381,12 +2435,13 @@ var file_cloud_v1_operator_proto_goTypes = []any{
 	(*EffectiveEntitlement)(nil),               // 40: anytty.cloud.v1.EffectiveEntitlement
 	(*UsagePeriodProjection)(nil),              // 41: anytty.cloud.v1.UsagePeriodProjection
 	(ClientProduct)(0),                         // 42: anytty.cloud.v1.ClientProduct
-	(*OrderProjection)(nil),                    // 43: anytty.cloud.v1.OrderProjection
-	(AccountState)(0),                          // 44: anytty.cloud.v1.AccountState
-	(*DeleteEdgeRequest)(nil),                  // 45: anytty.cloud.v1.DeleteEdgeRequest
-	(*CreateEdgeIdentityRecoveryRequest)(nil),  // 46: anytty.cloud.v1.CreateEdgeIdentityRecoveryRequest
-	(*DeleteEdgeResponse)(nil),                 // 47: anytty.cloud.v1.DeleteEdgeResponse
-	(*CreateEdgeIdentityRecoveryResponse)(nil), // 48: anytty.cloud.v1.CreateEdgeIdentityRecoveryResponse
+	(RelayTransport)(0),                        // 43: anytty.cloud.v1.RelayTransport
+	(*OrderProjection)(nil),                    // 44: anytty.cloud.v1.OrderProjection
+	(AccountState)(0),                          // 45: anytty.cloud.v1.AccountState
+	(*DeleteEdgeRequest)(nil),                  // 46: anytty.cloud.v1.DeleteEdgeRequest
+	(*CreateEdgeIdentityRecoveryRequest)(nil),  // 47: anytty.cloud.v1.CreateEdgeIdentityRecoveryRequest
+	(*DeleteEdgeResponse)(nil),                 // 48: anytty.cloud.v1.DeleteEdgeResponse
+	(*CreateEdgeIdentityRecoveryResponse)(nil), // 49: anytty.cloud.v1.CreateEdgeIdentityRecoveryResponse
 }
 var file_cloud_v1_operator_proto_depIdxs = []int32{
 	36, // 0: anytty.cloud.v1.OperatorOverview.generated_at:type_name -> google.protobuf.Timestamp
@@ -2397,70 +2452,72 @@ var file_cloud_v1_operator_proto_depIdxs = []int32{
 	41, // 5: anytty.cloud.v1.AccountSummary.usage:type_name -> anytty.cloud.v1.UsagePeriodProjection
 	42, // 6: anytty.cloud.v1.RuntimeSessionProjection.product:type_name -> anytty.cloud.v1.ClientProduct
 	36, // 7: anytty.cloud.v1.RuntimeSessionProjection.connected_at:type_name -> google.protobuf.Timestamp
-	36, // 8: anytty.cloud.v1.OperatorAuditEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	3,  // 9: anytty.cloud.v1.GetOperatorOverviewResponse.overview:type_name -> anytty.cloud.v1.OperatorOverview
-	2,  // 10: anytty.cloud.v1.ListOperatorAccountsRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	4,  // 11: anytty.cloud.v1.ListOperatorAccountsResponse.accounts:type_name -> anytty.cloud.v1.AccountSummary
-	4,  // 12: anytty.cloud.v1.GetOperatorAccountResponse.account:type_name -> anytty.cloud.v1.AccountSummary
-	37, // 13: anytty.cloud.v1.ProvisionAccountResponse.account:type_name -> anytty.cloud.v1.AccountProfile
-	36, // 14: anytty.cloud.v1.ProvisionAccountResponse.expires_at:type_name -> google.protobuf.Timestamp
-	37, // 15: anytty.cloud.v1.ResetAccountSetupResponse.account:type_name -> anytty.cloud.v1.AccountProfile
-	36, // 16: anytty.cloud.v1.ResetAccountSetupResponse.expires_at:type_name -> google.protobuf.Timestamp
-	2,  // 17: anytty.cloud.v1.ListRuntimeSessionsRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	5,  // 18: anytty.cloud.v1.ListRuntimeSessionsResponse.sessions:type_name -> anytty.cloud.v1.RuntimeSessionProjection
-	2,  // 19: anytty.cloud.v1.ListOperatorOrdersRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	43, // 20: anytty.cloud.v1.ListOperatorOrdersResponse.orders:type_name -> anytty.cloud.v1.OrderProjection
-	2,  // 21: anytty.cloud.v1.ListOperatorSubscriptionsRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	39, // 22: anytty.cloud.v1.ListOperatorSubscriptionsResponse.subscriptions:type_name -> anytty.cloud.v1.SubscriptionProjection
-	2,  // 23: anytty.cloud.v1.ListOperatorUsageRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	41, // 24: anytty.cloud.v1.ListOperatorUsageResponse.accounts:type_name -> anytty.cloud.v1.UsagePeriodProjection
-	2,  // 25: anytty.cloud.v1.ListOperatorAuditRequest.page:type_name -> anytty.cloud.v1.PageRequest
-	6,  // 26: anytty.cloud.v1.ListOperatorAuditResponse.events:type_name -> anytty.cloud.v1.OperatorAuditEvent
-	44, // 27: anytty.cloud.v1.SetAccountStateRequest.state:type_name -> anytty.cloud.v1.AccountState
-	37, // 28: anytty.cloud.v1.SetAccountStateResponse.account:type_name -> anytty.cloud.v1.AccountProfile
-	38, // 29: anytty.cloud.v1.SetAccountRoleRequest.role:type_name -> anytty.cloud.v1.AccountRole
-	38, // 30: anytty.cloud.v1.SetAccountRoleResponse.roles:type_name -> anytty.cloud.v1.AccountRole
-	0,  // 31: anytty.cloud.v1.DisconnectDaemonResponse.result:type_name -> anytty.cloud.v1.RuntimeCommandResult
-	0,  // 32: anytty.cloud.v1.DisconnectSessionResponse.result:type_name -> anytty.cloud.v1.RuntimeCommandResult
-	1,  // 33: anytty.cloud.v1.OperatorRuntimeEvent.operation:type_name -> anytty.cloud.v1.OperatorEventOperation
-	36, // 34: anytty.cloud.v1.OperatorRuntimeEvent.occurred_at:type_name -> google.protobuf.Timestamp
-	7,  // 35: anytty.cloud.v1.OperatorService.GetOverview:input_type -> anytty.cloud.v1.GetOperatorOverviewRequest
-	9,  // 36: anytty.cloud.v1.OperatorService.ListAccounts:input_type -> anytty.cloud.v1.ListOperatorAccountsRequest
-	11, // 37: anytty.cloud.v1.OperatorService.GetAccount:input_type -> anytty.cloud.v1.GetOperatorAccountRequest
-	13, // 38: anytty.cloud.v1.OperatorService.ProvisionAccount:input_type -> anytty.cloud.v1.ProvisionAccountRequest
-	15, // 39: anytty.cloud.v1.OperatorService.ResetAccountSetup:input_type -> anytty.cloud.v1.ResetAccountSetupRequest
-	17, // 40: anytty.cloud.v1.OperatorService.ListRuntimeSessions:input_type -> anytty.cloud.v1.ListRuntimeSessionsRequest
-	19, // 41: anytty.cloud.v1.OperatorService.ListOrders:input_type -> anytty.cloud.v1.ListOperatorOrdersRequest
-	21, // 42: anytty.cloud.v1.OperatorService.ListSubscriptions:input_type -> anytty.cloud.v1.ListOperatorSubscriptionsRequest
-	23, // 43: anytty.cloud.v1.OperatorService.ListUsage:input_type -> anytty.cloud.v1.ListOperatorUsageRequest
-	25, // 44: anytty.cloud.v1.OperatorService.ListAudit:input_type -> anytty.cloud.v1.ListOperatorAuditRequest
-	27, // 45: anytty.cloud.v1.OperatorService.SetAccountState:input_type -> anytty.cloud.v1.SetAccountStateRequest
-	29, // 46: anytty.cloud.v1.OperatorService.SetAccountRole:input_type -> anytty.cloud.v1.SetAccountRoleRequest
-	31, // 47: anytty.cloud.v1.OperatorService.DisconnectDaemon:input_type -> anytty.cloud.v1.DisconnectDaemonRequest
-	33, // 48: anytty.cloud.v1.OperatorService.DisconnectSession:input_type -> anytty.cloud.v1.DisconnectSessionRequest
-	45, // 49: anytty.cloud.v1.OperatorService.DeleteEdge:input_type -> anytty.cloud.v1.DeleteEdgeRequest
-	46, // 50: anytty.cloud.v1.OperatorService.CreateEdgeIdentityRecovery:input_type -> anytty.cloud.v1.CreateEdgeIdentityRecoveryRequest
-	8,  // 51: anytty.cloud.v1.OperatorService.GetOverview:output_type -> anytty.cloud.v1.GetOperatorOverviewResponse
-	10, // 52: anytty.cloud.v1.OperatorService.ListAccounts:output_type -> anytty.cloud.v1.ListOperatorAccountsResponse
-	12, // 53: anytty.cloud.v1.OperatorService.GetAccount:output_type -> anytty.cloud.v1.GetOperatorAccountResponse
-	14, // 54: anytty.cloud.v1.OperatorService.ProvisionAccount:output_type -> anytty.cloud.v1.ProvisionAccountResponse
-	16, // 55: anytty.cloud.v1.OperatorService.ResetAccountSetup:output_type -> anytty.cloud.v1.ResetAccountSetupResponse
-	18, // 56: anytty.cloud.v1.OperatorService.ListRuntimeSessions:output_type -> anytty.cloud.v1.ListRuntimeSessionsResponse
-	20, // 57: anytty.cloud.v1.OperatorService.ListOrders:output_type -> anytty.cloud.v1.ListOperatorOrdersResponse
-	22, // 58: anytty.cloud.v1.OperatorService.ListSubscriptions:output_type -> anytty.cloud.v1.ListOperatorSubscriptionsResponse
-	24, // 59: anytty.cloud.v1.OperatorService.ListUsage:output_type -> anytty.cloud.v1.ListOperatorUsageResponse
-	26, // 60: anytty.cloud.v1.OperatorService.ListAudit:output_type -> anytty.cloud.v1.ListOperatorAuditResponse
-	28, // 61: anytty.cloud.v1.OperatorService.SetAccountState:output_type -> anytty.cloud.v1.SetAccountStateResponse
-	30, // 62: anytty.cloud.v1.OperatorService.SetAccountRole:output_type -> anytty.cloud.v1.SetAccountRoleResponse
-	32, // 63: anytty.cloud.v1.OperatorService.DisconnectDaemon:output_type -> anytty.cloud.v1.DisconnectDaemonResponse
-	34, // 64: anytty.cloud.v1.OperatorService.DisconnectSession:output_type -> anytty.cloud.v1.DisconnectSessionResponse
-	47, // 65: anytty.cloud.v1.OperatorService.DeleteEdge:output_type -> anytty.cloud.v1.DeleteEdgeResponse
-	48, // 66: anytty.cloud.v1.OperatorService.CreateEdgeIdentityRecovery:output_type -> anytty.cloud.v1.CreateEdgeIdentityRecoveryResponse
-	51, // [51:67] is the sub-list for method output_type
-	35, // [35:51] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	36, // 8: anytty.cloud.v1.RuntimeSessionProjection.relay_connected_at:type_name -> google.protobuf.Timestamp
+	43, // 9: anytty.cloud.v1.RuntimeSessionProjection.relay_transports:type_name -> anytty.cloud.v1.RelayTransport
+	36, // 10: anytty.cloud.v1.OperatorAuditEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	3,  // 11: anytty.cloud.v1.GetOperatorOverviewResponse.overview:type_name -> anytty.cloud.v1.OperatorOverview
+	2,  // 12: anytty.cloud.v1.ListOperatorAccountsRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	4,  // 13: anytty.cloud.v1.ListOperatorAccountsResponse.accounts:type_name -> anytty.cloud.v1.AccountSummary
+	4,  // 14: anytty.cloud.v1.GetOperatorAccountResponse.account:type_name -> anytty.cloud.v1.AccountSummary
+	37, // 15: anytty.cloud.v1.ProvisionAccountResponse.account:type_name -> anytty.cloud.v1.AccountProfile
+	36, // 16: anytty.cloud.v1.ProvisionAccountResponse.expires_at:type_name -> google.protobuf.Timestamp
+	37, // 17: anytty.cloud.v1.ResetAccountSetupResponse.account:type_name -> anytty.cloud.v1.AccountProfile
+	36, // 18: anytty.cloud.v1.ResetAccountSetupResponse.expires_at:type_name -> google.protobuf.Timestamp
+	2,  // 19: anytty.cloud.v1.ListRuntimeSessionsRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	5,  // 20: anytty.cloud.v1.ListRuntimeSessionsResponse.sessions:type_name -> anytty.cloud.v1.RuntimeSessionProjection
+	2,  // 21: anytty.cloud.v1.ListOperatorOrdersRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	44, // 22: anytty.cloud.v1.ListOperatorOrdersResponse.orders:type_name -> anytty.cloud.v1.OrderProjection
+	2,  // 23: anytty.cloud.v1.ListOperatorSubscriptionsRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	39, // 24: anytty.cloud.v1.ListOperatorSubscriptionsResponse.subscriptions:type_name -> anytty.cloud.v1.SubscriptionProjection
+	2,  // 25: anytty.cloud.v1.ListOperatorUsageRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	41, // 26: anytty.cloud.v1.ListOperatorUsageResponse.accounts:type_name -> anytty.cloud.v1.UsagePeriodProjection
+	2,  // 27: anytty.cloud.v1.ListOperatorAuditRequest.page:type_name -> anytty.cloud.v1.PageRequest
+	6,  // 28: anytty.cloud.v1.ListOperatorAuditResponse.events:type_name -> anytty.cloud.v1.OperatorAuditEvent
+	45, // 29: anytty.cloud.v1.SetAccountStateRequest.state:type_name -> anytty.cloud.v1.AccountState
+	37, // 30: anytty.cloud.v1.SetAccountStateResponse.account:type_name -> anytty.cloud.v1.AccountProfile
+	38, // 31: anytty.cloud.v1.SetAccountRoleRequest.role:type_name -> anytty.cloud.v1.AccountRole
+	38, // 32: anytty.cloud.v1.SetAccountRoleResponse.roles:type_name -> anytty.cloud.v1.AccountRole
+	0,  // 33: anytty.cloud.v1.DisconnectDaemonResponse.result:type_name -> anytty.cloud.v1.RuntimeCommandResult
+	0,  // 34: anytty.cloud.v1.DisconnectSessionResponse.result:type_name -> anytty.cloud.v1.RuntimeCommandResult
+	1,  // 35: anytty.cloud.v1.OperatorRuntimeEvent.operation:type_name -> anytty.cloud.v1.OperatorEventOperation
+	36, // 36: anytty.cloud.v1.OperatorRuntimeEvent.occurred_at:type_name -> google.protobuf.Timestamp
+	7,  // 37: anytty.cloud.v1.OperatorService.GetOverview:input_type -> anytty.cloud.v1.GetOperatorOverviewRequest
+	9,  // 38: anytty.cloud.v1.OperatorService.ListAccounts:input_type -> anytty.cloud.v1.ListOperatorAccountsRequest
+	11, // 39: anytty.cloud.v1.OperatorService.GetAccount:input_type -> anytty.cloud.v1.GetOperatorAccountRequest
+	13, // 40: anytty.cloud.v1.OperatorService.ProvisionAccount:input_type -> anytty.cloud.v1.ProvisionAccountRequest
+	15, // 41: anytty.cloud.v1.OperatorService.ResetAccountSetup:input_type -> anytty.cloud.v1.ResetAccountSetupRequest
+	17, // 42: anytty.cloud.v1.OperatorService.ListRuntimeSessions:input_type -> anytty.cloud.v1.ListRuntimeSessionsRequest
+	19, // 43: anytty.cloud.v1.OperatorService.ListOrders:input_type -> anytty.cloud.v1.ListOperatorOrdersRequest
+	21, // 44: anytty.cloud.v1.OperatorService.ListSubscriptions:input_type -> anytty.cloud.v1.ListOperatorSubscriptionsRequest
+	23, // 45: anytty.cloud.v1.OperatorService.ListUsage:input_type -> anytty.cloud.v1.ListOperatorUsageRequest
+	25, // 46: anytty.cloud.v1.OperatorService.ListAudit:input_type -> anytty.cloud.v1.ListOperatorAuditRequest
+	27, // 47: anytty.cloud.v1.OperatorService.SetAccountState:input_type -> anytty.cloud.v1.SetAccountStateRequest
+	29, // 48: anytty.cloud.v1.OperatorService.SetAccountRole:input_type -> anytty.cloud.v1.SetAccountRoleRequest
+	31, // 49: anytty.cloud.v1.OperatorService.DisconnectDaemon:input_type -> anytty.cloud.v1.DisconnectDaemonRequest
+	33, // 50: anytty.cloud.v1.OperatorService.DisconnectSession:input_type -> anytty.cloud.v1.DisconnectSessionRequest
+	46, // 51: anytty.cloud.v1.OperatorService.DeleteEdge:input_type -> anytty.cloud.v1.DeleteEdgeRequest
+	47, // 52: anytty.cloud.v1.OperatorService.CreateEdgeIdentityRecovery:input_type -> anytty.cloud.v1.CreateEdgeIdentityRecoveryRequest
+	8,  // 53: anytty.cloud.v1.OperatorService.GetOverview:output_type -> anytty.cloud.v1.GetOperatorOverviewResponse
+	10, // 54: anytty.cloud.v1.OperatorService.ListAccounts:output_type -> anytty.cloud.v1.ListOperatorAccountsResponse
+	12, // 55: anytty.cloud.v1.OperatorService.GetAccount:output_type -> anytty.cloud.v1.GetOperatorAccountResponse
+	14, // 56: anytty.cloud.v1.OperatorService.ProvisionAccount:output_type -> anytty.cloud.v1.ProvisionAccountResponse
+	16, // 57: anytty.cloud.v1.OperatorService.ResetAccountSetup:output_type -> anytty.cloud.v1.ResetAccountSetupResponse
+	18, // 58: anytty.cloud.v1.OperatorService.ListRuntimeSessions:output_type -> anytty.cloud.v1.ListRuntimeSessionsResponse
+	20, // 59: anytty.cloud.v1.OperatorService.ListOrders:output_type -> anytty.cloud.v1.ListOperatorOrdersResponse
+	22, // 60: anytty.cloud.v1.OperatorService.ListSubscriptions:output_type -> anytty.cloud.v1.ListOperatorSubscriptionsResponse
+	24, // 61: anytty.cloud.v1.OperatorService.ListUsage:output_type -> anytty.cloud.v1.ListOperatorUsageResponse
+	26, // 62: anytty.cloud.v1.OperatorService.ListAudit:output_type -> anytty.cloud.v1.ListOperatorAuditResponse
+	28, // 63: anytty.cloud.v1.OperatorService.SetAccountState:output_type -> anytty.cloud.v1.SetAccountStateResponse
+	30, // 64: anytty.cloud.v1.OperatorService.SetAccountRole:output_type -> anytty.cloud.v1.SetAccountRoleResponse
+	32, // 65: anytty.cloud.v1.OperatorService.DisconnectDaemon:output_type -> anytty.cloud.v1.DisconnectDaemonResponse
+	34, // 66: anytty.cloud.v1.OperatorService.DisconnectSession:output_type -> anytty.cloud.v1.DisconnectSessionResponse
+	48, // 67: anytty.cloud.v1.OperatorService.DeleteEdge:output_type -> anytty.cloud.v1.DeleteEdgeResponse
+	49, // 68: anytty.cloud.v1.OperatorService.CreateEdgeIdentityRecovery:output_type -> anytty.cloud.v1.CreateEdgeIdentityRecoveryResponse
+	53, // [53:69] is the sub-list for method output_type
+	37, // [37:53] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_operator_proto_init() }
@@ -2472,6 +2529,7 @@ func file_cloud_v1_operator_proto_init() {
 	file_cloud_v1_commerce_proto_init()
 	file_cloud_v1_edge_config_proto_init()
 	file_cloud_v1_runtime_proto_init()
+	file_cloud_v1_usage_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

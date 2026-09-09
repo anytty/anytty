@@ -3,7 +3,12 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-version="${1:-$(tr -d '[:space:]' <"$repo_root/VERSION")}"
+if [[ -n "${1:-}" ]]; then
+  version="$1"
+else
+  eval "$("$repo_root/scripts/version-info.sh")"
+  version="$ANYTTY_RELEASE_TAG"
+fi
 asset_dir="${2:-$repo_root/.artifacts/release/$version}"
 
 if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then

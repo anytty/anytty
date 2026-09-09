@@ -20,14 +20,19 @@ import (
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/apipb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/proto/remoteauthpb"
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/connecttrace"
+	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const defaultClientName = "anytty-go-cloud"
 
 const cloudLocatorStoreTimeout = 2 * time.Second
+const cloudSessionReleaseTimeout = 2 * time.Second
 
 // PeerFactory 根据本次 Controller/Edge 决策创建 direct 或 single-Relay WebRTC primitive。
 type PeerFactory interface {
@@ -44,13 +49,20 @@ type Dialer struct {
 	Phase         func(clientruntime.EndpointPhase)
 }
 
-// Connect 优先复用 secure credential 中的 Edge locator；只有 locator 缺失或失效才查询 Controller。
-func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (clientruntime.ReadyPeerSession, error) {
+// Connect gives the cached Edge locator a short head start, then refreshes through Controller
+// concurrently when the cached route is slow or unavailable.
+func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (result clientruntime.ReadyPeerSession, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "cloud_route")
+	defer func() { trace.End(resultErr) }()
 	startedAt := time.Now()
 	lastAt := startedAt
+	var timingMu sync.Mutex
 	reportTiming := func(phase string) {
+		timingMu.Lock()
+		defer timingMu.Unlock()
 		now := time.Now()
 		log.Printf("anytty cloud connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, phase, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(phase)
 		lastAt = now
 	}
 	if dialer == nil || dialer.Peers == nil || dialer.Cloud == nil || dialer.Authorization == nil || dialer.Product == cloudv1.ClientProduct_CLIENT_PRODUCT_UNSPECIFIED {
@@ -73,6 +85,33 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, errors.New("Cloud route credential is missing its signed discovery grant")
 	}
 	dialer.report(clientruntime.EndpointPhaseSignaling)
+	clientName := strings.TrimSpace(dialer.ClientName)
+	if clientName == "" {
+		clientName = defaultClientName
+	}
+	verify := func(attemptCtx context.Context, opened *openedCloudPeer) error {
+		fingerprint, err := opened.RemoteCertificateFingerprint()
+		if err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
+		}
+		dialer.report(clientruntime.EndpointPhaseAuthorizing)
+		clientruntime.ReportEndpointProgress(attemptCtx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
+		connection := opened.Transport()
+		if _, err := prepared.Authenticate(attemptCtx, connection, fingerprint); err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
+		}
+		if receiver, ok := connection.(interface{ EnableReceiveBackpressure() }); ok {
+			receiver.EnableReceiveBackpressure()
+		}
+		reportTiming("datachannel_authenticated")
+		clientruntime.ReportEndpointProgress(attemptCtx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
+		opened.protocolClient = internalprotocol.NewClient(connection)
+		if err := opened.protocolClient.Hello(attemptCtx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
+			return reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
+		}
+		reportTiming("protocol_ready")
+		return nil
+	}
 	resolved, cachedErr := cloudclient.NewCachedCapabilityRoute(signaling.CloudEdgeLocator(), signaling.CloudRouteGrant())
 	if cachedErr != nil {
 		resolved = nil
@@ -85,6 +124,13 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 			fresh, resolveErr := dialer.Cloud.Resolve(ctx, signaling.CloudRouteGrant(), signaling)
 			if resolveErr == nil {
 				reportTiming("controller_resolved")
+				if !sameCloudRoute(resolved, fresh) {
+					locator, encodeErr := cloudclient.EncodeEdgeLocator(fresh.Locator())
+					if encodeErr != nil {
+						return nil, fmt.Errorf("encode authenticated Cloud Edge locator: %w", encodeErr)
+					}
+					storeCloudEdgeLocatorAsync(ctx, request.Stamp().Generation, signaling, locator, "controller_resolve")
+				}
 			}
 			return fresh, resolveErr
 		},
@@ -94,7 +140,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 			} else {
 				clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseResolving, clientruntime.EndpointStageCloudDiscovering)
 			}
-			return openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, route, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report)
+			return openResolvedCloudPeer(ctx, request, dialer.Peers, dialer.Cloud, route, signaling.ClientIdentity(), signaling, dialer.Product, dialer.report, verify)
 		},
 		func(source cloudRouteSource, route *cloudclient.RouteResolution, routeErr error) {
 			reportTiming(string(source) + "_edge_failed")
@@ -108,31 +154,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		}
 		return nil, reportCloudFailure(request.Stamp().Generation, failureStage, cloudConnectionError(err))
 	}
-	fingerprint, err := opened.RemoteCertificateFingerprint()
-	if err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailurePeerFingerprint, err)
-	}
-	dialer.report(clientruntime.EndpointPhaseAuthorizing)
-	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageTransportAuthorizing)
-	connection := opened.Transport()
-	if _, err := prepared.Authenticate(ctx, connection, fingerprint); err != nil {
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureDataChannelAuth, fmt.Errorf("authenticate Cloud DataChannel: %w", err))
-	}
-	reportTiming("datachannel_authenticated")
-	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
-	protocolClient := internalprotocol.NewClient(connection)
-	clientName := strings.TrimSpace(dialer.ClientName)
-	if clientName == "" {
-		clientName = defaultClientName
-	}
-	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
-		_ = protocolClient.Close()
-		_ = opened.Close()
-		return nil, reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
-	}
-	reportTiming("protocol_ready")
+	protocolClient := opened.protocolClient
 	application, err := protocoladapter.NewApplicationClientWithObservedPath(protocolClient, request.Stamp(), string(opened.ObservedPath()))
 	if err != nil {
 		_ = protocolClient.Close()
@@ -144,28 +166,29 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		_ = opened.Close()
 		return nil, err
 	}
-	var locatorToStore []byte
-	if source == cloudRouteSourceController {
-		locatorToStore, err = cloudclient.EncodeEdgeLocator(selectedResolution.Locator())
-		if err != nil {
-			_ = application.Close()
-			_ = opened.Close()
-			return nil, fmt.Errorf("encode authenticated Cloud Edge locator: %w", err)
-		}
-	}
 	dialer.report(clientruntime.EndpointPhaseReady)
 	peer, signalSession := opened.Release()
 	session := newSession(application, peer, signalSession)
-	if len(locatorToStore) > 0 {
-		// Locator is only a public optimization. Disk persistence must not delay a session that
-		// already completed end-to-end authentication and protocol Hello.
-		go func(locator []byte) {
-			storeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cloudLocatorStoreTimeout)
-			defer cancel()
-			_ = signaling.StoreCloudEdgeLocator(storeContext, locator)
-		}(append([]byte(nil), locatorToStore...))
-	}
 	return session, nil
+}
+
+type cloudEdgeLocatorStore interface {
+	StoreCloudEdgeLocator(context.Context, []byte) error
+}
+
+func storeCloudEdgeLocatorAsync(ctx context.Context, generation clientruntime.SessionGeneration, store cloudEdgeLocatorStore, locator []byte, reason string) {
+	if ctx == nil || store == nil || len(locator) == 0 {
+		return
+	}
+	go func(locator []byte) {
+		storeContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), cloudLocatorStoreTimeout)
+		defer cancel()
+		if err := store.StoreCloudEdgeLocator(storeContext, locator); err != nil {
+			log.Printf("anytty cloud connect generation=%d stage=locator_store_failed reason=%s error_type=%T", generation, reason, err)
+			return
+		}
+		log.Printf("anytty cloud connect generation=%d stage=locator_stored reason=%s", generation, reason)
+	}(append([]byte(nil), locator...))
 }
 
 type cloudRouteSource string
@@ -175,11 +198,9 @@ const (
 	cloudRouteSourceController cloudRouteSource = "controller"
 )
 
-// dialCloudRoute owns the bounded route recovery policy for one connection generation.
-// A cached locator is an optimization only: an unsuccessful cached Edge exchange invalidates
-// that optimization and permits exactly one authenticated Controller resolve before the caller's
-// normal supervisor backoff takes over. Permanent authorization/lifecycle failures are returned
-// immediately because resolving another Edge cannot fix them.
+// dialCloudRoute queries Controller only when the cached locator is absent or
+// fails with a refreshable error. A slow but viable cached route is not a reason
+// to contact Controller. Authentication/lifecycle rejection remains terminal.
 func dialCloudRoute(
 	ctx context.Context,
 	cached *cloudclient.RouteResolution,
@@ -190,40 +211,74 @@ func dialCloudRoute(
 	if ctx == nil || resolve == nil || open == nil {
 		return nil, "", nil, errors.New("Cloud route recovery dependencies are incomplete")
 	}
-	if cached != nil {
-		opened, err := open(ctx, cached, cloudRouteSourceCached)
+	if err := ctx.Err(); err != nil {
+		return nil, "", nil, err
+	}
+	openRoute := func(route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+		opened, err := open(ctx, route, source)
 		if err == nil && opened == nil {
-			err = errors.New("cached Cloud route returned no peer")
+			err = fmt.Errorf("%s Cloud route returned no peer", source)
 		}
+		if err != nil {
+			if opened != nil {
+				_ = opened.Close()
+				opened = nil
+			}
+			if onFailure != nil {
+				onFailure(source, route, err)
+			}
+		}
+		return opened, err
+	}
+	var cachedFailure error
+	if cached != nil {
+		opened, err := openRoute(cached, cloudRouteSourceCached)
 		if err == nil {
 			return opened, cloudRouteSourceCached, cached, nil
-		}
-		if onFailure != nil {
-			onFailure(cloudRouteSourceCached, cached, err)
 		}
 		if ctx.Err() != nil || !shouldRefreshCloudRoute(err) {
 			return nil, cloudRouteSourceCached, cached, err
 		}
+		cachedFailure = err
 	}
-
 	fresh, err := resolve(ctx)
+	if err == nil && fresh == nil {
+		err = errors.New("Cloud route resolver returned no route")
+	}
 	if err != nil {
+		if cachedFailure != nil {
+			err = combinedCloudRouteFailure(cachedFailure, err)
+		}
 		return nil, cloudRouteSourceController, nil, err
 	}
-	if fresh == nil {
-		return nil, cloudRouteSourceController, nil, errors.New("Cloud route resolver returned no route")
-	}
-	opened, err := open(ctx, fresh, cloudRouteSourceController)
-	if err == nil && opened == nil {
-		err = errors.New("resolved Cloud route returned no peer")
-	}
-	if err != nil {
-		if onFailure != nil {
-			onFailure(cloudRouteSourceController, fresh, err)
-		}
+	if err := ctx.Err(); err != nil {
 		return nil, cloudRouteSourceController, fresh, err
 	}
-	return opened, cloudRouteSourceController, fresh, nil
+	opened, err := openRoute(fresh, cloudRouteSourceController)
+	if err != nil && cachedFailure != nil {
+		err = combinedCloudRouteFailure(cachedFailure, err)
+	}
+	return opened, cloudRouteSourceController, fresh, err
+}
+
+func combinedCloudRouteFailure(cachedErr, controllerErr error) error {
+	cause := errors.Join(
+		fmt.Errorf("cached Cloud route failed: %w", cachedErr),
+		fmt.Errorf("Controller Cloud route failed: %w", controllerErr),
+	)
+	return &clientruntime.Error{
+		Code:      clientruntime.ErrorUnavailable,
+		Message:   cause.Error(),
+		Cause:     cause,
+		Retryable: true,
+	}
+}
+
+func sameCloudRoute(left, right *cloudclient.RouteResolution) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return proto.Equal(left.Locator(), right.Locator())
 }
 
 func shouldRefreshCloudRoute(err error) bool {
@@ -237,6 +292,17 @@ func shouldRefreshCloudRoute(err error) bool {
 	}
 	if cloudclient.SignalRejectionCode(err) != "" {
 		return false
+	}
+	var authErr *remoteauth.HandshakeError
+	if errors.As(err, &authErr) {
+		switch authErr.Code {
+		case remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_UNSPECIFIED,
+			remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_PROTOCOL,
+			remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_INTERNAL:
+		default:
+			// A definitive peer rejection cannot be repaired by rediscovering an Edge.
+			return false
+		}
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
@@ -284,10 +350,19 @@ func cloudConnectionError(err error) error {
 	case failure != nil:
 		return &clientruntime.Error{Code: clientruntime.ErrorEntitlement, Message: cloudEntitlementMessage(failure), Cause: err}
 	case retryableCloudRPC(status.Code(err)):
-		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling is temporarily unavailable", Cause: err, Retryable: true}
+		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: cloudRPCFailureMessage(err), Cause: err, Retryable: true}
 	default:
 		return err
 	}
+}
+
+func cloudRPCFailureMessage(err error) string {
+	code := status.Code(err)
+	detail := strings.Join(strings.Fields(status.Convert(err).Message()), " ")
+	if detail == "" {
+		return fmt.Sprintf("Cloud connection failed (RPC %s)", code)
+	}
+	return fmt.Sprintf("Cloud connection failed (RPC %s): %s", code, detail)
 }
 
 func retryableCloudRPC(code codes.Code) bool {
@@ -333,6 +408,32 @@ type Session struct {
 	err       error
 }
 
+type cloudSessionSignaling interface {
+	Done() <-chan struct{}
+	PathConfirmed() bool
+	ReleaseAndWait(context.Context) error
+}
+
+func releaseCloudSession(signaling cloudSessionSignaling) (err error) {
+	if signaling == nil || !signaling.PathConfirmed() {
+		return nil
+	}
+	select {
+	case <-signaling.Done():
+		// Edge has already observed the signaling stream end and will run its
+		// deferred session cleanup; there is no stream left to send release on.
+		return nil
+	default:
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cloudSessionReleaseTimeout)
+	defer cancel()
+	started := time.Now()
+	defer func() {
+		log.Printf("anytty cloud close stage=edge_release elapsed_ms=%d error_type=%T", time.Since(started).Milliseconds(), err)
+	}()
+	return signaling.ReleaseAndWait(ctx)
+}
+
 func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTCPeer, signaling *cloudclient.SignalSession) *Session {
 	session := &Session{ApplicationClient: application, peer: peer, signaling: signaling, done: make(chan struct{})}
 	go func() { <-application.Done(); session.finish(application.Err()) }()
@@ -348,7 +449,7 @@ func cloudSignalingTermination(err error) error {
 		if message == "" {
 			message = "This connection was closed by an administrator"
 		}
-		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: message, Cause: err}
+		return &clientruntime.Error{Code: clientruntime.ErrorConnectionStopped, Message: message, Cause: err}
 	}
 	if err != nil {
 		return &clientruntime.Error{Code: clientruntime.ErrorUnavailable, Message: "Cloud signaling was interrupted", Cause: err, Retryable: true}
@@ -382,18 +483,17 @@ func (session *Session) finish(cause error) {
 		session.errMu.Lock()
 		session.err = cause
 		session.errMu.Unlock()
+		if err := releaseCloudSession(session.signaling); err != nil {
+			session.closeErr = errors.Join(session.closeErr, err)
+		}
 		if session.ApplicationClient != nil {
-			session.closeErr = session.ApplicationClient.Close()
+			session.closeErr = errors.Join(session.closeErr, session.ApplicationClient.Close())
 		}
 		if session.peer != nil {
-			if err := session.peer.Close(); session.closeErr == nil {
-				session.closeErr = err
-			}
+			session.closeErr = errors.Join(session.closeErr, session.peer.Close())
 		}
 		if session.signaling != nil {
-			if err := session.signaling.Close(); session.closeErr == nil {
-				session.closeErr = err
-			}
+			session.closeErr = errors.Join(session.closeErr, session.signaling.Close())
 		}
 		close(session.done)
 	})
@@ -401,12 +501,12 @@ func (session *Session) finish(cause error) {
 
 // ExecuteApplication 执行 generated Proto application command。
 func (session *Session) ExecuteApplication(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.Execute(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, false)
 }
 
 // ExecuteApplicationTerminal 为 resource-producing command 保留 terminal result。
 func (session *Session) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.ExecuteTerminal(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, true)
 }
 
 // ConnectionSnapshot 返回 P2P selected pair 的地址与网络计数。

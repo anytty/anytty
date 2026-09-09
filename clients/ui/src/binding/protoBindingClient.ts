@@ -963,7 +963,7 @@ function relayTransportFromProto(value: AnyTTYRemoteAuth.ManagedWebRTCRelayTrans
   switch (value) {
     case AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_UDP: return 'udp'
     case AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP: return 'tcp'
-    default: return 'auto'
+    default: return 'tcp'
   }
 }
 
@@ -971,7 +971,7 @@ function relayTransportToProto(value: ConnectionPolicy['relayTransport']): AnyTT
   switch (value) {
     case 'udp': return AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_UDP
     case 'tcp': return AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP
-    default: return AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO
+    default: return AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP
   }
 }
 
@@ -981,7 +981,7 @@ function connectionPolicyStateFromProto(state: AnyTTYClientBinding.ConnectionPol
     policy: {
       route: routePreferenceFromProto(policy?.routePreference),
       cloud: cloudPreferenceFromProto(policy?.cloudRelayMode ?? AnyTTYRemoteAuth.ManagedWebRTCRelayMode.MANAGED_WEBRTC_RELAY_MODE_AUTO),
-      relayTransport: relayTransportFromProto(policy?.relayTransport ?? AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_AUTO),
+      relayTransport: relayTransportFromProto(policy?.relayTransport ?? AnyTTYRemoteAuth.ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP),
     },
     available: { direct: false, ssh: false, cloud: false },
     unavailableReasons: {},

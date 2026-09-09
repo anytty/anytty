@@ -2569,7 +2569,7 @@ function MachineConnectionSettingsDialog({
         onRefresh={() => refresh(true)}
         onRetry={() => refresh(true)}
         onApply={(policy) => { void apply(policy) }}
-        onRestoreAuto={() => { void apply({ route: 'auto', cloud: 'auto', relayTransport: 'auto' }) }}
+        onRestoreAuto={() => { void apply({ route: 'auto', cloud: 'auto', relayTransport: 'tcp' }) }}
         routeManagement={runtime?.connector.routeManagement}
         endpointId={machine.id}
         cloudPresence={machine.cloudPresence}

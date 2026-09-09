@@ -352,13 +352,13 @@ func reduceConnectionsEdit(root state.Root, row int) (state.Root, []Effect) {
 	if preference == "" {
 		preference = endpointdomain.RoutePreferenceAuto
 	}
-	relayMode, relayTransport := endpointdomain.RelayAuto, endpointdomain.RelayTransportAuto
+	relayMode, relayTransport := endpointdomain.RelayAuto, endpointdomain.RelayTransportTCP
 	for _, route := range selected.Routes {
 		if route.Kind == state.EndpointTransportHubP2P {
 			if route.RelayMode != "" {
 				relayMode = route.RelayMode
 			}
-			if route.RelayTransport != "" {
+			if route.RelayTransport != "" && route.RelayTransport != endpointdomain.RelayTransportAuto {
 				relayTransport = route.RelayTransport
 			}
 			break
@@ -367,7 +367,7 @@ func reduceConnectionsEdit(root state.Root, row int) (state.Root, []Effect) {
 	fields := []state.PromptFieldState{
 		{Key: "policy:route", Label: "Route", Value: string(preference), Placeholder: "auto/direct/ssh/managed_cloud", SuggestionItems: []string{"auto", "direct", "ssh", "managed_cloud"}},
 		{Key: "policy:cloud", Label: "Cloud path", Value: string(relayMode), Placeholder: "auto/direct/relay_only/smart_route", SuggestionItems: []string{"auto", "direct", "relay_only", "smart_route"}},
-		{Key: "policy:relay_transport", Label: "Relay transport", Value: string(relayTransport), Placeholder: "auto/udp/tcp", SuggestionItems: []string{"auto", "udp", "tcp"}},
+		{Key: "policy:relay_transport", Label: "Relay transport", Value: string(relayTransport), Placeholder: "tcp/udp", SuggestionItems: []string{"tcp", "udp"}},
 	}
 	for _, route := range selected.Routes {
 		if !route.Enabled || route.ManualOnly {
@@ -474,9 +474,9 @@ func connectionPolicyFromPrompt(prompt state.PromptState) (state.EndpointConnect
 		return state.EndpointConnectionPolicy{}, fmt.Errorf("Cloud path must be auto, direct, relay_only, or smart_route")
 	}
 	switch policy.RelayTransport {
-	case endpointdomain.RelayTransportAuto, endpointdomain.RelayTransportUDP, endpointdomain.RelayTransportTCP:
+	case endpointdomain.RelayTransportUDP, endpointdomain.RelayTransportTCP:
 	default:
-		return state.EndpointConnectionPolicy{}, fmt.Errorf("Relay transport must be auto, udp, or tcp")
+		return state.EndpointConnectionPolicy{}, fmt.Errorf("Relay transport must be tcp or udp")
 	}
 	return policy, nil
 }

@@ -27,14 +27,19 @@ const (
 )
 
 var (
-	cloudTimingPrefix        = []byte("anytty cloud connect ")
-	cloudFailurePrefix       = []byte("anytty cloud failure ")
-	cloudPresencePrefix      = []byte("anytty cloud presence ")
-	pairingDiagnosticPrefix  = []byte("anytty pairing ")
-	directTimingPrefix       = []byte("anytty direct connect ")
-	directFailurePrefix      = []byte("anytty direct failure ")
-	webRTCDiagnosticPrefix   = []byte("anytty webrtc ")
-	endpointSupervisorPrefix = []byte("anytty endpoint_supervisor ")
+	cloudTimingPrefix            = []byte("anytty cloud connect ")
+	cloudFailurePrefix           = []byte("anytty cloud failure ")
+	cloudPresencePrefix          = []byte("anytty cloud presence ")
+	pairingDiagnosticPrefix      = []byte("anytty pairing ")
+	directTimingPrefix           = []byte("anytty direct connect ")
+	directFailurePrefix          = []byte("anytty direct failure ")
+	webRTCDiagnosticPrefix       = []byte("anytty webrtc ")
+	transportDiagnosticPrefix    = []byte("anytty transport ")
+	browserProxyDiagnosticPrefix = []byte("anytty browser proxy ")
+	networkDiagnosticPrefix      = []byte("anytty network attempt ")
+	connectTracePrefix           = []byte("anytty connect ")
+	cloudTransportPrefix         = []byte("anytty cloud transport ")
+	endpointSupervisorPrefix     = []byte("anytty endpoint_supervisor ")
 )
 
 type androidTimingWriter struct{}
@@ -59,6 +64,11 @@ func (androidTimingWriter) Write(payload []byte) (int, error) {
 		!bytes.HasPrefix(payload, directTimingPrefix) &&
 		!bytes.HasPrefix(payload, directFailurePrefix) &&
 		!bytes.HasPrefix(payload, webRTCDiagnosticPrefix) &&
+		!bytes.HasPrefix(payload, transportDiagnosticPrefix) &&
+		!bytes.HasPrefix(payload, browserProxyDiagnosticPrefix) &&
+		!bytes.HasPrefix(payload, networkDiagnosticPrefix) &&
+		!bytes.HasPrefix(payload, connectTracePrefix) &&
+		!bytes.HasPrefix(payload, cloudTransportPrefix) &&
 		!bytes.HasPrefix(payload, endpointSupervisorPrefix) {
 		return len(payload), nil
 	}
@@ -116,8 +126,8 @@ func sanitizeAndroidDiagnostic(payload []byte) []byte {
 	return bytes.Join(filtered, []byte(" "))
 }
 
-// Android emits only structured, allowlisted connection diagnostics. Raw errors,
-// identifiers, addresses, SDP, and credentials remain outside logcat.
+// Android emits allowlisted connection diagnostics, including network targets
+// and socket/TLS errors. Credentials and session payloads are never logged.
 func configureAndroidLogging() {
 	log.SetFlags(0)
 	log.SetOutput(androidTimingWriter{})

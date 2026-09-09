@@ -102,6 +102,9 @@ func (acceptor SessionAcceptor) ServeBoundTransport(ctx context.Context, connect
 		FileMutate:         claims.Scope.FileMutate,
 		ManageClientAccess: claims.Scope.ManageClientAccess,
 	}
+	if receiver, ok := connection.(interface{ EnableReceiveBackpressure() }); ok {
+		receiver.EnableReceiveBackpressure()
+	}
 	handedToCore = true
 	return acceptor.Core.ServeScopedTransport(ctx, connection, scope)
 }

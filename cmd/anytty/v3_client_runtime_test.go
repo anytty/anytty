@@ -1,13 +1,58 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
 	clientendpoint "github.com/anytty/anytty/client/endpoint"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/shared/remoteauth"
 )
+
+func TestCLIProbePolicySurvivesRegistryReloadWithoutPersisting(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "endpoints.yaml")
+	command := newRootCmd()
+	command.SetOut(io.Discard)
+	command.SetErr(io.Discard)
+	command.SetArgs([]string{"endpoint", "--registry", path, "add", "cloud", "probe", "--device-id", "device-probe", "--device-fingerprint", "SHA256:probe", "--target-device-id", "device-probe", "--credential-ref", "grant:probe"})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := clientendpoint.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := registry.Endpoints["probe"]
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := cliEndpointPlanSource{registryPath: path, initialTarget: target, credentials: cliCredentialSource{store: remoteauth.NewCredentialStore(t.TempDir())}, probePolicy: endpointProbePolicy{endpointID: target.ID, routeID: "cloud", relayMode: "relay_only", relayTransport: "tcp"}}
+	snapshot, err := source.Snapshot(context.Background(), target.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Endpoint.Routes["cloud"].RelayMode != clientendpoint.RelayOnly || snapshot.Endpoint.Routes["cloud"].RelayTransport != clientendpoint.RelayTransportTCP {
+		t.Fatal("registry reload discarded probe policy")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("probe changed registry file")
+	}
+	source.probePolicy = endpointProbePolicy{}
+	ordinary, err := source.Snapshot(context.Background(), target.ID)
+	if err != nil || ordinary.Endpoint.Routes["cloud"].RelayMode != clientendpoint.RelayAuto {
+		t.Fatal("ordinary invocation retained probe policy")
+	}
+	if ordinary.ConfigKey == snapshot.ConfigKey {
+		t.Fatal("probe policy did not invalidate plan identity")
+	}
+}
 
 func TestCLICloudClientUsesOfficialControllerByDefault(t *testing.T) {
 	t.Setenv("ANYTTY_CLOUD_CONTROLLER_ADDRESS", "")

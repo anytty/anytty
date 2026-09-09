@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -148,6 +149,83 @@ func TestTransportPreAuthReceiveQueueFrameOverflowReturnsStableError(t *testing.
 	}
 	if calls := channelCloseCalls(receiverChannel); calls != 1 {
 		t.Fatalf("pre-auth frame overflow channel close calls = %d want=1", calls)
+	}
+}
+
+func TestAuthenticatedReceiveBackpressurePreservesFramesAndBounds(t *testing.T) {
+	_, channel := newFakeChannelPair()
+	receiver := New(channel)
+	receiver.EnableReceiveBackpressure()
+	defer receiver.Close()
+	chunk := bytes.Repeat([]byte{42}, 32<<10)
+	for range defaultReceiveQueueCapacity {
+		receiver.handleMessage(chunk)
+	}
+	done := make(chan struct{})
+	go func() {
+		receiver.handleMessage([]byte("last"))
+		close(done)
+	}()
+	select {
+	case <-done:
+		t.Fatal("full authenticated queue did not backpressure the producer")
+	case <-time.After(20 * time.Millisecond):
+	}
+	if got := receiveQueuedBytes(receiver); got != maxReceiveQueuedBytes {
+		t.Fatalf("queue bytes = %d", got)
+	}
+	for range defaultReceiveQueueCapacity {
+		frame, err := receiver.Recv()
+		if err != nil || !bytes.Equal(frame, chunk) {
+			t.Fatalf("queued frame changed: len=%d err=%v", len(frame), err)
+		}
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("consumer did not unblock producer")
+	}
+	frame, err := receiver.Recv()
+	if err != nil || string(frame) != "last" {
+		t.Fatalf("last frame = %q, %v", frame, err)
+	}
+}
+
+func TestAuthenticatedReceiveBackpressureTerminates(t *testing.T) {
+	for _, closeEarly := range []bool{false, true} {
+		t.Run(fmt.Sprint("close=", closeEarly), func(t *testing.T) {
+			_, channel := newFakeChannelPair()
+			receiver := New(channel)
+			receiver.drainTimeout = 40 * time.Millisecond
+			receiver.EnableReceiveBackpressure()
+			defer receiver.Close()
+			for range defaultReceiveQueueCapacity {
+				receiver.handleMessage(nil)
+			}
+			done := make(chan struct{})
+			go func() {
+				receiver.handleMessage([]byte("blocked"))
+				close(done)
+			}()
+			if closeEarly {
+				_ = receiver.Close()
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("receive producer leaked after close/timeout")
+			}
+			_, err := receiver.Recv()
+			if closeEarly && !errors.Is(err, io.EOF) {
+				t.Fatalf("close error = %v", err)
+			}
+			if !closeEarly && (!errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrReceiveQueueExhausted)) {
+				t.Fatalf("timeout error = %v", err)
+			}
+			if got := receiveQueuedBytes(receiver); got != 0 {
+				t.Fatalf("closed queue retained %d bytes", got)
+			}
+		})
 	}
 }
 
@@ -324,6 +402,48 @@ func TestTransportSendDrainTimeoutClosesTransport(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("send drain timeout left transport alive")
 	}
+}
+
+func TestTransportDrainNotificationsDoNotRenewSendDeadline(t *testing.T) {
+	channel, _ := newFakeChannelPair()
+	channel.setBufferedAmount(defaultSendBufferHigh + 1)
+	transport := New(&noisyDrainChannel{fakeChannel: channel})
+	transport.drainTimeout = 20 * time.Millisecond
+	sendDone := make(chan error, 1)
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		sendDone <- transport.Send([]byte("stalled browser upload"))
+	}()
+	t.Cleanup(func() {
+		_ = transport.Close()
+		<-workerDone
+	})
+	select {
+	case err := <-sendDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("send error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("repeated drain notifications renewed the send deadline")
+	}
+	select {
+	case <-transport.Done():
+	default:
+		t.Fatal("expired send left transport alive")
+	}
+	if calls := channelCloseCalls(channel); calls != 1 {
+		t.Fatalf("channel close calls = %d, want 1", calls)
+	}
+}
+
+type noisyDrainChannel struct{ *fakeChannel }
+
+func (channel *noisyDrainChannel) BufferedAmount() uint64 {
+	// Notifications are hints: a delayed/duplicate callback need not mean that
+	// the amount observed by this sender is below the high watermark.
+	channel.signalBufferedAmountLow()
+	return channel.fakeChannel.BufferedAmount()
 }
 
 func TestTransportCloseUnblocksInFlightChannelSend(t *testing.T) {

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AnyTTY Motion</title>
+<style>
+  *{box-sizing:border-box;letter-spacing:0}
+  :root{font:14px/1.5 system-ui,sans-serif;color:#182125;background:#f5f7f8}
+  body{margin:0}button,select,input{font:inherit;accent-color:#008561}button,a,input,select{touch-action:manipulation}
+  button{cursor:pointer}button:disabled{cursor:wait;opacity:.4}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #139fda;outline-offset:3px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 28px;border-bottom:1px solid #dce3e6}
+  h1{font-size:20px;margin:0;font-weight:650}a{color:#067454;text-underline-offset:4px;min-height:44px;display:inline-flex;align-items:center;gap:8px}
+  main{max-width:1000px;margin:auto;padding:28px}
+  .scenarios{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));border-bottom:1px solid #ccd7dc;margin-bottom:16px;gap:4px}
+  .scenarios button{min-height:48px;padding:10px 6px;border:0;border-bottom:3px solid transparent;background:transparent;color:#53666f}
+  .scenarios button[aria-selected=true]{border-bottom-color:#008561;color:#00694c;font-weight:650}
+  .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px 22px;margin-bottom:18px}
+  .commands,fieldset{display:flex;align-items:center;gap:8px;border:0;margin:0;padding:0}
+  .icon{width:44px;height:44px;border:1px solid #ccd7dc;background:#fff;border-radius:6px;display:grid;place-items:center;color:#24434d}
+  .icon svg,a svg{width:20px;height:20px}fieldset{gap:16px}label{display:flex;align-items:center;gap:7px;min-height:44px;white-space:nowrap}
+  input[type=range]{width:120px}output{display:inline-block;min-width:42px;font-variant-numeric:tabular-nums}
+  .stage{min-height:430px;display:flex;align-items:center;justify-content:center;gap:24px;background:#171b1d;border:1px solid #333d41;border-radius:8px;padding:32px 16px;overflow:hidden}
+  .stage.light{background:#fff;border-color:#dce3e6}.figure{width:256px;max-width:100%;aspect-ratio:513/546;flex-shrink:1;position:relative}
+  canvas{width:100%;height:100%;display:block}.original img{position:absolute;left:9.36%;top:5.13%;width:81.29%;height:89.74%;object-fit:contain}
+  [hidden]{display:none!important}.stage.compare .figure{max-width:45%}.caption{position:absolute;bottom:-25px;left:0;width:100%;text-align:center;color:#a5b9c2;font-size:12px}.stage.light .caption{color:#53666f}
+  footer{display:flex;justify-content:space-between;gap:12px;padding-top:18px;color:#52626b;font-size:12px}
+  #error{color:#a12a24}#status{font-variant-numeric:tabular-nums}
+  @media(max-width:760px){.scenarios{grid-template-columns:repeat(3,minmax(0,1fr))}.scenarios button{padding:8px 6px;white-space:nowrap}}
+  @media(max-width:500px){header{padding:14px 18px}main{padding:18px}.toolbar{gap:8px 16px}.stage{min-height:320px}footer{flex-wrap:wrap}}
+  @media(max-height:500px) and (orientation:landscape){main{padding-top:12px}.stage{min-height:220px;padding:20px}.figure{max-width:190px!important}}
+</style>
+<header><h1>AnyTTY Motion</h1><a href="anytty-mascot.riv" download><!-- ICON_DOWNLOAD -->Rive</a></header>
+<main>
+  <div class="scenarios" role="tablist" aria-label="动画场景">
+    <button role="tab" aria-selected="true" data-scenario="welcome">挥手欢迎</button>
+    <button role="tab" aria-selected="false" data-scenario="running" tabindex="-1">原地小跑</button>
+    <button role="tab" aria-selected="false" data-scenario="searching" tabindex="-1">探身寻找</button>
+    <button role="tab" aria-selected="false" data-scenario="wake" tabindex="-1">醒来伸展</button>
+    <button role="tab" aria-selected="false" data-scenario="connecting" tabindex="-1">连接中</button>
+    <button role="tab" aria-selected="false" data-scenario="processing" tabindex="-1">处理中</button>
+    <button role="tab" aria-selected="false" data-scenario="history" tabindex="-1">进入历史</button>
+    <button role="tab" aria-selected="false" data-scenario="success" tabindex="-1">成功</button>
+    <button role="tab" aria-selected="false" data-scenario="failure" tabindex="-1">连接失败</button>
+  </div>
+  <div class="toolbar">
+    <div class="commands">
+      <button id="play" class="icon" aria-label="暂停" title="暂停" disabled><span id="play-icon" hidden><!-- ICON_PLAY --></span><span id="pause-icon"><!-- ICON_PAUSE --></span></button>
+      <button id="replay" class="icon" aria-label="重播" title="重播" disabled><!-- ICON_REPLAY --></button>
+    </div>
+    <fieldset aria-label="背景">
+      <label><input type="radio" name="theme" value="dark" checked>深色</label>
+      <label><input type="radio" name="theme" value="light">浅色</label>
+    </fieldset>
+    <label>尺寸 <input id="size" type="range" min="48" max="384" value="256" step="8"><output for="size">256px</output></label>
+    <label><input id="compare" type="checkbox">对比原图</label>
+  </div>
+  <div class="stage" role="tabpanel" aria-label="挥手欢迎动画">
+    <div class="figure original" hidden><img src="../mascot.png" alt="原始 AnyTTY Logo"><span class="caption">原图</span></div>
+    <div class="figure"><canvas id="mascot" width="513" height="546" aria-label="AnyTTY 场景动画"></canvas><span id="new-caption" class="caption" hidden>矢量动画</span></div>
+  </div>
+  <p id="error" role="alert" hidden>动画加载失败，请重新打开此页面。</p>
+  <footer><span>Sample 03</span><span id="status" aria-live="polite">加载中</span></footer>
+</main>
+<script src="runtime/rive.js"></script>
+<script src="preview-data.js"></script>
+<script>
+  const data=window.ANYTTY_MOTION;
+  const binary=value=>Uint8Array.from(atob(value),c=>c.charCodeAt(0)).buffer;
+  rive.RuntimeLoader.setWasmBinary(binary(data.wasm));
+  const tabs=[...document.querySelectorAll('[data-scenario]')];
+  const play=document.querySelector('#play'), replay=document.querySelector('#replay');
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  const canvas=document.querySelector('#mascot');
+  let selected='welcome', playing=!reduced.matches, loaded=false, timer, elapsed=0, startedAt=0;
+  let resumeWhenVisible=false;
+  function updateControls(){
+    play.setAttribute('aria-label',playing?'暂停':'播放');play.title=playing?'暂停':'播放';
+    document.querySelector('#pause-icon').hidden=!playing;document.querySelector('#play-icon').hidden=playing;
+    const scenario=data.scenarios.find(s=>s.name===selected);
+    document.querySelector('#status').textContent=`${scenario.seconds}s · ${scenario.loop?'循环':'单次'}${playing?'':' · 已暂停'}`;
+  }
+  function scheduleEnd(){
+    clearTimeout(timer);
+    startedAt=performance.now();
+    const scenario=data.scenarios.find(s=>s.name===selected);
+    if(!scenario.loop&&playing)timer=setTimeout(()=>{player.pause();playing=false;elapsed=scenario.seconds*1000+160;updateControls()},Math.max(0,scenario.seconds*1000+160-elapsed));
+  }
+  function selectScenario(name){
+    selected=name;
+    tabs.forEach(t=>{const active=t.dataset.scenario===name;t.setAttribute('aria-selected',String(active));t.tabIndex=active?0:-1});
+    document.querySelector('.stage').setAttribute('aria-label',tabs.find(t=>t.dataset.scenario===name).textContent+'动画');
+    if(!loaded)return;
+    elapsed=0;
+    // The review player selects a timeline directly; the asset's app-facing trigger state machine remains intact.
+    player.reset({animations:name,autoplay:playing});
+    player.scrub(name,0);
+    player.drawFrame();updateControls();scheduleEnd();
+  }
+  const player=new rive.Rive({
+    canvas,buffer:binary(data.riv),animations:selected,autoplay:playing,
+    enableRiveAssetCDN:false,shouldDisableRiveListeners:true,
+    layout:new rive.Layout({fit:rive.Fit.Contain,alignment:rive.Alignment.Center}),
+    onLoad(){loaded=true;play.disabled=false;replay.disabled=false;player.resizeDrawingSurfaceToCanvas();selectScenario(selected);document.body.dataset.ready='true'},
+    onLoadError(){document.querySelector('#error').hidden=false;document.querySelector('#status').textContent='加载失败'},
+  });
+  tabs.forEach((tab,i)=>{
+    tab.addEventListener('click',()=>{playing=!reduced.matches;selectScenario(tab.dataset.scenario)});
+    tab.addEventListener('keydown',event=>{
+      const next=event.key==='ArrowRight'?(i+1)%tabs.length:event.key==='ArrowLeft'?(i+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:null;
+      if(next!==null){event.preventDefault();tabs[next].focus();playing=!reduced.matches;selectScenario(tabs[next].dataset.scenario)}
+    });
+  });
+  play.addEventListener('click',()=>{
+    playing=!playing;
+    if(playing){if(elapsed>=data.scenarios.find(s=>s.name===selected).seconds*1000){selectScenario(selected)}else{player.play(selected);scheduleEnd()}}else{elapsed+=performance.now()-startedAt;player.pause();clearTimeout(timer)}
+    updateControls();
+  });
+  replay.addEventListener('click',()=>{playing=true;selectScenario(selected)});
+  reduced.addEventListener('change',()=>{if(reduced.matches){if(playing)elapsed+=performance.now()-startedAt;playing=false;player.pause();clearTimeout(timer);updateControls()}});
+  document.querySelectorAll('[name=theme]').forEach(input=>input.addEventListener('change',()=>document.querySelector('.stage').classList.toggle('light',input.value==='light')));
+  document.querySelector('#size').addEventListener('input',event=>{
+    document.querySelectorAll('.figure').forEach(el=>el.style.width=event.target.value+'px');
+    document.querySelector('output').textContent=event.target.value+'px';player.resizeDrawingSurfaceToCanvas();
+  });
+  document.querySelector('#compare').addEventListener('change',event=>{
+    document.querySelector('.original').hidden=!event.target.checked;document.querySelector('#new-caption').hidden=!event.target.checked;
+    document.querySelector('.stage').classList.toggle('compare',event.target.checked);player.resizeDrawingSurfaceToCanvas();
+  });
+  new ResizeObserver(()=>{if(loaded)player.resizeDrawingSurfaceToCanvas()}).observe(canvas);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){resumeWhenVisible=playing;if(playing)elapsed+=performance.now()-startedAt;player.pause();clearTimeout(timer)}
+    else if(resumeWhenVisible&&playing){player.play(selected);scheduleEnd()}
+  });
+  window.addEventListener('pagehide',()=>{clearTimeout(timer);player.cleanup()});
+</script>
+</html>

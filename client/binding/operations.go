@@ -23,6 +23,8 @@ func (engine *Engine) EngineCommand(payload []byte) (uint64, error) {
 		return 0, fmt.Errorf("decode engine command: %w", err)
 	}
 	switch value := command.GetCommand().(type) {
+	case *bindingpb.EngineCommand_BrowserProxyListen:
+		return engine.startBrowserProxyListen(value.BrowserProxyListen)
 	case *bindingpb.EngineCommand_ImportPairing:
 		encoded, err := proto.Marshal(value.ImportPairing)
 		if err != nil {

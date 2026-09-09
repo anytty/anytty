@@ -6,6 +6,7 @@ import 'package:anytty_native/src/generated/proto/apipb/application.pb.dart'
 import 'package:anytty_native/src/generated/proto/bindingpb/client_binding.pb.dart';
 import 'package:anytty_native/src/generated/proto/remoteauthpb/remote_auth.pb.dart';
 import 'package:anytty_native/src/native/anytty_runtime.dart';
+import 'package:anytty_native/src/native/binding_operation.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -89,6 +90,23 @@ void main() {
     expect(runtime.released, [85]);
   });
 
+  test('cancels an in-flight Cloud presence probe', () async {
+    final runtime = _FakeRuntime()..holdCloudPresence = true;
+    final cancelled = Completer<void>();
+    final pending = EndpointRepository(runtime)
+        .getCloudPresence('studio', cancelWhen: cancelled.future);
+
+    await Future<void>.delayed(Duration.zero);
+    cancelled.complete();
+
+    await expectLater(
+      pending,
+      throwsA(isA<BindingOperationCancelledException>()),
+    );
+    expect(runtime.cancelled, [85]);
+    expect(runtime.released, [85]);
+  });
+
   test('updates endpoint metadata and can make it the default', () async {
     final runtime = _FakeRuntime();
     final registry = await EndpointRepository(runtime).upsertEndpoint(
@@ -148,7 +166,9 @@ final class _FakeRuntime implements AnyttyEngineRuntime {
   final StreamController<EventEnvelope> _events =
       StreamController<EventEnvelope>.broadcast();
   final List<int> released = [];
+  final List<int> cancelled = [];
   EngineCommand? lastCommand;
+  bool holdCloudPresence = false;
 
   @override
   Stream<EventEnvelope> get events => _events.stream;
@@ -217,6 +237,7 @@ final class _FakeRuntime implements AnyttyEngineRuntime {
     }
     if (command.whichCommand() ==
         EngineCommand_Command.endpointCloudPresenceGet) {
+      if (holdCloudPresence) return 85;
       scheduleMicrotask(() {
         _events.add(
           EventEnvelope(
@@ -347,7 +368,16 @@ final class _FakeRuntime implements AnyttyEngineRuntime {
   void release(int handle) => released.add(handle);
 
   @override
-  void cancel(int operationHandle) {}
+  void cancel(int operationHandle) {
+    cancelled.add(operationHandle);
+    _events.add(
+      EventEnvelope(
+        endpointCloudPresenceGet: EndpointCloudPresenceGetResult(
+          operationHandle: Int64(operationHandle),
+        ),
+      ),
+    );
+  }
 
   @override
   void closeSession(int sessionHandle) => throw UnimplementedError();

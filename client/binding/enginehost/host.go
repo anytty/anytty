@@ -30,6 +30,7 @@ import (
 	"github.com/anytty/anytty/proto/bindingpb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/status"
@@ -60,15 +61,16 @@ type Options struct {
 
 // Host 是跨 Android/Web 共用的 binding.Host、PairingHost 与 CredentialHost。
 type Host struct {
-	options        Options
-	owner          *clientruntime.SessionOwner
-	supervisor     *clientruntime.EndpointSupervisor
-	cloudBootID    string
-	registryMu     sync.Mutex
-	registry       endpoint.Registry
-	registryLoaded bool
-	pendingShares  map[string]*remoteauthpb.ClientEndpointShareBundleV1
-	closeOnce      sync.Once
+	options         Options
+	owner           *clientruntime.SessionOwner
+	supervisor      *clientruntime.EndpointSupervisor
+	cloudBootID     string
+	cloudTransports *cloudclient.TransportPool
+	registryMu      sync.Mutex
+	registry        endpoint.Registry
+	registryLoaded  bool
+	pendingShares   map[string]*remoteauthpb.ClientEndpointShareBundleV1
+	closeOnce       sync.Once
 }
 
 // New 校验平台依赖并创建共享 managed host。
@@ -98,9 +100,11 @@ func New(options Options) (*Host, error) {
 		options.ShareReceive = shareadapter.Receive
 	}
 	host := &Host{options: options, owner: clientruntime.NewSessionOwnerWithAuthority(options.SessionAuthority), cloudBootID: uuid.NewString(), pendingShares: make(map[string]*remoteauthpb.ClientEndpointShareBundleV1)}
-	supervisor, err := clientruntime.NewEndpointSupervisor(endpointSupervisorController{host: host}, clientruntime.EndpointSupervisorOptions{})
+	host.cloudTransports = cloudclient.NewTransportPool()
+	supervisor, err := clientruntime.NewEndpointSupervisor(endpointSupervisorController{host: host}, clientruntime.EndpointSupervisorOptions{BackgroundInitialProbe: true})
 	if err != nil {
 		_ = host.owner.Close()
+		_ = host.cloudTransports.Close()
 		return nil, err
 	}
 	host.supervisor = supervisor
@@ -125,7 +129,9 @@ func (host *Host) OpenSession(ctx context.Context, request *bindingpb.OpenSessio
 	return host.openSessionDirect(ctx, request)
 }
 
-func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.OpenSessionRequest) (clientruntime.ApplicationReadyPeerSession, error) {
+func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.OpenSessionRequest) (result clientruntime.ApplicationReadyPeerSession, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "host_open")
+	defer func() { trace.End(resultErr) }()
 	intent, err := connectIntent(request.GetIntent())
 	if err != nil {
 		return nil, err
@@ -136,10 +142,12 @@ func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.Open
 		return nil, err
 	}
 	routeID := endpoint.RouteID(strings.TrimSpace(request.GetRouteOverride()))
+	trace.Mark("registry_loaded")
 	credentials := newPlatformCredentials(host.options.Broker)
 	authorizer := peeradapter.CapabilityAuthorizer{Credentials: credentials, Signers: credentials, Now: host.options.Now}
 	profiles := host.cloudProfiles()
 	planningTarget, environment, err := routePlanEnvironment(ctx, target, host.options, credentials, profiles)
+	trace.Mark("route_environment_prepared")
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +160,7 @@ func (host *Host) openSessionDirect(ctx context.Context, request *bindingpb.Open
 		return nil, err
 	}
 	config := sessionConfig(wireTarget, routeID, request.GetIntent(), environment)
+	trace.Mark("routes_planned")
 	return host.owner.AcquirePlanned(ctx, planningTarget, routeID, intent, config, environment, systemadapter.Clock{}, dialers)
 }
 
@@ -232,7 +241,9 @@ func (host *Host) DisconnectEndpoint(ctx context.Context, endpointID endpoint.En
 // falls back to the Controller when the cached locator is invalid, unreachable,
 // or reports offline. The fallback still requires the paired CloudRouteGrant and
 // ClientAccessIdentity proof before any current Edge locator is returned.
-func (host *Host) GetEndpointCloudPresence(ctx context.Context, request *bindingpb.EndpointCloudPresenceGetRequest) (*bindingpb.EndpointCloudPresenceGetResult, error) {
+func (host *Host) GetEndpointCloudPresence(ctx context.Context, request *bindingpb.EndpointCloudPresenceGetRequest) (result *bindingpb.EndpointCloudPresenceGetResult, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "presence")
+	defer func() { trace.End(resultErr) }()
 	startedAt := time.Now()
 	if request == nil || strings.TrimSpace(request.GetEndpointId()) == "" {
 		log.Printf("anytty cloud presence stage=request_invalid")
@@ -544,6 +555,7 @@ func pairingClaimRoutes(candidate endpoint.EndpointCandidate, options Options) (
 }
 
 type pairingRaceResult struct {
+	index  int
 	paired remoteauth.PairingExchangeResult
 	err    error
 }
@@ -553,8 +565,8 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 	raceContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	results := make(chan pairingRaceResult, len(attempts))
-	for _, attempt := range attempts {
-		attempt := attempt
+	for index, attempt := range attempts {
+		index, attempt := index, attempt
 		go func() {
 			log.Printf("anytty pairing stage=route_started route_kind=%s", attempt.Route().Kind)
 			var paired remoteauth.PairingExchangeResult
@@ -584,19 +596,19 @@ func (host *Host) redeemPairingRace(ctx context.Context, attempts []clientruntim
 			} else {
 				log.Printf("anytty pairing stage=route_ready route_kind=%s", attempt.Route().Kind)
 			}
-			results <- pairingRaceResult{paired: paired, err: err}
+			results <- pairingRaceResult{index: index, paired: paired, err: err}
 		}()
 	}
-	var failures []error
+	failures := make([]error, len(attempts))
 	for range attempts {
 		result := <-results
 		if result.err == nil {
 			cancel()
 			return result.paired, nil
 		}
-		failures = append(failures, result.err)
+		failures[result.index] = result.err
 	}
-	return remoteauth.PairingExchangeResult{}, fmt.Errorf("all pairing Routes failed: %w", errors.Join(failures...))
+	return remoteauth.PairingExchangeResult{}, clientruntime.NewAllRoutesUnavailableError(attempts, failures)
 }
 
 // DeleteCredential 删除当前平台 secure store 中的 credential record。
@@ -621,6 +633,7 @@ func (host *Host) Close() error {
 		host.registryMu.Unlock()
 		_ = host.supervisor.Close()
 		_ = host.owner.Close()
+		_ = host.cloudTransports.Close()
 		if closer, ok := host.options.DirectPeers.(interface{ Close() error }); ok {
 			_ = closer.Close()
 		}
@@ -664,8 +677,16 @@ func routePlanEnvironment(ctx context.Context, target endpoint.Endpoint, options
 	if err != nil {
 		return endpoint.Endpoint{}, clientruntime.RoutePlanEnvironment{}, err
 	}
+	var discovered <-chan endpoint.Endpoint
 	if options.EnableLocalDiscovery {
-		planningTarget = applyPlatformLocalDiscovery(ctx, planningTarget, options)
+		results := make(chan endpoint.Endpoint, 1)
+		discovered = results
+		original := planningTarget
+		original.Routes = make(map[endpoint.RouteID]endpoint.AccessRoute, len(planningTarget.Routes))
+		for id, route := range planningTarget.Routes {
+			original.Routes[id] = route
+		}
+		go func() { results <- applyPlatformLocalDiscovery(ctx, original, options) }()
 	}
 	environment := clientruntime.RoutePlanEnvironment{}
 	if options.DirectPeers != nil {
@@ -718,6 +739,19 @@ func routePlanEnvironment(ctx context.Context, target endpoint.Endpoint, options
 			}
 		}
 	}
+	if discovered != nil {
+		select {
+		case discoveredTarget := <-discovered:
+			// Merge only ephemeral routes; preserve disabled/configured routes.
+			for id, route := range discoveredTarget.Routes {
+				if _, exists := planningTarget.Routes[id]; !exists {
+					planningTarget.Routes[id] = route
+				}
+			}
+		case <-ctx.Done():
+			return endpoint.Endpoint{}, clientruntime.RoutePlanEnvironment{}, ctx.Err()
+		}
+	}
 	return planningTarget, environment, nil
 }
 
@@ -752,10 +786,11 @@ func pairingTarget(endpointID string, identity endpoint.DaemonIdentity, routes [
 }
 
 type platformCloudProfiles struct {
-	broker  *binding.PlatformBroker
-	resolve func(context.Context, string) (*bindingpb.CloudProfileRecord, error)
-	bootID  string
-	cache   *platformCloudProfileCache
+	broker     *binding.PlatformBroker
+	resolve    func(context.Context, string) (*bindingpb.CloudProfileRecord, error)
+	bootID     string
+	cache      *platformCloudProfileCache
+	transports *cloudclient.TransportPool
 }
 
 type platformCloudProfileCache struct {
@@ -765,10 +800,11 @@ type platformCloudProfileCache struct {
 
 func (host *Host) cloudProfiles() platformCloudProfiles {
 	return platformCloudProfiles{
-		broker:  host.options.Broker,
-		resolve: host.options.CloudProfileResolve,
-		bootID:  host.cloudBootID,
-		cache:   &platformCloudProfileCache{clients: make(map[string]*cloudclient.Client)},
+		broker:     host.options.Broker,
+		resolve:    host.options.CloudProfileResolve,
+		bootID:     host.cloudBootID,
+		transports: host.cloudTransports,
+		cache:      &platformCloudProfileCache{clients: make(map[string]*cloudclient.Client)},
 	}
 }
 
@@ -810,6 +846,7 @@ func (source platformCloudProfiles) Resolve(ctx context.Context, reference strin
 	client, err := cloudclient.NewClient(cloudclient.Config{
 		ControllerAddress: profile.GetControllerAddress(), ControllerServerName: profile.GetControllerServerName(),
 		ControllerCAPEM: append([]byte(nil), profile.GetControllerCaPem()...), BootID: source.bootID,
+		TransportPool: source.transports,
 	})
 	if err != nil {
 		return nil, err

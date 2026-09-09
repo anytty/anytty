@@ -85,12 +85,8 @@ mkdir -p "${build_root}" "${output_root}"
 client_headers="${build_root}/client/headers"
 mkdir -p "${client_headers}"
 cp "${client_header}" "${client_headers}/anytty_client.h"
-cat >"${client_headers}/module.modulemap" <<'EOF'
-module AnyTTYClient {
-  header "anytty_client.h"
-  export *
-}
-EOF
+# Dart loads these C symbols through FFI; no Swift module is needed. A generic
+# module.modulemap would collide with Rive's static XCFramework during archive.
 
 build_go_archive iphoneos "arm64-apple-ios${minimum_ios}" \
   "${build_root}/client/iphoneos/libanytty_client.a"

@@ -47,6 +47,9 @@ func TestSessionAcceptorAuthenticatesBeforeServingScopedTransport(t *testing.T) 
 	if countedServerConn.closes.Load() != 1 {
 		t.Fatalf("handed-off transport closes = %d, want exactly 1", countedServerConn.closes.Load())
 	}
+	if countedServerConn.backpressure.Load() != 1 {
+		t.Fatal("authenticated transport did not enable receive backpressure")
+	}
 }
 
 func TestSessionAcceptorRejectsRevokedGrantBeforeCore(t *testing.T) {
@@ -60,10 +63,11 @@ func TestSessionAcceptorRejectsRevokedGrantBeforeCore(t *testing.T) {
 	}
 	core := &recordingCore{}
 	clientConn, serverConn := memory.NewPair()
+	countedServerConn := &countingSessionTransport{Transport: serverConn}
 	serverDone := make(chan error, 1)
 	go func() {
 		serverDone <- (SessionAcceptor{Core: core, Identity: identity, AccessStore: store, Now: fixedSessionNow(now)}).
-			ServeDataChannel(context.Background(), serverConn, sessionDTLSFingerprint())
+			ServeDataChannel(context.Background(), countedServerConn, sessionDTLSFingerprint())
 	}()
 	_, clientErr := (remoteauth.ClientHandshake{Now: fixedSessionNow(now)}).Authenticate(context.Background(), clientConn, remoteauth.ClientHandshakeRequest{
 		ExpectedDeviceID: identity.DeviceID, ExpectedDeviceFingerprint: identity.Fingerprint,
@@ -77,6 +81,9 @@ func TestSessionAcceptorRejectsRevokedGrantBeforeCore(t *testing.T) {
 	}
 	if core.calls != 0 {
 		t.Fatalf("core must not see unauthorized transport, calls=%d", core.calls)
+	}
+	if countedServerConn.backpressure.Load() != 0 {
+		t.Fatal("rejected transport enabled authenticated receive backpressure")
 	}
 }
 
@@ -218,7 +225,12 @@ type recordingCore struct {
 
 type countingSessionTransport struct {
 	transport.Transport
-	closes atomic.Int32
+	closes       atomic.Int32
+	backpressure atomic.Int32
+}
+
+func (connection *countingSessionTransport) EnableReceiveBackpressure() {
+	connection.backpressure.Add(1)
 }
 
 func (connection *countingSessionTransport) Close() error {

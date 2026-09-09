@@ -345,6 +345,7 @@ const (
 	ErrorAuthorization             ErrorCode = "authorization"
 	ErrorNotFound                  ErrorCode = "not_found"
 	ErrorUnavailable               ErrorCode = "unavailable"
+	ErrorConnectionStopped         ErrorCode = "connection_stopped"
 	ErrorCanceled                  ErrorCode = "canceled"
 	ErrorStaleSession              ErrorCode = "stale_session"
 	ErrorStaleResource             ErrorCode = "stale_resource"

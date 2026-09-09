@@ -88,12 +88,14 @@ type EndpointSupervisorFaultInjector interface {
 }
 
 type EndpointSupervisorOptions struct {
-	ProbeTimeout time.Duration
-	DialTimeout  time.Duration
-	Backoff      []time.Duration
-	Random       *rand.Rand
-	Logf         func(string, ...any)
-	Faults       EndpointSupervisorFaultInjector
+	// Only fresh, already authenticated ApplicationReadyPeerSessions qualify.
+	BackgroundInitialProbe bool
+	ProbeTimeout           time.Duration
+	DialTimeout            time.Duration
+	Backoff                []time.Duration
+	Random                 *rand.Rand
+	Logf                   func(string, ...any)
+	Faults                 EndpointSupervisorFaultInjector
 }
 
 type EndpointSupervisor struct {
@@ -125,10 +127,16 @@ type endpointControl struct {
 	stamp           EndpointSessionStamp
 	errorCode       ErrorCode
 	message         string
+	lastErrorCode   ErrorCode
+	lastMessage     string
+	lastRetryable   bool
+	lastAttempted   bool
 	probeCount      uint64
 	dialCount       uint64
 	backoffCount    uint64
 	backoffIndex    int
+	demandEpoch     uint64
+	stopped         bool
 	maintenance     ApplicationReadyPeerSession
 	attemptCancel   context.CancelFunc
 	changed         chan struct{}
@@ -139,6 +147,8 @@ type endpointControlSnapshot struct {
 	demanded        bool
 	connected       bool
 	controlRevision uint64
+	demandEpoch     uint64
+	stopped         bool
 }
 
 func NewEndpointSupervisor(controller EndpointSupervisorController, options EndpointSupervisorOptions) (*EndpointSupervisor, error) {
@@ -232,6 +242,8 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 		if demanded {
 			control.mode = mode
 		}
+		control.demandEpoch++
+		control.stopped = false
 		supervisor.advanceControlLocked(control)
 	}
 	for id, mode := range seen {
@@ -245,6 +257,7 @@ func (supervisor *EndpointSupervisor) ReplaceDemand(snapshot EndpointDemandSnaps
 			mode:            mode,
 			demanded:        true,
 			controlRevision: 1,
+			demandEpoch:     1,
 			phase:           EndpointSupervisorNoDemand,
 			changed:         make(chan struct{}),
 		}
@@ -323,6 +336,21 @@ func (supervisor *EndpointSupervisor) Acquire(ctx context.Context, endpointID en
 		}
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				supervisor.mu.Lock()
+				current := supervisor.endpoints[endpointID]
+				lastFailure := lastControlFailure(current, ctx.Err())
+				supervisor.mu.Unlock()
+				if lastFailure != nil {
+					return nil, lastFailure
+				}
+				return nil, &Error{
+					Code:      ErrorUnavailable,
+					Message:   fmt.Sprintf("endpoint %q did not become ready before timeout (supervisor phase %s)", endpointID, phase),
+					Cause:     ctx.Err(),
+					Retryable: true,
+				}
+			}
 			return nil, runtimeError(ErrorCanceled, "endpoint supervisor acquire was canceled", ctx.Err())
 		case <-supervisor.ctx.Done():
 			return nil, runtimeError(ErrorUnavailable, "endpoint supervisor is closed", nil)
@@ -470,6 +498,13 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 			}
 			continue
 		}
+		if snapshot.stopped {
+			supervisor.releaseMaintenance(control)
+			if !supervisor.waitWake(control, nil, -1) {
+				return
+			}
+			continue
+		}
 		if !snapshot.connected {
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorWaitingNetwork, supervisor.maintenanceStamp(control), nil)
 			if !supervisor.waitWake(control, supervisor.maintenanceDone(control), -1) {
@@ -491,7 +526,7 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 			}
 			supervisor.setMaintenance(control, snapshot.controlRevision, lease)
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorReady, lease.Stamp(), nil)
-			if !supervisor.waitWake(control, lease.Done(), -1) {
+			if !supervisor.waitReadySession(control, snapshot, lease) {
 				return
 			}
 			continue
@@ -499,7 +534,12 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 
 		connected, failure := supervisor.connect(control, snapshot)
 		if connected != nil {
-			verified, probeFailure := supervisor.verify(control, snapshot, connected)
+			background := supervisor.options.BackgroundInitialProbe
+			if background {
+				supervisor.setMaintenance(control, snapshot.controlRevision, connected)
+				supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorReady, connected.Stamp(), nil)
+			}
+			verified, probeFailure := supervisor.verify(control, snapshot, connected, background)
 			if !verified {
 				if probeFailure != nil && supervisor.isCurrent(control, snapshot.controlRevision) {
 					if !supervisor.pauseAfterFailure(control, snapshot, probeFailure) {
@@ -510,7 +550,7 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 			}
 			supervisor.setMaintenance(control, snapshot.controlRevision, connected)
 			supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorReady, connected.Stamp(), nil)
-			if !supervisor.waitWake(control, connected.Done(), -1) {
+			if !supervisor.waitReadySession(control, snapshot, connected) {
 				return
 			}
 			continue
@@ -521,17 +561,21 @@ func (supervisor *EndpointSupervisor) runEndpoint(control *endpointControl) {
 	}
 }
 
-func (supervisor *EndpointSupervisor) verify(control *endpointControl, snapshot endpointControlSnapshot, lease ApplicationReadyPeerSession) (bool, error) {
+func (supervisor *EndpointSupervisor) verify(control *endpointControl, snapshot endpointControlSnapshot, lease ApplicationReadyPeerSession, background ...bool) (bool, error) {
+	started := time.Now()
 	attemptID, ctx, cancel, ok := supervisor.beginAttempt(control, snapshot.controlRevision, EndpointSupervisorActionProbe)
 	if !ok {
 		_ = lease.Close()
 		return false, runtimeError(ErrorCanceled, "endpoint supervisor probe was superseded", nil)
 	}
-	supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorVerifying, lease.Stamp(), nil)
+	if len(background) == 0 || !background[0] {
+		supervisor.publish(control, snapshot.controlRevision, EndpointSupervisorVerifying, lease.Stamp(), nil)
+	}
 	failure := supervisor.inject(EndpointSupervisorActionProbe, control.endpointID, attemptID)
 	if failure == nil {
 		failure = supervisor.controller.Probe(ctx, lease)
 	}
+	supervisor.options.Logf("anytty connect component=application_health stage=probe generation=%d elapsed_ms=%d error_code=%s", lease.Stamp().Generation, time.Since(started).Milliseconds(), CodeOf(failure))
 	cancel()
 	supervisor.endAttempt(control, attemptID)
 	if failure == nil && supervisor.isCurrent(control, snapshot.controlRevision) {
@@ -556,6 +600,9 @@ func (supervisor *EndpointSupervisor) verify(control *endpointControl, snapshot 
 }
 
 func (supervisor *EndpointSupervisor) pauseAfterFailure(control *endpointControl, snapshot endpointControlSnapshot, failure error) bool {
+	if CodeOf(failure) == ErrorConnectionStopped {
+		return supervisor.stopAfterFailure(control, snapshot, failure)
+	}
 	if !supervisor.isCurrent(control, snapshot.controlRevision) {
 		return true
 	}
@@ -569,6 +616,47 @@ func (supervisor *EndpointSupervisor) pauseAfterFailure(control *endpointControl
 		return false
 	}
 	supervisor.advanceRetryRevision(control, snapshot.controlRevision)
+	return true
+}
+
+func (supervisor *EndpointSupervisor) stopAfterFailure(control *endpointControl, snapshot endpointControlSnapshot, failure error) bool {
+	supervisor.mu.Lock()
+	if supervisor.closed {
+		supervisor.mu.Unlock()
+		return false
+	}
+	if !control.demanded || control.mode != EndpointSupervisorTakeover || control.demandEpoch != snapshot.demandEpoch {
+		supervisor.mu.Unlock()
+		return true
+	}
+	control.stopped = true
+	control.phase = EndpointSupervisorBlocked
+	control.stamp = EndpointSessionStamp{}
+	control.errorCode = CodeOf(failure)
+	control.message = errorMessage(failure)
+	control.lastErrorCode = control.errorCode
+	control.lastMessage = control.message
+	control.lastRetryable = IsRetryable(failure)
+	control.lastAttempted = WasAttempted(failure)
+	revision := control.controlRevision
+	mode := control.mode
+	supervisor.notifyLocked(control)
+	supervisor.mu.Unlock()
+	supervisor.options.Logf("anytty endpoint_supervisor endpoint=%s mode=%s phase=%s control_revision=%d error_code=%s", control.endpointID, mode, EndpointSupervisorBlocked, revision, CodeOf(failure))
+	return supervisor.waitWake(control, nil, -1)
+}
+
+func (supervisor *EndpointSupervisor) waitReadySession(control *endpointControl, snapshot endpointControlSnapshot, lease ApplicationReadyPeerSession) bool {
+	if !supervisor.waitWake(control, lease.Done(), -1) {
+		return false
+	}
+	select {
+	case <-lease.Done():
+		if failure := lease.Err(); failure != nil {
+			return supervisor.pauseAfterFailure(control, snapshot, failure)
+		}
+	default:
+	}
 	return true
 }
 
@@ -634,6 +722,8 @@ func (supervisor *EndpointSupervisor) controlSnapshot(control *endpointControl) 
 		demanded:        control.demanded,
 		connected:       supervisor.connected,
 		controlRevision: control.controlRevision,
+		demandEpoch:     control.demandEpoch,
+		stopped:         control.stopped,
 	}
 }
 
@@ -769,6 +859,17 @@ func (supervisor *EndpointSupervisor) publish(control *endpointControl, revision
 	control.stamp = stamp
 	control.errorCode = CodeOf(failure)
 	control.message = errorMessage(failure)
+	if failure != nil {
+		control.lastErrorCode = control.errorCode
+		control.lastMessage = control.message
+		control.lastRetryable = IsRetryable(failure)
+		control.lastAttempted = WasAttempted(failure)
+	} else if phase == EndpointSupervisorReady || phase == EndpointSupervisorNoDemand {
+		control.lastErrorCode = ""
+		control.lastMessage = ""
+		control.lastRetryable = false
+		control.lastAttempted = false
+	}
 	supervisor.notifyLocked(control)
 	supervisor.options.Logf("anytty endpoint_supervisor endpoint=%s mode=%s phase=%s control_revision=%d attempt_id=%d stamp_generation=%d error_code=%s", control.endpointID, control.mode, phase, control.controlRevision, control.attemptID, stamp.Generation, control.errorCode)
 }
@@ -857,7 +958,28 @@ func controlFailure(control *endpointControl) error {
 	if message == "" {
 		message = fmt.Sprintf("endpoint %q recovery is blocked", control.endpointID)
 	}
-	return runtimeError(code, message, nil)
+	return &Error{Code: code, Message: message, Attempted: control.lastAttempted, Retryable: control.lastRetryable}
+}
+
+func lastControlFailure(control *endpointControl, timeout error) error {
+	if control == nil || (control.lastErrorCode == "" && strings.TrimSpace(control.lastMessage) == "") {
+		return nil
+	}
+	code := control.lastErrorCode
+	if code == "" || code == ErrorCanceled {
+		code = ErrorUnavailable
+	}
+	message := strings.TrimSpace(control.lastMessage)
+	if message == "" {
+		message = fmt.Sprintf("endpoint %q route attempt failed", control.endpointID)
+	}
+	return &Error{
+		Code:      code,
+		Message:   fmt.Sprintf("endpoint %q did not become ready before timeout; last route failure: %s", control.endpointID, message),
+		Cause:     timeout,
+		Attempted: control.lastAttempted,
+		Retryable: control.lastRetryable,
+	}
 }
 
 func recoverableSupervisorFailure(err error) bool {
@@ -870,7 +992,7 @@ func recoverableSupervisorFailure(err error) bool {
 	}
 	switch CodeOf(err) {
 	case ErrorInvalidRequest, ErrorUnsupportedRoute, ErrorIdentity, ErrorAuthorization, ErrorNotFound,
-		ErrorResourceExhausted, ErrorEntitlement,
+		ErrorResourceExhausted, ErrorEntitlement, ErrorConnectionStopped,
 		ErrorDaemonBlocked, ErrorDaemonDeleted, ErrorRelayNotInPlan,
 		ErrorRelayQuotaExhausted, ErrorRelayConcurrencyExhausted,
 		ErrorSubscriptionInactive, ErrorRelayRegionUnavailable:

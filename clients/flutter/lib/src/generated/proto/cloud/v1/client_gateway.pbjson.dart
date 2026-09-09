@@ -168,6 +168,14 @@ const ClientHello$json = {
     },
     {'1': 'presence_probe', '3': 8, '4': 1, '5': 8, '10': 'presenceProbe'},
     {
+      '1': 'relay_transport',
+      '3': 9,
+      '4': 1,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'relayTransport'
+    },
+    {
       '1': 'cloud_route_grant',
       '3': 10,
       '4': 1,
@@ -199,10 +207,11 @@ final $typed_data.Uint8List clientHelloDescriptor = $convert.base64Decode(
     'Npb24YBSABKAlSD3NvZnR3YXJlVmVyc2lvbhItChJhdHRlbXB0X2dlbmVyYXRpb24YBiABKARS'
     'EWF0dGVtcHRHZW5lcmF0aW9uEksKEHJlbGF5X3ByZWZlcmVuY2UYByABKA4yIC5hbnl0dHkuY2'
     'xvdWQudjEuUmVsYXlQcmVmZXJlbmNlUg9yZWxheVByZWZlcmVuY2USJQoOcHJlc2VuY2VfcHJv'
-    'YmUYCCABKAhSDXByZXNlbmNlUHJvYmUSTQoRY2xvdWRfcm91dGVfZ3JhbnQYCiABKAsyHy5hbn'
-    'l0dHkuY2xvdWQudjEuU2lnbmVkRW52ZWxvcGVIAFIPY2xvdWRSb3V0ZUdyYW50ElAKEXBhaXJp'
-    'bmdfYWRtaXNzaW9uGAsgASgLMiEuYW55dHR5LmNsb3VkLnYxLlBhaXJpbmdBZG1pc3Npb25IAF'
-    'IQcGFpcmluZ0FkbWlzc2lvbkIPCg1hdXRob3JpemF0aW9u');
+    'YmUYCCABKAhSDXByZXNlbmNlUHJvYmUSSAoPcmVsYXlfdHJhbnNwb3J0GAkgASgOMh8uYW55dH'
+    'R5LmNsb3VkLnYxLlJlbGF5VHJhbnNwb3J0Ug5yZWxheVRyYW5zcG9ydBJNChFjbG91ZF9yb3V0'
+    'ZV9ncmFudBgKIAEoCzIfLmFueXR0eS5jbG91ZC52MS5TaWduZWRFbnZlbG9wZUgAUg9jbG91ZF'
+    'JvdXRlR3JhbnQSUAoRcGFpcmluZ19hZG1pc3Npb24YCyABKAsyIS5hbnl0dHkuY2xvdWQudjEu'
+    'UGFpcmluZ0FkbWlzc2lvbkgAUhBwYWlyaW5nQWRtaXNzaW9uQg8KDWF1dGhvcml6YXRpb24=');
 
 @$core.Deprecated('Use clientReadyDescriptor instead')
 const ClientReady$json = {

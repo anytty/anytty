@@ -481,6 +481,7 @@ func downloadEndpointFile(ctx context.Context, client *protocoladapter.Applicati
 	defer stream.Close()
 	hash := sha256.New()
 	offset := opened.GetOffset()
+	var bytesSinceAcknowledgement int64
 	for {
 		typ, payload, err := stream.Receive(ctx)
 		if err != nil {
@@ -489,7 +490,9 @@ func downloadEndpointFile(ctx context.Context, client *protocoladapter.Applicati
 		switch typ {
 		case wire.TypeFileData:
 			data, err := protocol.DecodeFileTransferData(payload)
-			if err != nil || data.Offset != offset {
+			if err != nil || data.Offset != offset || len(data.Data) == 0 ||
+				int64(len(data.Data)) > opened.GetSize()-offset ||
+				int64(len(data.Data)) > opened.GetWindowBytes()-bytesSinceAcknowledgement {
 				return protocol.FileTransferResult{}, fmt.Errorf("invalid download data at offset %d", offset)
 			}
 			if _, err := writer.Write(data.Data); err != nil {
@@ -497,12 +500,18 @@ func downloadEndpointFile(ctx context.Context, client *protocoladapter.Applicati
 			}
 			_, _ = hash.Write(data.Data)
 			offset += int64(len(data.Data))
-			ack, err := protocol.EncodeFileTransferAck(protocol.FileTransferAck{Offset: offset, WindowBytes: int64(len(data.Data))})
-			if err != nil {
-				return protocol.FileTransferResult{}, err
-			}
-			if err := stream.Send(ctx, wire.TypeFileAck, ack); err != nil {
-				return protocol.FileTransferResult{}, err
+			bytesSinceAcknowledgement += int64(len(data.Data))
+			// The daemon replenishes a completed window, not individual chunks.
+			// Match the mobile client and avoid queuing ACKs ahead of that boundary.
+			if bytesSinceAcknowledgement == opened.GetWindowBytes() {
+				ack, err := protocol.EncodeFileTransferAck(protocol.FileTransferAck{Offset: offset, WindowBytes: bytesSinceAcknowledgement})
+				if err != nil {
+					return protocol.FileTransferResult{}, err
+				}
+				if err := stream.Send(ctx, wire.TypeFileAck, ack); err != nil {
+					return protocol.FileTransferResult{}, err
+				}
+				bytesSinceAcknowledgement = 0
 			}
 		case wire.TypeFileFinish:
 			finish, err := protocol.DecodeFileTransferFinish(payload)

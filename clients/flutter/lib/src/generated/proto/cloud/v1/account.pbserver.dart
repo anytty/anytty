@@ -29,9 +29,6 @@ abstract class AccountServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $1.LogoutAccountRequest request);
   $async.Future<$1.GetCurrentAccountResponse> getCurrent(
       $pb.ServerContext ctx, $1.GetCurrentAccountRequest request);
-  $async.Future<$1.VerifyRecentAuthenticationResponse>
-      verifyRecentAuthentication(
-          $pb.ServerContext ctx, $1.VerifyRecentAuthenticationRequest request);
   $async.Future<$1.ListAccountRefreshTokensResponse> listRefreshTokens(
       $pb.ServerContext ctx, $1.ListAccountRefreshTokensRequest request);
   $async.Future<$1.ChangeAccountPasswordResponse> changePassword(
@@ -53,8 +50,6 @@ abstract class AccountServiceBase extends $pb.GeneratedService {
         return $1.LogoutAccountRequest();
       case 'GetCurrent':
         return $1.GetCurrentAccountRequest();
-      case 'VerifyRecentAuthentication':
-        return $1.VerifyRecentAuthenticationRequest();
       case 'ListRefreshTokens':
         return $1.ListAccountRefreshTokensRequest();
       case 'ChangePassword':
@@ -81,9 +76,6 @@ abstract class AccountServiceBase extends $pb.GeneratedService {
         return logout(ctx, request as $1.LogoutAccountRequest);
       case 'GetCurrent':
         return getCurrent(ctx, request as $1.GetCurrentAccountRequest);
-      case 'VerifyRecentAuthentication':
-        return verifyRecentAuthentication(
-            ctx, request as $1.VerifyRecentAuthenticationRequest);
       case 'ListRefreshTokens':
         return listRefreshTokens(
             ctx, request as $1.ListAccountRefreshTokensRequest);

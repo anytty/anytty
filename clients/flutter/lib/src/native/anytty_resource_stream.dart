@@ -23,6 +23,7 @@ final class AnyttyResourceStream {
   Stream<ResourceStreamFrame> get frames => _frames.stream;
 
   Future<ResourceStreamClosedEvent> get closed => _closed.future;
+  bool get isClosed => _closeRequested || _closed.isCompleted;
 
   static Future<AnyttyResourceStream> open({
     required AnyttyEngineRuntime runtime,
@@ -61,6 +62,7 @@ final class AnyttyResourceStream {
       switch (event.whichEvent()) {
         case EventEnvelope_Event.resourceStreamFrame:
           if (event.resourceStreamFrame.streamHandle.toInt() == handle &&
+              !closed.isCompleted &&
               !frames.isClosed) {
             frames.add(event.resourceStreamFrame.deepCopy());
           }
@@ -102,14 +104,14 @@ final class AnyttyResourceStream {
           (_) async {
             stream._released = released;
             stream._release();
-            await frames.close();
             await subscription.cancel();
+            unawaited(frames.close());
           },
           onError: (Object _, StackTrace _) async {
             stream._released = released;
             stream._release();
-            await frames.close();
             await subscription.cancel();
+            unawaited(frames.close());
           },
         ),
       );
@@ -117,7 +119,9 @@ final class AnyttyResourceStream {
     } catch (_) {
       releaseHandle();
       await subscription.cancel();
-      await frames.close();
+      // A single-subscription controller may never finish close without a
+      // listener. Cleanup must not hide the original native open failure.
+      unawaited(frames.close());
       rethrow;
     }
   }
@@ -137,9 +141,46 @@ final class AnyttyResourceStream {
     );
   }
 
+  Future<void> sendAsync(
+    ResourceStreamFrameType type,
+    List<int> payload,
+  ) async {
+    if (_closeRequested || _closed.isCompleted) {
+      throw StateError('AnyTTY resource stream is closed');
+    }
+    final runtime = _runtime;
+    if (runtime is AnyttyAsyncResourceStreamRuntime) {
+      await (runtime as AnyttyAsyncResourceStreamRuntime)
+          .sendResourceStreamFrameAsync(
+            handle,
+            ResourceStreamFrame(
+              streamHandle: Int64(handle),
+              type: type,
+              payload: payload,
+            ),
+          );
+    } else {
+      send(type, payload);
+    }
+  }
+
   void close() {
     if (_closeRequested || _closed.isCompleted) return;
     _closeRequested = true;
+    final runtime = _runtime;
+    if (runtime is AnyttyAsyncResourceStreamRuntime) {
+      unawaited(
+        (runtime as AnyttyAsyncResourceStreamRuntime)
+            .closeResourceStreamAsync(handle)
+            .catchError((Object error, StackTrace stackTrace) {
+              _release();
+              if (!_closed.isCompleted) {
+                _closed.completeError(error, stackTrace);
+              }
+            }),
+      );
+      return;
+    }
     try {
       (_runtime as AnyttyResourceStreamRuntime).closeResourceStream(handle);
     } catch (error, stackTrace) {

@@ -13,6 +13,7 @@ import '../../../app/anytty_localizations.dart';
 import '../../../app/background_preferences.dart';
 import '../../../app/providers.dart';
 import '../../../native/background_platform.dart';
+import '../../../shared/presentation/anytty_brand_mark.dart';
 import '../../terminal/domain/terminal_petal_menu_preferences.dart';
 import '../../terminal/domain/terminal_settings.dart';
 
@@ -46,6 +47,13 @@ final class SettingsScreen extends ConsumerWidget {
           icon: const Icon(Icons.chevron_left_rounded),
         ),
         titleSpacing: 0,
+        actions: [
+          if (MediaQuery.textScalerOf(context).scale(18) < 30)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: AnyttyBrandMark(height: 32),
+            ),
+        ],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

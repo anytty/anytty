@@ -921,6 +921,22 @@ func TestConnectEdgeWaitsForClaimedDataChannelHandler(t *testing.T) {
 	}
 }
 
+func TestConnectEdgeEarlyCancellationDoesNotWaitForUnstartedWorkers(t *testing.T) {
+	runtime, _ := daemonRuntimeFixture(t, webrtc.Answerer{})
+	runtime.config.SessionCleanupTimeout = time.Second
+	locator := startDaemonTestAgentGateway(t, &daemonTestAgentGateway{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := time.Now()
+	err := runtime.connectEdge(ctx, runtime.currentRecord().DaemonID, &cloudv1.SignedEnvelope{KeyId: "test-binding"}, locator, 0)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("connectEdge error = %v, want cancellation", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 500*time.Millisecond {
+		t.Fatalf("early cancellation waited for workers that never started: %s", elapsed)
+	}
+}
+
 func TestConnectEdgeBoundsStalledPeerCleanup(t *testing.T) {
 	api := daemonLoopbackWebRTCAPI()
 	handler := &daemonGatedHandler{started: make(chan struct{}), release: make(chan struct{})}
@@ -992,7 +1008,7 @@ func TestDetachedCloudSessionRejectsReuseUntilPeerCloses(t *testing.T) {
 		t.Fatal("detached Cloud session was not canceled")
 	}
 	var replacementPeers sync.WaitGroup
-	if _, _, ok := runtime.beginCloudSession(context.Background(), "session", &replacementPeers); ok {
+	if _, _, err := runtime.beginCloudSession(context.Background(), "session", &replacementPeers); err == nil {
 		t.Fatal("closing Cloud session ID was reused before the peer callback")
 	}
 
@@ -1001,12 +1017,90 @@ func TestDetachedCloudSessionRejectsReuseUntilPeerCloses(t *testing.T) {
 	if len(runtime.cloudClosingSessions) != 0 {
 		t.Fatal("closing Cloud session tombstone was not released")
 	}
-	_, replacement, ok := runtime.beginCloudSession(context.Background(), "session", &replacementPeers)
-	if !ok {
+	_, replacement, err := runtime.beginCloudSession(context.Background(), "session", &replacementPeers)
+	if err != nil {
 		t.Fatal("Cloud session ID was not reusable after peer close")
 	}
 	runtime.finishCloudSession("session", replacement, &replacementPeers)
 	waitDaemonPeers(t, &replacementPeers)
+}
+
+func TestCloudSessionCapacityIncludesClosingPeers(t *testing.T) {
+	runtime := &Runtime{
+		config:            Config{MaxCloudSessions: 2},
+		daemonState:       daemonLifecycleState("daemon", cloudv1.DaemonState_DAEMON_STATE_ACTIVE, 1),
+		readyConnectionID: "connection", lifecycleAck: 1,
+		cloudSessions:        make(map[string]*cloudSession),
+		cloudClosingSessions: make(map[string]*cloudSession),
+	}
+	var peers sync.WaitGroup
+	_, first, err := runtime.beginCloudSession(context.Background(), "first", &peers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, second, err := runtime.beginCloudSession(context.Background(), "second", &peers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.finishCloudSession("first", first, &peers)
+	defer runtime.finishCloudSession("second", second, &peers)
+	for _, detach := range []bool{false, true} {
+		if detach {
+			runtime.detachCloudSessions()
+		}
+		if _, _, err := runtime.beginCloudSession(context.Background(), "third", &peers); !errors.Is(err, errCloudSessionCapacity) {
+			t.Fatalf("detach=%v capacity error=%v", detach, err)
+		}
+	}
+	runtime.finishCloudSession("first", first, &peers)
+	_, third, err := runtime.beginCloudSession(context.Background(), "third", &peers)
+	if err != nil {
+		t.Fatalf("real finalizer did not free slot: %v", err)
+	}
+	runtime.finishCloudSession("third", third, &peers)
+	runtime.finishCloudSession("second", second, &peers)
+	waitDaemonPeers(t, &peers)
+}
+
+func TestCloudSessionCapacityIsAtomic(t *testing.T) {
+	for _, configured := range []int{0, 7} {
+		t.Run(fmt.Sprint(configured), func(t *testing.T) {
+			runtime := &Runtime{
+				config:            Config{MaxCloudSessions: configured},
+				daemonState:       daemonLifecycleState("daemon", cloudv1.DaemonState_DAEMON_STATE_ACTIVE, 1),
+				readyConnectionID: "connection", lifecycleAck: 1,
+				cloudSessions:        make(map[string]*cloudSession),
+				cloudClosingSessions: make(map[string]*cloudSession),
+			}
+			limit := configured
+			if limit == 0 {
+				limit = defaultMaxCloudSessions
+			}
+			var workers, peers sync.WaitGroup
+			var admitted atomic.Int32
+			for index := 0; index < limit+50; index++ {
+				workers.Add(1)
+				go func() {
+					defer workers.Done()
+					_, _, err := runtime.beginCloudSession(context.Background(), fmt.Sprint(index), &peers)
+					if err == nil {
+						admitted.Add(1)
+					} else if !errors.Is(err, errCloudSessionCapacity) {
+						t.Errorf("admission: %v", err)
+					}
+				}()
+			}
+			workers.Wait()
+			if got := int(admitted.Load()); got != limit {
+				t.Fatalf("admitted=%d limit=%d", got, limit)
+			}
+			runtime.detachCloudSessions()
+			for id, session := range runtime.cloudClosingSessions {
+				runtime.finishCloudSession(id, session, &peers)
+			}
+			waitDaemonPeers(t, &peers)
+		})
+	}
 }
 
 func TestAnswerOfferFailuresDoNotLeakPeerAccounting(t *testing.T) {

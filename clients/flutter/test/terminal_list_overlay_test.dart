@@ -277,7 +277,10 @@ void main() {
     await tester.tap(find.text('Overlay test'));
     await tester.pumpAndSettle();
 
-    expect(find.text('12s'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp(r'Last output \d+ seconds ago')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('terminal-resource-strip-cpu')),
       findsNothing,
@@ -289,6 +292,8 @@ void main() {
     expect(find.byTooltip('Files'), findsOneWidget);
     final filesButton = find.widgetWithIcon(IconButton, Icons.folder_outlined);
     expect(tester.widget<IconButton>(filesButton).onPressed, isNotNull);
+    await tester.tap(find.byTooltip('Search terminals').first);
+    await tester.pump();
     await tester.enterText(
       find.byKey(const ValueKey('terminal-list-search-field')),
       'observer',
@@ -302,6 +307,29 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Relay'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close search'));
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('terminal-list-search-field')),
+      findsNothing,
+    );
+    expect(find.byTooltip('Select terminals'), findsNothing);
+    await tester.longPress(find.byKey(const ValueKey('terminal-row-observer')));
+    await tester.pump();
+    expect(find.text('1 selected'), findsOneWidget);
+    await tester.tap(find.byTooltip('Select all'));
+    await tester.pump();
+    expect(find.text('2 selected'), findsOneWidget);
+    expect(
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.stop_circle_outlined),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byTooltip('Close selection'));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('terminal-network-status')));
     await tester.pumpAndSettle();
     expect(find.text('Network status'), findsOneWidget);

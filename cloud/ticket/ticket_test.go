@@ -285,7 +285,8 @@ func TestClientHelloProofCoversChallengeAuthorizationAndEveryHelloField(t *testi
 		ProtocolVersion: 2, MessageId: "client-message", SenderId: remoteauth.Fingerprint(clientPublicKey), BootId: "client-boot", ConnectionId: "client-session", StreamSeq: 1, SentAt: timestamppb.New(now),
 		Payload: &cloudv1.ClientSignal_Hello{Hello: &cloudv1.ClientHello{
 			ClientPublicKey: clientPublicKey, Product: cloudv1.ClientProduct_CLIENT_PRODUCT_CLI, SoftwareVersion: "client-v2", AttemptGeneration: 7,
-			RelayPreference: cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO, Authorization: &cloudv1.ClientHello_PairingAdmission{PairingAdmission: admission},
+			RelayPreference: cloudv1.RelayPreference_RELAY_PREFERENCE_AUTO, RelayTransport: cloudv1.RelayTransport_RELAY_TRANSPORT_TCP,
+			Authorization: &cloudv1.ClientHello_PairingAdmission{PairingAdmission: admission},
 		}},
 	}
 	canonical, err := ticket.ClientHelloProofBytes(challenge, event, now)
@@ -323,6 +324,7 @@ func TestClientHelloProofCoversChallengeAuthorizationAndEveryHelloField(t *testi
 			value.GetHello().AttemptGeneration++
 		},
 		"relay preference": func(_ *cloudv1.EdgeChallenge, value *cloudv1.ClientSignal) { value.GetHello().RelayPreference++ },
+		"relay transport":  func(_ *cloudv1.EdgeChallenge, value *cloudv1.ClientSignal) { value.GetHello().RelayTransport++ },
 		"presence probe": func(_ *cloudv1.EdgeChallenge, value *cloudv1.ClientSignal) {
 			value.GetHello().PresenceProbe = !value.GetHello().PresenceProbe
 		},

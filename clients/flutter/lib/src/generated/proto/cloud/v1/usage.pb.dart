@@ -511,6 +511,7 @@ class RelayGrant extends $pb.GeneratedMessage {
     $0.Timestamp? authorizedUntil,
     $core.List<$core.int>? policyDigest,
     RelayPolicySnapshot? policy,
+    $core.String? clientId,
   }) {
     final result = create();
     if (reservationId != null) result.reservationId = reservationId;
@@ -522,6 +523,7 @@ class RelayGrant extends $pb.GeneratedMessage {
     if (authorizedUntil != null) result.authorizedUntil = authorizedUntil;
     if (policyDigest != null) result.policyDigest = policyDigest;
     if (policy != null) result.policy = policy;
+    if (clientId != null) result.clientId = clientId;
     return result;
   }
 
@@ -556,6 +558,7 @@ class RelayGrant extends $pb.GeneratedMessage {
         7, _omitFieldNames ? '' : 'policyDigest', $pb.PbFieldType.OY)
     ..aOM<RelayPolicySnapshot>(8, _omitFieldNames ? '' : 'policy',
         subBuilder: RelayPolicySnapshot.create)
+    ..aOS(9, _omitFieldNames ? '' : 'clientId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -651,6 +654,15 @@ class RelayGrant extends $pb.GeneratedMessage {
   void clearPolicy() => $_clearField(8);
   @$pb.TagNumber(8)
   RelayPolicySnapshot ensurePolicy() => $_ensure(7);
+
+  @$pb.TagNumber(9)
+  $core.String get clientId => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set clientId($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasClientId() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearClientId() => $_clearField(9);
 }
 
 class RelayReserveResponse extends $pb.GeneratedMessage {
@@ -1518,8 +1530,8 @@ class RelayQueryResponse extends $pb.GeneratedMessage {
   $1.CloudEntitlementFailure ensureEntitlementFailure() => $_ensure(5);
 }
 
-/// RelayRuntimePolicy is a versioned commercial policy snapshot used by an
-/// Edge for local Relay admission. It does not reserve bytes or require renewal.
+/// RelayRuntimePolicy is the versioned commercial policy returned with an
+/// account-wide logical Relay slot. It does not reserve bytes or require renewal.
 class RelayRuntimePolicy extends $pb.GeneratedMessage {
   factory RelayRuntimePolicy({
     $core.String? accountId,
@@ -1532,6 +1544,7 @@ class RelayRuntimePolicy extends $pb.GeneratedMessage {
     $fixnum.Int64? relayQuotaBytes,
     $0.Timestamp? periodStart,
     $0.Timestamp? periodEnd,
+    $fixnum.Int64? accountRevision,
   }) {
     final result = create();
     if (accountId != null) result.accountId = accountId;
@@ -1546,6 +1559,7 @@ class RelayRuntimePolicy extends $pb.GeneratedMessage {
     if (relayQuotaBytes != null) result.relayQuotaBytes = relayQuotaBytes;
     if (periodStart != null) result.periodStart = periodStart;
     if (periodEnd != null) result.periodEnd = periodEnd;
+    if (accountRevision != null) result.accountRevision = accountRevision;
     return result;
   }
 
@@ -1582,6 +1596,9 @@ class RelayRuntimePolicy extends $pb.GeneratedMessage {
         subBuilder: $0.Timestamp.create)
     ..aOM<$0.Timestamp>(10, _omitFieldNames ? '' : 'periodEnd',
         subBuilder: $0.Timestamp.create)
+    ..a<$fixnum.Int64>(
+        11, _omitFieldNames ? '' : 'accountRevision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1696,10 +1713,19 @@ class RelayRuntimePolicy extends $pb.GeneratedMessage {
   void clearPeriodEnd() => $_clearField(10);
   @$pb.TagNumber(10)
   $0.Timestamp ensurePeriodEnd() => $_ensure(9);
+
+  @$pb.TagNumber(11)
+  $fixnum.Int64 get accountRevision => $_getI64(10);
+  @$pb.TagNumber(11)
+  set accountRevision($fixnum.Int64 value) => $_setInt64(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasAccountRevision() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearAccountRevision() => $_clearField(11);
 }
 
-/// RelayAuthorizeRequest is the optional fast-path cache fill used when an Edge
-/// has no local account policy. It never creates a durable reservation.
+/// RelayAuthorizeRequest atomically claims or releases one account-wide logical
+/// Relay slot. A claim is mandatory before an Edge issues TURN credentials.
 class RelayAuthorizeRequest extends $pb.GeneratedMessage {
   factory RelayAuthorizeRequest({
     $core.String? requestId,
@@ -1707,6 +1733,8 @@ class RelayAuthorizeRequest extends $pb.GeneratedMessage {
     $core.String? daemonId,
     $core.String? sessionId,
     $0.Timestamp? observedAt,
+    $core.String? clientId,
+    $core.bool? release,
   }) {
     final result = create();
     if (requestId != null) result.requestId = requestId;
@@ -1714,6 +1742,8 @@ class RelayAuthorizeRequest extends $pb.GeneratedMessage {
     if (daemonId != null) result.daemonId = daemonId;
     if (sessionId != null) result.sessionId = sessionId;
     if (observedAt != null) result.observedAt = observedAt;
+    if (clientId != null) result.clientId = clientId;
+    if (release != null) result.release = release;
     return result;
   }
 
@@ -1737,6 +1767,8 @@ class RelayAuthorizeRequest extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'sessionId')
     ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'observedAt',
         subBuilder: $0.Timestamp.create)
+    ..aOS(6, _omitFieldNames ? '' : 'clientId')
+    ..aOB(7, _omitFieldNames ? '' : 'release')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1805,6 +1837,24 @@ class RelayAuthorizeRequest extends $pb.GeneratedMessage {
   void clearObservedAt() => $_clearField(5);
   @$pb.TagNumber(5)
   $0.Timestamp ensureObservedAt() => $_ensure(4);
+
+  @$pb.TagNumber(6)
+  $core.String get clientId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set clientId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasClientId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearClientId() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get release => $_getBF(6);
+  @$pb.TagNumber(7)
+  set release($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasRelease() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearRelease() => $_clearField(7);
 }
 
 class RelayAuthorizeResponse extends $pb.GeneratedMessage {
@@ -1983,14 +2033,272 @@ class RelayUsageSample extends $pb.GeneratedMessage {
   $0.Timestamp ensureSampledAt() => $_ensure(2);
 }
 
+/// RelayConcurrencySample counts the logical Relay groups that consume the
+/// account concurrency limit on one Edge.
+class RelayConcurrencySample extends $pb.GeneratedMessage {
+  factory RelayConcurrencySample({
+    $core.String? accountId,
+    $core.int? activeRelayGroups,
+  }) {
+    final result = create();
+    if (accountId != null) result.accountId = accountId;
+    if (activeRelayGroups != null) result.activeRelayGroups = activeRelayGroups;
+    return result;
+  }
+
+  RelayConcurrencySample._();
+
+  factory RelayConcurrencySample.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RelayConcurrencySample.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RelayConcurrencySample',
+      package:
+          const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aI(2, _omitFieldNames ? '' : 'activeRelayGroups',
+        fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RelayConcurrencySample clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RelayConcurrencySample copyWith(
+          void Function(RelayConcurrencySample) updates) =>
+      super.copyWith((message) => updates(message as RelayConcurrencySample))
+          as RelayConcurrencySample;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RelayConcurrencySample create() => RelayConcurrencySample._();
+  @$core.override
+  RelayConcurrencySample createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RelayConcurrencySample getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RelayConcurrencySample>(create);
+  static RelayConcurrencySample? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get activeRelayGroups => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set activeRelayGroups($core.int value) => $_setUnsignedInt32(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasActiveRelayGroups() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearActiveRelayGroups() => $_clearField(2);
+}
+
+/// RelaySessionSample is a complete logical Relay projection from one Edge.
+/// Controller admission is immediate; this periodic snapshot refreshes
+/// liveness and reconciles sessions after an interrupted close.
+class RelaySessionSample extends $pb.GeneratedMessage {
+  factory RelaySessionSample({
+    $core.String? sessionId,
+    $core.String? accountId,
+    $core.String? daemonId,
+    $core.String? clientId,
+    $core.bool? relayActive,
+    $core.int? relayAllocationCount,
+    $fixnum.Int64? ingressBytes,
+    $fixnum.Int64? egressBytes,
+    $0.Timestamp? connectedAt,
+    $core.Iterable<RelayTransport>? transports,
+  }) {
+    final result = create();
+    if (sessionId != null) result.sessionId = sessionId;
+    if (accountId != null) result.accountId = accountId;
+    if (daemonId != null) result.daemonId = daemonId;
+    if (clientId != null) result.clientId = clientId;
+    if (relayActive != null) result.relayActive = relayActive;
+    if (relayAllocationCount != null)
+      result.relayAllocationCount = relayAllocationCount;
+    if (ingressBytes != null) result.ingressBytes = ingressBytes;
+    if (egressBytes != null) result.egressBytes = egressBytes;
+    if (connectedAt != null) result.connectedAt = connectedAt;
+    if (transports != null) result.transports.addAll(transports);
+    return result;
+  }
+
+  RelaySessionSample._();
+
+  factory RelaySessionSample.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory RelaySessionSample.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'RelaySessionSample',
+      package:
+          const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'sessionId')
+    ..aOS(2, _omitFieldNames ? '' : 'accountId')
+    ..aOS(3, _omitFieldNames ? '' : 'daemonId')
+    ..aOS(4, _omitFieldNames ? '' : 'clientId')
+    ..aOB(5, _omitFieldNames ? '' : 'relayActive')
+    ..aI(6, _omitFieldNames ? '' : 'relayAllocationCount',
+        fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(
+        7, _omitFieldNames ? '' : 'ingressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        8, _omitFieldNames ? '' : 'egressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'connectedAt',
+        subBuilder: $0.Timestamp.create)
+    ..pc<RelayTransport>(
+        10, _omitFieldNames ? '' : 'transports', $pb.PbFieldType.KE,
+        valueOf: RelayTransport.valueOf,
+        enumValues: RelayTransport.values,
+        defaultEnumValue: RelayTransport.RELAY_TRANSPORT_UNSPECIFIED)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RelaySessionSample clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  RelaySessionSample copyWith(void Function(RelaySessionSample) updates) =>
+      super.copyWith((message) => updates(message as RelaySessionSample))
+          as RelaySessionSample;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static RelaySessionSample create() => RelaySessionSample._();
+  @$core.override
+  RelaySessionSample createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static RelaySessionSample getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<RelaySessionSample>(create);
+  static RelaySessionSample? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get sessionId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set sessionId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSessionId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSessionId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get accountId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set accountId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasAccountId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearAccountId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get daemonId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set daemonId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasDaemonId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDaemonId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get clientId => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set clientId($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasClientId() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearClientId() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get relayActive => $_getBF(4);
+  @$pb.TagNumber(5)
+  set relayActive($core.bool value) => $_setBool(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasRelayActive() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearRelayActive() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get relayAllocationCount => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set relayAllocationCount($core.int value) => $_setUnsignedInt32(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasRelayAllocationCount() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearRelayAllocationCount() => $_clearField(6);
+
+  @$pb.TagNumber(7)
+  $fixnum.Int64 get ingressBytes => $_getI64(6);
+  @$pb.TagNumber(7)
+  set ingressBytes($fixnum.Int64 value) => $_setInt64(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasIngressBytes() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIngressBytes() => $_clearField(7);
+
+  @$pb.TagNumber(8)
+  $fixnum.Int64 get egressBytes => $_getI64(7);
+  @$pb.TagNumber(8)
+  set egressBytes($fixnum.Int64 value) => $_setInt64(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasEgressBytes() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearEgressBytes() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $0.Timestamp get connectedAt => $_getN(8);
+  @$pb.TagNumber(9)
+  set connectedAt($0.Timestamp value) => $_setField(9, value);
+  @$pb.TagNumber(9)
+  $core.bool hasConnectedAt() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearConnectedAt() => $_clearField(9);
+  @$pb.TagNumber(9)
+  $0.Timestamp ensureConnectedAt() => $_ensure(8);
+
+  @$pb.TagNumber(10)
+  $pb.PbList<RelayTransport> get transports => $_getList(9);
+}
+
 class RelayUsageBatch extends $pb.GeneratedMessage {
   factory RelayUsageBatch({
     $fixnum.Int64? batchSequence,
     $core.Iterable<RelayUsageSample>? samples,
+    $core.Iterable<RelayConcurrencySample>? concurrencySamples,
+    $core.bool? concurrencySnapshotComplete,
+    $0.Timestamp? concurrencySampledAt,
+    $core.Iterable<RelaySessionSample>? relaySessions,
+    $core.bool? relaySessionSnapshotComplete,
   }) {
     final result = create();
     if (batchSequence != null) result.batchSequence = batchSequence;
     if (samples != null) result.samples.addAll(samples);
+    if (concurrencySamples != null)
+      result.concurrencySamples.addAll(concurrencySamples);
+    if (concurrencySnapshotComplete != null)
+      result.concurrencySnapshotComplete = concurrencySnapshotComplete;
+    if (concurrencySampledAt != null)
+      result.concurrencySampledAt = concurrencySampledAt;
+    if (relaySessions != null) result.relaySessions.addAll(relaySessions);
+    if (relaySessionSnapshotComplete != null)
+      result.relaySessionSnapshotComplete = relaySessionSnapshotComplete;
     return result;
   }
 
@@ -2013,6 +2321,15 @@ class RelayUsageBatch extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..pPM<RelayUsageSample>(2, _omitFieldNames ? '' : 'samples',
         subBuilder: RelayUsageSample.create)
+    ..pPM<RelayConcurrencySample>(
+        3, _omitFieldNames ? '' : 'concurrencySamples',
+        subBuilder: RelayConcurrencySample.create)
+    ..aOB(4, _omitFieldNames ? '' : 'concurrencySnapshotComplete')
+    ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'concurrencySampledAt',
+        subBuilder: $0.Timestamp.create)
+    ..pPM<RelaySessionSample>(6, _omitFieldNames ? '' : 'relaySessions',
+        subBuilder: RelaySessionSample.create)
+    ..aOB(7, _omitFieldNames ? '' : 'relaySessionSnapshotComplete')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2045,6 +2362,43 @@ class RelayUsageBatch extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(2)
   $pb.PbList<RelayUsageSample> get samples => $_getList(1);
+
+  /// A complete snapshot replaces all previously reported groups for this Edge.
+  /// The Controller uses its receive time, not this sample time, for expiry.
+  @$pb.TagNumber(3)
+  $pb.PbList<RelayConcurrencySample> get concurrencySamples => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.bool get concurrencySnapshotComplete => $_getBF(3);
+  @$pb.TagNumber(4)
+  set concurrencySnapshotComplete($core.bool value) => $_setBool(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasConcurrencySnapshotComplete() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearConcurrencySnapshotComplete() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $0.Timestamp get concurrencySampledAt => $_getN(4);
+  @$pb.TagNumber(5)
+  set concurrencySampledAt($0.Timestamp value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasConcurrencySampledAt() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearConcurrencySampledAt() => $_clearField(5);
+  @$pb.TagNumber(5)
+  $0.Timestamp ensureConcurrencySampledAt() => $_ensure(4);
+
+  @$pb.TagNumber(6)
+  $pb.PbList<RelaySessionSample> get relaySessions => $_getList(5);
+
+  @$pb.TagNumber(7)
+  $core.bool get relaySessionSnapshotComplete => $_getBF(6);
+  @$pb.TagNumber(7)
+  set relaySessionSnapshotComplete($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasRelaySessionSnapshotComplete() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearRelaySessionSnapshotComplete() => $_clearField(7);
 }
 
 class RelayAccountAction extends $pb.GeneratedMessage {
@@ -2057,6 +2411,8 @@ class RelayAccountAction extends $pb.GeneratedMessage {
     $0.Timestamp? periodStart,
     $0.Timestamp? periodEnd,
     $core.String? reason,
+    $fixnum.Int64? policyRevision,
+    $fixnum.Int64? accountRevision,
   }) {
     final result = create();
     if (accountId != null) result.accountId = accountId;
@@ -2067,6 +2423,8 @@ class RelayAccountAction extends $pb.GeneratedMessage {
     if (periodStart != null) result.periodStart = periodStart;
     if (periodEnd != null) result.periodEnd = periodEnd;
     if (reason != null) result.reason = reason;
+    if (policyRevision != null) result.policyRevision = policyRevision;
+    if (accountRevision != null) result.accountRevision = accountRevision;
     return result;
   }
 
@@ -2101,6 +2459,12 @@ class RelayAccountAction extends $pb.GeneratedMessage {
     ..aOM<$0.Timestamp>(7, _omitFieldNames ? '' : 'periodEnd',
         subBuilder: $0.Timestamp.create)
     ..aOS(8, _omitFieldNames ? '' : 'reason')
+    ..a<$fixnum.Int64>(
+        9, _omitFieldNames ? '' : 'policyRevision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        10, _omitFieldNames ? '' : 'accountRevision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2197,6 +2561,24 @@ class RelayAccountAction extends $pb.GeneratedMessage {
   $core.bool hasReason() => $_has(7);
   @$pb.TagNumber(8)
   void clearReason() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $fixnum.Int64 get policyRevision => $_getI64(8);
+  @$pb.TagNumber(9)
+  set policyRevision($fixnum.Int64 value) => $_setInt64(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasPolicyRevision() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearPolicyRevision() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $fixnum.Int64 get accountRevision => $_getI64(9);
+  @$pb.TagNumber(10)
+  set accountRevision($fixnum.Int64 value) => $_setInt64(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasAccountRevision() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearAccountRevision() => $_clearField(10);
 }
 
 class RelayUsageAck extends $pb.GeneratedMessage {

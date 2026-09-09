@@ -100,6 +100,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final relayControl = tester
+        .widget<SegmentedButton<ManagedWebRTCRelayTransport>>(
+          find.byType(SegmentedButton<ManagedWebRTCRelayTransport>),
+        );
+    expect(relayControl.segments.map((segment) => segment.value), [
+      ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
+      ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_UDP,
+    ]);
+    expect(relayControl.selected, {
+      ManagedWebRTCRelayTransport.MANAGED_WEBRTC_RELAY_TRANSPORT_TCP,
+    });
+
     expect(find.text('Connection'), findsOneWidget);
     expect(find.text('Direct'), findsNWidgets(2));
     expect(find.text('13 ms'), findsOneWidget);

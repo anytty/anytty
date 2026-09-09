@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'browser_storage_keys.dart';
+
 final class BrowserHistoryEntry {
   const BrowserHistoryEntry({required this.url, required this.title});
 
@@ -40,18 +42,37 @@ abstract interface class BrowserHistoryStore {
 
 final class SharedPreferencesBrowserHistoryStore
     implements BrowserHistoryStore {
-  const SharedPreferencesBrowserHistoryStore({this.limit = 20});
+  const SharedPreferencesBrowserHistoryStore({this.limit = 20, this.scope});
 
-  static const _key = 'browser.address.history.v1';
+  static const _legacyKey = 'browser.address.history.v1';
   static Future<void> _writeQueue = Future<void>.value();
 
   final int limit;
+  final String? scope;
+
+  String get _key =>
+      scope == null ? _legacyKey : browserDeviceStorageKey(_legacyKey, scope!);
 
   @override
   Future<List<BrowserHistoryEntry>> load() async {
     await _writeQueue;
     final preferences = await SharedPreferences.getInstance();
-    return _decode(preferences.getString(_key));
+    final scopedValue = preferences.getString(_key);
+    if (scope != null && scopedValue == null) {
+      final legacyValue = preferences.getString(_legacyKey);
+      if (legacyValue != null) {
+        final entries = _decode(legacyValue);
+        await preferences.setString(
+          _key,
+          jsonEncode(
+            entries.map((item) => item.toJson()).toList(growable: false),
+          ),
+        );
+        await preferences.remove(_legacyKey);
+        return entries;
+      }
+    }
+    return _decode(scopedValue);
   }
 
   @override

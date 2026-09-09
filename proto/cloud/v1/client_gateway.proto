@@ -37,6 +37,9 @@ message ClientHello {
   // presence_probe only verifies this daemon's live AgentGateway presence.
   // It never allocates a ClientSession, Relay reservation, or WebRTC peer.
   bool presence_probe = 8;
+  // Relay transport requested for this attempt. Edge must forward it to the
+  // daemon so both WebRTC peers use the same TURN transport.
+  RelayTransport relay_transport = 9;
   oneof authorization {
     // cloud_route_grant 是 owning daemon 签发给已配对 ClientAccessIdentity 的长期发现和信令授权。
     SignedEnvelope cloud_route_grant = 10;

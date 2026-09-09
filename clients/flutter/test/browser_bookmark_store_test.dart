@@ -66,5 +66,24 @@ void main() {
         BrowserBookmark(url: 'https://valid.example', title: 'Valid'),
       ]);
     });
+
+    test('isolates saved links by device scope', () async {
+      const first = SharedPreferencesBrowserBookmarkStore(scope: 'device-a');
+      const second = SharedPreferencesBrowserBookmarkStore(scope: 'device-b');
+
+      await first.add(
+        const BrowserBookmark(url: 'https://a.example', title: 'A'),
+      );
+      await second.add(
+        const BrowserBookmark(url: 'https://b.example', title: 'B'),
+      );
+
+      expect(await first.load(), const [
+        BrowserBookmark(url: 'https://a.example', title: 'A'),
+      ]);
+      expect(await second.load(), const [
+        BrowserBookmark(url: 'https://b.example', title: 'B'),
+      ]);
+    });
   });
 }

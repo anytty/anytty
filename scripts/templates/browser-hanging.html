@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnyTTY · 悬挂姿势</title>
+<style>
+  *{box-sizing:border-box;letter-spacing:0}body{margin:0;font:16px system-ui,sans-serif;--bg:#f1f6f5;--surface:#fbfdfd;--text:#0b1c1a;--muted:#667775;--border:#dce4e3;--accent:#219c99;background:var(--bg);color:var(--text)}
+  body.dark{--bg:#171d1e;--surface:#232b2d;--text:#f0f6f5;--muted:#b3bdbb;--border:#465355;--accent:#29cecb}
+  header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{font:700 18px Menlo,Consolas,monospace;margin:0}.controls{display:flex;gap:20px;flex-wrap:wrap}label{min-height:44px;display:flex;gap:8px;align-items:center;cursor:pointer}
+  main{max-width:688px;margin:48px auto;padding:0 24px}h2{font:700 28px Menlo,Consolas,monospace;text-align:center;margin:0 0 8px}.caption{text-align:center;color:var(--muted);margin:0 0 32px}
+  .scene{position:relative;isolation:isolate;padding-top:70px;padding-bottom:52px}.field{height:58px;position:relative;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:12px;padding:0 12px}
+  .field>svg{width:23px;height:23px;flex:none;color:var(--accent)}input[type=text]{border:0;outline:0;background:transparent;color:inherit;font:16px system-ui;min-width:0;width:100%;height:44px}
+  input::placeholder{color:var(--muted)}.field:focus-within{border-color:var(--accent);outline:2px solid var(--accent);outline-offset:2px}
+  button{border:0;background:transparent;color:var(--accent);width:44px;height:44px;display:grid;place-items:center;cursor:pointer;flex:none;border-radius:6px}button svg{width:20px;height:20px}button:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .controls button{border:1px solid var(--border)}[hidden]{display:none!important}button:disabled{opacity:.45;cursor:default}
+  .mascot{position:absolute;top:0;right:32px;width:140px;height:174px;pointer-events:none}.mascot-back{z-index:0}.mascot-front{z-index:2}.mascot>svg{display:block;width:100%;height:100%}
+  .reference{border-top:1px solid var(--border);padding-top:20px}.reference h3{font-size:14px;font-weight:500;color:var(--muted);margin:0 0 20px}.reference img{display:block;width:140px;height:auto}.reference[hidden]{display:none}
+  #result{margin:0 0 24px;min-height:24px;overflow-wrap:anywhere;color:var(--muted)}
+  @media(max-width:480px){header{padding:12px 16px}main{margin-top:32px}.caption{margin-bottom:24px}.mascot{right:16px}}
+</style>
+<header><h1>AnyTTY / 悬挂姿势</h1><div class="controls"><button id="motion-toggle" title="暂停" aria-label="暂停"><span id="pause-icon"><!-- ICON_PAUSE --></span><span id="play-icon" hidden><!-- ICON_PLAY --></span></button><button id="replay" title="重播" aria-label="重播"><!-- ICON_REPLAY --></button><label><input id="dark" type="checkbox">深色</label><label><input id="compare" type="checkbox" checked>原 Logo</label></div></header>
+<main>
+  <h2>AnyTTY</h2><p class="caption">浏览器</p>
+  <form id="form" class="scene">
+    <div class="mascot mascot-back"><!-- MASCOT_REAR --></div>
+    <div class="field"><!-- ICON_SEARCH --><input id="query" type="text" aria-label="搜索或输入网址" placeholder="搜索或输入网址" autocomplete="off"><button type="submit" title="预览提交" aria-label="预览提交"><!-- ICON_ARROW --></button></div>
+    <div class="mascot mascot-front"><!-- MASCOT_HANDS --></div>
+  </form>
+  <p id="result" role="status"></p>
+  <section class="reference"><h3>原 Logo</h3><img src="original.png" width="417" height="490" alt="AnyTTY 原 Logo"></section>
+</main>
+<script>
+  document.querySelector('#dark').onchange=e=>document.body.classList.toggle('dark',e.target.checked);
+  document.querySelector('#compare').onchange=e=>document.querySelector('.reference').hidden=!e.target.checked;
+  document.querySelector('#form').onsubmit=e=>{e.preventDefault();const value=document.querySelector('#query').value.trim();document.querySelector('#result').textContent=value?'已输入：'+value:''};
+</script>
+<script src="motion.js"></script>
+</html>

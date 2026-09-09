@@ -17,14 +17,14 @@ func TestCloudSignalingTerminationClassifiesAdminAndTransientClose(t *testing.T)
 		Message: "maintenance window",
 	})
 	var runtimeErr *clientruntime.Error
-	if !errors.As(admin, &runtimeErr) || runtimeErr.Retryable || runtimeErr.Code != clientruntime.ErrorUnavailable || runtimeErr.Message != "maintenance window" {
+	if !errors.As(admin, &runtimeErr) || runtimeErr.Retryable || runtimeErr.Code != clientruntime.ErrorConnectionStopped || runtimeErr.Message != "maintenance window" {
 		t.Fatalf("admin termination = %#v", admin)
 	}
 	classified := cloudConnectionError(&cloudclient.SignalSessionCloseError{
 		Code:    cloudv1.SignalSessionCloseCode_SIGNAL_SESSION_CLOSE_CODE_ADMIN_DISCONNECT,
 		Message: "account policy changed",
 	})
-	if !errors.As(classified, &runtimeErr) || runtimeErr.Retryable || runtimeErr.Message != "account policy changed" {
+	if !errors.As(classified, &runtimeErr) || runtimeErr.Retryable || runtimeErr.Code != clientruntime.ErrorConnectionStopped || runtimeErr.Message != "account policy changed" {
 		t.Fatalf("pre-ready admin classification = %#v", classified)
 	}
 

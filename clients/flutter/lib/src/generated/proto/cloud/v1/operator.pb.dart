@@ -23,6 +23,7 @@ import 'commerce.pb.dart' as $2;
 import 'edge_config.pb.dart' as $3;
 import 'operator.pbenum.dart';
 import 'runtime.pbenum.dart' as $4;
+import 'usage.pbenum.dart' as $5;
 
 export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 
@@ -416,6 +417,12 @@ class RuntimeSessionProjection extends $pb.GeneratedMessage {
     $core.String? accountEmail,
     $core.String? daemonDisplayName,
     $core.String? edgeName,
+    $core.bool? relayActive,
+    $core.int? relayAllocationCount,
+    $fixnum.Int64? relayIngressBytes,
+    $fixnum.Int64? relayEgressBytes,
+    $0.Timestamp? relayConnectedAt,
+    $core.Iterable<$5.RelayTransport>? relayTransports,
   }) {
     final result = create();
     if (sessionId != null) result.sessionId = sessionId;
@@ -431,6 +438,13 @@ class RuntimeSessionProjection extends $pb.GeneratedMessage {
     if (accountEmail != null) result.accountEmail = accountEmail;
     if (daemonDisplayName != null) result.daemonDisplayName = daemonDisplayName;
     if (edgeName != null) result.edgeName = edgeName;
+    if (relayActive != null) result.relayActive = relayActive;
+    if (relayAllocationCount != null)
+      result.relayAllocationCount = relayAllocationCount;
+    if (relayIngressBytes != null) result.relayIngressBytes = relayIngressBytes;
+    if (relayEgressBytes != null) result.relayEgressBytes = relayEgressBytes;
+    if (relayConnectedAt != null) result.relayConnectedAt = relayConnectedAt;
+    if (relayTransports != null) result.relayTransports.addAll(relayTransports);
     return result;
   }
 
@@ -464,6 +478,22 @@ class RuntimeSessionProjection extends $pb.GeneratedMessage {
     ..aOS(11, _omitFieldNames ? '' : 'accountEmail')
     ..aOS(12, _omitFieldNames ? '' : 'daemonDisplayName')
     ..aOS(13, _omitFieldNames ? '' : 'edgeName')
+    ..aOB(14, _omitFieldNames ? '' : 'relayActive')
+    ..aI(15, _omitFieldNames ? '' : 'relayAllocationCount',
+        fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(
+        16, _omitFieldNames ? '' : 'relayIngressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        17, _omitFieldNames ? '' : 'relayEgressBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOM<$0.Timestamp>(18, _omitFieldNames ? '' : 'relayConnectedAt',
+        subBuilder: $0.Timestamp.create)
+    ..pc<$5.RelayTransport>(
+        19, _omitFieldNames ? '' : 'relayTransports', $pb.PbFieldType.KE,
+        valueOf: $5.RelayTransport.valueOf,
+        enumValues: $5.RelayTransport.values,
+        defaultEnumValue: $5.RelayTransport.RELAY_TRANSPORT_UNSPECIFIED)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -595,6 +625,56 @@ class RuntimeSessionProjection extends $pb.GeneratedMessage {
   $core.bool hasEdgeName() => $_has(11);
   @$pb.TagNumber(13)
   void clearEdgeName() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.bool get relayActive => $_getBF(12);
+  @$pb.TagNumber(14)
+  set relayActive($core.bool value) => $_setBool(12, value);
+  @$pb.TagNumber(14)
+  $core.bool hasRelayActive() => $_has(12);
+  @$pb.TagNumber(14)
+  void clearRelayActive() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.int get relayAllocationCount => $_getIZ(13);
+  @$pb.TagNumber(15)
+  set relayAllocationCount($core.int value) => $_setUnsignedInt32(13, value);
+  @$pb.TagNumber(15)
+  $core.bool hasRelayAllocationCount() => $_has(13);
+  @$pb.TagNumber(15)
+  void clearRelayAllocationCount() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $fixnum.Int64 get relayIngressBytes => $_getI64(14);
+  @$pb.TagNumber(16)
+  set relayIngressBytes($fixnum.Int64 value) => $_setInt64(14, value);
+  @$pb.TagNumber(16)
+  $core.bool hasRelayIngressBytes() => $_has(14);
+  @$pb.TagNumber(16)
+  void clearRelayIngressBytes() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $fixnum.Int64 get relayEgressBytes => $_getI64(15);
+  @$pb.TagNumber(17)
+  set relayEgressBytes($fixnum.Int64 value) => $_setInt64(15, value);
+  @$pb.TagNumber(17)
+  $core.bool hasRelayEgressBytes() => $_has(15);
+  @$pb.TagNumber(17)
+  void clearRelayEgressBytes() => $_clearField(17);
+
+  @$pb.TagNumber(18)
+  $0.Timestamp get relayConnectedAt => $_getN(16);
+  @$pb.TagNumber(18)
+  set relayConnectedAt($0.Timestamp value) => $_setField(18, value);
+  @$pb.TagNumber(18)
+  $core.bool hasRelayConnectedAt() => $_has(16);
+  @$pb.TagNumber(18)
+  void clearRelayConnectedAt() => $_clearField(18);
+  @$pb.TagNumber(18)
+  $0.Timestamp ensureRelayConnectedAt() => $_ensure(16);
+
+  @$pb.TagNumber(19)
+  $pb.PbList<$5.RelayTransport> get relayTransports => $_getList(17);
 }
 
 class OperatorAuditEvent extends $pb.GeneratedMessage {

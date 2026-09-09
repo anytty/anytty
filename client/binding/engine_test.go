@@ -1475,10 +1475,11 @@ func TestAPIErrorPreservesDaemonLifecycle(t *testing.T) {
 	}{
 		{name: "blocked", runtime: &clientruntime.Error{Code: clientruntime.ErrorDaemonBlocked, Message: "blocked", Attempted: true, Retryable: true}, protoCode: apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_BLOCKED, retryable: true},
 		{name: "deleted", runtime: &clientruntime.Error{Code: clientruntime.ErrorDaemonDeleted, Message: "deleted", Attempted: true}, protoCode: apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_DELETED},
+		{name: "stopped", runtime: &clientruntime.Error{Code: clientruntime.ErrorConnectionStopped, Message: "stopped", Attempted: true}, protoCode: apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := apiError(test.runtime)
-			if got.GetCode() != test.protoCode || got.GetRetryable() != test.retryable || !got.GetAttempted() {
+			if got.GetCode() != test.protoCode || got.GetRetryable() != test.retryable || !got.GetAttempted() || (test.name == "stopped" && got.GetMessage() != test.runtime.Message) {
 				t.Fatalf("api error = %#v", got)
 			}
 		})
@@ -1497,6 +1498,52 @@ func TestAPIErrorPreservesCloudEntitlementCode(t *testing.T) {
 		if got.GetCode() != want || got.GetMessage() != "opaque" {
 			t.Fatalf("runtime code %s produced %#v", runtimeCode, got)
 		}
+	}
+}
+
+func TestAPIErrorPreservesRuntimeDiagnosticMessage(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		runtime   *clientruntime.Error
+		protoCode apipb.ApiErrorCode
+	}{
+		{
+			name: "unsupported route",
+			runtime: &clientruntime.Error{
+				Code:      clientruntime.ErrorUnsupportedRoute,
+				Message:   `route "cloud" (managed_webrtc) failed: no eligible route for current platform`,
+				Attempted: false,
+				Retryable: true,
+			},
+			protoCode: apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE,
+		},
+		{
+			name: "certificate authorization",
+			runtime: &clientruntime.Error{
+				Code:      clientruntime.ErrorAuthorization,
+				Message:   `route "cloud" authorization failed: x509: certificate signed by unknown authority`,
+				Attempted: true,
+			},
+			protoCode: apipb.ApiErrorCode_API_ERROR_CODE_UNAUTHORIZED,
+		},
+		{
+			name: "wrapped timeout",
+			runtime: &clientruntime.Error{
+				Code:      clientruntime.ErrorUnavailable,
+				Message:   `route "cloud" failed during ICE connectivity checks: timeout after 15s`,
+				Cause:     context.DeadlineExceeded,
+				Attempted: true,
+				Retryable: true,
+			},
+			protoCode: apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := apiError(test.runtime)
+			if got.GetCode() != test.protoCode || got.GetMessage() != test.runtime.Message || got.GetRetryable() != test.runtime.Retryable || got.GetAttempted() != test.runtime.Attempted {
+				t.Fatalf("api error = %#v", got)
+			}
+		})
 	}
 }
 

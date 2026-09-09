@@ -30,6 +30,8 @@ message AgentOffer {
   RelayICEConfig relay = 7;
   CloudClientAccessMode access_mode = 8;
   bytes pairing_claim_sha256 = 9;
+  // Edge copies the client's requested TURN transport to the daemon.
+  RelayTransport relay_transport = 10;
 }
 
 // AgentAuthorize 要求 owning daemon 在产生 TURN credential 前按本地 AccessStore 预检客户端。

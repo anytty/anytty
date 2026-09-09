@@ -115,8 +115,12 @@ final class TerminalCanvas extends StatefulWidget {
 }
 
 final class _TerminalCanvasState extends State<TerminalCanvas> {
+  static const _semanticUpdateInterval = Duration(milliseconds: 100);
+
   Timer? _cursorTimer;
-  bool _cursorPhase = true;
+  Timer? _semanticUpdateTimer;
+  final ValueNotifier<bool> _cursorPhase = ValueNotifier(true);
+  final ValueNotifier<String> _semanticValue = ValueNotifier('');
   CanonicalLiveScreen? _scheduledPresentationScreen;
   int _scheduledPresentationRevision = -1;
   int? _scheduledPresentationGeneration;
@@ -124,6 +128,7 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
   @override
   void initState() {
     super.initState();
+    _semanticValue.value = terminalScreenSemanticValue(widget.screen);
     _syncCursorTimer();
   }
 
@@ -132,15 +137,32 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.settings.cursorBlink != widget.settings.cursorBlink ||
         oldWidget.screen.cursor?.blink != widget.screen.cursor?.blink) {
-      _cursorPhase = true;
+      _cursorPhase.value = true;
       _syncCursorTimer();
+    }
+    if (!identical(oldWidget.screen, widget.screen)) {
+      _scheduleSemanticUpdate();
     }
   }
 
   @override
   void dispose() {
     _cursorTimer?.cancel();
+    _semanticUpdateTimer?.cancel();
+    _cursorPhase.dispose();
+    _semanticValue.dispose();
     super.dispose();
+  }
+
+  void _scheduleSemanticUpdate() {
+    if (_semanticUpdateTimer != null) return;
+    _semanticUpdateTimer = Timer(_semanticUpdateInterval, () {
+      _semanticUpdateTimer = null;
+      if (mounted) {
+        final next = terminalScreenSemanticValue(widget.screen);
+        if (_semanticValue.value != next) _semanticValue.value = next;
+      }
+    });
   }
 
   void _syncCursorTimer() {
@@ -150,7 +172,7 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
       return;
     }
     _cursorTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (mounted) setState(() => _cursorPhase = !_cursorPhase);
+      if (mounted) _cursorPhase.value = !_cursorPhase.value;
     });
   }
 
@@ -162,60 +184,70 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
       widget.screen.cols * metrics.cellWidth,
       widget.screen.rows * metrics.rowHeight,
     );
-    final paintedCanvas = Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (_) => widget.onInteractionStart?.call(),
-      onPointerCancel: (_) => widget.onInteractionCancel?.call(),
-      child: GestureDetector(
+    final paintedCanvas = RepaintBoundary(
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onVerticalDragStart: widget.onVerticalDragStart,
-        onVerticalDragUpdate: widget.onVerticalDragUpdate,
-        onVerticalDragEnd: widget.onVerticalDragEnd,
-        onVerticalDragCancel: widget.onVerticalDragCancel,
-        onLongPress: widget.reserveLongPress ? () {} : null,
-        onTapUp: (details) {
-          final row = (details.localPosition.dy / metrics.rowHeight).floor();
-          final column = (details.localPosition.dx / metrics.cellWidth).floor();
-          final screenRow = row >= 0 && row < widget.screen.screenRows.length
-              ? widget.screen.screenRows[row]
-              : null;
-          final link = screenRow == null
-              ? null
-              : terminalLinkAtColumn(screenRow, column);
-          if (link != null && widget.onLinkTap != null) {
-            widget.onLinkTap!(link);
-          } else if (widget.onTerminalTap case final onTerminalTap?) {
-            onTerminalTap(details.localPosition);
-          } else {
-            widget.onBlankTap?.call();
-          }
-        },
-        child: CustomPaint(
-          key: const ValueKey('terminal-canvas'),
-          size: contentSize,
-          painter: _TerminalPainter(
-            screen: widget.screen,
-            metrics: metrics,
-            theme: theme,
-            fontFamily: widget.settings.fontFamily,
-            drawCursor:
-                !widget.settings.cursorBlink ||
-                widget.screen.cursor?.blink != true ||
-                _cursorPhase,
+        onPointerDown: (_) => widget.onInteractionStart?.call(),
+        onPointerCancel: (_) => widget.onInteractionCancel?.call(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onVerticalDragStart: widget.onVerticalDragStart,
+          onVerticalDragUpdate: widget.onVerticalDragUpdate,
+          onVerticalDragEnd: widget.onVerticalDragEnd,
+          onVerticalDragCancel: widget.onVerticalDragCancel,
+          onLongPress: widget.reserveLongPress ? () {} : null,
+          onTapUp: (details) {
+            final row = (details.localPosition.dy / metrics.rowHeight).floor();
+            final column = (details.localPosition.dx / metrics.cellWidth)
+                .floor();
+            final screenRow = row >= 0 && row < widget.screen.screenRows.length
+                ? widget.screen.screenRows[row]
+                : null;
+            final link = screenRow == null
+                ? null
+                : terminalLinkAtColumn(screenRow, column);
+            if (link != null && widget.onLinkTap != null) {
+              widget.onLinkTap!(link);
+            } else if (widget.onTerminalTap case final onTerminalTap?) {
+              onTerminalTap(details.localPosition);
+            } else {
+              widget.onBlankTap?.call();
+            }
+          },
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _cursorPhase,
+            builder: (context, cursorPhase, _) => CustomPaint(
+              key: const ValueKey('terminal-canvas'),
+              size: contentSize,
+              painter: _TerminalPainter(
+                screen: widget.screen,
+                metrics: metrics,
+                theme: theme,
+                fontFamily: widget.settings.fontFamily,
+                drawCursor:
+                    !widget.settings.cursorBlink ||
+                    widget.screen.cursor?.blink != true ||
+                    cursorPhase,
+              ),
+            ),
           ),
         ),
       ),
     );
     _schedulePresentationAcknowledgement();
-    return Semantics(
-      key: const ValueKey('terminal-output-semantics'),
-      excludeSemantics: true,
-      readOnly: true,
-      label:
-          'Terminal output, ${widget.screen.cols} columns by '
-          '${widget.screen.rows} rows',
-      value: terminalScreenSemanticValue(widget.screen),
+    return ValueListenableBuilder<String>(
+      valueListenable: _semanticValue,
+      builder: (context, semanticValue, child) => Semantics(
+        key: const ValueKey('terminal-output-semantics'),
+        excludeSemantics: true,
+        readOnly: true,
+        label:
+            'Terminal output, ${widget.screen.cols} columns by '
+            '${widget.screen.rows} rows',
+        value: semanticValue,
+        child: child,
+      ),
       child: ColoredBox(
         color: _color(theme.background),
         child: LayoutBuilder(

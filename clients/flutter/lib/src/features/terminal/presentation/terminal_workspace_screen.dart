@@ -45,6 +45,7 @@ import '../../terminal/domain/terminal_settings.dart';
 import '../../terminal/domain/terminal_soft_input.dart';
 import '../../terminal/domain/terminal_split_layout.dart';
 import 'terminal_canvas.dart';
+import 'terminal_history_transition.dart';
 import 'terminal_command_bar.dart';
 import 'terminal_keyboard_inset.dart';
 import 'terminal_petal_menu.dart';
@@ -514,14 +515,17 @@ final class _TerminalWorkspaceScreenState
         Positioned.fill(
           child: Offstage(
             offstage: !browserVisible,
-            child: BrowserSessionScreen(
-              endpointId: widget.endpointId,
-              endpointLabel: endpointLabel,
-              navigationRequestId: _browserNavigationRequestId,
-              navigationUrl: _browserNavigationUrl,
-              onExit: () {
-                if (mounted) setState(() => _browserVisible = false);
-              },
+            child: TickerMode(
+              enabled: browserVisible,
+              child: BrowserSessionScreen(
+                endpointId: widget.endpointId,
+                endpointLabel: endpointLabel,
+                navigationRequestId: _browserNavigationRequestId,
+                navigationUrl: _browserNavigationUrl,
+                onExit: () {
+                  if (mounted) setState(() => _browserVisible = false);
+                },
+              ),
             ),
           ),
         ),
@@ -1215,6 +1219,13 @@ enum _TerminalRowAction {
   moveUp,
   moveDown,
 }
+
+bool _terminalCanEnd(TerminalInfo terminal) =>
+    terminal.state == TerminalState.TERMINAL_STATE_RUNNING ||
+    terminal.state == TerminalState.TERMINAL_STATE_CREATED;
+
+bool _terminalCanDelete(TerminalInfo terminal) =>
+    terminal.state == TerminalState.TERMINAL_STATE_EXITED;
 
 final class _TerminalCreateInput {
   const _TerminalCreateInput({
@@ -1994,12 +2005,17 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
   static const _refreshInterval = Duration(seconds: 2);
 
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode(debugLabel: 'terminal-list-search');
   TerminalStatusFilter _status = TerminalStatusFilter.running;
   Set<String> _selectedTagIds = const {};
+  Set<String> _selectedTerminalIds = const {};
   List<String> _pinnedIds = const [];
   int _pinLoadEpoch = 0;
   Timer? _refreshTimer;
   bool _refreshInFlight = false;
+  bool _searchOpen = false;
+  bool _selectionMode = false;
+  bool _batchBusy = false;
 
   @override
   void initState() {
@@ -2017,10 +2033,67 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
     _searchController
       ..removeListener(_handleSearchChanged)
       ..dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
-  void _handleSearchChanged() => setState(() {});
+  void _handleSearchChanged() {
+    setState(() {
+      if (_selectionMode) _selectedTerminalIds = const {};
+    });
+  }
+
+  void _openSearch() {
+    if (_searchOpen) return;
+    setState(() => _searchOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _searchOpen) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    if (mounted) setState(() => _searchOpen = false);
+  }
+
+  void _enterSelection(String terminalId) {
+    if (_selectionMode) return;
+    _searchFocusNode.unfocus();
+    if (mounted) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _selectionMode = true;
+        _selectedTerminalIds = {terminalId};
+      });
+    }
+  }
+
+  void _closeSelection() {
+    if (mounted) {
+      setState(() {
+        _selectionMode = false;
+        _selectedTerminalIds = const {};
+      });
+    }
+  }
+
+  void _toggleTerminalSelection(String terminalId) {
+    final next = {..._selectedTerminalIds};
+    if (!next.add(terminalId)) next.remove(terminalId);
+    setState(() => _selectedTerminalIds = Set.unmodifiable(next));
+  }
+
+  void _selectAllTerminals(List<TerminalInfo> terminals) {
+    final ids = terminals.map((terminal) => terminal.ref.terminalId).toSet();
+    setState(
+      () => _selectedTerminalIds =
+          ids.length == _selectedTerminalIds.length &&
+              ids.every(_selectedTerminalIds.contains)
+          ? const {}
+          : Set.unmodifiable(ids),
+    );
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -2039,6 +2112,9 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
       _status = TerminalStatusFilter.running;
       _searchController.clear();
       _selectedTagIds = const {};
+      _selectedTerminalIds = const {};
+      _selectionMode = false;
+      _searchOpen = false;
       _pinnedIds = const [];
       unawaited(_loadPins());
       _scheduleRefresh(Duration.zero);
@@ -2049,7 +2125,7 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
     final terminals = ref.watch(terminalListProvider(widget.endpointId));
-    return terminals.when(
+    final content = terminals.when(
       loading: () => _TerminalListLoading(
         endpointId: widget.endpointId,
         label: widget.label,
@@ -2097,17 +2173,49 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
         ).length;
         return Column(
           children: [
-            _TerminalSearchField(controller: _searchController),
-            _TerminalFilterBar(
-              status: _status,
-              runningCount: runningCount,
-              exitedCount: exitedCount,
-              totalCount: items.length,
-              selectedTagCount: _selectedTagIds.length,
-              tagsAvailable: tags.isNotEmpty,
-              onStatusChanged: (value) => setState(() => _status = value),
-              onTags: () => _showTagFilters(tags, items),
-            ),
+            if (_selectionMode)
+              _TerminalSelectionBar(
+                selectedCount: _selectedTerminalIds.length,
+                totalCount: filtered.length,
+                canEnd: filtered.any(
+                  (terminal) =>
+                      _selectedTerminalIds.contains(terminal.ref.terminalId) &&
+                      _terminalCanEnd(terminal),
+                ),
+                canDelete: filtered.any(
+                  (terminal) =>
+                      _selectedTerminalIds.contains(terminal.ref.terminalId) &&
+                      _terminalCanDelete(terminal),
+                ),
+                busy: _batchBusy,
+                onSelectAll: () => _selectAllTerminals(filtered),
+                onEnd: () =>
+                    unawaited(_runBulkAction(items, _TerminalAction.end)),
+                onDelete: () =>
+                    unawaited(_runBulkAction(items, _TerminalAction.remove)),
+                onClose: _closeSelection,
+              ),
+            if (_searchOpen)
+              _TerminalSearchField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                onClose: _closeSearch,
+              )
+            else
+              _TerminalFilterBar(
+                status: _status,
+                runningCount: runningCount,
+                exitedCount: exitedCount,
+                totalCount: items.length,
+                selectedTagCount: _selectedTagIds.length,
+                tagsAvailable: tags.isNotEmpty,
+                onStatusChanged: (value) => setState(() {
+                  _status = value;
+                  _selectedTerminalIds = const {};
+                }),
+                onTags: () => _showTagFilters(tags, items),
+                onSearch: _openSearch,
+              ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => _refreshInventory(force: true),
@@ -2172,6 +2280,18 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
         );
       },
     );
+    return PopScope<Object?>(
+      canPop: !_searchOpen && !_selectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_searchOpen) {
+          _closeSearch();
+        } else if (_selectionMode) {
+          _closeSelection();
+        }
+      },
+      child: content,
+    );
   }
 
   Widget _buildTerminalRow(TerminalInfo terminal) {
@@ -2183,9 +2303,133 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
       canMoveUp: pinIndex > 0,
       canMoveDown: pinIndex >= 0 && pinIndex < _pinnedIds.length - 1,
       searchQuery: _searchController.text,
+      selected: _selectedTerminalIds.contains(terminalId),
+      selectionMode: _selectionMode,
       onTap: () => _openTerminal(terminalId),
+      onLongPress: () => _enterSelection(terminalId),
+      onToggleSelected: () => _toggleTerminalSelection(terminalId),
       onAction: (action) => _handleRowAction(terminal, action),
     );
+  }
+
+  Future<void> _runBulkAction(
+    List<TerminalInfo> terminals,
+    _TerminalAction action,
+  ) async {
+    final selected = terminals
+        .where(
+          (terminal) => _selectedTerminalIds.contains(terminal.ref.terminalId),
+        )
+        .where(
+          action == _TerminalAction.end ? _terminalCanEnd : _terminalCanDelete,
+        )
+        .toList(growable: false);
+    if (selected.isEmpty || _batchBusy) return;
+    final destructive = action == _TerminalAction.remove;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          destructive
+              ? anyttyText(
+                  context,
+                  en: 'Delete terminal records?',
+                  zh: '删除终端记录？',
+                )
+              : anyttyText(context, en: 'End processes?', zh: '结束进程？'),
+        ),
+        content: Text(
+          destructive
+              ? anyttyText(
+                  context,
+                  en: 'Delete ${selected.length} exited terminal records?',
+                  zh: '删除 ${selected.length} 个已退出的终端记录？',
+                )
+              : anyttyText(
+                  context,
+                  en: 'End ${selected.length} terminal processes? Their records will remain.',
+                  zh: '结束 ${selected.length} 个终端进程？终端记录会保留。',
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(anyttyText(context, en: 'Cancel', zh: '取消')),
+          ),
+          FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: const Color(0xffdc2626),
+                  )
+                : null,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              destructive
+                  ? anyttyText(context, en: 'Delete', zh: '删除')
+                  : anyttyText(context, en: 'End', zh: '结束'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _batchBusy = true);
+    final failures = <String>[];
+    try {
+      final session = await ref.read(
+        endpointSessionProvider(widget.endpointId).future,
+      );
+      for (final terminal in selected) {
+        try {
+          if (action == _TerminalAction.end) {
+            await session.killTerminal(terminal.ref);
+          } else {
+            await session.removeTerminal(terminal.ref);
+          }
+        } catch (_) {
+          failures.add(terminal.ref.terminalId);
+        }
+      }
+      ref.invalidate(terminalListProvider(widget.endpointId));
+      if (!mounted) return;
+      setState(() {
+        _batchBusy = false;
+        if (failures.isEmpty) {
+          _selectionMode = false;
+          _selectedTerminalIds = const {};
+        } else {
+          _selectedTerminalIds = Set.unmodifiable(failures.toSet());
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failures.isEmpty
+                ? (destructive
+                      ? anyttyText(
+                          context,
+                          en: 'Terminal records deleted',
+                          zh: '终端记录已删除',
+                        )
+                      : anyttyText(
+                          context,
+                          en: 'Terminal processes ended',
+                          zh: '终端进程已结束',
+                        ))
+                : anyttyText(
+                    context,
+                    en: '${selected.length - failures.length} completed, ${failures.length} failed',
+                    zh: '已完成 ${selected.length - failures.length} 个，${failures.length} 个失败',
+                  ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _batchBusy = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   void _scheduleRefresh([Duration delay = _refreshInterval]) {
@@ -2308,7 +2552,12 @@ final class _TerminalListState extends ConsumerState<_TerminalList>
           query: _searchController.text,
         ).length,
         onChanged: (selected) {
-          if (mounted) setState(() => _selectedTagIds = selected);
+          if (mounted) {
+            setState(() {
+              _selectedTagIds = selected;
+              _selectedTerminalIds = const {};
+            });
+          }
         },
       ),
     );
@@ -2328,9 +2577,28 @@ final class _TerminalListLoading extends ConsumerStatefulWidget {
 
 final class _TerminalListLoadingState
     extends ConsumerState<_TerminalListLoading> {
+  static const _progressRebuildInterval = Duration(milliseconds: 32);
+
   final Map<ConnectionRouteKind, EndpointConnectionEvent> _attempts = {};
+  ProviderSubscription<AsyncValue<EndpointConnectionEvent>>?
+  _progressSubscription;
+  AsyncValue<EndpointConnectionEvent> _progress = const AsyncLoading();
+  Timer? _progressRebuildTimer;
   bool _applyingAuto = false;
   String? _actionError;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindConnectionProgress();
+  }
+
+  @override
+  void dispose() {
+    _progressRebuildTimer?.cancel();
+    _progressSubscription?.close();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_TerminalListLoading oldWidget) {
@@ -2339,14 +2607,36 @@ final class _TerminalListLoadingState
       _attempts.clear();
       _applyingAuto = false;
       _actionError = null;
+      _bindConnectionProgress();
     }
+  }
+
+  void _bindConnectionProgress() {
+    _progressSubscription?.close();
+    final provider = endpointConnectionProgressProvider(widget.endpointId);
+    _progress = ref.read(provider);
+    _progressSubscription = ref
+        .listenManual<AsyncValue<EndpointConnectionEvent>>(provider, (_, next) {
+          if (!mounted) return;
+          _progress = next;
+          _captureProgress(next.valueOrNull);
+          _scheduleProgressRebuild();
+        });
+  }
+
+  void _scheduleProgressRebuild() {
+    if (_progressRebuildTimer != null) return;
+    _progressRebuildTimer = Timer(_progressRebuildInterval, () {
+      _progressRebuildTimer = null;
+      if (mounted) setState(() {});
+    });
   }
 
   void _captureProgress(EndpointConnectionEvent? event) {
     if (!mounted || event == null) return;
     if (event.phase ==
         EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_PLANNING) {
-      if (_attempts.isNotEmpty) setState(_attempts.clear);
+      _attempts.clear();
       return;
     }
     // AUTO may cancel a slower route after another attempt has already won.
@@ -2354,19 +2644,13 @@ final class _TerminalListLoadingState
     if (_isSupersededConnectionAttempt(event)) return;
     final kind = event.attemptedRouteKind;
     if (kind == ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) return;
-    setState(() => _attempts[kind] = event.deepCopy());
+    _attempts[kind] = event.deepCopy();
   }
 
   @override
   Widget build(BuildContext context) {
     final palette = AnyttyPalette.of(context);
-    final progress = ref.watch(
-      endpointConnectionProgressProvider(widget.endpointId),
-    );
-    ref.listen<AsyncValue<EndpointConnectionEvent>>(
-      endpointConnectionProgressProvider(widget.endpointId),
-      (_, next) => _captureProgress(next.valueOrNull),
-    );
+    final progress = _progress;
     final policyState = ref
         .watch(connectionPolicyProvider(widget.endpointId))
         .valueOrNull;
@@ -2427,11 +2711,10 @@ final class _TerminalListLoadingState
                         ),
                         child: SizedBox.square(
                           dimension: 18,
-                          child: CircularProgressIndicator(
+                          child: _ConnectionSpinner(
                             color: waitingForNetwork
                                 ? palette.warning
                                 : palette.accent,
-                            strokeWidth: 2.2,
                           ),
                         ),
                       ),
@@ -2499,8 +2782,12 @@ final class _TerminalListLoadingState
                                               event.attemptedRouteKind.value,
                                               event.connectionStage,
                                             )),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                            maxLines:
+                                                event.connectionStage ==
+                                                    'attempt_failed'
+                                                ? 6
+                                                : 2,
+                                            overflow: TextOverflow.fade,
                                             style: TextStyle(
                                               color:
                                                   event.connectionStage ==
@@ -2579,6 +2866,22 @@ bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
   return event.connectionStage == 'attempt_failed' &&
       event.hasError() &&
       event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
+}
+
+final class _ConnectionSpinner extends StatelessWidget {
+  const _ConnectionSpinner({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(color: color, strokeWidth: 2.2),
+      ),
+    );
+  }
 }
 
 String _connectionLoadingLabel(
@@ -2763,7 +3066,11 @@ String _connectionAttemptLabel(
     ),
     _ => _connectionLoadingLabel(context, event.phase),
   };
-  return '$route · $stage';
+  final detail = event.connectionStage == 'attempt_failed' && event.hasError()
+      ? event.error.message.trim()
+      : '';
+  if (detail.isEmpty) return '$route · $stage';
+  return '$route · $stage\n$detail';
 }
 
 final class _DirectOnlyConnectionHelp extends StatelessWidget {
@@ -2804,13 +3111,7 @@ final class _DirectOnlyConnectionHelp extends StatelessWidget {
                   ),
                 ),
                 child: applying
-                    ? SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          color: palette.warning,
-                          strokeWidth: 2.2,
-                        ),
-                      )
+                    ? _ConnectionSpinner(color: palette.warning)
                     : Icon(
                         Icons.route_outlined,
                         size: 21,
@@ -2893,7 +3194,11 @@ final class _TerminalRow extends StatelessWidget {
     required this.canMoveUp,
     required this.canMoveDown,
     required this.searchQuery,
+    required this.selected,
+    required this.selectionMode,
     required this.onTap,
+    required this.onLongPress,
+    required this.onToggleSelected,
     required this.onAction,
   });
 
@@ -2902,7 +3207,11 @@ final class _TerminalRow extends StatelessWidget {
   final bool canMoveUp;
   final bool canMoveDown;
   final String searchQuery;
+  final bool selected;
+  final bool selectionMode;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final VoidCallback onToggleSelected;
   final ValueChanged<_TerminalRowAction> onAction;
 
   @override
@@ -2926,6 +3235,7 @@ final class _TerminalRow extends StatelessWidget {
     return SizedBox(
       height: 88,
       child: Card(
+        key: ValueKey('terminal-row-${terminal.ref.terminalId}'),
         elevation: 1,
         shadowColor: Colors.black.withValues(
           alpha: Theme.of(context).brightness == Brightness.dark ? 0.20 : 0.08,
@@ -2939,13 +3249,31 @@ final class _TerminalRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: () {
             HapticFeedback.selectionClick();
-            onTap();
+            if (selectionMode) {
+              onToggleSelected();
+            } else {
+              onTap();
+            }
           },
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(9, 7, 2, 7),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (selectionMode)
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Checkbox(
+                      key: ValueKey(
+                        'terminal-select-${terminal.ref.terminalId}',
+                      ),
+                      value: selected,
+                      onChanged: (_) => onToggleSelected(),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
                 Semantics(
                   container: true,
                   label: outputQuiet == null
@@ -3160,10 +3488,105 @@ final class _TerminalRow extends StatelessWidget {
   }
 }
 
+final class _TerminalSelectionBar extends StatelessWidget {
+  const _TerminalSelectionBar({
+    required this.selectedCount,
+    required this.totalCount,
+    required this.canEnd,
+    required this.canDelete,
+    required this.busy,
+    required this.onSelectAll,
+    required this.onEnd,
+    required this.onDelete,
+    required this.onClose,
+  });
+
+  final int selectedCount;
+  final int totalCount;
+  final bool canEnd;
+  final bool canDelete;
+  final bool busy;
+  final VoidCallback onSelectAll;
+  final VoidCallback onEnd;
+  final VoidCallback onDelete;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    final allSelected = totalCount > 0 && selectedCount == totalCount;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.border),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: anyttyText(context, en: 'Close selection', zh: '关闭选择'),
+              onPressed: busy ? null : onClose,
+              icon: const Icon(Icons.close_rounded, size: 19),
+            ),
+            Expanded(
+              child: Text(
+                anyttyText(
+                  context,
+                  en: '$selectedCount selected',
+                  zh: '已选择 $selectedCount 个',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: allSelected
+                  ? anyttyText(context, en: 'Clear selection', zh: '清除选择')
+                  : anyttyText(context, en: 'Select all', zh: '全选'),
+              onPressed: busy ? null : onSelectAll,
+              icon: Icon(
+                allSelected
+                    ? Icons.indeterminate_check_box_outlined
+                    : Icons.select_all_rounded,
+                size: 20,
+              ),
+            ),
+            IconButton(
+              tooltip: anyttyText(context, en: 'End processes', zh: '结束进程'),
+              onPressed: busy || !canEnd ? null : onEnd,
+              icon: const Icon(Icons.stop_circle_outlined, size: 20),
+            ),
+            IconButton(
+              tooltip: anyttyText(context, en: 'Delete records', zh: '删除记录'),
+              onPressed: busy || !canDelete ? null : onDelete,
+              color: palette.danger,
+              icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 final class _TerminalSearchField extends StatelessWidget {
-  const _TerminalSearchField({required this.controller});
+  const _TerminalSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onClose,
+  });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -3172,38 +3595,62 @@ final class _TerminalSearchField extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
       child: SizedBox(
         height: 42,
-        child: TextField(
-          key: const ValueKey('terminal-list-search-field'),
-          controller: controller,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: anyttyText(context, en: 'Search terminals', zh: '搜索终端'),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: palette.muted,
-              size: 18,
-            ),
-            suffixIcon: controller.text.isEmpty
-                ? null
-                : IconButton(
+        child: Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              onClose();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: TextField(
+            key: const ValueKey('terminal-list-search-field'),
+            controller: controller,
+            focusNode: focusNode,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: anyttyText(context, en: 'Search terminals', zh: '搜索终端'),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: palette.muted,
+                size: 18,
+              ),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (controller.text.isNotEmpty)
+                    IconButton(
+                      tooltip: anyttyText(
+                        context,
+                        en: 'Clear search',
+                        zh: '清除搜索',
+                      ),
+                      onPressed: controller.clear,
+                      icon: const Icon(Icons.backspace_outlined, size: 17),
+                    ),
+                  IconButton(
                     tooltip: anyttyText(
                       context,
-                      en: 'Clear search',
-                      zh: '清除搜索',
+                      en: 'Close search',
+                      zh: '关闭搜索',
                     ),
-                    onPressed: controller.clear,
+                    onPressed: onClose,
                     icon: const Icon(Icons.close_rounded, size: 17),
                   ),
-            filled: true,
-            fillColor: palette.surface,
-            contentPadding: const EdgeInsets.symmetric(vertical: 9),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: BorderSide(color: palette.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(13),
-              borderSide: BorderSide(color: palette.accent, width: 1.5),
+                ],
+              ),
+              filled: true,
+              fillColor: palette.surface,
+              contentPadding: const EdgeInsets.symmetric(vertical: 9),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(color: palette.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(color: palette.accent, width: 1.5),
+              ),
             ),
           ),
         ),
@@ -3222,6 +3669,7 @@ final class _TerminalFilterBar extends StatelessWidget {
     required this.tagsAvailable,
     required this.onStatusChanged,
     required this.onTags,
+    required this.onSearch,
   });
 
   final TerminalStatusFilter status;
@@ -3232,6 +3680,7 @@ final class _TerminalFilterBar extends StatelessWidget {
   final bool tagsAvailable;
   final ValueChanged<TerminalStatusFilter> onStatusChanged;
   final VoidCallback onTags;
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -3316,6 +3765,23 @@ final class _TerminalFilterBar extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(width: 8),
+            Material(
+              color: palette.surfaceRaised,
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox.square(
+                dimension: 56,
+                child: IconButton(
+                  tooltip: anyttyText(
+                    context,
+                    en: 'Search terminals',
+                    zh: '搜索终端',
+                  ),
+                  onPressed: onSearch,
+                  icon: const Icon(Icons.search_rounded, size: 20),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -5145,24 +5611,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }
 
   Widget _buildTerminalContent() {
-    if (_readOnly) {
-      if (_history case final history?) {
-        return TerminalHistoryPresentation(
-          ready: _historyPresented,
-          fallback: ColoredBox(
-            color: _terminalThemeColor(widget.settings.theme.background),
-          ),
-          child: _buildHistoryContent(history),
-        );
-      }
-      if (_historyLoading) {
-        if (_historyLoadingVisible) {
-          return const _WaitingForSnapshot(label: 'Loading history');
-        }
-        return ColoredBox(
-          color: _terminalThemeColor(widget.settings.theme.background),
-        );
-      }
+    if (_readOnly && _history == null && !_historyLoading) {
       if (_historyError case final historyError?) {
         return _TerminalFailure(
           dark: true,
@@ -5173,10 +5622,18 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     }
 
     final history = _history;
-    return TerminalHistoryPresentation(
+    return TerminalHistoryTransition(
+      key: ObjectKey(widget.connection),
+      active: history != null || _historyLoading,
       ready: history != null && _historyPresented,
-      fallbackInteractive: history == null && !_historyLoading,
-      fallback: _buildLiveTerminalContent(),
+      background: _terminalThemeColor(widget.settings.theme.background),
+      foreground: _terminalThemeColor(widget.settings.theme.foreground),
+      onCancel: _readOnly ? null : () => unawaited(_toggleHistory()),
+      fallback: _readOnly
+          ? ColoredBox(
+              color: _terminalThemeColor(widget.settings.theme.background),
+            )
+          : _buildLiveTerminalContent(),
       child: history == null
           ? const SizedBox.expand()
           : _buildHistoryContent(history),
@@ -5283,8 +5740,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                       message: 'Reconnecting terminal',
                       error: false,
                     ),
-                  if (_historyLoadingVisible)
-                    const _HistoryLoadingStatus(label: 'Loading history'),
                 ],
               ),
             ),
@@ -5735,26 +6190,28 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }) => switch (id) {
     'history' => TerminalPetalMenuItem(
       id: 'history',
-      label: _history == null ? 'History' : 'Live',
+      label: _history == null
+          ? _terminalPetalLabel('History', '历史')
+          : _terminalPetalLabel('Live', '实时'),
       icon: LucideIcons.history,
       enabled: !_readOnly || _history == null,
       children: children,
     ),
     'search' => TerminalPetalMenuItem(
       id: 'search',
-      label: 'Search',
+      label: _terminalPetalLabel('Search', '搜索'),
       icon: LucideIcons.search,
       children: children,
     ),
     'selection' => TerminalPetalMenuItem(
       id: 'selection',
-      label: 'Select',
+      label: _terminalPetalLabel('Select', '选择'),
       icon: LucideIcons.scanText,
       children: children,
     ),
     'paste' => TerminalPetalMenuItem(
       id: 'paste',
-      label: 'Paste',
+      label: _terminalPetalLabel('Paste', '粘贴'),
       icon: LucideIcons.clipboardPaste,
       enabled:
           !_readOnly &&
@@ -5765,7 +6222,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'enter' => TerminalPetalMenuItem(
       id: 'enter',
-      label: 'Enter',
+      label: _terminalPetalLabel('Enter', '回车'),
       icon: LucideIcons.cornerDownLeft,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -5779,60 +6236,60 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'resources' => TerminalPetalMenuItem(
       id: 'resources',
-      label: 'Resources',
+      label: _terminalPetalLabel('Resources', '资源'),
       icon: LucideIcons.activity,
       children: children,
     ),
     'more' => TerminalPetalMenuItem(
       id: 'more',
-      label: 'More',
+      label: _terminalPetalLabel('More', '更多'),
       icon: LucideIcons.ellipsis,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'input-tools' => TerminalPetalMenuItem(
       id: 'input-tools',
-      label: 'Input',
+      label: _terminalPetalLabel('Input', '输入'),
       icon: LucideIcons.command,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'navigation-tools' => TerminalPetalMenuItem(
       id: 'navigation-tools',
-      label: 'Navigate',
+      label: _terminalPetalLabel('Navigate', '导航'),
       icon: LucideIcons.navigation,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'session-tools' => TerminalPetalMenuItem(
       id: 'session-tools',
-      label: 'Layout',
+      label: _terminalPetalLabel('Layout', '布局'),
       icon: LucideIcons.panelsTopLeft,
       enabled: children.isNotEmpty,
       children: children,
     ),
     'command-bar' => TerminalPetalMenuItem(
       id: 'command-bar',
-      label: 'Shortcut',
+      label: _terminalPetalLabel('Shortcut', '快捷栏'),
       icon: LucideIcons.slidersHorizontal,
       children: children,
     ),
     'copy-screen' => TerminalPetalMenuItem(
       id: 'copy-screen',
-      label: 'Copy',
+      label: _terminalPetalLabel('Copy', '复制'),
       icon: LucideIcons.copy,
       children: children,
     ),
     'quick-keys' => TerminalPetalMenuItem(
       id: 'quick-keys',
-      label: 'Quick Keys',
+      label: _terminalPetalLabel('Quick Keys', '快捷键'),
       icon: LucideIcons.zap,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'keyboard' => TerminalPetalMenuItem(
       id: 'keyboard',
-      label: 'Keyboard',
+      label: _terminalPetalLabel('Keyboard', '键盘'),
       icon: LucideIcons.keyboard,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -5846,14 +6303,14 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'backspace' => TerminalPetalMenuItem(
       id: 'backspace',
-      label: 'Backspace',
+      label: _terminalPetalLabel('Backspace', '退格'),
       icon: LucideIcons.delete,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'delete' => TerminalPetalMenuItem(
       id: 'delete',
-      label: 'Delete',
+      label: _terminalPetalLabel('Delete', '删除'),
       icon: LucideIcons.eraser,
       enabled: _terminalPetalInputEnabled,
       children: children,
@@ -5881,122 +6338,127 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     ),
     'clear' => TerminalPetalMenuItem(
       id: 'clear',
-      label: 'Clear',
+      label: _terminalPetalLabel('Clear', '清屏'),
       icon: LucideIcons.eraser,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-left' => TerminalPetalMenuItem(
       id: 'arrow-left',
-      label: 'Left',
+      label: _terminalPetalLabel('Left', '左'),
       icon: LucideIcons.arrowLeft,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-down' => TerminalPetalMenuItem(
       id: 'arrow-down',
-      label: 'Down',
+      label: _terminalPetalLabel('Down', '下'),
       icon: LucideIcons.arrowDown,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-up' => TerminalPetalMenuItem(
       id: 'arrow-up',
-      label: 'Up',
+      label: _terminalPetalLabel('Up', '上'),
       icon: LucideIcons.arrowUp,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'arrow-right' => TerminalPetalMenuItem(
       id: 'arrow-right',
-      label: 'Right',
+      label: _terminalPetalLabel('Right', '右'),
       icon: LucideIcons.arrowRight,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'home' => TerminalPetalMenuItem(
       id: 'home',
-      label: 'Home',
+      label: _terminalPetalLabel('Home', '行首'),
       icon: LucideIcons.home,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'end' => TerminalPetalMenuItem(
       id: 'end',
-      label: 'End',
+      label: _terminalPetalLabel('End', '行尾'),
       icon: LucideIcons.arrowRightToLine,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'page-up' => TerminalPetalMenuItem(
       id: 'page-up',
-      label: 'PgUp',
+      label: _terminalPetalLabel('PgUp', '上翻'),
       icon: LucideIcons.chevronsUp,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'page-down' => TerminalPetalMenuItem(
       id: 'page-down',
-      label: 'PgDn',
+      label: _terminalPetalLabel('PgDn', '下翻'),
       icon: LucideIcons.chevronsDown,
       enabled: _terminalPetalInputEnabled,
       children: children,
     ),
     'split' => TerminalPetalMenuItem(
       id: 'split',
-      label: 'Split',
+      label: _terminalPetalLabel('Split', '分屏'),
       icon: LucideIcons.rows2,
       enabled: widget.canSplit,
       children: children,
     ),
     'split-rows' => TerminalPetalMenuItem(
       id: 'split-rows',
-      label: 'Rows',
+      label: _terminalPetalLabel('Rows', '上下'),
       icon: LucideIcons.rows2,
       enabled: widget.canSplit,
       children: children,
     ),
     'split-columns' => TerminalPetalMenuItem(
       id: 'split-columns',
-      label: 'Columns',
+      label: _terminalPetalLabel('Columns', '左右'),
       icon: LucideIcons.columns2,
       enabled: widget.canSplit,
       children: children,
     ),
     'sync-input' => TerminalPetalMenuItem(
       id: 'sync-input',
-      label: widget.syncInput ? 'Synced' : 'Sync',
+      label: widget.syncInput
+          ? _terminalPetalLabel('Synced', '已同步')
+          : _terminalPetalLabel('Sync', '同步'),
       icon: LucideIcons.gitCompareArrows,
       enabled: widget.splitOpen,
       children: children,
     ),
     'resize' => TerminalPetalMenuItem(
       id: 'resize',
-      label: 'Resize',
+      label: _terminalPetalLabel('Resize', '调整'),
       icon: LucideIcons.maximize2,
       enabled: !_readOnly,
       children: children,
     ),
     'files' => TerminalPetalMenuItem(
       id: 'files',
-      label: 'Files',
+      label: _terminalPetalLabel('Files', '文件'),
       icon: LucideIcons.folderOpen,
       children: children,
     ),
     'reconnect' => TerminalPetalMenuItem(
       id: 'reconnect',
-      label: 'Reconnect',
+      label: _terminalPetalLabel('Reconnect', '重连'),
       icon: LucideIcons.refreshCw,
       children: children,
     ),
     'settings' => TerminalPetalMenuItem(
       id: 'settings',
-      label: 'Settings',
+      label: _terminalPetalLabel('Settings', '设置'),
       icon: LucideIcons.settings,
       children: children,
     ),
     _ => null,
   };
+
+  String _terminalPetalLabel(String en, String zh) =>
+      anyttyText(context, en: en, zh: zh);
 
   bool get _terminalPetalInputEnabled =>
       !_readOnly &&
@@ -6108,7 +6570,8 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             selectionActive: _selectionMode,
             status: _historyLoadingVisible
                 ? 'Loading older rows'
-                : '${history.rows.length} / ${history.logicalTotal}',
+                : '${anyttyText(context, en: 'History', zh: '历史模式')} '
+                      '${history.rows.length} / ${history.logicalTotal}',
             onLive: _toggleHistory,
             onSearch: _toggleSearch,
             onSelection: _openSelection,
@@ -6185,7 +6648,10 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       _releaseHistory(widget.connection, history);
       return;
     }
-    if (_historyLoading) return;
+    if (_historyLoading) {
+      setState(_cancelHistoryRequest);
+      return;
+    }
     await _ensureHistory();
   }
 
@@ -6203,8 +6669,14 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       _historyPresented = false;
       _fnOpen = false;
     });
-    _scheduleHistoryLoadingIndicator(requestEpoch);
     try {
+      // Paint entry feedback before starting native history work.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted ||
+          requestEpoch != _historyRequestEpoch ||
+          connection != widget.connection) {
+        return null;
+      }
       final merged = await connection.openHistory(cols: projectionCols);
       if (!mounted ||
           requestEpoch != _historyRequestEpoch ||
@@ -7698,23 +8170,26 @@ final class _HistoryContextBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Container(
-            constraints: const BoxConstraints(minHeight: 28),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: palette.surface.withValues(alpha: 0.94),
-              border: Border.all(color: palette.border),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              status,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.muted,
-                fontFamily: 'JetBrainsMonoNerd',
-                fontSize: 9,
+          Flexible(
+            flex: 3,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: palette.surface.withValues(alpha: 0.94),
+                border: Border.all(color: palette.border),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.muted,
+                  fontFamily: 'JetBrainsMonoNerd',
+                  fontSize: 9,
+                ),
               ),
             ),
           ),
@@ -8052,56 +8527,6 @@ final class _TerminalDeliveryBanner extends StatelessWidget {
   }
 }
 
-final class _HistoryLoadingStatus extends StatelessWidget {
-  const _HistoryLoadingStatus({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = AnyttyPalette.of(context);
-    return Positioned(
-      right: 8,
-      bottom: 8,
-      child: Semantics(
-        container: true,
-        liveRegion: true,
-        label: label,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(
-                  dimension: 13,
-                  child: CircularProgressIndicator(
-                    color: palette.accent,
-                    strokeWidth: 1.5,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: palette.text,
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 final class _TerminalFailure extends StatelessWidget {
   const _TerminalFailure({
     required this.message,
@@ -8118,32 +8543,32 @@ final class _TerminalFailure extends StatelessWidget {
     final palette = AnyttyPalette.of(context);
     return ColoredBox(
       color: palette.background,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.error_outline_rounded,
-                color: palette.danger,
-                size: 34,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                message,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: palette.text, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-              ),
-            ],
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  color: palette.danger,
+                  size: 34,
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: palette.text, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -56,6 +56,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        AndroidNetworkBridge.start(applicationContext)
         fileChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             FILE_CHANNEL,

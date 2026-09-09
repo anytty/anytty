@@ -477,7 +477,7 @@ describe('RemoteControlApp native session pool', () => {
       updatedAt: '2026-07-28T00:00:00.000Z',
     })
     const getConnectionPolicy = vi.fn(async () => ({
-      policy: { route: 'auto', cloud: 'auto', relayTransport: 'auto' } as const,
+      policy: { route: 'auto', cloud: 'auto', relayTransport: 'tcp' } as const,
       available: { direct: true, ssh: false, cloud: true },
       unavailableReasons: { ssh: 'credential_unavailable' as const },
     }))

@@ -11,6 +11,19 @@ This file records user-visible changes. The current version is a prerelease and 
 - Windows executables now embed a lossless ConPTY runtime, preserving styled blank cells in arbitrary CLI output and the original VT scroll stream needed for complete terminal history.
 - Remote application requests now retain one correlation identity across nested runtime adapters, preventing intermittent TUI failures after concurrent requests, connection reuse, or resource cleanup.
 
+## [0.0.1-beta.12] - 2026-09-05
+
+### Changed
+
+- Unified the release metadata used by the CLI, web workspace, Flutter client, and GitHub release workflow.
+- Aligned the mobile build number at `17` for the Android and iOS beta artifacts.
+
+## [0.0.1-beta.11] - 2026-09-05
+
+### Fixed
+
+- Android terminal input no longer advertises password-like input metadata, preventing Oppo/ColorOS devices from opening the secure keyboard for normal terminal input.
+
 ## [0.0.1-beta.10] - 2026-09-04
 
 ### Added

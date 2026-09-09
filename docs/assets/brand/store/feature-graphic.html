@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1024, initial-scale=1">
+  <title>AnyTTY Google Play feature graphic</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f3f7f6;
+      --muted: #9aa9aa;
+      --green: #44bee9;
+      --panel: #16232a;
+      --line: rgba(132, 185, 178, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 1024px;
+      height: 500px;
+      margin: 0;
+      overflow: hidden;
+      background: #101a20;
+    }
+
+    body {
+      position: relative;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body::before {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 32px 32px;
+      content: "";
+      opacity: 0.45;
+    }
+
+    .wash {
+      position: absolute;
+      top: -180px;
+      left: 250px;
+      width: 620px;
+      height: 620px;
+      border: 1px solid rgba(79, 224, 176, 0.16);
+      border-radius: 50%;
+      box-shadow: 0 0 0 42px rgba(79, 224, 176, 0.035),
+        0 0 0 84px rgba(79, 224, 176, 0.025);
+      transform: rotate(-20deg);
+    }
+
+    .copy {
+      position: absolute;
+      top: 64px;
+      left: 72px;
+      width: 545px;
+      z-index: 2;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand img {
+      width: 92px;
+      height: 92px;
+      object-fit: contain;
+    }
+
+    .brand-name {
+      font-size: 48px;
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1;
+    }
+
+    .brand-mark {
+      margin-top: 10px;
+      color: var(--green);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 520px;
+      margin: 36px 0 18px;
+      font-size: 36px;
+      font-weight: 720;
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+
+    p {
+      max-width: 480px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.42;
+    }
+
+    .details {
+      display: flex;
+      gap: 14px;
+      margin-top: 24px;
+      color: #c5d1d0;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      letter-spacing: 0;
+    }
+
+    .details span {
+      padding: 9px 11px;
+      border: 1px solid rgba(79, 224, 176, 0.27);
+      border-radius: 6px;
+      background: rgba(17, 27, 32, 0.82);
+    }
+
+    .screen {
+      position: absolute;
+      top: 23px;
+      right: 82px;
+      width: 212px;
+      padding: 7px;
+      border: 1px solid #819198;
+      border-radius: 32px;
+      background: linear-gradient(110deg, #738087, #242d32 12%, #11181d 88%, #77858b);
+      box-shadow: 2px 0 0 #141d22, 3px 0 0 #4a5960,
+        0 20px 35px rgba(0, 0, 0, 0.48), inset 0 0 0 2px #1b252b;
+      transform: rotate(3deg);
+      z-index: 3;
+    }
+
+    .screen::before {
+      position: absolute;
+      top: 92px;
+      left: -3px;
+      width: 2px;
+      height: 48px;
+      border-radius: 2px;
+      background: #7d8b92;
+      content: "";
+      z-index: 1;
+    }
+
+    .screen::after {
+      content: "";
+      position: absolute;
+      right: -4px;
+      top: 120px;
+      width: 3px;
+      height: 30px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #3c484e, #94a1a7);
+    }
+
+    .display {
+      position: relative;
+      overflow: hidden;
+      border-radius: 25px;
+      background: #0b1013;
+      box-shadow: 0 0 0 1px #030608;
+    }
+
+    .display::after {
+      content: "";
+      position: absolute;
+      top: 7px;
+      left: calc(50% - 3px);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #040607;
+      box-shadow: inset 0 0 0 1px #273239;
+    }
+
+    .screen img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .rail {
+      position: absolute;
+      top: 128px;
+      right: 304px;
+      width: 1px;
+      height: 230px;
+      background: linear-gradient(transparent, var(--green), transparent);
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="wash" aria-hidden="true"></div>
+  <div class="rail" aria-hidden="true"></div>
+  <section class="copy">
+    <div class="brand">
+      <img src="../mascot.png" alt="AnyTTY icon">
+      <div>
+        <div class="brand-name">AnyTTY</div>
+        <div class="brand-mark" id="brand-mark">TERMINAL · FILES · BROWSER</div>
+      </div>
+    </div>
+    <h1 id="headline">Any machine. Any task.<br>Any client. Any time.<br>That's AnyTTY.</h1>
+    <p id="subhead">Connect to your computers from your phone. Keep terminal sessions running, manage files and open development pages.</p>
+    <div class="details" aria-hidden="true">
+      <span id="detail-terminal">TERMINALS</span>
+      <span id="detail-files">FILES</span>
+      <span id="detail-remote">REMOTE ACCESS</span>
+    </div>
+  </section>
+  <div class="screen">
+    <div class="display"><img id="screen-image" src="../../../../artifacts/store-screenshots/2026-09-05/android/phone/01-devices-cn.png" alt="AnyTTY devices screen"></div>
+  </div>
+  <script>
+    if (new URLSearchParams(window.location.search).get("lang") === "zh") {
+      document.documentElement.lang = "zh-CN";
+      document.getElementById("screen-image").alt = "AnyTTY 设备页面";
+      document.getElementById("brand-mark").textContent = "终端 · 文件 · 浏览器";
+      document.getElementById("subhead").textContent = "从手机连接自己的电脑，接着操作终端、管理文件，打开远端开发页面。";
+      document.getElementById("detail-terminal").textContent = "终端";
+      document.getElementById("detail-files").textContent = "文件";
+      document.getElementById("detail-remote").textContent = "远程访问";
+    }
+  </script>
+</body>
+</html>

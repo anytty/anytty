@@ -43,7 +43,9 @@ func (connector *PairingConnector) Redeem(ctx context.Context, request clientrun
 	if err != nil {
 		return remoteauth.PairingExchangeResult{}, reportCloudFailure(request.Stamp().Generation, cloudFailurePairingRoute, cloudConnectionError(err))
 	}
-	opened, err := openResolvedCloudPeer(ctx, request, connector.Peers, connector.Cloud, resolved, pairing.Identity, pairing.Signer, connector.Product, connector.Phase)
+	// A pairing claim is consumed once, after selecting its transport. Capability
+	// connections instead authenticate each candidate before choosing a winner.
+	opened, err := openResolvedCloudPeer(ctx, request, connector.Peers, connector.Cloud, resolved, pairing.Identity, pairing.Signer, connector.Product, connector.Phase, nil)
 	if err != nil {
 		return remoteauth.PairingExchangeResult{}, reportCloudFailure(request.Stamp().Generation, cloudFailurePairingExchange, cloudConnectionError(err))
 	}

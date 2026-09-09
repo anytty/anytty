@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./badge": "./src/ui/badge.tsx",
+    "./brand-motion": "./src/brand/BrandMotion.tsx",
     "./button": "./src/ui/button.tsx",
     "./checkbox": "./src/ui/checkbox.tsx",
     "./input": "./src/ui/input.tsx",
@@ -50,6 +51,7 @@
     "react-dom": "19.2.7"
   },
   "dependencies": {
+    "@rive-app/webgl2": "2.42.0",
     "@bufbuild/protobuf": "2.12.0",
     "@file-viewer/react": "^2.2.5",
     "@file-viewer/renderer-3d": "^2.2.5",

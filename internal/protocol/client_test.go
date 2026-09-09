@@ -9,9 +9,37 @@ import (
 
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/perftrace"
 	"github.com/anytty/anytty/shared/transport/memory"
 	"google.golang.org/protobuf/proto"
 )
+
+func TestClientSendRecordsQueueAndTransportSeparately(t *testing.T) {
+	recorder := perftrace.Enable()
+	defer perftrace.Disable()
+	clientTransport, serverTransport := memory.NewPair()
+	defer clientTransport.Close()
+	defer serverTransport.Close()
+	client := &Client{transport: clientTransport}
+	frame := []byte("timing-test")
+	received := make(chan error, 1)
+	go func() {
+		_, err := serverTransport.Recv()
+		received <- err
+	}()
+	if err := client.send(frame); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-received; err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"protocol.client.send_queue", "protocol.client.transport_send"} {
+		event, ok := recorder.Snapshot().Event(name)
+		if !ok || event.Count != 1 || event.Bytes != uint64(len(frame)) {
+			t.Fatalf("%s: %+v, found=%t", name, event, ok)
+		}
+	}
+}
 
 func TestClientExecutesGeneratedApplicationEnvelope(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

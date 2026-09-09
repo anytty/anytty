@@ -22,6 +22,7 @@ import (
 	"github.com/anytty/anytty/proto/remoteauthpb"
 	remotedaemon "github.com/anytty/anytty/remote/daemon"
 	"github.com/anytty/anytty/remote/webrtc"
+	"github.com/anytty/anytty/shared/netpath"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -50,7 +51,9 @@ type Config struct {
 	BindingRefreshBefore  time.Duration
 	ConnectAttemptTimeout time.Duration
 	SessionCleanupTimeout time.Duration
-	Now                   func() time.Time
+	// MaxCloudSessions includes active and closing peers; nonpositive uses 256.
+	MaxCloudSessions int
+	Now              func() time.Time
 }
 
 // Runtime 持有可刷新的 enrollment 路由材料和当前 AgentGateway 在线状态。
@@ -81,9 +84,12 @@ type Runtime struct {
 
 var errEdgeReselected = errors.New("daemon Edge reselection requested")
 
+var errCloudSessionCapacity = errors.New("daemon Cloud session capacity is exhausted")
+
 const (
 	defaultBindingRefreshBefore  = 30 * 24 * time.Hour
 	defaultSessionCleanupTimeout = 5 * time.Second
+	defaultMaxCloudSessions      = 256
 )
 
 type agentDiagnosticStage string
@@ -363,7 +369,7 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 		return errors.New("Edge CA certificate is invalid")
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()}
-	connection, err := grpc.NewClient(locator.GetPublicEndpoint(), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(locator.GetPublicEndpoint(), credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return err
 	}
@@ -374,12 +380,13 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	stopAttemptTimeout := connectAttemptTimeoutGuard(connectAttemptTimeout, cancelAttempt)
 	var peers sync.WaitGroup
 	workerDone := make(chan struct{}, 2)
+	startedWorkers := 0
 	defer func() {
 		stopAttemptTimeout()
 		runtime.clearActiveAttempt(attemptID)
 		cancelAttempt()
 		_ = connection.Close()
-		if !waitWorkerCompletion(workerDone, 2, runtime.config.SessionCleanupTimeout) {
+		if !waitWorkerCompletion(workerDone, startedWorkers, runtime.config.SessionCleanupTimeout) {
 			if runtime.config.Logger != nil {
 				runtime.config.Logger.Warn("anytty cloud daemon AgentGateway worker cleanup timed out", "timeout", runtime.config.SessionCleanupTimeout)
 			}
@@ -440,6 +447,7 @@ func (runtime *Runtime) connectEdge(ctx context.Context, daemonID string, bindin
 	outbound := make(chan *cloudv1.AgentEvent, 32)
 	writerErrors := make(chan error, 1)
 	receive := make(chan error, 1)
+	startedWorkers = 2
 	go func() {
 		defer func() { workerDone <- struct{}{} }()
 		runtime.runAgentWriter(attemptCtx, stream, daemonID, runtime.bootID, connectionID, 1, outbound, writerErrors)
@@ -645,17 +653,28 @@ func (runtime *Runtime) answerOffer(ctx context.Context, offer *cloudv1.AgentOff
 		}
 	}
 	iceServers := make([]webrtc.ICEServer, 0, 1)
+	if url := cloudprotocol.EdgeSTUNURL(runtime.currentEdgeLocator().GetPublicEndpoint()); url != "" {
+		iceServers = append(iceServers, webrtc.ICEServer{URLs: []string{url}})
+	}
 	if relay := offer.GetRelay(); relay != nil {
 		if len(relay.GetUrls()) == 0 || strings.TrimSpace(relay.GetUsername()) == "" || strings.TrimSpace(relay.GetCredential()) == "" {
 			return reject("RELAY_INVALID", "Edge supplied incomplete Relay ICE material")
 		}
-		iceServers = append(iceServers, webrtc.ICEServer{URLs: append([]string(nil), relay.GetUrls()...), Username: relay.GetUsername(), Credential: relay.GetCredential()})
+		urls, filterErr := filterDaemonRelayICEURLs(relay.GetUrls(), offer.GetRelayTransport())
+		if filterErr != nil {
+			return reject("RELAY_INVALID", "Edge supplied invalid Relay ICE material")
+		}
+		if !hasDaemonTURNICEURL(urls) {
+			return reject("RELAY_UNAVAILABLE", "Edge supplied no Relay ICE server for the requested transport")
+		}
+		iceServers = append(iceServers, webrtc.ICEServer{URLs: urls, Username: relay.GetUsername(), Credential: relay.GetCredential()})
 	}
-	sessionCtx, session, ok := runtime.beginCloudSession(ctx, offer.GetSessionId(), peers)
-	if !ok {
-		return reject("DAEMON_UNAVAILABLE", "daemon Cloud access is not active")
+	sessionCtx, session, admissionErr := runtime.beginCloudSession(ctx, offer.GetSessionId(), peers)
+	if admissionErr != nil {
+		return reject("DAEMON_UNAVAILABLE", admissionErr.Error())
 	}
 	answerer := runtime.config.Answerer
+	answerer.RequireRelay = answerer.RequireRelay || requiresDaemonRelayCandidate(offer)
 	onPeerClosed := answerer.OnPeerClosed
 	var peerClosed sync.Once
 	finish := func() {
@@ -760,17 +779,28 @@ func (runtime *Runtime) applyDaemonState(ctx context.Context, state *cloudv1.Dae
 	return nil
 }
 
-func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID string, peers *sync.WaitGroup) (context.Context, *cloudSession, bool) {
+func (runtime *Runtime) beginCloudSession(parent context.Context, sessionID string, peers *sync.WaitGroup) (context.Context, *cloudSession, error) {
 	runtime.lifecycleMu.Lock()
 	defer runtime.lifecycleMu.Unlock()
-	if !runtime.cloudActiveLocked() || runtime.cloudSessions[sessionID] != nil || runtime.cloudClosingSessions[sessionID] != nil {
-		return nil, nil, false
+	if !runtime.cloudActiveLocked() {
+		return nil, nil, errors.New("daemon Cloud access is not active")
+	}
+	if runtime.cloudSessions[sessionID] != nil || runtime.cloudClosingSessions[sessionID] != nil {
+		return nil, nil, errors.New("daemon Cloud session ID is already active or closing")
+	}
+	limit := runtime.config.MaxCloudSessions
+	if limit <= 0 {
+		limit = defaultMaxCloudSessions
+	}
+	// Detached peers retain their slot until their real finalizer returns.
+	if len(runtime.cloudSessions)+len(runtime.cloudClosingSessions) >= limit {
+		return nil, nil, errCloudSessionCapacity
 	}
 	ctx, cancel := context.WithCancel(parent)
 	session := &cloudSession{cancel: cancel, done: make(chan struct{})}
 	peers.Add(1)
 	runtime.cloudSessions[sessionID] = session
-	return ctx, session, true
+	return ctx, session, nil
 }
 
 func waitWorkerCompletion(done <-chan struct{}, count int, timeout time.Duration) bool {
@@ -1089,7 +1119,7 @@ func (runtime *Runtime) refreshBindingRequest(ctx context.Context, measurements 
 		}
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13, ServerName: runtime.config.ControllerServerName, RootCAs: roots}
-	connection, err := grpc.NewClient(runtime.config.ControllerAddress, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(runtime.config.ControllerAddress, credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -1331,7 +1361,7 @@ func probeEdge(parent context.Context, locator *cloudv1.EdgeLocator) *cloudv1.Da
 		roots := x509.NewCertPool()
 		validCA := roots.AppendCertsFromPEM(locator.GetCaCertificatePem())
 		if validCA {
-			connection, err := grpc.NewClient(locator.GetPublicEndpoint(), grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()})))
+			connection, err := netpath.NewGRPCClient(locator.GetPublicEndpoint(), credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ServerName: locator.GetServerName()}))
 			if err == nil {
 				_, err = grpc_health_v1.NewHealthClient(connection).Check(probeCtx, &grpc_health_v1.HealthCheckRequest{}, grpc.WaitForReady(true))
 				_ = connection.Close()
@@ -1391,7 +1421,7 @@ func EnrollWithProgress(ctx context.Context, controllerAddress, controllerServer
 	} else {
 		tlsConfig = tlsConfig.Clone()
 	}
-	connection, err := grpc.NewClient(strings.TrimSpace(controllerAddress), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	connection, err := netpath.NewGRPCClient(strings.TrimSpace(controllerAddress), credentials.NewTLS(tlsConfig))
 	if err != nil {
 		return EnrollmentRecord{}, err
 	}

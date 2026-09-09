@@ -27,6 +27,7 @@ import (
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/proto/remoteauthpb"
 	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/shared/connecttrace"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/datachannel"
@@ -74,7 +75,9 @@ type Dialer struct {
 
 // Connect 只尝试 request 指定的 Direct Route；任何失败都会关闭 peer、DataChannel 和 protocol client。
 // signaling locator 变化不改变 Endpoint identity，answer 必须由 pin 对应的 daemon DeviceIdentity 签名。
-func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (clientruntime.ReadyPeerSession, error) {
+func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (result clientruntime.ReadyPeerSession, resultErr error) {
+	ctx, trace := connecttrace.Start(ctx, "direct_route")
+	defer func() { trace.End(resultErr) }()
 	if dialer == nil {
 		return nil, fmt.Errorf("direct WebRTC connector is required")
 	}
@@ -97,6 +100,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	stage := func(name string) {
 		now := time.Now()
 		log.Printf("anytty direct connect generation=%d stage=%s stage_ms=%d total_ms=%d", request.Stamp().Generation, name, now.Sub(lastAt).Milliseconds(), now.Sub(startedAt).Milliseconds())
+		trace.Mark(name)
 		lastAt = now
 	}
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseAuthorizing, clientruntime.EndpointStageAuthorizationPreparing)
@@ -133,6 +137,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, reportDirectFailure(request.Stamp().Generation, directFailureDataChannelAuth, fmt.Errorf("authenticate direct endpoint DataChannel: %w", err))
 	}
 	stage("authorization")
+	connection.EnableReceiveBackpressure()
 	clientruntime.ReportEndpointProgress(ctx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 	protocolClient := internalprotocol.NewClient(connection)
 	clientName := strings.TrimSpace(dialer.ClientName)
@@ -611,14 +616,16 @@ func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []strin
 		}
 	}
 	if exchangeContext.Err() != nil && ctx.Err() == nil {
+		cause := errors.Join(append(dialErrors, exchangeContext.Err())...)
 		return nil, &clientruntime.Error{
-			Code: clientruntime.ErrorUnavailable, Message: "direct signaling timed out",
-			Cause: exchangeContext.Err(), Attempted: true, Retryable: true,
+			Code: clientruntime.ErrorUnavailable, Message: fmt.Sprintf("direct signaling timed out: %v", cause),
+			Cause: cause, Attempted: true, Retryable: true,
 		}
 	}
+	cause := errors.Join(dialErrors...)
 	return nil, &clientruntime.Error{
-		Code: clientruntime.ErrorUnavailable, Message: "direct signaling is unavailable",
-		Cause: errors.Join(dialErrors...), Attempted: true, Retryable: true,
+		Code: clientruntime.ErrorUnavailable, Message: fmt.Sprintf("direct signaling is unavailable: %v", cause),
+		Cause: cause, Attempted: true, Retryable: true,
 	}
 }
 
@@ -695,12 +702,12 @@ func newSession(application *protocoladapter.ApplicationClient, peer port.WebRTC
 
 // ExecuteApplication 通过当前 generation 的 ApplicationSession 写入 correlation stamp 后执行 generated Proto command。
 func (session *Session) ExecuteApplication(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.Execute(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, false)
 }
 
 // ExecuteApplicationTerminal 为 resource-producing command 保留有界 terminal response，并使用同一 generation fence。
 func (session *Session) ExecuteApplicationTerminal(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	return session.ApplicationSession.ExecuteTerminal(ctx, command)
+	return session.ApplicationSession.Forward(ctx, command, true)
 }
 
 // ConnectionSnapshot 投影 Direct ReadySession 的实际 selected ICE-TCP pair。

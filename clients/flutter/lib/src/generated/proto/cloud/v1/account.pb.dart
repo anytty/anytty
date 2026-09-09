@@ -729,13 +729,10 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
   factory GetCurrentAccountResponse({
     AccountProfile? account,
     $core.Iterable<AccountRole>? roles,
-    $0.Timestamp? recentAuthExpiresAt,
   }) {
     final result = create();
     if (account != null) result.account = account;
     if (roles != null) result.roles.addAll(roles);
-    if (recentAuthExpiresAt != null)
-      result.recentAuthExpiresAt = recentAuthExpiresAt;
     return result;
   }
 
@@ -759,8 +756,6 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
         valueOf: AccountRole.valueOf,
         enumValues: AccountRole.values,
         defaultEnumValue: AccountRole.ACCOUNT_ROLE_UNSPECIFIED)
-    ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'recentAuthExpiresAt',
-        subBuilder: $0.Timestamp.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -796,155 +791,6 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(2)
   $pb.PbList<AccountRole> get roles => $_getList(1);
-
-  @$pb.TagNumber(3)
-  $0.Timestamp get recentAuthExpiresAt => $_getN(2);
-  @$pb.TagNumber(3)
-  set recentAuthExpiresAt($0.Timestamp value) => $_setField(3, value);
-  @$pb.TagNumber(3)
-  $core.bool hasRecentAuthExpiresAt() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearRecentAuthExpiresAt() => $_clearField(3);
-  @$pb.TagNumber(3)
-  $0.Timestamp ensureRecentAuthExpiresAt() => $_ensure(2);
-}
-
-class VerifyRecentAuthenticationRequest extends $pb.GeneratedMessage {
-  factory VerifyRecentAuthenticationRequest({
-    $core.String? password,
-  }) {
-    final result = create();
-    if (password != null) result.password = password;
-    return result;
-  }
-
-  VerifyRecentAuthenticationRequest._();
-
-  factory VerifyRecentAuthenticationRequest.fromBuffer(
-          $core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory VerifyRecentAuthenticationRequest.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'VerifyRecentAuthenticationRequest',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'password')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  VerifyRecentAuthenticationRequest clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  VerifyRecentAuthenticationRequest copyWith(
-          void Function(VerifyRecentAuthenticationRequest) updates) =>
-      super.copyWith((message) =>
-              updates(message as VerifyRecentAuthenticationRequest))
-          as VerifyRecentAuthenticationRequest;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static VerifyRecentAuthenticationRequest create() =>
-      VerifyRecentAuthenticationRequest._();
-  @$core.override
-  VerifyRecentAuthenticationRequest createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static VerifyRecentAuthenticationRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<VerifyRecentAuthenticationRequest>(
-          create);
-  static VerifyRecentAuthenticationRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get password => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set password($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasPassword() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearPassword() => $_clearField(1);
-}
-
-class VerifyRecentAuthenticationResponse extends $pb.GeneratedMessage {
-  factory VerifyRecentAuthenticationResponse({
-    $0.Timestamp? expiresAt,
-    AccountTokenCredential? credential,
-  }) {
-    final result = create();
-    if (expiresAt != null) result.expiresAt = expiresAt;
-    if (credential != null) result.credential = credential;
-    return result;
-  }
-
-  VerifyRecentAuthenticationResponse._();
-
-  factory VerifyRecentAuthenticationResponse.fromBuffer(
-          $core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
-  factory VerifyRecentAuthenticationResponse.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'VerifyRecentAuthenticationResponse',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
-    ..aOM<$0.Timestamp>(1, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
-    ..aOM<AccountTokenCredential>(2, _omitFieldNames ? '' : 'credential',
-        subBuilder: AccountTokenCredential.create)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  VerifyRecentAuthenticationResponse clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  VerifyRecentAuthenticationResponse copyWith(
-          void Function(VerifyRecentAuthenticationResponse) updates) =>
-      super.copyWith((message) =>
-              updates(message as VerifyRecentAuthenticationResponse))
-          as VerifyRecentAuthenticationResponse;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  static VerifyRecentAuthenticationResponse create() =>
-      VerifyRecentAuthenticationResponse._();
-  @$core.override
-  VerifyRecentAuthenticationResponse createEmptyInstance() => create();
-  @$core.pragma('dart2js:noInline')
-  static VerifyRecentAuthenticationResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<VerifyRecentAuthenticationResponse>(
-          create);
-  static VerifyRecentAuthenticationResponse? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $0.Timestamp get expiresAt => $_getN(0);
-  @$pb.TagNumber(1)
-  set expiresAt($0.Timestamp value) => $_setField(1, value);
-  @$pb.TagNumber(1)
-  $core.bool hasExpiresAt() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearExpiresAt() => $_clearField(1);
-  @$pb.TagNumber(1)
-  $0.Timestamp ensureExpiresAt() => $_ensure(0);
-
-  @$pb.TagNumber(2)
-  AccountTokenCredential get credential => $_getN(1);
-  @$pb.TagNumber(2)
-  set credential(AccountTokenCredential value) => $_setField(2, value);
-  @$pb.TagNumber(2)
-  $core.bool hasCredential() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearCredential() => $_clearField(2);
-  @$pb.TagNumber(2)
-  AccountTokenCredential ensureCredential() => $_ensure(1);
 }
 
 /// AccountRefreshTokenProjection 是用户可见的持久登录凭据元数据，不包含 token 摘要或原始值。
@@ -954,7 +800,6 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
     $core.bool? current,
     $0.Timestamp? createdAt,
     $0.Timestamp? expiresAt,
-    $0.Timestamp? recentAuthExpiresAt,
     $fixnum.Int64? revision,
   }) {
     final result = create();
@@ -962,8 +807,6 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
     if (current != null) result.current = current;
     if (createdAt != null) result.createdAt = createdAt;
     if (expiresAt != null) result.expiresAt = expiresAt;
-    if (recentAuthExpiresAt != null)
-      result.recentAuthExpiresAt = recentAuthExpiresAt;
     if (revision != null) result.revision = revision;
     return result;
   }
@@ -987,8 +830,6 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'createdAt',
         subBuilder: $0.Timestamp.create)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
-    ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'recentAuthExpiresAt',
         subBuilder: $0.Timestamp.create)
     ..a<$fixnum.Int64>(
         6, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
@@ -1057,23 +898,12 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
   @$pb.TagNumber(4)
   $0.Timestamp ensureExpiresAt() => $_ensure(3);
 
-  @$pb.TagNumber(5)
-  $0.Timestamp get recentAuthExpiresAt => $_getN(4);
-  @$pb.TagNumber(5)
-  set recentAuthExpiresAt($0.Timestamp value) => $_setField(5, value);
-  @$pb.TagNumber(5)
-  $core.bool hasRecentAuthExpiresAt() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearRecentAuthExpiresAt() => $_clearField(5);
-  @$pb.TagNumber(5)
-  $0.Timestamp ensureRecentAuthExpiresAt() => $_ensure(4);
-
   @$pb.TagNumber(6)
-  $fixnum.Int64 get revision => $_getI64(5);
+  $fixnum.Int64 get revision => $_getI64(4);
   @$pb.TagNumber(6)
-  set revision($fixnum.Int64 value) => $_setInt64(5, value);
+  set revision($fixnum.Int64 value) => $_setInt64(4, value);
   @$pb.TagNumber(6)
-  $core.bool hasRevision() => $_has(5);
+  $core.bool hasRevision() => $_has(4);
   @$pb.TagNumber(6)
   void clearRevision() => $_clearField(6);
 }
@@ -1179,11 +1009,9 @@ class ListAccountRefreshTokensResponse extends $pb.GeneratedMessage {
 
 class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
   factory ChangeAccountPasswordRequest({
-    $core.String? currentPassword,
     $core.String? newPassword,
   }) {
     final result = create();
-    if (currentPassword != null) result.currentPassword = currentPassword;
     if (newPassword != null) result.newPassword = newPassword;
     return result;
   }
@@ -1202,7 +1030,6 @@ class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'currentPassword')
     ..aOS(2, _omitFieldNames ? '' : 'newPassword')
     ..hasRequiredFields = false;
 
@@ -1228,21 +1055,12 @@ class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<ChangeAccountPasswordRequest>(create);
   static ChangeAccountPasswordRequest? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  $core.String get currentPassword => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set currentPassword($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasCurrentPassword() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearCurrentPassword() => $_clearField(1);
-
   @$pb.TagNumber(2)
-  $core.String get newPassword => $_getSZ(1);
+  $core.String get newPassword => $_getSZ(0);
   @$pb.TagNumber(2)
-  set newPassword($core.String value) => $_setString(1, value);
+  set newPassword($core.String value) => $_setString(0, value);
   @$pb.TagNumber(2)
-  $core.bool hasNewPassword() => $_has(1);
+  $core.bool hasNewPassword() => $_has(0);
   @$pb.TagNumber(2)
   void clearNewPassword() => $_clearField(2);
 }
@@ -1564,15 +1382,9 @@ class RevokeAccountRefreshTokenResponse extends $pb.GeneratedMessage {
   static RevokeAccountRefreshTokenResponse? _defaultInstance;
 }
 
-/// DeleteAccountRequest 由账号所有者提交：验证当前密码后永久删除账号及其个人数据（GDPR）。
+/// DeleteAccountRequest 由已登录账号所有者提交，永久删除账号及其个人数据（GDPR）。
 class DeleteAccountRequest extends $pb.GeneratedMessage {
-  factory DeleteAccountRequest({
-    $core.String? password,
-  }) {
-    final result = create();
-    if (password != null) result.password = password;
-    return result;
-  }
+  factory DeleteAccountRequest() => create();
 
   DeleteAccountRequest._();
 
@@ -1588,7 +1400,6 @@ class DeleteAccountRequest extends $pb.GeneratedMessage {
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'password')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1609,15 +1420,6 @@ class DeleteAccountRequest extends $pb.GeneratedMessage {
   static DeleteAccountRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<DeleteAccountRequest>(create);
   static DeleteAccountRequest? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get password => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set password($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasPassword() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearPassword() => $_clearField(1);
 }
 
 class DeleteAccountResponse extends $pb.GeneratedMessage {
@@ -1682,14 +1484,6 @@ class AccountServiceApi {
           $pb.ClientContext? ctx, GetCurrentAccountRequest request) =>
       _client.invoke<GetCurrentAccountResponse>(ctx, 'AccountService',
           'GetCurrent', request, GetCurrentAccountResponse());
-  $async.Future<VerifyRecentAuthenticationResponse> verifyRecentAuthentication(
-          $pb.ClientContext? ctx, VerifyRecentAuthenticationRequest request) =>
-      _client.invoke<VerifyRecentAuthenticationResponse>(
-          ctx,
-          'AccountService',
-          'VerifyRecentAuthentication',
-          request,
-          VerifyRecentAuthenticationResponse());
   $async.Future<ListAccountRefreshTokensResponse> listRefreshTokens(
           $pb.ClientContext? ctx, ListAccountRefreshTokensRequest request) =>
       _client.invoke<ListAccountRefreshTokensResponse>(ctx, 'AccountService',

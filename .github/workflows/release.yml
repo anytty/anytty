@@ -10,6 +10,10 @@ on:
         description: Existing release tag to publish
         required: true
         type: string
+      source_ref:
+        description: Git ref to build (defaults to the workflow ref)
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -22,6 +26,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  SOURCE_REF: ${{ inputs.source_ref || github.ref_name }}
   ANDROID_NDK_VERSION: 28.2.13676358
 
 jobs:
@@ -30,13 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
       - name: Validate release version
-        run: test "$(tr -d '[:space:]' < VERSION)" = "$RELEASE_TAG"
+        run: |
+          eval "$(scripts/version-info.sh)"
+          test "$ANYTTY_RELEASE_TAG" = "$RELEASE_TAG"
       - name: Build CLI release archives
         run: scripts/build-release-artifacts.sh "$RELEASE_TAG" "$RUNNER_TEMP/cli"
       - uses: actions/upload-artifact@v4
@@ -54,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
           submodules: recursive
       - uses: actions/setup-go@v5
         with:
@@ -79,10 +86,9 @@ jobs:
       - name: Validate mobile release version
         working-directory: clients/flutter
         run: |
-          app_version="$(sed -n 's/^version: //p' pubspec.yaml)"
-          test "${app_version%%+*}" = "${RELEASE_TAG#v}"
-          build_number="${app_version##*+}"
-          test "$build_number" -gt 0
+          eval "$(../../scripts/version-info.sh)"
+          test "$ANYTTY_RELEASE_TAG" = "$RELEASE_TAG"
+          test "$ANYTTY_BUILD_NUMBER" -gt 0
       - name: Configure Android release signing
         env:
           ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANYTTY_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -104,12 +110,19 @@ jobs:
           ANYTTY_ANDROID_NDK_VERSION: ${{ env.ANDROID_NDK_VERSION }}
         working-directory: clients/flutter
         run: |
+          eval "$(../../scripts/version-info.sh)"
           flutter pub get
           flutter build appbundle --release \
+            --build-name="$ANYTTY_RELEASE_VERSION" \
+            --build-number="$ANYTTY_BUILD_NUMBER" \
             --target-platform android-arm,android-arm64,android-x64
           flutter build apk --release --split-per-abi \
+            --build-name="$ANYTTY_RELEASE_VERSION" \
+            --build-number="$ANYTTY_BUILD_NUMBER" \
             --target-platform android-arm,android-arm64,android-x64
           flutter build apk --release \
+            --build-name="$ANYTTY_RELEASE_VERSION" \
+            --build-number="$ANYTTY_BUILD_NUMBER" \
             --target-platform android-arm,android-arm64,android-x64
       - name: Verify and stage Android packages
         run: |
@@ -147,7 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ env.SOURCE_REF }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:

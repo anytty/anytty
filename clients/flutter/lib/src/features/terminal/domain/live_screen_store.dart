@@ -24,6 +24,22 @@ final class CanonicalLiveScreen {
        cursor = cursor?.deepCopy(),
        modes = modes?.deepCopy();
 
+  CanonicalLiveScreen._owned({
+    required TerminalRef terminal,
+    required this.connectionGeneration,
+    required this.revision,
+    required this.cols,
+    required this.rows,
+    required List<ScreenRow> screenRows,
+    required this.alternateScreen,
+    required TerminalCursor? cursor,
+    required TerminalModes? modes,
+    required this.timestampUnixNano,
+  }) : terminal = terminal.deepCopy(),
+       screenRows = UnmodifiableListView(screenRows),
+       cursor = cursor?.deepCopy(),
+       modes = modes?.deepCopy();
+
   final TerminalRef terminal;
   final Int64 connectionGeneration;
   final Int64 revision;
@@ -114,10 +130,12 @@ LiveScreenMergeOutcome mergeLiveScreen({
     }
   }
 
+  // Delta frames only replace a small number of rows. Keep unchanged rows by
+  // reference and copy the rows that are changed before publishing the frame.
   final baseRows = incoming.fullReplace
       ? List<ScreenRow>.generate(rows, (_) => ScreenRow())
-      : current!.screenRows.map((row) => row.deepCopy()).toList();
-  final nextRows = baseRows.map((row) => row.deepCopy()).toList();
+      : List<ScreenRow>.of(current!.screenRows);
+  final nextRows = List<ScreenRow>.of(baseRows);
   final changedRows = <int>{};
   final copiedDestinations = <int>{};
 
@@ -170,7 +188,7 @@ LiveScreenMergeOutcome mergeLiveScreen({
 
   final sortedDamage = changedRows.toList()..sort();
   return LiveScreenMerged(
-    screen: CanonicalLiveScreen(
+    screen: CanonicalLiveScreen._owned(
       terminal: terminal,
       connectionGeneration: connectionGeneration,
       revision: incoming.liveRevision,

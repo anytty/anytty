@@ -131,6 +131,7 @@ type protocolSession struct {
 	browserMu                     sync.Mutex
 	browserChannels               map[uint16]*sessionBrowserProxy
 	browserTokens                 map[string]uint16
+	closedBrowserChannels         [1024]uint64
 	browserCount                  int
 	lifecycleObserver             TransportLifecycleObserver
 	helloAccepted                 bool
@@ -156,6 +157,9 @@ type applicationEventSubscription struct {
 }
 
 type sessionBrowserProxy struct {
+	uploadQueue    *browserUploadQueue
+	uploadOnce     sync.Once
+	receiveWindow  *browserReceiveWindow
 	channel        uint16
 	token          []byte
 	conn           net.Conn
@@ -170,7 +174,15 @@ func (proxy *sessionBrowserProxy) close() {
 	if proxy == nil || proxy.conn == nil {
 		return
 	}
-	proxy.closeOnce.Do(func() { _ = proxy.conn.Close() })
+	proxy.closeOnce.Do(func() {
+		if proxy.uploadQueue != nil {
+			proxy.uploadQueue.close()
+		}
+		if proxy.receiveWindow != nil {
+			proxy.receiveWindow.close()
+		}
+		_ = proxy.conn.Close()
+	})
 }
 
 // protocolAttachment 是 daemon-side channel/view registry；它不保存 TUI workspace/pane truth。
@@ -545,8 +557,19 @@ func (session *protocolSession) remoteService() (RemoteService, error) {
 }
 
 func (session *protocolSession) handleStreamFrame(ctx context.Context, channel uint16, typ uint8, payload []byte) error {
-	if proxy := session.browserProxyForChannel(channel); proxy != nil {
+	proxy, browserClosed := session.browserChannelState(channel)
+	if proxy != nil {
 		return session.handleBrowserProxyFrame(proxy, typ, payload)
+	}
+	if browserClosed {
+		if typ == wire.TypeFileAck {
+			_, err := protocol.DecodeFileTransferAck(payload)
+			return err
+		}
+		if typ == wire.TypeBrowserData || typ == wire.TypeClosed && len(payload) == 0 {
+			return nil
+		}
+		return fmt.Errorf("invalid frame for closed browser channel %d", channel)
 	}
 	if transfer := session.fileTransferForChannel(channel); transfer != nil {
 		return session.handleFileTransferFrame(ctx, transfer, typ, payload)

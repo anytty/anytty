@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>AnyTTY mobile app screenshots</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#101a20;color:#f3f7f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{position:relative;height:100%;background:radial-gradient(ellipse at 85% 35%,#203a46,transparent 60%)}
+.brand{position:absolute;left:110px;top:88px;display:flex;align-items:center;gap:24px;font-size:64px;font-weight:750}.brand img{width:120px;height:120px;object-fit:contain}
+section{position:absolute;left:110px;top:340px;width:1000px}small{color:#44bee9;font-size:26px;letter-spacing:3px}h1{font-size:90px;line-height:1.08;letter-spacing:-2px;margin:30px 0 36px}p{color:#b2c2c6;font-size:36px;line-height:1.5;max-width:950px;margin:0}.note{position:absolute;left:110px;bottom:86px;font-size:22px;color:#8da3ac}
+.phone{position:absolute;right:125px;top:46px;width:448px;padding:12px;border:2px solid #819198;border-radius:62px;background:linear-gradient(110deg,#738087,#20292e 12%,#11181d 88%,#77858b);box-shadow:0 22px 42px #0008}
+.display{overflow:hidden;border-radius:47px;background:#0b1013}.display img{display:block;width:100%;height:auto}.phone::after{content:"";position:absolute;right:-6px;top:235px;width:4px;height:72px;border-radius:3px;background:#8e9da4}
+</style>
+<main><div class="brand"><img src="../mascot.png" alt="">AnyTTY</div><section><small id="category"></small><h1 id="title"></h1><p id="description"></p></section><div class="note">Actual Android app screen shown in Chinese.</div><div class="phone"><div class="display"><img id="screen" alt="Actual AnyTTY Android screen"></div></div></main>
+<script>
+const slides={
+devices:['YOUR COMPUTERS, ON YOUR PHONE','Your workspace.<br>Within reach.','Pair your own computer or server and return to your workspace from your phone.','01-devices-cn.png'],
+terminals:['PERSISTENT TERMINAL SESSIONS','Step away.<br>Keep work running.','Browse active sessions, check CPU and memory activity, and pick up where you left off.','02-terminals-cn.png'],
+claude:['COMMAND-LINE WORK, ON THE GO','Continue your<br>coding sessions.','Connect to the command-line tools and coding agents already running on your computer.','03-claude-code-cn.png'],
+petal:['TOUCH CONTROLS FOR THE TERMINAL','Press. Slide.<br>Take action.','Long-press inside a terminal to reach selection, paste, search and other common actions.','05-petal-menu-cn.png']
+};
+const key=new URLSearchParams(location.search).get('slide')||'devices';const data=slides[key];document.querySelector('#category').textContent=data[0];document.querySelector('#title').innerHTML=data[1];document.querySelector('#description').textContent=data[2];document.querySelector('#screen').src='../../../../artifacts/store-screenshots/2026-09-05/android/phone/'+data[3];
+</script>
+</html>

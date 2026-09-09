@@ -487,6 +487,7 @@ type GatewayClientHelloProofInput struct {
 	AttemptGeneration   uint64                 `protobuf:"varint,14,opt,name=attempt_generation,json=attemptGeneration,proto3" json:"attempt_generation,omitempty"`
 	RelayPreference     RelayPreference        `protobuf:"varint,15,opt,name=relay_preference,json=relayPreference,proto3,enum=anytty.cloud.v1.RelayPreference" json:"relay_preference,omitempty"`
 	PresenceProbe       bool                   `protobuf:"varint,16,opt,name=presence_probe,json=presenceProbe,proto3" json:"presence_probe,omitempty"`
+	RelayTransport      RelayTransport         `protobuf:"varint,17,opt,name=relay_transport,json=relayTransport,proto3,enum=anytty.cloud.v1.RelayTransport" json:"relay_transport,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -633,6 +634,13 @@ func (x *GatewayClientHelloProofInput) GetPresenceProbe() bool {
 	return false
 }
 
+func (x *GatewayClientHelloProofInput) GetRelayTransport() RelayTransport {
+	if x != nil {
+		return x.RelayTransport
+	}
+	return RelayTransport_RELAY_TRANSPORT_UNSPECIFIED
+}
+
 var File_cloud_v1_ticket_proto protoreflect.FileDescriptor
 
 const file_cloud_v1_ticket_proto_rawDesc = "" +
@@ -681,7 +689,7 @@ const file_cloud_v1_ticket_proto_rawDesc = "" +
 	"\tchallenge\x18\x02 \x01(\fR\tchallenge\x120\n" +
 	"\x14grant_payload_sha256\x18\x03 \x01(\fR\x12grantPayloadSha256\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x04 \x01(\tR\trequestId\"\x99\x06\n" +
+	"request_id\x18\x04 \x01(\tR\trequestId\"\xe3\x06\n" +
 	"\x1cGatewayClientHelloProofInput\x12<\n" +
 	"\tchallenge\x18\x01 \x01(\v2\x1e.anytty.cloud.v1.EdgeChallengeR\tchallenge\x121\n" +
 	"\x14authorization_sha256\x18\x02 \x01(\fR\x13authorizationSha256\x12G\n" +
@@ -702,7 +710,8 @@ const file_cloud_v1_ticket_proto_rawDesc = "" +
 	"\x10software_version\x18\r \x01(\tR\x0fsoftwareVersion\x12-\n" +
 	"\x12attempt_generation\x18\x0e \x01(\x04R\x11attemptGeneration\x12K\n" +
 	"\x10relay_preference\x18\x0f \x01(\x0e2 .anytty.cloud.v1.RelayPreferenceR\x0frelayPreference\x12%\n" +
-	"\x0epresence_probe\x18\x10 \x01(\bR\rpresenceProbe*V\n" +
+	"\x0epresence_probe\x18\x10 \x01(\bR\rpresenceProbe\x12H\n" +
+	"\x0frelay_transport\x18\x11 \x01(\x0e2\x1f.anytty.cloud.v1.RelayTransportR\x0erelayTransport*V\n" +
 	"\x10DaemonCapability\x12!\n" +
 	"\x1dDAEMON_CAPABILITY_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bDAEMON_CAPABILITY_SIGNALING\x10\x01B1Z/github.com/anytty/anytty/proto/cloud/v1;cloudv1b\x06proto3"
@@ -733,6 +742,7 @@ var file_cloud_v1_ticket_proto_goTypes = []any{
 	(ClientProduct)(0),                   // 8: anytty.cloud.v1.ClientProduct
 	(CloudClientAccessMode)(0),           // 9: anytty.cloud.v1.CloudClientAccessMode
 	(RelayPreference)(0),                 // 10: anytty.cloud.v1.RelayPreference
+	(RelayTransport)(0),                  // 11: anytty.cloud.v1.RelayTransport
 }
 var file_cloud_v1_ticket_proto_depIdxs = []int32{
 	0,  // 0: anytty.cloud.v1.DaemonBindingClaims.capabilities:type_name -> anytty.cloud.v1.DaemonCapability
@@ -748,11 +758,12 @@ var file_cloud_v1_ticket_proto_depIdxs = []int32{
 	6,  // 10: anytty.cloud.v1.GatewayClientHelloProofInput.sent_at:type_name -> google.protobuf.Timestamp
 	8,  // 11: anytty.cloud.v1.GatewayClientHelloProofInput.product:type_name -> anytty.cloud.v1.ClientProduct
 	10, // 12: anytty.cloud.v1.GatewayClientHelloProofInput.relay_preference:type_name -> anytty.cloud.v1.RelayPreference
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	11, // 13: anytty.cloud.v1.GatewayClientHelloProofInput.relay_transport:type_name -> anytty.cloud.v1.RelayTransport
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_cloud_v1_ticket_proto_init() }

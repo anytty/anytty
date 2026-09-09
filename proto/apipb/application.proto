@@ -27,6 +27,10 @@ message ReleaseResourceCommand {
 message BrowserProxyOpenCommand {
   string host = 1;
   uint32 port = 2;
+  // Zero preserves legacy streaming; nonzero requests bounded receive credit.
+  uint32 receive_window_bytes = 3;
+  // Zero preserves legacy uploads; nonzero requests independent bounded writes.
+  uint32 send_window_bytes = 4;
 }
 
 message CommandEnvelope {
@@ -137,6 +141,10 @@ message ResultEnvelope {
 
 message BrowserProxyOpenResult {
   ResourceHandle resource = 1;
+  // Echoed only when the daemon supports per-resource receive acknowledgements.
+  uint32 receive_window_bytes = 2;
+  // Upload credit returned only after bytes are written to the target socket.
+  uint32 send_window_bytes = 3;
 }
 
 message OperationCancelledEvent {

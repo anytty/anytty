@@ -6,6 +6,7 @@ import "cloud/v1/account.proto";
 import "cloud/v1/commerce.proto";
 import "cloud/v1/edge_config.proto";
 import "cloud/v1/runtime.proto";
+import "cloud/v1/usage.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/anytty/anytty/proto/cloud/v1;cloudv1";
@@ -52,6 +53,12 @@ message RuntimeSessionProjection {
   string account_email = 11;
   string daemon_display_name = 12;
   string edge_name = 13;
+  bool relay_active = 14;
+  uint32 relay_allocation_count = 15;
+  uint64 relay_ingress_bytes = 16;
+  uint64 relay_egress_bytes = 17;
+  google.protobuf.Timestamp relay_connected_at = 18;
+  repeated RelayTransport relay_transports = 19;
 }
 
 message OperatorAuditEvent {

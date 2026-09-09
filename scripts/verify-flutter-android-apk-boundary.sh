@@ -15,7 +15,7 @@ fi
 app_apk="$1"
 [[ -s "$app_apk" ]] || fail "APK is missing or empty: $app_apk"
 
-for tool in unzip strings grep awk sort wc; do
+for tool in unzip strings grep awk sort wc cmp; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool is unavailable: $tool"
 done
 
@@ -83,7 +83,19 @@ expected_abis_sorted="$(printf '%s\n' "${expected_abis[@]}" | LC_ALL=C sort -u)"
 [[ "$packaged_abis" == "$expected_abis_sorted" ]] \
   || fail "packaged ABIs do not match expected ABIs (expected: ${expected_abis[*]}; found: ${packaged_abis//$'\n'/, })"
 
-if printf '%s\n' "$apk_entries" | grep -E -i \
+# The offline document renderer is not an application Web shell. Only the exact
+# repository artifact is allowed; all other Web/debug artifacts remain forbidden.
+viewer_entry='assets/flutter_assets/assets/file-viewer/viewer.html'
+viewer_source="$(cd "$(dirname "$0")/.." && pwd)/clients/flutter/assets/file-viewer/viewer.html"
+viewer_count="$(printf '%s\n' "$apk_entries" | awk -v entry="$viewer_entry" '$0 == entry { n++ } END { print n+0 }')"
+if (( viewer_count > 0 )); then
+  (( viewer_count == 1 )) || fail "duplicate offline file viewer entry"
+  [[ -s "$viewer_source" ]] || fail "offline file viewer source is missing"
+  unzip -p "$app_apk" "$viewer_entry" | cmp -s "$viewer_source" - \
+    || fail "packaged offline file viewer differs from repository artifact"
+fi
+
+if printf '%s\n' "$apk_entries" | awk -v entry="$viewer_entry" '$0 != entry' | grep -E -i \
   -e '(^|/)assets/public/' \
   -e '(^|/)capacitor\.config\.json$' \
   -e '\.(html?|m?js|wasm)$' \

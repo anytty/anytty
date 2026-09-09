@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../generated/proto/apipb/common.pb.dart';
@@ -74,6 +76,12 @@ final class FlutterClientPlatform implements AnyttyPlatformHandler {
 
   @override
   Future<PlatformResponse> handle(PlatformRequest request) async {
+    void timing(String stage, int milliseconds) {
+      debugPrint(
+        'anytty connect component=credential_store request_id=${request.requestId} stage=$stage elapsed_ms=$milliseconds',
+      );
+    }
+
     final response = PlatformResponse(requestId: request.requestId);
     try {
       switch (request.whichRequest()) {
@@ -86,6 +94,7 @@ final class FlutterClientPlatform implements AnyttyPlatformHandler {
           response.credential = await _accessCredentials.resolveRecord(
             request.credentialResolve.credentialRef,
             request.credentialResolve.endpointId,
+            onTiming: timing,
           );
         case PlatformRequest_Request.credentialDelete:
           await _accessCredentials.delete(
@@ -96,6 +105,7 @@ final class FlutterClientPlatform implements AnyttyPlatformHandler {
             signature: await _accessCredentials.sign(
               request.credentialSign.credentialRef,
               request.credentialSign.payload,
+              onTiming: timing,
             ),
           );
         case PlatformRequest_Request.credentialBind:

@@ -299,6 +299,7 @@ const RelayGrant$json = {
       '6': '.anytty.cloud.v1.RelayPolicySnapshot',
       '10': 'policy'
     },
+    {'1': 'client_id', '3': 9, '4': 1, '5': 9, '10': 'clientId'},
   ],
 };
 
@@ -310,8 +311,8 @@ final $typed_data.Uint8List relayGrantDescriptor = $convert.base64Decode(
     'l0ZXNQZXJTZWNvbmQSJQoOcmVuZXdfc2VxdWVuY2UYBSABKARSDXJlbmV3U2VxdWVuY2USRQoQ'
     'YXV0aG9yaXplZF91bnRpbBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSD2F1dG'
     'hvcml6ZWRVbnRpbBIjCg1wb2xpY3lfZGlnZXN0GAcgASgMUgxwb2xpY3lEaWdlc3QSPAoGcG9s'
-    'aWN5GAggASgLMiQuYW55dHR5LmNsb3VkLnYxLlJlbGF5UG9saWN5U25hcHNob3RSBnBvbGljeQ'
-    '==');
+    'aWN5GAggASgLMiQuYW55dHR5LmNsb3VkLnYxLlJlbGF5UG9saWN5U25hcHNob3RSBnBvbGljeR'
+    'IbCgljbGllbnRfaWQYCSABKAlSCGNsaWVudElk');
 
 @$core.Deprecated('Use relayReserveResponseDescriptor instead')
 const RelayReserveResponse$json = {
@@ -641,6 +642,7 @@ const RelayRuntimePolicy$json = {
       '6': '.google.protobuf.Timestamp',
       '10': 'periodEnd'
     },
+    {'1': 'account_revision', '3': 11, '4': 1, '5': 4, '10': 'accountRevision'},
   ],
 };
 
@@ -654,7 +656,8 @@ final $typed_data.Uint8List relayRuntimePolicyDescriptor = $convert.base64Decode
     '9jb25jdXJyZW5jeRgHIAEoDVITcmVsYXlNYXhDb25jdXJyZW5jeRIqChFyZWxheV9xdW90YV9i'
     'eXRlcxgIIAEoBFIPcmVsYXlRdW90YUJ5dGVzEj0KDHBlcmlvZF9zdGFydBgJIAEoCzIaLmdvb2'
     'dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSC3BlcmlvZFN0YXJ0EjkKCnBlcmlvZF9lbmQYCiABKAsy'
-    'Gi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglwZXJpb2RFbmQ=');
+    'Gi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglwZXJpb2RFbmQSKQoQYWNjb3VudF9yZXZpc2'
+    'lvbhgLIAEoBFIPYWNjb3VudFJldmlzaW9u');
 
 @$core.Deprecated('Use relayAuthorizeRequestDescriptor instead')
 const RelayAuthorizeRequest$json = {
@@ -672,6 +675,8 @@ const RelayAuthorizeRequest$json = {
       '6': '.google.protobuf.Timestamp',
       '10': 'observedAt'
     },
+    {'1': 'client_id', '3': 6, '4': 1, '5': 9, '10': 'clientId'},
+    {'1': 'release', '3': 7, '4': 1, '5': 8, '10': 'release'},
   ],
 };
 
@@ -680,7 +685,8 @@ final $typed_data.Uint8List relayAuthorizeRequestDescriptor = $convert.base64Dec
     'ChVSZWxheUF1dGhvcml6ZVJlcXVlc3QSHQoKcmVxdWVzdF9pZBgBIAEoCVIJcmVxdWVzdElkEh'
     '0KCmFjY291bnRfaWQYAiABKAlSCWFjY291bnRJZBIbCglkYWVtb25faWQYAyABKAlSCGRhZW1v'
     'bklkEh0KCnNlc3Npb25faWQYBCABKAlSCXNlc3Npb25JZBI7CgtvYnNlcnZlZF9hdBgFIAEoCz'
-    'IaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCm9ic2VydmVkQXQ=');
+    'IaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBSCm9ic2VydmVkQXQSGwoJY2xpZW50X2lkGAYg'
+    'ASgJUghjbGllbnRJZBIYCgdyZWxlYXNlGAcgASgIUgdyZWxlYXNl');
 
 @$core.Deprecated('Use relayAuthorizeResponseDescriptor instead')
 const RelayAuthorizeResponse$json = {
@@ -742,6 +748,75 @@ final $typed_data.Uint8List relayUsageSampleDescriptor = $convert.base64Decode(
     '11bGF0aXZlX2VncmVzc19ieXRlcxgCIAEoBFIVY3VtdWxhdGl2ZUVncmVzc0J5dGVzEjkKCnNh'
     'bXBsZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wUglzYW1wbGVkQXQ=');
 
+@$core.Deprecated('Use relayConcurrencySampleDescriptor instead')
+const RelayConcurrencySample$json = {
+  '1': 'RelayConcurrencySample',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {
+      '1': 'active_relay_groups',
+      '3': 2,
+      '4': 1,
+      '5': 13,
+      '10': 'activeRelayGroups'
+    },
+  ],
+};
+
+/// Descriptor for `RelayConcurrencySample`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List relayConcurrencySampleDescriptor =
+    $convert.base64Decode(
+        'ChZSZWxheUNvbmN1cnJlbmN5U2FtcGxlEh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bnRJZB'
+        'IuChNhY3RpdmVfcmVsYXlfZ3JvdXBzGAIgASgNUhFhY3RpdmVSZWxheUdyb3Vwcw==');
+
+@$core.Deprecated('Use relaySessionSampleDescriptor instead')
+const RelaySessionSample$json = {
+  '1': 'RelaySessionSample',
+  '2': [
+    {'1': 'session_id', '3': 1, '4': 1, '5': 9, '10': 'sessionId'},
+    {'1': 'account_id', '3': 2, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'daemon_id', '3': 3, '4': 1, '5': 9, '10': 'daemonId'},
+    {'1': 'client_id', '3': 4, '4': 1, '5': 9, '10': 'clientId'},
+    {'1': 'relay_active', '3': 5, '4': 1, '5': 8, '10': 'relayActive'},
+    {
+      '1': 'relay_allocation_count',
+      '3': 6,
+      '4': 1,
+      '5': 13,
+      '10': 'relayAllocationCount'
+    },
+    {'1': 'ingress_bytes', '3': 7, '4': 1, '5': 4, '10': 'ingressBytes'},
+    {'1': 'egress_bytes', '3': 8, '4': 1, '5': 4, '10': 'egressBytes'},
+    {
+      '1': 'connected_at',
+      '3': 9,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'connectedAt'
+    },
+    {
+      '1': 'transports',
+      '3': 10,
+      '4': 3,
+      '5': 14,
+      '6': '.anytty.cloud.v1.RelayTransport',
+      '10': 'transports'
+    },
+  ],
+};
+
+/// Descriptor for `RelaySessionSample`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List relaySessionSampleDescriptor = $convert.base64Decode(
+    'ChJSZWxheVNlc3Npb25TYW1wbGUSHQoKc2Vzc2lvbl9pZBgBIAEoCVIJc2Vzc2lvbklkEh0KCm'
+    'FjY291bnRfaWQYAiABKAlSCWFjY291bnRJZBIbCglkYWVtb25faWQYAyABKAlSCGRhZW1vbklk'
+    'EhsKCWNsaWVudF9pZBgEIAEoCVIIY2xpZW50SWQSIQoMcmVsYXlfYWN0aXZlGAUgASgIUgtyZW'
+    'xheUFjdGl2ZRI0ChZyZWxheV9hbGxvY2F0aW9uX2NvdW50GAYgASgNUhRyZWxheUFsbG9jYXRp'
+    'b25Db3VudBIjCg1pbmdyZXNzX2J5dGVzGAcgASgEUgxpbmdyZXNzQnl0ZXMSIQoMZWdyZXNzX2'
+    'J5dGVzGAggASgEUgtlZ3Jlc3NCeXRlcxI9Cgxjb25uZWN0ZWRfYXQYCSABKAsyGi5nb29nbGUu'
+    'cHJvdG9idWYuVGltZXN0YW1wUgtjb25uZWN0ZWRBdBI/Cgp0cmFuc3BvcnRzGAogAygOMh8uYW'
+    '55dHR5LmNsb3VkLnYxLlJlbGF5VHJhbnNwb3J0Ugp0cmFuc3BvcnRz');
+
 @$core.Deprecated('Use relayUsageBatchDescriptor instead')
 const RelayUsageBatch$json = {
   '1': 'RelayUsageBatch',
@@ -755,6 +830,44 @@ const RelayUsageBatch$json = {
       '6': '.anytty.cloud.v1.RelayUsageSample',
       '10': 'samples'
     },
+    {
+      '1': 'concurrency_samples',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.anytty.cloud.v1.RelayConcurrencySample',
+      '10': 'concurrencySamples'
+    },
+    {
+      '1': 'concurrency_snapshot_complete',
+      '3': 4,
+      '4': 1,
+      '5': 8,
+      '10': 'concurrencySnapshotComplete'
+    },
+    {
+      '1': 'concurrency_sampled_at',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'concurrencySampledAt'
+    },
+    {
+      '1': 'relay_sessions',
+      '3': 6,
+      '4': 3,
+      '5': 11,
+      '6': '.anytty.cloud.v1.RelaySessionSample',
+      '10': 'relaySessions'
+    },
+    {
+      '1': 'relay_session_snapshot_complete',
+      '3': 7,
+      '4': 1,
+      '5': 8,
+      '10': 'relaySessionSnapshotComplete'
+    },
   ],
 };
 
@@ -762,7 +875,14 @@ const RelayUsageBatch$json = {
 final $typed_data.Uint8List relayUsageBatchDescriptor = $convert.base64Decode(
     'Cg9SZWxheVVzYWdlQmF0Y2gSJQoOYmF0Y2hfc2VxdWVuY2UYASABKARSDWJhdGNoU2VxdWVuY2'
     'USOwoHc2FtcGxlcxgCIAMoCzIhLmFueXR0eS5jbG91ZC52MS5SZWxheVVzYWdlU2FtcGxlUgdz'
-    'YW1wbGVz');
+    'YW1wbGVzElgKE2NvbmN1cnJlbmN5X3NhbXBsZXMYAyADKAsyJy5hbnl0dHkuY2xvdWQudjEuUm'
+    'VsYXlDb25jdXJyZW5jeVNhbXBsZVISY29uY3VycmVuY3lTYW1wbGVzEkIKHWNvbmN1cnJlbmN5'
+    'X3NuYXBzaG90X2NvbXBsZXRlGAQgASgIUhtjb25jdXJyZW5jeVNuYXBzaG90Q29tcGxldGUSUA'
+    'oWY29uY3VycmVuY3lfc2FtcGxlZF9hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3Rh'
+    'bXBSFGNvbmN1cnJlbmN5U2FtcGxlZEF0EkoKDnJlbGF5X3Nlc3Npb25zGAYgAygLMiMuYW55dH'
+    'R5LmNsb3VkLnYxLlJlbGF5U2Vzc2lvblNhbXBsZVINcmVsYXlTZXNzaW9ucxJFCh9yZWxheV9z'
+    'ZXNzaW9uX3NuYXBzaG90X2NvbXBsZXRlGAcgASgIUhxyZWxheVNlc3Npb25TbmFwc2hvdENvbX'
+    'BsZXRl');
 
 @$core.Deprecated('Use relayAccountActionDescriptor instead')
 const RelayAccountAction$json = {
@@ -797,6 +917,8 @@ const RelayAccountAction$json = {
       '10': 'periodEnd'
     },
     {'1': 'reason', '3': 8, '4': 1, '5': 9, '10': 'reason'},
+    {'1': 'policy_revision', '3': 9, '4': 1, '5': 4, '10': 'policyRevision'},
+    {'1': 'account_revision', '3': 10, '4': 1, '5': 4, '10': 'accountRevision'},
   ],
 };
 
@@ -808,7 +930,9 @@ final $typed_data.Uint8List relayAccountActionDescriptor = $convert.base64Decode
     'J5dGVzGAQgASgEUgl1c2VkQnl0ZXMSHwoLcXVvdGFfYnl0ZXMYBSABKARSCnF1b3RhQnl0ZXMS'
     'PQoMcGVyaW9kX3N0YXJ0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcFILcGVyaW'
     '9kU3RhcnQSOQoKcGVyaW9kX2VuZBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBS'
-    'CXBlcmlvZEVuZBIWCgZyZWFzb24YCCABKAlSBnJlYXNvbg==');
+    'CXBlcmlvZEVuZBIWCgZyZWFzb24YCCABKAlSBnJlYXNvbhInCg9wb2xpY3lfcmV2aXNpb24YCS'
+    'ABKARSDnBvbGljeVJldmlzaW9uEikKEGFjY291bnRfcmV2aXNpb24YCiABKARSD2FjY291bnRS'
+    'ZXZpc2lvbg==');
 
 @$core.Deprecated('Use relayUsageAckDescriptor instead')
 const RelayUsageAck$json = {

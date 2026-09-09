@@ -21,6 +21,19 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('formats binding failure diagnostics for technical users', () {
+    const error = NativeSessionException(
+      'route "cloud" failed: x509: certificate signed by unknown authority',
+      code: ApiErrorCode.API_ERROR_CODE_UNAUTHORIZED,
+      retryable: false,
+      attempted: true,
+    );
+
+    expect(error.toString(), contains('x509: certificate'));
+    expect(error.toString(), contains('code=unauthorized'));
+    expect(error.toString(), contains('retryable=false; attempted=true'));
+  });
+
   test('opens frozen history at explicit local projection columns', () async {
     final terminal = TerminalRef(endpointId: 'studio', terminalId: 'shell');
     var historyCalls = 0;

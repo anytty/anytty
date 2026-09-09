@@ -4,14 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	clientruntime "github.com/anytty/anytty/client/runtime"
 	cloudclient "github.com/anytty/anytty/cloud/client"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
+	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestCloudPeerCredentialRejectionDoesNotRediscoverEdge(t *testing.T) {
+	err := &remoteauth.HandshakeError{Code: remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_CAPABILITY_REVOKED, Detail: "grant revoked", Cause: remoteauth.ErrGrantRevoked}
+	if shouldRefreshCloudRoute(fmt.Errorf("Cloud Relay-TCP attempt: %w", err)) {
+		t.Fatal("peer credential rejection triggered locator refresh")
+	}
+}
 
 func TestDialCloudRouteRefreshesOnceAfterCachedRouteFailure(t *testing.T) {
 	cached := testCloudResolution(t, "cached")
@@ -49,6 +61,62 @@ func TestDialCloudRouteRefreshesOnceAfterCachedRouteFailure(t *testing.T) {
 	}
 }
 
+func TestDialCloudRouteMissingCacheQueriesController(t *testing.T) {
+	fresh := testCloudResolution(t, "fresh")
+	var calls int
+	opened, source, selected, err := dialCloudRoute(context.Background(), nil,
+		func(context.Context) (*cloudclient.RouteResolution, error) { calls++; return fresh, nil },
+		func(_ context.Context, route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+			if calls != 1 || route != fresh || source != cloudRouteSourceController {
+				t.Fatal("unexpected fallback order")
+			}
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || selected != fresh || source != cloudRouteSourceController || calls != 1 {
+		t.Fatalf("missing cache result: source=%s calls=%d error=%v", source, calls, err)
+	}
+}
+
+func TestDialCloudRouteRetriesEquivalentLocatorOnlyAfterFailure(t *testing.T) {
+	cached := testCloudResolution(t, "edge-a")
+	equivalent := testCloudResolution(t, "edge-a")
+	var opens, resolves int
+	opened, source, _, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) {
+			if opens != 1 {
+				t.Fatal("resolved before cached attempt finished")
+			}
+			resolves++
+			return equivalent, nil
+		},
+		func(_ context.Context, route *cloudclient.RouteResolution, source cloudRouteSource) (*openedCloudPeer, error) {
+			opens++
+			if source == cloudRouteSourceCached {
+				return nil, errors.New("cached exchange timed out")
+			}
+			if resolves != 1 || route != equivalent {
+				t.Fatal("invalid fallback")
+			}
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || source != cloudRouteSourceController || opens != 2 || resolves != 1 {
+		t.Fatalf("equivalent fallback: source=%s opens=%d resolves=%d error=%v", source, opens, resolves, err)
+	}
+}
+
+func TestDialCloudRouteStopsForPermanentControllerFailure(t *testing.T) {
+	cached := testCloudResolution(t, "cached")
+	wantErr := status.Error(codes.PermissionDenied, "credential rejected")
+	opened, source, selected, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) { return nil, wantErr },
+		func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error) {
+			return nil, errors.New("cached route failed")
+		}, nil)
+	if opened != nil || source != cloudRouteSourceController || selected != nil || !errors.Is(err, wantErr) {
+		t.Fatalf("fallback rejection: source=%s error=%v", source, err)
+	}
+}
+
 func TestDialCloudRouteDoesNotResolveWhenCachedRouteSucceeds(t *testing.T) {
 	cached := testCloudResolution(t, "cached")
 	var resolveCalls atomic.Int32
@@ -72,6 +140,26 @@ func TestDialCloudRouteDoesNotResolveWhenCachedRouteSucceeds(t *testing.T) {
 	}
 	if resolveCalls.Load() != 0 {
 		t.Fatalf("resolve calls = %d, want 0", resolveCalls.Load())
+	}
+}
+
+func TestDialCloudRouteSlowCachedSuccessNeverQueriesController(t *testing.T) {
+	cached := testCloudResolution(t, "cached")
+	var calls atomic.Int32
+	opened, source, _, err := dialCloudRoute(context.Background(), cached,
+		func(context.Context) (*cloudclient.RouteResolution, error) {
+			calls.Add(1)
+			return nil, status.Error(codes.Unavailable, "controller offline")
+		},
+		func(context.Context, *cloudclient.RouteResolution, cloudRouteSource) (*openedCloudPeer, error) {
+			time.Sleep(time.Second)
+			return &openedCloudPeer{}, nil
+		}, nil)
+	if err != nil || opened == nil || source != cloudRouteSourceCached {
+		t.Fatalf("cached connection failed: source=%s error=%v", source, err)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("healthy slow cache triggered %d Controller calls", calls.Load())
 	}
 }
 
@@ -159,6 +247,11 @@ func TestDialCloudRouteReturnsFreshRouteFailureWithoutLooping(t *testing.T) {
 	}
 	if resolveCalls.Load() != 1 || openCalls.Load() != 2 {
 		t.Fatalf("resolve calls = %d, open calls = %d, want 1 and 2", resolveCalls.Load(), openCalls.Load())
+	}
+	var runtimeErr *clientruntime.Error
+	if !errors.As(err, &runtimeErr) || runtimeErr.Code != clientruntime.ErrorUnavailable || !runtimeErr.Retryable ||
+		!strings.Contains(runtimeErr.Message, "cached Cloud route failed") || !strings.Contains(runtimeErr.Message, "Controller Cloud route failed") {
+		t.Fatalf("combined route failure = %#v", err)
 	}
 }
 

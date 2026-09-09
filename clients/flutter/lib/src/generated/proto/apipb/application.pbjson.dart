@@ -69,14 +69,28 @@ const BrowserProxyOpenCommand$json = {
   '2': [
     {'1': 'host', '3': 1, '4': 1, '5': 9, '10': 'host'},
     {'1': 'port', '3': 2, '4': 1, '5': 13, '10': 'port'},
+    {
+      '1': 'receive_window_bytes',
+      '3': 3,
+      '4': 1,
+      '5': 13,
+      '10': 'receiveWindowBytes'
+    },
+    {
+      '1': 'send_window_bytes',
+      '3': 4,
+      '4': 1,
+      '5': 13,
+      '10': 'sendWindowBytes'
+    },
   ],
 };
 
 /// Descriptor for `BrowserProxyOpenCommand`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List browserProxyOpenCommandDescriptor =
-    $convert.base64Decode(
-        'ChdCcm93c2VyUHJveHlPcGVuQ29tbWFuZBISCgRob3N0GAEgASgJUgRob3N0EhIKBHBvcnQYAi'
-        'ABKA1SBHBvcnQ=');
+final $typed_data.Uint8List browserProxyOpenCommandDescriptor = $convert.base64Decode(
+    'ChdCcm93c2VyUHJveHlPcGVuQ29tbWFuZBISCgRob3N0GAEgASgJUgRob3N0EhIKBHBvcnQYAi'
+    'ABKA1SBHBvcnQSMAoUcmVjZWl2ZV93aW5kb3dfYnl0ZXMYAyABKA1SEnJlY2VpdmVXaW5kb3dC'
+    'eXRlcxIqChFzZW5kX3dpbmRvd19ieXRlcxgEIAEoDVIPc2VuZFdpbmRvd0J5dGVz');
 
 @$core.Deprecated('Use commandEnvelopeDescriptor instead')
 const CommandEnvelope$json = {
@@ -1100,14 +1114,29 @@ const BrowserProxyOpenResult$json = {
       '6': '.anytty.api.v1.ResourceHandle',
       '10': 'resource'
     },
+    {
+      '1': 'receive_window_bytes',
+      '3': 2,
+      '4': 1,
+      '5': 13,
+      '10': 'receiveWindowBytes'
+    },
+    {
+      '1': 'send_window_bytes',
+      '3': 3,
+      '4': 1,
+      '5': 13,
+      '10': 'sendWindowBytes'
+    },
   ],
 };
 
 /// Descriptor for `BrowserProxyOpenResult`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List browserProxyOpenResultDescriptor =
-    $convert.base64Decode(
-        'ChZCcm93c2VyUHJveHlPcGVuUmVzdWx0EjkKCHJlc291cmNlGAEgASgLMh0uYW55dHR5LmFwaS'
-        '52MS5SZXNvdXJjZUhhbmRsZVIIcmVzb3VyY2U=');
+final $typed_data.Uint8List browserProxyOpenResultDescriptor = $convert.base64Decode(
+    'ChZCcm93c2VyUHJveHlPcGVuUmVzdWx0EjkKCHJlc291cmNlGAEgASgLMh0uYW55dHR5LmFwaS'
+    '52MS5SZXNvdXJjZUhhbmRsZVIIcmVzb3VyY2USMAoUcmVjZWl2ZV93aW5kb3dfYnl0ZXMYAiAB'
+    'KA1SEnJlY2VpdmVXaW5kb3dCeXRlcxIqChFzZW5kX3dpbmRvd19ieXRlcxgDIAEoDVIPc2VuZF'
+    'dpbmRvd0J5dGVz');
 
 @$core.Deprecated('Use operationCancelledEventDescriptor instead')
 const OperationCancelledEvent$json = {

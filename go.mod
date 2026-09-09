@@ -2,6 +2,9 @@ module github.com/anytty/anytty
 
 go 1.26.7
 
+// Network-scoped STUN/TURN gathering until the extension is available upstream.
+replace github.com/pion/ice/v4 => ./third_party/pion-ice
+
 require (
 	charm.land/lipgloss/v2 v2.0.2
 	github.com/charmbracelet/ultraviolet v0.0.0-20260303162955-0b88c25f3fff

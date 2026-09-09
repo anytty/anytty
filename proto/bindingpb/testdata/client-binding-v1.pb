@@ -1,5 +1,5 @@
 
-èÆ
+Ω≤
 bindingpb/client_binding.protoanytty.client.binding.v1apipb/application.protoapipb/common.protoremoteauthpb/remote_auth.proto"—
 
 ConnectionSnapshot
@@ -250,7 +250,20 @@ request_id (	R	requestId)
 credential_ref (	RcredentialRef%
 authorized_key (	RauthorizedKey'
 key_fingerprint (	RkeyFingerprint-
-error (2.anytty.api.v1.ApiErrorRerror"‚
+error (2.anytty.api.v1.ApiErrorRerror"â
+BrowserProxyListenRequest
+
+request_id (	R	requestId%
+session_handle (RsessionHandle
+stop (Rstop
+port (Rport"Œ
+BrowserProxyListenResult
+
+request_id (	R	requestId)
+operation_handle (RoperationHandle%
+session_handle (RsessionHandle
+port (Rport-
+error (2.anytty.api.v1.ApiErrorRerror"À
 EngineCommandW
 import_pairing (2..anytty.client.binding.v1.ImportPairingRequestH RimportPairing`
 delete_credential (21.anytty.client.binding.v1.DeleteCredentialRequestH RdeleteCredentialj
@@ -266,7 +279,8 @@ request_id (	R	requestId)
 connection_snapshot_get (26.anytty.client.binding.v1.ConnectionSnapshotGetRequestH RconnectionSnapshotGetc
 session_invalidate (22.anytty.client.binding.v1.SessionInvalidateRequestH RsessionInvalidatef
 endpoint_disconnect (23.anytty.client.binding.v1.EndpointDisconnectRequestH RendpointDisconnectz
-endpoint_cloud_presence_get (29.anytty.client.binding.v1.EndpointCloudPresenceGetRequestH RendpointCloudPresenceGetB	
+endpoint_cloud_presence_get (29.anytty.client.binding.v1.EndpointCloudPresenceGetRequestH RendpointCloudPresenceGetg
+browser_proxy_listen (23.anytty.client.binding.v1.BrowserProxyListenRequestH RbrowserProxyListenB	
 command"¿
 OpenSessionResult
 
@@ -313,7 +327,7 @@ endpointId=
 error (2.anytty.api.v1.ApiErrorRerror_
 attempted_route_kind	 (2-.anytty.client.binding.v1.ConnectionRouteKindRattemptedRouteKind)
 connection_stage
- (	RconnectionStage"Ö
+ (	RconnectionStage"Ì
 EventEnvelope
 abi_version (R
 abiVersion
@@ -339,7 +353,8 @@ abiVersion
 session_invalidate (21.anytty.client.binding.v1.SessionInvalidateResultH RsessionInvalidated
 endpoint_connection (21.anytty.client.binding.v1.EndpointConnectionEventH RendpointConnectione
 endpoint_disconnect (22.anytty.client.binding.v1.EndpointDisconnectResultH RendpointDisconnecty
-endpoint_cloud_presence_get (28.anytty.client.binding.v1.EndpointCloudPresenceGetResultH RendpointCloudPresenceGetB
+endpoint_cloud_presence_get (28.anytty.client.binding.v1.EndpointCloudPresenceGetResultH RendpointCloudPresenceGetf
+browser_proxy_listen (22.anytty.client.binding.v1.BrowserProxyListenResultH RbrowserProxyListenB
 event"b
 CredentialResolveRequest
 endpoint_id (	R

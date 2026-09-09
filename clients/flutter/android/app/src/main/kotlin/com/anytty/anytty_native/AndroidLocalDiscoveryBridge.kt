@@ -3,6 +3,7 @@ package com.anytty.app
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.NetworkRequest
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
@@ -75,15 +76,19 @@ class AndroidLocalDiscoveryBridge(context: Context) {
             override fun onDiscoveryStarted(serviceType: String) = Unit
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                services[serviceInfo.serviceName] = serviceInfo
-                resolve(serviceInfo)
+                handler.post {
+                    services[serviceKey(serviceInfo)] = serviceInfo
+                    resolve(serviceInfo)
+                }
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                val name = serviceInfo.serviceName
-                services.remove(name)
-                candidates.remove(name)
-                resolving.remove(name)
+                handler.post {
+                    val name = serviceKey(serviceInfo)
+                    services.remove(name)
+                    candidates.remove(name)
+                    resolving.remove(name)
+                }
             }
 
             override fun onDiscoveryStopped(serviceType: String) = Unit
@@ -97,7 +102,15 @@ class AndroidLocalDiscoveryBridge(context: Context) {
         }
         discoveryListener = listener
         try {
-            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+            if (Build.VERSION.SDK_INT >= 33) {
+                manager.discoverServices(
+                    SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD,
+                    NetworkRequest.Builder().clearCapabilities().build(),
+                    java.util.concurrent.Executor { handler.post(it) }, listener,
+                )
+            } else {
+                manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+            }
         } catch (_: Exception) {
             discoveryListener = null
             releaseMulticastLock()
@@ -106,20 +119,23 @@ class AndroidLocalDiscoveryBridge(context: Context) {
 
     @Suppress("DEPRECATION")
     private fun resolve(serviceInfo: NsdServiceInfo) {
-        val name = serviceInfo.serviceName
+        val name = serviceKey(serviceInfo)
         if (!resolving.add(name)) return
         try {
             manager.resolveService(
                 serviceInfo,
                 object : NsdManager.ResolveListener {
                     override fun onResolveFailed(value: NsdServiceInfo, errorCode: Int) {
-                        resolving.remove(name)
+                        handler.post { resolving.remove(name) }
                     }
 
                     override fun onServiceResolved(value: NsdServiceInfo) {
-                        resolving.remove(name)
-                        services[name] = value
-                        cacheResolved(value)
+                        handler.post {
+                            resolving.remove(name)
+                            if (services[name] !== serviceInfo) return@post
+                            services[name] = value
+                            cacheResolved(value)
+                        }
                     }
                 },
             )
@@ -140,7 +156,7 @@ class AndroidLocalDiscoveryBridge(context: Context) {
             discoveryKey?.matches(Regex("^[0-9a-f]{64}$")) != true ||
             serviceInfo.port !in 1..65535
         ) {
-            candidates.remove(serviceInfo.serviceName)
+            candidates.remove(serviceKey(serviceInfo))
             return
         }
         val addresses = if (Build.VERSION.SDK_INT >= 34) {
@@ -154,7 +170,7 @@ class AndroidLocalDiscoveryBridge(context: Context) {
             0L
         }
         val expires = unixNanoNow() + CANDIDATE_TTL_NANOS
-        candidates[serviceInfo.serviceName] = addresses
+        candidates[serviceKey(serviceInfo)] = addresses
             .mapNotNull { it.hostAddress?.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
@@ -194,6 +210,11 @@ class AndroidLocalDiscoveryBridge(context: Context) {
 
     private fun refreshKnownServices() {
         for (service in services.values.toList()) resolve(service)
+    }
+
+    private fun serviceKey(service: NsdServiceInfo): String {
+        val network = if (Build.VERSION.SDK_INT >= 33) service.network?.networkHandle ?: 0L else 0L
+        return "${service.serviceName}|${service.serviceType}|$network"
     }
 
     private fun scheduleIdleStop() {
