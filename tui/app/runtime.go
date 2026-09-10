@@ -193,6 +193,7 @@ type AppRuntime struct {
 	queue                []Msg
 	lastHitRegions       []render.HitRegion
 	mouseDrag            mouseDragState
+	historyDragID        uint64
 	lastMouseAction      mouseActionClickState
 	lastMouseActionAt    time.Time
 	hostSizeInitialized  bool
@@ -332,7 +333,7 @@ func (runtime *AppRuntime) drainBatch(ctx context.Context) error {
 		runtime.ingestHostInitialSize()
 		runtime.ingestHostInput()
 		runtime.enqueueDueToastTick()
-		runtime.enqueueDueToastTick()
+		runtime.enqueueDueHistoryMouseScroll()
 		msg, ok := runtime.dequeue()
 		if !ok {
 			runtime.ingestHostCurrentSize()
@@ -436,6 +437,10 @@ func (runtime *AppRuntime) scheduleEffect(ctx context.Context, effect Effect) {
 
 func (runtime *AppRuntime) prepareRuntimeMessage(msg Msg) bool {
 	switch msg := msg.(type) {
+	case CopyModeMouseAutoScrollMsg:
+		return runtime.mouseDrag.Active && runtime.mouseDrag.Kind == mouseDragHistorySelect &&
+			runtime.mouseDrag.HistoryGestureID == msg.GestureID && runtime.mouseDrag.HistoryScrollDirection == msg.Direction &&
+			runtime.historyMouseScrollAvailable()
 	case frameWriteCompletedMsg:
 		runtime.finishFrameWrite(msg.Written, msg.Err)
 		return false
@@ -638,6 +643,7 @@ func (runtime *AppRuntime) currentTime() time.Time {
 
 func (runtime *AppRuntime) waitForWake(ctx context.Context) bool {
 	runtime.enqueueDueToastTick()
+	runtime.enqueueDueHistoryMouseScroll()
 	if runtime.ingestHostCurrentSize() {
 		return true
 	}
@@ -661,9 +667,18 @@ func (runtime *AppRuntime) waitForWake(ctx context.Context) bool {
 		runtime.enqueueDueToastTick()
 		return true
 	}
+	var historyScrollC <-chan time.Time
+	if delay := runtime.nextHistoryMouseScrollWakeDelay(); delay >= 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		historyScrollC = timer.C
+	}
 	select {
 	case <-ctx.Done():
 		return false
+	case <-historyScrollC:
+		runtime.enqueueDueHistoryMouseScroll()
+		return true
 	case <-wake:
 		return true
 	case <-hostReady:

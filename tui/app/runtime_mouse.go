@@ -13,22 +13,27 @@ import (
 )
 
 type mouseDragState struct {
-	Active             bool
-	Kind               mouseDragKind
-	PaneID             string
-	FloatingID         string
-	Direction          state.PaneResizeDirection
-	SplitPath          string
-	ResizeBeforePaneID string
-	ResizeAfterPaneID  string
-	ResizeBeforeCells  int
-	ResizeAfterCells   int
-	ResizeGroup        []state.PaneResizeGroupItem
-	StartCol           int
-	StartRow           int
-	LastDelta          int
-	LastCol            int
-	LastRow            int
+	HistoryGestureID       uint64
+	HistoryScrollDirection int
+	NextHistoryScroll      time.Time
+	ViewID                 string
+	HistoryToken           string
+	Active                 bool
+	Kind                   mouseDragKind
+	PaneID                 string
+	FloatingID             string
+	Direction              state.PaneResizeDirection
+	SplitPath              string
+	ResizeBeforePaneID     string
+	ResizeAfterPaneID      string
+	ResizeBeforeCells      int
+	ResizeAfterCells       int
+	ResizeGroup            []state.PaneResizeGroupItem
+	StartCol               int
+	StartRow               int
+	LastDelta              int
+	LastCol                int
+	LastRow                int
 }
 
 type mouseActionClickState struct {
@@ -52,6 +57,7 @@ type mouseHitResolution struct {
 type mouseDragKind string
 
 const (
+	mouseDragHistorySelect    mouseDragKind = "history-select"
 	mouseDragPaneResize       mouseDragKind = "pane-resize"
 	mouseDragFloatingMove     mouseDragKind = "floating-move"
 	mouseDragFloatingResize   mouseDragKind = "floating-resize"
@@ -168,7 +174,11 @@ func (runtime *AppRuntime) dispatchMouseHitRegion(msg Msg) Msg {
 			return NoopMsg{}
 		}
 		col := historyHitRegionDisplayColumn(inputMsg.Event, resolution.HistoryRow)
-		return CopyModeMouseSelectMsg{Position: state.CopyPosition{Row: resolution.HistoryRow.Row, Col: col}, PaneID: resolution.HistoryRow.PaneID, ViewID: runtime.copyHistoryViewIDForRegion(resolution.HistoryRow)}
+		viewID := runtime.copyHistoryViewIDForRegion(resolution.HistoryRow)
+		_, copyMode := runtime.state.CopyHistorySessionForView(viewID)
+		runtime.historyDragID++
+		runtime.mouseDrag = mouseDragState{Active: true, Kind: mouseDragHistorySelect, HistoryGestureID: runtime.historyDragID, PaneID: resolution.HistoryRow.PaneID, ViewID: viewID, HistoryToken: copyMode.BoundToken}
+		return CopyModeMouseSelectMsg{Position: state.CopyPosition{Row: resolution.HistoryRow.Row, Col: col}, PaneID: resolution.HistoryRow.PaneID, ViewID: viewID}
 	}
 	if command, ok := PaneCommandFromHitRegion(region); ok {
 		runtime.fillMousePaneCommandDefaults(&command)
@@ -699,6 +709,9 @@ func (runtime *AppRuntime) fillMousePaneCommandDefaults(command *state.PaneComma
 }
 
 func (runtime *AppRuntime) dispatchMouseDrag(event input.InputEvent) (Msg, bool) {
+	if runtime.mouseDrag.Active && runtime.mouseDrag.Kind == mouseDragHistorySelect {
+		return runtime.dispatchHistorySelectionDrag(event)
+	}
 	switch event.Mouse {
 	case input.MouseLeftUp:
 		if runtime.mouseDrag.Active {
@@ -975,4 +988,48 @@ func cloneRenderHitRegions(regions []render.HitRegion) []render.HitRegion {
 		}
 	}
 	return cloned
+}
+
+// A history selection owns its drag until release, including positions beyond
+// a short line or outside the original pane. Never retarget it to another pane.
+func (runtime *AppRuntime) dispatchHistorySelectionDrag(event input.InputEvent) (Msg, bool) {
+	drag := runtime.mouseDrag
+	_, copyMode := runtime.state.CopyHistorySessionForView(drag.ViewID)
+	if !copyMode.CanSelect() || copyMode.BoundToken != drag.HistoryToken || runtime.state.Shell.Overlay.Open {
+		runtime.mouseDrag = mouseDragState{}
+		return NoopMsg{}, true
+	}
+	release := event.Mouse == input.MouseLeftUp || event.Mouse == input.MouseRelease
+	if !release && event.Mouse != input.MouseLeftDrag {
+		return nil, false
+	}
+	if release {
+		runtime.mouseDrag = mouseDragState{}
+	} else {
+		runtime.updateHistoryMouseScrollEdge(event)
+	}
+	// Clamp to the nearest visible row of the originating history view. Row
+	// hit regions are text-width only, so normal hit testing misses line tails.
+	var target render.HitRegion
+	best := -1
+	y := event.Row - 1
+	for _, region := range runtime.lastHitRegions {
+		if region.Kind != render.HitRegionHistoryRow || region.PaneID != drag.PaneID || runtime.copyHistoryViewIDForRegion(region) != drag.ViewID {
+			continue
+		}
+		distance := y - region.Rect.Y
+		if distance < 0 {
+			distance = -distance
+		}
+		if best < 0 || distance < best {
+			target = region
+			best = distance
+		}
+	}
+	if best < 0 {
+		return NoopMsg{}, true
+	}
+	return CopyModeMouseSelectMsg{PaneID: drag.PaneID, ViewID: drag.ViewID,
+		Position: state.CopyPosition{Row: target.Row, Col: historyHitRegionDisplayColumn(event, target)},
+		Extend:   true, Copy: release}, true
 }

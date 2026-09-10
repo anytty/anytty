@@ -417,6 +417,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
   HistoryCellPoint? _dragAnchor;
   bool _selectionGestureScrolled = false;
   Timer? _selectionAutoScrollTimer;
+  final ValueNotifier<Offset?> _magnifierPosition = ValueNotifier(null);
   Offset? _selectionDragPosition;
   Size? _selectionViewport;
   TerminalCellMetrics? _selectionMetrics;
@@ -438,6 +439,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
   @override
   void dispose() {
     _selectionAutoScrollTimer?.cancel();
+    _magnifierPosition.dispose();
     _horizontalScroll.dispose();
     super.dispose();
   }
@@ -457,117 +459,181 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
     return LayoutBuilder(
       builder: (context, constraints) => ColoredBox(
         color: _color(theme.background),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onScaleStart: widget.selectionEnabled
-              ? (details) => _startSelectionGesture(
-                  details,
-                  constraints.biggest,
-                  metrics,
-                )
-              : null,
-          onScaleUpdate: widget.selectionEnabled
-              ? (details) => _updateSelectionGesture(
-                  details,
-                  constraints.biggest,
-                  metrics,
-                )
-              : null,
-          onScaleEnd: widget.selectionEnabled
-              ? (_) => _resetSelectionGesture()
-              : null,
-          onTapUp: widget.selectionEnabled
-              ? (details) => _tapSelection(
-                  details.localPosition,
-                  constraints.biggest,
-                  metrics,
-                )
-              : _openLinkAt,
-          child: IgnorePointer(
-            ignoring: widget.selectionEnabled,
-            child: SingleChildScrollView(
-              controller: _horizontalScroll,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: contentCols * metrics.cellWidth,
-                child: ListView.builder(
-                  key: const ValueKey('terminal-history-canvas'),
-                  controller: widget.scrollController,
-                  itemExtent: metrics.rowHeight,
-                  itemCount: widget.rows.length + widget.trailingRows,
-                  itemBuilder: (context, index) {
-                    if (index >= widget.rows.length) {
-                      return ColoredBox(color: _color(theme.background));
-                    }
-                    Widget buildRow(
-                      HistoryRange? selectionRange,
-                      HistoryRange? searchMatch,
-                    ) {
-                      final historyRow = widget.rows[index];
-                      final selected = selectionRange == null
-                          ? null
-                          : projectHistoryRangeToRow(
-                              layout: widget.layout,
-                              rowIndex: index,
-                              range: selectionRange,
-                            );
-                      final currentSearchMatch = searchMatch == null
-                          ? null
-                          : projectHistoryRangeToRow(
-                              layout: widget.layout,
-                              rowIndex: index,
-                              range: searchMatch,
-                            );
-                      final searchMatches =
-                          searchMatchesByRow[index] ??
-                          const <HistoryRowRange>[];
-                      return Semantics(
-                        key: ValueKey('terminal-history-line-$index'),
-                        container: true,
-                        readOnly: true,
-                        selected: selected != null,
-                        label: 'History line ${index + 1}',
-                        value: terminalRowSemanticText(historyRow.row),
-                        child: CustomPaint(
-                          painter: _HistoryRowPainter(
-                            row: historyRow.row,
-                            cols: historyRow.fixedGrid
-                                ? math.max(
-                                    widget.cols,
-                                    math.max(
-                                      historyRow.screenCols,
-                                      historyScreenRowWidth(historyRow.row),
-                                    ),
-                                  )
-                                : widget.cols,
-                            metrics: metrics,
-                            theme: theme,
-                            fontFamily: widget.settings.fontFamily,
-                            selection: selected,
-                            searchMatch: currentSearchMatch,
-                            searchMatches: searchMatches,
-                          ),
-                        ),
-                      );
-                    }
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: widget.selectionEnabled
+                  ? (details) => _startSelectionGesture(
+                      details,
+                      constraints.biggest,
+                      metrics,
+                    )
+                  : null,
+              onScaleUpdate: widget.selectionEnabled
+                  ? (details) => _updateSelectionGesture(
+                      details,
+                      constraints.biggest,
+                      metrics,
+                    )
+                  : null,
+              onScaleEnd: widget.selectionEnabled
+                  ? (_) => _resetSelectionGesture()
+                  : null,
+              onTapUp: widget.selectionEnabled
+                  ? (details) => _tapSelection(
+                      details.localPosition,
+                      constraints.biggest,
+                      metrics,
+                    )
+                  : _openLinkAt,
+              child: IgnorePointer(
+                ignoring: widget.selectionEnabled,
+                child: SingleChildScrollView(
+                  controller: _horizontalScroll,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: contentCols * metrics.cellWidth,
+                    child: ListView.builder(
+                      key: const ValueKey('terminal-history-canvas'),
+                      controller: widget.scrollController,
+                      itemExtent: metrics.rowHeight,
+                      itemCount: widget.rows.length + widget.trailingRows,
+                      itemBuilder: (context, index) {
+                        if (index >= widget.rows.length) {
+                          return ColoredBox(color: _color(theme.background));
+                        }
+                        Widget buildRow(
+                          HistoryRange? selectionRange,
+                          HistoryRange? searchMatch,
+                        ) {
+                          final historyRow = widget.rows[index];
+                          final selected = selectionRange == null
+                              ? null
+                              : projectHistoryRangeToRow(
+                                  layout: widget.layout,
+                                  rowIndex: index,
+                                  range: selectionRange,
+                                );
+                          final currentSearchMatch = searchMatch == null
+                              ? null
+                              : projectHistoryRangeToRow(
+                                  layout: widget.layout,
+                                  rowIndex: index,
+                                  range: searchMatch,
+                                );
+                          final searchMatches =
+                              searchMatchesByRow[index] ??
+                              const <HistoryRowRange>[];
+                          return Semantics(
+                            key: ValueKey('terminal-history-line-$index'),
+                            container: true,
+                            readOnly: true,
+                            selected: selected != null,
+                            label: 'History line ${index + 1}',
+                            value: terminalRowSemanticText(historyRow.row),
+                            child: CustomPaint(
+                              painter: _HistoryRowPainter(
+                                row: historyRow.row,
+                                cols: historyRow.fixedGrid
+                                    ? math.max(
+                                        widget.cols,
+                                        math.max(
+                                          historyRow.screenCols,
+                                          historyScreenRowWidth(historyRow.row),
+                                        ),
+                                      )
+                                    : widget.cols,
+                                metrics: metrics,
+                                theme: theme,
+                                fontFamily: widget.settings.fontFamily,
+                                selection: selected,
+                                searchMatch: currentSearchMatch,
+                                searchMatches: searchMatches,
+                              ),
+                            ),
+                          );
+                        }
 
-                    final highlights = widget.highlights;
-                    if (highlights == null) {
-                      return buildRow(
-                        fallbackSelectionRange,
-                        widget.searchMatch,
-                      );
-                    }
-                    return ListenableBuilder(
-                      listenable: highlights,
-                      builder: (context, _) => buildRow(
-                        highlights.selectionRange,
-                        highlights.searchMatch,
-                      ),
-                    );
-                  },
+                        final highlights = widget.highlights;
+                        if (highlights == null) {
+                          return buildRow(
+                            fallbackSelectionRange,
+                            widget.searchMatch,
+                          );
+                        }
+                        return ListenableBuilder(
+                          listenable: highlights,
+                          builder: (context, _) => buildRow(
+                            highlights.selectionRange,
+                            highlights.searchMatch,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
+            ),
+            ValueListenableBuilder<Offset?>(
+              valueListenable: _magnifierPosition,
+              builder: (context, position, _) =>
+                  _buildMagnifier(position, constraints.biggest),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMagnifier(Offset? position, Size viewport) {
+    if (position == null || viewport.width < 32 || viewport.height < 100) {
+      return const SizedBox.shrink();
+    }
+    const margin = 8.0;
+    const gap = 36.0;
+    final size = Size(math.min(168, viewport.width - margin * 2), 64);
+    final focus = Offset(
+      position.dx.clamp(0, viewport.width - 1),
+      position.dy.clamp(0, viewport.height - 1),
+    );
+    final left = (focus.dx - size.width / 2).clamp(
+      margin,
+      viewport.width - size.width - margin,
+    );
+    final above = focus.dy - gap - size.height;
+    final top = (above >= margin ? above : focus.dy + gap).clamp(
+      margin,
+      viewport.height - size.height - margin,
+    );
+    final center = Offset(left + size.width / 2, top + size.height / 2);
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: ExcludeSemantics(
+          child: RawMagnifier(
+            key: const ValueKey('terminal-selection-magnifier'),
+            size: size,
+            magnificationScale: 1.8,
+            // Sample the already painted canvas, including selection and scroll
+            // updates. Keep the source under the finger even at clamped edges.
+            focalPointOffset: focus - center,
+            decoration: MagnifierDecoration(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: _color(widget.settings.theme.foreground),
+                ),
+              ),
+              shadows: const [
+                BoxShadow(
+                  color: Colors.black38,
+                  blurRadius: 8,
+                  blurStyle: BlurStyle.outer,
+                ),
+              ],
             ),
           ),
         ),
@@ -633,6 +699,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
     _selectionGestureScrolled = details.pointerCount >= 2;
     if (_selectionGestureScrolled) return;
     _startSelection(details.localFocalPoint, viewport, metrics);
+    _magnifierPosition.value = details.localFocalPoint;
   }
 
   void _updateSelectionGesture(
@@ -642,6 +709,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
   ) {
     if (details.pointerCount >= 2 || _selectionGestureScrolled) {
       _selectionGestureScrolled = true;
+      _magnifierPosition.value = null;
       _dragAnchor = null;
       _stopSelectionAutoScroll();
       _scrollSelectionViewport(-details.focalPointDelta.dy);
@@ -660,6 +728,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
   }
 
   void _resetSelectionGesture() {
+    _magnifierPosition.value = null;
     _dragAnchor = null;
     _selectionGestureScrolled = false;
     _stopSelectionAutoScroll();
@@ -672,6 +741,7 @@ final class _TerminalHistoryCanvasState extends State<TerminalHistoryCanvas> {
   ) {
     final anchor = _dragAnchor;
     if (anchor == null) return;
+    _magnifierPosition.value = position;
     _selectionDragPosition = position;
     _selectionViewport = viewport;
     _selectionMetrics = metrics;

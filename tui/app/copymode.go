@@ -131,6 +131,8 @@ type CopyModeScrollMsg struct {
 func (CopyModeScrollMsg) isMsg() {}
 
 type CopyModeMouseSelectMsg struct {
+	Extend   bool
+	Copy     bool
 	Position state.CopyPosition
 	PaneID   string
 	ViewID   string
@@ -436,6 +438,25 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			return saveCopyHistorySessionForView(next, activeViewID), nil
 		case CopyModeReleaseHistoryMsg:
 			return root, releaseHistoryTokenEffects(deps, msg.EndpointID, msg.TerminalID, msg.Token)
+		case CopyModeMouseAutoScrollMsg:
+			root = rootWithCopyHistorySessionForView(root, msg.ViewID)
+			if !root.CopyMode.CanSelect() || root.CopyMode.Mark == nil || root.History.Pending != nil {
+				return saveCopyHistorySessionForView(root, msg.ViewID), nil
+			}
+			var effects []Effect
+			if msg.Direction < 0 {
+				root, effects = reduceCopyModeScrollOlderRows(root, deps, 2)
+			} else {
+				root, effects = reduceCopyModeScrollNewer(root, deps, 2)
+			}
+			// A history response must not replay scrolling after the mouse has
+			// been released. The next live gesture tick consumes the new rows.
+			if root.History.Pending != nil {
+				pending := *root.History.Pending
+				pending.DeferredScrollRows = 0
+				root.History.Pending = &pending
+			}
+			return saveCopyHistorySessionForView(root, msg.ViewID), effects
 		case CopyModeScrollMsg:
 			activeViewID := msg.ViewID
 			if activeViewID != "" {
@@ -464,12 +485,26 @@ func NewCopyModeReducer(deps CopyModeDeps) Reducer {
 			if !root.CopyMode.CanSelect() {
 				return saveCopyHistorySessionForView(root, msg.ViewID), nil
 			}
+			if msg.Extend && root.CopyMode.Mark == nil {
+				return saveCopyHistorySessionForView(root, msg.ViewID), nil
+			}
 			root.CopyMode = root.CopyMode.MoveCursor(msg.Position)
 			root.CopyMode = clampCopyCursor(root.CopyMode, root.History)
-			root.CopyMode = root.CopyMode.SetMark(root.CopyMode.Cursor)
+			if !msg.Extend {
+				root.CopyMode = root.CopyMode.SetMark(root.CopyMode.Cursor)
+				root.CopyMode = root.CopyMode.RefreshLogicalSelection(root.History)
+			} else {
+				// Clamping the cursor also clamps the selection focus; keep
+				// the logical anchor stable when older rows have been loaded.
+				root.CopyMode = root.CopyMode.MoveCursor(root.CopyMode.Cursor).RefreshLogicalSelectionFocus(root.History)
+			}
 			root.CopyMode = ensureCopyCursorVisible(root.CopyMode, len(root.History.Rows))
-			root.CopyMode = root.CopyMode.RefreshLogicalSelection(root.History)
 			root = root.Advance()
+			if msg.Copy && root.CopyMode.Selection != nil && root.CopyMode.Selection.Anchor != root.CopyMode.Selection.Focus {
+				root.CopyMode.CopyExitAfterSuccess = false
+				next, effects := reduceCopyModeCopySelection(root, deps)
+				return saveCopyHistorySessionForView(next, msg.ViewID), effects
+			}
 			return saveCopyHistorySessionForView(root, msg.ViewID), nil
 		case CopyModeWheelMsg:
 			root = rootWithCopyHistorySessionForView(root, msg.ViewID)

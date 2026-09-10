@@ -380,6 +380,11 @@ func ShortcutKeyRequiresEnhancedKeyboard(token string) bool {
 			return true
 		}
 		if key.Ctrl {
+			// Digit shortcuts still require disambiguation: legacy Ctrl+2..8
+			// alias existing control keys and cannot identify the physical key.
+			if len(key.Char) == 1 && key.Char[0] >= '0' && key.Char[0] <= '9' {
+				return true
+			}
 			data, representable := ctrlCharBytes(key.Char)
 			if !representable {
 				return true
@@ -625,7 +630,7 @@ func lookupBinding(mode InteractionMode, event InputEvent, catalog shortcutCatal
 }
 
 func bindingMatches(binding Binding, event InputEvent) bool {
-	if binding.RequiresKeyboardDisambiguation && event.KeyboardProtocol != KeyboardProtocolKittyCSIU {
+	if binding.RequiresKeyboardDisambiguation && event.KeyboardProtocol != KeyboardProtocolKittyCSIU && event.KeyboardProtocol != KeyboardProtocolXTermModifyOtherKeys {
 		return false
 	}
 	if binding.Key != event.Key {
@@ -652,6 +657,11 @@ func bindingCharMatches(binding Binding, event InputEvent) bool {
 	}
 	if canonicalShortcutChar(binding.Key, binding.Char, binding.Ctrl, binding.Shift) == canonicalShortcutChar(event.Key, event.Char, event.Ctrl, event.Shift) {
 		return true
+	}
+	// Enhanced Ctrl+digit bindings must not match a legacy alias supplied as
+	// a control codepoint; only the actual digit identifies that shortcut.
+	if len(binding.Char) == 1 && binding.Char[0] >= '0' && binding.Char[0] <= '9' {
+		return false
 	}
 	data, ok := ctrlCharBytes(binding.Char)
 	return ok && string(data) == event.Char
@@ -821,7 +831,11 @@ func terminalBytes(event InputEvent) []byte {
 	case KeyChar:
 		if event.Char != "" {
 			if event.Ctrl {
-				if data, ok := ctrlCharBytes(event.Char); ok {
+				char := event.Char
+				if event.Shift && event.ShiftedChar != "" {
+					char = event.ShiftedChar
+				}
+				if data, ok := ctrlCharBytes(char); ok {
 					if event.Alt {
 						return append([]byte{'\x1b'}, data...)
 					}
@@ -829,10 +843,21 @@ func terminalBytes(event InputEvent) []byte {
 				}
 				return nil
 			}
-			if event.Alt {
-				return append([]byte{'\x1b'}, []byte(event.Char)...)
+			text := event.Text
+			if text == "" {
+				text = event.Char
+				if event.Shift {
+					if event.ShiftedChar != "" {
+						text = event.ShiftedChar
+					} else {
+						text = strings.Map(unicode.ToUpper, text)
+					}
+				}
 			}
-			return []byte(event.Char)
+			if event.Alt {
+				return append([]byte{'\x1b'}, []byte(text)...)
+			}
+			return []byte(text)
 		}
 	}
 	if len(data) > 0 {
@@ -900,19 +925,19 @@ func ctrlCharBytes(char string) ([]byte, bool) {
 		return []byte{c - 'A' + 1}, true
 	}
 	switch c {
-	case ' ', '@':
+	case ' ', '@', '2':
 		return []byte{0x00}, true
-	case '[':
+	case '[', '3':
 		return []byte{0x1b}, true
-	case '\\':
+	case '\\', '4':
 		return []byte{0x1c}, true
-	case ']':
+	case ']', '5':
 		return []byte{0x1d}, true
-	case '^':
+	case '^', '6':
 		return []byte{0x1e}, true
-	case '_':
+	case '_', '/', '7':
 		return []byte{0x1f}, true
-	case '?':
+	case '?', '8':
 		return []byte{0x7f}, true
 	}
 	return nil, false

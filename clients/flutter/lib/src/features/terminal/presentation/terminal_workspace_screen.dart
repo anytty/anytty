@@ -46,6 +46,7 @@ import '../../terminal/domain/terminal_settings.dart';
 import '../../terminal/domain/terminal_soft_input.dart';
 import '../../terminal/domain/terminal_split_layout.dart';
 import 'terminal_canvas.dart';
+import 'terminal_history_scroll_controller.dart';
 import 'terminal_history_transition.dart';
 import 'terminal_command_bar.dart';
 import 'terminal_keyboard_inset.dart';
@@ -5285,7 +5286,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   final FocusNode _searchFocus = FocusNode(debugLabel: 'terminal-search');
   final TextEditingController _inputController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _historyScroll = ScrollController();
+  final _historyScroll = TerminalHistoryScrollController();
   final TerminalHistoryHighlights _historyHighlights =
       TerminalHistoryHighlights();
   TerminalModifierState _modifiers = const TerminalModifierState();
@@ -7001,7 +7002,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }) async {
     final connection = widget.connection;
     final requestEpoch = ++_historyRequestEpoch;
-    final previousOffset = _historyScroll.position.pixels;
     setState(() {
       _historyLoading = true;
       _historyLoadingVisible = false;
@@ -7021,23 +7021,27 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
         return;
       }
       _historyLoadingDelay?.cancel();
+      _historyScroll.preservePrepend(
+        merged.prependedRows * widget.settings.metrics.rowHeight,
+      );
       setState(() {
         _history = merged.history;
-        _historyLoading = false;
         _historyLoadingVisible = false;
         _historyRequiresReload = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+        if (!mounted ||
+            requestEpoch != _historyRequestEpoch ||
+            connection != widget.connection ||
+            _history != merged.history) {
+          return;
+        }
+        setState(() => _historyLoading = false);
         if (_historyScroll.hasClients) {
-          final target =
-              previousOffset +
-              merged.prependedRows * widget.settings.metrics.rowHeight;
-          final clampedTarget = target
-              .clamp(0, _historyScroll.position.maxScrollExtent)
-              .toDouble();
-          _resetHistoryScrollSample(clampedTarget, clearVelocity: false);
-          _historyScroll.jumpTo(clampedTarget);
+          _resetHistoryScrollSample(
+            _historyScroll.offset,
+            clearVelocity: false,
+          );
         }
         _handleHistoryScroll();
       });

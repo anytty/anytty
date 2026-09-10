@@ -23,6 +23,7 @@ const (
 type KeyboardProtocol string
 
 const KeyboardProtocolKittyCSIU KeyboardProtocol = "kitty-csi-u"
+const KeyboardProtocolXTermModifyOtherKeys KeyboardProtocol = "xterm-modify-other-keys"
 
 type Key string
 
@@ -78,9 +79,12 @@ const (
 
 // InputEvent 是 TerminalHost 拥有的宿主输入边界。
 type InputEvent struct {
-	Kind             EventKind
-	Key              Key
-	Char             string
+	Kind EventKind
+	Key  Key
+	Char string
+	// Optional enhanced-protocol text; Char remains the unshifted shortcut key.
+	ShiftedChar      string
+	Text             string
 	Paste            string
 	Mouse            MouseButton
 	Row              int

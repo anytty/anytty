@@ -324,9 +324,18 @@ func csiKeyEvent(seq []byte) (input.InputEvent, bool) {
 			return csiKeyboardCapabilityEvent(strings.TrimPrefix(body, "?"), string(seq))
 		}
 		return csiUnicodeKeyEvent(body, string(seq))
-	case 'A', 'B', 'C', 'D', 'F', 'H', 'Z':
+	case 'A', 'B', 'C', 'D', 'F', 'H', 'Z', 'P', 'Q', 'S':
 		parts := splitCSIParams(body)
+		if len(parts) > 2 || (parts[0] != "" && parts[0] != "1") {
+			return input.InputEvent{}, false
+		}
 		switch final {
+		case 'P':
+			event.Key = input.KeyF1
+		case 'Q':
+			event.Key = input.KeyF2
+		case 'S':
+			event.Key = input.KeyF4
 		case 'A':
 			event.Key = input.KeyUp
 		case 'B':
@@ -355,6 +364,25 @@ func csiKeyEvent(seq []byte) (input.InputEvent, bool) {
 		parts := splitCSIParams(body)
 		code, err := strconv.Atoi(parts[0])
 		if err != nil {
+			return input.InputEvent{}, false
+		}
+		if code == 27 {
+			if len(parts) != 3 {
+				return input.InputEvent{}, false
+			}
+			if _, valid := unicodeScalar(parts[2]); !valid {
+				return input.InputEvent{}, false
+			}
+			if _, valid := keyModifierParam(parts, 1); !valid {
+				return input.InputEvent{}, false
+			}
+			event, ok := csiUnicodeKeyEvent(parts[2]+";"+parts[1], string(seq))
+			if ok {
+				event.KeyboardProtocol = input.KeyboardProtocolXTermModifyOtherKeys
+			}
+			return event, ok
+		}
+		if len(parts) > 2 {
 			return input.InputEvent{}, false
 		}
 		key, ok := tildeKey(code)
@@ -393,25 +421,52 @@ func csiKeyboardCapabilityEvent(body string, raw string) (input.InputEvent, bool
 // TerminalHost 只负责把宿主协议还原为 InputEvent；快捷键命中仍由 input catalog 决定。
 func csiUnicodeKeyEvent(body string, raw string) (input.InputEvent, bool) {
 	parts := splitCSIParams(body)
-	if len(parts) == 0 || len(parts) > 2 {
+	if len(parts) == 0 || len(parts) > 3 {
 		return input.InputEvent{}, false
 	}
-	codeText := parts[0]
-	if strings.Contains(codeText, ":") {
+	keyCodes := strings.Split(parts[0], ":")
+	if len(keyCodes) > 3 {
 		return input.InputEvent{}, false
 	}
-	codepoint, err := strconv.Atoi(codeText)
-	if err != nil || codepoint < 0 || codepoint > utf8.MaxRune || codepoint >= 0xd800 && codepoint <= 0xdfff {
+	codepoint, valid := unicodeScalar(keyCodes[0])
+	if !valid {
 		return input.InputEvent{}, false
+	}
+	shifted := ""
+	for index, value := range keyCodes[1:] {
+		if value == "" {
+			continue
+		}
+		code, valid := unicodeScalar(value)
+		if !valid {
+			return input.InputEvent{}, false
+		}
+		if index == 0 {
+			shifted = string(rune(code))
+		}
+	}
+	text := ""
+	if len(parts) == 3 && parts[2] != "" {
+		for _, value := range strings.Split(parts[2], ":") {
+			code, valid := unicodeScalar(value)
+			// Associated text is printable text, never a second control channel.
+			if !valid || code < 32 || code == 127 || code >= 57344 && code <= 63743 {
+				return input.InputEvent{}, false
+			}
+			text += string(rune(code))
+		}
 	}
 	modifier := 1
 	eventType := 1
-	if len(parts) == 2 {
+	if len(parts) >= 2 {
 		modifierParts := strings.Split(parts[1], ":")
 		if len(modifierParts) > 2 {
 			return input.InputEvent{}, false
 		}
-		modifier, err = strconv.Atoi(modifierParts[0])
+		var err error
+		if modifierParts[0] != "" {
+			modifier, err = strconv.Atoi(modifierParts[0])
+		}
 		if err != nil || modifier < 1 || modifier > 256 {
 			return input.InputEvent{}, false
 		}
@@ -426,6 +481,8 @@ func csiUnicodeKeyEvent(body string, raw string) (input.InputEvent, bool) {
 		Kind:             input.EventKindKey,
 		Key:              input.KeyChar,
 		Char:             string(rune(codepoint)),
+		ShiftedChar:      shifted,
+		Text:             text,
 		RawSeq:           raw,
 		KeyboardProtocol: input.KeyboardProtocolKittyCSIU,
 	}
@@ -440,6 +497,9 @@ func csiUnicodeKeyEvent(body string, raw string) (input.InputEvent, bool) {
 		event.Key = input.KeyUnknown
 		event.Char = ""
 	}
+	if shifted != "" && !event.Shift {
+		return input.InputEvent{}, false
+	}
 	if event.Key == input.KeyTab && event.Shift {
 		event.Key = input.KeyShiftTab
 	}
@@ -448,6 +508,11 @@ func csiUnicodeKeyEvent(body string, raw string) (input.InputEvent, bool) {
 		event.Char = ""
 	}
 	return event, true
+}
+
+func unicodeScalar(value string) (int, bool) {
+	code, err := strconv.Atoi(value)
+	return code, err == nil && code >= 0 && code <= utf8.MaxRune && !(code >= 0xd800 && code <= 0xdfff)
 }
 
 // applyCSIUControlKey 把增强协议中的控制 codepoint 还原为 TUI 通用命名键。
