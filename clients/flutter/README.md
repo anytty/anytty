@@ -36,7 +36,16 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   flutter build ios --simulator --debug
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   flutter build ios --debug --no-codesign
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  flutter build ipa --release --no-codesign
+python3 ../../scripts/verify-flutter-ios-exports.py \
+  build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Runner
 ```
+
+Run the same export check against `Payload/Runner.app/Runner` extracted from the
+final IPA before uploading an iOS build. Dart resolves the native C API
+dynamically, so a successful link alone does not prove that the release app can
+start. Both linking and archive symbol stripping must retain the global C API.
 
 Android native libraries are built by the Flutter Gradle hook through
 `scripts/build-flutter-android-native.sh`. Build the iOS XCFrameworks with

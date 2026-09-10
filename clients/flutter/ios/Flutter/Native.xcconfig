@@ -1,2 +1,6 @@
-OTHER_LDFLAGS = $(inherited) -Wl,-u,_anytty_client_abi_version -Wl,-u,_anytty_terminal_input_abi_version -lresolv
+// Dart resolves the statically linked C API with DynamicLibrary.process().
+// Keep those global symbols exported in release executables as well as debug.
+OTHER_LDFLAGS = $(inherited) -Wl,-u,_anytty_client_abi_version -Wl,-u,_anytty_terminal_input_abi_version -Wl,-export_dynamic -lresolv
+// Archive post-processing must preserve the globals used by dlsym as well.
+STRIP_STYLE = non-global
 EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64

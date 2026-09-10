@@ -113,3 +113,12 @@ jobs:
       - name: Build iOS simulator application
         working-directory: clients/flutter
         run: flutter build ios --simulator --debug
+      - name: Build iOS release archive
+        working-directory: clients/flutter
+        run: |
+          eval "$(../../scripts/version-info.sh)"
+          flutter build ipa --release --no-codesign \
+            --build-name="${ANYTTY_RELEASE_VERSION%%-*}" \
+            --build-number="$ANYTTY_BUILD_NUMBER"
+      - name: Verify iOS archive FFI exports
+        run: python3 scripts/verify-flutter-ios-exports.py clients/flutter/build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Runner
