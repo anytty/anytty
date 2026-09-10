@@ -12,6 +12,7 @@ type canvas struct {
 }
 
 type canvasCell struct {
+	dimmed       bool
 	text         string
 	width        int
 	style        StyleToken

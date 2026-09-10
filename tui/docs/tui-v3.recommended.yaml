@@ -10,6 +10,10 @@ tui:
   profile: coralline-candy
 
   theme:
+    # 失焦面板内容变暗；默认 true，设为 false 关闭。
+    dim_inactive_panels: true
+    # 向背景色混合的比例：0 不变暗，0.5 灰一半，1 完全融入背景。默认 0.5。
+    inactive_panel_dim_amount: 0.5
     # builtin starts from AnyTTY's built-in baseline before applying the
     # coralline-candy tokens below.
     palette: builtin

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,8 +57,10 @@ func Default() state.TUIConfigStore {
 		},
 		Profile: "default",
 		Theme: state.TUIThemeConfig{
-			Mode:    "dark",
-			Palette: "host",
+			DimInactivePanels:      true,
+			InactivePanelDimAmount: 0.5,
+			Mode:                   "dark",
+			Palette:                "host",
 		},
 		Chrome: state.TUIChromeConfig{
 			Header:            true,
@@ -464,33 +467,35 @@ var scalarSetters = map[string]scalarSetter{
 	"daemon.resource_sampling.max_samples": setInt(func(cfg *state.TUIConfigStore, value int) {
 		cfg.Daemon.ResourceSampling.MaxSamples = value
 	}),
-	"tui.profile":                     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Profile = value }),
-	"tui.theme.mode":                  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Mode = value }),
-	"tui.theme.palette":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Palette = value }),
-	"tui.theme.primary":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Primary = value }),
-	"tui.theme.secondary":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Secondary = value }),
-	"tui.theme.foreground":            setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Foreground = value }),
-	"tui.theme.background":            setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Background = value }),
-	"tui.theme.muted":                 setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Muted = value }),
-	"tui.theme.success":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Success = value }),
-	"tui.theme.warning":               setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Warning = value }),
-	"tui.theme.danger":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Danger = value }),
-	"tui.theme.info":                  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Info = value }),
-	"tui.theme.border.panel":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Panel = value }),
-	"tui.theme.border.active":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Active = value }),
-	"tui.theme.border.inactive":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Inactive = value }),
-	"tui.theme.border.muted":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Muted = value }),
-	"tui.theme.surface.chrome_bg":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ChromeBG = value }),
-	"tui.theme.surface.status_bg":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.StatusBG = value }),
-	"tui.theme.surface.overlay_bg":    setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.OverlayBG = value }),
-	"tui.theme.surface.toast_bg":      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ToastBG = value }),
-	"tui.chrome.header":               setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Header = value }),
-	"tui.chrome.footer":               setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Footer = value }),
-	"tui.chrome.panel_presentation":   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.PanelPresentation = value }),
-	"tui.chrome.picker.presentation":  setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Presentation = value }),
-	"tui.chrome.picker.width":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
-	"tui.chrome.picker.density":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
-	"tui.chrome.picker.endpoint_tabs": setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
+	"tui.profile":                         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Profile = value }),
+	"tui.theme.inactive_panel_dim_amount": setFloat(func(cfg *state.TUIConfigStore, value float64) { cfg.Theme.InactivePanelDimAmount = value }),
+	"tui.theme.dim_inactive_panels":       setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Theme.DimInactivePanels = value }),
+	"tui.theme.mode":                      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Mode = value }),
+	"tui.theme.palette":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Palette = value }),
+	"tui.theme.primary":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Primary = value }),
+	"tui.theme.secondary":                 setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Secondary = value }),
+	"tui.theme.foreground":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Foreground = value }),
+	"tui.theme.background":                setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Background = value }),
+	"tui.theme.muted":                     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Muted = value }),
+	"tui.theme.success":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Success = value }),
+	"tui.theme.warning":                   setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Warning = value }),
+	"tui.theme.danger":                    setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Danger = value }),
+	"tui.theme.info":                      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Info = value }),
+	"tui.theme.border.panel":              setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Panel = value }),
+	"tui.theme.border.active":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Active = value }),
+	"tui.theme.border.inactive":           setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Inactive = value }),
+	"tui.theme.border.muted":              setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Border.Muted = value }),
+	"tui.theme.surface.chrome_bg":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ChromeBG = value }),
+	"tui.theme.surface.status_bg":         setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.StatusBG = value }),
+	"tui.theme.surface.overlay_bg":        setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.OverlayBG = value }),
+	"tui.theme.surface.toast_bg":          setString(func(cfg *state.TUIConfigStore, value string) { cfg.Theme.Surface.ToastBG = value }),
+	"tui.chrome.header":                   setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Header = value }),
+	"tui.chrome.footer":                   setBool(func(cfg *state.TUIConfigStore, value bool) { cfg.Chrome.Footer = value }),
+	"tui.chrome.panel_presentation":       setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.PanelPresentation = value }),
+	"tui.chrome.picker.presentation":      setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Presentation = value }),
+	"tui.chrome.picker.width":             setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Width = value }),
+	"tui.chrome.picker.density":           setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.Density = value }),
+	"tui.chrome.picker.endpoint_tabs":     setString(func(cfg *state.TUIConfigStore, value string) { cfg.Chrome.Picker.EndpointTabs = value }),
 	"tui.chrome.picker.endpoint_status.unknown.glyph": setString(func(cfg *state.TUIConfigStore, value string) {
 		cfg.Chrome.Picker.EndpointStatus.Unknown.Glyph = value
 	}),
@@ -1023,6 +1028,9 @@ func Validate(cfg state.TUIConfigStore) error {
 	}
 	if strings.TrimSpace(cfg.Profile) == "" {
 		return fmt.Errorf("tui.profile must not be empty")
+	}
+	if value := cfg.Theme.InactivePanelDimAmount; math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
+		return fmt.Errorf("tui.theme.inactive_panel_dim_amount must be between 0 and 1, got %v", value)
 	}
 	if !oneOf(cfg.Theme.Mode, "dark", "light", "system") {
 		return fmt.Errorf("tui.theme.mode must be dark, light or system, got %q", cfg.Theme.Mode)

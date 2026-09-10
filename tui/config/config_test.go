@@ -922,3 +922,42 @@ func TestDefaultPathUsesXDGConfigHome(t *testing.T) {
 }
 
 var _ state.TUIConfigStore
+
+func TestDimInactivePanelsConfig(t *testing.T) {
+	if !Default().Theme.DimInactivePanels {
+		t.Fatal("dimming must be enabled by default")
+	}
+	for _, value := range []string{"true", "false"} {
+		cfg, err := Parse([]byte("tui:\n  theme:\n    dim_inactive_panels: " + value + "\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Theme.DimInactivePanels != (value == "true") {
+			t.Fatalf("wrong value for %s", value)
+		}
+	}
+	if _, err := Parse([]byte("tui:\n  theme:\n    dim_inactive_panels: maybe\n")); err == nil {
+		t.Fatal("accepted invalid boolean")
+	}
+}
+
+func TestInactivePanelDimAmountConfig(t *testing.T) {
+	cfg, err := Parse(nil)
+	if err != nil || cfg.Theme.InactivePanelDimAmount != 0.5 {
+		t.Fatalf("default amount: %v, %v", cfg.Theme.InactivePanelDimAmount, err)
+	}
+	for _, tc := range []struct {
+		value string
+		want  float64
+	}{{"0", 0}, {"0.3", 0.3}, {"0.5", 0.5}, {"1", 1}} {
+		cfg, err := Parse([]byte("tui:\n  theme:\n    inactive_panel_dim_amount: " + tc.value + "\n"))
+		if err != nil || cfg.Theme.InactivePanelDimAmount != tc.want {
+			t.Fatalf("amount %s: %v, %v", tc.value, cfg.Theme.InactivePanelDimAmount, err)
+		}
+	}
+	for _, value := range []string{"-0.1", "1.1", "NaN", "+Inf", "-Inf", "invalid"} {
+		if _, err := Parse([]byte("tui:\n  theme:\n    inactive_panel_dim_amount: " + value + "\n")); err == nil {
+			t.Fatalf("accepted %s", value)
+		}
+	}
+}

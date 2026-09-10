@@ -43,19 +43,21 @@ type DaemonHistoryConfig struct {
 }
 
 type TUIThemeConfig struct {
-	Mode       string
-	Palette    string
-	Primary    string
-	Secondary  string
-	Foreground string
-	Background string
-	Muted      string
-	Success    string
-	Warning    string
-	Danger     string
-	Info       string
-	Border     TUIThemeBorderConfig
-	Surface    TUIThemeSurfaceConfig
+	DimInactivePanels      bool
+	InactivePanelDimAmount float64
+	Mode                   string
+	Palette                string
+	Primary                string
+	Secondary              string
+	Foreground             string
+	Background             string
+	Muted                  string
+	Success                string
+	Warning                string
+	Danger                 string
+	Info                   string
+	Border                 TUIThemeBorderConfig
+	Surface                TUIThemeSurfaceConfig
 }
 
 type TUIThemeBorderConfig struct {

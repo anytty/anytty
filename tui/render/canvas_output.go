@@ -59,7 +59,7 @@ func canvasOutputCellCapacity(row []canvasCell) int {
 }
 
 func canvasOutputCellFromMatrix(cell canvasCell) Cell {
-	if cell.text == "" && cell.width == 0 {
+	if cell.text == "" && cell.width == 0 && !cell.dimmed {
 		return Cell{Text: " ", Width: 1, Safe: true}
 	}
 	width := cell.width
@@ -67,6 +67,7 @@ func canvasOutputCellFromMatrix(cell canvasCell) Cell {
 		width = 1
 	}
 	return Cell{
+		Dimmed:          cell.dimmed,
 		Text:            cell.text,
 		Width:           width,
 		Style:           cell.style,
@@ -90,7 +91,7 @@ func appendCanvasOutputCell(cells []Cell, next Cell) []Cell {
 }
 
 func canMergeCanvasOutputCell(left Cell, right Cell) bool {
-	if left.TerminalContent ||
+	if left.Dimmed != right.Dimmed || left.TerminalContent ||
 		right.TerminalContent ||
 		left.Style != right.Style ||
 		left.ANSIStyle != right.ANSIStyle ||

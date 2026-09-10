@@ -8,8 +8,11 @@ import (
 )
 
 type Theme struct {
-	HostFG string
-	HostBG string
+	DimInactivePanels      bool
+	InactivePanelDimAmount float64
+	TerminalPalette        [16]string
+	HostFG                 string
+	HostBG                 string
 
 	ChromeFG string
 	ChromeBG string
@@ -36,8 +39,9 @@ type Theme struct {
 
 func DefaultTheme() Theme {
 	return Theme{
-		HostFG: "#dedbe6",
-		HostBG: "#050507",
+		InactivePanelDimAmount: 0.5,
+		HostFG:                 "#dedbe6",
+		HostBG:                 "#050507",
 
 		ChromeFG: "#dedbe6",
 		ChromeBG: "#111016",
@@ -69,6 +73,13 @@ func ThemeFromHostTheme(host state.HostThemeStore) Theme {
 
 func ThemeFromHostThemeConfig(host state.HostThemeStore, cfg state.TUIConfigStore) Theme {
 	theme := DefaultTheme()
+	theme.DimInactivePanels = cfg.Theme.DimInactivePanels
+	if theme.DimInactivePanels {
+		theme.InactivePanelDimAmount = cfg.Theme.InactivePanelDimAmount
+		for i := range theme.TerminalPalette {
+			theme.TerminalPalette[i], _ = host.PaletteColor(i)
+		}
+	}
 	paletteDrivenBorder := false
 	if cfg.Theme.Palette != "builtin" {
 		if host.DefaultFG != "" {

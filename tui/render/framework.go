@@ -65,6 +65,9 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 				}
 			}
 			contentResult := renderContent(c, layout.Panel.Content, layout.ContentRect, "panel:"+layout.Panel.ID+":content", LayerPanel)
+			if renderer.Theme.DimInactivePanels && renderer.Theme.InactivePanelDimAmount > 0 && !layout.Panel.Active {
+				c.dimRect(layout.ContentRect)
+			}
 			liveTargets = appendLiveRenderTarget(liveTargets, layout.Panel.Content)
 			if !overlayOwnsChrome && !shell.Layout.Zoomed {
 				renderPanelContentOverflowMarkers(c, layout, contentResult.Overflow)
@@ -73,6 +76,9 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 		}
 		for _, floating := range plan.Floatings {
 			layer := renderFloating(c, floating)
+			if renderer.Theme.DimInactivePanels && renderer.Theme.InactivePanelDimAmount > 0 && !floating.Floating.Active && !floating.Floating.Collapsed {
+				c.dimRect(floating.ContentRect)
+			}
 			if layer.Rect.W > 0 && layer.Rect.H > 0 {
 				layers = append(layers, layer)
 				if !floating.Floating.Collapsed {

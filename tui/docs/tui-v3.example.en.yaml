@@ -83,6 +83,10 @@ tui:
   # pane borders, overlays, toasts, pickers, navigators, selection, and focus.
   # It does not affect ANSI foreground or background colors from terminal output.
   theme:
+    # Dim unfocused panel content. Default: true; set false to disable.
+    dim_inactive_panels: true
+    # Background blend amount: 0 = unchanged, 0.5 = half contrast, 1 = fully faded. Default: 0.5.
+    inactive_panel_dim_amount: 0.5
     # Built-in light/dark baseline.
     # Default: dark. Allowed: dark, light, system.
     # system is currently equivalent to host-aware dark. A later version may

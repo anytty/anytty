@@ -71,6 +71,10 @@ tui:
   # 它影响 header、footer、pane border、overlay、toast、picker、navigator、selection/focus 等 UI 元素。
   # 它不影响 terminal 输出内容自己的 ANSI 前景色和背景色。
   theme:
+    # 失焦面板内容变暗；默认 true，设为 false 关闭。
+    dim_inactive_panels: true
+    # 向背景色混合的比例：0 不变暗，0.5 灰一半，1 完全融入背景。默认 0.5。
+    inactive_panel_dim_amount: 0.5
     # mode 选择内置亮暗基线。
     # 默认值：dark。
     # 可选值：dark、light、system。

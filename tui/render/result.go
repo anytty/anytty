@@ -34,6 +34,7 @@ type RenderMetadata struct {
 }
 
 type Cell struct {
+	Dimmed     bool
 	Text       string
 	Width      int
 	Style      StyleToken
@@ -199,6 +200,9 @@ func writeANSIStyledCell(out *strings.Builder, cell Cell, theme Theme, modelCol 
 		styleSeq = ansiForCellStyle(cell.ANSIStyle)
 	} else if cell.Style != "" {
 		styleSeq = ansiForStyleToken(cell.Style, theme)
+	}
+	if cell.Dimmed {
+		styleSeq = dimANSISequence(styleSeq, theme)
 	}
 	linkOpen, linkClose := ansiLinkOpenClose(cell.LinkURL, cell.LinkParams)
 	if linkOpen != "" {
