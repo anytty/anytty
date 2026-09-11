@@ -47,3 +47,43 @@ func TestPluginSlotBoundary(t *testing.T) {
 		t.Fatal("invalid owner slot matrix")
 	}
 }
+
+func TestDynamicPluginOwnerFollowsActiveTab(t *testing.T) {
+	shell := DefaultShell()
+	shell.Workspace.Tabs = append(shell.Workspace.Tabs, TabState{ID: "tab-b", Panes: []PaneState{{ID: "pane-b", Kind: PaneTerminalLive}}})
+	shell.Workspace.ActiveTabID = shell.Workspace.Tabs[0].ID
+	shell.ActivePaneID = DefaultPaneID
+	owner := PluginOwner{Kind: "tab", WorkspaceID: shell.Workspace.ID, TabID: shell.Workspace.ActiveTabID}
+	store, err := (PluginStore{}).Apply(shell, PluginMount{ID: "surface", PluginID: "plugin", DaemonID: "daemon", Owner: owner, SurfaceID: "plugin.surface", Scope: "active_tab", Slot: "sidebar", Revision: 1, Nodes: []PluginNode{{ID: "row", Text: "row"}}}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell.Workspace.ActiveTabID = "tab-b"
+	shell.ActivePaneID = "pane-b"
+	shell.Workspaces[0] = shell.Workspace
+	next, changed := store.ReconcileDynamicOwners(shell)
+	if len(changed) != 1 || next.Mounts["surface"].Owner.TabID != "tab-b" {
+		t.Fatalf("dynamic owner did not follow active tab: changed=%v mount=%+v", changed, next.Mounts["surface"])
+	}
+}
+
+func TestDynamicPluginSurfaceCanWaitForMissingTab(t *testing.T) {
+	shell := DefaultShell()
+	shell.Workspace.Tabs = nil
+	shell.Workspace.ActiveTabID = ""
+	shell.ActivePaneID = ""
+	shell.Workspaces[0] = shell.Workspace
+	owner := PluginOwner{Kind: "tab", WorkspaceID: shell.Workspace.ID}
+	store, err := (PluginStore{}).Apply(shell, PluginMount{ID: "surface", PluginID: "plugin", DaemonID: "daemon", Owner: owner, SurfaceID: "plugin.surface", Scope: "active_tab", Slot: "sidebar", Revision: 1}, 0)
+	if err != nil {
+		t.Fatal("dynamic surface should be retained while no tab exists:", err)
+	}
+	shell.Workspace.Tabs = []TabState{{ID: "tab-new", Title: "New", Panes: []PaneState{{ID: "pane-new", Title: "Pane", Kind: PaneTerminalLive}}}}
+	shell.Workspace.ActiveTabID = "tab-new"
+	shell.ActivePaneID = "pane-new"
+	shell.Workspaces[0] = shell.Workspace
+	next, changed := store.ReconcileDynamicOwners(shell)
+	if len(changed) != 1 || next.Mounts["surface"].Owner.TabID != "tab-new" {
+		t.Fatalf("dynamic surface did not bind after tab creation: changed=%v mount=%+v", changed, next.Mounts["surface"])
+	}
+}

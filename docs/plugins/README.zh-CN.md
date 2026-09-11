@@ -18,7 +18,7 @@ cp plugins/agents/anytty-plugin.toml .artifacts/plugins/agents/
 
 日志位于注册表旁的 `plugin-logs/插件ID/`。`plugin logs ID` 读取 daemon 日志末尾 64 KiB；`--component tui-实例ID` 指定 TUI 日志。`doctor` 只检查配置与程序文件，不运行插件。
 
-当前版本在实例启动时读取注册表，不提供热安装/热卸载。 TUI 首版使用启动时选择的 endpoint 集合；新增配置或切入该集合之外的手动 endpoint 后，需要新开 TUI 才会加载对应插件连接。远端 daemon 的插件需要在远端机器安装，客户端不会因为连接了远端而自动下载、安装或执行远端程序。
+daemon 会轮询注册表并只重载发生变化的插件子进程，因此安装、启用、禁用或卸载不会重启 daemon 核心，也不会影响其他插件。TUI 插件清单在 TUI 实例启动时确定；新增 TUI 插件或改变该实例的 endpoint 集合时，需要新开 TUI 才会建立对应连接。远端 daemon 的插件需要在远端机器安装，客户端不会因为连接了远端而自动下载、安装或执行远端程序。
 
 ## 消息与身份
 

@@ -43,13 +43,19 @@ idempotent; an unmanaged OpenCode file with the same name is not overwritten.
 
 ## UI and interaction
 
-Each workspace has an aggregate Agent sidebar with endpoint, provider, project or
-session title, status, and last observed update time. Agents needing attention
+The plugin declares an `agents.navigator` workspace sidebar. The host resolves that
+logical surface for the current TUI, so the plugin does not bind itself to a tab or
+panel ID. It declares card styles, endpoint, provider, project or session title,
+status, and last observed update time. Agents needing attention
 (blocked/error/stale) sort first. In the existing system menu, use `a` for the next
 plugin mount or `A` for the previous one. Inside the sidebar, use arrows or a mouse
 click a card to open its terminal, Enter or a double-click to open a plain row, `f`
-to toggle the attention filter, and Escape to return to the previous content
-panel. Each terminal panel also gets a status badge filtered by its binding.
+to toggle the attention filter, `x` to hide the declared surface, and Escape to
+return to the previous content panel. Each terminal panel also gets a status badge
+filtered by its binding. Opening a card declares `focused_panel`; filter declares
+`none` and still travels through the daemon. Hide is a host-owned surface behavior
+declared by the plugin, so it takes effect locally without granting a terminal
+target.
 
 The clicked row carries its stable daemon and terminal identity. The interaction
 contains the original TUI, workspace, tab, panel, and binding revision; asynchronous

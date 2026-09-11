@@ -1,6 +1,6 @@
 # AnyTTY 插件与 SDK 设计稿 v1
 
-状态：修订 3；两个独立设计评审均已通过，已实施首版闭环（Protobuf + 各 endpoint daemon 统一转发）。本文同时保留后续扩展设计；当前可用 API、启动行为与明确未开放的能力以 [SDK 使用说明](../plugins/README.zh-CN.md) 为准，实际字段以 `proto/apipb/plugin.proto` 为准。独立 PTY renderer、插件创建布局容器及终端内容读取不属于本次已开放能力。
+状态：修订 4；两个独立设计评审均已通过，首版闭环已实施（Protobuf + 各 endpoint daemon 统一转发 + 声明式 TUI surface）。本文同时保留后续扩展设计；当前可用 API、启动行为与明确未开放的能力以 [SDK 使用说明](../plugins/README.zh-CN.md) 为准，实际字段以 `proto/apipb/plugin.proto` 为准。独立 PTY renderer、插件创建布局容器及终端内容读取不属于本次已开放能力。
 
 ## 1. 目标与设计结论
 
@@ -200,21 +200,21 @@ Hook 集成的安装/卸载与 daemon 插件启动分开：安装负责建立 Ag
 
 ### 8.1 挂载归属与交互
 
-每个 MountSpec 必须携带 `via_endpoint_id`（客户端本地出站选择）、`routing_daemon_id`、`tui_instance_id` 和 owner oneof：`workspace(workspace_id)`、`tab(workspace_id,tab_id)`、`panel(workspace_id,tab_id,pane_id)`、`floating(workspace_id,tab_id,floating_id)`。owner 表达容器归属，slot 表达容器里的位置，两者不能混为一个字符串。创建独立 plugin tab/panel/floating 时由宿主返回新容器 ID，再建立 mount；不得借用另一个插件的 mount ID。
+每个 MountSpec 携带 `via_endpoint_id`（客户端本地出站选择）、`routing_daemon_id`、`tui_instance_id`，并声明稳定的 `surface_id`、`placement` 和 `scope`。scope 可以是 `workspace`、`active_tab`、`active_panel` 或 `global`；宿主在当前 TUI 中解析出 owner oneof：`workspace(workspace_id)`、`tab(workspace_id,tab_id)`、`panel(workspace_id,tab_id,pane_id)`、`floating(workspace_id,tab_id,floating_id)`。插件也可以提供显式 owner 以兼容固定挂载。owner 表达容器归属，slot 表达容器里的位置，两者不能混为一个字符串。placement 可取 `sidebar`、`statusbar`、`floating`、`overlay`、`menu`、`header` 或 `content`。创建独立 plugin tab/panel/floating 时由宿主返回新容器 ID，再建立 mount；不得借用另一个插件的 mount ID。
 
 workspace 挂载跨该工作区标签切换保留；tab 挂载在标签隐藏时保留、关闭时卸载；panel 装饰随该面板销毁，换绑时收到新 terminal reference；floating 隐藏不等于关闭。切换可见性发送 daemon 转发的 visibility 事件，关闭 owner 则撤销所有从属挂载、快捷键和订阅。宿主关闭已经不存在的容器属于本地资源清理；不会在断线后偷偷执行新的插件业务请求。
 
 MountSpec 声明焦点策略、是否可交互、首选尺寸、最小尺寸和 overflow 行为。声明式组件统一生成 click/select/submit/cancel/scroll/focus 等类型化事件，包含节点 ID、值、修饰键、owner、目标上下文和组件版本；不可用或旧版本节点不能执行动作。键盘和鼠标触发同一 action，拖拽数据明确来源与目标。
 
-快捷键由插件声明动作及可选默认绑定，宿主按 `focused component → focused mount → panel/floating → tab → workspace → global` 的作用域解析，同层冲突不依赖注册先后，禁用冲突绑定并提供诊断。用户配置优先于插件默认，宿主保留退出、导航与复制等必要入口。插件 global 绑定须显式授权，隐藏 mount 默认不接收按键。独立 PTY 内的普通输入继续交给终端，插件不能劫持其他面板输入。
+快捷键由插件声明动作及可选默认绑定。动作可声明 `behavior`（`activate`、`hide`、`show`、`toggle`、`close`）和 `target_policy`（`none`、`active_panel`、`focused_panel`、`source_panel`），宿主统一执行 surface 行为或捕获固定目标上下文。宿主按 `focused component → focused mount → panel/floating → tab → workspace → global` 的作用域解析，同层冲突不依赖注册先后，禁用冲突绑定并提供诊断。用户配置优先于插件默认，宿主保留退出、导航与复制等必要入口。插件 global 绑定须显式授权，隐藏 mount 可由宿主通用插件焦点命令恢复。独立 PTY 内的普通输入继续交给终端，插件不能劫持其他面板输入。
 
 命中 action 后捕获原始交互上下文，经所属 daemon 转发到插件。组件焦点移动与原生列表滚动可由宿主组件内部处理；发往插件的所有动作、事件、数据请求和状态更新均经 daemon，无本地执行旁路。Escape 优先退出组件编辑/弹出层，再退出挂载焦点，浮窗关闭与后台任务停止分离。鼠标点击和键盘确认应有一致的可用性、错误反馈和焦点恢复。
 
 ### 8.2 自动挂载的明确规则
 
-MountSpec 的 owner oneof 必须是具体容器引用。清单另有 owner_selector：`each_workspace`、`each_tab`、`each_panel`、`each_floating` 或 `on_demand`；自动实例化由 TUI 发现 owner 后向所属 daemon 发出注册请求，daemon 回送确认后才生效。workspace 允许 sidebar/statusbar/menu/overlay；tab 允许 header/menu/overlay/content；panel 允许 header/menu/content；floating 允许 header/menu/content。非法 owner×slot 组合拒绝注册。floating 属于 tab，切 tab 隐藏，关闭 tab 卸载。
+MountSpec 可以只提供逻辑 surface，也可以提供具体 owner。逻辑 scope 由宿主在 TUI 生命周期内自动实例化并在活动 tab/panel 变化后重绑定；固定 owner 继续支持 `each_workspace`、`each_tab`、`each_panel`、`each_floating` 或 `on_demand` 的清单。workspace 允许 sidebar/statusbar/menu/overlay；tab 允许 sidebar/header/menu/overlay/content；panel 允许 header/menu/content；floating 允许 header/menu/content。非法 owner×slot 组合拒绝注册。floating 属于 tab，切 tab 隐藏，关闭 tab 卸载。
 
-首个 Agent 插件每个 workspace 仅一个汇总列表（owner_selector=each_workspace），默认 sidebar；同一 workspace 的多个 endpoint feed 合并在该 mount 中，以 daemon+Agent session 为行键。mount 的控制路由域在创建时固定；行的来源 endpoint 单独保存。跨域点击由 TUI 在目标行所属 daemon 建立新的交互上下文，不转用旧域凭据。面板徽标使用 each_panel，只展示该 panel 绑定终端对应 Agent；footer 扩展点可用于显示当前 workspace 各状态计数，首个插件本轮实现列表及面板徽标。
+首个 Agent 插件每个 workspace 仅一个汇总列表（`surface_id=agents.navigator`、`scope=workspace`），默认 sidebar；同一 workspace 的多个 endpoint feed 合并在该 mount 中，以 daemon+Agent session 为行键。mount 的控制路由域在创建时固定；行的来源 endpoint 单独保存。跨域点击由 TUI 在目标行所属 daemon 建立新的交互上下文，不转用旧域凭据。面板徽标使用固定 panel owner，只展示该 panel 绑定终端对应 Agent；footer 扩展点可用于显示当前 workspace 各状态计数，首个插件本轮实现列表及面板徽标。
 
 列表默认快捷键在 mount 焦点内：上下/jk 移动、Enter 打开、/ 搜索、Esc 清除搜索或返回原内容焦点；鼠标单击选择，双击打开。全局打开 Agent 列表绑定通过用户配置，不覆盖既有按键。行展示 Agent 类型、会话名、endpoint、cwd、状态与陈旧标记。等待处理置前，但正在操作的选中行身份稳定，不因排序跳到其他 Agent。使用宿主现有主题与框架。
 
@@ -391,7 +391,7 @@ TUI 退出不会停止 daemon 插件。daemon 断线时挂载保留最近快照�
 
 ## 15. 实施切分与验收
 
-全部阶段需在本设计获批后开始；以下是实施顺序，不代表已授权动工。
+以下是实现与后续扩展的顺序；已落地的声明式 surface、action 行为和 target policy 以协议及 SDK 使用说明为准。
 
 1. 固定身份、路由、能力与 Protobuf schema；实现最小宿主、SDK 请求/回复和实例注册。
 2. 实现 daemon 插件状态/watch 与重连语义；用独立 SDK 测试程序验证，不先耦合 UI。

@@ -19,18 +19,50 @@ tui = ["state.read", "events.subscribe", "ui.mounts", "ui.panes.bind"]
 [[mounts]]
 id = "agents.workspace"
 slot = "sidebar"
+surface_id = "agents.navigator"
+placement = "sidebar"
+scope = "workspace"
+hideable = true
+closeable = true
 renderer = "declarative"
 auto_mount = true
 owner_selector = "each_workspace"
+
+[[mounts]]
+id = "agents.panel"
+slot = "header"
+surface_id = "agents.panel_badge"
+placement = "header"
+renderer = "declarative"
+auto_mount = true
+owner_selector = "each_panel"
 
 [[actions]]
 id = "agents.open"
 label = "Open Agent terminal"
 contexts = ["mount"]
-default_key = "enter"
+behavior = "activate"
+target_policy = "focused_panel"
 
 [[actions]]
 id = "agents.filter"
 label = "Toggle needs attention"
 contexts = ["mount"]
 default_key = "f"
+behavior = "activate"
+target_policy = "none"
+
+[[actions]]
+id = "agents.hide"
+label = "Hide Agents"
+contexts = ["mount"]
+default_key = "x"
+behavior = "hide"
+target_policy = "none"
+
+[[actions]]
+id = "agents.close"
+label = "Close Agents"
+contexts = ["mount"]
+behavior = "close"
+target_policy = "none"

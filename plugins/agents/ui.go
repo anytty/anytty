@@ -102,11 +102,13 @@ func BuildMount(entries []Entry, owner *apipb.PluginMountOwner, mountID string, 
 			child.Text = child.Status
 			child.ActionId = ""
 		}
-		return &apipb.PluginUiMountUpdate{MountId: mountID, Owner: owner, Slot: "header", Revision: revision, ExpectedRevision: revision - 1, Title: "Agent", Root: root}
+		return &apipb.PluginUiMountUpdate{MountId: mountID, Owner: owner, SurfaceId: "agents.panel_badge", Placement: "header", Slot: "header", Revision: revision, ExpectedRevision: revision - 1, Title: "Agent", Root: root}
 	}
-	return &apipb.PluginUiMountUpdate{MountId: mountID, Owner: owner, Slot: "sidebar", Revision: revision, ExpectedRevision: revision - 1, Title: title, Root: root, PreferredWidth: 42, MinWidth: 24, Actions: []*apipb.PluginUiAction{
-		{Id: "agents.open", Label: "Open terminal", DefaultKey: "enter", Enabled: true, Scope: "mount"},
-		{Id: "agents.filter", Label: filterLabel, DefaultKey: "f", Enabled: true, Scope: "mount"},
+	return &apipb.PluginUiMountUpdate{MountId: mountID, Owner: owner, SurfaceId: "agents.navigator", Placement: "sidebar", Scope: "workspace", Slot: "sidebar", Hideable: true, Closeable: true, Revision: revision, ExpectedRevision: revision - 1, Title: title, Root: root, PreferredWidth: 42, MinWidth: 24, Actions: []*apipb.PluginUiAction{
+		{Id: "agents.open", Label: "Open terminal", Enabled: true, Scope: "mount", Behavior: "activate", TargetPolicy: "focused_panel"},
+		{Id: "agents.filter", Label: filterLabel, DefaultKey: "f", Enabled: true, Scope: "mount", Behavior: "activate", TargetPolicy: "none"},
+		{Id: "agents.hide", Label: "Hide Agents", DefaultKey: "x", Enabled: true, Scope: "mount", Behavior: "hide", TargetPolicy: "none"},
+		{Id: "agents.close", Label: "Close Agents", Enabled: true, Scope: "mount", Behavior: "close", TargetPolicy: "none"},
 	}}
 }
 

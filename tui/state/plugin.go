@@ -44,11 +44,13 @@ type PluginMount struct {
 	ID, PluginID, DaemonID                string
 	EndpointID                            EndpointID
 	Owner                                 PluginOwner
+	SurfaceID, Placement, Scope           string
 	Slot, Title                           string
 	Revision                              uint64
 	Nodes                                 []PluginNode
 	SelectedID, Search                    string
 	Searching, Interactive, Hidden, Stale bool
+	Hideable, Closeable                   bool
 	Width                                 int
 }
 type PluginInteractionContext struct {
@@ -94,11 +96,56 @@ func ValidPluginSlot(owner, slot string) bool {
 	case "workspace":
 		return slot == "sidebar" || slot == "statusbar" || slot == "menu" || slot == "overlay"
 	case "tab":
-		return slot == "header" || slot == "menu" || slot == "overlay" || slot == "content"
+		return slot == "sidebar" || slot == "header" || slot == "menu" || slot == "overlay" || slot == "content"
 	case "panel", "floating":
 		return slot == "header" || slot == "menu" || slot == "content"
 	}
 	return false
+}
+
+func ValidPluginScope(scope string) bool {
+	return scope == "" || scope == "workspace" || scope == "active_tab" || scope == "active_panel" || scope == "global"
+}
+
+func ValidPluginPlacement(placement string) bool {
+	return placement == "" || placement == "sidebar" || placement == "statusbar" || placement == "floating" || placement == "overlay" || placement == "menu" || placement == "header" || placement == "content"
+}
+
+func ValidPluginTargetPolicy(policy string) bool {
+	return policy == "" || policy == "none" || policy == "active_panel" || policy == "focused_panel" || policy == "source_panel"
+}
+
+func ValidPluginActionBehavior(behavior string) bool {
+	return behavior == "" || behavior == "activate" || behavior == "hide" || behavior == "close" || behavior == "show" || behavior == "toggle"
+}
+
+func IsDynamicPluginScope(scope string) bool {
+	return scope == "active_tab" || scope == "active_panel"
+}
+
+// PluginOwnerForScope resolves a logical surface scope against the current
+// shell. It returns no owner while the requested context is unavailable.
+func PluginOwnerForScope(shell ShellStore, scope string) (PluginOwner, bool) {
+	shell = shell.ReadonlyDefaults()
+	switch scope {
+	case "", "workspace", "global":
+		if shell.Workspace.ID == "" {
+			return PluginOwner{}, false
+		}
+		return PluginOwner{Kind: "workspace", WorkspaceID: shell.Workspace.ID}, true
+	case "active_tab":
+		if shell.Workspace.ID == "" || shell.Workspace.ActiveTabID == "" {
+			return PluginOwner{}, false
+		}
+		return PluginOwner{Kind: "tab", WorkspaceID: shell.Workspace.ID, TabID: shell.Workspace.ActiveTabID}, true
+	case "active_panel":
+		if shell.Workspace.ID == "" || shell.Workspace.ActiveTabID == "" || shell.ActivePaneID == "" {
+			return PluginOwner{}, false
+		}
+		return PluginOwner{Kind: "panel", WorkspaceID: shell.Workspace.ID, TabID: shell.Workspace.ActiveTabID, PaneID: shell.ActivePaneID}, true
+	default:
+		return PluginOwner{}, false
+	}
 }
 func (o PluginOwner) Exists(shell ShellStore) bool { _, exists := o.visibility(shell); return exists }
 func (o PluginOwner) Visible(shell ShellStore) bool {
@@ -154,11 +201,14 @@ func (o PluginOwner) visibility(shell ShellStore) (bool, bool) {
 	return false, false
 }
 func (s PluginStore) Apply(shell ShellStore, m PluginMount, base uint64) (PluginStore, error) {
-	if m.ID == "" || m.PluginID == "" || m.DaemonID == "" || !ValidPluginSlot(m.Owner.Kind, m.Slot) || !m.Owner.Exists(shell) {
+	ownerAvailable := m.Owner.Exists(shell)
+	if m.ID == "" || m.PluginID == "" || m.DaemonID == "" || !ValidPluginSlot(m.Owner.Kind, m.Slot) || (!ownerAvailable && !IsDynamicPluginScope(m.Scope)) {
 		return s, errors.New("invalid plugin mount owner or slot")
 	}
 	old, exists := s.Mounts[m.ID]
-	if exists && (old.PluginID != m.PluginID || old.DaemonID != m.DaemonID || old.Owner != m.Owner) {
+	ownerChanged := exists && old.Owner != m.Owner
+	dynamicOwnerUpdate := ownerChanged && IsDynamicPluginScope(m.Scope) && old.Scope == m.Scope && old.SurfaceID == m.SurfaceID
+	if exists && (old.PluginID != m.PluginID || old.DaemonID != m.DaemonID || (ownerChanged && !dynamicOwnerUpdate)) {
 		return s, errors.New("plugin mount identity conflict")
 	}
 	if (exists && base != old.Revision) || (!exists && base != 0) || m.Revision <= base {
@@ -223,15 +273,44 @@ func (s PluginStore) Set(m PluginMount) PluginStore { s = s.clone(); s.Mounts[m.
 func (s PluginStore) Remove(id string) PluginStore {
 	s = s.clone()
 	delete(s.Mounts, id)
+	if len(s.Contexts) > 0 {
+		contexts := make(map[string]PluginInteractionContext, len(s.Contexts))
+		for key, context := range s.Contexts {
+			if context.Context == nil || context.Context.GetMountId() != id {
+				contexts[key] = context
+			}
+		}
+		s.Contexts = contexts
+	}
 	if s.FocusedMountID == id {
 		s.FocusedMountID = ""
 	}
 	return s
 }
+
+// ReconcileDynamicOwners binds logical active_tab/active_panel surfaces to the
+// current shell without changing the plugin-owned mount identity.
+func (s PluginStore) ReconcileDynamicOwners(shell ShellStore) (PluginStore, []string) {
+	changed := []string{}
+	for id, mount := range s.Mounts {
+		if !IsDynamicPluginScope(mount.Scope) {
+			continue
+		}
+		owner, ok := PluginOwnerForScope(shell, mount.Scope)
+		if !ok || owner == mount.Owner {
+			continue
+		}
+		mount.Owner = owner
+		s = s.Set(mount)
+		changed = append(changed, id)
+	}
+	sort.Strings(changed)
+	return s, changed
+}
 func (s PluginStore) Prune(shell ShellStore) (PluginStore, []PluginMount) {
 	var removed []PluginMount
 	for id, m := range s.Mounts {
-		if !m.Owner.Exists(shell) {
+		if !IsDynamicPluginScope(m.Scope) && !m.Owner.Exists(shell) {
 			removed = append(removed, m)
 			s = s.Remove(id)
 		}

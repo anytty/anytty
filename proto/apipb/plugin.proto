@@ -100,6 +100,11 @@ message PluginTargetContext {
   uint64 binding_revision = 6;
   string mount_id = 7;
   string floating_id = 8;
+  // Host-resolved target metadata. Plugins may select a policy but cannot
+  // mutate the concrete TUI, tab, or panel captured here.
+  string target_policy = 9;
+  string surface_id = 10;
+  string view_id = 11;
 }
 message PluginUiInteraction {
   string mount_id = 1;
@@ -122,7 +127,18 @@ message PluginUiOperation {
     PluginUiNotification notification = 11;
   }
 }
-message PluginUiAction { string id = 1; string label = 2; string default_key = 3; bool enabled = 4; string scope = 5; }
+message PluginUiAction {
+  string id = 1;
+  string label = 2;
+  string default_key = 3;
+  bool enabled = 4;
+  string scope = 5;
+  // Host behavior is generic; plugin action IDs remain plugin-owned.
+  // activate, hide, close, show, and toggle are supported surface behaviors.
+  string behavior = 6;
+  // none, active_panel, focused_panel, source_panel.
+  string target_policy = 7;
+}
 // Theme-aware semantic roles. The host maps these roles to its active theme;
 // plugins do not emit ANSI escape sequences or reach into host renderer code.
 message PluginUiStyle {
@@ -171,6 +187,13 @@ message PluginUiMountUpdate {
   bool focus = 10;
   uint32 preferred_width = 11;
   uint32 min_width = 12;
+  // Surface declarations let the host resolve placement without requiring a
+  // plugin to hard-code a concrete tab or panel owner.
+  string surface_id = 13;
+  string placement = 14; // sidebar, statusbar, floating, overlay, menu, header, content
+  string scope = 15; // workspace, active_tab, active_panel, global
+  bool hideable = 16;
+  bool closeable = 17;
 }
 message PluginAgentReport {
   string agent_id = 1;

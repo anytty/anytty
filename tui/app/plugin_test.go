@@ -165,6 +165,54 @@ func TestPluginCardMouseActivatesOnSingleClick(t *testing.T) {
 		t.Fatalf("single card click routed the wrong interaction: %v", message)
 	}
 }
+
+func TestPluginSurfaceScopeResolvesWorkspaceWithoutOwner(t *testing.T) {
+	root, deps, service := pluginFixture(t)
+	root.Plugins = state.PluginStore{}
+	update := &apipb.PluginUiMountUpdate{MountId: "declared", SurfaceId: "example.sidebar", Placement: "sidebar", Scope: "workspace", Revision: 1, Root: &apipb.PluginUiNode{Id: "root", Kind: "text", Text: "declared"}}
+	delivery := port.PluginDelivery{EndpointID: "local", Message: &apipb.PluginMessage{Source: &apipb.PluginAddress{DaemonId: "daemon-a", TuiInstanceId: deps.TUIInstanceID, PluginId: "example", PluginInstanceId: "process"}, Destination: &apipb.PluginAddress{TuiInstanceId: deps.TUIInstanceID}, Body: &apipb.PluginMessage_MountUpdate{MountUpdate: update}}}
+	next, effects := NewPluginReducer(deps)(root, PluginDeliveryMsg{Delivery: delivery})
+	runPluginEffects(t, effects)
+	mount, ok := next.Plugins.Mounts["declared"]
+	if !ok || mount.Owner.Kind != "workspace" || mount.Owner.WorkspaceID != root.Shell.Workspace.ID || mount.Slot != "sidebar" || mount.SurfaceID != "example.sidebar" {
+		t.Fatalf("surface declaration was not resolved by host: %+v", mount)
+	}
+	if len(service.messages) != 1 || service.messages[0].GetReply().GetError() != nil {
+		t.Fatalf("surface declaration was rejected: %v", service.messages)
+	}
+}
+
+func TestPluginActionBehaviorAndTargetPolicyAreDeclarative(t *testing.T) {
+	root, deps, service := pluginFixture(t)
+	mount := root.Plugins.Mounts["agents"]
+	mount.Actions = []*apipb.PluginUiAction{{Id: "filter", Enabled: true, Behavior: "activate", TargetPolicy: "none"}, {Id: "hide", DefaultKey: "x", Enabled: true, Scope: "mount", Behavior: "hide", TargetPolicy: "none"}}
+	mount.Hideable = true
+	root.Plugins = root.Plugins.Set(mount)
+	root, effects := pluginActivateAction(root, mount, "filter", deps)
+	runPluginEffects(t, effects)
+	if len(service.messages) != 1 || service.messages[0].GetInteraction().GetContext().GetPaneId() != "" || service.messages[0].GetInteraction().GetContext().GetTargetPolicy() != "none" {
+		t.Fatalf("none target policy captured a panel: %v", service.messages)
+	}
+	root.Plugins.FocusedMountID = mount.ID
+	next, effects, handled := pluginShortcut(root, input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "x"}, deps)
+	runPluginEffects(t, effects)
+	if !handled || !next.Plugins.Mounts[mount.ID].Hidden || len(service.messages) != 1 {
+		t.Fatalf("declared hide behavior was not applied locally: hidden=%v messages=%d", next.Plugins.Mounts[mount.ID].Hidden, len(service.messages))
+	}
+}
+
+func TestPluginFocusCommandRecoversHiddenSurface(t *testing.T) {
+	root, _, _ := pluginFixture(t)
+	mount := root.Plugins.Mounts["agents"]
+	mount.Hidden = true
+	root.Plugins = root.Plugins.Set(mount)
+	root.Plugins.FocusedMountID = ""
+	next := pluginFocusNext(root, 1)
+	if next.Plugins.FocusedMountID != mount.ID || next.Plugins.Mounts[mount.ID].Hidden {
+		t.Fatal("generic plugin focus should reveal a hidden surface")
+	}
+}
+
 func TestPluginInitAndOwnerCloseTravelThroughDaemon(t *testing.T) {
 	root, deps, service := pluginFixture(t)
 	root.Plugins.Mounts["agents"] = state.PluginMount{} // use a separate tab-scoped mount below

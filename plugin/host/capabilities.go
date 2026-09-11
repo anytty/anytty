@@ -58,8 +58,20 @@ func authorizeCommand(manifest Manifest, mode string, command *apipb.PluginComma
 				return err
 			}
 			update := message.GetMountUpdate()
+			slot := update.Slot
+			if slot == "" && update.Placement != "" {
+				slot = placementSlot[update.Placement]
+			}
 			for _, mount := range manifest.Mounts {
-				if (update.MountId == mount.ID || strings.HasPrefix(update.MountId, mount.ID+".")) && update.Slot == mount.Slot {
+				idMatch := update.MountId == mount.ID || strings.HasPrefix(update.MountId, mount.ID+".")
+				if update.Close && idMatch {
+					return nil
+				}
+				slotMatch := slot != "" && (slot == mount.Slot || slot == placementSlot[mount.Placement])
+				surfaceMatch := update.SurfaceId != "" && mount.SurfaceID != "" && update.SurfaceId == mount.SurfaceID
+				scopeMatch := update.Scope == "" || mount.Scope == "" || update.Scope == mount.Scope
+				placementMatch := update.Placement == "" || mount.Placement == "" || update.Placement == mount.Placement
+				if idMatch && (slotMatch || surfaceMatch) && scopeMatch && placementMatch {
 					return nil
 				}
 			}

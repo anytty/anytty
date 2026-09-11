@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"time"
 
 	"github.com/anytty/anytty/proto/apipb"
@@ -142,6 +143,46 @@ func pluginOwner(p *apipb.PluginMountOwner) state.PluginOwner {
 	}
 	return state.PluginOwner{}
 }
+
+func pluginMountOwner(root state.Root, update *apipb.PluginUiMountUpdate) (state.PluginOwner, string, error) {
+	owner := pluginOwner(update.GetOwner())
+	dynamic := state.IsDynamicPluginScope(update.GetScope())
+	if update.GetScope() != "" || owner.Kind == "" {
+		scope := update.GetScope()
+		if scope == "" {
+			scope = "workspace"
+		}
+		var ok bool
+		owner, ok = state.PluginOwnerForScope(root.Shell, scope)
+		if !ok {
+			// Keep a typed, incomplete owner while an active tab/panel is absent.
+			// ReconcileDynamicOwners fills its IDs as soon as the shell creates it.
+			shell := root.Shell.ReadonlyDefaults()
+			if shell.Workspace.ID == "" {
+				return state.PluginOwner{}, "", fmt.Errorf("plugin surface scope %q has no workspace", scope)
+			}
+			switch scope {
+			case "active_tab":
+				owner = state.PluginOwner{Kind: "tab", WorkspaceID: shell.Workspace.ID}
+			case "active_panel":
+				owner = state.PluginOwner{Kind: "panel", WorkspaceID: shell.Workspace.ID}
+			default:
+				return state.PluginOwner{}, "", fmt.Errorf("plugin surface scope %q has no active target", scope)
+			}
+		}
+	}
+	slot := update.GetSlot()
+	if placement := update.GetPlacement(); placement != "" {
+		slot = map[string]string{"sidebar": "sidebar", "statusbar": "statusbar", "floating": "overlay", "overlay": "overlay", "menu": "menu", "header": "header", "content": "content"}[placement]
+	}
+	if !state.ValidPluginSlot(owner.Kind, slot) {
+		return state.PluginOwner{}, "", fmt.Errorf("plugin surface %q is invalid for %s owner", slot, owner.Kind)
+	}
+	if !owner.Exists(root.Shell) && !dynamic {
+		return state.PluginOwner{}, "", fmt.Errorf("plugin surface owner is unavailable")
+	}
+	return owner, slot, nil
+}
 func pluginNodes(node *apipb.PluginUiNode, deps PluginDeps) []state.PluginNode {
 	if node == nil {
 		return nil
@@ -240,7 +281,11 @@ func reducePluginDelivery(root state.Root, d port.PluginDelivery, deps PluginDep
 		if err := validatePluginMount(update); err != nil {
 			return root, []Effect{pluginReply(deps, d, "UNSUPPORTED", err.Error())}
 		}
-		mount := state.PluginMount{ID: update.GetMountId(), PluginID: p.GetSource().GetPluginId(), DaemonID: p.GetSource().GetDaemonId(), EndpointID: d.EndpointID, Owner: pluginOwner(update.GetOwner()), Slot: update.GetSlot(), Title: update.GetTitle(), Revision: update.GetRevision(), Nodes: pluginNodes(update.GetRoot(), deps), Interactive: true, Width: int(update.GetPreferredWidth()), Source: proto.Clone(p.GetSource()).(*apipb.PluginAddress), Actions: update.GetActions()}
+		owner, slot, err := pluginMountOwner(root, update)
+		if err != nil {
+			return root, []Effect{pluginReply(deps, d, "UNSUPPORTED", err.Error())}
+		}
+		mount := state.PluginMount{ID: update.GetMountId(), PluginID: p.GetSource().GetPluginId(), DaemonID: p.GetSource().GetDaemonId(), EndpointID: d.EndpointID, Owner: owner, SurfaceID: update.GetSurfaceId(), Placement: update.GetPlacement(), Scope: update.GetScope(), Slot: slot, Title: update.GetTitle(), Revision: update.GetRevision(), Nodes: pluginNodes(update.GetRoot(), deps), Interactive: true, Width: int(update.GetPreferredWidth()), Source: proto.Clone(p.GetSource()).(*apipb.PluginAddress), Actions: update.GetActions(), Hideable: update.GetHideable(), Closeable: update.GetCloseable()}
 		if exists && old.Stale && update.GetExpectedRevision() == 0 {
 			root.Plugins = root.Plugins.Remove(old.ID)
 		}
@@ -278,20 +323,67 @@ func pluginBindingRevision(root state.Root, owner state.PluginOwner) uint64 {
 	fmt.Fprintf(h, "%s|%s|%s|%s|%s|%d", owner.WorkspaceID, owner.TabID, b.ViewID, b.EndpointID, b.TerminalID, b.Channel)
 	return h.Sum64()
 }
+func pluginActionForID(m state.PluginMount, id string) *apipb.PluginUiAction {
+	for _, action := range m.Actions {
+		if action.GetId() == id {
+			return action
+		}
+	}
+	return nil
+}
+
+func pluginActionTargetPolicy(m state.PluginMount, id string) string {
+	if action := pluginActionForID(m, id); action != nil && action.GetTargetPolicy() != "" {
+		return action.GetTargetPolicy()
+	}
+	return "focused_panel"
+}
+
 func pluginCapture(root state.Root, m state.PluginMount, node state.PluginNode, deps PluginDeps) (state.Root, *apipb.PluginTargetContext, state.EndpointID) {
 	shell := root.Shell.ReadonlyDefaults()
-	pane := root.Plugins.LastContentPaneID
-	if pane == "" {
+	policy := pluginActionTargetPolicy(m, node.Action)
+	pane := ""
+	owner := state.PluginOwner{}
+	switch policy {
+	case "active_panel":
 		pane = shell.ActivePaneID
+	case "source_panel":
+		if m.Owner.Kind == "panel" {
+			owner = m.Owner
+			pane = owner.PaneID
+		} else {
+			pane = root.Plugins.LastContentPaneID
+			if pane == "" {
+				pane = shell.ActivePaneID
+			}
+		}
+	case "none":
+		// UI-only actions still carry a daemon-routed context, but do not pin
+		// themselves to a terminal panel.
+	default:
+		pane = root.Plugins.LastContentPaneID
+		if pane == "" {
+			pane = shell.ActivePaneID
+		}
 	}
-	owner := state.PluginOwner{Kind: "panel", WorkspaceID: shell.Workspace.ID, TabID: shell.Workspace.ActiveTabID, PaneID: pane}
+	if pane != "" && owner.Kind == "" {
+		owner = state.PluginOwner{Kind: "panel", WorkspaceID: shell.Workspace.ID, TabID: shell.Workspace.ActiveTabID, PaneID: pane}
+	}
 	endpoint := m.EndpointID
 	if node.DaemonID != "" && deps.Service != nil {
 		if ep, ok := deps.Service.ResolveDaemon(node.DaemonID); ok {
 			endpoint = ep
 		}
 	}
-	c := &apipb.PluginTargetContext{ContextId: pluginID(), TuiInstanceId: deps.TUIInstanceID, WorkspaceId: owner.WorkspaceID, TabId: owner.TabID, PaneId: pane, BindingRevision: pluginBindingRevision(root, owner), MountId: m.ID}
+	c := &apipb.PluginTargetContext{ContextId: pluginID(), TuiInstanceId: deps.TUIInstanceID, WorkspaceId: owner.WorkspaceID, TabId: owner.TabID, PaneId: pane, MountId: m.ID, TargetPolicy: policy, SurfaceId: m.SurfaceID}
+	if pane != "" {
+		c.BindingRevision = pluginBindingRevision(root, owner)
+		if owner.FloatingID != "" {
+			c.ViewId = liveAttachFloatingViewID(root, owner.FloatingID)
+		} else {
+			c.ViewId = liveAttachPaneViewID(root, owner.PaneID)
+		}
+	}
 	contexts := make(map[string]state.PluginInteractionContext)
 	for k, v := range root.Plugins.Contexts {
 		if v.Expires > time.Now().UnixMilli() {
@@ -391,10 +483,6 @@ func reducePluginInput(root state.Root, msg PluginInputMsg, deps PluginDeps) (st
 				m = m.Move(-1)
 			case "/":
 				m.Searching = true
-			case "x":
-				// Hide this mount for the current TUI instance; the plugin remains running.
-				m.Hidden = true
-				root.Plugins.FocusedMountID = ""
 			}
 		}
 	}
@@ -405,6 +493,51 @@ func pluginActivate(root state.Root, m state.PluginMount, deps PluginDeps) (stat
 	return pluginActivateAction(root, m, "", deps)
 }
 func pluginActivateAction(root state.Root, m state.PluginMount, action string, deps PluginDeps, events ...input.InputEvent) (state.Root, []Effect) {
+	meta := pluginActionForID(m, action)
+	behavior := "activate"
+	if meta != nil && meta.GetBehavior() != "" {
+		behavior = meta.GetBehavior()
+	}
+	switch behavior {
+	case "hide":
+		if !m.Hideable {
+			return root, []Effect{handledEffect{}}
+		}
+		m.Hidden = true
+		root.Plugins.FocusedMountID = ""
+		root.Plugins = root.Plugins.Set(m)
+		return root.Advance(), []Effect{handledEffect{}}
+	case "show":
+		m.Hidden = false
+		root.Plugins = root.Plugins.Set(m)
+		if m.Owner.Visible(root.Shell) {
+			root.Plugins.FocusedMountID = m.ID
+		}
+		return root.Advance(), []Effect{handledEffect{}}
+	case "toggle":
+		if !m.Hideable {
+			return root, []Effect{handledEffect{}}
+		}
+		m.Hidden = !m.Hidden
+		root.Plugins = root.Plugins.Set(m)
+		if m.Hidden {
+			if root.Plugins.FocusedMountID == m.ID {
+				root.Plugins.FocusedMountID = ""
+			}
+		} else if m.Owner.Visible(root.Shell) {
+			root.Plugins.FocusedMountID = m.ID
+		}
+		return root.Advance(), []Effect{handledEffect{}}
+	case "close":
+		if !m.Closeable {
+			return root, []Effect{handledEffect{}}
+		}
+		root.Plugins = root.Plugins.Remove(m.ID)
+		if m.Source == nil {
+			return root.Advance(), []Effect{handledEffect{}}
+		}
+		return root.Advance(), []Effect{handledEffect{}, pluginSend(deps, m.EndpointID, &apipb.PluginMessage{RequestId: pluginID(), Destination: m.Source, Body: &apipb.PluginMessage_Interaction{Interaction: &apipb.PluginUiInteraction{MountId: m.ID, MountRevision: m.Revision, ActionId: action, Kind: "close"}}})}
+	}
 	node, ok := m.Selected()
 	if action != "" {
 		node.Action = action
@@ -469,6 +602,13 @@ func reducePluginOperation(root state.Root, d port.PluginDelivery, deps PluginDe
 	case !proto.Equal(saved.Context, c):
 		return reject("STALE_CONTEXT", "interaction context was modified")
 	}
+	if n := op.GetNotification(); n != nil {
+		root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastInfo, Title: n.GetTitle(), Body: n.GetBody()})
+		return root.Advance(), []Effect{pluginReply(deps, d, "", "")}
+	}
+	if c.GetTargetPolicy() == "none" {
+		return reject("NO_TARGET", "this plugin action does not target a panel")
+	}
 	owner := state.PluginOwner{Kind: "panel", WorkspaceID: c.GetWorkspaceId(), TabID: c.GetTabId(), PaneID: c.GetPaneId()}
 	if c.GetFloatingId() != "" {
 		owner.Kind = "floating"
@@ -476,10 +616,6 @@ func reducePluginOperation(root state.Root, d port.PluginDelivery, deps PluginDe
 	}
 	if !owner.Exists(root.Shell) || pluginBindingRevision(root, owner) != c.GetBindingRevision() {
 		return reject("CONFLICT", "target binding changed")
-	}
-	if n := op.GetNotification(); n != nil {
-		root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastInfo, Title: n.GetTitle(), Body: n.GetBody()})
-		return root.Advance(), []Effect{pluginReply(deps, d, "", "")}
 	}
 	bind := op.GetBind()
 	if bind == nil {
@@ -686,6 +822,24 @@ func pluginShortcut(root state.Root, event input.InputEvent, deps PluginDeps) (s
 // releases its mounts immediately, without waiting for the next user input.
 func NewPluginMaintenanceReducer(deps PluginDeps) Reducer {
 	return func(root state.Root, msg Msg) (state.Root, []Effect) {
+		var changed []string
+		root.Plugins, changed = root.Plugins.ReconcileDynamicOwners(root.Shell)
+		if len(changed) > 0 {
+			contexts := make(map[string]state.PluginInteractionContext, len(root.Plugins.Contexts))
+			for id, context := range root.Plugins.Contexts {
+				remove := false
+				for _, mountID := range changed {
+					if context.Context != nil && context.Context.GetMountId() == mountID {
+						remove = true
+						break
+					}
+				}
+				if !remove {
+					contexts[id] = context
+				}
+			}
+			root.Plugins.Contexts = contexts
+		}
 		var removed []state.PluginMount
 		root.Plugins, removed = root.Plugins.Prune(root.Shell)
 		contexts := make(map[string]state.PluginInteractionContext)
@@ -733,6 +887,16 @@ func pluginFocusNext(root state.Root, delta int) state.Root {
 			mounts = append(mounts, m)
 		}
 	}
+	// A hidden surface must remain recoverable through the host's generic
+	// plugin-focus command even when its plugin has no global toggle action.
+	if len(mounts) == 0 {
+		for _, m := range root.Plugins.Mounts {
+			if m.Hidden && m.Interactive && m.Owner.Visible(root.Shell) && m.Slot != "header" && m.Slot != "statusbar" {
+				mounts = append(mounts, m)
+			}
+		}
+		sort.Slice(mounts, func(i, j int) bool { return mounts[i].ID < mounts[j].ID })
+	}
 	if len(mounts) == 0 {
 		root.Plugins.Error = "No interactive plugin views available"
 		return root.Advance()
@@ -750,6 +914,10 @@ func pluginFocusNext(root state.Root, delta int) state.Root {
 	selected = (selected + delta + len(mounts)) % len(mounts)
 	if root.Plugins.FocusedMountID == "" {
 		root.Plugins.LastContentPaneID = root.Shell.ReadonlyDefaults().ActivePaneID
+	}
+	if mounts[selected].Hidden {
+		mounts[selected].Hidden = false
+		root.Plugins = root.Plugins.Set(mounts[selected])
 	}
 	root.Plugins.FocusedMountID = mounts[selected].ID
 	root.Shell = root.Shell.SetInteractionMode(state.InteractionModeNormal)

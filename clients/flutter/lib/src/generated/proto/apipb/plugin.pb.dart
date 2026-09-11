@@ -2000,6 +2000,9 @@ class PluginTargetContext extends $pb.GeneratedMessage {
     $fixnum.Int64? bindingRevision,
     $core.String? mountId,
     $core.String? floatingId,
+    $core.String? targetPolicy,
+    $core.String? surfaceId,
+    $core.String? viewId,
   }) {
     final result = create();
     if (contextId != null) result.contextId = contextId;
@@ -2010,6 +2013,9 @@ class PluginTargetContext extends $pb.GeneratedMessage {
     if (bindingRevision != null) result.bindingRevision = bindingRevision;
     if (mountId != null) result.mountId = mountId;
     if (floatingId != null) result.floatingId = floatingId;
+    if (targetPolicy != null) result.targetPolicy = targetPolicy;
+    if (surfaceId != null) result.surfaceId = surfaceId;
+    if (viewId != null) result.viewId = viewId;
     return result;
   }
 
@@ -2036,6 +2042,9 @@ class PluginTargetContext extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(7, _omitFieldNames ? '' : 'mountId')
     ..aOS(8, _omitFieldNames ? '' : 'floatingId')
+    ..aOS(9, _omitFieldNames ? '' : 'targetPolicy')
+    ..aOS(10, _omitFieldNames ? '' : 'surfaceId')
+    ..aOS(11, _omitFieldNames ? '' : 'viewId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2128,6 +2137,35 @@ class PluginTargetContext extends $pb.GeneratedMessage {
   $core.bool hasFloatingId() => $_has(7);
   @$pb.TagNumber(8)
   void clearFloatingId() => $_clearField(8);
+
+  /// Host-resolved target metadata. Plugins may select a policy but cannot
+  /// mutate the concrete TUI, tab, or panel captured here.
+  @$pb.TagNumber(9)
+  $core.String get targetPolicy => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set targetPolicy($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasTargetPolicy() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearTargetPolicy() => $_clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get surfaceId => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set surfaceId($core.String value) => $_setString(9, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSurfaceId() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearSurfaceId() => $_clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.String get viewId => $_getSZ(10);
+  @$pb.TagNumber(11)
+  set viewId($core.String value) => $_setString(10, value);
+  @$pb.TagNumber(11)
+  $core.bool hasViewId() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearViewId() => $_clearField(11);
 }
 
 class PluginUiInteraction extends $pb.GeneratedMessage {
@@ -2535,6 +2573,8 @@ class PluginUiAction extends $pb.GeneratedMessage {
     $core.String? defaultKey,
     $core.bool? enabled,
     $core.String? scope,
+    $core.String? behavior,
+    $core.String? targetPolicy,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -2542,6 +2582,8 @@ class PluginUiAction extends $pb.GeneratedMessage {
     if (defaultKey != null) result.defaultKey = defaultKey;
     if (enabled != null) result.enabled = enabled;
     if (scope != null) result.scope = scope;
+    if (behavior != null) result.behavior = behavior;
+    if (targetPolicy != null) result.targetPolicy = targetPolicy;
     return result;
   }
 
@@ -2563,6 +2605,8 @@ class PluginUiAction extends $pb.GeneratedMessage {
     ..aOS(3, _omitFieldNames ? '' : 'defaultKey')
     ..aOB(4, _omitFieldNames ? '' : 'enabled')
     ..aOS(5, _omitFieldNames ? '' : 'scope')
+    ..aOS(6, _omitFieldNames ? '' : 'behavior')
+    ..aOS(7, _omitFieldNames ? '' : 'targetPolicy')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2628,6 +2672,27 @@ class PluginUiAction extends $pb.GeneratedMessage {
   $core.bool hasScope() => $_has(4);
   @$pb.TagNumber(5)
   void clearScope() => $_clearField(5);
+
+  /// Host behavior is generic; plugin action IDs remain plugin-owned.
+  /// activate, hide, close, show, and toggle are supported surface behaviors.
+  @$pb.TagNumber(6)
+  $core.String get behavior => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set behavior($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasBehavior() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearBehavior() => $_clearField(6);
+
+  /// none, active_panel, focused_panel, source_panel.
+  @$pb.TagNumber(7)
+  $core.String get targetPolicy => $_getSZ(6);
+  @$pb.TagNumber(7)
+  set targetPolicy($core.String value) => $_setString(6, value);
+  @$pb.TagNumber(7)
+  $core.bool hasTargetPolicy() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearTargetPolicy() => $_clearField(7);
 }
 
 /// Theme-aware semantic roles. The host maps these roles to its active theme;
@@ -3083,6 +3148,11 @@ class PluginUiMountUpdate extends $pb.GeneratedMessage {
     $core.bool? focus,
     $core.int? preferredWidth,
     $core.int? minWidth,
+    $core.String? surfaceId,
+    $core.String? placement,
+    $core.String? scope,
+    $core.bool? hideable,
+    $core.bool? closeable,
   }) {
     final result = create();
     if (mountId != null) result.mountId = mountId;
@@ -3097,6 +3167,11 @@ class PluginUiMountUpdate extends $pb.GeneratedMessage {
     if (focus != null) result.focus = focus;
     if (preferredWidth != null) result.preferredWidth = preferredWidth;
     if (minWidth != null) result.minWidth = minWidth;
+    if (surfaceId != null) result.surfaceId = surfaceId;
+    if (placement != null) result.placement = placement;
+    if (scope != null) result.scope = scope;
+    if (hideable != null) result.hideable = hideable;
+    if (closeable != null) result.closeable = closeable;
     return result;
   }
 
@@ -3133,6 +3208,11 @@ class PluginUiMountUpdate extends $pb.GeneratedMessage {
     ..aI(11, _omitFieldNames ? '' : 'preferredWidth',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(12, _omitFieldNames ? '' : 'minWidth', fieldType: $pb.PbFieldType.OU3)
+    ..aOS(13, _omitFieldNames ? '' : 'surfaceId')
+    ..aOS(14, _omitFieldNames ? '' : 'placement')
+    ..aOS(15, _omitFieldNames ? '' : 'scope')
+    ..aOB(16, _omitFieldNames ? '' : 'hideable')
+    ..aOB(17, _omitFieldNames ? '' : 'closeable')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3260,6 +3340,53 @@ class PluginUiMountUpdate extends $pb.GeneratedMessage {
   $core.bool hasMinWidth() => $_has(11);
   @$pb.TagNumber(12)
   void clearMinWidth() => $_clearField(12);
+
+  /// Surface declarations let the host resolve placement without requiring a
+  /// plugin to hard-code a concrete tab or panel owner.
+  @$pb.TagNumber(13)
+  $core.String get surfaceId => $_getSZ(12);
+  @$pb.TagNumber(13)
+  set surfaceId($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasSurfaceId() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearSurfaceId() => $_clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.String get placement => $_getSZ(13);
+  @$pb.TagNumber(14)
+  set placement($core.String value) => $_setString(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasPlacement() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearPlacement() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get scope => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set scope($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasScope() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearScope() => $_clearField(15);
+
+  @$pb.TagNumber(16)
+  $core.bool get hideable => $_getBF(15);
+  @$pb.TagNumber(16)
+  set hideable($core.bool value) => $_setBool(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasHideable() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearHideable() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.bool get closeable => $_getBF(16);
+  @$pb.TagNumber(17)
+  set closeable($core.bool value) => $_setBool(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasCloseable() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearCloseable() => $_clearField(17);
 }
 
 class PluginAgentReport extends $pb.GeneratedMessage {

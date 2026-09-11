@@ -14,6 +14,11 @@ import (
 const ManifestFile = "anytty-plugin.toml"
 
 var validID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9][a-zA-Z0-9_-]*)+$`)
+var placementSlot = map[string]string{"sidebar": "sidebar", "statusbar": "statusbar", "floating": "overlay", "overlay": "overlay", "menu": "menu", "header": "header", "content": "content"}
+var validPlacement = map[string]bool{"sidebar": true, "statusbar": true, "floating": true, "overlay": true, "menu": true, "header": true, "content": true}
+var validScope = map[string]bool{"workspace": true, "active_tab": true, "active_panel": true, "global": true}
+var validBehavior = map[string]bool{"activate": true, "hide": true, "close": true, "show": true, "toggle": true}
+var validTargetPolicy = map[string]bool{"none": true, "active_panel": true, "focused_panel": true, "source_panel": true}
 
 type Component struct {
 	Command []string `toml:"command"`
@@ -23,15 +28,22 @@ type Component struct {
 type Mount struct {
 	ID            string `toml:"id"`
 	Slot          string `toml:"slot"`
+	SurfaceID     string `toml:"surface_id"`
+	Placement     string `toml:"placement"`
+	Scope         string `toml:"scope"`
+	Hideable      bool   `toml:"hideable"`
+	Closeable     bool   `toml:"closeable"`
 	Renderer      string `toml:"renderer"`
 	AutoMount     bool   `toml:"auto_mount"`
 	OwnerSelector string `toml:"owner_selector"`
 }
 type Action struct {
-	ID         string   `toml:"id"`
-	Label      string   `toml:"label"`
-	Contexts   []string `toml:"contexts"`
-	DefaultKey string   `toml:"default_key"`
+	ID           string   `toml:"id"`
+	Label        string   `toml:"label"`
+	Contexts     []string `toml:"contexts"`
+	DefaultKey   string   `toml:"default_key"`
+	Behavior     string   `toml:"behavior"`
+	TargetPolicy string   `toml:"target_policy"`
 }
 type Capabilities struct {
 	Daemon []string `toml:"daemon"`
@@ -98,6 +110,18 @@ func (m Manifest) Validate() error {
 		if mount.Renderer != "declarative" && mount.Renderer != "pty" {
 			return fmt.Errorf("invalid mount renderer %q", mount.Renderer)
 		}
+		if mount.Slot == "" && mount.Placement == "" {
+			return fmt.Errorf("mount %s needs slot or placement", mount.ID)
+		}
+		if mount.Placement != "" && !validPlacement[mount.Placement] {
+			return fmt.Errorf("invalid mount placement %q", mount.Placement)
+		}
+		if mount.Scope != "" && !validScope[mount.Scope] {
+			return fmt.Errorf("invalid mount scope %q", mount.Scope)
+		}
+		if mount.Placement != "" && mount.Slot != "" && placementSlot[mount.Placement] != mount.Slot {
+			return fmt.Errorf("mount %s placement %q conflicts with slot %q", mount.ID, mount.Placement, mount.Slot)
+		}
 		if mount.AutoMount && mount.OwnerSelector == "" {
 			return fmt.Errorf("auto mount %s needs owner_selector", mount.ID)
 		}
@@ -108,6 +132,12 @@ func (m Manifest) Validate() error {
 			return fmt.Errorf("missing or duplicate action ID %q", action.ID)
 		}
 		seen[action.ID] = true
+		if action.Behavior != "" && !validBehavior[action.Behavior] {
+			return fmt.Errorf("invalid action behavior %q", action.Behavior)
+		}
+		if action.TargetPolicy != "" && !validTargetPolicy[action.TargetPolicy] {
+			return fmt.Errorf("invalid action target policy %q", action.TargetPolicy)
+		}
 	}
 	return nil
 }

@@ -1605,8 +1605,13 @@ type PluginTargetContext struct {
 	BindingRevision uint64                 `protobuf:"varint,6,opt,name=binding_revision,json=bindingRevision,proto3" json:"binding_revision,omitempty"`
 	MountId         string                 `protobuf:"bytes,7,opt,name=mount_id,json=mountId,proto3" json:"mount_id,omitempty"`
 	FloatingId      string                 `protobuf:"bytes,8,opt,name=floating_id,json=floatingId,proto3" json:"floating_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Host-resolved target metadata. Plugins may select a policy but cannot
+	// mutate the concrete TUI, tab, or panel captured here.
+	TargetPolicy  string `protobuf:"bytes,9,opt,name=target_policy,json=targetPolicy,proto3" json:"target_policy,omitempty"`
+	SurfaceId     string `protobuf:"bytes,10,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	ViewId        string `protobuf:"bytes,11,opt,name=view_id,json=viewId,proto3" json:"view_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PluginTargetContext) Reset() {
@@ -1691,6 +1696,27 @@ func (x *PluginTargetContext) GetMountId() string {
 func (x *PluginTargetContext) GetFloatingId() string {
 	if x != nil {
 		return x.FloatingId
+	}
+	return ""
+}
+
+func (x *PluginTargetContext) GetTargetPolicy() string {
+	if x != nil {
+		return x.TargetPolicy
+	}
+	return ""
+}
+
+func (x *PluginTargetContext) GetSurfaceId() string {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return ""
+}
+
+func (x *PluginTargetContext) GetViewId() string {
+	if x != nil {
+		return x.ViewId
 	}
 	return ""
 }
@@ -2006,12 +2032,17 @@ func (*PluginUiOperation_Bind) isPluginUiOperation_Operation() {}
 func (*PluginUiOperation_Notification) isPluginUiOperation_Operation() {}
 
 type PluginUiAction struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-	DefaultKey    string                 `protobuf:"bytes,3,opt,name=default_key,json=defaultKey,proto3" json:"default_key,omitempty"`
-	Enabled       bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Scope         string                 `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label      string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	DefaultKey string                 `protobuf:"bytes,3,opt,name=default_key,json=defaultKey,proto3" json:"default_key,omitempty"`
+	Enabled    bool                   `protobuf:"varint,4,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Scope      string                 `protobuf:"bytes,5,opt,name=scope,proto3" json:"scope,omitempty"`
+	// Host behavior is generic; plugin action IDs remain plugin-owned.
+	// activate, hide, close, show, and toggle are supported surface behaviors.
+	Behavior string `protobuf:"bytes,6,opt,name=behavior,proto3" json:"behavior,omitempty"`
+	// none, active_panel, focused_panel, source_panel.
+	TargetPolicy  string `protobuf:"bytes,7,opt,name=target_policy,json=targetPolicy,proto3" json:"target_policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2077,6 +2108,20 @@ func (x *PluginUiAction) GetEnabled() bool {
 func (x *PluginUiAction) GetScope() string {
 	if x != nil {
 		return x.Scope
+	}
+	return ""
+}
+
+func (x *PluginUiAction) GetBehavior() string {
+	if x != nil {
+		return x.Behavior
+	}
+	return ""
+}
+
+func (x *PluginUiAction) GetTargetPolicy() string {
+	if x != nil {
+		return x.TargetPolicy
 	}
 	return ""
 }
@@ -2407,8 +2452,15 @@ type PluginUiMountUpdate struct {
 	Focus            bool              `protobuf:"varint,10,opt,name=focus,proto3" json:"focus,omitempty"`
 	PreferredWidth   uint32            `protobuf:"varint,11,opt,name=preferred_width,json=preferredWidth,proto3" json:"preferred_width,omitempty"`
 	MinWidth         uint32            `protobuf:"varint,12,opt,name=min_width,json=minWidth,proto3" json:"min_width,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Surface declarations let the host resolve placement without requiring a
+	// plugin to hard-code a concrete tab or panel owner.
+	SurfaceId     string `protobuf:"bytes,13,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	Placement     string `protobuf:"bytes,14,opt,name=placement,proto3" json:"placement,omitempty"` // sidebar, statusbar, floating, overlay, menu, header, content
+	Scope         string `protobuf:"bytes,15,opt,name=scope,proto3" json:"scope,omitempty"`         // workspace, active_tab, active_panel, global
+	Hideable      bool   `protobuf:"varint,16,opt,name=hideable,proto3" json:"hideable,omitempty"`
+	Closeable     bool   `protobuf:"varint,17,opt,name=closeable,proto3" json:"closeable,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PluginUiMountUpdate) Reset() {
@@ -2523,6 +2575,41 @@ func (x *PluginUiMountUpdate) GetMinWidth() uint32 {
 		return x.MinWidth
 	}
 	return 0
+}
+
+func (x *PluginUiMountUpdate) GetSurfaceId() string {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return ""
+}
+
+func (x *PluginUiMountUpdate) GetPlacement() string {
+	if x != nil {
+		return x.Placement
+	}
+	return ""
+}
+
+func (x *PluginUiMountUpdate) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *PluginUiMountUpdate) GetHideable() bool {
+	if x != nil {
+		return x.Hideable
+	}
+	return false
+}
+
+func (x *PluginUiMountUpdate) GetCloseable() bool {
+	if x != nil {
+		return x.Closeable
+	}
+	return false
 }
 
 type PluginAgentReport struct {
@@ -3634,7 +3721,7 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x03tab\x18\x02 \x01(\v2\x1d.anytty.api.v1.PluginTabOwnerH\x00R\x03tab\x127\n" +
 	"\x05panel\x18\x03 \x01(\v2\x1f.anytty.api.v1.PluginPanelOwnerH\x00R\x05panel\x12@\n" +
 	"\bfloating\x18\x04 \x01(\v2\".anytty.api.v1.PluginFloatingOwnerH\x00R\bfloatingB\a\n" +
-	"\x05owner\"\x96\x02\n" +
+	"\x05owner\"\xf3\x02\n" +
 	"\x13PluginTargetContext\x12\x1d\n" +
 	"\n" +
 	"context_id\x18\x01 \x01(\tR\tcontextId\x12&\n" +
@@ -3645,7 +3732,12 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x10binding_revision\x18\x06 \x01(\x04R\x0fbindingRevision\x12\x19\n" +
 	"\bmount_id\x18\a \x01(\tR\amountId\x12\x1f\n" +
 	"\vfloating_id\x18\b \x01(\tR\n" +
-	"floatingId\"\xaf\x03\n" +
+	"floatingId\x12#\n" +
+	"\rtarget_policy\x18\t \x01(\tR\ftargetPolicy\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\n" +
+	" \x01(\tR\tsurfaceId\x12\x17\n" +
+	"\aview_id\x18\v \x01(\tR\x06viewId\"\xaf\x03\n" +
 	"\x13PluginUiInteraction\x12\x19\n" +
 	"\bmount_id\x18\x01 \x01(\tR\amountId\x12%\n" +
 	"\x0emount_revision\x18\x02 \x01(\x04R\rmountRevision\x12\x17\n" +
@@ -3672,14 +3764,16 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x04bind\x18\n" +
 	" \x01(\v2\x1d.anytty.api.v1.PluginPaneBindH\x00R\x04bind\x12I\n" +
 	"\fnotification\x18\v \x01(\v2#.anytty.api.v1.PluginUiNotificationH\x00R\fnotificationB\v\n" +
-	"\toperation\"\x87\x01\n" +
+	"\toperation\"\xc8\x01\n" +
 	"\x0ePluginUiAction\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1f\n" +
 	"\vdefault_key\x18\x03 \x01(\tR\n" +
 	"defaultKey\x12\x18\n" +
 	"\aenabled\x18\x04 \x01(\bR\aenabled\x12\x14\n" +
-	"\x05scope\x18\x05 \x01(\tR\x05scope\"\x87\x01\n" +
+	"\x05scope\x18\x05 \x01(\tR\x05scope\x12\x1a\n" +
+	"\bbehavior\x18\x06 \x01(\tR\bbehavior\x12#\n" +
+	"\rtarget_policy\x18\a \x01(\tR\ftargetPolicy\"\x87\x01\n" +
 	"\rPluginUiStyle\x12'\n" +
 	"\x0fforeground_role\x18\x01 \x01(\tR\x0eforegroundRole\x12'\n" +
 	"\x0fbackground_role\x18\x02 \x01(\tR\x0ebackgroundRole\x12\x12\n" +
@@ -3709,7 +3803,7 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x05style\x18\r \x01(\v2\x1c.anytty.api.v1.PluginUiStyleR\x05style\x12C\n" +
 	"\x0eselected_style\x18\x0e \x01(\v2\x1c.anytty.api.v1.PluginUiStyleR\rselectedStyle\x125\n" +
 	"\x06layout\x18\x0f \x01(\v2\x1d.anytty.api.v1.PluginUiLayoutR\x06layout\x12 \n" +
-	"\vdescription\x18\x10 \x01(\tR\vdescription\"\xb6\x03\n" +
+	"\vdescription\x18\x10 \x01(\tR\vdescription\"\xc3\x04\n" +
 	"\x13PluginUiMountUpdate\x12\x19\n" +
 	"\bmount_id\x18\x01 \x01(\tR\amountId\x125\n" +
 	"\x05owner\x18\x02 \x01(\v2\x1f.anytty.api.v1.PluginMountOwnerR\x05owner\x12\x12\n" +
@@ -3723,7 +3817,13 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x05focus\x18\n" +
 	" \x01(\bR\x05focus\x12'\n" +
 	"\x0fpreferred_width\x18\v \x01(\rR\x0epreferredWidth\x12\x1b\n" +
-	"\tmin_width\x18\f \x01(\rR\bminWidth\"\xcc\x04\n" +
+	"\tmin_width\x18\f \x01(\rR\bminWidth\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\r \x01(\tR\tsurfaceId\x12\x1c\n" +
+	"\tplacement\x18\x0e \x01(\tR\tplacement\x12\x14\n" +
+	"\x05scope\x18\x0f \x01(\tR\x05scope\x12\x1a\n" +
+	"\bhideable\x18\x10 \x01(\bR\bhideable\x12\x1c\n" +
+	"\tcloseable\x18\x11 \x01(\bR\tcloseable\"\xcc\x04\n" +
 	"\x11PluginAgentReport\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x1d\n" +

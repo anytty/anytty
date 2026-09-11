@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/anytty/anytty/proto/apipb"
 	"github.com/anytty/anytty/tui/input"
+	"github.com/anytty/anytty/tui/state"
 	"math"
 	"strings"
 )
@@ -13,6 +14,18 @@ import (
 func validatePluginMount(update *apipb.PluginUiMountUpdate) error {
 	if strings.ContainsAny(update.GetTitle(), "\x1b\r\n") {
 		return fmt.Errorf("title must be one line without ANSI escapes")
+	}
+	if !state.ValidPluginScope(update.GetScope()) {
+		return fmt.Errorf("unsupported plugin surface scope %q", update.GetScope())
+	}
+	if !state.ValidPluginPlacement(update.GetPlacement()) {
+		return fmt.Errorf("unsupported plugin surface placement %q", update.GetPlacement())
+	}
+	if update.GetPlacement() != "" && update.GetSlot() != "" {
+		expected := map[string]string{"sidebar": "sidebar", "statusbar": "statusbar", "floating": "overlay", "overlay": "overlay", "menu": "menu", "header": "header", "content": "content"}[update.GetPlacement()]
+		if expected != update.GetSlot() {
+			return fmt.Errorf("plugin placement %q conflicts with slot %q", update.GetPlacement(), update.GetSlot())
+		}
 	}
 	nodes := map[string]bool{}
 	count := 0
@@ -99,6 +112,12 @@ func validatePluginMount(update *apipb.PluginUiMountUpdate) error {
 			if _, ok := input.ShortcutBindingSignature("plugin", a.GetDefaultKey()); !ok {
 				return fmt.Errorf("invalid plugin default key")
 			}
+		}
+		if !state.ValidPluginActionBehavior(a.GetBehavior()) {
+			return fmt.Errorf("unsupported plugin action behavior %q", a.GetBehavior())
+		}
+		if !state.ValidPluginTargetPolicy(a.GetTargetPolicy()) {
+			return fmt.Errorf("unsupported plugin action target policy %q", a.GetTargetPolicy())
 		}
 	}
 	return nil

@@ -687,6 +687,9 @@ const PluginTargetContext$json = {
     {'1': 'binding_revision', '3': 6, '4': 1, '5': 4, '10': 'bindingRevision'},
     {'1': 'mount_id', '3': 7, '4': 1, '5': 9, '10': 'mountId'},
     {'1': 'floating_id', '3': 8, '4': 1, '5': 9, '10': 'floatingId'},
+    {'1': 'target_policy', '3': 9, '4': 1, '5': 9, '10': 'targetPolicy'},
+    {'1': 'surface_id', '3': 10, '4': 1, '5': 9, '10': 'surfaceId'},
+    {'1': 'view_id', '3': 11, '4': 1, '5': 9, '10': 'viewId'},
   ],
 };
 
@@ -697,7 +700,8 @@ final $typed_data.Uint8List pluginTargetContextDescriptor = $convert.base64Decod
     'ASgJUgt3b3Jrc3BhY2VJZBIVCgZ0YWJfaWQYBCABKAlSBXRhYklkEhcKB3BhbmVfaWQYBSABKA'
     'lSBnBhbmVJZBIpChBiaW5kaW5nX3JldmlzaW9uGAYgASgEUg9iaW5kaW5nUmV2aXNpb24SGQoI'
     'bW91bnRfaWQYByABKAlSB21vdW50SWQSHwoLZmxvYXRpbmdfaWQYCCABKAlSCmZsb2F0aW5nSW'
-    'Q=');
+    'QSIwoNdGFyZ2V0X3BvbGljeRgJIAEoCVIMdGFyZ2V0UG9saWN5Eh0KCnN1cmZhY2VfaWQYCiAB'
+    'KAlSCXN1cmZhY2VJZBIXCgd2aWV3X2lkGAsgASgJUgZ2aWV3SWQ=');
 
 @$core.Deprecated('Use pluginUiInteractionDescriptor instead')
 const PluginUiInteraction$json = {
@@ -839,6 +843,8 @@ const PluginUiAction$json = {
     {'1': 'default_key', '3': 3, '4': 1, '5': 9, '10': 'defaultKey'},
     {'1': 'enabled', '3': 4, '4': 1, '5': 8, '10': 'enabled'},
     {'1': 'scope', '3': 5, '4': 1, '5': 9, '10': 'scope'},
+    {'1': 'behavior', '3': 6, '4': 1, '5': 9, '10': 'behavior'},
+    {'1': 'target_policy', '3': 7, '4': 1, '5': 9, '10': 'targetPolicy'},
   ],
 };
 
@@ -846,7 +852,8 @@ const PluginUiAction$json = {
 final $typed_data.Uint8List pluginUiActionDescriptor = $convert.base64Decode(
     'Cg5QbHVnaW5VaUFjdGlvbhIOCgJpZBgBIAEoCVICaWQSFAoFbGFiZWwYAiABKAlSBWxhYmVsEh'
     '8KC2RlZmF1bHRfa2V5GAMgASgJUgpkZWZhdWx0S2V5EhgKB2VuYWJsZWQYBCABKAhSB2VuYWJs'
-    'ZWQSFAoFc2NvcGUYBSABKAlSBXNjb3Bl');
+    'ZWQSFAoFc2NvcGUYBSABKAlSBXNjb3BlEhoKCGJlaGF2aW9yGAYgASgJUghiZWhhdmlvchIjCg'
+    '10YXJnZXRfcG9saWN5GAcgASgJUgx0YXJnZXRQb2xpY3k=');
 
 @$core.Deprecated('Use pluginUiStyleDescriptor instead')
 const PluginUiStyle$json = {
@@ -999,6 +1006,11 @@ const PluginUiMountUpdate$json = {
     {'1': 'focus', '3': 10, '4': 1, '5': 8, '10': 'focus'},
     {'1': 'preferred_width', '3': 11, '4': 1, '5': 13, '10': 'preferredWidth'},
     {'1': 'min_width', '3': 12, '4': 1, '5': 13, '10': 'minWidth'},
+    {'1': 'surface_id', '3': 13, '4': 1, '5': 9, '10': 'surfaceId'},
+    {'1': 'placement', '3': 14, '4': 1, '5': 9, '10': 'placement'},
+    {'1': 'scope', '3': 15, '4': 1, '5': 9, '10': 'scope'},
+    {'1': 'hideable', '3': 16, '4': 1, '5': 8, '10': 'hideable'},
+    {'1': 'closeable', '3': 17, '4': 1, '5': 8, '10': 'closeable'},
   ],
 };
 
@@ -1011,7 +1023,10 @@ final $typed_data.Uint8List pluginUiMountUpdateDescriptor = $convert.base64Decod
     'cm9vdBgHIAEoCzIbLmFueXR0eS5hcGkudjEuUGx1Z2luVWlOb2RlUgRyb290EjcKB2FjdGlvbn'
     'MYCCADKAsyHS5hbnl0dHkuYXBpLnYxLlBsdWdpblVpQWN0aW9uUgdhY3Rpb25zEhQKBWNsb3Nl'
     'GAkgASgIUgVjbG9zZRIUCgVmb2N1cxgKIAEoCFIFZm9jdXMSJwoPcHJlZmVycmVkX3dpZHRoGA'
-    'sgASgNUg5wcmVmZXJyZWRXaWR0aBIbCgltaW5fd2lkdGgYDCABKA1SCG1pbldpZHRo');
+    'sgASgNUg5wcmVmZXJyZWRXaWR0aBIbCgltaW5fd2lkdGgYDCABKA1SCG1pbldpZHRoEh0KCnN1'
+    'cmZhY2VfaWQYDSABKAlSCXN1cmZhY2VJZBIcCglwbGFjZW1lbnQYDiABKAlSCXBsYWNlbWVudB'
+    'IUCgVzY29wZRgPIAEoCVIFc2NvcGUSGgoIaGlkZWFibGUYECABKAhSCGhpZGVhYmxlEhwKCWNs'
+    'b3NlYWJsZRgRIAEoCFIJY2xvc2VhYmxl');
 
 @$core.Deprecated('Use pluginAgentReportDescriptor instead')
 const PluginAgentReport$json = {
