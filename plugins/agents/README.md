@@ -47,7 +47,7 @@ Each workspace has an aggregate Agent sidebar with endpoint, provider, project o
 session title, status, and last observed update time. Agents needing attention
 (blocked/error/stale) sort first. In the existing system menu, use `a` for the next
 plugin mount or `A` for the previous one. Inside the sidebar, use arrows or a mouse
-click to choose a row, Enter or a double-click to open its terminal, `f`
+click a card to open its terminal, Enter or a double-click to open a plain row, `f`
 to toggle the attention filter, and Escape to return to the previous content
 panel. Each terminal panel also gets a status badge filtered by its binding.
 

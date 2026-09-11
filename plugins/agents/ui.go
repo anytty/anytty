@@ -3,6 +3,7 @@ package agents
 import (
 	"encoding/base64"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -53,19 +54,7 @@ func BuildMount(entries []Entry, owner *apipb.PluginMountOwner, mountID string, 
 		if entry.Stale {
 			status = "stale"
 		}
-		title := r.Title
-		if title == "" {
-			title = r.Cwd
-		}
-		if title == "" {
-			title = r.SessionId
-		}
-		title = strings.Map(func(r rune) rune {
-			if r < 32 || r == 127 {
-				return ' '
-			}
-			return r
-		}, title)
+		title := agentDisplayTitle(r)
 		icon := "○"
 		switch status {
 		case "working":
@@ -119,6 +108,45 @@ func BuildMount(entries []Entry, owner *apipb.PluginMountOwner, mountID string, 
 		{Id: "agents.open", Label: "Open terminal", DefaultKey: "enter", Enabled: true, Scope: "mount"},
 		{Id: "agents.filter", Label: filterLabel, DefaultKey: "f", Enabled: true, Scope: "mount"},
 	}}
+}
+
+func agentDisplayTitle(report *apipb.PluginAgentReport) string {
+	if report == nil {
+		return "Agent"
+	}
+	if title := cleanAgentLabel(report.GetTitle()); title != "" {
+		return title
+	}
+	// Codex reports do not carry a human title. Use the project directory's
+	// final component as a stable summary while keeping the full path private.
+	project := strings.TrimRight(strings.ReplaceAll(cleanAgentLabel(report.GetCwd()), "\\", "/"), "/")
+	if project != "" {
+		if name := path.Base(project); name != "." && name != "/" && name != "" {
+			return name
+		}
+	}
+	provider := cleanAgentLabel(report.GetProvider())
+	session := cleanAgentLabel(report.GetSessionId())
+	if provider != "" && session != "" {
+		return provider + " · " + session
+	}
+	if provider != "" {
+		return provider
+	}
+	if session != "" {
+		return session
+	}
+	return "Agent"
+}
+
+func cleanAgentLabel(value string) string {
+	value = strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return ' '
+		}
+		return r
+	}, value)
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func attentionRank(e Entry) int {

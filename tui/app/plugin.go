@@ -326,6 +326,12 @@ func reducePluginInput(root state.Root, msg PluginInputMsg, deps PluginDeps) (st
 			if next, effects, handled := pluginFormInput(root, m, e, deps); handled {
 				return next, effects
 			}
+			// Cards represent directly actionable items. A single click should
+			// execute the card action after selecting it; plain rows retain the
+			// traditional select-then-double-click behavior.
+			if node, ok := m.Selected(); ok && node.Kind == "card" && node.Action != "" {
+				return pluginActivate(root, m, deps)
+			}
 			now := time.Now().UnixMilli()
 			double := root.Plugins.LastClickID == m.ID+"/"+msg.NodeID && now-root.Plugins.LastClickMillis < 450
 			root.Plugins.LastClickID = m.ID + "/" + msg.NodeID

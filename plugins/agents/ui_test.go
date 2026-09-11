@@ -112,6 +112,21 @@ func TestMultiEndpointTUIUsesInteractionDaemonAndPreservesRemoteIdentity(t *test
 	}
 }
 
+func TestAgentDisplayTitleUsesSummaryInsteadOfPath(t *testing.T) {
+	report := &apipb.PluginAgentReport{Title: "Review API", Cwd: "/Users/example/projects/anytty", Provider: "codex", SessionId: "session-1"}
+	if got := agentDisplayTitle(report); got != "Review API" {
+		t.Fatalf("report title should win, got %q", got)
+	}
+	report.Title = ""
+	if got := agentDisplayTitle(report); got != "anytty" {
+		t.Fatalf("project summary should replace full path, got %q", got)
+	}
+	report.Cwd = ""
+	if got := agentDisplayTitle(report); got != "codex · session-1" {
+		t.Fatalf("provider/session fallback is unstable, got %q", got)
+	}
+}
+
 func TestFullStateClearsCoalescedPermissionDelta(t *testing.T) {
 	s := &Store{}
 	e := Event{Agent: "opencode", SessionID: "s", TerminalID: "t", Epoch: 1, Sequence: 1, Kind: "status", Status: "working", FullState: true, PendingPermissions: []string{"p1", "p2"}}

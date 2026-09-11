@@ -42,7 +42,7 @@ cp plugins/agents/anytty-plugin.toml .artifacts/plugins/agents/
 
 ## 第一个插件：Agents
 
-[Agents 插件说明](../../plugins/agents/README.md) 包含构建、两种 Hook 安装和状态映射。每个 workspace 聚合已连接 endpoint 的 Agent，panel 徽标仅显示自身绑定终端的状态。键盘可通过现有 system 菜单的插件焦点动作进入列表，也可用鼠标；Enter / 双击打开 Agent 终端，`f` 筛选需要处理的 Agent，Esc 返回终端。
+[Agents 插件说明](../../plugins/agents/README.md) 包含构建、两种 Hook 安装和状态映射。每个 workspace 聚合已连接 endpoint 的 Agent，panel 徽标仅显示自身绑定终端的状态。键盘可通过现有 system 菜单的插件焦点动作进入列表，也可用鼠标；点击卡片或按 Enter 打开 Agent 终端，`f` 筛选需要处理的 Agent，Esc 返回终端。
 
 聚合挂载的 control daemon 在创建时固定。该 daemon 断线时，列表暂时陈旧并停止交互；其他 endpoint 的订阅仍运行，control 恢复后通过权威挂载版本重新同步。首版不跨 daemon 自动接管同一个挂载，避免旧上下文被重新解释。普通非 control endpoint 断线只使对应 Agent 数据陈旧。
 

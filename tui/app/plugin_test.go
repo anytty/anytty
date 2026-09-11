@@ -144,6 +144,27 @@ func TestPluginKeyboardMouseAndDisconnect(t *testing.T) {
 		t.Fatal("Escape must restore terminal input")
 	}
 }
+
+func TestPluginCardMouseActivatesOnSingleClick(t *testing.T) {
+	root, deps, service := pluginFixture(t)
+	mount := root.Plugins.Mounts["agents"]
+	mount.Nodes[0].Children[0].Kind = "card"
+	root.Plugins = root.Plugins.Set(mount)
+
+	_, effects := NewPluginReducer(deps)(root, PluginInputMsg{
+		MountID: "agents",
+		NodeID:  "a",
+		Event:   input.InputEvent{Kind: input.EventKindMouse, Mouse: input.MouseLeft},
+	})
+	runPluginEffects(t, effects)
+	if len(service.messages) != 1 {
+		t.Fatalf("single card click should route an action, messages=%d", len(service.messages))
+	}
+	message := service.messages[0]
+	if message.GetInteraction() == nil || message.GetInteraction().GetActionId() != "open" {
+		t.Fatalf("single card click routed the wrong interaction: %v", message)
+	}
+}
 func TestPluginInitAndOwnerCloseTravelThroughDaemon(t *testing.T) {
 	root, deps, service := pluginFixture(t)
 	root.Plugins.Mounts["agents"] = state.PluginMount{} // use a separate tab-scoped mount below

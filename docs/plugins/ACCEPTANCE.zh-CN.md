@@ -25,7 +25,7 @@
 - Codex 0.154.0：真实 app-server 通过进程级配置覆盖解析八项 Hook，保持 untrusted。此项验证解析，不宣称已经在用户配置中启用或运行 trusted Hook；实际启用仍需用户在 Codex `/hooks` 中审核。
 - 公共发布文件集合的边界与 Markdown 链接检查通过。直接在现有工作目录运行同一检查，会命中原有未跟踪 `cloud/v1` 空目录和忽略的 Ghostty 包缓存断链；没有删除用户缓存来掩盖这些检查结果。
 
-真实 PTY 最终复验：`Ctrl+G` → `a` → 下箭头 → Enter 从 Codex 切到 OpenCode，徽标更新为 working；鼠标点击 Codex 可见行正确选中，双击切回 Codex，徽标更新为 blocked。通过 `Ctrl+G` → `q` 正常退出并清理演示专属 daemon。
+真实 PTY 最终复验：`Ctrl+G` → `a` → 下箭头 → Enter 从 Codex 切到 OpenCode，徽标更新为 working；鼠标点击 Codex 可见卡片直接切换，徽标更新为 blocked。通过 `Ctrl+G` → `q` 正常退出并清理演示专属 daemon。
 
 ## 环境与首版限制
 
