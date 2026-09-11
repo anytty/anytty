@@ -28,6 +28,8 @@ type LiveConfig struct {
 }
 
 type LiveDeps struct {
+	Plugins             port.PluginService
+	PluginTUIInstanceID string
 	Terminal            port.TerminalService
 	Path                port.PathService
 	EndpointEvents      port.EndpointEventSource
@@ -108,8 +110,16 @@ func NewInteractiveRuntimeWithStorage(
 	renderer := render.NewRenderer(render.DefaultTheme())
 	live = liveDepsWithEndpointEvents(live)
 	clipboardActions := ClipboardActionDeps{Core: copyMode.Core, Clipboard: copyMode.Clipboard, Terminal: live.Terminal}
-	runtime := NewAppRuntime(initial, ComposeReducers(NewBackNavigationReducer(copyMode), NewClipboardActionReducer(clipboardActions), NewShellReducer(), NewUIInputReducer(), NewEndpointConnectionsReducer(live), NewEndpointStatusReducer(live), NewEndpointDefaultsReducer(live), NewPromptPathCompletionReducer(live), NewTerminalPoolReducer(live), NewWorkbenchStorageReducer(workbench), NewClipboardStorageReducer(clipboard), NewCopyModeReducer(copyMode), NewCopyModeResizeRebindReducer(copyMode), NewTerminalInputRouterReducer(live), NewLiveReducer(live), NewTerminalLayoutResizeReducer()), hostRenderFunc(host, builder, renderer), host, runner)
+	pluginTUIID := live.PluginTUIInstanceID
+	if pluginTUIID == "" {
+		pluginTUIID = initial.RuntimeSurfaceID
+	}
+	pluginDeps := PluginDeps{Service: live.Plugins, TUIInstanceID: pluginTUIID, Live: live}
+	runtime := NewAppRuntime(initial, ComposeReducers(NewPluginReducer(pluginDeps), NewBackNavigationReducer(copyMode), NewClipboardActionReducer(clipboardActions), NewShellReducer(), NewUIInputReducer(), NewEndpointConnectionsReducer(live), NewEndpointStatusReducer(live), NewEndpointDefaultsReducer(live), NewPromptPathCompletionReducer(live), NewTerminalPoolReducer(live), NewWorkbenchStorageReducer(workbench), NewClipboardStorageReducer(clipboard), NewCopyModeReducer(copyMode), NewCopyModeResizeRebindReducer(copyMode), NewTerminalInputRouterReducer(live), NewLiveReducer(live), NewTerminalLayoutResizeReducer(), NewPluginMaintenanceReducer(pluginDeps)), hostRenderFunc(host, builder, renderer), host, runner)
 	runtime.SetLogger(live.Logger)
+	if live.Plugins != nil {
+		runtime.enqueue(PluginStartMsg{})
+	}
 	if live.EndpointEvents != nil && shouldAutoStartEndpointWatch(runner) {
 		runtime.enqueue(EndpointWatchRequestMsg{})
 	}

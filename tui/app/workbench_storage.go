@@ -132,9 +132,9 @@ func reduceWorkbenchStorageChanged(root state.Root, msg WorkbenchStorageChangedM
 		return root.Advance(), nil
 	}
 	root.WorkbenchSync = root.WorkbenchSync.MarkEvent(msg.Event.Version)
-	return root.Advance(), []Effect{FuncEffect{Run: func(context.Context) Msg {
-		return WorkbenchStorageLoadRequestMsg{}
-	}}}
+	root.WorkbenchSync.AvailableVersion = msg.Event.Version
+	// Remote persistence is a recovery template, never a live collaboration feed.
+	return root.Advance(), nil
 }
 
 func reduceWorkbenchStorageLoadRequest(root state.Root, deps WorkbenchDeps) (state.Root, []Effect) {
@@ -702,10 +702,8 @@ func reduceWorkbenchStoragePersistResult(root state.Root, msg WorkbenchStoragePe
 				return root, nil
 			}
 			root.WorkbenchSync = root.WorkbenchSync.MarkConflict(msg.ExpectedVersion)
-			root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "workbench.storage", Body: "conflict: reloading"})
-			return root.Advance(), []Effect{FuncEffect{Run: func(context.Context) Msg {
-				return WorkbenchStorageLoadRequestMsg{}
-			}}}
+			root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "workbench.storage", Body: "layout changed elsewhere; current layout preserved"})
+			return root.Advance(), nil
 		}
 		root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastWarning, Title: "workbench.storage", Body: errorString(msg.Err)})
 		return root.Advance(), nil

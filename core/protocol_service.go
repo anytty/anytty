@@ -320,6 +320,7 @@ func (session *protocolSession) run(ctx context.Context) error {
 	defer func() {
 		cancel()
 		session.requests.Wait()
+		session.releasePluginRegistrations()
 		session.releaseAllHistorySnapshots()
 		session.releaseAllFileTransfers()
 		session.releaseAllBrowserProxies()

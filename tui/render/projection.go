@@ -30,6 +30,7 @@ func (projector ShellProjector) Project(root state.Root) ShellVM {
 		footer.Visible = false
 	}
 	return ShellVM{
+		Plugins: pluginMountVMs(root),
 		Header:  header,
 		Footer:  footer,
 		Layout:  layout,

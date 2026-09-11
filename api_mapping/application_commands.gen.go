@@ -10,6 +10,8 @@ func RequiredCapabilityForCommand(command *apipb.CommandEnvelope) apipb.ApiCapab
 		return apipb.ApiCapability_API_CAPABILITY_UNSPECIFIED
 	}
 	switch command.GetCommand().(type) {
+	case *apipb.CommandEnvelope_Plugin:
+		return apipb.ApiCapability_API_CAPABILITY_PLUGIN
 	case *apipb.CommandEnvelope_CancelOperation:
 		return apipb.ApiCapability_API_CAPABILITY_OPERATION_CANCELLATION
 	case *apipb.CommandEnvelope_ReleaseResource:

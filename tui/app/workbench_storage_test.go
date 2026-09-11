@@ -481,7 +481,7 @@ func TestWorkbenchCommandPersistsAgainstLoadedStorageVersion(t *testing.T) {
 	}
 }
 
-func TestWorkbenchStorageChangedReloadsExternalSnapshot(t *testing.T) {
+func TestWorkbenchStorageChangedPreservesInstanceUntilExplicitLoad(t *testing.T) {
 	externalShell := state.DefaultShell().
 		SplitActivePane(state.PaneState{ID: "pane-external", Title: "external", Kind: state.PaneTerminalLive, TerminalID: "term-external"}, state.SplitDirectionVertical).
 		FocusPane(state.PaneCommandTarget{PaneID: "pane-external"})
@@ -500,10 +500,10 @@ func TestWorkbenchStorageChangedReloadsExternalSnapshot(t *testing.T) {
 		Version: 8,
 		Op:      "put",
 	}})
-	if len(effects) != 1 || root.WorkbenchSync.LastEventVersion != 8 {
-		t.Fatalf("storage change should request reload, root=%#v effects=%#v", root, effects)
+	if len(effects) != 0 || root.WorkbenchSync.AvailableVersion != 8 || root.Shell.ActivePaneID != state.DefaultPaneID {
+		t.Fatal("external change must preserve current instance and expose available version")
 	}
-	loadRequest := effects[0].(FuncEffect).Run(context.Background())
+	loadRequest := WorkbenchStorageLoadRequestMsg{}
 	root, effects = reducer(root, loadRequest)
 	if len(effects) != 1 {
 		t.Fatalf("load request should emit storage load effect, got %#v", effects)
@@ -566,7 +566,7 @@ func TestWorkbenchStorageLoadInvalidatesFrozenHistoryAndCopyMode(t *testing.T) {
 	}
 }
 
-func TestWorkbenchStorageConflictReloadsLatestSnapshot(t *testing.T) {
+func TestWorkbenchStorageConflictPreservesLayoutUntilExplicitLoad(t *testing.T) {
 	remoteShell := state.DefaultShell().
 		SplitActivePane(state.PaneState{ID: "pane-remote", Title: "remote", Kind: state.PaneTerminalLive, TerminalID: "term-remote"}, state.SplitDirectionVertical).
 		FocusPane(state.PaneCommandTarget{PaneID: "pane-remote"})
@@ -590,13 +590,13 @@ func TestWorkbenchStorageConflictReloadsLatestSnapshot(t *testing.T) {
 	}
 	persistResult := effects[0].(FuncEffect).Run(context.Background())
 	root, effects = reducer(root, persistResult)
-	if len(effects) != 1 || !root.WorkbenchSync.Conflict || root.WorkbenchSync.ConflictVersion != 8 {
-		t.Fatalf("conflict should mark state and request reload, root=%#v effects=%#v", root, effects)
+	if len(effects) != 0 || !root.WorkbenchSync.Conflict || root.WorkbenchSync.ConflictVersion != 8 {
+		t.Fatalf("conflict should preserve state without reload, root=%#v effects=%#v", root, effects)
 	}
-	if len(root.Shell.Toasts) == 0 || root.Shell.Toasts[len(root.Shell.Toasts)-1].Body != "conflict: reloading" {
-		t.Fatalf("conflict should show reload feedback, toasts=%#v", root.Shell.Toasts)
+	if len(root.Shell.Toasts) == 0 || root.Shell.Toasts[len(root.Shell.Toasts)-1].Body != "layout changed elsewhere; current layout preserved" {
+		t.Fatalf("conflict should show preservation feedback, toasts=%#v", root.Shell.Toasts)
 	}
-	loadRequest := effects[0].(FuncEffect).Run(context.Background())
+	loadRequest := WorkbenchStorageLoadRequestMsg{}
 	root, effects = reducer(root, loadRequest)
 	if len(effects) != 1 {
 		t.Fatalf("reload request should emit load effect, got %#v", effects)
@@ -621,8 +621,8 @@ func TestWorkbenchStorageDuplicateConflictDoesNotReloadAgain(t *testing.T) {
 		ExpectedVersion: 8,
 	}
 	root, effects := reducer(root, conflict)
-	if len(effects) != 1 || !root.WorkbenchSync.Conflict || root.WorkbenchSync.ConflictVersion != 8 {
-		t.Fatalf("first conflict should request reload, root=%#v effects=%#v", root, effects)
+	if len(effects) != 0 || !root.WorkbenchSync.Conflict || root.WorkbenchSync.ConflictVersion != 8 {
+		t.Fatalf("first conflict should preserve state, root=%#v effects=%#v", root, effects)
 	}
 
 	root, effects = reducer(root, conflict)

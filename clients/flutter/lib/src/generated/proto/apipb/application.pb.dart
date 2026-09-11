@@ -20,6 +20,7 @@ import 'common.pb.dart' as $0;
 import 'events.pb.dart' as $3;
 import 'file.pb.dart' as $4;
 import 'history.pb.dart' as $2;
+import 'plugin.pb.dart' as $7;
 import 'storage.pb.dart' as $5;
 import 'terminal.pb.dart' as $1;
 
@@ -295,6 +296,7 @@ enum CommandEnvelope_Command {
   remoteCloudEnable,
   remoteCloudDisable,
   browserProxyOpen,
+  plugin,
   notSet
 }
 
@@ -356,6 +358,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     $6.RemoteCloudEnableCommand? remoteCloudEnable,
     $6.RemoteCloudDisableCommand? remoteCloudDisable,
     BrowserProxyOpenCommand? browserProxyOpen,
+    $7.PluginCommand? plugin,
   }) {
     final result = create();
     if (context != null) result.context = context;
@@ -426,6 +429,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     if (remoteCloudDisable != null)
       result.remoteCloudDisable = remoteCloudDisable;
     if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
+    if (plugin != null) result.plugin = plugin;
     return result;
   }
 
@@ -495,6 +499,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     119: CommandEnvelope_Command.remoteCloudEnable,
     120: CommandEnvelope_Command.remoteCloudDisable,
     121: CommandEnvelope_Command.browserProxyOpen,
+    130: CommandEnvelope_Command.plugin,
     0: CommandEnvelope_Command.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -556,7 +561,8 @@ class CommandEnvelope extends $pb.GeneratedMessage {
       118,
       119,
       120,
-      121
+      121,
+      130
     ])
     ..aOM<$0.RequestContext>(1, _omitFieldNames ? '' : 'context',
         subBuilder: $0.RequestContext.create)
@@ -694,6 +700,8 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     ..aOM<BrowserProxyOpenCommand>(
         121, _omitFieldNames ? '' : 'browserProxyOpen',
         subBuilder: BrowserProxyOpenCommand.create)
+    ..aOM<$7.PluginCommand>(130, _omitFieldNames ? '' : 'plugin',
+        subBuilder: $7.PluginCommand.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -770,6 +778,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
   @$pb.TagNumber(121)
+  @$pb.TagNumber(130)
   CommandEnvelope_Command whichCommand() =>
       _CommandEnvelope_CommandByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -827,6 +836,7 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
   @$pb.TagNumber(121)
+  @$pb.TagNumber(130)
   void clearCommand() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -1467,6 +1477,17 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   void clearBrowserProxyOpen() => $_clearField(121);
   @$pb.TagNumber(121)
   BrowserProxyOpenCommand ensureBrowserProxyOpen() => $_ensure(55);
+
+  @$pb.TagNumber(130)
+  $7.PluginCommand get plugin => $_getN(56);
+  @$pb.TagNumber(130)
+  set plugin($7.PluginCommand value) => $_setField(130, value);
+  @$pb.TagNumber(130)
+  $core.bool hasPlugin() => $_has(56);
+  @$pb.TagNumber(130)
+  void clearPlugin() => $_clearField(130);
+  @$pb.TagNumber(130)
+  $7.PluginCommand ensurePlugin() => $_ensure(56);
 }
 
 class AcknowledgeResult extends $pb.GeneratedMessage {
@@ -1544,6 +1565,7 @@ enum ResultEnvelope_Result {
   remoteCloudEdges,
   remoteCloudStatus,
   browserProxyOpen,
+  plugin,
   notSet
 }
 
@@ -1587,6 +1609,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     $6.RemoteCloudEdgesResult? remoteCloudEdges,
     $6.RemoteCloudStatusResult? remoteCloudStatus,
     BrowserProxyOpenResult? browserProxyOpen,
+    $7.PluginResult? plugin,
   }) {
     final result = create();
     if (requestId != null) result.requestId = requestId;
@@ -1633,6 +1656,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     if (remoteCloudEdges != null) result.remoteCloudEdges = remoteCloudEdges;
     if (remoteCloudStatus != null) result.remoteCloudStatus = remoteCloudStatus;
     if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
+    if (plugin != null) result.plugin = plugin;
     return result;
   }
 
@@ -1683,6 +1707,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     113: ResultEnvelope_Result.remoteCloudEdges,
     114: ResultEnvelope_Result.remoteCloudStatus,
     115: ResultEnvelope_Result.browserProxyOpen,
+    130: ResultEnvelope_Result.plugin,
     0: ResultEnvelope_Result.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -1725,7 +1750,8 @@ class ResultEnvelope extends $pb.GeneratedMessage {
       112,
       113,
       114,
-      115
+      115,
+      130
     ])
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOM<$0.EndpointSessionStamp>(2, _omitFieldNames ? '' : 'originSession',
@@ -1817,6 +1843,8 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     ..aOM<BrowserProxyOpenResult>(
         115, _omitFieldNames ? '' : 'browserProxyOpen',
         subBuilder: BrowserProxyOpenResult.create)
+    ..aOM<$7.PluginResult>(130, _omitFieldNames ? '' : 'plugin',
+        subBuilder: $7.PluginResult.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1874,6 +1902,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
   @$pb.TagNumber(115)
+  @$pb.TagNumber(130)
   ResultEnvelope_Result whichResult() =>
       _ResultEnvelope_ResultByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -1912,6 +1941,7 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
   @$pb.TagNumber(115)
+  @$pb.TagNumber(130)
   void clearResult() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -2343,6 +2373,17 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   void clearBrowserProxyOpen() => $_clearField(115);
   @$pb.TagNumber(115)
   BrowserProxyOpenResult ensureBrowserProxyOpen() => $_ensure(37);
+
+  @$pb.TagNumber(130)
+  $7.PluginResult get plugin => $_getN(38);
+  @$pb.TagNumber(130)
+  set plugin($7.PluginResult value) => $_setField(130, value);
+  @$pb.TagNumber(130)
+  $core.bool hasPlugin() => $_has(38);
+  @$pb.TagNumber(130)
+  void clearPlugin() => $_clearField(130);
+  @$pb.TagNumber(130)
+  $7.PluginResult ensurePlugin() => $_ensure(38);
 }
 
 class BrowserProxyOpenResult extends $pb.GeneratedMessage {

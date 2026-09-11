@@ -24,16 +24,19 @@ func TestPublicAPIDescriptorBaseline(t *testing.T) {
 	want := []string{
 		"apipb/common.proto", "remoteauthpb/remote_auth.proto", "apipb/access_remote.proto",
 		"apipb/storage.proto", "apipb/terminal.proto", "apipb/events.proto", "apipb/file.proto",
-		"apipb/history.proto", "apipb/runtime.proto", "apipb/workbench.proto", "apipb/application.proto",
+		"apipb/history.proto", "apipb/runtime.proto", "apipb/workbench.proto", "apipb/application.proto", "apipb/plugin.proto",
 	}
-	if len(baseline.GetFile()) != len(want) {
-		t.Fatalf("descriptor baseline contains %d files, want %d", len(baseline.GetFile()), len(want))
-	}
-	for index, name := range want {
-		if baseline.GetFile()[index].GetName() != name {
-			t.Fatalf("descriptor file[%d]=%q want %q", index, baseline.GetFile()[index].GetName(), name)
+	if os.Getenv("UPDATE_PUBLIC_API_DESCRIPTOR") != "1" {
+		if len(baseline.GetFile()) != len(want) {
+			t.Fatalf("descriptor baseline contains %d files, want %d", len(baseline.GetFile()), len(want))
+		}
+		for index, name := range want {
+			if baseline.GetFile()[index].GetName() != name {
+				t.Fatalf("descriptor file[%d]=%q want %q", index, baseline.GetFile()[index].GetName(), name)
+			}
 		}
 	}
+
 	current := &descriptorpb.FileDescriptorSet{File: make([]*descriptorpb.FileDescriptorProto, 0, len(want))}
 	for _, name := range want {
 		descriptor, err := protoregistry.GlobalFiles.FindFileByPath(name)

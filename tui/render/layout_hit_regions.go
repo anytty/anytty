@@ -17,6 +17,7 @@ func measureHitRegions(shell ShellVM, plan LayoutPlan) []HitRegion {
 	if shell.Overlay.Opaque {
 		return regions
 	}
+	regions = append(regions, pluginHitRegions(plan)...)
 	if len(plan.Panels) == 0 && plan.Body.W > 0 && plan.Body.H > 0 {
 		regions = appendTranslatedRegionsWithOwner(regions, shell.Layout.BodyContent.HitRegions, plan.Body, "", plan.Viewport)
 	}

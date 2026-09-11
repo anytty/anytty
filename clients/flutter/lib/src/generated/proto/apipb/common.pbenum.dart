@@ -53,6 +53,8 @@ class ApiCapability extends $pb.ProtobufEnum {
       14, _omitEnumNames ? '' : 'API_CAPABILITY_REMOTE_CONTROL');
   static const ApiCapability API_CAPABILITY_BROWSER_PROXY =
       ApiCapability._(15, _omitEnumNames ? '' : 'API_CAPABILITY_BROWSER_PROXY');
+  static const ApiCapability API_CAPABILITY_PLUGIN =
+      ApiCapability._(16, _omitEnumNames ? '' : 'API_CAPABILITY_PLUGIN');
 
   static const $core.List<ApiCapability> values = <ApiCapability>[
     API_CAPABILITY_UNSPECIFIED,
@@ -71,10 +73,11 @@ class ApiCapability extends $pb.ProtobufEnum {
     API_CAPABILITY_CLIENT_ACCESS,
     API_CAPABILITY_REMOTE_CONTROL,
     API_CAPABILITY_BROWSER_PROXY,
+    API_CAPABILITY_PLUGIN,
   ];
 
   static final $core.List<ApiCapability?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 15);
+      $pb.ProtobufEnum.$_initByValueList(values, 16);
   static ApiCapability? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

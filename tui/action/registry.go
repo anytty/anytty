@@ -75,6 +75,8 @@ var defaultLabels = map[string]string{
 	"menu.clipboard_history":            "CLIPBOARD",
 	"menu.floating_overview":            "OVERVIEW",
 	"menu.prompt":                       "PROMPT",
+	"plugins.focus_next":                "PLUGINS",
+	"plugins.focus_previous":            "PREV PLUGIN",
 	"menu.help":                         "HELP",
 	"panel.close":                       "CLOSE",
 	"panel.detach":                      "DETACH",
@@ -233,6 +235,7 @@ func buildSpecs() map[string]Spec {
 	addFixed("tab.create", "tab.next", "tab.previous", "tab.rename", "tab.close", "tab.kill")
 	add(Spec{ID: "tab.jump", Param: &ParamSpec{Name: "index", Min: 1, Max: 9}})
 	add(Spec{ID: "floating.summon", Param: &ParamSpec{Name: "index", Min: 1, Max: 9}})
+	addFixed("plugins.focus_next", "plugins.focus_previous")
 	addFixed("workspace.create", "workspace.next", "workspace.previous", "workspace.rename", "workspace.delete")
 	addFixed("terminal_picker.endpoint_previous", "terminal_picker.endpoint_next", "terminal_picker.endpoints", "terminal_picker.endpoint_choose", "terminal_picker.status_previous", "terminal_picker.status_next", "terminal_picker.select_previous", "terminal_picker.select_next", "terminal_picker.tags", "terminal_picker.tag_toggle", "terminal_picker.attach", "terminal_picker.split", "terminal_picker.edit", "terminal_picker.kill", "terminal_picker.delete", "terminal_picker.close")
 	addFixed("terminal_pool.attach", "terminal_pool.attach_tab", "terminal_pool.attach_float", "terminal_pool.restart", "terminal_pool.edit", "terminal_pool.kill", "terminal_pool.delete", "terminal_pool.close")

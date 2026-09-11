@@ -60,8 +60,9 @@ func TestDefaultShortcutActionsReachObservableOwnerBoundary(t *testing.T) {
 			assertDefaultActionServiceOwner(t, invocation, execution)
 		})
 	}
-	if len(seen) != 169 {
-		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=169", len(seen))
+	// Plugin host focus navigation is reducer-owned UI state (no daemon resource mutation).
+	if len(seen) != 171 {
+		t.Fatalf("default shortcut execution matrix changed without KS015 classification: got=%d want=171", len(seen))
 	}
 }
 

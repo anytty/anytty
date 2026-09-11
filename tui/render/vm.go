@@ -28,6 +28,7 @@ const (
 )
 
 const (
+	HitRegionPlugin        HitRegionKind = "plugin"
 	HitRegionHistoryRow    HitRegionKind = "history-row"
 	HitRegionStatus        HitRegionKind = "status"
 	HitRegionOverlay       HitRegionKind = "overlay"
@@ -54,6 +55,8 @@ type ResizeGroupItem struct {
 }
 
 type HitRegion struct {
+	PluginMountID      string
+	PluginNodeID       string
 	Kind               HitRegionKind
 	Rect               Rect
 	LineID             uint64

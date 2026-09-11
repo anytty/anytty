@@ -1,0 +1,240 @@
+syntax = "proto3";
+package anytty.api.v1;
+option go_package = "github.com/anytty/anytty/proto/apipb";
+
+// All application plugin traffic is routed by the selected authenticated daemon.
+message PluginAddress {
+  string daemon_id = 1;
+  string tui_instance_id = 2;
+  string plugin_id = 3;
+  string plugin_instance_id = 4;
+  uint64 registration_epoch = 5;
+}
+message PluginRegisterRequest {
+  PluginAddress address = 1;
+  repeated string topics = 2;
+  // Cross-TUI delivery requires explicit target opt-in. Self-delivery is allowed.
+  bool allow_peer_messages = 3;
+  // Only a daemon-local owner may register a background service.
+  bool daemon_service = 4;
+  // Explicit authenticated handoff; never copied into public addresses.
+  bytes previous_lease = 5;
+}
+message PluginRegistration {
+  PluginAddress address = 1;
+  bytes source_lease = 2;
+  string boot_epoch = 3;
+  repeated PluginAddress peers = 4;
+}
+message PluginSendRequest { bytes source_lease = 1; PluginMessage message = 2; }
+message PluginReceiveRequest { bytes source_lease = 1; uint32 wait_millis = 2; uint32 max_messages = 3; }
+message PluginUnregisterRequest { bytes source_lease = 1; }
+message PluginBatch { repeated PluginMessage messages = 1; bool resync_required = 2; }
+message PluginAck { uint32 delivered = 1; }
+message PluginError { string code = 1; string message = 2; }
+
+message PluginCommand {
+  oneof command {
+    PluginRegisterRequest register = 1;
+    PluginSendRequest send = 2;
+    PluginReceiveRequest receive = 3;
+    PluginUnregisterRequest unregister = 4;
+    PluginStateRequest state = 5;
+  }
+}
+message PluginResult {
+  oneof result {
+    PluginRegistration registration = 1;
+    PluginAck ack = 2;
+    PluginBatch batch = 3;
+    PluginError error = 4;
+    PluginStateSnapshot state = 5;
+  }
+}
+
+message PluginMessage {
+  string request_id = 1;
+  string trace_id = 2;
+  // Source is daemon-stamped, never accepted from an untrusted sender.
+  PluginAddress source = 3;
+  PluginAddress destination = 4;
+  // Nonempty topic means subscription broadcast; only state/business events qualify.
+  string topic = 5;
+  int64 deadline_unix_millis = 6;
+  string idempotency_key = 7;
+  uint64 delivery_sequence = 8;
+  oneof body {
+    PluginUiInteraction interaction = 20;
+    PluginUiOperation operation = 21;
+    PluginUiMountUpdate mount_update = 22;
+    PluginReply reply = 23;
+    PluginAgentReport agent_report = 24;
+    PluginAgentSnapshot agent_snapshot = 25;
+    PluginPayload payload = 26;
+    PluginStateSnapshot state_changed = 27;
+    PluginUiInit init = 28;
+    PluginUiQuery ui_query = 29;
+  }
+}
+message PluginPayload { string schema = 1; uint32 version = 2; bytes data = 3; }
+message PluginReply { string request_id = 1; PluginError error = 2; PluginPayload value = 3; PluginUiSnapshot ui_snapshot = 4; }
+message PluginTerminalRef { string daemon_id = 1; string terminal_id = 2; }
+message PluginWorkspaceOwner { string workspace_id = 1; }
+message PluginTabOwner { string workspace_id = 1; string tab_id = 2; }
+message PluginPanelOwner { string workspace_id = 1; string tab_id = 2; string pane_id = 3; }
+message PluginFloatingOwner { string workspace_id = 1; string floating_id = 2; string tab_id = 3; }
+message PluginMountOwner {
+  oneof owner {
+    PluginWorkspaceOwner workspace = 1;
+    PluginTabOwner tab = 2;
+    PluginPanelOwner panel = 3;
+    PluginFloatingOwner floating = 4;
+  }
+}
+message PluginTargetContext {
+  string context_id = 1;
+  string tui_instance_id = 2;
+  string workspace_id = 3;
+  string tab_id = 4;
+  string pane_id = 5;
+  uint64 binding_revision = 6;
+  string mount_id = 7;
+  string floating_id = 8;
+}
+message PluginUiInteraction {
+  string mount_id = 1;
+  uint64 mount_revision = 2;
+  string node_id = 3;
+  string action_id = 4;
+  string item_id = 5;
+  string value = 6;
+  PluginTargetContext context = 7;
+  string kind = 8;
+  repeated string modifiers = 9;
+  map<string, string> values = 10;
+}
+message PluginPaneBind { PluginTerminalRef terminal = 1; }
+message PluginUiNotification { string title = 1; string body = 2; string severity = 3; }
+message PluginUiOperation {
+  PluginTargetContext context = 1;
+  oneof operation {
+    PluginPaneBind bind = 10;
+    PluginUiNotification notification = 11;
+  }
+}
+message PluginUiAction { string id = 1; string label = 2; string default_key = 3; bool enabled = 4; string scope = 5; }
+// Theme-aware semantic roles. The host maps these roles to its active theme;
+// plugins do not emit ANSI escape sequences or reach into host renderer code.
+message PluginUiStyle {
+  string foreground_role = 1; // primary, muted, success, warning, danger, info
+  string background_role = 2; // surface, elevated, selected, transparent
+  bool bold = 3;
+  bool dim = 4;
+}
+message PluginUiLayout {
+  uint32 padding_top = 1;
+  uint32 padding_right = 2;
+  uint32 padding_bottom = 3;
+  uint32 padding_left = 4;
+  uint32 gap_after = 5;
+}
+message PluginUiNode {
+  string id = 1;
+  // text, badge, progress, button, list, row, card, gap, column, table, tree, form.
+  string kind = 2;
+  string text = 3;
+  string status = 4;
+  string action_id = 5;
+  string item_id = 6;
+  bool disabled = 7;
+  repeated PluginUiNode children = 8;
+  double progress = 9;
+  PluginTerminalRef terminal = 10;
+  string value = 11;
+  string placeholder = 12;
+  PluginUiStyle style = 13;
+  PluginUiStyle selected_style = 14;
+  PluginUiLayout layout = 15;
+  string description = 16;
+}
+message PluginUiMountUpdate {
+  string mount_id = 1;
+  PluginMountOwner owner = 2;
+  // Owner is structural; slot is placement within that owner.
+  string slot = 3;
+  uint64 expected_revision = 4;
+  uint64 revision = 5;
+  string title = 6;
+  PluginUiNode root = 7;
+  repeated PluginUiAction actions = 8;
+  bool close = 9;
+  bool focus = 10;
+  uint32 preferred_width = 11;
+  uint32 min_width = 12;
+}
+message PluginAgentReport {
+  string agent_id = 1;
+  string provider = 2;
+  string session_id = 3;
+  uint64 sequence = 4;
+  string state = 5;
+  string title = 6;
+  string cwd = 7;
+  PluginTerminalRef terminal = 8;
+  int64 observed_unix_millis = 9;
+  string event = 10;
+  string detail = 11;
+  uint64 source_epoch = 12;
+  string permission_id = 13;
+  string turn_id = 14;
+  repeated string pending_permission_ids = 15;
+  string base_state = 16;
+  bool full_state = 17;
+  bool stale = 18;
+}
+message PluginAgentSnapshot { repeated PluginAgentReport agents = 1; uint64 revision = 2; }
+
+// State changes are full versioned snapshots, so slow consumers can resnapshot.
+// Collection access is isolated by the registration's plugin namespace.
+message PluginStateRequest {
+  bytes source_lease = 1;
+  string collection = 2;
+  oneof operation {
+    PluginStateGet get = 10;
+    PluginStatePut put = 11;
+    PluginStateWatch watch = 12;
+  }
+}
+message PluginStateGet {}
+message PluginStatePut { uint64 expected_revision = 1; PluginPayload value = 2; }
+message PluginStateWatch { bool cancel = 1; }
+message PluginStateSnapshot { string collection = 1; uint64 revision = 2; PluginPayload value = 3; string boot_epoch = 4; }
+
+// Length-delimited local SDK transport; host forwards every command to daemon.
+message PluginBridgeFrame {
+  string request_id = 1;
+  string via_endpoint_id = 4;
+  // Local host bridge deadline; zero is a 30-second compatibility default.
+  int64 deadline_unix_millis = 5;
+  oneof payload {
+    PluginCommand command = 2;
+    PluginResult result = 3;
+    // Cancels the matching in-flight bridge request without consuming a worker.
+    string cancel_request_id = 6;
+  }
+}
+
+message PluginUiInit {
+  repeated PluginMountOwner owners = 1;
+  PluginAddress host = 2;
+  PluginTargetContext context = 3;
+  // Host-authoritative revisions scoped to the requesting plugin and daemon.
+  map<string, uint64> mount_revisions = 4;
+  // Echoed by the host so late reconciliation responses cannot replace newer ACKs.
+  string reconcile_request_id = 5;
+}
+
+message PluginUiSnapshotQuery {}
+message PluginUiQuery { oneof query { PluginUiSnapshotQuery snapshot = 1; } }
+message PluginPanelSnapshot { PluginMountOwner owner = 1; PluginTerminalRef terminal = 2; string view_id = 3; bool focused = 4; }
+message PluginUiSnapshot { string tui_instance_id = 1; repeated PluginMountOwner owners = 2; repeated PluginPanelSnapshot panels = 3; PluginTargetContext active_context = 4; uint64 revision = 5; }

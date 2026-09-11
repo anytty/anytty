@@ -47,6 +47,7 @@ const (
 	ApplicationCapabilityRemoteControl
 	// ApplicationCapabilityBrowserProxy 表示 session-bound daemon-side TCP proxy。
 	ApplicationCapabilityBrowserProxy
+	ApplicationCapabilityPlugin
 )
 
 var (

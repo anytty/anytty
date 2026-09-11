@@ -1,0 +1,77 @@
+package host
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/anytty/anytty/proto/apipb"
+)
+
+// Capabilities constrain this bridge's AnyTTY API. Plugins are trusted OS
+// processes; this is not a filesystem, network, or same-user process sandbox.
+func authorizeCommand(manifest Manifest, mode string, command *apipb.PluginCommand) error {
+	capabilities := manifest.Capabilities.TUI
+	if mode == "daemon" {
+		capabilities = manifest.Capabilities.Daemon
+	}
+	has := func(required string) bool {
+		for _, capability := range capabilities {
+			if capability == required {
+				return true
+			}
+		}
+		return false
+	}
+	require := func(required string) error {
+		if !has(required) {
+			return fmt.Errorf("plugin %s lacks capability %s", manifest.ID, required)
+		}
+		return nil
+	}
+	if register := command.GetRegister(); register != nil && len(register.Topics) > 0 {
+		if err := require("events.subscribe"); err != nil {
+			return err
+		}
+	}
+	if state := command.GetState(); state != nil {
+		if state.GetPut() != nil {
+			return require("state.write")
+		}
+		if err := require("state.read"); err != nil {
+			return err
+		}
+		if state.GetWatch() != nil {
+			return require("events.subscribe")
+		}
+	}
+	if message := command.GetSend().GetMessage(); message != nil {
+		switch {
+		case message.GetReply() != nil:
+			// The daemon separately validates the pending request and reply peer.
+			return nil
+		case message.GetInit() != nil:
+			return require("ui.mounts")
+		case message.GetUiQuery() != nil:
+			return require("ui.read")
+		case message.GetMountUpdate() != nil:
+			if err := require("ui.mounts"); err != nil {
+				return err
+			}
+			update := message.GetMountUpdate()
+			for _, mount := range manifest.Mounts {
+				if (update.MountId == mount.ID || strings.HasPrefix(update.MountId, mount.ID+".")) && update.Slot == mount.Slot {
+					return nil
+				}
+			}
+			return fmt.Errorf("undeclared plugin mount %s at %s", update.MountId, update.Slot)
+		case message.GetOperation() != nil:
+			if message.GetOperation().GetBind() != nil {
+				return require("ui.panes.bind")
+			}
+			return require("ui.notifications")
+		default:
+			return require("messages.send")
+		}
+	}
+	return nil
+}

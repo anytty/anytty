@@ -273,7 +273,7 @@ func validateClosedConfigSection(path string, line int, hasChild bool) error {
 
 func applyEmptyMap(cfg *state.TUIConfigStore, path string) (bool, error) {
 	switch path {
-	case "tui.shortcuts":
+	case "tui.shortcuts", "tui.plugin_shortcuts":
 		return true, nil
 	case "tui.shortcuts.actions":
 		cfg.Shortcuts.Configured = true
@@ -401,7 +401,8 @@ func knownSection(path string) bool {
 		"tui.interaction.picker",
 		"tui.terminal",
 		"tui.shortcuts",
-		"tui.shortcuts.actions":
+		"tui.shortcuts.actions",
+		"tui.plugin_shortcuts":
 		return true
 	default:
 		return knownFooterDynamicSection(path) || knownShortcutDynamicSection(path)
@@ -665,6 +666,9 @@ var scalarSetters = map[string]scalarSetter{
 }
 
 func setDynamicScalar(cfg *state.TUIConfigStore, path string, value string) (bool, error) {
+	if strings.HasPrefix(path, "tui.plugin_shortcuts.") {
+		return setPluginShortcutScalar(cfg, strings.TrimPrefix(path, "tui.plugin_shortcuts."), value)
+	}
 	if handled, err := setFooterDynamicScalar(cfg, path, value); handled || err != nil {
 		return handled, err
 	}
@@ -1120,6 +1124,9 @@ func Validate(cfg state.TUIConfigStore) error {
 	}
 	if !oneOf(cfg.Interaction.Picker.FuzzyMatch, "subsequence") {
 		return fmt.Errorf("tui.interaction.picker.fuzzy_match must be subsequence, got %q", cfg.Interaction.Picker.FuzzyMatch)
+	}
+	if err := validatePluginShortcuts(cfg.PluginShortcuts); err != nil {
+		return err
 	}
 	if err := validateShortcutsConfig(cfg.Shortcuts); err != nil {
 		return err

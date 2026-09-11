@@ -69,6 +69,17 @@ func (runtime *AppRuntime) dispatchMouseHitRegion(msg Msg) Msg {
 	if !ok {
 		return msg
 	}
+	if inputMsg.Event.Kind == input.EventKindMouse {
+		col, row := mouseEventPoint(inputMsg.Event)
+		for _, region := range runtime.lastHitRegions {
+			if pointInRect(col, row, region.Rect) {
+				if region.Kind == render.HitRegionPlugin {
+					return PluginInputMsg{MountID: region.PluginMountID, NodeID: region.PluginNodeID, Event: inputMsg.Event}
+				}
+				break
+			}
+		}
+	}
 	runtime.clearStaleMouseDrag(inputMsg.Event)
 	if inputMsg.Event.Kind != input.EventKindMouse {
 		return msg

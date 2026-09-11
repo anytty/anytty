@@ -2,6 +2,7 @@ package state
 
 // Root 是 reducer-owned TUI-v3 state root。
 type Root struct {
+	Plugins          PluginStore
 	Generation       uint64
 	RuntimeSurfaceID string
 	History          HistoryStore
@@ -281,6 +282,7 @@ type WorkbenchSyncStore struct {
 	LastSavedVersion   uint64
 	LastAppliedVersion uint64
 	LastEventVersion   uint64
+	AvailableVersion   uint64
 	BaseVersion        uint64
 	ConflictVersion    uint64
 	Conflict           bool

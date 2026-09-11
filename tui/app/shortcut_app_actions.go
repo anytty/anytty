@@ -12,6 +12,12 @@ import (
 // handler 只按 action.ID 选择业务步骤；选中行来自 reducer state 或显式点击上下文，绝不查询 render projection。
 func reduceAppShortcutAction(root state.Root, invocation actiondomain.Invocation, row int) (state.Root, []Effect) {
 	switch invocation.ID {
+	case "plugins.focus_next", "plugins.focus_previous":
+		delta := 1
+		if invocation.ID == "plugins.focus_previous" {
+			delta = -1
+		}
+		return pluginFocusNext(root, delta), []Effect{handledEffect{}}
 	case "terminal_picker.endpoint_previous":
 		root = moveTerminalPickerEndpoint(root, -1)
 		return root.Advance(), []Effect{handledEffect{}}

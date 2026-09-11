@@ -80,6 +80,8 @@ var defaultBindings = []DefaultBinding{
 	{Scene: "resize", Key: "b", Action: "panel.balance"},
 	{Scene: "resize", Key: "=", Action: "panel.balance"},
 
+	{Scene: "system", Key: "a", Action: "plugins.focus_next"},
+	{Scene: "system", Key: "A", Action: "plugins.focus_previous"},
 	{Scene: "system", Key: "h", Action: "system.toggle_header"},
 	{Scene: "system", Key: "f", Action: "system.toggle_footer"},
 	{Scene: "system", Key: "c", Action: "system.clear_toasts"},

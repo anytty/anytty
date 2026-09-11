@@ -106,6 +106,8 @@ func (service *Service) Execute(ctx context.Context, command *apipb.CommandEnvel
 	defer lease.Release()
 
 	switch value := command.GetCommand().(type) {
+	case *apipb.CommandEnvelope_Plugin:
+		return service.executePlugin(ctx, originSession, requestContext, value.Plugin)
 	case *apipb.CommandEnvelope_CancelOperation:
 		return service.cancelOperation(ctx, originSession, requestContext, value.CancelOperation)
 	case *apipb.CommandEnvelope_ReleaseResource:

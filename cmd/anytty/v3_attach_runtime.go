@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"log/slog"
 	"os/signal"
 	"sort"
@@ -115,7 +116,7 @@ func newV3InteractiveRuntimeFromClientRuntime(terminalID string, cols, rows int,
 		Endpoints:        state.EndpointStore{}.ApplyConnectionRegistry(opts.ConnectionRegistry),
 	}
 	if initial.RuntimeSurfaceID == "" {
-		initial.RuntimeSurfaceID = app.DefaultRuntimeSurfaceID
+		initial.RuntimeSurfaceID = "tui-" + uuid.NewString()
 	}
 	if terminalID == "" {
 		initial.Shell = v3EmptyRootShell()
@@ -133,9 +134,22 @@ func newV3InteractiveRuntimeFromClientRuntime(terminalID string, cols, rows int,
 		Ref:     state.DefaultClipboardStorageRef(state.DefaultWorkspaceID),
 		Logger:  logger,
 	}
+	var plugins tuiport.PluginService
+	// Terminal surface IDs contain adapter paths and are not plugin routing IDs
+	// or safe log filenames. Give the plugin host its own opaque TUI identity.
+	pluginTUIID := "tui-" + uuid.NewString()
+	if router, ok := opts.EndpointApplications.(*clientruntimeadapter.EndpointApplicationRouter); ok {
+		pluginEndpoints := []state.EndpointID{}
+		for id, endpoint := range opts.ConnectionRegistry.Endpoints {
+			if endpoint.Enabled && (endpoint.ConnectMode == endpointdomain.ConnectAuto || state.EndpointID(id) == endpointID) {
+				pluginEndpoints = append(pluginEndpoints, state.EndpointID(id))
+			}
+		}
+		plugins = makeTUIPluginService(router, pluginTUIID, pluginEndpoints, logger)
+	}
 	return app.NewInteractiveRuntimeWithStorage(
 		initial, host, app.NewAsyncEffectRunner(),
-		app.LiveDeps{Terminal: terminalService, Path: pathService, EndpointEvents: endpointEvents, EndpointConnections: endpointConnections, Logger: logger},
+		app.LiveDeps{Plugins: plugins, PluginTUIInstanceID: pluginTUIID, Terminal: terminalService, Path: pathService, EndpointEvents: endpointEvents, EndpointConnections: endpointConnections, Logger: logger},
 		app.CopyModeDeps{Core: coreService, Clipboard: &systemadapter.ClipboardService{}, Logger: logger, Rows: rows},
 		workbench, clipboard,
 	)

@@ -40,6 +40,7 @@ const (
 	ApiCapability_API_CAPABILITY_CLIENT_ACCESS          ApiCapability = 13
 	ApiCapability_API_CAPABILITY_REMOTE_CONTROL         ApiCapability = 14
 	ApiCapability_API_CAPABILITY_BROWSER_PROXY          ApiCapability = 15
+	ApiCapability_API_CAPABILITY_PLUGIN                 ApiCapability = 16
 )
 
 // Enum value maps for ApiCapability.
@@ -61,6 +62,7 @@ var (
 		13: "API_CAPABILITY_CLIENT_ACCESS",
 		14: "API_CAPABILITY_REMOTE_CONTROL",
 		15: "API_CAPABILITY_BROWSER_PROXY",
+		16: "API_CAPABILITY_PLUGIN",
 	}
 	ApiCapability_value = map[string]int32{
 		"API_CAPABILITY_UNSPECIFIED":            0,
@@ -79,6 +81,7 @@ var (
 		"API_CAPABILITY_CLIENT_ACCESS":          13,
 		"API_CAPABILITY_REMOTE_CONTROL":         14,
 		"API_CAPABILITY_BROWSER_PROXY":          15,
+		"API_CAPABILITY_PLUGIN":                 16,
 	}
 )
 
@@ -997,7 +1000,7 @@ const file_apipb_common_proto_rawDesc = "" +
 	"\rstale_session\x18\v \x01(\v2&.anytty.api.v1.StaleSessionErrorDetailH\x00R\fstaleSession\x12@\n" +
 	"\bresource\x18\f \x01(\v2\".anytty.api.v1.ResourceErrorDetailH\x00R\bresource\x12T\n" +
 	"\x10output_sync_lost\x18\r \x01(\v2(.anytty.api.v1.OutputSyncLostErrorDetailH\x00R\x0eoutputSyncLostB\b\n" +
-	"\x06detail*\xba\x04\n" +
+	"\x06detail*\xd5\x04\n" +
 	"\rApiCapability\x12\x1e\n" +
 	"\x1aAPI_CAPABILITY_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bAPI_CAPABILITY_TYPED_ERRORS\x10\x01\x12)\n" +
@@ -1015,7 +1018,8 @@ const file_apipb_common_proto_rawDesc = "" +
 	"!API_CAPABILITY_EVENT_SUBSCRIPTION\x10\f\x12 \n" +
 	"\x1cAPI_CAPABILITY_CLIENT_ACCESS\x10\r\x12!\n" +
 	"\x1dAPI_CAPABILITY_REMOTE_CONTROL\x10\x0e\x12 \n" +
-	"\x1cAPI_CAPABILITY_BROWSER_PROXY\x10\x0f*\xaa\x06\n" +
+	"\x1cAPI_CAPABILITY_BROWSER_PROXY\x10\x0f\x12\x19\n" +
+	"\x15API_CAPABILITY_PLUGIN\x10\x10*\xaa\x06\n" +
 	"\fApiErrorCode\x12\x1e\n" +
 	"\x1aAPI_ERROR_CODE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eAPI_ERROR_CODE_INVALID_REQUEST\x10\x01\x12&\n" +

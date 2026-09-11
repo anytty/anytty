@@ -92,6 +92,7 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 	}
 
 	if !overlayHidesBackground {
+		renderPlugins(c, plan)
 		toastLayers := renderToasts(c, shell.Toasts, plan.Toasts)
 		for _, layer := range toastLayers {
 			layers = append(layers, layer)
@@ -113,6 +114,9 @@ func (renderer Renderer) renderFrameworkCanvas(vm RenderVM) renderedFrameworkCan
 		renderFooter(c, shell.Footer, plan.Footer, plan.FooterFrame)
 	}
 
+	if !overlayHidesBackground {
+		renderPluginHeaderMounts(c, plan)
+	}
 	return renderedFrameworkCanvas{
 		Canvas:      c,
 		Cursor:      plan.Cursor,

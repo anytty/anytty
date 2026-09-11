@@ -5,15 +5,17 @@ import "strings"
 // TUIConfigStore 是当前配置文件的已验证快照。Daemon 保存服务端物理策略；
 // 其余字段仍只保存当前客户端视觉、交互和 shortcuts 偏好。
 type TUIConfigStore struct {
-	Version     int
-	Daemon      DaemonConfig
-	Profile     string
-	Theme       TUIThemeConfig
-	Chrome      TUIChromeConfig
-	Footer      TUIFooterConfig
-	Interaction TUIInteractionConfig
-	Terminal    TUITerminalConfig
-	Shortcuts   TUIShortcutConfig
+	// PluginShortcuts maps plugin-id/action-id to a key token; empty disables.
+	PluginShortcuts map[string]string
+	Version         int
+	Daemon          DaemonConfig
+	Profile         string
+	Theme           TUIThemeConfig
+	Chrome          TUIChromeConfig
+	Footer          TUIFooterConfig
+	Interaction     TUIInteractionConfig
+	Terminal        TUITerminalConfig
+	Shortcuts       TUIShortcutConfig
 }
 
 type DaemonConfig struct {

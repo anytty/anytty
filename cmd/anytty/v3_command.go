@@ -180,6 +180,7 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 			_ = srv.Shutdown(context.Background())
 		}()
 		logger.Info("starting core-v2 daemon", "socket", socketPath, "log_file", logPath, "history_dir", historyDir, "history_enabled", historyEnabled, "history_max_bytes_per_terminal", historyStorage.MaxBytesPerTerminal, "history_max_age", historyStorage.MaxAge, "history_compression", historyStorage.Compression, "history_compression_level", historyStorage.CompressionLevel)
+		go runDaemonPlugins(ctx, socketPath, logger)
 		err = srv.ListenAndServe(ctx)
 		writeHeapProfile("exit")
 		if err != nil {

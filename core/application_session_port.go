@@ -27,6 +27,12 @@ func (session *protocolSession) AcquireApplication(ctx context.Context, admissio
 		return nil, ErrApplicationUnsupportedCapability
 	}
 	scope := session.scope.normalized()
+	if admission.Capability == ApplicationCapabilityPlugin {
+		if !scope.AllowDaemon || scope.PrincipalID == "" || scope.MachineEventsOnly || scope.TerminalID != "" {
+			return nil, ErrApplicationForbidden
+		}
+		return protocolAdmissionLease{}, nil
+	}
 	if admission.Capability == ApplicationCapabilityFile {
 		if !applicationFileAllowed(scope, admission.FileOperation) {
 			return nil, ErrApplicationForbidden
@@ -100,7 +106,8 @@ func applicationCapabilitySupported(capability ApplicationCapability) bool {
 		ApplicationCapabilityEventSubscription,
 		ApplicationCapabilityClientAccess,
 		ApplicationCapabilityRemoteControl,
-		ApplicationCapabilityBrowserProxy:
+		ApplicationCapabilityBrowserProxy,
+		ApplicationCapabilityPlugin:
 		return true
 	default:
 		return false

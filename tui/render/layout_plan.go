@@ -1,6 +1,7 @@
 package render
 
 type LayoutPlan struct {
+	Plugins            []PluginLayout
 	Viewport           Rect
 	Header             Rect
 	Footer             Rect
@@ -61,6 +62,7 @@ func MeasureLayout(shell ShellVM, viewport Rect) LayoutPlan {
 		body = layoutBodyOverride(body, shell.Layout.Body, viewport)
 		body = intersectRect(body, chromeSafeBody)
 	}
+	body, plan.Plugins = measurePluginSpace(shell, body)
 	plan.Body = body
 	if !shell.Layout.Zoomed {
 		plan.ShellFrame = shellFrameRect(body, shell.Layout.ShellFrame, viewport)
@@ -75,6 +77,13 @@ func MeasureLayout(shell ShellVM, viewport Rect) LayoutPlan {
 	plan.OverlayPopup = measureOverlayPopup(shell.Overlay.Popup, plan.OverlayContentRect, body)
 	plan.Toasts = measureToasts(shell.Toasts, viewport)
 	plan.Cursor, plan.CursorRect = measureCursor(shell, plan)
+	for _, m := range shell.Plugins {
+		if m.Focused {
+			plan.Cursor.Visible = false
+			break
+		}
+	}
+	plan.Plugins = measurePluginContainers(shell, plan)
 	plan.HitRegions = measureHitRegions(shell, plan)
 	return plan
 }

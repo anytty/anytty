@@ -487,6 +487,13 @@ tui:
         show: false
 
     system:
+      "a":
+        action: plugins.focus_next
+        label: "PLUGINS"
+        show: true
+      "A":
+        action: plugins.focus_previous
+        show: false
       "h":
         action: system.toggle_header
         label: "H 󰘶 HEADER"

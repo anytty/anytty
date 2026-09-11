@@ -132,6 +132,9 @@ func NewUIInputReducer() Reducer {
 			root.Shell = root.Shell.AddToast(state.ToastSpec{Severity: state.ToastInfo, Title: string(root.Shell.InteractionMode) + " mode"})
 			root, effects := armShortcutPassthroughWindow(root, shortcutPassthroughKindForMode(root.Shell.InteractionMode), []Effect{handledEffect{}})
 			return root.Advance(), appendInteractionModeTimeoutEffect(root, effects)
+		case input.IntentAppAction:
+			next, effects := reduceAppShortcutAction(root, intent.Invocation, -1)
+			return finishInteractionModeAfterIntent(next, ensureShortcutHandled(effects), intent)
 		case input.IntentShellAction:
 			next, effects := reduceShellActionIntent(root, intent)
 			return finishInteractionModeAfterIntent(next, effects, intent)

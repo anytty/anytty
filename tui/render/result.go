@@ -532,11 +532,56 @@ func ansiForStyleToken(token StyleToken, theme Theme) string {
 	case StyleToastAccent:
 		return sgrForegroundBackground(theme.Accent, theme.ToastBG, true)
 	default:
+		if strings.HasPrefix(string(token), "plugin/") {
+			return ansiForPluginStyle(string(token), theme)
+		}
 		if _, _, _, ok := parseHexColor(string(token)); ok {
 			return sgrForeground(string(token), false)
 		}
 		return "\x1b[1m"
 	}
+}
+
+// ansiForPluginStyle resolves the SDK's theme roles without knowing any plugin
+// identity. The role grammar is plugin/<background>/<foreground>/<bold>/<dim>.
+func ansiForPluginStyle(token string, theme Theme) string {
+	parts := strings.Split(token, "/")
+	if len(parts) != 5 || parts[0] != "plugin" {
+		return sgrForeground(theme.ChromeFG, false)
+	}
+	foreground := theme.ChromeFG
+	switch parts[2] {
+	case "muted":
+		foreground = theme.Muted
+	case "success":
+		foreground = theme.Success
+	case "warning":
+		foreground = theme.Warning
+	case "danger":
+		foreground = theme.Danger
+	case "info":
+		foreground = theme.Info
+	}
+	background := theme.HostBG
+	switch parts[1] {
+	case "surface":
+		background = mixHostColor(theme.HostBG, theme.ChromeBG, 0.55)
+	case "elevated":
+		background = theme.OverlayBG
+	case "selected":
+		background = mixHostColor(theme.HostBG, theme.Accent, 0.20)
+	case "transparent":
+		value := sgrForeground(foreground, parts[3] == "true")
+		if parts[4] == "true" {
+			value += "\x1b[2m"
+		}
+		return value
+	}
+	value := sgrForegroundBackground(foreground, background, parts[3] == "true")
+	if parts[4] == "true" {
+		value += "\x1b[2m"
+	}
+	return value
 }
 
 func promptSuggestionBG(theme Theme) string {
@@ -1166,6 +1211,7 @@ type PickerChromeVM struct {
 }
 
 type ShellVM struct {
+	Plugins []PluginMountVM
 	Header  HeaderVM
 	Footer  FooterVM
 	Layout  LayoutVM

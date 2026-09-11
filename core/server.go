@@ -26,6 +26,8 @@ type ListenerFactory func(socketPath string) (transport.Listener, error)
 type ServerOption func(*serverConfig)
 
 type serverConfig struct {
+	pluginIdentity      string
+	pluginStateDir      string
 	socketPath          string
 	defaultSize         Size
 	logger              *slog.Logger
@@ -172,6 +174,8 @@ func (config HistoryStorageConfig) normalized() HistoryStorageConfig {
 type HistoryStoreFactory func(terminalID string) (history.HistoryStore, error)
 
 type Server struct {
+	pluginMu               sync.Mutex
+	plugins                *pluginRouter
 	cfg                    serverConfig
 	registry               *terminalRegistry
 	storage                *storageStore
@@ -479,6 +483,7 @@ func (server *Server) RegisterTerminal(record TerminalRecord) (TerminalInfo, err
 	if server.closed.Load() {
 		return TerminalInfo{}, ErrServerClosed
 	}
+	record.Options.Env = append(append([]string(nil), record.Options.Env...), "ANYTTY_DAEMON_SOCKET="+server.cfg.socketPath)
 	finishRegistry := perftrace.Measure("core.server.register_terminal.registry")
 	info, err := server.registry.register(record, server.cfg.defaultSize)
 	finishRegistry(0)

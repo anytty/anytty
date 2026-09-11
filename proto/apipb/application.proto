@@ -3,6 +3,7 @@ syntax = "proto3";
 package anytty.api.v1;
 
 import "apipb/common.proto";
+import "apipb/plugin.proto";
 import "apipb/access_remote.proto";
 import "apipb/events.proto";
 import "apipb/file.proto";
@@ -91,6 +92,7 @@ message CommandEnvelope {
     RemoteCloudEnableCommand remote_cloud_enable = 119;
     RemoteCloudDisableCommand remote_cloud_disable = 120;
     BrowserProxyOpenCommand browser_proxy_open = 121;
+    PluginCommand plugin = 130;
   }
 }
 
@@ -136,6 +138,7 @@ message ResultEnvelope {
     RemoteCloudEdgesResult remote_cloud_edges = 113;
     RemoteCloudStatusResult remote_cloud_status = 114;
     BrowserProxyOpenResult browser_proxy_open = 115;
+    PluginResult plugin = 130;
   }
 }
 
