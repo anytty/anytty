@@ -52,6 +52,8 @@ type Emulator struct {
 	parser *ansi.Parser
 	// The last parser state.
 	lastState parser.State
+	// OSC payload framing must distinguish UTF-8 continuation bytes from C1 ST.
+	osc oscDecoder
 
 	cb Callbacks
 
@@ -321,7 +323,7 @@ func (e *Emulator) Write(p []byte) (n int, err error) {
 			e.lastState = parser.GroundState
 			continue
 		}
-		e.parser.Advance(p[i])
+		e.advanceParser(p[i])
 		state := e.parser.State()
 		// flush grapheme if we transitioned to a non-utf8 state or we have
 		// written the whole byte slice.
