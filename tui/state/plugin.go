@@ -93,6 +93,8 @@ func clonePluginNodes(nodes []PluginNode) []PluginNode {
 }
 func ValidPluginSlot(owner, slot string) bool {
 	switch owner {
+	case "tui":
+		return slot == "sidebar" || slot == "statusbar" || slot == "menu" || slot == "overlay"
 	case "workspace":
 		return slot == "sidebar" || slot == "statusbar" || slot == "menu" || slot == "overlay"
 	case "tab":
@@ -104,7 +106,7 @@ func ValidPluginSlot(owner, slot string) bool {
 }
 
 func ValidPluginScope(scope string) bool {
-	return scope == "" || scope == "workspace" || scope == "active_tab" || scope == "active_panel" || scope == "global"
+	return scope == "" || scope == "tui" || scope == "workspace" || scope == "active_tab" || scope == "active_panel" || scope == "global"
 }
 
 func ValidPluginPlacement(placement string) bool {
@@ -128,11 +130,21 @@ func IsDynamicPluginScope(scope string) bool {
 func PluginOwnerForScope(shell ShellStore, scope string) (PluginOwner, bool) {
 	shell = shell.ReadonlyDefaults()
 	switch scope {
-	case "", "workspace", "global":
+	case "tui":
+		if shell.Workspace.ID == "" {
+			return PluginOwner{}, false
+		}
+		return PluginOwner{Kind: "tui"}, true
+	case "", "workspace":
 		if shell.Workspace.ID == "" {
 			return PluginOwner{}, false
 		}
 		return PluginOwner{Kind: "workspace", WorkspaceID: shell.Workspace.ID}, true
+	case "global": // Deprecated alias retained for protocol v1 compatibility.
+		if shell.Workspace.ID == "" {
+			return PluginOwner{}, false
+		}
+		return PluginOwner{Kind: "tui"}, true
 	case "active_tab":
 		if shell.Workspace.ID == "" || shell.Workspace.ActiveTabID == "" {
 			return PluginOwner{}, false
@@ -154,6 +166,9 @@ func (o PluginOwner) Visible(shell ShellStore) bool {
 }
 func (o PluginOwner) visibility(shell ShellStore) (bool, bool) {
 	shell = shell.ReadonlyDefaults()
+	if o.Kind == "tui" {
+		return shell.Workspace.ID != "", shell.Workspace.ID != ""
+	}
 	workspaces := append([]WorkspaceState(nil), shell.Workspaces...)
 	found := false
 	for i := range workspaces {

@@ -48,6 +48,21 @@ func TestPluginSlotBoundary(t *testing.T) {
 	}
 }
 
+func TestTUIScopeDoesNotDependOnWorkspaceOwner(t *testing.T) {
+	shell := DefaultShell()
+	owner, ok := PluginOwnerForScope(shell, "tui")
+	if !ok || owner.Kind != "tui" || owner.WorkspaceID != "" || !owner.Visible(shell) {
+		t.Fatalf("tui scope must be independent of workspace owner: %+v, ok=%v", owner, ok)
+	}
+	if !ValidPluginSlot("tui", "sidebar") || ValidPluginSlot("tui", "content") {
+		t.Fatal("tui scope accepted an invalid placement matrix")
+	}
+	legacy, ok := PluginOwnerForScope(shell, "global")
+	if !ok || legacy.Kind != "tui" {
+		t.Fatalf("global compatibility alias must resolve to tui scope: %+v, ok=%v", legacy, ok)
+	}
+}
+
 func TestDynamicPluginOwnerFollowsActiveTab(t *testing.T) {
 	shell := DefaultShell()
 	shell.Workspace.Tabs = append(shell.Workspace.Tabs, TabState{ID: "tab-b", Panes: []PaneState{{ID: "pane-b", Kind: PaneTerminalLive}}})

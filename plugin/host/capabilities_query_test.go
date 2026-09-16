@@ -1,6 +1,7 @@
 package host
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/anytty/anytty/proto/apipb"
@@ -29,5 +30,13 @@ func TestMountCapabilityAcceptsDeclarativeSurfacePlacement(t *testing.T) {
 	}
 	if err := authorizeCommand(manifest, "tui", command); err != nil {
 		t.Fatalf("declarative placement was rejected: %v", err)
+	}
+}
+
+func TestMountCapabilityRejectsRuntimeActionOutsideManifest(t *testing.T) {
+	command := &apipb.PluginCommand{Command: &apipb.PluginCommand_Send{Send: &apipb.PluginSendRequest{Message: &apipb.PluginMessage{Body: &apipb.PluginMessage_MountUpdate{MountUpdate: &apipb.PluginUiMountUpdate{MountId: "example.sidebar.instance", Placement: "sidebar", Scope: "workspace", Actions: []*apipb.PluginUiAction{{Id: "forged", Behavior: "close"}}}}}}}}
+	manifest := Manifest{ID: "example.surface", Version: "1", API: "anytty.plugin/1", TUI: Component{Command: []string{"./plugin"}}, Capabilities: Capabilities{TUI: []string{"ui.mounts"}}, Mounts: []Mount{{ID: "example.sidebar", Placement: "sidebar", Scope: "workspace", Renderer: "declarative"}}, Actions: []Action{{ID: "declared", Behavior: "activate", TargetPolicy: "none"}}}
+	if err := authorizeCommand(manifest, "tui", command); err == nil || !strings.Contains(err.Error(), "undeclared plugin action") {
+		t.Fatalf("runtime action outside manifest was accepted: %v", err)
 	}
 }

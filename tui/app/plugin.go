@@ -144,6 +144,29 @@ func pluginOwner(p *apipb.PluginMountOwner) state.PluginOwner {
 	return state.PluginOwner{}
 }
 
+func pluginOwnerMessage(o state.PluginOwner) *apipb.PluginMountOwner {
+	switch o.Kind {
+	case "workspace":
+		return &apipb.PluginMountOwner{Owner: &apipb.PluginMountOwner_Workspace{Workspace: &apipb.PluginWorkspaceOwner{WorkspaceId: o.WorkspaceID}}}
+	case "tab":
+		return &apipb.PluginMountOwner{Owner: &apipb.PluginMountOwner_Tab{Tab: &apipb.PluginTabOwner{WorkspaceId: o.WorkspaceID, TabId: o.TabID}}}
+	case "panel":
+		return &apipb.PluginMountOwner{Owner: &apipb.PluginMountOwner_Panel{Panel: &apipb.PluginPanelOwner{WorkspaceId: o.WorkspaceID, TabId: o.TabID, PaneId: o.PaneID}}}
+	case "floating":
+		return &apipb.PluginMountOwner{Owner: &apipb.PluginMountOwner_Floating{Floating: &apipb.PluginFloatingOwner{WorkspaceId: o.WorkspaceID, TabId: o.TabID, FloatingId: o.FloatingID}}}
+	default:
+		return nil
+	}
+}
+
+func pluginLifecycleEffect(deps PluginDeps, m state.PluginMount, kind, reason string, previous state.PluginOwner) Effect {
+	if m.Source == nil {
+		return handledEffect{}
+	}
+	lifecycle := &apipb.PluginUiLifecycle{Kind: kind, MountId: m.ID, SurfaceId: m.SurfaceID, Scope: m.Scope, Placement: m.Placement, Owner: pluginOwnerMessage(m.Owner), PreviousOwner: pluginOwnerMessage(previous), Reason: reason, MountRevision: m.Revision}
+	return pluginSend(deps, m.EndpointID, &apipb.PluginMessage{RequestId: pluginID(), Destination: m.Source, Body: &apipb.PluginMessage_Lifecycle{Lifecycle: lifecycle}})
+}
+
 func pluginMountOwner(root state.Root, update *apipb.PluginUiMountUpdate) (state.PluginOwner, string, error) {
 	owner := pluginOwner(update.GetOwner())
 	dynamic := state.IsDynamicPluginScope(update.GetScope())
@@ -298,7 +321,11 @@ func reducePluginDelivery(root state.Root, d port.PluginDelivery, deps PluginDep
 			root.Plugins.LastContentPaneID = root.Shell.ReadonlyDefaults().ActivePaneID
 			root.Plugins.FocusedMountID = mount.ID
 		}
-		return root.Advance(), []Effect{pluginReply(deps, d, "", "")}
+		effects := []Effect{pluginReply(deps, d, "", "")}
+		if exists && old.Owner != mount.Owner {
+			effects = append(effects, pluginLifecycleEffect(deps, mount, "rebound", "surface scope resolved to a new owner", old.Owner))
+		}
+		return root.Advance(), effects
 	}
 	if reply := p.GetReply(); reply != nil && reply.GetError() != nil {
 		root.Plugins.Error = reply.GetError().GetMessage()
@@ -506,14 +533,14 @@ func pluginActivateAction(root state.Root, m state.PluginMount, action string, d
 		m.Hidden = true
 		root.Plugins.FocusedMountID = ""
 		root.Plugins = root.Plugins.Set(m)
-		return root.Advance(), []Effect{handledEffect{}}
+		return root.Advance(), []Effect{handledEffect{}, pluginLifecycleEffect(deps, m, "hidden", "action", m.Owner)}
 	case "show":
 		m.Hidden = false
 		root.Plugins = root.Plugins.Set(m)
 		if m.Owner.Visible(root.Shell) {
 			root.Plugins.FocusedMountID = m.ID
 		}
-		return root.Advance(), []Effect{handledEffect{}}
+		return root.Advance(), []Effect{handledEffect{}, pluginLifecycleEffect(deps, m, "shown", "action", m.Owner)}
 	case "toggle":
 		if !m.Hideable {
 			return root, []Effect{handledEffect{}}
@@ -527,7 +554,11 @@ func pluginActivateAction(root state.Root, m state.PluginMount, action string, d
 		} else if m.Owner.Visible(root.Shell) {
 			root.Plugins.FocusedMountID = m.ID
 		}
-		return root.Advance(), []Effect{handledEffect{}}
+		kind := "shown"
+		if m.Hidden {
+			kind = "hidden"
+		}
+		return root.Advance(), []Effect{handledEffect{}, pluginLifecycleEffect(deps, m, kind, "action", m.Owner)}
 	case "close":
 		if !m.Closeable {
 			return root, []Effect{handledEffect{}}
@@ -536,7 +567,7 @@ func pluginActivateAction(root state.Root, m state.PluginMount, action string, d
 		if m.Source == nil {
 			return root.Advance(), []Effect{handledEffect{}}
 		}
-		return root.Advance(), []Effect{handledEffect{}, pluginSend(deps, m.EndpointID, &apipb.PluginMessage{RequestId: pluginID(), Destination: m.Source, Body: &apipb.PluginMessage_Interaction{Interaction: &apipb.PluginUiInteraction{MountId: m.ID, MountRevision: m.Revision, ActionId: action, Kind: "close"}}})}
+		return root.Advance(), []Effect{handledEffect{}, pluginLifecycleEffect(deps, m, "closed", "action", m.Owner), pluginSend(deps, m.EndpointID, &apipb.PluginMessage{RequestId: pluginID(), Destination: m.Source, Body: &apipb.PluginMessage_Interaction{Interaction: &apipb.PluginUiInteraction{MountId: m.ID, MountRevision: m.Revision, ActionId: action, Kind: "close"}}})}
 	}
 	node, ok := m.Selected()
 	if action != "" {
@@ -822,8 +853,13 @@ func pluginShortcut(root state.Root, event input.InputEvent, deps PluginDeps) (s
 // releases its mounts immediately, without waiting for the next user input.
 func NewPluginMaintenanceReducer(deps PluginDeps) Reducer {
 	return func(root state.Root, msg Msg) (state.Root, []Effect) {
+		previousOwners := make(map[string]state.PluginOwner, len(root.Plugins.Mounts))
+		for id, mount := range root.Plugins.Mounts {
+			previousOwners[id] = mount.Owner
+		}
 		var changed []string
 		root.Plugins, changed = root.Plugins.ReconcileDynamicOwners(root.Shell)
+		var effects []Effect
 		if len(changed) > 0 {
 			contexts := make(map[string]state.PluginInteractionContext, len(root.Plugins.Contexts))
 			for id, context := range root.Plugins.Contexts {
@@ -839,6 +875,13 @@ func NewPluginMaintenanceReducer(deps PluginDeps) Reducer {
 				}
 			}
 			root.Plugins.Contexts = contexts
+			for _, mountID := range changed {
+				mount, ok := root.Plugins.Mounts[mountID]
+				if !ok {
+					continue
+				}
+				effects = append(effects, pluginLifecycleEffect(deps, mount, "rebound", "active TUI target changed", previousOwners[mountID]))
+			}
 		}
 		var removed []state.PluginMount
 		root.Plugins, removed = root.Plugins.Prune(root.Shell)
@@ -849,7 +892,6 @@ func NewPluginMaintenanceReducer(deps PluginDeps) Reducer {
 			}
 		}
 		root.Plugins.Contexts = contexts
-		var effects []Effect
 		for _, m := range removed {
 			if m.Source != nil {
 				effects = append(effects, pluginSend(deps, m.EndpointID, &apipb.PluginMessage{RequestId: pluginID(), Destination: m.Source, Body: &apipb.PluginMessage_Interaction{Interaction: &apipb.PluginUiInteraction{MountId: m.ID, MountRevision: m.Revision, Kind: "close"}}}))

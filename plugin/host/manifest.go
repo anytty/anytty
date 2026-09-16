@@ -16,7 +16,7 @@ const ManifestFile = "anytty-plugin.toml"
 var validID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*(\.[a-zA-Z0-9][a-zA-Z0-9_-]*)+$`)
 var placementSlot = map[string]string{"sidebar": "sidebar", "statusbar": "statusbar", "floating": "overlay", "overlay": "overlay", "menu": "menu", "header": "header", "content": "content"}
 var validPlacement = map[string]bool{"sidebar": true, "statusbar": true, "floating": true, "overlay": true, "menu": true, "header": true, "content": true}
-var validScope = map[string]bool{"workspace": true, "active_tab": true, "active_panel": true, "global": true}
+var validScope = map[string]bool{"tui": true, "workspace": true, "active_tab": true, "active_panel": true, "global": true}
 var validBehavior = map[string]bool{"activate": true, "hide": true, "close": true, "show": true, "toggle": true}
 var validTargetPolicy = map[string]bool{"none": true, "active_panel": true, "focused_panel": true, "source_panel": true}
 

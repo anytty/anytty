@@ -74,6 +74,7 @@ message PluginMessage {
     PluginStateSnapshot state_changed = 27;
     PluginUiInit init = 28;
     PluginUiQuery ui_query = 29;
+    PluginUiLifecycle lifecycle = 30;
   }
 }
 message PluginPayload { string schema = 1; uint32 version = 2; bytes data = 3; }
@@ -117,6 +118,20 @@ message PluginUiInteraction {
   string kind = 8;
   repeated string modifiers = 9;
   map<string, string> values = 10;
+}
+// Host lifecycle notification for a logical plugin surface. The event is
+// daemon-routed back to the plugin that owns the mount; it is not a request
+// and must not be used to mutate a different TUI.
+message PluginUiLifecycle {
+  string kind = 1; // mounted, rebound, unavailable, shown, hidden, closed
+  string mount_id = 2;
+  string surface_id = 3;
+  string scope = 4;
+  string placement = 5;
+  PluginMountOwner owner = 6;
+  PluginMountOwner previous_owner = 7;
+  string reason = 8;
+  uint64 mount_revision = 9;
 }
 message PluginPaneBind { PluginTerminalRef terminal = 1; }
 message PluginUiNotification { string title = 1; string body = 2; string severity = 3; }

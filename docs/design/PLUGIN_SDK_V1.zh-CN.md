@@ -200,9 +200,9 @@ Hook 集成的安装/卸载与 daemon 插件启动分开：安装负责建立 Ag
 
 ### 8.1 挂载归属与交互
 
-每个 MountSpec 携带 `via_endpoint_id`（客户端本地出站选择）、`routing_daemon_id`、`tui_instance_id`，并声明稳定的 `surface_id`、`placement` 和 `scope`。scope 可以是 `workspace`、`active_tab`、`active_panel` 或 `global`；宿主在当前 TUI 中解析出 owner oneof：`workspace(workspace_id)`、`tab(workspace_id,tab_id)`、`panel(workspace_id,tab_id,pane_id)`、`floating(workspace_id,tab_id,floating_id)`。插件也可以提供显式 owner 以兼容固定挂载。owner 表达容器归属，slot 表达容器里的位置，两者不能混为一个字符串。placement 可取 `sidebar`、`statusbar`、`floating`、`overlay`、`menu`、`header` 或 `content`。创建独立 plugin tab/panel/floating 时由宿主返回新容器 ID，再建立 mount；不得借用另一个插件的 mount ID。
+每个 MountSpec 携带 `via_endpoint_id`（客户端本地出站选择）、`routing_daemon_id`、`tui_instance_id`，并声明稳定的 `surface_id`、`placement` 和 `scope`。scope 可以是 `tui`、`workspace`、`active_tab`、`active_panel`；`global` 仅作为旧协议兼容别名，不再表示 workspace owner。`tui` surface 不依赖 workspace，在当前 TUI 生命周期内保持可见；其他逻辑 scope 由宿主解析出 owner oneof：`workspace(workspace_id)`、`tab(workspace_id,tab_id)`、`panel(workspace_id,tab_id,pane_id)`、`floating(workspace_id,tab_id,floating_id)`。插件也可以提供显式 owner 以兼容固定挂载。owner 表达容器归属，slot 表达容器里的位置，两者不能混为一个字符串。placement 可取 `sidebar`、`statusbar`、`floating`、`overlay`、`menu`、`header` 或 `content`。创建独立 plugin tab/panel/floating 时由宿主返回新容器 ID，再建立 mount；不得借用另一个插件的 mount ID。
 
-workspace 挂载跨该工作区标签切换保留；tab 挂载在标签隐藏时保留、关闭时卸载；panel 装饰随该面板销毁，换绑时收到新 terminal reference；floating 隐藏不等于关闭。切换可见性发送 daemon 转发的 visibility 事件，关闭 owner 则撤销所有从属挂载、快捷键和订阅。宿主关闭已经不存在的容器属于本地资源清理；不会在断线后偷偷执行新的插件业务请求。
+workspace 挂载跨该工作区标签切换保留；tab 挂载在标签隐藏时保留、关闭时卸载；panel 装饰随该面板销毁，换绑时收到新 terminal reference；floating 隐藏不等于关闭。切换可见性发送 daemon 转发的 visibility 事件，动态 surface 的 rebound/unavailable/shown/hidden/closed 生命周期也通过 `PluginUiLifecycle` 通知所属插件，关闭 owner 则撤销所有从属挂载、快捷键和订阅。宿主关闭已经不存在的容器属于本地资源清理；不会在断线后偷偷执行新的插件业务请求。
 
 MountSpec 声明焦点策略、是否可交互、首选尺寸、最小尺寸和 overflow 行为。声明式组件统一生成 click/select/submit/cancel/scroll/focus 等类型化事件，包含节点 ID、值、修饰键、owner、目标上下文和组件版本；不可用或旧版本节点不能执行动作。键盘和鼠标触发同一 action，拖拽数据明确来源与目标。
 

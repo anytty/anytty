@@ -467,6 +467,15 @@ const PluginMessage$json = {
       '9': 0,
       '10': 'uiQuery'
     },
+    {
+      '1': 'lifecycle',
+      '3': 30,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.PluginUiLifecycle',
+      '9': 0,
+      '10': 'lifecycle'
+    },
   ],
   '8': [
     {'1': 'body'},
@@ -493,7 +502,8 @@ final $typed_data.Uint8List pluginMessageDescriptor = $convert.base64Decode(
     'dlZBgbIAEoCzIiLmFueXR0eS5hcGkudjEuUGx1Z2luU3RhdGVTbmFwc2hvdEgAUgxzdGF0ZUNo'
     'YW5nZWQSMQoEaW5pdBgcIAEoCzIbLmFueXR0eS5hcGkudjEuUGx1Z2luVWlJbml0SABSBGluaX'
     'QSOQoIdWlfcXVlcnkYHSABKAsyHC5hbnl0dHkuYXBpLnYxLlBsdWdpblVpUXVlcnlIAFIHdWlR'
-    'dWVyeUIGCgRib2R5');
+    'dWVyeRJACglsaWZlY3ljbGUYHiABKAsyIC5hbnl0dHkuYXBpLnYxLlBsdWdpblVpTGlmZWN5Y2'
+    'xlSABSCWxpZmVjeWNsZUIGCgRib2R5');
 
 @$core.Deprecated('Use pluginPayloadDescriptor instead')
 const PluginPayload$json = {
@@ -755,6 +765,46 @@ final $typed_data.Uint8List pluginUiInteractionDescriptor = $convert.base64Decod
     'lmaWVycxgJIAMoCVIJbW9kaWZpZXJzEkYKBnZhbHVlcxgKIAMoCzIuLmFueXR0eS5hcGkudjEu'
     'UGx1Z2luVWlJbnRlcmFjdGlvbi5WYWx1ZXNFbnRyeVIGdmFsdWVzGjkKC1ZhbHVlc0VudHJ5Eh'
     'AKA2tleRgBIAEoCVIDa2V5EhQKBXZhbHVlGAIgASgJUgV2YWx1ZToCOAE=');
+
+@$core.Deprecated('Use pluginUiLifecycleDescriptor instead')
+const PluginUiLifecycle$json = {
+  '1': 'PluginUiLifecycle',
+  '2': [
+    {'1': 'kind', '3': 1, '4': 1, '5': 9, '10': 'kind'},
+    {'1': 'mount_id', '3': 2, '4': 1, '5': 9, '10': 'mountId'},
+    {'1': 'surface_id', '3': 3, '4': 1, '5': 9, '10': 'surfaceId'},
+    {'1': 'scope', '3': 4, '4': 1, '5': 9, '10': 'scope'},
+    {'1': 'placement', '3': 5, '4': 1, '5': 9, '10': 'placement'},
+    {
+      '1': 'owner',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.PluginMountOwner',
+      '10': 'owner'
+    },
+    {
+      '1': 'previous_owner',
+      '3': 7,
+      '4': 1,
+      '5': 11,
+      '6': '.anytty.api.v1.PluginMountOwner',
+      '10': 'previousOwner'
+    },
+    {'1': 'reason', '3': 8, '4': 1, '5': 9, '10': 'reason'},
+    {'1': 'mount_revision', '3': 9, '4': 1, '5': 4, '10': 'mountRevision'},
+  ],
+};
+
+/// Descriptor for `PluginUiLifecycle`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List pluginUiLifecycleDescriptor = $convert.base64Decode(
+    'ChFQbHVnaW5VaUxpZmVjeWNsZRISCgRraW5kGAEgASgJUgRraW5kEhkKCG1vdW50X2lkGAIgAS'
+    'gJUgdtb3VudElkEh0KCnN1cmZhY2VfaWQYAyABKAlSCXN1cmZhY2VJZBIUCgVzY29wZRgEIAEo'
+    'CVIFc2NvcGUSHAoJcGxhY2VtZW50GAUgASgJUglwbGFjZW1lbnQSNQoFb3duZXIYBiABKAsyHy'
+    '5hbnl0dHkuYXBpLnYxLlBsdWdpbk1vdW50T3duZXJSBW93bmVyEkYKDnByZXZpb3VzX293bmVy'
+    'GAcgASgLMh8uYW55dHR5LmFwaS52MS5QbHVnaW5Nb3VudE93bmVyUg1wcmV2aW91c093bmVyEh'
+    'YKBnJlYXNvbhgIIAEoCVIGcmVhc29uEiUKDm1vdW50X3JldmlzaW9uGAkgASgEUg1tb3VudFJl'
+    'dmlzaW9u');
 
 @$core.Deprecated('Use pluginPaneBindDescriptor instead')
 const PluginPaneBind$json = {

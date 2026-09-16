@@ -196,7 +196,7 @@ func TestPluginActionBehaviorAndTargetPolicyAreDeclarative(t *testing.T) {
 	root.Plugins.FocusedMountID = mount.ID
 	next, effects, handled := pluginShortcut(root, input.InputEvent{Kind: input.EventKindKey, Key: input.KeyChar, Char: "x"}, deps)
 	runPluginEffects(t, effects)
-	if !handled || !next.Plugins.Mounts[mount.ID].Hidden || len(service.messages) != 1 {
+	if !handled || !next.Plugins.Mounts[mount.ID].Hidden || len(service.messages) != 2 || service.messages[1].GetLifecycle() == nil || service.messages[1].GetLifecycle().GetKind() != "hidden" {
 		t.Fatalf("declared hide behavior was not applied locally: hidden=%v messages=%d", next.Plugins.Mounts[mount.ID].Hidden, len(service.messages))
 	}
 }
@@ -210,6 +210,28 @@ func TestPluginFocusCommandRecoversHiddenSurface(t *testing.T) {
 	next := pluginFocusNext(root, 1)
 	if next.Plugins.FocusedMountID != mount.ID || next.Plugins.Mounts[mount.ID].Hidden {
 		t.Fatal("generic plugin focus should reveal a hidden surface")
+	}
+}
+
+func TestDynamicSurfaceRebindEmitsDaemonRoutedLifecycle(t *testing.T) {
+	root, deps, service := pluginFixture(t)
+	mount := root.Plugins.Mounts["agents"]
+	mount.Scope = "active_tab"
+	mount.SurfaceID = "example.dynamic"
+	mount.Owner = state.PluginOwner{Kind: "tab", WorkspaceID: root.Shell.Workspace.ID, TabID: root.Shell.Workspace.ActiveTabID}
+	root.Plugins = root.Plugins.Set(mount)
+	root.Shell.Workspace.Tabs = append(root.Shell.Workspace.Tabs, state.TabState{ID: "tab-next", Panes: []state.PaneState{{ID: "pane-next", Kind: state.PaneTerminalLive}}})
+	root.Shell.Workspace.ActiveTabID = "tab-next"
+	root.Shell.ActivePaneID = "pane-next"
+	root.Shell.Workspaces[0] = root.Shell.Workspace
+	_, effects := NewPluginMaintenanceReducer(deps)(root, nil)
+	runPluginEffects(t, effects)
+	if len(service.messages) != 1 || service.endpoints[0] != "local" {
+		t.Fatalf("dynamic rebind must route exactly one lifecycle event: %v", service.messages)
+	}
+	lifecycle := service.messages[0].GetLifecycle()
+	if lifecycle == nil || lifecycle.GetKind() != "rebound" || lifecycle.GetOwner().GetTab().GetTabId() != "tab-next" {
+		t.Fatalf("unexpected rebind lifecycle: %v", lifecycle)
 	}
 }
 

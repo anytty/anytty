@@ -1005,6 +1005,7 @@ enum PluginMessage_Body {
   stateChanged,
   init,
   uiQuery,
+  lifecycle,
   notSet
 }
 
@@ -1028,6 +1029,7 @@ class PluginMessage extends $pb.GeneratedMessage {
     PluginStateSnapshot? stateChanged,
     PluginUiInit? init,
     PluginUiQuery? uiQuery,
+    PluginUiLifecycle? lifecycle,
   }) {
     final result = create();
     if (requestId != null) result.requestId = requestId;
@@ -1049,6 +1051,7 @@ class PluginMessage extends $pb.GeneratedMessage {
     if (stateChanged != null) result.stateChanged = stateChanged;
     if (init != null) result.init = init;
     if (uiQuery != null) result.uiQuery = uiQuery;
+    if (lifecycle != null) result.lifecycle = lifecycle;
     return result;
   }
 
@@ -1073,13 +1076,14 @@ class PluginMessage extends $pb.GeneratedMessage {
     27: PluginMessage_Body.stateChanged,
     28: PluginMessage_Body.init,
     29: PluginMessage_Body.uiQuery,
+    30: PluginMessage_Body.lifecycle,
     0: PluginMessage_Body.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PluginMessage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
       createEmptyInstance: create)
-    ..oo(0, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29])
+    ..oo(0, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOS(2, _omitFieldNames ? '' : 'traceId')
     ..aOM<PluginAddress>(3, _omitFieldNames ? '' : 'source',
@@ -1112,6 +1116,8 @@ class PluginMessage extends $pb.GeneratedMessage {
         subBuilder: PluginUiInit.create)
     ..aOM<PluginUiQuery>(29, _omitFieldNames ? '' : 'uiQuery',
         subBuilder: PluginUiQuery.create)
+    ..aOM<PluginUiLifecycle>(30, _omitFieldNames ? '' : 'lifecycle',
+        subBuilder: PluginUiLifecycle.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1143,6 +1149,7 @@ class PluginMessage extends $pb.GeneratedMessage {
   @$pb.TagNumber(27)
   @$pb.TagNumber(28)
   @$pb.TagNumber(29)
+  @$pb.TagNumber(30)
   PluginMessage_Body whichBody() => _PluginMessage_BodyByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(20)
   @$pb.TagNumber(21)
@@ -1154,6 +1161,7 @@ class PluginMessage extends $pb.GeneratedMessage {
   @$pb.TagNumber(27)
   @$pb.TagNumber(28)
   @$pb.TagNumber(29)
+  @$pb.TagNumber(30)
   void clearBody() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -1343,6 +1351,17 @@ class PluginMessage extends $pb.GeneratedMessage {
   void clearUiQuery() => $_clearField(29);
   @$pb.TagNumber(29)
   PluginUiQuery ensureUiQuery() => $_ensure(17);
+
+  @$pb.TagNumber(30)
+  PluginUiLifecycle get lifecycle => $_getN(18);
+  @$pb.TagNumber(30)
+  set lifecycle(PluginUiLifecycle value) => $_setField(30, value);
+  @$pb.TagNumber(30)
+  $core.bool hasLifecycle() => $_has(18);
+  @$pb.TagNumber(30)
+  void clearLifecycle() => $_clearField(30);
+  @$pb.TagNumber(30)
+  PluginUiLifecycle ensureLifecycle() => $_ensure(18);
 }
 
 class PluginPayload extends $pb.GeneratedMessage {
@@ -2325,6 +2344,167 @@ class PluginUiInteraction extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(10)
   $pb.PbMap<$core.String, $core.String> get values => $_getMap(9);
+}
+
+/// Host lifecycle notification for a logical plugin surface. The event is
+/// daemon-routed back to the plugin that owns the mount; it is not a request
+/// and must not be used to mutate a different TUI.
+class PluginUiLifecycle extends $pb.GeneratedMessage {
+  factory PluginUiLifecycle({
+    $core.String? kind,
+    $core.String? mountId,
+    $core.String? surfaceId,
+    $core.String? scope,
+    $core.String? placement,
+    PluginMountOwner? owner,
+    PluginMountOwner? previousOwner,
+    $core.String? reason,
+    $fixnum.Int64? mountRevision,
+  }) {
+    final result = create();
+    if (kind != null) result.kind = kind;
+    if (mountId != null) result.mountId = mountId;
+    if (surfaceId != null) result.surfaceId = surfaceId;
+    if (scope != null) result.scope = scope;
+    if (placement != null) result.placement = placement;
+    if (owner != null) result.owner = owner;
+    if (previousOwner != null) result.previousOwner = previousOwner;
+    if (reason != null) result.reason = reason;
+    if (mountRevision != null) result.mountRevision = mountRevision;
+    return result;
+  }
+
+  PluginUiLifecycle._();
+
+  factory PluginUiLifecycle.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory PluginUiLifecycle.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'PluginUiLifecycle',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'kind')
+    ..aOS(2, _omitFieldNames ? '' : 'mountId')
+    ..aOS(3, _omitFieldNames ? '' : 'surfaceId')
+    ..aOS(4, _omitFieldNames ? '' : 'scope')
+    ..aOS(5, _omitFieldNames ? '' : 'placement')
+    ..aOM<PluginMountOwner>(6, _omitFieldNames ? '' : 'owner',
+        subBuilder: PluginMountOwner.create)
+    ..aOM<PluginMountOwner>(7, _omitFieldNames ? '' : 'previousOwner',
+        subBuilder: PluginMountOwner.create)
+    ..aOS(8, _omitFieldNames ? '' : 'reason')
+    ..a<$fixnum.Int64>(
+        9, _omitFieldNames ? '' : 'mountRevision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PluginUiLifecycle clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  PluginUiLifecycle copyWith(void Function(PluginUiLifecycle) updates) =>
+      super.copyWith((message) => updates(message as PluginUiLifecycle))
+          as PluginUiLifecycle;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static PluginUiLifecycle create() => PluginUiLifecycle._();
+  @$core.override
+  PluginUiLifecycle createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static PluginUiLifecycle getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<PluginUiLifecycle>(create);
+  static PluginUiLifecycle? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get kind => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set kind($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasKind() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearKind() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get mountId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set mountId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMountId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMountId() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get surfaceId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set surfaceId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSurfaceId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSurfaceId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get scope => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set scope($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasScope() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearScope() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get placement => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set placement($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPlacement() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPlacement() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  PluginMountOwner get owner => $_getN(5);
+  @$pb.TagNumber(6)
+  set owner(PluginMountOwner value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasOwner() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearOwner() => $_clearField(6);
+  @$pb.TagNumber(6)
+  PluginMountOwner ensureOwner() => $_ensure(5);
+
+  @$pb.TagNumber(7)
+  PluginMountOwner get previousOwner => $_getN(6);
+  @$pb.TagNumber(7)
+  set previousOwner(PluginMountOwner value) => $_setField(7, value);
+  @$pb.TagNumber(7)
+  $core.bool hasPreviousOwner() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPreviousOwner() => $_clearField(7);
+  @$pb.TagNumber(7)
+  PluginMountOwner ensurePreviousOwner() => $_ensure(6);
+
+  @$pb.TagNumber(8)
+  $core.String get reason => $_getSZ(7);
+  @$pb.TagNumber(8)
+  set reason($core.String value) => $_setString(7, value);
+  @$pb.TagNumber(8)
+  $core.bool hasReason() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearReason() => $_clearField(8);
+
+  @$pb.TagNumber(9)
+  $fixnum.Int64 get mountRevision => $_getI64(8);
+  @$pb.TagNumber(9)
+  set mountRevision($fixnum.Int64 value) => $_setInt64(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasMountRevision() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearMountRevision() => $_clearField(9);
 }
 
 class PluginPaneBind extends $pb.GeneratedMessage {

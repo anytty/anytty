@@ -833,6 +833,7 @@ type PluginMessage struct {
 	//	*PluginMessage_StateChanged
 	//	*PluginMessage_Init
 	//	*PluginMessage_UiQuery
+	//	*PluginMessage_Lifecycle
 	Body          isPluginMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1021,6 +1022,15 @@ func (x *PluginMessage) GetUiQuery() *PluginUiQuery {
 	return nil
 }
 
+func (x *PluginMessage) GetLifecycle() *PluginUiLifecycle {
+	if x != nil {
+		if x, ok := x.Body.(*PluginMessage_Lifecycle); ok {
+			return x.Lifecycle
+		}
+	}
+	return nil
+}
+
 type isPluginMessage_Body interface {
 	isPluginMessage_Body()
 }
@@ -1065,6 +1075,10 @@ type PluginMessage_UiQuery struct {
 	UiQuery *PluginUiQuery `protobuf:"bytes,29,opt,name=ui_query,json=uiQuery,proto3,oneof"`
 }
 
+type PluginMessage_Lifecycle struct {
+	Lifecycle *PluginUiLifecycle `protobuf:"bytes,30,opt,name=lifecycle,proto3,oneof"`
+}
+
 func (*PluginMessage_Interaction) isPluginMessage_Body() {}
 
 func (*PluginMessage_Operation) isPluginMessage_Body() {}
@@ -1084,6 +1098,8 @@ func (*PluginMessage_StateChanged) isPluginMessage_Body() {}
 func (*PluginMessage_Init) isPluginMessage_Body() {}
 
 func (*PluginMessage_UiQuery) isPluginMessage_Body() {}
+
+func (*PluginMessage_Lifecycle) isPluginMessage_Body() {}
 
 type PluginPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1837,6 +1853,117 @@ func (x *PluginUiInteraction) GetValues() map[string]string {
 	return nil
 }
 
+// Host lifecycle notification for a logical plugin surface. The event is
+// daemon-routed back to the plugin that owns the mount; it is not a request
+// and must not be used to mutate a different TUI.
+type PluginUiLifecycle struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"` // mounted, rebound, unavailable, shown, hidden, closed
+	MountId       string                 `protobuf:"bytes,2,opt,name=mount_id,json=mountId,proto3" json:"mount_id,omitempty"`
+	SurfaceId     string                 `protobuf:"bytes,3,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	Scope         string                 `protobuf:"bytes,4,opt,name=scope,proto3" json:"scope,omitempty"`
+	Placement     string                 `protobuf:"bytes,5,opt,name=placement,proto3" json:"placement,omitempty"`
+	Owner         *PluginMountOwner      `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`
+	PreviousOwner *PluginMountOwner      `protobuf:"bytes,7,opt,name=previous_owner,json=previousOwner,proto3" json:"previous_owner,omitempty"`
+	Reason        string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
+	MountRevision uint64                 `protobuf:"varint,9,opt,name=mount_revision,json=mountRevision,proto3" json:"mount_revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginUiLifecycle) Reset() {
+	*x = PluginUiLifecycle{}
+	mi := &file_apipb_plugin_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginUiLifecycle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginUiLifecycle) ProtoMessage() {}
+
+func (x *PluginUiLifecycle) ProtoReflect() protoreflect.Message {
+	mi := &file_apipb_plugin_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginUiLifecycle.ProtoReflect.Descriptor instead.
+func (*PluginUiLifecycle) Descriptor() ([]byte, []int) {
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *PluginUiLifecycle) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetMountId() string {
+	if x != nil {
+		return x.MountId
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetSurfaceId() string {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetPlacement() string {
+	if x != nil {
+		return x.Placement
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetOwner() *PluginMountOwner {
+	if x != nil {
+		return x.Owner
+	}
+	return nil
+}
+
+func (x *PluginUiLifecycle) GetPreviousOwner() *PluginMountOwner {
+	if x != nil {
+		return x.PreviousOwner
+	}
+	return nil
+}
+
+func (x *PluginUiLifecycle) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *PluginUiLifecycle) GetMountRevision() uint64 {
+	if x != nil {
+		return x.MountRevision
+	}
+	return 0
+}
+
 type PluginPaneBind struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Terminal      *PluginTerminalRef     `protobuf:"bytes,1,opt,name=terminal,proto3" json:"terminal,omitempty"`
@@ -1846,7 +1973,7 @@ type PluginPaneBind struct {
 
 func (x *PluginPaneBind) Reset() {
 	*x = PluginPaneBind{}
-	mi := &file_apipb_plugin_proto_msgTypes[22]
+	mi := &file_apipb_plugin_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1858,7 +1985,7 @@ func (x *PluginPaneBind) String() string {
 func (*PluginPaneBind) ProtoMessage() {}
 
 func (x *PluginPaneBind) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[22]
+	mi := &file_apipb_plugin_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1871,7 +1998,7 @@ func (x *PluginPaneBind) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginPaneBind.ProtoReflect.Descriptor instead.
 func (*PluginPaneBind) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{22}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *PluginPaneBind) GetTerminal() *PluginTerminalRef {
@@ -1892,7 +2019,7 @@ type PluginUiNotification struct {
 
 func (x *PluginUiNotification) Reset() {
 	*x = PluginUiNotification{}
-	mi := &file_apipb_plugin_proto_msgTypes[23]
+	mi := &file_apipb_plugin_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1904,7 +2031,7 @@ func (x *PluginUiNotification) String() string {
 func (*PluginUiNotification) ProtoMessage() {}
 
 func (x *PluginUiNotification) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[23]
+	mi := &file_apipb_plugin_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1917,7 +2044,7 @@ func (x *PluginUiNotification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiNotification.ProtoReflect.Descriptor instead.
 func (*PluginUiNotification) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{23}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PluginUiNotification) GetTitle() string {
@@ -1955,7 +2082,7 @@ type PluginUiOperation struct {
 
 func (x *PluginUiOperation) Reset() {
 	*x = PluginUiOperation{}
-	mi := &file_apipb_plugin_proto_msgTypes[24]
+	mi := &file_apipb_plugin_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1967,7 +2094,7 @@ func (x *PluginUiOperation) String() string {
 func (*PluginUiOperation) ProtoMessage() {}
 
 func (x *PluginUiOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[24]
+	mi := &file_apipb_plugin_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1980,7 +2107,7 @@ func (x *PluginUiOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiOperation.ProtoReflect.Descriptor instead.
 func (*PluginUiOperation) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{24}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PluginUiOperation) GetContext() *PluginTargetContext {
@@ -2049,7 +2176,7 @@ type PluginUiAction struct {
 
 func (x *PluginUiAction) Reset() {
 	*x = PluginUiAction{}
-	mi := &file_apipb_plugin_proto_msgTypes[25]
+	mi := &file_apipb_plugin_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2061,7 +2188,7 @@ func (x *PluginUiAction) String() string {
 func (*PluginUiAction) ProtoMessage() {}
 
 func (x *PluginUiAction) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[25]
+	mi := &file_apipb_plugin_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2074,7 +2201,7 @@ func (x *PluginUiAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiAction.ProtoReflect.Descriptor instead.
 func (*PluginUiAction) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{25}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *PluginUiAction) GetId() string {
@@ -2140,7 +2267,7 @@ type PluginUiStyle struct {
 
 func (x *PluginUiStyle) Reset() {
 	*x = PluginUiStyle{}
-	mi := &file_apipb_plugin_proto_msgTypes[26]
+	mi := &file_apipb_plugin_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2152,7 +2279,7 @@ func (x *PluginUiStyle) String() string {
 func (*PluginUiStyle) ProtoMessage() {}
 
 func (x *PluginUiStyle) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[26]
+	mi := &file_apipb_plugin_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2165,7 +2292,7 @@ func (x *PluginUiStyle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiStyle.ProtoReflect.Descriptor instead.
 func (*PluginUiStyle) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{26}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *PluginUiStyle) GetForegroundRole() string {
@@ -2209,7 +2336,7 @@ type PluginUiLayout struct {
 
 func (x *PluginUiLayout) Reset() {
 	*x = PluginUiLayout{}
-	mi := &file_apipb_plugin_proto_msgTypes[27]
+	mi := &file_apipb_plugin_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2221,7 +2348,7 @@ func (x *PluginUiLayout) String() string {
 func (*PluginUiLayout) ProtoMessage() {}
 
 func (x *PluginUiLayout) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[27]
+	mi := &file_apipb_plugin_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2234,7 +2361,7 @@ func (x *PluginUiLayout) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiLayout.ProtoReflect.Descriptor instead.
 func (*PluginUiLayout) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{27}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PluginUiLayout) GetPaddingTop() uint32 {
@@ -2297,7 +2424,7 @@ type PluginUiNode struct {
 
 func (x *PluginUiNode) Reset() {
 	*x = PluginUiNode{}
-	mi := &file_apipb_plugin_proto_msgTypes[28]
+	mi := &file_apipb_plugin_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2309,7 +2436,7 @@ func (x *PluginUiNode) String() string {
 func (*PluginUiNode) ProtoMessage() {}
 
 func (x *PluginUiNode) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[28]
+	mi := &file_apipb_plugin_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2322,7 +2449,7 @@ func (x *PluginUiNode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiNode.ProtoReflect.Descriptor instead.
 func (*PluginUiNode) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{28}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PluginUiNode) GetId() string {
@@ -2465,7 +2592,7 @@ type PluginUiMountUpdate struct {
 
 func (x *PluginUiMountUpdate) Reset() {
 	*x = PluginUiMountUpdate{}
-	mi := &file_apipb_plugin_proto_msgTypes[29]
+	mi := &file_apipb_plugin_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2477,7 +2604,7 @@ func (x *PluginUiMountUpdate) String() string {
 func (*PluginUiMountUpdate) ProtoMessage() {}
 
 func (x *PluginUiMountUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[29]
+	mi := &file_apipb_plugin_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2490,7 +2617,7 @@ func (x *PluginUiMountUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiMountUpdate.ProtoReflect.Descriptor instead.
 func (*PluginUiMountUpdate) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{29}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PluginUiMountUpdate) GetMountId() string {
@@ -2638,7 +2765,7 @@ type PluginAgentReport struct {
 
 func (x *PluginAgentReport) Reset() {
 	*x = PluginAgentReport{}
-	mi := &file_apipb_plugin_proto_msgTypes[30]
+	mi := &file_apipb_plugin_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2650,7 +2777,7 @@ func (x *PluginAgentReport) String() string {
 func (*PluginAgentReport) ProtoMessage() {}
 
 func (x *PluginAgentReport) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[30]
+	mi := &file_apipb_plugin_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2663,7 +2790,7 @@ func (x *PluginAgentReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginAgentReport.ProtoReflect.Descriptor instead.
 func (*PluginAgentReport) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{30}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PluginAgentReport) GetAgentId() string {
@@ -2802,7 +2929,7 @@ type PluginAgentSnapshot struct {
 
 func (x *PluginAgentSnapshot) Reset() {
 	*x = PluginAgentSnapshot{}
-	mi := &file_apipb_plugin_proto_msgTypes[31]
+	mi := &file_apipb_plugin_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2814,7 +2941,7 @@ func (x *PluginAgentSnapshot) String() string {
 func (*PluginAgentSnapshot) ProtoMessage() {}
 
 func (x *PluginAgentSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[31]
+	mi := &file_apipb_plugin_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2827,7 +2954,7 @@ func (x *PluginAgentSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginAgentSnapshot.ProtoReflect.Descriptor instead.
 func (*PluginAgentSnapshot) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{31}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PluginAgentSnapshot) GetAgents() []*PluginAgentReport {
@@ -2862,7 +2989,7 @@ type PluginStateRequest struct {
 
 func (x *PluginStateRequest) Reset() {
 	*x = PluginStateRequest{}
-	mi := &file_apipb_plugin_proto_msgTypes[32]
+	mi := &file_apipb_plugin_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2874,7 +3001,7 @@ func (x *PluginStateRequest) String() string {
 func (*PluginStateRequest) ProtoMessage() {}
 
 func (x *PluginStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[32]
+	mi := &file_apipb_plugin_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2887,7 +3014,7 @@ func (x *PluginStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginStateRequest.ProtoReflect.Descriptor instead.
 func (*PluginStateRequest) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{32}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *PluginStateRequest) GetSourceLease() []byte {
@@ -2968,7 +3095,7 @@ type PluginStateGet struct {
 
 func (x *PluginStateGet) Reset() {
 	*x = PluginStateGet{}
-	mi := &file_apipb_plugin_proto_msgTypes[33]
+	mi := &file_apipb_plugin_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2980,7 +3107,7 @@ func (x *PluginStateGet) String() string {
 func (*PluginStateGet) ProtoMessage() {}
 
 func (x *PluginStateGet) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[33]
+	mi := &file_apipb_plugin_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2993,7 +3120,7 @@ func (x *PluginStateGet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginStateGet.ProtoReflect.Descriptor instead.
 func (*PluginStateGet) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{33}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{34}
 }
 
 type PluginStatePut struct {
@@ -3006,7 +3133,7 @@ type PluginStatePut struct {
 
 func (x *PluginStatePut) Reset() {
 	*x = PluginStatePut{}
-	mi := &file_apipb_plugin_proto_msgTypes[34]
+	mi := &file_apipb_plugin_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3145,7 @@ func (x *PluginStatePut) String() string {
 func (*PluginStatePut) ProtoMessage() {}
 
 func (x *PluginStatePut) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[34]
+	mi := &file_apipb_plugin_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3158,7 @@ func (x *PluginStatePut) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginStatePut.ProtoReflect.Descriptor instead.
 func (*PluginStatePut) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{34}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *PluginStatePut) GetExpectedRevision() uint64 {
@@ -3057,7 +3184,7 @@ type PluginStateWatch struct {
 
 func (x *PluginStateWatch) Reset() {
 	*x = PluginStateWatch{}
-	mi := &file_apipb_plugin_proto_msgTypes[35]
+	mi := &file_apipb_plugin_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3069,7 +3196,7 @@ func (x *PluginStateWatch) String() string {
 func (*PluginStateWatch) ProtoMessage() {}
 
 func (x *PluginStateWatch) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[35]
+	mi := &file_apipb_plugin_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3082,7 +3209,7 @@ func (x *PluginStateWatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginStateWatch.ProtoReflect.Descriptor instead.
 func (*PluginStateWatch) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{35}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *PluginStateWatch) GetCancel() bool {
@@ -3104,7 +3231,7 @@ type PluginStateSnapshot struct {
 
 func (x *PluginStateSnapshot) Reset() {
 	*x = PluginStateSnapshot{}
-	mi := &file_apipb_plugin_proto_msgTypes[36]
+	mi := &file_apipb_plugin_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3116,7 +3243,7 @@ func (x *PluginStateSnapshot) String() string {
 func (*PluginStateSnapshot) ProtoMessage() {}
 
 func (x *PluginStateSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[36]
+	mi := &file_apipb_plugin_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3129,7 +3256,7 @@ func (x *PluginStateSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginStateSnapshot.ProtoReflect.Descriptor instead.
 func (*PluginStateSnapshot) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{36}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *PluginStateSnapshot) GetCollection() string {
@@ -3179,7 +3306,7 @@ type PluginBridgeFrame struct {
 
 func (x *PluginBridgeFrame) Reset() {
 	*x = PluginBridgeFrame{}
-	mi := &file_apipb_plugin_proto_msgTypes[37]
+	mi := &file_apipb_plugin_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3191,7 +3318,7 @@ func (x *PluginBridgeFrame) String() string {
 func (*PluginBridgeFrame) ProtoMessage() {}
 
 func (x *PluginBridgeFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[37]
+	mi := &file_apipb_plugin_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3204,7 +3331,7 @@ func (x *PluginBridgeFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginBridgeFrame.ProtoReflect.Descriptor instead.
 func (*PluginBridgeFrame) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{37}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *PluginBridgeFrame) GetRequestId() string {
@@ -3300,7 +3427,7 @@ type PluginUiInit struct {
 
 func (x *PluginUiInit) Reset() {
 	*x = PluginUiInit{}
-	mi := &file_apipb_plugin_proto_msgTypes[38]
+	mi := &file_apipb_plugin_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3312,7 +3439,7 @@ func (x *PluginUiInit) String() string {
 func (*PluginUiInit) ProtoMessage() {}
 
 func (x *PluginUiInit) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[38]
+	mi := &file_apipb_plugin_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3325,7 +3452,7 @@ func (x *PluginUiInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiInit.ProtoReflect.Descriptor instead.
 func (*PluginUiInit) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{38}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *PluginUiInit) GetOwners() []*PluginMountOwner {
@@ -3371,7 +3498,7 @@ type PluginUiSnapshotQuery struct {
 
 func (x *PluginUiSnapshotQuery) Reset() {
 	*x = PluginUiSnapshotQuery{}
-	mi := &file_apipb_plugin_proto_msgTypes[39]
+	mi := &file_apipb_plugin_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3383,7 +3510,7 @@ func (x *PluginUiSnapshotQuery) String() string {
 func (*PluginUiSnapshotQuery) ProtoMessage() {}
 
 func (x *PluginUiSnapshotQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[39]
+	mi := &file_apipb_plugin_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3396,7 +3523,7 @@ func (x *PluginUiSnapshotQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiSnapshotQuery.ProtoReflect.Descriptor instead.
 func (*PluginUiSnapshotQuery) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{39}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{40}
 }
 
 type PluginUiQuery struct {
@@ -3411,7 +3538,7 @@ type PluginUiQuery struct {
 
 func (x *PluginUiQuery) Reset() {
 	*x = PluginUiQuery{}
-	mi := &file_apipb_plugin_proto_msgTypes[40]
+	mi := &file_apipb_plugin_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3423,7 +3550,7 @@ func (x *PluginUiQuery) String() string {
 func (*PluginUiQuery) ProtoMessage() {}
 
 func (x *PluginUiQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[40]
+	mi := &file_apipb_plugin_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3436,7 +3563,7 @@ func (x *PluginUiQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiQuery.ProtoReflect.Descriptor instead.
 func (*PluginUiQuery) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{40}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *PluginUiQuery) GetQuery() isPluginUiQuery_Query {
@@ -3477,7 +3604,7 @@ type PluginPanelSnapshot struct {
 
 func (x *PluginPanelSnapshot) Reset() {
 	*x = PluginPanelSnapshot{}
-	mi := &file_apipb_plugin_proto_msgTypes[41]
+	mi := &file_apipb_plugin_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3489,7 +3616,7 @@ func (x *PluginPanelSnapshot) String() string {
 func (*PluginPanelSnapshot) ProtoMessage() {}
 
 func (x *PluginPanelSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[41]
+	mi := &file_apipb_plugin_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3502,7 +3629,7 @@ func (x *PluginPanelSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginPanelSnapshot.ProtoReflect.Descriptor instead.
 func (*PluginPanelSnapshot) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{41}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *PluginPanelSnapshot) GetOwner() *PluginMountOwner {
@@ -3546,7 +3673,7 @@ type PluginUiSnapshot struct {
 
 func (x *PluginUiSnapshot) Reset() {
 	*x = PluginUiSnapshot{}
-	mi := &file_apipb_plugin_proto_msgTypes[42]
+	mi := &file_apipb_plugin_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3558,7 +3685,7 @@ func (x *PluginUiSnapshot) String() string {
 func (*PluginUiSnapshot) ProtoMessage() {}
 
 func (x *PluginUiSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_apipb_plugin_proto_msgTypes[42]
+	mi := &file_apipb_plugin_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3571,7 +3698,7 @@ func (x *PluginUiSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PluginUiSnapshot.ProtoReflect.Descriptor instead.
 func (*PluginUiSnapshot) Descriptor() ([]byte, []int) {
-	return file_apipb_plugin_proto_rawDescGZIP(), []int{42}
+	return file_apipb_plugin_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *PluginUiSnapshot) GetTuiInstanceId() string {
@@ -3665,7 +3792,7 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\x05batch\x18\x03 \x01(\v2\x1a.anytty.api.v1.PluginBatchH\x00R\x05batch\x122\n" +
 	"\x05error\x18\x04 \x01(\v2\x1a.anytty.api.v1.PluginErrorH\x00R\x05error\x12:\n" +
 	"\x05state\x18\x05 \x01(\v2\".anytty.api.v1.PluginStateSnapshotH\x00R\x05stateB\b\n" +
-	"\x06result\"\xf3\a\n" +
+	"\x06result\"\xb5\b\n" +
 	"\rPluginMessage\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x19\n" +
@@ -3685,7 +3812,8 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	"\apayload\x18\x1a \x01(\v2\x1c.anytty.api.v1.PluginPayloadH\x00R\apayload\x12I\n" +
 	"\rstate_changed\x18\x1b \x01(\v2\".anytty.api.v1.PluginStateSnapshotH\x00R\fstateChanged\x121\n" +
 	"\x04init\x18\x1c \x01(\v2\x1b.anytty.api.v1.PluginUiInitH\x00R\x04init\x129\n" +
-	"\bui_query\x18\x1d \x01(\v2\x1c.anytty.api.v1.PluginUiQueryH\x00R\auiQueryB\x06\n" +
+	"\bui_query\x18\x1d \x01(\v2\x1c.anytty.api.v1.PluginUiQueryH\x00R\auiQuery\x12@\n" +
+	"\tlifecycle\x18\x1e \x01(\v2 .anytty.api.v1.PluginUiLifecycleH\x00R\tlifecycleB\x06\n" +
 	"\x04body\"U\n" +
 	"\rPluginPayload\x12\x16\n" +
 	"\x06schema\x18\x01 \x01(\tR\x06schema\x12\x18\n" +
@@ -3752,7 +3880,18 @@ const file_apipb_plugin_proto_rawDesc = "" +
 	" \x03(\v2..anytty.api.v1.PluginUiInteraction.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"N\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd3\x02\n" +
+	"\x11PluginUiLifecycle\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bmount_id\x18\x02 \x01(\tR\amountId\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x03 \x01(\tR\tsurfaceId\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\x12\x1c\n" +
+	"\tplacement\x18\x05 \x01(\tR\tplacement\x125\n" +
+	"\x05owner\x18\x06 \x01(\v2\x1f.anytty.api.v1.PluginMountOwnerR\x05owner\x12F\n" +
+	"\x0eprevious_owner\x18\a \x01(\v2\x1f.anytty.api.v1.PluginMountOwnerR\rpreviousOwner\x12\x16\n" +
+	"\x06reason\x18\b \x01(\tR\x06reason\x12%\n" +
+	"\x0emount_revision\x18\t \x01(\x04R\rmountRevision\"N\n" +
 	"\x0ePluginPaneBind\x12<\n" +
 	"\bterminal\x18\x01 \x01(\v2 .anytty.api.v1.PluginTerminalRefR\bterminal\"\\\n" +
 	"\x14PluginUiNotification\x12\x14\n" +
@@ -3920,7 +4059,7 @@ func file_apipb_plugin_proto_rawDescGZIP() []byte {
 	return file_apipb_plugin_proto_rawDescData
 }
 
-var file_apipb_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_apipb_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_apipb_plugin_proto_goTypes = []any{
 	(*PluginAddress)(nil),           // 0: anytty.api.v1.PluginAddress
 	(*PluginRegisterRequest)(nil),   // 1: anytty.api.v1.PluginRegisterRequest
@@ -3944,29 +4083,30 @@ var file_apipb_plugin_proto_goTypes = []any{
 	(*PluginMountOwner)(nil),        // 19: anytty.api.v1.PluginMountOwner
 	(*PluginTargetContext)(nil),     // 20: anytty.api.v1.PluginTargetContext
 	(*PluginUiInteraction)(nil),     // 21: anytty.api.v1.PluginUiInteraction
-	(*PluginPaneBind)(nil),          // 22: anytty.api.v1.PluginPaneBind
-	(*PluginUiNotification)(nil),    // 23: anytty.api.v1.PluginUiNotification
-	(*PluginUiOperation)(nil),       // 24: anytty.api.v1.PluginUiOperation
-	(*PluginUiAction)(nil),          // 25: anytty.api.v1.PluginUiAction
-	(*PluginUiStyle)(nil),           // 26: anytty.api.v1.PluginUiStyle
-	(*PluginUiLayout)(nil),          // 27: anytty.api.v1.PluginUiLayout
-	(*PluginUiNode)(nil),            // 28: anytty.api.v1.PluginUiNode
-	(*PluginUiMountUpdate)(nil),     // 29: anytty.api.v1.PluginUiMountUpdate
-	(*PluginAgentReport)(nil),       // 30: anytty.api.v1.PluginAgentReport
-	(*PluginAgentSnapshot)(nil),     // 31: anytty.api.v1.PluginAgentSnapshot
-	(*PluginStateRequest)(nil),      // 32: anytty.api.v1.PluginStateRequest
-	(*PluginStateGet)(nil),          // 33: anytty.api.v1.PluginStateGet
-	(*PluginStatePut)(nil),          // 34: anytty.api.v1.PluginStatePut
-	(*PluginStateWatch)(nil),        // 35: anytty.api.v1.PluginStateWatch
-	(*PluginStateSnapshot)(nil),     // 36: anytty.api.v1.PluginStateSnapshot
-	(*PluginBridgeFrame)(nil),       // 37: anytty.api.v1.PluginBridgeFrame
-	(*PluginUiInit)(nil),            // 38: anytty.api.v1.PluginUiInit
-	(*PluginUiSnapshotQuery)(nil),   // 39: anytty.api.v1.PluginUiSnapshotQuery
-	(*PluginUiQuery)(nil),           // 40: anytty.api.v1.PluginUiQuery
-	(*PluginPanelSnapshot)(nil),     // 41: anytty.api.v1.PluginPanelSnapshot
-	(*PluginUiSnapshot)(nil),        // 42: anytty.api.v1.PluginUiSnapshot
-	nil,                             // 43: anytty.api.v1.PluginUiInteraction.ValuesEntry
-	nil,                             // 44: anytty.api.v1.PluginUiInit.MountRevisionsEntry
+	(*PluginUiLifecycle)(nil),       // 22: anytty.api.v1.PluginUiLifecycle
+	(*PluginPaneBind)(nil),          // 23: anytty.api.v1.PluginPaneBind
+	(*PluginUiNotification)(nil),    // 24: anytty.api.v1.PluginUiNotification
+	(*PluginUiOperation)(nil),       // 25: anytty.api.v1.PluginUiOperation
+	(*PluginUiAction)(nil),          // 26: anytty.api.v1.PluginUiAction
+	(*PluginUiStyle)(nil),           // 27: anytty.api.v1.PluginUiStyle
+	(*PluginUiLayout)(nil),          // 28: anytty.api.v1.PluginUiLayout
+	(*PluginUiNode)(nil),            // 29: anytty.api.v1.PluginUiNode
+	(*PluginUiMountUpdate)(nil),     // 30: anytty.api.v1.PluginUiMountUpdate
+	(*PluginAgentReport)(nil),       // 31: anytty.api.v1.PluginAgentReport
+	(*PluginAgentSnapshot)(nil),     // 32: anytty.api.v1.PluginAgentSnapshot
+	(*PluginStateRequest)(nil),      // 33: anytty.api.v1.PluginStateRequest
+	(*PluginStateGet)(nil),          // 34: anytty.api.v1.PluginStateGet
+	(*PluginStatePut)(nil),          // 35: anytty.api.v1.PluginStatePut
+	(*PluginStateWatch)(nil),        // 36: anytty.api.v1.PluginStateWatch
+	(*PluginStateSnapshot)(nil),     // 37: anytty.api.v1.PluginStateSnapshot
+	(*PluginBridgeFrame)(nil),       // 38: anytty.api.v1.PluginBridgeFrame
+	(*PluginUiInit)(nil),            // 39: anytty.api.v1.PluginUiInit
+	(*PluginUiSnapshotQuery)(nil),   // 40: anytty.api.v1.PluginUiSnapshotQuery
+	(*PluginUiQuery)(nil),           // 41: anytty.api.v1.PluginUiQuery
+	(*PluginPanelSnapshot)(nil),     // 42: anytty.api.v1.PluginPanelSnapshot
+	(*PluginUiSnapshot)(nil),        // 43: anytty.api.v1.PluginUiSnapshot
+	nil,                             // 44: anytty.api.v1.PluginUiInteraction.ValuesEntry
+	nil,                             // 45: anytty.api.v1.PluginUiInit.MountRevisionsEntry
 }
 var file_apipb_plugin_proto_depIdxs = []int32{
 	0,  // 0: anytty.api.v1.PluginRegisterRequest.address:type_name -> anytty.api.v1.PluginAddress
@@ -3978,69 +4118,72 @@ var file_apipb_plugin_proto_depIdxs = []int32{
 	3,  // 6: anytty.api.v1.PluginCommand.send:type_name -> anytty.api.v1.PluginSendRequest
 	4,  // 7: anytty.api.v1.PluginCommand.receive:type_name -> anytty.api.v1.PluginReceiveRequest
 	5,  // 8: anytty.api.v1.PluginCommand.unregister:type_name -> anytty.api.v1.PluginUnregisterRequest
-	32, // 9: anytty.api.v1.PluginCommand.state:type_name -> anytty.api.v1.PluginStateRequest
+	33, // 9: anytty.api.v1.PluginCommand.state:type_name -> anytty.api.v1.PluginStateRequest
 	2,  // 10: anytty.api.v1.PluginResult.registration:type_name -> anytty.api.v1.PluginRegistration
 	7,  // 11: anytty.api.v1.PluginResult.ack:type_name -> anytty.api.v1.PluginAck
 	6,  // 12: anytty.api.v1.PluginResult.batch:type_name -> anytty.api.v1.PluginBatch
 	8,  // 13: anytty.api.v1.PluginResult.error:type_name -> anytty.api.v1.PluginError
-	36, // 14: anytty.api.v1.PluginResult.state:type_name -> anytty.api.v1.PluginStateSnapshot
+	37, // 14: anytty.api.v1.PluginResult.state:type_name -> anytty.api.v1.PluginStateSnapshot
 	0,  // 15: anytty.api.v1.PluginMessage.source:type_name -> anytty.api.v1.PluginAddress
 	0,  // 16: anytty.api.v1.PluginMessage.destination:type_name -> anytty.api.v1.PluginAddress
 	21, // 17: anytty.api.v1.PluginMessage.interaction:type_name -> anytty.api.v1.PluginUiInteraction
-	24, // 18: anytty.api.v1.PluginMessage.operation:type_name -> anytty.api.v1.PluginUiOperation
-	29, // 19: anytty.api.v1.PluginMessage.mount_update:type_name -> anytty.api.v1.PluginUiMountUpdate
+	25, // 18: anytty.api.v1.PluginMessage.operation:type_name -> anytty.api.v1.PluginUiOperation
+	30, // 19: anytty.api.v1.PluginMessage.mount_update:type_name -> anytty.api.v1.PluginUiMountUpdate
 	13, // 20: anytty.api.v1.PluginMessage.reply:type_name -> anytty.api.v1.PluginReply
-	30, // 21: anytty.api.v1.PluginMessage.agent_report:type_name -> anytty.api.v1.PluginAgentReport
-	31, // 22: anytty.api.v1.PluginMessage.agent_snapshot:type_name -> anytty.api.v1.PluginAgentSnapshot
+	31, // 21: anytty.api.v1.PluginMessage.agent_report:type_name -> anytty.api.v1.PluginAgentReport
+	32, // 22: anytty.api.v1.PluginMessage.agent_snapshot:type_name -> anytty.api.v1.PluginAgentSnapshot
 	12, // 23: anytty.api.v1.PluginMessage.payload:type_name -> anytty.api.v1.PluginPayload
-	36, // 24: anytty.api.v1.PluginMessage.state_changed:type_name -> anytty.api.v1.PluginStateSnapshot
-	38, // 25: anytty.api.v1.PluginMessage.init:type_name -> anytty.api.v1.PluginUiInit
-	40, // 26: anytty.api.v1.PluginMessage.ui_query:type_name -> anytty.api.v1.PluginUiQuery
-	8,  // 27: anytty.api.v1.PluginReply.error:type_name -> anytty.api.v1.PluginError
-	12, // 28: anytty.api.v1.PluginReply.value:type_name -> anytty.api.v1.PluginPayload
-	42, // 29: anytty.api.v1.PluginReply.ui_snapshot:type_name -> anytty.api.v1.PluginUiSnapshot
-	15, // 30: anytty.api.v1.PluginMountOwner.workspace:type_name -> anytty.api.v1.PluginWorkspaceOwner
-	16, // 31: anytty.api.v1.PluginMountOwner.tab:type_name -> anytty.api.v1.PluginTabOwner
-	17, // 32: anytty.api.v1.PluginMountOwner.panel:type_name -> anytty.api.v1.PluginPanelOwner
-	18, // 33: anytty.api.v1.PluginMountOwner.floating:type_name -> anytty.api.v1.PluginFloatingOwner
-	20, // 34: anytty.api.v1.PluginUiInteraction.context:type_name -> anytty.api.v1.PluginTargetContext
-	43, // 35: anytty.api.v1.PluginUiInteraction.values:type_name -> anytty.api.v1.PluginUiInteraction.ValuesEntry
-	14, // 36: anytty.api.v1.PluginPaneBind.terminal:type_name -> anytty.api.v1.PluginTerminalRef
-	20, // 37: anytty.api.v1.PluginUiOperation.context:type_name -> anytty.api.v1.PluginTargetContext
-	22, // 38: anytty.api.v1.PluginUiOperation.bind:type_name -> anytty.api.v1.PluginPaneBind
-	23, // 39: anytty.api.v1.PluginUiOperation.notification:type_name -> anytty.api.v1.PluginUiNotification
-	28, // 40: anytty.api.v1.PluginUiNode.children:type_name -> anytty.api.v1.PluginUiNode
-	14, // 41: anytty.api.v1.PluginUiNode.terminal:type_name -> anytty.api.v1.PluginTerminalRef
-	26, // 42: anytty.api.v1.PluginUiNode.style:type_name -> anytty.api.v1.PluginUiStyle
-	26, // 43: anytty.api.v1.PluginUiNode.selected_style:type_name -> anytty.api.v1.PluginUiStyle
-	27, // 44: anytty.api.v1.PluginUiNode.layout:type_name -> anytty.api.v1.PluginUiLayout
-	19, // 45: anytty.api.v1.PluginUiMountUpdate.owner:type_name -> anytty.api.v1.PluginMountOwner
-	28, // 46: anytty.api.v1.PluginUiMountUpdate.root:type_name -> anytty.api.v1.PluginUiNode
-	25, // 47: anytty.api.v1.PluginUiMountUpdate.actions:type_name -> anytty.api.v1.PluginUiAction
-	14, // 48: anytty.api.v1.PluginAgentReport.terminal:type_name -> anytty.api.v1.PluginTerminalRef
-	30, // 49: anytty.api.v1.PluginAgentSnapshot.agents:type_name -> anytty.api.v1.PluginAgentReport
-	33, // 50: anytty.api.v1.PluginStateRequest.get:type_name -> anytty.api.v1.PluginStateGet
-	34, // 51: anytty.api.v1.PluginStateRequest.put:type_name -> anytty.api.v1.PluginStatePut
-	35, // 52: anytty.api.v1.PluginStateRequest.watch:type_name -> anytty.api.v1.PluginStateWatch
-	12, // 53: anytty.api.v1.PluginStatePut.value:type_name -> anytty.api.v1.PluginPayload
-	12, // 54: anytty.api.v1.PluginStateSnapshot.value:type_name -> anytty.api.v1.PluginPayload
-	9,  // 55: anytty.api.v1.PluginBridgeFrame.command:type_name -> anytty.api.v1.PluginCommand
-	10, // 56: anytty.api.v1.PluginBridgeFrame.result:type_name -> anytty.api.v1.PluginResult
-	19, // 57: anytty.api.v1.PluginUiInit.owners:type_name -> anytty.api.v1.PluginMountOwner
-	0,  // 58: anytty.api.v1.PluginUiInit.host:type_name -> anytty.api.v1.PluginAddress
-	20, // 59: anytty.api.v1.PluginUiInit.context:type_name -> anytty.api.v1.PluginTargetContext
-	44, // 60: anytty.api.v1.PluginUiInit.mount_revisions:type_name -> anytty.api.v1.PluginUiInit.MountRevisionsEntry
-	39, // 61: anytty.api.v1.PluginUiQuery.snapshot:type_name -> anytty.api.v1.PluginUiSnapshotQuery
-	19, // 62: anytty.api.v1.PluginPanelSnapshot.owner:type_name -> anytty.api.v1.PluginMountOwner
-	14, // 63: anytty.api.v1.PluginPanelSnapshot.terminal:type_name -> anytty.api.v1.PluginTerminalRef
-	19, // 64: anytty.api.v1.PluginUiSnapshot.owners:type_name -> anytty.api.v1.PluginMountOwner
-	41, // 65: anytty.api.v1.PluginUiSnapshot.panels:type_name -> anytty.api.v1.PluginPanelSnapshot
-	20, // 66: anytty.api.v1.PluginUiSnapshot.active_context:type_name -> anytty.api.v1.PluginTargetContext
-	67, // [67:67] is the sub-list for method output_type
-	67, // [67:67] is the sub-list for method input_type
-	67, // [67:67] is the sub-list for extension type_name
-	67, // [67:67] is the sub-list for extension extendee
-	0,  // [0:67] is the sub-list for field type_name
+	37, // 24: anytty.api.v1.PluginMessage.state_changed:type_name -> anytty.api.v1.PluginStateSnapshot
+	39, // 25: anytty.api.v1.PluginMessage.init:type_name -> anytty.api.v1.PluginUiInit
+	41, // 26: anytty.api.v1.PluginMessage.ui_query:type_name -> anytty.api.v1.PluginUiQuery
+	22, // 27: anytty.api.v1.PluginMessage.lifecycle:type_name -> anytty.api.v1.PluginUiLifecycle
+	8,  // 28: anytty.api.v1.PluginReply.error:type_name -> anytty.api.v1.PluginError
+	12, // 29: anytty.api.v1.PluginReply.value:type_name -> anytty.api.v1.PluginPayload
+	43, // 30: anytty.api.v1.PluginReply.ui_snapshot:type_name -> anytty.api.v1.PluginUiSnapshot
+	15, // 31: anytty.api.v1.PluginMountOwner.workspace:type_name -> anytty.api.v1.PluginWorkspaceOwner
+	16, // 32: anytty.api.v1.PluginMountOwner.tab:type_name -> anytty.api.v1.PluginTabOwner
+	17, // 33: anytty.api.v1.PluginMountOwner.panel:type_name -> anytty.api.v1.PluginPanelOwner
+	18, // 34: anytty.api.v1.PluginMountOwner.floating:type_name -> anytty.api.v1.PluginFloatingOwner
+	20, // 35: anytty.api.v1.PluginUiInteraction.context:type_name -> anytty.api.v1.PluginTargetContext
+	44, // 36: anytty.api.v1.PluginUiInteraction.values:type_name -> anytty.api.v1.PluginUiInteraction.ValuesEntry
+	19, // 37: anytty.api.v1.PluginUiLifecycle.owner:type_name -> anytty.api.v1.PluginMountOwner
+	19, // 38: anytty.api.v1.PluginUiLifecycle.previous_owner:type_name -> anytty.api.v1.PluginMountOwner
+	14, // 39: anytty.api.v1.PluginPaneBind.terminal:type_name -> anytty.api.v1.PluginTerminalRef
+	20, // 40: anytty.api.v1.PluginUiOperation.context:type_name -> anytty.api.v1.PluginTargetContext
+	23, // 41: anytty.api.v1.PluginUiOperation.bind:type_name -> anytty.api.v1.PluginPaneBind
+	24, // 42: anytty.api.v1.PluginUiOperation.notification:type_name -> anytty.api.v1.PluginUiNotification
+	29, // 43: anytty.api.v1.PluginUiNode.children:type_name -> anytty.api.v1.PluginUiNode
+	14, // 44: anytty.api.v1.PluginUiNode.terminal:type_name -> anytty.api.v1.PluginTerminalRef
+	27, // 45: anytty.api.v1.PluginUiNode.style:type_name -> anytty.api.v1.PluginUiStyle
+	27, // 46: anytty.api.v1.PluginUiNode.selected_style:type_name -> anytty.api.v1.PluginUiStyle
+	28, // 47: anytty.api.v1.PluginUiNode.layout:type_name -> anytty.api.v1.PluginUiLayout
+	19, // 48: anytty.api.v1.PluginUiMountUpdate.owner:type_name -> anytty.api.v1.PluginMountOwner
+	29, // 49: anytty.api.v1.PluginUiMountUpdate.root:type_name -> anytty.api.v1.PluginUiNode
+	26, // 50: anytty.api.v1.PluginUiMountUpdate.actions:type_name -> anytty.api.v1.PluginUiAction
+	14, // 51: anytty.api.v1.PluginAgentReport.terminal:type_name -> anytty.api.v1.PluginTerminalRef
+	31, // 52: anytty.api.v1.PluginAgentSnapshot.agents:type_name -> anytty.api.v1.PluginAgentReport
+	34, // 53: anytty.api.v1.PluginStateRequest.get:type_name -> anytty.api.v1.PluginStateGet
+	35, // 54: anytty.api.v1.PluginStateRequest.put:type_name -> anytty.api.v1.PluginStatePut
+	36, // 55: anytty.api.v1.PluginStateRequest.watch:type_name -> anytty.api.v1.PluginStateWatch
+	12, // 56: anytty.api.v1.PluginStatePut.value:type_name -> anytty.api.v1.PluginPayload
+	12, // 57: anytty.api.v1.PluginStateSnapshot.value:type_name -> anytty.api.v1.PluginPayload
+	9,  // 58: anytty.api.v1.PluginBridgeFrame.command:type_name -> anytty.api.v1.PluginCommand
+	10, // 59: anytty.api.v1.PluginBridgeFrame.result:type_name -> anytty.api.v1.PluginResult
+	19, // 60: anytty.api.v1.PluginUiInit.owners:type_name -> anytty.api.v1.PluginMountOwner
+	0,  // 61: anytty.api.v1.PluginUiInit.host:type_name -> anytty.api.v1.PluginAddress
+	20, // 62: anytty.api.v1.PluginUiInit.context:type_name -> anytty.api.v1.PluginTargetContext
+	45, // 63: anytty.api.v1.PluginUiInit.mount_revisions:type_name -> anytty.api.v1.PluginUiInit.MountRevisionsEntry
+	40, // 64: anytty.api.v1.PluginUiQuery.snapshot:type_name -> anytty.api.v1.PluginUiSnapshotQuery
+	19, // 65: anytty.api.v1.PluginPanelSnapshot.owner:type_name -> anytty.api.v1.PluginMountOwner
+	14, // 66: anytty.api.v1.PluginPanelSnapshot.terminal:type_name -> anytty.api.v1.PluginTerminalRef
+	19, // 67: anytty.api.v1.PluginUiSnapshot.owners:type_name -> anytty.api.v1.PluginMountOwner
+	42, // 68: anytty.api.v1.PluginUiSnapshot.panels:type_name -> anytty.api.v1.PluginPanelSnapshot
+	20, // 69: anytty.api.v1.PluginUiSnapshot.active_context:type_name -> anytty.api.v1.PluginTargetContext
+	70, // [70:70] is the sub-list for method output_type
+	70, // [70:70] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_apipb_plugin_proto_init() }
@@ -4073,6 +4216,7 @@ func file_apipb_plugin_proto_init() {
 		(*PluginMessage_StateChanged)(nil),
 		(*PluginMessage_Init)(nil),
 		(*PluginMessage_UiQuery)(nil),
+		(*PluginMessage_Lifecycle)(nil),
 	}
 	file_apipb_plugin_proto_msgTypes[19].OneofWrappers = []any{
 		(*PluginMountOwner_Workspace)(nil),
@@ -4080,21 +4224,21 @@ func file_apipb_plugin_proto_init() {
 		(*PluginMountOwner_Panel)(nil),
 		(*PluginMountOwner_Floating)(nil),
 	}
-	file_apipb_plugin_proto_msgTypes[24].OneofWrappers = []any{
+	file_apipb_plugin_proto_msgTypes[25].OneofWrappers = []any{
 		(*PluginUiOperation_Bind)(nil),
 		(*PluginUiOperation_Notification)(nil),
 	}
-	file_apipb_plugin_proto_msgTypes[32].OneofWrappers = []any{
+	file_apipb_plugin_proto_msgTypes[33].OneofWrappers = []any{
 		(*PluginStateRequest_Get)(nil),
 		(*PluginStateRequest_Put)(nil),
 		(*PluginStateRequest_Watch)(nil),
 	}
-	file_apipb_plugin_proto_msgTypes[37].OneofWrappers = []any{
+	file_apipb_plugin_proto_msgTypes[38].OneofWrappers = []any{
 		(*PluginBridgeFrame_Command)(nil),
 		(*PluginBridgeFrame_Result)(nil),
 		(*PluginBridgeFrame_CancelRequestId)(nil),
 	}
-	file_apipb_plugin_proto_msgTypes[40].OneofWrappers = []any{
+	file_apipb_plugin_proto_msgTypes[41].OneofWrappers = []any{
 		(*PluginUiQuery_Snapshot)(nil),
 	}
 	type x struct{}
@@ -4103,7 +4247,7 @@ func file_apipb_plugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_apipb_plugin_proto_rawDesc), len(file_apipb_plugin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   45,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

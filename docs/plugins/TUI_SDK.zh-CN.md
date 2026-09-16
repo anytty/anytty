@@ -13,7 +13,7 @@
 | panel | header / menu / content | 面板装饰、页面内容 |
 | floating | header / menu / content | 浮窗装饰、页面内容 |
 
-`scope` 支持 `workspace`、`active_tab`、`active_panel` 和 `global`。后两者会随当前 TUI 的活动容器自动重绑定；插件不需要保存 tab 或 pane ID。没有声明 scope 时可继续使用显式 `owner`，以兼容已有插件。`placement` 会映射为宿主 slot：`sidebar`、`statusbar`、`floating`/`overlay`、`menu`、`header`、`content`。浮窗引用必须同时包含 workspace、tab 和 floating ID。切换标签隐藏其挂载；关闭容器会卸载从属挂载、撤销交互上下文，并经 daemon 通知插件。新增容器会触发新的 `PluginUiInit` 所有者清单。独立标签、面板和浮窗的创建仍由宿主现有布局命令完成；挂载 API 不隐式创建缺失 owner。
+`scope` 支持 `tui`、`workspace`、`active_tab`、`active_panel` 和兼容别名 `global`。`tui` surface 不依赖某个 workspace，在当前 TUI 生命周期内保持可见；`active_tab`、`active_panel` 会随当前 TUI 的活动容器自动重绑定，插件不需要保存 tab 或 pane ID。没有声明 scope 时可继续使用显式 `owner`，以兼容已有插件。`placement` 会映射为宿主 slot：`sidebar`、`statusbar`、`floating`/`overlay`、`menu`、`header`、`content`。浮窗引用必须同时包含 workspace、tab 和 floating ID。切换标签隐藏其挂载；关闭容器会卸载从属挂载、撤销交互上下文，并经 daemon 通知插件。动态 surface 的重绑定、隐藏、显示和关闭会通过 `PluginUiLifecycle` 经 daemon 回送给插件。新增容器会触发新的 `PluginUiInit` 所有者清单。独立标签、面板和浮窗的创建仍由宿主现有布局命令完成；挂载 API 不隐式创建缺失 owner。
 
 当前声明式组件支持 text、badge、progress、button、list、row、card、gap、column、table、tree，以及 form/input/select/checkbox。表格按文本行显示；树分支可以展开或折叠。`card` 是宿主统一渲染的可选中卡片，插件通过节点的 `description` 提供第二行元信息，通过 `style` / `selected_style` 声明 `primary`、`muted`、`success`、`warning`、`danger`、`info` 前景语义和 `surface`、`elevated`、`selected`、`transparent` 背景语义；`layout` 控制上下左右留白和卡片间距。宿主把这些语义映射到当前主题，插件不写 ANSI，也不依赖 `tui/render` 的实现。`gap` 只表达布局间隔，不进入键盘选中或鼠标命中列表。节点 ID 必须唯一，最多 4096 个节点、16 层。不接受 ANSI 或多行文本。当前尚未实现独立 PTY renderer；注册该组件明确返回 `UNSUPPORTED`，不能把空白页面当作支持。后续完整 SDK 的目标能力以设计稿为准。
 

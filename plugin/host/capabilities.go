@@ -72,6 +72,22 @@ func authorizeCommand(manifest Manifest, mode string, command *apipb.PluginComma
 				scopeMatch := update.Scope == "" || mount.Scope == "" || update.Scope == mount.Scope
 				placementMatch := update.Placement == "" || mount.Placement == "" || update.Placement == mount.Placement
 				if idMatch && (slotMatch || surfaceMatch) && scopeMatch && placementMatch {
+					declared := make(map[string]Action, len(manifest.Actions))
+					for _, action := range manifest.Actions {
+						declared[action.ID] = action
+					}
+					for _, action := range update.Actions {
+						meta, ok := declared[action.GetId()]
+						if !ok {
+							return fmt.Errorf("undeclared plugin action %s", action.GetId())
+						}
+						if action.GetBehavior() != "" && action.GetBehavior() != meta.Behavior {
+							return fmt.Errorf("plugin action %s changes manifest behavior", action.GetId())
+						}
+						if action.GetTargetPolicy() != "" && action.GetTargetPolicy() != meta.TargetPolicy {
+							return fmt.Errorf("plugin action %s changes manifest target policy", action.GetId())
+						}
+					}
 					return nil
 				}
 			}
