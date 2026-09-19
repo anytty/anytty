@@ -5,4 +5,4 @@
 
 - `fixtures/`：wire 快照（当前为空实现，先冻结目录与契约）。
 - 快照来源：`proto/access/*` 与 `access/transport/*` 的现有 wire 行为。
-- 本目录同时承载仓库布局守卫测试（daemon/access/layout 依赖方向）。
+- 本目录同时承载仓库布局守卫测试（pool/access/layout 依赖方向）。

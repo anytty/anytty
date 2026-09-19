@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
+	cloud "github.com/anytty/anytty/access/cloud"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
@@ -24,8 +24,8 @@ func TestCloudStatusDisableEnableOffline(t *testing.T) {
 	if status.State != "not_enrolled" || !status.Enabled || status.Enrolled || status.Running {
 		t.Fatalf("initial cloud status = %#v", status)
 	}
-	if _, err := os.Stat(daemonRecordPath(socketPath)); !os.IsNotExist(err) {
-		t.Fatalf("cloud status unexpectedly touched daemon runtime record: %v", err)
+	if _, err := os.Stat(poolRecordPath(socketPath)); !os.IsNotExist(err) {
+		t.Fatalf("cloud status unexpectedly touched pool runtime record: %v", err)
 	}
 
 	disabled := executeCloudStatusJSON(t, "--socket", socketPath, "--log-file", logPath, "cloud", "disable", "--json")
@@ -79,9 +79,9 @@ func TestCloudEnrollmentProgressShowsRoutingWithoutPrivateCapacity(t *testing.T)
 	locator := &cloudv1.EdgeLocator{EdgeId: "edge-cn2", Name: "CN2", Region: "CN2", PublicEndpoint: "cn2.example.com:41102"}
 	measurement := &cloudv1.DaemonEdgeMeasurement{EdgeId: locator.GetEdgeId(), Reachable: true, ConnectLatencyMs: 42, SampleCount: 3}
 	candidate := &cloudv1.DaemonEdgeCandidate{Locator: locator, Online: true, Eligible: true, Measurement: measurement, Score: 1000, Status: "available"}
-	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressCandidates, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}})
-	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressMeasured, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}, Measurements: []*cloudv1.DaemonEdgeMeasurement{measurement}})
-	writeCloudEnrollmentProgress(&output, clouddaemon.EnrollmentProgress{Stage: clouddaemon.EnrollmentProgressSelected, Selection: &cloudv1.DaemonEdgeSelection{SelectedEdgeId: locator.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}}, SelectedEdge: locator})
+	writeCloudEnrollmentProgress(&output, cloud.EnrollmentProgress{Stage: cloud.EnrollmentProgressCandidates, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}})
+	writeCloudEnrollmentProgress(&output, cloud.EnrollmentProgress{Stage: cloud.EnrollmentProgressMeasured, Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}, Measurements: []*cloudv1.DaemonEdgeMeasurement{measurement}})
+	writeCloudEnrollmentProgress(&output, cloud.EnrollmentProgress{Stage: cloud.EnrollmentProgressSelected, Selection: &cloudv1.DaemonEdgeSelection{SelectedEdgeId: locator.GetEdgeId(), Candidates: []*cloudv1.DaemonEdgeCandidate{candidate}}, SelectedEdge: locator})
 	logged := output.String()
 	for _, expected := range []string{"CN2", "cn2.example.com:41102", "latency=42 ms", "score=1000.0", "selected CN2"} {
 		if !strings.Contains(logged, expected) {

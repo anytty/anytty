@@ -11,7 +11,7 @@ import (
 )
 
 // newRouteICETCPMux publishes passive candidates on the exact platform network
-// that discovered a LAN daemon. This complements Pion's active ICE-TCP path,
+// that discovered a LAN pool. This complements Pion's active ICE-TCP path,
 // whose internal dialer cannot inherit Android Network.bindSocket semantics.
 func newRouteICETCPMux(network transport.Net, logger logging.LeveledLogger) (pionice.TCPMux, error) {
 	interfaces, err := network.Interfaces()

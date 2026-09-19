@@ -4,8 +4,8 @@ AnyTTY Third-Party Notices
 
 Artifact Notice Bundles
 
-- anytty CLI/daemon: clients/cli/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
-- Web client: clients/web/public/THIRD_PARTY_NOTICES.txt 和 clients/web/public/third-party/; 随 daemon 的 Local Web bundle 分发。
+- anytty CLI/terminal pool: clients/cli/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
+- Web client: clients/web/public/THIRD_PARTY_NOTICES.txt 和 clients/web/public/third-party/; 随 terminal pool 的 Local Web bundle 分发。
 - Flutter clients: clients/flutter/assets/licenses/; 随 Android 与 iOS 应用分发。
 
 这些 bundle 按实际 Go build graph、npm lockfile、Gradle runtime graph 和内嵌资产分别生成。单独列出 SPDX 名称或本索引不能替代 artifact 内的完整版权、许可和 NOTICE 文本。

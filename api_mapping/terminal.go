@@ -6,8 +6,8 @@ import (
 	"math"
 	"time"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
-	corehistory "github.com/anytty/anytty/daemon/core/history"
+	corev2 "github.com/anytty/anytty/pool/core"
+	corehistory "github.com/anytty/anytty/pool/core/history"
 	"github.com/anytty/anytty/proto/access/apipb"
 )
 
@@ -167,7 +167,7 @@ func terminalCommandPayloadPresent(command *apipb.CommandEnvelope) bool {
 	}
 }
 
-// ValidateTerminalCreateSpec 校验 daemon-local terminal 创建规格。
+// ValidateTerminalCreateSpec 校验 pool-local terminal 创建规格。
 func ValidateTerminalCreateSpec(spec *apipb.TerminalCreateSpec) error {
 	if spec == nil {
 		return validation("terminal_create.terminal", "is required")
@@ -211,7 +211,7 @@ func ValidateTerminalSize(size *apipb.TerminalSize) error {
 		return validation("terminal.size", "cols and rows must be greater than zero")
 	}
 	if size.GetCols() > 65535 || size.GetRows() > 65535 {
-		return validation("terminal.size", "cols and rows exceed daemon limits")
+		return validation("terminal.size", "cols and rows exceed pool limits")
 	}
 	return nil
 }
@@ -416,7 +416,7 @@ func terminalResourceUsageToProto(usage corev2.TerminalResourceUsage) (*apipb.Te
 	}, nil
 }
 
-// TerminalDefaultsToProto 把 core daemon defaults 投影为公共 API result。
+// TerminalDefaultsToProto 把 core pool defaults 投影为公共 API result。
 func TerminalDefaultsToProto(defaults corev2.TerminalDefaults) *apipb.TerminalDefaultsResult {
 	return &apipb.TerminalDefaultsResult{Defaults: &apipb.TerminalDefaults{
 		DefaultCommand: append([]string(nil), defaults.DefaultCommand...),
@@ -468,7 +468,7 @@ func TerminalAttachmentToProto(origin *apipb.EndpointSessionStamp, command *apip
 	}
 }
 
-// TerminalResizeResultToProto 映射 daemon 确认后的 resize/control 状态。
+// TerminalResizeResultToProto 映射 pool 确认后的 resize/control 状态。
 func TerminalResizeResultToProto(result corev2.TerminalResizeResult) *apipb.TerminalResizeResult {
 	return &apipb.TerminalResizeResult{Size: TerminalSizeToProto(result.Size), Resized: result.Resized, ResizeControl: resizeControlToProto(result.ResizeControl)}
 }

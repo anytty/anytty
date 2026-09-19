@@ -10,7 +10,7 @@ anytty endpoint test build-server --json
 anytty terminal list --endpoint build-server --json
 ```
 
-`endpoint list` reads the configured registry without dialing endpoints. `endpoint test` verifies protocol reachability. Check `anytty daemon status` only when operating the Local endpoint.
+`endpoint list` reads the configured registry without dialing endpoints. `endpoint test` verifies protocol reachability. Check `anytty pool status` only when operating the Local endpoint.
 
 If the user selected an endpoint, pass `--endpoint ENDPOINT` when listing or creating terminals. Without it, AnyTTY uses the registry default. A stable target has the form `ENDPOINT:TERMINAL`, and commands that accept a target route through its owning endpoint.
 
@@ -91,7 +91,7 @@ anytty terminal create --endpoint build-server --json --name fix-login-tests \
   --cwd /path/to/project -- go test ./...
 ```
 
-The terminal name is also its daemon-local ID at creation, so inspect the pool first and choose a unique name. Keep every argument after `--` separate so AnyTTY records the exact process specification.
+The terminal name is also its pool-local ID at creation, so inspect the pool first and choose a unique name. Keep every argument after `--` separate so AnyTTY records the exact process specification.
 
 The create result is a finite JSON envelope:
 
@@ -175,7 +175,7 @@ anytty terminal kill build-server:fix-login-tests --json
 anytty terminal remove build-server:fix-login-tests --json
 ```
 
-`history search` is local-daemon-specific and accepts a terminal ID rather than a remote target. For Local, SSH, Direct, or Cloud endpoints generally, use `terminal capture TARGET` so the owning daemon supplies authoritative history.
+`history search` is local-pool-specific and accepts a terminal ID rather than a remote target. For Local, SSH, Direct, or Cloud endpoints generally, use `terminal capture TARGET` so the owning terminal pool supplies authoritative history.
 
 Restart reuses the stored process specification. Kill preserves the terminal record and history. Remove is valid only after exit and should be treated as cleanup, not as the way to stop a task.
 

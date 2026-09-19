@@ -1,6 +1,6 @@
 // Package storage 是 access-local 的通用 opaque KV，实现客户端 storage.* 命令。
 //
-// 它从 daemon/core 迁移而来（Phase 2）：同一进程内共享一份真值，按
+// 它从 pool/core 迁移而来（Phase 2）：同一进程内共享一份真值，按
 // app/scope/owner/key 分区，值是不透明的 []byte，version 单调递增用于 CAS。
 // 它不解释 value 语义，也不做鉴权：调用方（access/server 路由层）已完成
 // 本地信任边界或 remoteauth。

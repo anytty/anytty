@@ -16,7 +16,7 @@ const (
 )
 
 // Channel 把 Pion DataChannel 适配为共享 datachannel.Channel。
-// 它不创建 peer connection、不验证 grant，也不决定 core-v2 scope；端到端授权属于 daemon DataChannel handler。
+// 它不创建 peer connection、不验证 grant，也不决定 core-v2 scope；端到端授权属于 pool DataChannel handler。
 type Channel struct {
 	channel        pionDataChannel
 	dispatchMu     sync.Mutex
@@ -47,7 +47,7 @@ func NewChannel(channel *webrtc.DataChannel) *Channel {
 func newChannel(channel pionDataChannel) *Channel {
 	adapter := &Channel{channel: channel}
 	channel.OnClose(adapter.notifyClosed)
-	// Pion 可能在上层 WaitReady 返回前收到 daemon 的 DeviceHello。adapter 必须从创建时就接管消息，
+	// Pion 可能在上层 WaitReady 返回前收到 pool 的 DeviceHello。adapter 必须从创建时就接管消息，
 	// 否则可靠有序 DataChannel 的首帧会在 transport 注册 handler 前被静默丢弃。
 	channel.OnMessage(adapter.receive)
 	return adapter

@@ -4,11 +4,11 @@
 # 目标：后续构建、调试新的 anytty 绝不覆盖或连接 hs 上正在使用的
 #   ~/.config/anytty、~/.local/state/anytty 与默认 socket。
 #
-# 做法：所有 XDG 目录、daemon socket、plugin registry 全部加 -dev 后缀，
+# 做法：所有 XDG 目录、pool socket、plugin registry 全部加 -dev 后缀，
 # 并始终显式使用 --socket <dev socket>。子命令：
-#   demo       一键体验：构建 + 隔离 daemon + 新 TUI（tui2 + tui2-shell）
-#   stop       停止 dev daemon
-#   daemon ... 以 dev socket 运行 daemon（参数透传）
+#   demo       一键体验：构建 + 隔离终端池 + 新 TUI（tui2 + tui2-shell）
+#   stop       停止 dev 终端池
+#   pool ...   以 dev socket 运行终端池（参数透传；兼容旧 daemon 子命令）
 #   cli ...    以 dev socket 运行任意 anytty-dev 子命令（参数透传）
 #   build      构建 anytty-dev / tui2 / tui2-shell
 #   test       运行新 TUI 测试（clients/tui）
@@ -23,7 +23,7 @@ export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config/anytty-dev}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state/anytty-dev}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$XDG_STATE_HOME/run}"
 export ANYTTY_DEV_SOCKET="${ANYTTY_DEV_SOCKET:-$XDG_RUNTIME_DIR/anytty-v2-wire7-dev.sock}"
-# 既有 hs daemon 默认占用 0.0.0.0:41120；dev daemon 只绑 loopback 的独立端口。
+# 既有 hs 终端池默认占用 0.0.0.0:41120；dev 终端池只绑 loopback 的独立端口。
 export ANYTTY_DIRECT_SIGNALING_LISTEN="${ANYTTY_DIRECT_SIGNALING_LISTEN:-127.0.0.1:44120}"
 export ANYTTY_DIRECT_ICE_TCP_LISTEN="${ANYTTY_DIRECT_ICE_TCP_LISTEN:-127.0.0.1:44121}"
 
@@ -80,28 +80,28 @@ case "${1:-help}" in
     cd "$ROOT_DIR"
     go test ./clients/tui/...
     ;;
-  daemon)
+  pool | daemon)
     shift
-    exec "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" daemon "$@"
+    exec "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" pool "$@"
     ;;
   cli)
     shift
     exec "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" "$@"
     ;;
   demo)
-    # 一键体验：确保 dev registry + 构建 + 隔离 daemon，然后进入 TUI。
+    # 一键体验：确保 dev registry + 构建 + 隔离终端池，然后进入 TUI。
     shift
     [[ -f "$ENDPOINTS" ]] || write_endpoints
     if [[ ! -x "$DEV_ROOT/bin/anytty-dev" ]]; then
       bash "${BASH_SOURCE[0]}" build >&2
     fi
-    "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" daemon start >/dev/null 2>&1 || true
+    "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" pool start >/dev/null 2>&1 || true
     export TUI2_BIN="${TUI2_BIN:-$DEV_ROOT/bin/tui2}"
     export TUI2_SHELL="${TUI2_SHELL:-$DEV_ROOT/bin/tui2-shell}"
     exec "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" "$@"
     ;;
   stop)
-    "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" daemon stop
+    "$DEV_ROOT/bin/anytty-dev" --socket "$ANYTTY_DEV_SOCKET" pool stop
     ;;
   *)
     sed -n '2,16p' "${BASH_SOURCE[0]}"

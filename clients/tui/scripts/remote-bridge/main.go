@@ -24,7 +24,7 @@ import (
 
 func main() {
 	listen := flag.String("listen", "127.0.0.1:17777", "TCP listen address (loopback recommended)")
-	unixPath := flag.String("unix", "", "unix socket path of the daemon transport")
+	unixPath := flag.String("unix", "", "unix socket path of the terminal pool transport")
 	flag.Parse()
 	if *unixPath == "" {
 		log.Fatal("remote-bridge: -unix is required")

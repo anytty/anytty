@@ -14,12 +14,12 @@ import (
 	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	"github.com/anytty/anytty/access/files"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessruntime "github.com/anytty/anytty/access/runtime"
 	accessserver "github.com/anytty/anytty/access/server"
-	corev2 "github.com/anytty/anytty/daemon/core"
 	"github.com/anytty/anytty/internal/protocol"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/shared/filelock"
 	"github.com/anytty/anytty/shared/securefs"
@@ -101,7 +101,7 @@ func TestEndpointRegistryCommandLifecycle(t *testing.T) {
 	identityUpdate.SetErr(io.Discard)
 	identityUpdate.SetArgs([]string{"endpoint", "update", "west", "--device-id", "device-west", "--device-fingerprint", "SHA256:west"})
 	if err := identityUpdate.Execute(); err == nil || !strings.Contains(err.Error(), "unknown flag") {
-		t.Fatalf("generic endpoint update must not mutate daemon identity: %v", err)
+		t.Fatalf("generic endpoint update must not mutate pool identity: %v", err)
 	}
 	run("endpoint", "route", "update", "west", "ssh", "--remote-signaling-address", "127.0.0.1:42120", "--remote-ice-tcp-address", "127.0.0.1:42121")
 	run("endpoint", "add", "direct", "lan", "--device-id", "device-lan", "--device-fingerprint", "SHA256:lan", "--credential-ref", "grant:lan", "--direct-address", "192.168.1.8:41120")
@@ -256,7 +256,7 @@ func TestTerminalCommandsRouteDuplicateIDsToOwningLocalEndpoint(t *testing.T) {
 
 func startCLIEndpointServer(t *testing.T) (string, *protocol.Client, func()) {
 	t.Helper()
-	// Phase 4 拓扑：daemon 只在 <sock>.provider，access 在 canonical 上直答
+	// Phase 4 拓扑：pool 只在 <sock>.provider，access 在 canonical 上直答
 	// client_access.* 并路由终端；测试通过 access 验证 identity。
 	socketPath := filepath.Join(t.TempDir(), "anytty.sock")
 	providerSocket := socketPath + ".provider"
@@ -269,7 +269,7 @@ func startCLIEndpointServer(t *testing.T) (string, *protocol.Client, func()) {
 		Files:  files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")},
 		Auth:   &accessserver.AuthServices{Access: accessruntime.Service{DeviceIdentity: testCoreV2Identity()}},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, providerSocket)
+			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},
 	})
 	if err != nil {

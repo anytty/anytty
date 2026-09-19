@@ -16,7 +16,7 @@ var (
 )
 
 // Acquire 在 path 上取得跨进程 exclusive lock。
-// nonBlocking 为 true 时冲突立即返回 ErrHeld；为 false 时使用 Background context 等待，适合没有调用 deadline 的 daemon owner 路径。
+// nonBlocking 为 true 时冲突立即返回 ErrHeld；为 false 时使用 Background context 等待，适合没有调用 deadline 的 pool owner 路径。
 func Acquire(path string, nonBlocking bool) (*Lock, error) {
 	return AcquireContext(context.Background(), path, nonBlocking)
 }

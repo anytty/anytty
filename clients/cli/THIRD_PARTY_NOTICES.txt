@@ -47,7 +47,7 @@ github.com/anytty/anytty/client/endpoint,Unknown,Unknown
 github.com/anytty/anytty/client/port,Unknown,Unknown
 github.com/anytty/anytty/client/runtime,Unknown,Unknown
 github.com/anytty/anytty/cloud/client,Unknown,Unknown
-github.com/anytty/anytty/cloud/daemon,Unknown,Unknown
+github.com/anytty/anytty/access/cloud,Unknown,Unknown
 github.com/anytty/anytty/cloud/edge/agentgateway,Unknown,Unknown
 github.com/anytty/anytty/cloud/edge/clientgateway,Unknown,Unknown
 github.com/anytty/anytty/cloud/securetransport,Unknown,Unknown
@@ -65,7 +65,7 @@ github.com/anytty/anytty/proto/cloud/v1,Unknown,Unknown
 github.com/anytty/anytty/proto/remoteauthpb,Unknown,Unknown
 github.com/anytty/anytty/proto/wire,Unknown,Unknown
 github.com/anytty/anytty/proto/wirepb,Unknown,Unknown
-github.com/anytty/anytty/remote/daemon,Unknown,Unknown
+github.com/anytty/anytty/access/remote,Unknown,Unknown
 github.com/anytty/anytty/remote/webrtc,Unknown,Unknown
 github.com/anytty/anytty/shared/filelock,Unknown,Unknown
 github.com/anytty/anytty/shared/filepublish,Unknown,Unknown

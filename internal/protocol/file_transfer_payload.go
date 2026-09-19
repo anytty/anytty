@@ -38,7 +38,7 @@ type FileTransferFinish struct {
 	ElapsedMillis int64
 }
 
-// FileTransferResult 是 owning daemon 对 transfer 最终完成状态的确认。
+// FileTransferResult 是 owning pool 对 transfer 最终完成状态的确认。
 // 客户端收到该结果前不得把上传标记为完成。
 type FileTransferResult struct {
 	Path   string
@@ -104,7 +104,7 @@ func DecodeFileTransferFinish(payload []byte) (FileTransferFinish, error) {
 	return FileTransferFinish{Size: msg.GetSize(), SHA256: append([]byte(nil), msg.GetSha256()...), ElapsedMillis: msg.GetElapsedMillis()}, nil
 }
 
-// EncodeFileTransferResult 编码 daemon 已校验完成的 transfer 结果。
+// EncodeFileTransferResult 编码 pool 已校验完成的 transfer 结果。
 func EncodeFileTransferResult(value FileTransferResult) ([]byte, error) {
 	if len(value.SHA256) != 32 {
 		return nil, fmt.Errorf("file transfer sha256 must be 32 bytes")
@@ -112,7 +112,7 @@ func EncodeFileTransferResult(value FileTransferResult) ([]byte, error) {
 	return proto.Marshal(&wirepb.FileTransferResult{Path: value.Path, Size: value.Size, Sha256: append([]byte(nil), value.SHA256...)})
 }
 
-// DecodeFileTransferResult 解码 daemon 最终确认并复制摘要 bytes。
+// DecodeFileTransferResult 解码 pool 最终确认并复制摘要 bytes。
 func DecodeFileTransferResult(payload []byte) (FileTransferResult, error) {
 	var msg wirepb.FileTransferResult
 	if err := proto.Unmarshal(payload, &msg); err != nil {

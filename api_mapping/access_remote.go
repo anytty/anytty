@@ -17,7 +17,7 @@ const (
 	deviceIdentityChallengeBytes    = 32
 )
 
-// ValidateAccessRemoteCommand 校验 client access 与 remote daemon control 的 typed command。
+// ValidateAccessRemoteCommand 校验 client access 与 remote pool control 的 typed command。
 func ValidateAccessRemoteCommand(command *apipb.CommandEnvelope) error {
 	if err := ValidateRequestContext(RequestContextForCommand(command)); err != nil {
 		return err
@@ -64,7 +64,7 @@ func ValidateAccessRemoteCommand(command *apipb.CommandEnvelope) error {
 	return nil
 }
 
-// RemoteCloudEdgeSelectionToProto maps the daemon-local Edge ranking without exposing CA material.
+// RemoteCloudEdgeSelectionToProto maps the pool-local Edge ranking without exposing CA material.
 func RemoteCloudEdgeSelectionToProto(selection accesscontract.RemoteCloudEdgeSelection) *apipb.RemoteCloudEdgesResult {
 	projected := &cloudv1.DaemonEdgeSelection{DaemonId: selection.DaemonID, PreferredEdgeId: selection.PreferredEdgeID, PreferenceRevision: selection.PreferenceRevision, CurrentEdgeId: selection.CurrentEdgeID, SelectedEdgeId: selection.SelectedEdgeID, EvaluatedAt: timestamppb.New(selection.EvaluatedAt), Candidates: make([]*cloudv1.DaemonEdgeCandidate, 0, len(selection.Candidates))}
 	for _, candidate := range selection.Candidates {

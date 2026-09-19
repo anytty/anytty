@@ -146,7 +146,7 @@ TUI2_ENDPOINTS=~/.config/anytty/endpoints.yaml bash clients/tui/scripts/run.sh
 | `keybindings` | 动作 → 按键 | 覆盖内置绑定（动作白名单固定） |
 | `startup.auto_attach_first` | bool，默认 `true` | 冷启动空 view 是否自动接管第一个终端 |
 | `startup.cwd` | string | 新建终端的工作目录 |
-| `endpoints` | `{name,kind,label,argv,cwd,env,socket,address,connect_mode}[]` | endpoint：`command` 起本地 PTY，`daemon` 连接已有 anytty daemon（§3.1、`ENDPOINTS.zh-CN.md`） |
+| `endpoints` | `{name,kind,label,argv,cwd,env,socket,address,connect_mode}[]` | endpoint：`command` 起本地 PTY，`daemon` 连接已有 anytty 终端池（§3.1、`ENDPOINTS.zh-CN.md`） |
 
 ```json
 {
@@ -197,13 +197,13 @@ endpoint（`󰌷 label`），回车/单击即创建并绑定 `terminal:<name>:<i
 ```
 
 约束：`name` 不能为空且不能含 `:`（它会成为 source id 的一部分）；`command`
-（缺省）必须有 `argv`。与老 daemon 协议 endpoint（routes/连接状态/自动重连）的
+（缺省）必须有 `argv`。与老 终端池协议 endpoint（routes/连接状态/自动重连）的
 对照见 `RECOMMENDED_CONFIG.zh-CN.md` §4/§5。
 
-### 3.2 daemon endpoint（连接已有 anytty daemon）
+### 3.2 终端池 endpoint（连接已有 anytty 终端池）
 
-`kind: "daemon"` 时 host 不再起本地进程，而是按 daemon 协议连接 socket，
-列出/attach/输入/resize/kill/remove 全部走真实 daemon；远程可先用
+`kind: "daemon"` 时 host 不再起本地进程，而是按 终端池协议连接 socket，
+列出/attach/输入/resize/kill/remove 全部走真实 终端池；远程可先用
 `ssh -L` 把远端 unix socket 转发到本地再填 `socket`。完整模型与调用序列见
 `ENDPOINTS.zh-CN.md`。
 
@@ -218,20 +218,20 @@ endpoint（`󰌷 label`），回车/单击即创建并绑定 `terminal:<name>:<i
 }
 ```
 
-- picker 按 endpoint 分组：daemon 终端（带 `dev · live/exited/offline` 信息列）
+- picker 按 endpoint 分组：终端池 终端（带 `dev · live/exited/offline` 信息列）
   与配置行（`󰌷 dev-daemon`，信息列 `endpoint · daemon local-unix` 或
   `endpoint · daemon tcp`）。
-- `argv/cwd/env` 可选：选中配置行新建终端时作为 daemon 侧 command/cwd/env；
-  空 argv 用 daemon 默认 command。已有终端直接 attach。
+- `argv/cwd/env` 可选：选中配置行新建终端时作为 终端池 侧 command/cwd/env；
+  空 argv 用 终端池 默认 command。已有终端直接 attach。
 - 断线时 footer 显示 `endpoint dev offline: …` notice，重连后自动重订阅并
-  用 daemon 快照重建画面（不重放历史）；`terminal.kill` 走 daemon kill，
+  用 终端池 快照重建画面（不重放历史）；`terminal.kill` 走 终端池 kill，
   TUI 退出只 detach。
 - `connect_mode` 缺省 `local-unix`；`tcp` 用 `address` 指定 `HOST:PORT`，
-  对端是远端 daemon socket 的透明隧道；`direct-webrtc-tcp` 不做，连接时给出
+  对端是远端 终端池 socket 的透明隧道；`direct-webrtc-tcp` 不做，连接时给出
   可读错误（picker 仍展示配置行）。
-- daemon endpoint 的权威配置是 CLI/TUI 共享的
+- 终端池 endpoint 的权威配置是 CLI/TUI 共享的
   `~/.config/anytty/endpoints.yaml`（`client/endpoint.DefaultPath()`）：tui2.json
-  同名 daemon endpoint 会被共享 registry 覆盖（tui2 只读、不写、不配对）。
+  同名 终端池 endpoint 会被共享 registry 覆盖（tui2 只读、不写、不配对）。
   去重边界见 `clients/tui/docs/CLIENT_SHARING.zh-CN.md`。
 
 远程接入的三种最小可用方式（ssh 转发 unix socket、ssh/TCP 隧道、老命令式

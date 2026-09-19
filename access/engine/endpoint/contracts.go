@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// EndpointBootstrapBundleVersion 是 daemon-signed bootstrap bundle 的唯一当前版本。
+	// EndpointBootstrapBundleVersion 是 pool-signed bootstrap bundle 的唯一当前版本。
 	EndpointBootstrapBundleVersion uint32 = 2
 	// ClientEndpointShareBundleVersion 是客户端到客户端 share bundle 的唯一当前版本。
 	ClientEndpointShareBundleVersion uint32 = 1
@@ -34,12 +34,12 @@ const (
 	PortableSignatureVersion uint32 = 1
 )
 
-// PairingTicketDescriptor 是 generated protobuf 中 daemon-local 一次性授权票据的公开部分。
+// PairingTicketDescriptor 是 generated protobuf 中 pool-local 一次性授权票据的公开部分。
 // ticket 只能打开受限 pairing handshake，不能直接访问 terminal/history/file。
 type PairingTicketDescriptor = remoteauthpb.PairingTicketDescriptor
 
 // EndpointBootstrapBundleV2 是 generated deterministic protobuf bootstrap contract。
-// daemon DeviceIdentity 对 canonical bytes 签名；Cloud、Hub、Relay 和 signaling 永远不得接收该消息中的授权材料。
+// pool DeviceIdentity 对 canonical bytes 签名；Cloud、Hub、Relay 和 signaling 永远不得接收该消息中的授权材料。
 type EndpointBootstrapBundleV2 = remoteauthpb.EndpointBootstrapBundleV2
 
 // ClientEndpointShareBundleV1 是 generated deterministic protobuf share contract。
@@ -51,7 +51,7 @@ type ClientEndpointShareBundleV1 = remoteauthpb.ClientEndpointShareBundleV1
 type ShareSessionOffer = remoteauthpb.ShareSessionOffer
 
 // PairingTicketSigningBytes 返回 DeviceIdentity 签名一次性 ticket 的 canonical protobuf bytes。
-// ticket.Signature 在输入中必须为空；issuer identity 会进入签名输入，防止 ticket 被移到另一 daemon 的 bootstrap。
+// ticket.Signature 在输入中必须为空；issuer identity 会进入签名输入，防止 ticket 被移到另一 pool 的 bootstrap。
 func PairingTicketSigningBytes(identity *remoteauthpb.EndpointDaemonIdentity, ticket *PairingTicketDescriptor) ([]byte, error) {
 	if err := validateWireIdentity(identity, true); err != nil {
 		return nil, fmt.Errorf("pairing ticket issuer identity: %w", err)
@@ -77,7 +77,7 @@ func EndpointBootstrapSigningBytes(bundle *EndpointBootstrapBundleV2) ([]byte, e
 	return endpointBootstrapSigningBytesUnchecked(bundle)
 }
 
-// MarshalEndpointBootstrapBundle 校验并以 deterministic protobuf 编码 daemon bootstrap。
+// MarshalEndpointBootstrapBundle 校验并以 deterministic protobuf 编码 pool bootstrap。
 // 签名方应先调用 EndpointBootstrapSigningBytes 获取 canonical bytes，签名后再调用本函数输出最终 bundle。
 func MarshalEndpointBootstrapBundle(bundle *EndpointBootstrapBundleV2) ([]byte, error) {
 	if err := validateEndpointBootstrapBundleAt(bundle, time.Time{}, false); err != nil {
@@ -86,20 +86,20 @@ func MarshalEndpointBootstrapBundle(bundle *EndpointBootstrapBundleV2) ([]byte, 
 	return marshalPortableContract(bundle)
 }
 
-// ParseEndpointBootstrapBundle 严格解析 daemon bootstrap。
+// ParseEndpointBootstrapBundle 严格解析 pool bootstrap。
 // unknown field、超限、身份 public key/fingerprint 不一致、local route 或客户端 policy/credential 字段全部 fail closed。
 func ParseEndpointBootstrapBundle(payload []byte) (*EndpointBootstrapBundleV2, error) {
 	return ParseEndpointBootstrapBundleAt(payload, time.Now())
 }
 
-// ParseEndpointBootstrapBundleAt 在调用方提供的时刻严格解析并验证 daemon bootstrap。
+// ParseEndpointBootstrapBundleAt 在调用方提供的时刻严格解析并验证 pool bootstrap。
 // 该入口只供跨语言 deterministic harness 和显式时间边界测试；生产调用应使用 ParseEndpointBootstrapBundle。
 func ParseEndpointBootstrapBundleAt(payload []byte, now time.Time) (*EndpointBootstrapBundleV2, error) {
 	return parseEndpointBootstrapBundle(payload, now, true)
 }
 
 // ParseEndpointBootstrapBundleForExchange 严格验证 protobuf、identity 与两层签名，但不拒绝已经过期的 bundle。
-// owning daemon 的 AccessStore 只可用它恢复已原子消费且仍在 delivery grace 内的同 key 响应；首次兑换仍必须独立检查时效。
+// owning pool 的 AccessStore 只可用它恢复已原子消费且仍在 delivery grace 内的同 key 响应；首次兑换仍必须独立检查时效。
 func ParseEndpointBootstrapBundleForExchange(payload []byte) (*EndpointBootstrapBundleV2, error) {
 	return parseEndpointBootstrapBundle(payload, time.Time{}, false)
 }
@@ -204,7 +204,7 @@ func validateEndpointBootstrapBundleAt(bundle *remoteauthpb.EndpointBootstrapBun
 		return err
 	}
 	if !ed25519.Verify(ed25519.PublicKey(bundle.GetIdentity().GetDevicePublicKey()), signingBytes, bundle.GetBundleSignature()) {
-		return connectionError(ErrorIdentityConflict, "endpoint bootstrap signature does not match daemon identity")
+		return connectionError(ErrorIdentityConflict, "endpoint bootstrap signature does not match pool identity")
 	}
 	return nil
 }
@@ -265,7 +265,7 @@ func validateEndpointBootstrapPayload(bundle *remoteauthpb.EndpointBootstrapBund
 			return err
 		}
 		if !ed25519.Verify(ed25519.PublicKey(bundle.GetIdentity().GetDevicePublicKey()), signingBytes, ticket.GetSignature()) {
-			return connectionError(ErrorIdentityConflict, "pairing ticket signature does not match daemon identity")
+			return connectionError(ErrorIdentityConflict, "pairing ticket signature does not match pool identity")
 		}
 	} else if len(authorization.GetBoundGrant()) == 0 {
 		return connectionError(ErrorConfig, "authorization bootstrap is empty")
@@ -377,7 +377,7 @@ func validateShareSessionOffer(offer *remoteauthpb.ShareSessionOffer) error {
 
 func validateWireIdentity(identity *remoteauthpb.EndpointDaemonIdentity, requirePublicKey bool) error {
 	if identity == nil {
-		return connectionError(ErrorConfig, "daemon identity is required")
+		return connectionError(ErrorConfig, "pool identity is required")
 	}
 	model := DaemonIdentity{DeviceID: identity.GetDeviceId(), DeviceFingerprint: identity.GetDeviceFingerprint()}
 	if err := model.Validate(true); err != nil {
@@ -387,7 +387,7 @@ func validateWireIdentity(identity *remoteauthpb.EndpointDaemonIdentity, require
 		return nil
 	}
 	if len(identity.GetDevicePublicKey()) != ed25519.PublicKeySize || daemonPublicKeyFingerprint(ed25519.PublicKey(identity.GetDevicePublicKey())) != model.DeviceFingerprint {
-		return connectionError(ErrorIdentityConflict, "daemon public key does not match device_fingerprint")
+		return connectionError(ErrorIdentityConflict, "pool public key does not match device_fingerprint")
 	}
 	return nil
 }
@@ -409,7 +409,7 @@ func validatePortableRoute(route *remoteauthpb.EndpointRouteConfigV1, identity *
 		return connectionError(ErrorConfig, "portable route cannot claim source provenance")
 	}
 	if !allowPolicy && (route.GetManualOnly() || route.Priority != nil) {
-		return connectionError(ErrorConfig, "daemon bootstrap cannot contain client route policy")
+		return connectionError(ErrorConfig, "pool bootstrap cannot contain client route policy")
 	}
 	model, err := accessRouteFromWire(route, !allowPolicy || route.GetEnabled())
 	if err != nil {
@@ -457,7 +457,7 @@ func validatePairingTicketFields(ticket *remoteauthpb.PairingTicketDescriptor, r
 	return nil
 }
 
-// EndpointCandidateFromBootstrapBundle 把已验证的 daemon bootstrap 投影为 assembler candidate。
+// EndpointCandidateFromBootstrapBundle 把已验证的 pool bootstrap 投影为 assembler candidate。
 // route hint 只增加可达方式，不携带客户端 priority、credential ref 或删除语义；授权材料仍由调用方写入 secure store。
 func EndpointCandidateFromBootstrapBundle(bundle *EndpointBootstrapBundleV2) (EndpointCandidate, error) {
 	if err := validateEndpointBootstrapBundleAt(bundle, time.Time{}, false); err != nil {

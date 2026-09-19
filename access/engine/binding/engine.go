@@ -591,7 +591,7 @@ func (engine *Engine) CloseSession(sessionHandle uint64) error {
 }
 
 // Release 从本地 handle registry 删除已经完成的 operation 或已经关闭的 session。
-// 活动 handle 不能释放；该函数不替代 apipb.ReleaseResourceCommand，daemon-owned resource 必须继续走 Proto API。
+// 活动 handle 不能释放；该函数不替代 apipb.ReleaseResourceCommand，pool-owned resource 必须继续走 Proto API。
 func (engine *Engine) Release(handle uint64) error {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -1389,9 +1389,9 @@ func apiError(err error) *apipb.ApiError {
 		case clientruntime.ErrorRelayRegionUnavailable:
 			code = apipb.ApiErrorCode_API_ERROR_CODE_RELAY_REGION_UNAVAILABLE
 		case clientruntime.ErrorDaemonBlocked:
-			code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_BLOCKED, "daemon Cloud access is temporarily disabled", true
+			code, message, retryable = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_BLOCKED, "pool Cloud access is temporarily disabled", true
 		case clientruntime.ErrorDaemonDeleted:
-			code, message = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_DELETED, "daemon Cloud enrollment was deleted"
+			code, message = apipb.ApiErrorCode_API_ERROR_CODE_DAEMON_DELETED, "pool Cloud enrollment was deleted"
 		case clientruntime.ErrorConnectionStopped:
 			code, message = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, "client connection was stopped"
 		case clientruntime.ErrorUnavailable, clientruntime.ErrorUnsupportedRoute:

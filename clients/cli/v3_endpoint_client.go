@@ -48,8 +48,8 @@ func connectEndpointWithRegistry(ctx context.Context, target endpointdomain.Endp
 	localOptions := localadapter.Options{
 		SocketOverride: socketOverride, DefaultSocket: resolveV3Socket(""), ClientName: clientName,
 		Start: func(_ context.Context, path string) error {
-			if err := startCoreV2DaemonForConfig(path, resolveV3LogFilePath(logFile), ""); err != nil {
-				return fmt.Errorf("start core-v2 daemon: %w", err)
+			if err := startCoreV2PoolForConfig(path, resolveV3LogFilePath(logFile), ""); err != nil {
+				return fmt.Errorf("start core-v2 pool: %w", err)
 			}
 			return nil
 		},

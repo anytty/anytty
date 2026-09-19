@@ -4,11 +4,11 @@ import (
 	"net"
 	"strings"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/proto/access/apipb"
 )
 
-// ValidateBrowserProxyCommand validates a daemon-side TCP target without doing
+// ValidateBrowserProxyCommand validates a pool-side TCP target without doing
 // DNS locally or accepting URL syntax in a field that is only a host.
 func ValidateBrowserProxyCommand(command *apipb.CommandEnvelope) error {
 	if err := ValidateRequestContext(RequestContextForCommand(command)); err != nil {
@@ -56,4 +56,4 @@ func ValidateBrowserProxyCommand(command *apipb.CommandEnvelope) error {
 }
 
 // BrowserProxyToProto creates the public resource handle while keeping the
-// daemon connection token opaque to the client API.
+// pool connection token opaque to the client API.

@@ -230,7 +230,7 @@ func (transport *Transport) Recv() ([]byte, error) {
 }
 
 // Close 关闭 DataChannel 并解除所有等待中的 Send/Recv。
-// 关闭只结束当前 transport，不修改 endpoint registry、reducer state 或 daemon terminal lifecycle。
+// 关闭只结束当前 transport，不修改 endpoint registry、reducer state 或 pool terminal lifecycle。
 func (transport *Transport) Close() error {
 	if transport == nil {
 		return nil

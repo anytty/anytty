@@ -1,5 +1,5 @@
 // Command anytty-access is the access gateway entry: an independent process
-// that exposes the local daemon over operator-chosen listeners (tcp/unix)
+// that exposes the local pool over operator-chosen listeners (tcp/unix)
 // while staying byte-transparent to the access wire.
 package main
 
@@ -110,7 +110,7 @@ func parseOptions(args []string) (options, error) {
 	flags.Var(&fileRootValues, "file-root", "allowed file root, repeatable; empty allows any absolute path")
 	flags.StringVar(&opts.Socket, "socket", "", "canonical client socket base path")
 	flags.StringVar(&opts.AccessSocket, "access-socket", "", "access client protocol listener path (default: <socket>)")
-	flags.StringVar(&opts.ProviderSocket, "provider-socket", "", "daemon terminal provider socket path (default: <socket>.provider)")
+	flags.StringVar(&opts.ProviderSocket, "provider-socket", "", "pool terminal provider socket path (default: <socket>.provider)")
 	flags.StringVar(&opts.TransferDir, "transfer-dir", "", "durable file-transfer resume record directory (default: state dir)")
 	flags.StringVar(&configPath, "config", "", "JSON config file path")
 	flags.StringVar(&pairToken, "pair-token", "", "optional pair token (prefer --pair-token-file; argv is visible in process lists)")

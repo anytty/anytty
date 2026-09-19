@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"google.golang.org/protobuf/proto"
 )

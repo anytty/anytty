@@ -7,7 +7,7 @@ import (
 	"github.com/anytty/anytty/access/files/transfer"
 )
 
-// 历史 daemon 默认值：在所有测量缺失时保持客户端已适应的窗口/分片。
+// 历史 pool 默认值：在所有测量缺失时保持客户端已适应的窗口/分片。
 const (
 	baseWindowBytes = 1 << 20
 	baseChunkBytes  = 64 << 10
@@ -68,7 +68,7 @@ func (estimator *estimator) observeAck(offset int64) {
 	estimator.samples++
 }
 
-// policy 返回当前链路策略；未测量时保持 daemon 默认值。
+// policy 返回当前链路策略；未测量时保持 pool 默认值。
 func (estimator *estimator) policy() transfer.Policy {
 	estimator.mu.Lock()
 	defer estimator.mu.Unlock()

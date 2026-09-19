@@ -99,7 +99,7 @@ type endpointPolicyView struct {
 
 func newEndpointCommand(socket, logFile *string) *cobra.Command {
 	runtime := &endpointCommandRuntime{socket: socket, logFile: logFile}
-	command := &cobra.Command{Use: "endpoint", Short: "Manage daemon endpoints and their routes"}
+	command := &cobra.Command{Use: "endpoint", Short: "Manage terminal pool endpoints and their routes"}
 	command.PersistentFlags().StringVar(&runtime.registryPath, "registry", "", "endpoint registry path (default: XDG config dir endpoints.yaml)")
 	command.AddCommand(
 		newEndpointListCommand(runtime),
@@ -917,8 +917,8 @@ func bindEndpointPolicyFlags(command *cobra.Command, flags *endpointEditFlags) {
 }
 
 func bindEndpointIdentityFlags(command *cobra.Command, flags *endpointEditFlags) {
-	command.Flags().StringVar(&flags.deviceID, "device-id", "", "daemon directory identity")
-	command.Flags().StringVar(&flags.deviceFingerprint, "device-fingerprint", "", "pinned daemon identity fingerprint")
+	command.Flags().StringVar(&flags.deviceID, "device-id", "", "pool directory identity")
+	command.Flags().StringVar(&flags.deviceFingerprint, "device-fingerprint", "", "pinned pool identity fingerprint")
 }
 
 func bindRouteEditFlags(command *cobra.Command, flags *routeEditFlags, kind endpointdomain.RouteKind, includeRouteID bool) {
@@ -931,21 +931,21 @@ func bindRouteEditFlags(command *cobra.Command, flags *routeEditFlags, kind endp
 		command.Flags().StringVar(&flags.credentialRef, "credential-ref", "", "local secure credential reference")
 	}
 	if kind == "" || kind == endpointdomain.RouteLocalUnix {
-		command.Flags().StringVar(&flags.socket, "socket", "auto", "local daemon socket")
+		command.Flags().StringVar(&flags.socket, "socket", "auto", "local pool socket")
 	}
 	if kind == "" || kind == endpointdomain.RouteSSHWebRTCTCP {
 		command.Flags().StringVar(&flags.host, "host", "", "OpenSSH host or alias")
 		command.Flags().Uint16Var(&flags.port, "port", 22, "SSH port")
 		command.Flags().StringVar(&flags.user, "user", "", "SSH user hint")
 		command.Flags().StringVar(&flags.proxyJump, "proxy-jump", "", "OpenSSH ProxyJump target")
-		command.Flags().StringVar(&flags.remoteSignalingAddress, "remote-signaling-address", "127.0.0.1:41120", "daemon loopback signaling address reached through SSH")
-		command.Flags().StringVar(&flags.remoteICETCPAddress, "remote-ice-tcp-address", "127.0.0.1:41121", "daemon loopback ICE-TCP address reached through SSH")
+		command.Flags().StringVar(&flags.remoteSignalingAddress, "remote-signaling-address", "127.0.0.1:41120", "pool loopback signaling address reached through SSH")
+		command.Flags().StringVar(&flags.remoteICETCPAddress, "remote-ice-tcp-address", "127.0.0.1:41121", "pool loopback ICE-TCP address reached through SSH")
 		command.Flags().StringSliceVar(&flags.hostKeyFingerprints, "host-key", nil, "accepted SSH host-key fingerprint")
 	}
 	if kind == "" || kind == endpointdomain.RouteDirectWebRTCTCP {
 		command.Flags().StringSliceVar(&flags.directAddresses, "direct-address", nil, "Direct address used for both setup and ICE-TCP (repeatable)")
-		command.Flags().StringSliceVar(&flags.signalingAddresses, "signaling-address", nil, "daemon embedded signaling address (repeatable)")
-		command.Flags().StringSliceVar(&flags.iceTCPAddresses, "ice-tcp-address", nil, "daemon ICE-TCP address (repeatable)")
+		command.Flags().StringSliceVar(&flags.signalingAddresses, "signaling-address", nil, "pool embedded signaling address (repeatable)")
+		command.Flags().StringSliceVar(&flags.iceTCPAddresses, "ice-tcp-address", nil, "pool ICE-TCP address (repeatable)")
 		command.Flags().StringSliceVar(&flags.advertisedAddresses, "advertised-address", nil, "explicit LAN or TCP-mapped address override (repeatable)")
 		command.Flags().StringVar(&flags.serverName, "server-name", "", "legacy Direct route metadata; not used by the Direct transport")
 		_ = command.Flags().MarkHidden("server-name")

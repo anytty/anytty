@@ -489,7 +489,7 @@ func (owner *SessionOwner) InvalidateSessionFast(stamp EndpointSessionStamp, cau
 }
 
 // invalidateApplicationSession 在资源清理无法确认时撤销精确 session generation。
-// 它关闭底层 ReadyPeerSession 并终止同 generation 的全部 shared lease，避免其它 consumer 让未知 daemon resource 继续存活。
+// 它关闭底层 ReadyPeerSession 并终止同 generation 的全部 shared lease，避免其它 consumer 让未知 pool resource 继续存活。
 func (owner *SessionOwner) invalidateApplicationSession(stamp EndpointSessionStamp, cause error) error {
 	if err := stamp.Validate(); err != nil {
 		return err
@@ -516,7 +516,7 @@ func (owner *SessionOwner) invalidateApplicationSession(stamp EndpointSessionSta
 }
 
 // Close 关闭 owner 持有的全部当前 session 并禁止新连接。
-// 方法可重复调用；它不修改 endpoint registry、credential store 或 daemon terminal lifecycle。
+// 方法可重复调用；它不修改 endpoint registry、credential store 或 pool terminal lifecycle。
 func (owner *SessionOwner) Close() error {
 	if owner == nil {
 		return nil

@@ -241,12 +241,12 @@ func (request AttemptRequest) Stamp() EndpointSessionStamp {
 	return EndpointSessionStamp{EndpointID: request.endpointID, RouteID: request.route.ID, Generation: request.generation}
 }
 
-// EndpointID 返回 attempt 唯一允许连接的 daemon endpoint identity。
+// EndpointID 返回 attempt 唯一允许连接的 pool endpoint identity。
 func (request AttemptRequest) EndpointID() endpoint.EndpointID {
 	return request.endpointID
 }
 
-// DaemonIdentity 返回 attempt 必须验证的 daemon identity pin。
+// DaemonIdentity 返回 attempt 必须验证的 pool identity pin。
 func (request AttemptRequest) DaemonIdentity() endpoint.DaemonIdentity {
 	return request.identity
 }
@@ -285,7 +285,7 @@ type ReadyPeerSessionEvidence struct {
 // Validate 校验 evidence 是否足以参加 winner 线性化，并在 Endpoint 已有 pin 时要求精确匹配。
 func (evidence ReadyPeerSessionEvidence) Validate(expected endpoint.DaemonIdentity) error {
 	if !evidence.IdentityVerified {
-		return runtimeError(ErrorIdentity, "route attempt did not verify daemon identity", nil)
+		return runtimeError(ErrorIdentity, "route attempt did not verify pool identity", nil)
 	}
 	if !evidence.AuthorizationVerified {
 		return runtimeError(ErrorAuthorization, "route attempt did not complete authorization", nil)
@@ -294,10 +294,10 @@ func (evidence ReadyPeerSessionEvidence) Validate(expected endpoint.DaemonIdenti
 		return runtimeError(ErrorUnavailable, "route attempt did not complete protocol Hello", nil)
 	}
 	if err := evidence.Identity.Validate(true); err != nil {
-		return runtimeError(ErrorIdentity, "route attempt returned invalid daemon identity", err)
+		return runtimeError(ErrorIdentity, "route attempt returned invalid pool identity", err)
 	}
 	if !expected.Empty() && evidence.Identity != expected {
-		return runtimeError(ErrorIdentity, "route attempt daemon identity does not match endpoint pin", nil)
+		return runtimeError(ErrorIdentity, "route attempt pool identity does not match endpoint pin", nil)
 	}
 	return nil
 }

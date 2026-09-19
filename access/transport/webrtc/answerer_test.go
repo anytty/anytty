@@ -102,8 +102,8 @@ func TestAnswererHandsReliableChannelToAuthorizedHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RemoteCertificateFingerprint: %v", err)
 	}
-	if handler.daemonDTLSFingerprint == "" || handler.daemonDTLSFingerprint != clientFingerprint {
-		t.Fatalf("daemon fingerprint = %q, client observed %q", handler.daemonDTLSFingerprint, clientFingerprint)
+	if handler.peerDTLSFingerprint == "" || handler.peerDTLSFingerprint != clientFingerprint {
+		t.Fatalf("peer fingerprint = %q, client observed %q", handler.peerDTLSFingerprint, clientFingerprint)
 	}
 	sessionErr := errors.New("authorized session failed")
 	handler.result <- sessionErr
@@ -393,9 +393,9 @@ func createGatheredOffer(t *testing.T, peer *pion.PeerConnection) pion.SessionDe
 }
 
 type recordingAuthorizedHandler struct {
-	called                chan struct{}
-	result                chan error
-	daemonDTLSFingerprint string
+	called              chan struct{}
+	result              chan error
+	peerDTLSFingerprint string
 }
 
 type panickingAuthorizedHandler struct {
@@ -414,8 +414,8 @@ func (handler *panickingAuthorizedHandler) ServeDataChannel(ctx context.Context,
 	panic("sensitive handler panic")
 }
 
-func (handler *recordingAuthorizedHandler) ServeDataChannel(ctx context.Context, _ transport.Transport, daemonDTLSFingerprint string) error {
-	handler.daemonDTLSFingerprint = daemonDTLSFingerprint
+func (handler *recordingAuthorizedHandler) ServeDataChannel(ctx context.Context, _ transport.Transport, peerDTLSFingerprint string) error {
+	handler.peerDTLSFingerprint = peerDTLSFingerprint
 	close(handler.called)
 	if handler.result == nil {
 		<-ctx.Done()

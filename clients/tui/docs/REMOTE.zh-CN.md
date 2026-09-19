@@ -2,10 +2,10 @@
 
 > 状态：M27 + 连接层去重（M1–M5，共享 client 层）+ M30（日志接管 + 路由
 > 裁剪，见 §3.1）。目标：调 UI 时能像老版本
-> 一样连接**远程服务器上的 daemon** 并 attach 终端；布局程序（UI）零改动，
+> 一样连接**远程服务器上的 终端池** 并 attach 终端；布局程序（UI）零改动，
 > 连接全部由共享 `client/` 层负责，tui2 只剩薄适配。
 > 相关文档：`CLIENT_SHARING.zh-CN.md`（共享层最终态）、
-> `ENDPOINTS.zh-CN.md`（endpoint 模型与 daemon 协议序列）、
+> `ENDPOINTS.zh-CN.md`（endpoint 模型与 终端池协议序列）、
 > `CUSTOMIZE.zh-CN.md` §3（配置示例）、`PROGRESS.zh-CN.md` §2.13/§2.16。
 
 ## 1. 考古：老版本怎么连远程
@@ -35,7 +35,7 @@ endpoints:
 | route kind | 代码路径 | 传输/鉴权 |
 |---|---|---|
 | `local-unix` | `client/endpoint/registry.go` 常量、`client/adapter/local/dial.go` | `shared/transport/unix`（zstd + 分片帧）→ wire Hello |
-| `direct-webrtc-tcp` | `client/adapter/direct/dial.go` | daemon embedded signaling（`cmd/anytty/v3_direct_daemon.go`，`net.Listen("tcp", signaling/ice)`）+ Pion ICE-TCP DataChannel + DTLS 指纹绑定 + `remoteauth` capability 握手 |
+| `direct-webrtc-tcp` | `client/adapter/direct/dial.go` | 终端池 embedded signaling（`cmd/anytty/v3_direct_routes.go`，`net.Listen("tcp", signaling/ice)`）+ Pion ICE-TCP DataChannel + DTLS 指纹绑定 + `remoteauth` capability 握手 |
 | `ssh-webrtc-tcp` | `client/adapter/ssh/dial.go` | Go `x/crypto/ssh` direct-tcpip 隧道到远程 ICE-TCP listener，再走 direct 同一套信令/鉴权 |
 | `managed-webrtc` | `client/adapter/cloud/dial.go` | Cloud `directory`/`client_gateway` 发现+信令+relay（`proto/cloud/v1/*`），enrollment/edge/binding |
 
@@ -45,17 +45,17 @@ runtime/connector 拥有。旧 TUI 的“远程”对布局程序同样是透明
 
 ### 1.2 对 v2 有用的结论
 
-- **远端 daemon 的 wire 没有 TCP listener**：core-v2 只在 unix socket 上监听
+- **远端 终端池 的 wire 没有 TCP listener**：core-v2 只在 unix socket 上监听
   `shared/transport/unix`（`core/server.go` + `shared/runtimepath`，默认
-  `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`）。`daemon --route HOST:PORT` 起的是
+  `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`）。`pool --route HOST:PORT` 起的是
   WebRTC signaling/ICE-TCP，不是 wire 端口，协议与鉴权完全不同。
 - **P0 就是老 `local-unix` + ssh**：ssh 端口转发把远端 unix socket 变成本地
   socket/TCP 端口，v2 现有 local-unix dialer 零改动即可用；旧 TUI 的
   “`ssh host anytty attach`”命令式路径在 v2 就是 `command` endpoint（本地 PTY
   里跑 ssh），也没有改动。
 - **`tcp` 是新语义**：v2 的 `connect_mode: tcp` = 连接一个字节透明的
-  HOST:PORT，对端终止在 daemon transport（`ssh -L TCP→unix` 或 socat/Go 桥）。
-  它复用与 local-unix 完全相同的 zstd 分片帧，因此对端只需要是 daemon socket
+  HOST:PORT，对端终止在 终端池 transport（`ssh -L TCP→unix` 或 socat/Go 桥）。
+  它复用与 local-unix 完全相同的 zstd 分片帧，因此对端只需要是 终端池 socket
   的透明转发，不引入信令/DTLS/cloud 依赖。
 - **direct/managed WebRTC 由共享层接管（最终态）**：tui2 不自己实现信令/Pion/
   DTLS/cloud enrollment，也已在 M1 删除旧的本地复制；这些 route 一律由
@@ -97,7 +97,7 @@ runtime.Terminal / ANSI parser / 组件（位置透明）
 | 方式 | 状态 | 说明 |
 |---|---|---|
 | `command` + `ssh host anytty attach` / `ssh host sh` | ✅ 已有 | v1 本地 PTY 路径；老命令式远程用法原样可用 |
-| `daemon` + `local-unix` | ✅ 已有 | 本机 daemon socket |
+| `daemon` + `local-unix` | ✅ 已有 | 本机终端池 socket |
 | `daemon` + `local-unix` + `ssh -L local.sock:remote.sock` | ✅ P0 | 零代码；ssh 负责鉴权/加密，wire 端到端仍是本机信任模型 |
 | `daemon` + `tcp` + `ssh -L 127.0.0.1:PORT:remote.sock` | ✅ 新 | ssh 唯一需要的能力是 TCP→remote unix socket 转发 |
 | `daemon` + `tcp` + socat/`clients/tui/scripts/remote-bridge` | ✅ 新 | 无 ssh 环境（同机模拟/自管隧道）；桥必须字节透明 |
@@ -152,7 +152,7 @@ webrtc/cloud route 造成刷屏与 4 秒阻塞：
 
 ## 4. 手动复测命令（照抄连自己的服务器）
 
-假设远端 daemon 用默认 socket（`$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`，
+假设远端 终端池 用默认 socket（`$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`，
 通常是 `/run/user/1000/anytty-v2-wire7.sock`），本地 `tui2.json` 路径见
 `$ANYTTY_TUI2_CONFIG` 或 `~/.config/anytty/tui2.json`。
 
@@ -162,7 +162,7 @@ TUI host 启动时读取共享 registry（`~/.config/anytty/endpoints.yaml`）�
 配对/管理永远由 CLI 负责，TUI 只读：
 
 ```bash
-# 1) 建隧道（本机 daemon 直接跳过这步）：
+# 1) 建隧道（本机 终端池 直接跳过这步）：
 ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v2-wire7.sock user@server &
 
 # 2) CLI 写 registry（local-unix 例；direct/ssh 用 `endpoint add direct/ssh`，
@@ -174,7 +174,7 @@ anytty endpoint list
 tui2
 ```
 
-- 选 daemon 终端行 = attach 已有终端；选 `󰌷 <label> endpoint · offline`
+- 选 终端池 终端行 = attach 已有终端；选 `󰌷 <label> endpoint · offline`
   占位行 = 在该端点新建终端，离线时状态行给出可读错误（不崩）。
 - `tui2.json` 的同名 `endpoints[]` 仍解析，但共享 registry 优先（仅迁移）。
 - direct/ssh/cloud 端点由共享 `client/adapter/{direct,ssh,cloud}` 拨号；
@@ -197,7 +197,7 @@ TUI2_ENDPOINTS=~/.config/anytty/endpoints.yaml bash clients/tui/scripts/run.sh
 ### 4.1 P0-A：ssh 转发 unix socket（零代码，推荐）
 
 ```bash
-# 本地终端：把远端 daemon socket 拉到本机 /tmp/anytty-remote.sock
+# 本地终端：把远端 终端池 socket 拉到本机 /tmp/anytty-remote.sock
 ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v2-wire7.sock user@server
 
 # 另开一个终端：写配置并跑 TUI
@@ -211,7 +211,7 @@ JSON
 tui2-shell --config /tmp/tui2-remote.json   # 或 $ANYTTY_TUI2_CONFIG=/tmp/tui2-remote.json tui2
 ```
 
-在远端先 `anytty daemon start`（或 systemd 服务）并用 `anytty v3 new` 建终端，
+在远端先 `anytty pool start`（或 systemd 服务）并用 `anytty v3 new` 建终端，
 本地 TUI 的 picker 会分组列出 `server` 端点与其终端，attach 后输入/回显/
 resize/kill 全通。
 
@@ -230,7 +230,7 @@ JSON
 tui2-shell --config /tmp/tui2-tcp.json
 ```
 
-没有 ssh 或想让本机第二个 daemon 当“远程”时，用仓库自带桥：
+没有 ssh 或想让本机第二个 终端池 当“远程”时，用仓库自带桥：
 
 ```bash
 go run ./clients/tui/scripts/remote-bridge -listen 127.0.0.1:17777 -unix /path/to/daemon.sock
@@ -249,7 +249,7 @@ go run ./clients/tui/scripts/remote-bridge -listen 127.0.0.1:17777 -unix /path/t
 ### 4.4 快速验证隧道是否可用
 
 ```bash
-# 隧道自身：连接不报错即 listener 存在（daemon 会因没有 Hello 关掉它）
+# 隧道自身：连接不报错即 listener 存在（终端池 会因没有 Hello 关掉它）
 python3 -c 'import socket;s=socket.socket();s.settimeout(1);s.connect(("127.0.0.1",17777));print("tunnel ok")'
 # 端到端：TUI picker 出现 endpoint，attach 后 `echo REMOTE-OK` 回显
 ```

@@ -263,7 +263,7 @@ func bindingPolicyRouteKind(kind endpoint.RouteKind) bindingpb.ConnectionRouteKi
 	}
 }
 
-// UpsertEndpoint 用 generated EndpointConfigV1 替换同 ID 配置，但禁止更换已有 daemon identity pin。
+// UpsertEndpoint 用 generated EndpointConfigV1 替换同 ID 配置，但禁止更换已有 pool identity pin。
 // 新 snapshot 只有在平台确认 opaque Proto 持久化成功后才发布到当前 generation。
 func (host *Host) UpsertEndpoint(ctx context.Context, request *bindingpb.EndpointUpsertRequest) (*bindingpb.EndpointUpsertResult, error) {
 	incoming, err := endpoint.EndpointFromProto(request.GetEndpoint())
@@ -277,7 +277,7 @@ func (host *Host) UpsertEndpoint(ctx context.Context, request *bindingpb.Endpoin
 		return nil, err
 	}
 	if existing, ok := current.Endpoints[incoming.ID]; ok && !existing.DaemonIdentity.Empty() && existing.DaemonIdentity != incoming.DaemonIdentity {
-		return nil, fmt.Errorf("endpoint %q is pinned to a different daemon identity", incoming.ID)
+		return nil, fmt.Errorf("endpoint %q is pinned to a different pool identity", incoming.ID)
 	}
 	next, err := cloneRegistry(current)
 	if err != nil {
@@ -529,7 +529,7 @@ func (host *Host) commitPairingEndpoint(ctx context.Context, preferredID endpoin
 	input := endpoint.EndpointAssemblerInput{Registry: current, Candidates: []endpoint.EndpointCandidate{candidate}}
 	if existing, ok := current.Endpoints[preferredID]; ok {
 		if !existing.DaemonIdentity.Empty() && existing.DaemonIdentity != candidate.Identity {
-			return nil, nil, fmt.Errorf("endpoint %q is pinned to a different daemon identity", preferredID)
+			return nil, nil, fmt.Errorf("endpoint %q is pinned to a different pool identity", preferredID)
 		}
 		if existing.DaemonIdentity.Empty() {
 			input.ConfirmedIdentityBindings = []endpoint.ConfirmedIdentityBinding{{EndpointID: preferredID, Identity: candidate.Identity}}
@@ -542,7 +542,7 @@ func (host *Host) commitPairingEndpoint(ctx context.Context, preferredID endpoin
 	resolvedID := assembled.ResolvedEndpointIDs[0]
 	if resolvedID != preferredID {
 		if _, occupied := assembled.Registry.Endpoints[preferredID]; occupied {
-			return nil, nil, fmt.Errorf("endpoint id %q is already used by another daemon", preferredID)
+			return nil, nil, fmt.Errorf("endpoint id %q is already used by another pool", preferredID)
 		}
 		value := assembled.Registry.Endpoints[resolvedID]
 		delete(assembled.Registry.Endpoints, resolvedID)
@@ -557,7 +557,7 @@ func (host *Host) commitPairingEndpoint(ctx context.Context, preferredID endpoin
 		}
 		resolvedID = preferredID
 	}
-	// grant 属于已验证 daemon Endpoint，不属于某个低优先级 bootstrap candidate。
+	// grant 属于已验证 pool Endpoint，不属于某个低优先级 bootstrap candidate。
 	// 必须在 assembler 完成后绑定全部远程 Route，否则 share/manual Route 会保留配置却丢失 terminal capability。
 	pairedEndpoint := assembled.Registry.Endpoints[resolvedID]
 	for routeID, route := range pairedEndpoint.Routes {

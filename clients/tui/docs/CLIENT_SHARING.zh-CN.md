@@ -1,6 +1,6 @@
 # 客户端连接层去重：tui2 ↔ client 共享（CLIENT_SHARING，最终态）
 
-> 状态：M1–M5 已完成。tui2 不再持有任何 daemon 协议/拨号实现；所有 daemon
+> 状态：M1–M5 已完成。tui2 不再持有任何 终端池协议/拨号实现；所有 终端池
 > 连接（local-unix / tcp / ssh / direct / cloud）都经共享 `client/` 层，
 > TUI 只做"共享会话 → runtime sources/组件"的薄适配。
 > 相关：`ENDPOINTS.zh-CN.md`（endpoint 模型）、`REMOTE.zh-CN.md`（远程
@@ -16,7 +16,7 @@
 - tui2 生产代码不再有：裸帧 wire client、zstd TCP 帧实现、direct/cloud/pion
   transport。`client.go`（761 行）与 `transport_tcp.go`（235 行）已删除，其
   等价实现只保留在测试（`wire_client_test.go`、`framed_transport_test.go`），
-  作为 fake daemon harness。
+  作为 fake 终端池 harness。
 - `clients/tui/endpoint` 生产代码 3642 → 2789 行（-853）；新增
   `shared_session.go`（343）/`shared_runtime.go`（255）/`session.go`（209）/
   `tcp_bridge.go`（113）。
@@ -80,14 +80,14 @@
 | `transport_direct.go`（620）/`transport_cloud.go`（244）/`transport_direct_pion.go`（67） | 已删除 | 复刻共享 direct/cloud |
 | `manager.go`/`remotepty.go` | 保留 | supervisor 语义与组件管线是宿主职责；改为 `sessionConn` |
 | `tcp_bridge.go` | 新增 | tcp 兼容入口，无协议逻辑 |
-| 测试 | 保留+扩展 | 假 daemon（含 DeviceIdentity proof）覆盖 raw 与共享两条栈；`shared_stack_test.go` 覆盖共享重连 |
+| 测试 | 保留+扩展 | 假 终端池（含 DeviceIdentity proof）覆盖 raw 与共享两条栈；`shared_stack_test.go` 覆盖共享重连 |
 
 ## 4. M2 registry 驱动
 
 - `clients/tui/cmd/tui2`：`Options.LoadSharedRegistry`（main.go 置 true）→
   `LoadSharedEndpointConfigs()` 注册全部可表示端点；registry 损坏只发 notice。
-- picker：daemon 终端来自 host sources（`<terminal> · <endpoint> · live`）；
-  无终端的 daemon endpoint 由 `Manager.Sources()` 发 `kind=endpoint` 占位源
+- picker：终端池 终端来自 host sources（`<terminal> · <endpoint> · live`）；
+  无终端的 终端池 endpoint 由 `Manager.Sources()` 发 `kind=endpoint` 占位源
   （label + health），选择占位源即 `terminal.create{endpoint}`，离线时状态行
   显示可读错误。
 - `tui2.json` 的 `endpoints[]` 仍解析：同名时共享 registry 优先
@@ -98,7 +98,7 @@
   `sharedPlanSnapshot` 在低优先级 registry 定义同名端点时继续可用，只有
   "任何 registry 都找不到且显式文件损坏" 才返回可读错误。
 - `scripts/acceptance.sh` 与 `scripts/smoke.sh` 全量隔离 XDG（`$WORK/xdg/*`）
-  并动态选择 signaling 端口，保证 registry/daemon 不外泄。
+  并动态选择 signaling 端口，保证 registry/终端池 不外泄。
 
 ## 5. 缺口（本轮未清零，均已给可读错误）
 
@@ -114,7 +114,7 @@
 
 ## 6. 验收与守卫
 
-- Go：`shared_stack_test.go`（真实共享栈 + framed fake daemon：list/create/
+- Go：`shared_stack_test.go`（真实共享栈 + framed fake 终端池：list/create/
   attach/input/resize/断线≠退出/快照重播/kill）、`client_sharing_test.go`
   （registry 优先、tcp 桥、`go list` 直接 import 守卫、
   `go list -deps` 共享适配器闭包、行数证据）。

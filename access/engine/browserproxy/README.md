@@ -18,7 +18,7 @@ retain its existing regression cases as a reference.
 - The binding session owns one listener. Renderer retirement, engine shutdown,
   session closure and explicit stop close it and its accepted local sockets.
 - Listen only on `127.0.0.1:0`; target hostnames and loopback addresses are sent
-  unchanged to the daemon. Never dial or resolve the target on the client.
+  unchanged to the terminal pool. Never dial or resolve the target on the client.
 - Each proxy accepts at most 64 sockets and opens at most 16 remote resources.
 - Headers are limited to 64 KiB with a 10-second deadline. Go's HTTP parser
   handles request framing and chunked uploads; proxy credentials are removed.

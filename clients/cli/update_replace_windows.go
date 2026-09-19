@@ -13,7 +13,7 @@ import (
 
 func replaceUpdateExecutable(candidatePath, targetPath string) error {
 	// Windows cannot overwrite a mapped executable, but it permits renaming it.
-	// The running CLI and daemon keep their old image while new invocations use targetPath.
+	// The running CLI and pool keep their old image while new invocations use targetPath.
 	oldPath := filepath.Join(filepath.Dir(targetPath), fmt.Sprintf(".%s.old-%d-%d", filepath.Base(targetPath), os.Getpid(), time.Now().UnixNano()))
 	if err := os.Rename(targetPath, oldPath); err != nil {
 		return fmt.Errorf("move current executable aside: %w", err)

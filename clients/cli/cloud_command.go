@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	accesscontract "github.com/anytty/anytty/access/contract"
 	accessruntime "github.com/anytty/anytty/access/runtime"
 	cloudclient "github.com/anytty/anytty/access/transport/client"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
 	"github.com/anytty/anytty/proto/access/apipb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/spf13/cobra"
@@ -34,7 +34,7 @@ func cloudCommand(socket, logFile, configPath *string) *cobra.Command {
 
 func cloudStatusCommand(socket, logFile, configPath *string) *cobra.Command {
 	var jsonOutput bool
-	command := &cobra.Command{Use: "status", Aliases: []string{"state", "states"}, Short: "Show local daemon Cloud runtime state", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	command := &cobra.Command{Use: "status", Aliases: []string{"state", "states"}, Short: "Show local terminal pool Cloud runtime state", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		status, err := readCloudStatusForCLI(cmd, socket, logFile, configPath)
 		if err != nil {
 			return err
@@ -93,7 +93,7 @@ func cloudDisableCommand(socket, logFile, configPath *string) *cobra.Command {
 }
 
 func cloudEdgeCommand(socket, logFile *string) *cobra.Command {
-	command := &cobra.Command{Use: "edge", Short: "Inspect and reselect the daemon Cloud Edge", Args: cobra.NoArgs}
+	command := &cobra.Command{Use: "edge", Short: "Inspect and reselect the terminal pool Cloud Edge", Args: cobra.NoArgs}
 	command.AddCommand(cloudEdgeListCommand(socket, logFile), cloudEdgePreferCommand(socket, logFile), cloudEdgeReselectCommand(socket, logFile))
 	return command
 }
@@ -134,20 +134,20 @@ func cloudEdgePreferCommand(socket, logFile *string) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Edge preference saved; Cloud connection is reselecting without restarting the daemon.")
+		fmt.Fprintln(cmd.OutOrStdout(), "Edge preference saved; Cloud connection is reselecting without restarting the pool.")
 		return writeCloudEdgeSelection(cmd, selection)
 	}}
 }
 
 func cloudEdgeReselectCommand(socket, logFile *string) *cobra.Command {
-	return &cobra.Command{Use: "reselect", Short: "Probe and reselect an Edge without restarting the daemon", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	return &cobra.Command{Use: "reselect", Short: "Probe and reselect an Edge without restarting the pool", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		selection, err := callCloudEdge(cmd, socket, logFile, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudEdgesResult, error) {
 			return application.RemoteCloudReselectEdge(ctx, &apipb.RemoteCloudReselectEdgeCommand{})
 		})
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "Cloud Edge reselected without restarting the daemon.")
+		fmt.Fprintln(cmd.OutOrStdout(), "Cloud Edge reselected without restarting the pool.")
 		return writeCloudEdgeSelection(cmd, selection)
 	}}
 }
@@ -178,18 +178,18 @@ func callCloudEdge(cmd *cobra.Command, socket, logFile *string, call func(contex
 		return nil, err
 	}
 	if response.GetSelection() == nil {
-		return nil, errors.New("daemon returned no Edge selection")
+		return nil, errors.New("pool returned no Edge selection")
 	}
 	return response.GetSelection(), nil
 }
 
 func readCloudStatusForCLI(cmd *cobra.Command, socket, logFile, configPath *string) (cloudStatusView, error) {
 	socketPath := resolveV3Socket(*socket)
-	daemon, _, err := daemonStatus(socketPath, *logFile, *configPath)
+	pool, _, err := poolStatus(socketPath, *logFile, *configPath)
 	if err != nil {
 		return cloudStatusView{}, err
 	}
-	if daemon.State == "running" {
+	if pool.State == "running" {
 		response, err := callCloudStatus(cmd, socket, logFile, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudStatusResult, error) {
 			return application.RemoteCloudStatus(ctx, &apipb.RemoteCloudStatusCommand{})
 		})
@@ -207,11 +207,11 @@ func readCloudStatusForCLI(cmd *cobra.Command, socket, logFile, configPath *stri
 
 func runCloudControlWhenRunning(cmd *cobra.Command, socket, logFile, configPath *string, call func(context.Context, localApplicationSession) (*apipb.RemoteCloudStatusResult, error)) (cloudStatusView, error) {
 	socketPath := resolveV3Socket(*socket)
-	daemon, _, err := daemonStatus(socketPath, *logFile, *configPath)
+	pool, _, err := poolStatus(socketPath, *logFile, *configPath)
 	if err != nil {
 		return cloudStatusView{}, err
 	}
-	if daemon.State == "running" {
+	if pool.State == "running" {
 		response, err := callCloudStatus(cmd, socket, logFile, call)
 		if err != nil {
 			return cloudStatusView{}, err
@@ -242,7 +242,7 @@ func callCloudStatus(cmd *cobra.Command, socket, logFile *string, call func(cont
 		return nil, err
 	}
 	if response == nil {
-		return nil, errors.New("daemon returned no Cloud status")
+		return nil, errors.New("pool returned no Cloud status")
 	}
 	return response, nil
 }
@@ -424,7 +424,7 @@ func formatCloudTime(value time.Time) string {
 
 func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 	command := &cobra.Command{
-		Use: "enroll CODE", Short: "Enroll this daemon DeviceIdentity into AnyTTY Cloud", Args: cobra.ExactArgs(1),
+		Use: "enroll CODE", Short: "Enroll this terminal pool DeviceIdentity into AnyTTY Cloud", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			controller, err := cliCloudControllerEndpointFromEnvironment()
 			if err != nil {
@@ -436,7 +436,7 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 				ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 			}
-			record, err := clouddaemon.EnrollLocalWithProgress(ctx, controller.address, controller.serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath(), func(progress clouddaemon.EnrollmentProgress) {
+			record, err := cloud.EnrollLocalWithProgress(ctx, controller.address, controller.serverName, args[0], v3RemoteIdentityDir(), v3CloudEnrollmentRecordPath(), func(progress cloud.EnrollmentProgress) {
 				writeCloudEnrollmentProgress(cmd.OutOrStdout(), progress)
 			})
 			if err != nil {
@@ -444,29 +444,29 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 					return fmt.Errorf("AnyTTY Cloud subscription is inactive; ask the account owner to manage it at %s/subscription", defaultCloudConsoleOrigin)
 				}
 				if status.Code(err) == codes.ResourceExhausted && strings.Contains(status.Convert(err).Message(), "cloud_daemon_limit_exhausted") {
-					return fmt.Errorf("Cloud daemon limit reached; upgrade the plan or permanently delete an unused daemon at %s/devices", defaultCloudConsoleOrigin)
+					return fmt.Errorf("Cloud pool limit reached; upgrade the plan or permanently delete an unused pool at %s/devices", defaultCloudConsoleOrigin)
 				}
-				return fmt.Errorf("enroll daemon in AnyTTY Cloud: %w", err)
+				return fmt.Errorf("enroll pool in AnyTTY Cloud: %w", err)
 			}
 			if disabled, err := accessruntime.CloudDisabled(v3CloudDisabledPath()); err != nil {
 				return fmt.Errorf("Cloud enrollment was saved, but its runtime state could not be read: %w", err)
 			} else if !disabled {
-				fmt.Fprintln(cmd.OutOrStdout(), "Cloud enrollment: starting the local daemon runtime...")
+				fmt.Fprintln(cmd.OutOrStdout(), "Cloud enrollment: starting the local pool runtime...")
 				status, err := runCloudControlWhenRunning(cmd, socket, logFile, configPath, func(ctx context.Context, application localApplicationSession) (*apipb.RemoteCloudStatusResult, error) {
 					return application.RemoteCloudEnable(ctx, &apipb.RemoteCloudEnableCommand{})
 				})
 				if err != nil {
-					return fmt.Errorf("Cloud enrollment was saved, but the running daemon could not reload it: %w", err)
+					return fmt.Errorf("Cloud enrollment was saved, but the running pool could not reload it: %w", err)
 				}
 				if status.Ready {
 					fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment: connected to %s (%s) at %s.\n", status.EdgeName, status.EdgeRegion, status.PublicEndpoint)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment: runtime state is %s; it will connect when the daemon is running.\n", status.State)
+					fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment: runtime state is %s; it will connect when the pool is running.\n", status.State)
 				}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment complete: daemon=%s account=%s\n", record.DaemonID, record.AccountID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Cloud enrollment complete: pool=%s account=%s\n", record.DaemonID, record.AccountID)
 			if record.DaemonLimit > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "Registered daemons: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, defaultCloudConsoleOrigin)
+				fmt.Fprintf(cmd.OutOrStdout(), "Registered terminal pools: %d / %d. Manage the plan at %s/devices\n", record.DaemonCount, record.DaemonLimit, defaultCloudConsoleOrigin)
 			}
 			return nil
 		},
@@ -474,19 +474,19 @@ func cloudEnrollCommand(socket, logFile, configPath *string) *cobra.Command {
 	return command
 }
 
-func writeCloudEnrollmentProgress(writer io.Writer, progress clouddaemon.EnrollmentProgress) {
+func writeCloudEnrollmentProgress(writer io.Writer, progress cloud.EnrollmentProgress) {
 	switch progress.Stage {
-	case clouddaemon.EnrollmentProgressDiscovering:
+	case cloud.EnrollmentProgressDiscovering:
 		fmt.Fprintln(writer, "Cloud enrollment: requesting eligible Edge candidates...")
-	case clouddaemon.EnrollmentProgressCandidates:
+	case cloud.EnrollmentProgressCandidates:
 		fmt.Fprintf(writer, "Cloud enrollment: Controller returned %d eligible Edge candidates:\n", len(progress.Candidates))
 		for _, candidate := range progress.Candidates {
 			locator := candidate.GetLocator()
 			fmt.Fprintf(writer, "  - %s (%s) %s\n", locator.GetName(), locator.GetRegion(), locator.GetPublicEndpoint())
 		}
-	case clouddaemon.EnrollmentProgressMeasuring:
+	case cloud.EnrollmentProgressMeasuring:
 		fmt.Fprintf(writer, "Cloud enrollment: measuring %d Edge candidates with 3 health checks each...\n", len(progress.Candidates))
-	case clouddaemon.EnrollmentProgressMeasured:
+	case cloud.EnrollmentProgressMeasured:
 		fmt.Fprintln(writer, "Cloud enrollment: local measurements:")
 		measurements := make(map[string]*cloudv1.DaemonEdgeMeasurement, len(progress.Measurements))
 		for _, measurement := range progress.Measurements {
@@ -501,9 +501,9 @@ func writeCloudEnrollmentProgress(writer io.Writer, progress clouddaemon.Enrollm
 			}
 			fmt.Fprintf(writer, "  - %s (%s): %s, latency=%d ms, failures=%.0f%%, samples=%d\n", locator.GetName(), locator.GetRegion(), state, measurement.GetConnectLatencyMs(), measurement.GetConnectionFailureRate()*100, measurement.GetSampleCount())
 		}
-	case clouddaemon.EnrollmentProgressSelecting:
+	case cloud.EnrollmentProgressSelecting:
 		fmt.Fprintln(writer, "Cloud enrollment: submitting measurements for Controller filtering and scoring...")
-	case clouddaemon.EnrollmentProgressSelected:
+	case cloud.EnrollmentProgressSelected:
 		fmt.Fprintln(writer, "Cloud enrollment: Controller ranking:")
 		for index, candidate := range progress.Selection.GetCandidates() {
 			locator, measurement := candidate.GetLocator(), candidate.GetMeasurement()

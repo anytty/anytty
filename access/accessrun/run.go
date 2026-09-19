@@ -18,12 +18,12 @@ import (
 	"github.com/anytty/anytty/access/direct"
 	"github.com/anytty/anytty/access/files"
 	"github.com/anytty/anytty/access/gateway"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
+	remote "github.com/anytty/anytty/access/remote"
 	accessruntime "github.com/anytty/anytty/access/runtime"
 	accessserver "github.com/anytty/anytty/access/server"
 	"github.com/anytty/anytty/access/sessions"
-	remotev2daemon "github.com/anytty/anytty/daemon/remote"
 	"github.com/anytty/anytty/shared/userdirs"
 )
 
@@ -33,7 +33,7 @@ type Options struct {
 	Socket string
 	// AccessSocket 是 access protocol server 的绑定路径；空时取默认。
 	AccessSocket string
-	// ProviderSocket 是 daemon terminal provider socket；空时取默认。
+	// ProviderSocket 是 pool terminal provider socket；空时取默认。
 	ProviderSocket string
 	// Listeners 是字节透明 relay 监听。
 	Listeners []gateway.ListenerSpec
@@ -61,12 +61,12 @@ func DefaultAccessSocket(socket string) string {
 	return strings.TrimSpace(socket)
 }
 
-// DefaultProviderSocket 返回 daemon terminal provider socket 的默认路径。
+// DefaultProviderSocket 返回 pool terminal provider socket 的默认路径。
 func DefaultProviderSocket(socket string) string {
 	return ProviderSocketPath(socket)
 }
 
-// ProviderSocketPath 返回 canonical 客户端 socket 对应的 daemon provider socket 路径。
+// ProviderSocketPath 返回 canonical 客户端 socket 对应的 pool provider socket 路径。
 func ProviderSocketPath(socket string) string {
 	return strings.TrimSpace(socket) + ".provider"
 }
@@ -133,7 +133,7 @@ func Run(ctx context.Context, opts Options) error {
 	sessionRegistry := sessions.NewRegistry()
 	defer sessionRegistry.CloseAll()
 
-	// Phase 4：鉴权/配对/Cloud 命令由 access/server 直答；不再有 daemon→access
+	// Phase 4：鉴权/配对/Cloud 命令由 access/server 直答；不再有 pool→access
 	// 的反向 control RPC，也没有 daemonpipe 字节管道。
 	accessService := accessruntime.Service{
 		DeviceIdentity: accessRuntime.Identity, Store: accessRuntime.Store,
@@ -153,7 +153,7 @@ func Run(ctx context.Context, opts Options) error {
 		},
 		Auth: &accessserver.AuthServices{Access: accessService, Remote: cloudControl},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, opts.ProviderSocket)
+			return poolprovider.DialTerminal(dialCtx, opts.ProviderSocket)
 		},
 	})
 	if err != nil {
@@ -185,7 +185,7 @@ func Run(ctx context.Context, opts Options) error {
 	var relay *gateway.Gateway
 	if len(opts.Listeners) > 0 {
 		relay, err = gateway.New(gateway.Config{
-			Provider:  daemonprovider.New(opts.AccessSocket),
+			Provider:  poolprovider.New(opts.AccessSocket),
 			Listeners: opts.Listeners,
 			Allow:     MustParseNetworks(opts.Allow, logger),
 			PairToken: opts.PairToken,
@@ -198,7 +198,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	var directServer *direct.Server
 	if opts.DirectConfigured() {
-		acceptor := remotev2daemon.SessionAcceptor{
+		acceptor := remote.SessionAcceptor{
 			Core: accessServer, Identity: accessRuntime.Identity, AccessStore: accessRuntime.Store,
 		}
 		directServer, err = direct.Start(ctx, direct.Options{
@@ -218,7 +218,7 @@ func Run(ctx context.Context, opts Options) error {
 		logger.Info("access Direct enabled", "route", opts.Route, "signaling", signaling, "ice_tcp", ice)
 	}
 	logger.Info("access starting",
-		"daemon_socket", opts.ProviderSocket,
+		"pool_socket", opts.ProviderSocket,
 		"access_socket", opts.AccessSocket,
 		"file_roots", len(opts.FileRoots),
 		"listeners", len(opts.Listeners),

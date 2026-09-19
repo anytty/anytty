@@ -452,7 +452,7 @@ func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPa
 	// Pairing must use only the claim's signed route seeds. Local discovery is an
 	// untrusted, ephemeral optimization for already-paired endpoints; allowing it
 	// into this race can make a host-side 10.0.2.2 candidate cancel the real claim
-	// route before the target daemon sees the one-time exchange.
+	// route before the target pool sees the one-time exchange.
 	routeList := target.RouteList()
 	routeIDs := make([]endpoint.RouteID, 0, len(routeList))
 	for _, route := range routeList {
@@ -481,7 +481,7 @@ func (host *Host) ImportPairing(ctx context.Context, request *bindingpb.ImportPa
 		return nil, err
 	}
 	log.Printf("anytty pairing stage=exchange_ready")
-	// PairingAccepted 只会在 owning daemon 已原子兑换 ticket 后返回；这里重新校验 ticket
+	// PairingAccepted 只会在 owning pool 已原子兑换 ticket 后返回；这里重新校验 ticket
 	// 本地时钟会把合法的跨设备小幅 clock skew 误判为过期。签名、身份、ticket 对应关系与
 	// 带容差的 grant 已由 ClientPairingHandshake 验证，此处只解析已接受的持久 Endpoint 配置。
 	bundle, claims, err := remoteauth.ParsePairingBundleForExchange(paired.Bundle)

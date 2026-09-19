@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anytty/anytty/daemon/core/history"
+	"github.com/anytty/anytty/pool/core/history"
 	"github.com/anytty/anytty/proto/access/apipb"
 )
 

@@ -1,6 +1,6 @@
 // Package proxy 是 access-local 的 browser/webview 端口转发服务。
 //
-// 它从 daemon/core 迁移而来（Phase 2）：access 从本机拨号目标 TCP 服务，
+// 它从 pool/core 迁移而来（Phase 2）：access 从本机拨号目标 TCP 服务，
 // 双向字节流终结在 access session 的 stream channel 上。它不解释 HTTP，
 // 只做有界转发与接收窗口/上传队列流控。
 package proxy

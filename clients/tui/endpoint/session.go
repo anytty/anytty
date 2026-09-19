@@ -58,7 +58,7 @@ func (e *APIError) Error() string {
 	if e == nil {
 		return "endpoint request failed"
 	}
-	return fmt.Sprintf("daemon error %d: %s", e.Code, e.Message)
+	return fmt.Sprintf("terminal pool error %d: %s", e.Code, e.Message)
 }
 
 // apiErrorFromProto converts a ResultEnvelope error into an APIError.

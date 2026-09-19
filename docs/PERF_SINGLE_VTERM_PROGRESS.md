@@ -56,7 +56,7 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
 
 - Reproducible harness: `scripts/benchmark-single-vterm-memory.sh`. It builds
   checkpoint `f9eb081` and the current tree with the same benchmark-only SIGUSR1
-  GC fence, starts isolated daemons, and excludes child-shell memory.
+  GC fence, starts isolated terminal pools, and excludes child-shell memory.
 - Intermediate pre-frame-removal measurements showed 67,372,480 B baseline vs
   44,516,864 B current (33.92% reduction), identifying the remaining converted
   frame cache as the acceptance blocker.
@@ -72,7 +72,7 @@ Baseline: checkpoint `f9eb081` in the untouched main worktree.
   authoritative history, zero dropped bytes, zero gap boundaries, and history
   available. Peak HeapAlloc was 98,838,048 B. After explicit GC and settling,
   HeapAlloc/HeapInuse were 18,609,088 / 21,094,400 B, physical median was
-  51,136,128 B, the five-second NumGC delta was 1, and daemon CPU was 0.7%.
+  51,136,128 B, the five-second NumGC delta was 1, and terminal pool CPU was 0.7%.
   These figures show prompt heap recovery and no sustained GC thrash; HeapSys
   remains reserved after the burst and can be reused by later output.
 - Final artifacts: `.artifacts/single-vterm-memory/final-9508623` (intentionally

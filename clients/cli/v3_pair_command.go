@@ -46,7 +46,7 @@ var (
 )
 
 func v3PairCommand(socket *string, logFile *string) *cobra.Command {
-	command := &cobra.Command{Use: "pair", Short: "Create or redeem a client-bound daemon pairing claim"}
+	command := &cobra.Command{Use: "pair", Short: "Create or redeem a client-bound terminal pool pairing claim"}
 	command.AddCommand(v3PairCreateCommand(socket, logFile))
 	command.AddCommand(v3PairImportCommand())
 	command.AddCommand(v3PairInspectCommand())
@@ -135,7 +135,7 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 	var sshHostKeys []string
 	command := &cobra.Command{
 		Use:   "create",
-		Short: "Issue a short-lived one-time pairing claim from the local daemon",
+		Short: "Issue a short-lived one-time pairing claim from the local pool",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			socketPath := resolveV3Socket(*socket)
@@ -170,7 +170,7 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 				return err
 			}
 			routes, err := v3PairingRoutes(v3PairRouteFlags{
-				Routes: routeSpecs, DefaultDirectListen: runningDaemonDirectListen(socketPath), DirectID: directID, DirectName: directName, DirectAddresses: directAddresses, SignalingAddresses: signalingAddresses,
+				Routes: routeSpecs, DefaultDirectListen: runningPoolDirectListen(socketPath), DirectID: directID, DirectName: directName, DirectAddresses: directAddresses, SignalingAddresses: signalingAddresses,
 				ICETCPAddresses: iceTCPAddresses, ServerName: serverName, SSHID: sshID, SSHName: sshName,
 				SSHHost: sshHost, SSHPort: sshPort, SSHUser: sshUser, SSHHostKeys: sshHostKeys,
 			})
@@ -187,7 +187,7 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 			result := response.GetTicket()
 			payload := result.GetClaimOffer()
 			if len(payload) == 0 {
-				return fmt.Errorf("daemon did not return a pairing claim offer")
+				return fmt.Errorf("pool did not return a pairing claim offer")
 			}
 			if rawOutput {
 				_, err = cmd.OutOrStdout().Write(payload)
@@ -236,9 +236,9 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 	command.Flags().BoolVar(&rawOutput, "raw", false, "write the one-time pairing claim to stdout for explicit owner scripting")
 	command.Flags().BoolVar(&textOutput, "text", false, "write the portable pairing URI to stdout for copying")
 	command.Flags().BoolVar(&commandOutput, "command", false, "write a copyable one-command pairing import")
-	command.Flags().StringVar(&label, "label", "", "daemon display label (defaults to this host name)")
+	command.Flags().StringVar(&label, "label", "", "pool display label (defaults to this host name)")
 	command.Flags().StringVar(&accessLabel, "access-label", "", "owner-defined name for the resulting client authorization")
-	command.Flags().StringVar(&terminalID, "terminal", "", "limit the capability to one terminal instead of daemon-wide access")
+	command.Flags().StringVar(&terminalID, "terminal", "", "limit the capability to one terminal instead of pool-wide access")
 	command.Flags().DurationVar(&ticketTTL, "ttl", 10*time.Minute, "one-time ticket lifetime (maximum 168h)")
 	command.Flags().DurationVar(&grantLifetime, "grant-ttl", 0, "bound capability lifetime (default 0: no expiration)")
 	command.Flags().StringArrayVar(&routeSpecs, "route", nil, "pairing Route: direct, ssh, or a strict Route URI (repeatable)")
@@ -258,12 +258,12 @@ func v3PairCreateCommand(socket *string, logFile *string) *cobra.Command {
 	return command
 }
 
-func runningDaemonDirectListen(socketPath string) string {
+func runningPoolDirectListen(socketPath string) string {
 	if record, err := direct.ReadListenerRecord(direct.RecordPath(socketPath)); err == nil && strings.TrimSpace(record.Listen) != "" {
 		return strings.TrimSpace(record.Listen)
 	}
-	record, err := readDaemonRuntimeRecord(daemonRecordPath(socketPath))
-	if err != nil || !daemonRecordProcessMatches(record) {
+	record, err := readPoolRuntimeRecord(poolRecordPath(socketPath))
+	if err != nil || !poolRecordProcessMatches(record) {
 		return ""
 	}
 	return strings.TrimSpace(record.DirectListen)
@@ -273,7 +273,7 @@ func clientAccessScopeToProto(scope remoteauth.Scope) *remoteauthpb.ClientAccess
 	return &remoteauthpb.ClientAccessScope{AllowDaemon: scope.AllowDaemon, TerminalId: scope.TerminalID, MachineEventsOnly: scope.MachineEventsOnly, FileReadMetadata: scope.FileReadMetadata, FileReadContent: scope.FileReadContent, FileWriteContent: scope.FileWriteContent, FileMutate: scope.FileMutate, ManageClientAccess: scope.ManageClientAccess}
 }
 
-// renderV3PairingQR 把 daemon 内存持有的短期一次性 claim 编码进高对比度终端二维码。
+// renderV3PairingQR 把 pool 内存持有的短期一次性 claim 编码进高对比度终端二维码。
 // 二维码不包含 ticket、scope 或 grant；调用方仍应在扫描后清屏，避免 claim 在有效期内被旁观者使用。
 func renderV3PairingQR(output io.Writer, payload []byte, expiresAt time.Time) error {
 	portablePayload := v3PairingBootstrapURI(payload)
@@ -445,7 +445,7 @@ func localPairTerminalID(target string) (string, error) {
 	target = strings.TrimSpace(target)
 	if endpointID, terminalID, found := strings.Cut(target, ":"); found {
 		if endpointID != string(endpointdomain.DefaultEndpointID) || terminalID == "" || strings.Contains(terminalID, ":") {
-			return "", usageCLIError("pair create can only scope the local daemon target local:TERMINAL_ID")
+			return "", usageCLIError("pair create can only scope the local pool target local:TERMINAL_ID")
 		}
 		return terminalID, nil
 	}
@@ -492,7 +492,7 @@ func v3PairImportCommand() *cobra.Command {
 				}
 				actualID := id
 				if existing, exists := normalized.Endpoints[id]; exists && !existing.DaemonIdentity.Empty() && existing.DaemonIdentity != identity {
-					return endpointdomain.Registry{}, fmt.Errorf("endpoint %q is pinned to a different daemon identity", id)
+					return endpointdomain.Registry{}, fmt.Errorf("endpoint %q is pinned to a different pool identity", id)
 				} else if !exists {
 					for _, existing := range normalized.List() {
 						if existing.DaemonIdentity == identity {
@@ -565,14 +565,14 @@ func v3PairImportCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Paired endpoint %s with daemon %s using client key %s\n", endpoint.ID, endpoint.DaemonIdentity.DeviceID, credential.Identity.Fingerprint)
+			fmt.Fprintf(cmd.OutOrStdout(), "Paired endpoint %s with pool %s using client key %s\n", endpoint.ID, endpoint.DaemonIdentity.DeviceID, credential.Identity.Fingerprint)
 			return nil
 		},
 	}
 	command.Flags().StringVar(&endpointID, "id", "", "client-local endpoint id")
-	command.Flags().StringVar(&label, "label", "", "override the daemon display label")
+	command.Flags().StringVar(&label, "label", "", "override the pool display label")
 	command.Flags().StringVar(&registryPath, "registry", "", "endpoint registry path (default: XDG config dir endpoints.yaml)")
-	command.Flags().StringVar(&pairingSocket, "pair-socket", "", "owner-only PairingExchange Unix socket (defaults to local daemon)")
+	command.Flags().StringVar(&pairingSocket, "pair-socket", "", "owner-only PairingExchange Unix socket (defaults to local pool)")
 	command.Flags().StringVar(&clientLabel, "client-label", "", "label recorded for this client access key")
 	command.Flags().BoolVar(&allowScopeExpansion, "allow-scope-expansion", false, "confirm replacing an existing credential with a broader capability scope")
 	_ = command.MarkFlagRequired("id")
@@ -601,7 +601,7 @@ func mergePairingEndpoint(
 	actualID := preferredID
 	target, targetExists := registry.Endpoints[preferredID]
 	if targetExists && !target.DaemonIdentity.Empty() && target.DaemonIdentity != identity {
-		return endpointdomain.Registry{}, endpointdomain.Endpoint{}, "", fmt.Errorf("endpoint %q is pinned to a different daemon identity", preferredID)
+		return endpointdomain.Registry{}, endpointdomain.Endpoint{}, "", fmt.Errorf("endpoint %q is pinned to a different pool identity", preferredID)
 	}
 	if !targetExists {
 		for _, endpoint := range registry.List() {
@@ -625,7 +625,7 @@ func mergePairingEndpoint(
 		}
 	}
 	if !targetExists && len(candidate.Routes) == 0 {
-		return endpointdomain.Registry{}, endpointdomain.Endpoint{}, "", fmt.Errorf("pairing bundle contains no portable route and no existing endpoint matches daemon %q", identity.DeviceID)
+		return endpointdomain.Registry{}, endpointdomain.Endpoint{}, "", fmt.Errorf("pairing bundle contains no portable route and no existing endpoint matches pool %q", identity.DeviceID)
 	}
 	for index := range candidate.Routes {
 		if candidate.Routes[index].Kind == endpointdomain.RouteDirectWebRTCTCP || candidate.Routes[index].Kind == endpointdomain.RouteSSHWebRTCTCP || candidate.Routes[index].Kind == endpointdomain.RouteManagedWebRTC {

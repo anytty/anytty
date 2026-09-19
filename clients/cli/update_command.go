@@ -69,7 +69,7 @@ type updateView struct {
 	Status        string `json:"status"`
 	ReleaseURL    string `json:"release_url"`
 	InstalledPath string `json:"installed_path,omitempty"`
-	DaemonRestart bool   `json:"daemon_restarted"`
+	PoolRestart   bool   `json:"pool_restarted"`
 }
 
 func defaultUpdateCommandRuntime() updateCommandRuntime {
@@ -155,7 +155,7 @@ func writeUpdateView(cmd *cobra.Command, view updateView, jsonOutput bool) error
 	if view.InstalledPath != "" {
 		fields = append(fields,
 			cliField{Label: "Installed", Value: view.InstalledPath},
-			cliField{Label: "Daemon", Value: "not restarted; running terminals are unchanged"},
+			cliField{Label: "Pool", Value: "not restarted; running terminals are unchanged"},
 		)
 	}
 	return writeCLIFields(cmd.OutOrStdout(), fields...)

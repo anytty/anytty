@@ -19,11 +19,11 @@ import (
 	"github.com/anytty/anytty/access/direct"
 	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
 	"github.com/anytty/anytty/access/files"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessruntime "github.com/anytty/anytty/access/runtime"
 	accessserver "github.com/anytty/anytty/access/server"
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"github.com/anytty/anytty/shared/filelock"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -32,14 +32,14 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 )
 
-func TestRunningDaemonDirectListenPrefersAccessRecord(t *testing.T) {
+func TestRunningPoolDirectListenPrefersAccessRecord(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "daemon.sock")
 	if err := direct.WriteListenerRecord(direct.RecordPath(socket), direct.ListenerRecord{
 		Listen: "0.0.0.0:41120", Signaling: "192.168.1.8:41120", ICETCP: "192.168.1.8:41120", UpdatedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := runningDaemonDirectListen(socket); got != "0.0.0.0:41120" {
+	if got := runningPoolDirectListen(socket); got != "0.0.0.0:41120" {
 		t.Fatalf("direct listen = %q", got)
 	}
 }
@@ -47,7 +47,7 @@ func TestRunningDaemonDirectListenPrefersAccessRecord(t *testing.T) {
 func TestPairCreateAndImportUsesClaimThenClientBoundCredential(t *testing.T) {
 	runtimeDir, stateHome, configHome := configurePairCommandTest(t)
 	socket := filepath.Join(runtimeDir, "daemon.sock")
-	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Lab daemon", "--access-label", "App Store review phone", "--ttl", "1h", "--grant-ttl", "24h")
+	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Lab pool", "--access-label", "App Store review phone", "--ttl", "1h", "--grant-ttl", "24h")
 	offer, err := remoteauth.ParsePairingClaimOffer(created, time.Now().UTC())
 	if err != nil || offer.GetDeviceId() == "" {
 		t.Fatalf("created pairing claim = (%#v, %v)", offer, err)
@@ -113,7 +113,7 @@ func TestPairImportUsesBundleLabelWhenLabelFlagIsOmitted(t *testing.T) {
 func TestPairImportAddsAdvertisedDirectRouteToExistingSSHEndpoint(t *testing.T) {
 	runtimeDir, _, configHome := configurePairCommandTest(t)
 	socket := filepath.Join(runtimeDir, "daemon.sock")
-	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Daemon label")
+	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--route", "direct", "--label", "Pool label")
 	_, err := remoteauth.ParsePairingClaimOffer(created, time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestPairImportAddsAdvertisedDirectRouteToExistingSSHEndpoint(t *testing.T) 
 func TestPairInspectAndTerminalQRNeverPrintLongLivedGrant(t *testing.T) {
 	runtimeDir, _, _ := configurePairCommandTest(t)
 	socket := filepath.Join(runtimeDir, "daemon.sock")
-	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--label", "Inspect daemon")
+	created := executePairCommand(t, nil, "--socket", socket, "pair", "create", "--raw", "--label", "Inspect pool")
 	inspect := executePairCommand(t, created, "pair", "inspect", "--json", "-")
 	if !strings.Contains(string(inspect), `"kind":"pairing_claim"`) || strings.Contains(string(inspect), `"ticket_id"`) || strings.Contains(string(inspect), `"scope_ceiling"`) || strings.Contains(string(inspect), "pairing_ticket") || strings.Contains(string(inspect), "capability_grant") {
 		t.Fatalf("inspect projection = %s", inspect)
@@ -343,7 +343,7 @@ func TestPairCreatePublishesExplicitTCPMappingWithoutChangingIdentity(t *testing
 		t.Fatal(err)
 	}
 	if baseOffer.GetDeviceId() != mappedOffer.GetDeviceId() || !bytes.Equal(baseOffer.GetDevicePublicKey(), mappedOffer.GetDevicePublicKey()) {
-		t.Fatalf("locator override changed daemon identity: base=%v mapped=%v", baseOffer, mappedOffer)
+		t.Fatalf("locator override changed pool identity: base=%v mapped=%v", baseOffer, mappedOffer)
 	}
 	direct := mappedOffer.GetRoutes()[0].GetDirectWebrtcTcp()
 	if direct.GetSignalingAddress() != "frp.example:51020" {
@@ -364,7 +364,7 @@ func TestPairCreatePublishesExplicitTCPMappingWithoutChangingIdentity(t *testing
 func TestPairCreateDefaultsToDirectOnly(t *testing.T) {
 	runtimeDir, _, _ := configurePairCommandTest(t)
 	socket := filepath.Join(runtimeDir, "daemon.sock")
-	releaseRecord, err := acquireDaemonRuntimeRecord(socket, filepath.Join(runtimeDir, "daemon.log"), "")
+	releaseRecord, err := acquirePoolRuntimeRecord(socket, filepath.Join(runtimeDir, "daemon.log"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -617,7 +617,7 @@ func configurePairCommandTest(t *testing.T) (string, string, string) {
 			Access: accessruntime.Service{DeviceIdentity: clientAccess.Identity, Store: clientAccess.Store},
 		},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, socket+".provider")
+			return poolprovider.DialTerminal(dialCtx, socket+".provider")
 		},
 	})
 	if err != nil {

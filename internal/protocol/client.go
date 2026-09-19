@@ -388,7 +388,7 @@ func newClientWithPendingLimits(t transport.Transport, limits clientPendingLimit
 }
 
 // ApplicationEvents 注册 generated Proto application event 消费者。
-// 事件 frame 只包含 EventEnvelope；filter 与 subscription lifecycle 由 daemon resource 管理。
+// 事件 frame 只包含 EventEnvelope；filter 与 subscription lifecycle 由 pool resource 管理。
 func (c *Client) ApplicationEvents(ctx context.Context) (<-chan *apipb.EventEnvelope, error) {
 	if c == nil || c.doneClosed() {
 		return nil, io.EOF
@@ -627,7 +627,7 @@ func (c *Client) bindApplicationAttachment(channel uint16, resource *apipb.Resou
 	}
 }
 
-// SendFileFrame 在已由 daemon 分配的 transfer channel 上发送流控 frame。
+// SendFileFrame 在已由 pool 分配的 transfer channel 上发送流控 frame。
 // typ 只允许 file data/ack/finish，避免调用方借该入口写 terminal channel。
 func (c *Client) SendFileFrame(channel uint16, typ uint8, payload []byte) error {
 	switch typ {
@@ -642,7 +642,7 @@ func (c *Client) SendFileFrame(channel uint16, typ uint8, payload []byte) error 
 	return c.send(frame)
 }
 
-// SendBrowserFrame writes bytes or a close marker to a daemon-side TCP resource.
+// SendBrowserFrame writes bytes or a close marker to a pool-side TCP resource.
 func (c *Client) SendBrowserFrame(channel uint16, typ uint8, payload []byte) error {
 	switch typ {
 	case wire.TypeBrowserData:
@@ -665,7 +665,7 @@ func (c *Client) SendBrowserFrame(channel uint16, typ uint8, payload []byte) err
 }
 
 // SendAttachmentReady 启动已绑定 attachment channel 的实时输出。
-// ready 之前 daemon 不发送 PTY bytes，避免 attach result 与本地 stream consumer 建立之间出现竞态。
+// ready 之前 pool 不发送 PTY bytes，避免 attach result 与本地 stream consumer 建立之间出现竞态。
 func (c *Client) SendAttachmentReady(channel uint16) error {
 	if channel == 0 {
 		return fmt.Errorf("attachment channel is required")

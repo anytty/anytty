@@ -1,6 +1,6 @@
 # 终端实时画面与历史协议
 
-本文描述 daemon、TUI，以及 Android/iOS App 和 `anytty web` 本地浏览器入口通过共享 React UI 使用的终端交付模型。普通 Vite 浏览器预览仍不连接 daemon；正式本地 Web 入口由 daemon 仅在 IPv4 回环地址上按需提供。
+本文描述 终端池、TUI，以及 Android/iOS App 和 `anytty web` 本地浏览器入口通过共享 React UI 使用的终端交付模型。普通 Vite 浏览器预览仍不连接 终端池；正式本地 Web 入口由 终端池 仅在 IPv4 回环地址上按需提供。
 
 ## 1. 目标
 
@@ -18,7 +18,7 @@ PTY read -> bounded shared payload nodes -> Live consumer -> screen projector
                                     \----> History consumer -> history store
 ```
 
-主 PTY payload 的单 terminal `capacity_bytes` 和 daemon 级 `resident_budget_bytes` 都是硬边界；raw-stream 队列由订阅者数和固定队列深度单独约束。
+主 PTY payload 的单 terminal `capacity_bytes` 和 终端池 级 `resident_budget_bytes` 都是硬边界；raw-stream 队列由订阅者数和固定队列深度单独约束。
 
 - `block`：没有容量时等待 consumer 释放空间，使 PTY 上游自然减速。
 - `drop`：不等待，删除旧 payload，并给受影响 consumer 产生带 sequence/byte count 的 gap。
@@ -29,7 +29,7 @@ PTY read -> bounded shared payload nodes -> Live consumer -> screen projector
 
 ## 3. Live revision
 
-daemon 的 screen projector 将 PTY 字节解析为终端画面，并为可交付状态分配严格递增 `live_revision`。revision 只表达同一 terminal generation 和 parser epoch 内的顺序。
+终端池 的 screen projector 将 PTY 字节解析为终端画面，并为可交付状态分配严格递增 `live_revision`。revision 只表达同一 terminal generation 和 parser epoch 内的顺序。
 
 发生以下情况时旧增量基线失效：
 
@@ -60,7 +60,7 @@ TerminalRef + observed_revision
 
 1. 客户端把当前 revision 选入唯一 renderer submission。
 2. submission 建立后立即携带该 `observed_revision` 重挂下一次 long-poll，用网络等待与物理渲染重叠。
-3. daemon 若已有更新立即返回；否则等待更新或 context cancel。
+3. 终端池 若已有更新立即返回；否则等待更新或 context cancel。
 4. 客户端把返回结果合并到 canonical screen；前一 submission 未完成时只保留最新可提交 damage，不并发写 renderer。
 5. 前一 submission 完成后提交已合并的新画面。任何 revision mismatch、gap 或 apply 失败都请求 Full。
 
@@ -88,7 +88,7 @@ history store 保存逻辑行、时间信息和终端重放所需内容。客户
 - 搜索结果的逻辑行位置。
 - 复制 start/end range。
 
-daemon 对每个响应返回连续范围、token/generation、cursor、边界和总量。客户端只能沿已确认 cursor 请求下一页，不能用当前 DOM 行数或自增 offset 推导服务端位置。
+终端池 对每个响应返回连续范围、token/generation、cursor、边界和总量。客户端只能沿已确认 cursor 请求下一页，不能用当前 DOM 行数或自增 offset 推导服务端位置。
 
 ## 7. Live 到历史的连续性
 
@@ -112,7 +112,7 @@ daemon 对每个响应返回连续范围、token/generation、cursor、边界和
 - 客户端只保留当前结果窗口；跳转到未加载结果时按逻辑位置加载页面。
 - 复制选择保存逻辑 start/end，而不是预先拼成巨大字符串。
 - 用户确认复制时按范围分块读取；当前 Web 客户端会暂存全部分块并 `join` 成完整字符串后写 clipboard，因此确认阶段内存随复制文本增长。
-- selection 跨越仍在 Live、尚未进入历史块的数据时，daemon 使用同一逻辑行空间解析。
+- selection 跨越仍在 Live、尚未进入历史块的数据时，终端池 使用同一逻辑行空间解析。
 - clipboard 与 copy mode 分离；普通粘贴不要求进入历史或复制模式。
 
 ## 9. 恢复规则
@@ -120,7 +120,7 @@ daemon 对每个响应返回连续范围、token/generation、cursor、边界和
 | 情况 | 恢复 |
 | --- | --- |
 | Live revision 不连续或 Delta apply 失败 | 请求 Full |
-| daemon 没有 client baseline | 返回 Full 并建立新 baseline |
+| 终端池 没有 client baseline | 返回 Full 并建立新 baseline |
 | output gap | parser epoch 变化，返回 Full |
 | App 进后台 | 取消请求；前台用最后已应用的 Live revision 恢复 |
 | WebView/session generation 变化 | 旧请求结果全部失效 |
@@ -130,7 +130,7 @@ daemon 对每个响应返回连续范围、token/generation、cursor、边界和
 ## 10. 验收
 
 - 100000 行输出时内存受配置上限约束。
-- 慢客户端不导致 daemon 或客户端待处理帧数持续增长。
+- 慢客户端不导致 终端池 或客户端待处理帧数持续增长。
 - Delta/Full/gap/reconnect/resize 均有确定性测试。
 - TUI 与 Android 都覆盖首个历史页、连续向旧分页、Live 冻结和回到底部。
 - 终端 canvas 非空，历史切换不闪白、不重建页面、不改变前后行的视觉位置。

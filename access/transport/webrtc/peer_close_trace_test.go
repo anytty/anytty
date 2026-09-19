@@ -66,7 +66,7 @@ func TestPeerCloseTraceIdentifiesBlockedPhaseWithoutSecrets(t *testing.T) {
 		t.Fatal("peer close did not start")
 	}
 	before := traceText()
-	if !strings.Contains(before, "component=daemon_peer_close stage=peer_close_started") || strings.Contains(before, "stage=peer_close_returned") {
+	if !strings.Contains(before, "component=pool_peer_close stage=peer_close_started") || strings.Contains(before, "stage=peer_close_returned") {
 		t.Fatalf("blocked close stage was not identified: %s", before)
 	}
 	unblock()

@@ -48,7 +48,7 @@ func TestBindingABIBaselinesStayGeneric(t *testing.T) {
 func TestBindingCoreDoesNotImportPlatformOrDomainOwners(t *testing.T) {
 	forbidden := []string{
 		"C", "unsafe", "syscall/js", "encoding/json", "encoding/base64",
-		"github.com/anytty/anytty/daemon/core", "github.com/anytty/anytty/tui", "github.com/anytty/anytty/clients/cli",
+		"github.com/anytty/anytty/pool/core", "github.com/anytty/anytty/tui", "github.com/anytty/anytty/clients/cli",
 		"github.com/anytty/anytty/private", "github.com/anytty/anytty/internal/protocol",
 		"github.com/anytty/anytty/remote", "github.com/pion/webrtc",
 	}

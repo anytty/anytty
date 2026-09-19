@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	accesscontract "github.com/anytty/anytty/access/contract"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -115,7 +115,7 @@ func CloudDisabled(path string) (bool, error) {
 }
 
 // LoadCloudStatus 把 enrollment record 与 runtime 快照投影为 core-native Cloud 状态。
-func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runtime, daemonRunning bool, lastRuntimeError string) (accesscontract.RemoteCloudStatus, error) {
+func LoadCloudStatus(recordPath, disabledPath string, runtime *cloud.Runtime, poolRunning bool, lastRuntimeError string) (accesscontract.RemoteCloudStatus, error) {
 	now := time.Now().UTC()
 	disabledRecord, disabled, err := readCloudDisabled(disabledPath)
 	if err != nil {
@@ -128,10 +128,10 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 	if disabled {
 		status.UpdatedAt = disabledRecord.UpdatedAt
 		status.State = "disabled"
-		status.Detail = "Cloud runtime is temporarily disabled on this daemon"
+		status.Detail = "Cloud runtime is temporarily disabled on this pool"
 	}
 
-	record, err := clouddaemon.LoadRecord(recordPath)
+	record, err := cloud.LoadRecord(recordPath)
 	if errors.Is(err, os.ErrNotExist) {
 		status.Enrolled = false
 		if disabled {
@@ -155,7 +155,7 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 		return status, nil
 	}
 	if runtime == nil {
-		if daemonRunning {
+		if poolRunning {
 			status.State = "starting"
 			status.Detail = "Cloud runtime is waiting to start"
 			if strings.TrimSpace(lastRuntimeError) != "" {
@@ -163,8 +163,8 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 			}
 			return status, nil
 		}
-		status.State = "daemon_stopped"
-		status.Detail = "local daemon is not running"
+		status.State = "pool_stopped"
+		status.Detail = "local pool is not running"
 		return status, nil
 	}
 
@@ -172,7 +172,7 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 	status.Running = true
 	if !cloudRuntimeMatchesEnrollment(record, snapshot) {
 		status.State = "enrollment_changed"
-		status.Detail = "Cloud enrollment changed; the daemon runtime is restarting"
+		status.Detail = "Cloud enrollment changed; the pool runtime is restarting"
 		return status, nil
 	}
 	status.Ready = snapshot.Ready
@@ -192,16 +192,16 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 	switch {
 	case snapshot.EnrollmentDeleted:
 		status.State = "deleted"
-		status.Detail = "Controller marked this daemon as deleted"
+		status.Detail = "Controller marked this pool as deleted"
 	case snapshot.Ready:
 		status.State = "online"
 		status.Detail = "Cloud AgentGateway is connected"
 	case snapshot.LifecycleState == "blocked":
 		status.State = "blocked"
-		status.Detail = "Controller blocked this daemon"
+		status.Detail = "Controller blocked this pool"
 	case snapshot.LifecycleState == "deleted":
 		status.State = "deleted"
-		status.Detail = "Controller marked this daemon as deleted"
+		status.Detail = "Controller marked this pool as deleted"
 	case snapshot.ActiveAttempt:
 		status.State = "connecting"
 		status.Detail = "Cloud runtime is connecting to the selected Edge"
@@ -218,7 +218,7 @@ func LoadCloudStatus(recordPath, disabledPath string, runtime *clouddaemon.Runti
 	return status, nil
 }
 
-func cloudRuntimeMatchesEnrollment(record clouddaemon.EnrollmentRecord, snapshot clouddaemon.StatusSnapshot) bool {
+func cloudRuntimeMatchesEnrollment(record cloud.EnrollmentRecord, snapshot cloud.StatusSnapshot) bool {
 	return snapshot.DaemonID == record.DaemonID && snapshot.AccountID == record.AccountID && snapshot.EnrolledAt.Equal(record.EnrolledAt)
 }
 
@@ -232,7 +232,7 @@ func cloudEntitlementRuntimeStatus(failure *cloudv1.CloudEntitlementFailure) (st
 		if failure.GetLimit() > 0 {
 			limit = fmt.Sprintf(" (limit %d)", failure.GetLimit())
 		}
-		return "quota_limited", "AnyTTY Cloud daemon connection limit is reached" + limit + "; stop another Cloud daemon or upgrade at https://cloud.anytty.com/app/subscription. Direct and SSH remain available"
+		return "quota_limited", "AnyTTY Cloud pool connection limit is reached" + limit + "; stop another Cloud pool or upgrade at https://cloud.anytty.com/app/subscription. Direct and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SUBSCRIPTION_INACTIVE:
 		return "subscription_inactive", "AnyTTY Cloud subscription is inactive; renew it at https://cloud.anytty.com/app/subscription. Direct and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_SERVICE_UNAVAILABLE:
@@ -242,7 +242,7 @@ func cloudEntitlementRuntimeStatus(failure *cloudv1.CloudEntitlementFailure) (st
 	}
 }
 
-func applyCloudRecordLocator(status *accesscontract.RemoteCloudStatus, record clouddaemon.EnrollmentRecord) {
+func applyCloudRecordLocator(status *accesscontract.RemoteCloudStatus, record cloud.EnrollmentRecord) {
 	locator := &cloudv1.EdgeLocator{}
 	if proto.Unmarshal(record.EdgeLocator, locator) != nil {
 		return

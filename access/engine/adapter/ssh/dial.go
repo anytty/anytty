@@ -38,7 +38,7 @@ type Options struct {
 	NetworkDialer  direct.ContextDialer
 }
 
-// Dialer 通过 Go SSH client/direct-tcpip 到达 daemon loopback signaling 与 ICE-TCP。
+// Dialer 通过 Go SSH client/direct-tcpip 到达 pool loopback signaling 与 ICE-TCP。
 // 成功结果复用 Direct connector 的 DTLS-bound auth、Hello、Proto API 和 DataChannel lifecycle。
 type Dialer struct{ options Options }
 
@@ -70,7 +70,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		return nil, fmt.Errorf("SSH WebRTC connector dependencies are incomplete")
 	}
 	if request.DaemonIdentity().Empty() {
-		return nil, fmt.Errorf("SSH WebRTC route requires a paired daemon identity")
+		return nil, fmt.Errorf("SSH WebRTC route requires a paired pool identity")
 	}
 	if len(route.HostKeyFingerprints) == 0 {
 		return nil, fmt.Errorf("SSH route %q requires at least one pinned host key", route.ID)

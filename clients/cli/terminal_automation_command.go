@@ -271,14 +271,14 @@ func newTerminalCaptureCommand(runtime terminalCommandRuntime) *cobra.Command {
 }
 
 func captureTerminalHistory(ctx context.Context, client terminalProtocolClient, ref resolvedTerminalRef, lines, cols int) (string, error) {
-	// copy 必须绑定 daemon 签发的 frozen token；CLI 不从 window rows 自行拼第二份 history truth。
+	// copy 必须绑定 pool 签发的 frozen token；CLI 不从 window rows 自行拼第二份 history truth。
 	terminal := &apipb.TerminalRef{EndpointId: string(ref.EndpointID), TerminalId: ref.TerminalID}
 	window, err := client.HistoryWindow(ctx, &apipb.HistoryWindowCommand{Terminal: terminal, Limit: int32(lines), Cols: int32(cols), Mode: apipb.HistoryWindowMode_HISTORY_WINDOW_MODE_LATEST})
 	if err != nil {
 		return "", err
 	}
 	if window.GetToken() == "" {
-		return "", fmt.Errorf("daemon returned history without a copy token")
+		return "", fmt.Errorf("pool returned history without a copy token")
 	}
 	defer func() {
 		releaseContext, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -392,7 +392,7 @@ func terminalResizeReason(view terminalResizeEnvelope) string {
 	if view.Reason != "" {
 		return view.Reason
 	}
-	return "daemon did not grant resize ownership"
+	return "pool did not grant resize ownership"
 }
 
 func newTerminalWaitCommand(runtime terminalCommandRuntime) *cobra.Command {
@@ -401,7 +401,7 @@ func newTerminalWaitCommand(runtime terminalCommandRuntime) *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "wait TARGET",
-		Short: "Wait for a daemon-owned terminal lifecycle state",
+		Short: "Wait for a terminal-pool-owned lifecycle state",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			state = strings.ToLower(strings.TrimSpace(state))
@@ -506,7 +506,7 @@ func newTerminalEventsCommand(runtime terminalCommandRuntime) *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "events [TARGET]",
-		Short: "Stream daemon terminal events as human records or NDJSON",
+		Short: "Stream terminal pool events as human records or NDJSON",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if jsonOutput {
@@ -672,7 +672,7 @@ func openTerminalAutomationTarget(ctx context.Context, cmd *cobra.Command, runti
 }
 
 func attachTerminalAutomation(ctx context.Context, client terminalProtocolClient, ref resolvedTerminalRef, resizePolicy apipb.ResizePolicy, operation string) (*apipb.TerminalAttachResult, string, func(), error) {
-	// send/resize 只能通过 owning daemon 签发的临时 attachment；操作结束立即 detach，不持有隐式 CLI session。
+	// send/resize 只能通过 owning pool 签发的临时 attachment；操作结束立即 detach，不持有隐式 CLI session。
 	identity := attachmentIdentity(ref, operation)
 	result, err := client.TerminalAttach(ctx, &apipb.TerminalAttachCommand{Terminal: &apipb.TerminalRef{EndpointId: string(ref.EndpointID), TerminalId: ref.TerminalID}, Mode: apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR, ResizePolicy: resizePolicy, SurfaceId: identity, ViewId: identity})
 	if err != nil {

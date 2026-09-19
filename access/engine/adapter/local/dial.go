@@ -15,7 +15,7 @@ import (
 	unixtransport "github.com/anytty/anytty/shared/transport/unix"
 )
 
-// Starter 是 local Unix route 首次拨号失败后的 daemon 启动 primitive。
+// Starter 是 local Unix route 首次拨号失败后的 pool 启动 primitive。
 // 具体可执行文件、日志和 config 参数仍由 composition root 决定；adapter 只控制一次 route attempt 的重试生命周期。
 type Starter func(context.Context, string) error
 
@@ -23,7 +23,7 @@ type Starter func(context.Context, string) error
 // 别名只用于迁移 composition 调用签名，业务调用仍应优先使用 owner-fenced ApplicationClient。
 type ProtocolClient = internalprotocol.Client
 
-// Transport 是 local Unix transport 类型别名，仅供 daemon composition/harness 使用。
+// Transport 是 local Unix transport 类型别名，仅供 pool composition/harness 使用。
 type Transport = unixtransport.Transport
 
 // Options 定义 local Unix route adapter 的平台无关拨号参数。
@@ -75,7 +75,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	var handshakeErr *protocolHandshakeError
 	if err != nil && dialer.options.Start != nil && !errors.As(err, &handshakeErr) {
 		if startErr := dialer.options.Start(ctx, path); startErr != nil {
-			return nil, fmt.Errorf("start local daemon: %w", startErr)
+			return nil, fmt.Errorf("start local pool: %w", startErr)
 		}
 		waitCtx, cancel := context.WithTimeout(ctx, dialer.options.ReadyTimeout)
 		defer cancel()
@@ -99,7 +99,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		_ = client.Close()
 		return nil, err
 	}
-	// local-unix route 的信任边界是 owner-only socket：daemon 是纯 terminal pool，
+	// local-unix route 的信任边界是 owner-only socket：pool 是纯 terminal pool，
 	// 没有可校验的 DeviceIdentity。endpoint pin 存在时沿用 pin，否则使用规范化本地投影。
 	identity := request.DaemonIdentity()
 	if identity.Empty() {
@@ -137,12 +137,12 @@ func dialProtocol(ctx context.Context, path, clientName string) (*internalprotoc
 }
 
 // DialProtocolClientForComposition 建立单条 local Unix framing connection 并完成 Hello。
-// 该迁移入口只供 daemon/CLI composition 随后交给 SessionOwner adopt；普通 application consumer 必须直接使用 Connect。
+// 该迁移入口只供 pool/CLI composition 随后交给 SessionOwner adopt；普通 application consumer 必须直接使用 Connect。
 func DialProtocolClientForComposition(ctx context.Context, path, clientName string) (*ProtocolClient, error) {
 	return dialProtocol(ctx, path, clientName)
 }
 
-// DialTransport 建立不执行 Hello 的 local Unix transport，供 daemon lifecycle harness 使用。
+// DialTransport 建立不执行 Hello 的 local Unix transport，供 pool lifecycle harness 使用。
 func DialTransport(ctx context.Context, path string) (*Transport, error) {
 	return unixtransport.DialContext(ctx, path)
 }

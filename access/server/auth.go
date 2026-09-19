@@ -9,7 +9,7 @@ import (
 )
 
 // AuthServices 是 access 直答 client_access.* / cloud.* 的进程内边界。
-// daemon 不再挂载 ClientAccessService/RemoteService，也不再走反向 control RPC；
+// pool 不再挂载 ClientAccessService/RemoteService，也不再走反向 control RPC；
 // access/server 直接把命令映射到 access runtime 服务。
 type AuthServices struct {
 	Access accesscontract.ClientAccessService

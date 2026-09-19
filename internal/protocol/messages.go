@@ -33,7 +33,7 @@ type ProtocolError struct {
 	Message string
 }
 
-// RequestError 是 daemon 对单次 control request 返回的稳定错误分类。
+// RequestError 是 pool 对单次 control request 返回的稳定错误分类。
 type RequestError struct {
 	Code    int
 	Message string

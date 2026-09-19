@@ -336,7 +336,7 @@ func (engine *Engine) ImportPairing(payload []byte) (uint64, error) {
 }
 
 // DeleteCredential 解析 bindingpb.DeleteCredentialRequest 并异步删除平台 credential。
-// 它不撤销 daemon grant；结果只通过 NextEvent 发布并需要显式 Release operation handle。
+// 它不撤销 pool grant；结果只通过 NextEvent 发布并需要显式 Release operation handle。
 func (engine *Engine) DeleteCredential(payload []byte) (uint64, error) {
 	if err := validatePayload(payload); err != nil {
 		return 0, err

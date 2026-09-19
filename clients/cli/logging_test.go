@@ -94,8 +94,8 @@ func TestV3PathPolicy(t *testing.T) {
 	if got := resolveV3ClipboardStoragePath(); got != filepath.Join(stateHome, "anytty", "clipboard-history.json") {
 		t.Fatalf("expected clipboard history in host state dir, got %q", got)
 	}
-	if got := daemonConfigDefaultPath(); got != filepath.Join(configHome, "anytty", "tui-v3.yaml") {
-		t.Fatalf("expected daemon config path to stay tui-v3.yaml, got %q", got)
+	if got := poolConfigDefaultPath(); got != filepath.Join(configHome, "anytty", "tui-v3.yaml") {
+		t.Fatalf("expected pool config path to stay tui-v3.yaml, got %q", got)
 	}
 }
 
@@ -105,7 +105,7 @@ func TestResolveV3SocketRequiresRegisteredLocalRoute(t *testing.T) {
 		t.Fatalf("default local registry socket = %q ok=%v err=%v", socket, ok, err)
 	}
 	if _, ok, err := resolveTUI2LocalSocket(endpointdomain.Registry{}, string(endpointdomain.DefaultEndpointID)); err != nil || ok {
-		t.Fatalf("empty registry must not resolve a local daemon socket: ok=%v err=%v", ok, err)
+		t.Fatalf("empty registry must not resolve a local pool socket: ok=%v err=%v", ok, err)
 	}
 	remote := endpointdomain.NewSSHEndpoint("remote", "Remote", "remote.example", "", "127.0.0.1:41120", "127.0.0.1:41121", endpointdomain.ConnectOnDemand)
 	registry := endpointdomain.Registry{Version: endpointdomain.RegistryVersion, Default: "remote", Endpoints: map[endpointdomain.EndpointID]endpointdomain.Endpoint{"remote": remote}}

@@ -163,7 +163,7 @@
 | `clipboard.read` | — | 宿主确认 | text | 取数：`data.text` |
 | `input.forward` | `event_id`,`source` | 免 | 无 | 只允许退回一个已收到的**完整原始** key/paste 块；文本不许程序自带字节（§6.6/§6.8） |
 | `system.quit` | `cleanup_owned?:false` | 宿主确认 | 无 | `cleanup_owned:true` = 清算本程序创建的 ephemeral 终端；这是唯一的程序侧清算入口（另有用户确认路径），崩溃/重启不清算（§5） |
-| `endpoint.sync` | `endpoint`,`kind?`,`socket?`,`address?`,`connect_mode?` | 免 | 无 | 注册一个配置 endpoint（M23/M27 append-only）：`kind=daemon` 时宿主后台连接并随后用 `sources` 发布 daemon 终端清单；`kind=command` 无需注册。语义见 `ENDPOINTS.zh-CN.md` §2.3 |
+| `endpoint.sync` | `endpoint`,`kind?`,`socket?`,`address?`,`connect_mode?` | 免 | 无 | 注册一个配置 endpoint（M23/M27 append-only）：`kind=daemon` 时宿主后台连接并随后用 `sources` 发布终端池终端清单；`kind=command` 无需注册。语义见 `ENDPOINTS.zh-CN.md` §2.3 |
 
 `MethodParams` 在 §4 参数之外新增 append-only 字段：`kind`(17)、`socket`(18)、
 `connect_mode`(19)、`address`(20)，由 `terminal.create`/`terminal.attach`/`endpoint.sync`

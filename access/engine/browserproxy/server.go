@@ -1,5 +1,5 @@
 // Package browserproxy provides the shared client-side loopback HTTP/CONNECT
-// proxy. Target resolution and dialing always take place on the remote daemon.
+// proxy. Target resolution and dialing always take place on the remote pool.
 package browserproxy
 
 import (
@@ -254,7 +254,7 @@ func (s *Server) serve(conn net.Conn) {
 			} else {
 				request.Header.Del("Upgrade")
 			}
-			// The daemon starts reading after receiving data. Resolve Expect
+			// The pool starts reading after receiving data. Resolve Expect
 			// locally so a browser cannot wait for an upstream 100 indefinitely.
 			if strings.EqualFold(request.Header.Get("Expect"), "100-continue") {
 				request.Header.Del("Expect")

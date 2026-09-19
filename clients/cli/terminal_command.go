@@ -105,8 +105,8 @@ func newTerminalCommand(runtime terminalCommandRuntime) *cobra.Command {
 	runtime.endpointID = &endpointID
 	command := &cobra.Command{
 		Use:   "terminal",
-		Short: "Manage terminals owned by a daemon endpoint",
-		Long:  "Manage terminal lifecycle through its owning local, Direct, or SSH daemon endpoint.",
+		Short: "Manage terminals owned by a terminal pool endpoint",
+		Long:  "Manage terminal lifecycle through its owning local, Direct, or SSH pool endpoint.",
 	}
 	command.PersistentFlags().StringVar(runtime.endpointID, "endpoint", "", "owning endpoint ID (default: registry default)")
 	command.AddCommand(
@@ -114,7 +114,7 @@ func newTerminalCommand(runtime terminalCommandRuntime) *cobra.Command {
 		newTerminalListCommand(runtime, "list"),
 		newTerminalShowCommand(runtime),
 		newTerminalAttachCommand(runtime, "attach"),
-		newTerminalMutationCommand(runtime, "restart", "Restart a terminal from its daemon-owned process specification", terminalRestart),
+		newTerminalMutationCommand(runtime, "restart", "Restart a terminal from its pool-owned process specification", terminalRestart),
 		newTerminalMutationCommand(runtime, "kill", "Stop a terminal process and preserve its record and history", terminalKill),
 		newTerminalMutationCommand(runtime, "remove", "Remove an exited terminal record", terminalRemove),
 		newTerminalRenameCommand(runtime),
@@ -159,7 +159,7 @@ func (runtime terminalCommandRuntime) requestedEndpoint() string {
 }
 
 func (runtime terminalCommandRuntime) open(cmd *cobra.Command, cfg endpointdomain.Endpoint) (terminalProtocolClient, func(), error) {
-	// terminal lifecycle 与 metadata truth 始终来自 owning endpoint 的 daemon client。
+	// terminal lifecycle 与 metadata truth 始终来自 owning endpoint 的 pool client。
 	// 参数已经在进入本函数前完成校验；transport/protocol 失败不得附带 Cobra usage。
 	cmd.Root().SilenceUsage = true
 	var client *protocoladapter.ApplicationClient
@@ -180,7 +180,7 @@ func newTerminalCreateCommand(runtime terminalCommandRuntime, use string) *cobra
 	var jsonOutput, attach bool
 	command := &cobra.Command{
 		Use:   use + " [-- COMMAND...]",
-		Short: "Create a terminal on an owning daemon endpoint",
+		Short: "Create a terminal on an owning terminal pool endpoint",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if (cols == 0) != (rows == 0) {
@@ -243,8 +243,8 @@ func newTerminalCreateCommand(runtime terminalCommandRuntime, use string) *cobra
 			return nil
 		},
 	}
-	command.Flags().StringVar(&name, "name", "", "stable daemon-local terminal name")
-	command.Flags().StringVar(&cwd, "cwd", "", "working directory on the daemon host")
+	command.Flags().StringVar(&name, "name", "", "stable pool-local terminal name")
+	command.Flags().StringVar(&cwd, "cwd", "", "working directory on the pool host")
 	command.Flags().StringArrayVar(&environment, "env", nil, "environment entry KEY=VALUE (repeatable)")
 	command.Flags().StringToStringVar(&tags, "tag", nil, "terminal tag KEY=VALUE (repeatable)")
 	command.Flags().Uint16Var(&cols, "cols", 0, "initial terminal columns")
@@ -260,7 +260,7 @@ func newTerminalListCommand(runtime terminalCommandRuntime, use string) *cobra.C
 	var tagFilters []string
 	command := &cobra.Command{
 		Use:   use,
-		Short: "List terminals from one or all daemon endpoints",
+		Short: "List terminals from one or all terminal pool endpoints",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if jsonOutput && format != "" {
@@ -329,7 +329,7 @@ func newTerminalShowCommand(runtime terminalCommandRuntime) *cobra.Command {
 	var format string
 	command := &cobra.Command{
 		Use:   "show TARGET",
-		Short: "Show one terminal from its owning daemon endpoint",
+		Short: "Show one terminal from its owning terminal pool endpoint",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if jsonOutput && format != "" {
@@ -553,7 +553,7 @@ func newTerminalTagCommand(runtime terminalCommandRuntime) *cobra.Command {
 }
 
 func findTerminal(ctx context.Context, client terminalProtocolClient, ref resolvedTerminalRef) (*apipb.TerminalInfo, error) {
-	// TerminalRef 已在 registry 边界解析；查询只进入 owning daemon，CLI 不建立第二份 terminal inventory。
+	// TerminalRef 已在 registry 边界解析；查询只进入 owning pool，CLI 不建立第二份 terminal inventory。
 	result, err := client.TerminalGet(ctx, &apipb.TerminalGetCommand{Terminal: &apipb.TerminalRef{EndpointId: string(ref.EndpointID), TerminalId: ref.TerminalID}})
 	if err != nil {
 		return nil, classifyCLIError(err)
@@ -686,7 +686,7 @@ func classifyCLIError(err error) error {
 	}
 	var requestError *protocol.RequestError
 	if errors.As(err, &requestError) {
-		// 退出码只读取 daemon 的 typed protocol code，禁止根据可变错误文案猜测领域状态。
+		// 退出码只读取 pool 的 typed protocol code，禁止根据可变错误文案猜测领域状态。
 		code := 1
 		switch requestError.Code {
 		case 400:

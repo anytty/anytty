@@ -22,7 +22,7 @@ type PairingHost interface {
 }
 
 // CredentialHost 是 binding 可选的平台 credential lifecycle owner。
-// 删除只移除本地 credential，不代表 daemon grant 已撤销。
+// 删除只移除本地 credential，不代表 pool grant 已撤销。
 type CredentialHost interface {
 	// DeleteCredential 删除 request 指定的平台 credential ref。
 	DeleteCredential(context.Context, *bindingpb.DeleteCredentialRequest) error
@@ -33,7 +33,7 @@ type CredentialHost interface {
 type EndpointRegistryHost interface {
 	// GetEndpointRegistry 返回当前 generation 读取到的规范化 registry projection。
 	GetEndpointRegistry(context.Context, *bindingpb.EndpointRegistryGetRequest) (*bindingpb.EndpointRegistryGetResult, error)
-	// UpsertEndpoint 校验并原子写入一个 generated EndpointConfigV1，禁止替换已 pin 的 daemon identity。
+	// UpsertEndpoint 校验并原子写入一个 generated EndpointConfigV1，禁止替换已 pin 的 pool identity。
 	UpsertEndpoint(context.Context, *bindingpb.EndpointUpsertRequest) (*bindingpb.EndpointUpsertResult, error)
 	// DeleteEndpoint 原子移除 endpoint 配置，并在提交后清理不再引用的本地 credential。
 	DeleteEndpoint(context.Context, *bindingpb.EndpointDeleteRequest) (*bindingpb.EndpointDeleteResult, error)

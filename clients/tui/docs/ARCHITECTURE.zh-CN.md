@@ -11,7 +11,7 @@
 │ 布局程序 layout program（用户写的，跑在子进程里，通过二进制帧收发协议）│
 │  职责：决定"界面上有什么、摆在哪、谁有焦点"                            │
 │  产物：view（盒子树 + claim） + result（方法调用）                     │
-│  禁止：直接调 PTY/剪贴板/daemon；不得发"数字尺寸命令"（只能改盒子几何）  │
+│  禁止：直接调 PTY/剪贴板/终端池；不得发"数字尺寸命令"（只能改盒子几何）  │
 └───────────────▲───────────────────────────────────┬────────────────┘
    events / RESPONSE（hello/sources/key/paste/mouse/wheel/notice/component/view_rejected）
                                                       │ view / result
@@ -23,7 +23,7 @@
 └───────▲───────────────────────┬───────────────────────▲────────────┘
         │ frame                 │ bytes                  │ attach/resize/...
 ┌───────┴───────────┐  ┌────────┴─────────┐  ┌──────────┴───────────┐
-│ 终端设备（TTY）     │  │ PTY / daemon      │  │ builtin 组件（进程）   │
+│ 终端设备（TTY）     │  │ PTY / 终端池      │  │ builtin 组件（进程）   │
 │ 用户键盘/鼠标/resize│  │ 真实 shell 进程    │  │ terminal / 其它内容源 │
 └───────────────────┘  └──────────────────┘  └──────────────────────┘
 ```
@@ -69,7 +69,7 @@
   组件A ──event{type:"component",source,name,value}──▶ 宿主 ──▶ 程序    ① 语义事件上报
   程序 ──view 里组件的 props（title/focused/items…）──▶ 宿主 ──▶ 组件B  ② 声明式下发
   程序 ──result{method:"terminal.scroll",…}──▶ 宿主授权 ──▶ 组件B       ③ 命令式调用能力
-  组件X ──▶ 宿主共享能力（clipboard/history/daemon 生命周期）           ④ 共享资源只经宿主
+  组件X ──▶ 宿主共享能力（clipboard/history/终端池 生命周期）           ④ 共享资源只经宿主
 
 禁止：
   组件A ⇄ 组件B 直连（无地址/无句柄/无通道）

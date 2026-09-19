@@ -33,7 +33,7 @@ if [[ -e "$output_dir" ]]; then
 fi
 
 mkdir -p "$output_dir/bin" "$output_dir/source"
-daemon_pids=()
+pool_pids=()
 sampler_pid=""
 
 stop_pid() {
@@ -61,7 +61,7 @@ cleanup() {
 		wait "$sampler_pid" 2>/dev/null || true
 	fi
 	local pid
-	for pid in ${daemon_pids[@]+"${daemon_pids[@]}"}; do
+	for pid in ${pool_pids[@]+"${pool_pids[@]}"}; do
 		stop_pid "$pid"
 	done
 }
@@ -91,14 +91,14 @@ client="$output_dir/bin/anytty-bench-client"
 idle_tsv="$output_dir/idle.tsv"
 printf 'variant\tref\tpid\tterminals\tcols\trows\theap_alloc\theap_inuse\theap_sys\tphysical_median\tphysical_min\tphysical_max\tphysical_peak\trss_kb\tcpu_percent\tnum_gc\n' >"$idle_tsv"
 
-wait_for_daemon() {
+wait_for_pool() {
 	local socket="$1"
 	local run_dir="$2"
 	local pid="$3"
 	local attempt
 	for attempt in $(seq 1 200); do
 		if ! kill -0 "$pid" 2>/dev/null; then
-			echo "daemon exited before readiness; see $run_dir/daemon.stdout" >&2
+			echo "pool exited before readiness; see $run_dir/pool.stdout" >&2
 			return 1
 		fi
 		if [[ -S "$socket" ]] && env \
@@ -110,29 +110,35 @@ wait_for_daemon() {
 		fi
 		sleep 0.05
 	done
-	echo "daemon readiness timed out; see $run_dir/daemon.stdout" >&2
+	echo "pool readiness timed out; see $run_dir/pool.stdout" >&2
 	return 1
 }
 
-start_daemon() {
+start_pool() {
 	local variant="$1"
 	local binary="$2"
+	# 基线 ref 早于 pool 命名，只认识旧 daemon 子命令；当前二进制走 pool。
+	local subcommand="pool"
+	if ! "$binary" pool --help >/dev/null 2>&1; then
+		subcommand="daemon"
+	fi
 	run_dir="$output_dir/$variant"
-	socket="$run_dir/runtime/daemon.sock"
+	socket="$run_dir/runtime/pool.sock"
 	mkdir -p "$run_dir/config" "$run_dir/state" "$run_dir/runtime" "$run_dir/memstats"
 	chmod 700 "$run_dir/config" "$run_dir/state" "$run_dir/runtime" "$run_dir/memstats"
 	env \
 		XDG_CONFIG_HOME="$run_dir/config" \
 		XDG_STATE_HOME="$run_dir/state" \
 		XDG_RUNTIME_DIR="$run_dir/runtime" \
+		ANYTTY_POOL_MEMSTATS_DIR="$run_dir/memstats" \
 		ANYTTY_DAEMON_MEMSTATS_DIR="$run_dir/memstats" \
 		ANYTTY_DIAG_STAGE_FILE="$run_dir/stage" \
 		ANYTTY_DIRECT_SIGNALING_LISTEN="127.0.0.1:0" \
 		ANYTTY_DIRECT_ICE_TCP_LISTEN="127.0.0.1:0" \
-		"$binary" --socket "$socket" --log-file "$run_dir/daemon.log" daemon run >"$run_dir/daemon.stdout" 2>&1 &
-	daemon_pid=$!
-	daemon_pids+=("$daemon_pid")
-	wait_for_daemon "$socket" "$run_dir" "$daemon_pid"
+		"$binary" --socket "$socket" --log-file "$run_dir/pool.log" "$subcommand" run >"$run_dir/pool.stdout" 2>&1 &
+	pool_pid=$!
+	pool_pids+=("$pool_pid")
+	wait_for_pool "$socket" "$run_dir" "$pool_pid"
 }
 
 run_client() {
@@ -142,7 +148,7 @@ run_client() {
 		XDG_CONFIG_HOME="$run_dir/config" \
 		XDG_STATE_HOME="$run_dir/state" \
 		XDG_RUNTIME_DIR="$run_dir/runtime" \
-		"$client" --socket "$run_dir/runtime/daemon.sock" --log-file "$run_dir/client.log" "$@"
+		"$client" --socket "$run_dir/runtime/pool.sock" --log-file "$run_dir/client.log" "$@"
 }
 
 create_idle_terminals() {
@@ -226,9 +232,9 @@ measure_idle() {
 	local variant="$1"
 	local ref="$2"
 	local binary="$3"
-	start_daemon "$variant" "$binary"
+	start_pool "$variant" "$binary"
 	local active_run_dir="$run_dir"
-	local active_pid="$daemon_pid"
+	local active_pid="$pool_pid"
 	create_idle_terminals "$active_run_dir"
 	force_gc "$active_run_dir" "$active_pid" idle_gc
 	local memline
@@ -253,15 +259,15 @@ if ! git -C "$repo_root" diff --quiet || ! git -C "$repo_root" diff --cached --q
 	current_ref="$current_ref-dirty"
 fi
 
-echo "measuring baseline idle daemon"
+echo "measuring baseline idle pool"
 measure_idle baseline "$baseline_ref" "$baseline_binary"
-baseline_pid="$daemon_pid"
+baseline_pid="$pool_pid"
 stop_pid "$baseline_pid"
-daemon_pids=()
+pool_pids=()
 
-echo "measuring current idle daemon"
+echo "measuring current idle pool"
 measure_idle current "$current_ref" "$current_binary"
-current_pid="$daemon_pid"
+current_pid="$pool_pid"
 current_run_dir="$run_dir"
 
 baseline_physical="$(awk -F '\t' '$1 == "baseline" { print $10 }' "$idle_tsv")"
@@ -346,7 +352,7 @@ if [[ "$skip_burst" != "1" ]]; then
 fi
 
 stop_pid "$current_pid"
-daemon_pids=()
+pool_pids=()
 
 cat "$idle_tsv"
 cat "$output_dir/idle-summary.txt"
@@ -356,6 +362,6 @@ fi
 echo "artifacts=$output_dir"
 
 if [[ "$idle_pass" != "yes" ]]; then
-	echo "idle daemon did not meet <=45 MiB and >=35% reduction acceptance" >&2
+	echo "idle pool did not meet <=45 MiB and >=35% reduction acceptance" >&2
 	exit 1
 fi

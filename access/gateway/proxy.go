@@ -15,7 +15,7 @@ type halfCloser interface {
 
 // proxy copies bytes in both directions between client and upstream and
 // propagates half-close. It performs no framing, buffering or rewriting:
-// whatever wire the client speaks reaches the daemon unchanged and vice versa.
+// whatever wire the client speaks reaches the pool unchanged and vice versa.
 //
 // clientReader may carry buffered bytes from the pair-token pre-handshake so
 // no client byte is lost or duplicated. The proxy returns when both directions

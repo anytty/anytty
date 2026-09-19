@@ -6,9 +6,9 @@ Please use [GitHub private vulnerability reporting](https://github.com/anytty/an
 open a public issue containing exploit details, credentials, pairing material,
 terminal content, or private user data.
 
-The daemon is the final authority for terminal, file, device identity, and
-client permissions. A connection service can provide reachability but cannot
-grant terminal or file capabilities. Review
+The terminal pool running on the user's machine is the final authority for
+terminals, files, history, device identity, and client access. A connection
+service can provide reachability but cannot grant terminal or file capabilities. Review
 [`docs/SECURITY_BOUNDARY.md`](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
 
 Reports should include the affected version, prerequisites, a minimal

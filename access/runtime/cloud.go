@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	accesscontract "github.com/anytty/anytty/access/contract"
 	"github.com/anytty/anytty/access/localweb"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
-	remotev2daemon "github.com/anytty/anytty/daemon/remote"
+	remote "github.com/anytty/anytty/access/remote"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 
@@ -24,7 +24,7 @@ const cloudRuntimeCurrentWait = 3 * time.Second
 // 它实现 core.RemoteService，并拥有 enrollment 切换、撤销与 edge 选择。
 type CloudControl struct {
 	mu                sync.RWMutex
-	runtime           *clouddaemon.Runtime
+	runtime           *cloud.Runtime
 	runtimeCancel     context.CancelFunc
 	runtimeEnrollment cloudEnrollmentIdentity
 	wake              chan struct{}
@@ -43,7 +43,7 @@ type cloudEnrollmentIdentity struct {
 	enrolledAt time.Time
 }
 
-func cloudEnrollmentIdentityFromRecord(record clouddaemon.EnrollmentRecord) cloudEnrollmentIdentity {
+func cloudEnrollmentIdentityFromRecord(record cloud.EnrollmentRecord) cloudEnrollmentIdentity {
 	return cloudEnrollmentIdentity{daemonID: record.DaemonID, accountID: record.AccountID, enrolledAt: record.EnrolledAt}
 }
 
@@ -65,7 +65,7 @@ func (control *CloudControl) ConfigureLocalWeb(core localweb.Core) {
 	control.mu.Unlock()
 }
 
-func (control *CloudControl) setRuntime(runtime *clouddaemon.Runtime, cancel context.CancelFunc, record clouddaemon.EnrollmentRecord) {
+func (control *CloudControl) setRuntime(runtime *cloud.Runtime, cancel context.CancelFunc, record cloud.EnrollmentRecord) {
 	control.mu.Lock()
 	control.runtime = runtime
 	control.runtimeCancel = cancel
@@ -77,7 +77,7 @@ func (control *CloudControl) setRuntime(runtime *clouddaemon.Runtime, cancel con
 	control.mu.Unlock()
 }
 
-func (control *CloudControl) restartRuntimeForEnrollment(record clouddaemon.EnrollmentRecord) bool {
+func (control *CloudControl) restartRuntimeForEnrollment(record cloud.EnrollmentRecord) bool {
 	desired := cloudEnrollmentIdentityFromRecord(record)
 	control.mu.RLock()
 	running := control.runtime != nil
@@ -93,14 +93,14 @@ func (control *CloudControl) restartRuntimeForEnrollment(record clouddaemon.Enro
 	return true
 }
 
-func (control *CloudControl) runtimeUsesEnrollment(record clouddaemon.EnrollmentRecord) bool {
+func (control *CloudControl) runtimeUsesEnrollment(record cloud.EnrollmentRecord) bool {
 	desired := cloudEnrollmentIdentityFromRecord(record)
 	control.mu.RLock()
 	defer control.mu.RUnlock()
 	return control.runtime != nil && control.runtimeEnrollment == desired
 }
 
-func (control *CloudControl) waitRuntimeEnrollment(ctx context.Context, record clouddaemon.EnrollmentRecord, timeout time.Duration) {
+func (control *CloudControl) waitRuntimeEnrollment(ctx context.Context, record cloud.EnrollmentRecord, timeout time.Duration) {
 	if timeout <= 0 || control.runtimeUsesEnrollment(record) {
 		return
 	}
@@ -120,7 +120,7 @@ func (control *CloudControl) waitRuntimeEnrollment(ctx context.Context, record c
 	}
 }
 
-func (control *CloudControl) currentRuntime() (*clouddaemon.Runtime, bool, error) {
+func (control *CloudControl) currentRuntime() (*cloud.Runtime, bool, error) {
 	control.mu.RLock()
 	runtime := control.runtime
 	disabledPath := control.disabledPath
@@ -135,7 +135,7 @@ func (control *CloudControl) currentRuntime() (*clouddaemon.Runtime, bool, error
 	return runtime, false, nil
 }
 
-func (control *CloudControl) current(ctx context.Context) (*clouddaemon.Runtime, error) {
+func (control *CloudControl) current(ctx context.Context) (*cloud.Runtime, error) {
 	waitCtx, cancel := context.WithTimeout(ctx, cloudRuntimeCurrentWait)
 	defer cancel()
 	ticker := time.NewTicker(50 * time.Millisecond)
@@ -244,7 +244,7 @@ func (control *CloudControl) waitRuntimeRunning(ctx context.Context, want bool, 
 	}
 }
 
-func (control *CloudControl) cloudStatus(daemonRunning bool) (accesscontract.RemoteCloudStatus, error) {
+func (control *CloudControl) cloudStatus(poolRunning bool) (accesscontract.RemoteCloudStatus, error) {
 	control.mu.RLock()
 	runtime := control.runtime
 	recordPath := control.recordPath
@@ -257,7 +257,7 @@ func (control *CloudControl) cloudStatus(daemonRunning bool) (accesscontract.Rem
 	if disabledPath == "" {
 		disabledPath = DisabledPath()
 	}
-	return LoadCloudStatus(recordPath, disabledPath, runtime, daemonRunning, lastRuntimeError)
+	return LoadCloudStatus(recordPath, disabledPath, runtime, poolRunning, lastRuntimeError)
 }
 
 // Status 实现 core.RemoteService；当前 access runtime 不提供旧 remote 控制面。
@@ -348,7 +348,7 @@ func (control *CloudControl) CloudEnable(ctx context.Context) (accesscontract.Re
 	if err := removeCloudDisabled(); err != nil {
 		return accesscontract.RemoteCloudStatus{}, err
 	}
-	if record, err := clouddaemon.LoadRecord(EnrollmentRecordPath()); err == nil {
+	if record, err := cloud.LoadRecord(EnrollmentRecordPath()); err == nil {
 		control.restartRuntimeForEnrollment(record)
 		control.wakeLoop()
 		control.waitRuntimeEnrollment(ctx, record, 2*time.Second)
@@ -425,22 +425,22 @@ func cloudSelectionToCore(selection *cloudv1.DaemonEdgeSelection) accesscontract
 }
 
 // StartCloud 复用同一 Runtime 的 DeviceIdentity/AccessStore/Core，并让 Cloud runtime 只拥有发现和信令。
-func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access Runtime, logger *slog.Logger, control *CloudControl) (func(), error) {
+func StartCloud(ctx context.Context, core remote.TransportServer, access Runtime, logger *slog.Logger, control *CloudControl) (func(), error) {
 	if control == nil {
 		return nil, errors.New("Cloud runtime control is required")
 	}
 	recordPath := EnrollmentRecordPath()
 	disabledPath := DisabledPath()
 	control.Configure(recordPath, disabledPath)
-	var initial *clouddaemon.Runtime
-	record := clouddaemon.EnrollmentRecord{}
+	var initial *cloud.Runtime
+	record := cloud.EnrollmentRecord{}
 	if disabled, err := CloudDisabled(disabledPath); err != nil {
 		return nil, err
 	} else if !disabled {
 		var err error
-		record, err = clouddaemon.LoadRecord(recordPath)
+		record, err = cloud.LoadRecord(recordPath)
 		if errors.Is(err, os.ErrNotExist) {
-			record = clouddaemon.EnrollmentRecord{}
+			record = cloud.EnrollmentRecord{}
 			err = nil
 		}
 		if err != nil {
@@ -458,7 +458,7 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		defer control.setRuntime(nil, nil, clouddaemon.EnrollmentRecord{})
+		defer control.setRuntime(nil, nil, cloud.EnrollmentRecord{})
 		runtime := initial
 		for runCtx.Err() == nil {
 			if runtime == nil {
@@ -476,7 +476,7 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 					}
 					continue
 				}
-				next, loadErr := clouddaemon.LoadRecord(recordPath)
+				next, loadErr := cloud.LoadRecord(recordPath)
 				if errors.Is(loadErr, os.ErrNotExist) {
 					if !waitForCloudEnrollment(runCtx, control.wakeChannel()) {
 						return
@@ -490,7 +490,7 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 				runtime, loadErr = newCloudRuntime(next, recordPath, core, access, logger)
 				if loadErr != nil {
 					control.setRuntimeError(loadErr)
-					logger.Error("AnyTTY Cloud daemon runtime could not start", "error", loadErr)
+					logger.Error("AnyTTY Cloud pool runtime could not start", "error", loadErr)
 					if !waitForCloudEnrollment(runCtx, control.wakeChannel()) {
 						return
 					}
@@ -500,10 +500,10 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 			}
 			runtimeCtx, runtimeCancel := context.WithCancel(runCtx)
 			control.setRuntime(runtime, runtimeCancel, record)
-			logger.Info("AnyTTY Cloud daemon runtime started", "daemon_id", record.DaemonID)
+			logger.Info("AnyTTY Cloud pool runtime started", "daemon_id", record.DaemonID)
 			runErr := runtime.Run(runtimeCtx)
 			runtimeCancel()
-			control.setRuntime(nil, nil, clouddaemon.EnrollmentRecord{})
+			control.setRuntime(nil, nil, cloud.EnrollmentRecord{})
 			if releaseErr := access.Store.DisableManagedCloudRoute(); releaseErr != nil {
 				control.setRuntimeError(releaseErr)
 				logger.Error("AnyTTY Cloud route issuers could not be released", "error", releaseErr)
@@ -511,7 +511,7 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 			}
 			control.setRuntimeError(runErr)
 			if runErr != nil && runCtx.Err() == nil && !errors.Is(runErr, context.Canceled) {
-				logger.Error("AnyTTY Cloud daemon runtime stopped", "error", runErr)
+				logger.Error("AnyTTY Cloud pool runtime stopped", "error", runErr)
 			}
 			runtime = nil
 		}
@@ -519,12 +519,12 @@ func StartCloud(ctx context.Context, core remotev2daemon.TransportServer, access
 	return func() { cancel(); <-done }, nil
 }
 
-func newCloudRuntime(record clouddaemon.EnrollmentRecord, recordPath string, core remotev2daemon.TransportServer, access Runtime, logger *slog.Logger) (*clouddaemon.Runtime, error) {
+func newCloudRuntime(record cloud.EnrollmentRecord, recordPath string, core remote.TransportServer, access Runtime, logger *slog.Logger) (*cloud.Runtime, error) {
 	controller, err := CloudControllerEndpointFromEnvironment()
 	if err != nil {
 		return nil, err
 	}
-	return clouddaemon.NewAuthorizedRuntime(
+	return cloud.NewAuthorizedRuntime(
 		record, access.Identity, access.Store, core, "development",
 		func() {
 			logger.Info("AnyTTY Cloud DataChannel 已进入端到端授权", "daemon_id", record.DaemonID)
@@ -535,9 +535,9 @@ func newCloudRuntime(record clouddaemon.EnrollmentRecord, recordPath string, cor
 			}
 			logger.Warn("AnyTTY Cloud DataChannel 会话异常结束", "daemon_id", record.DaemonID, "error", sessionErr)
 		},
-		clouddaemon.WithPionLogger(logger),
-		clouddaemon.WithEnrollmentRecordPath(recordPath),
-		clouddaemon.WithControllerEndpoint(controller.Address, controller.ServerName, controller.CAPEM),
+		cloud.WithPionLogger(logger),
+		cloud.WithEnrollmentRecordPath(recordPath),
+		cloud.WithControllerEndpoint(controller.Address, controller.ServerName, controller.CAPEM),
 	)
 }
 

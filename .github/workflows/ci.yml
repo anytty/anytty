@@ -17,7 +17,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Test Windows ConPTY and history integration
-        run: go test ./core -run TestBundledConPTY -count=1
+        run: go test ./pool/core -run TestBundledConPTY -count=1
       - name: Test PowerShell installer
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-install.ps1

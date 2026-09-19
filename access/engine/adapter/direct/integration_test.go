@@ -23,13 +23,13 @@ import (
 	pionadapter "github.com/anytty/anytty/access/engine/adapter/webrtc/pion"
 	"github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
+	remote "github.com/anytty/anytty/access/remote"
 	accessserver "github.com/anytty/anytty/access/server"
 	remotev2webrtc "github.com/anytty/anytty/access/transport/webrtc"
-	core "github.com/anytty/anytty/daemon/core"
-	providercore "github.com/anytty/anytty/daemon/provider"
-	remotev2daemon "github.com/anytty/anytty/daemon/remote"
+	core "github.com/anytty/anytty/pool/core"
+	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -394,7 +394,7 @@ func newDirectFixtureWithPortMode(t *testing.T, sharedPort bool) *directFixture 
 	}
 	accessCore, stopAccessCore := startAccessCoreForRemoteTest(t, directCoreAccessService{store: store})
 	t.Cleanup(stopAccessCore)
-	acceptor := remotev2daemon.SessionAcceptor{
+	acceptor := remote.SessionAcceptor{
 		Core: accessCore, Identity: identity, AccessStore: store, Now: func() time.Time { return now },
 	}
 	closedSessions := &atomic.Int32{}
@@ -541,7 +541,7 @@ func (directCoreAccessService) Revoke(context.Context, string) (accesscontract.C
 }
 
 type countingHandler struct {
-	inner  remotev2daemon.SessionAcceptor
+	inner  remote.SessionAcceptor
 	closed *atomic.Int32
 }
 
@@ -641,7 +641,7 @@ func startAccessCoreForRemoteTest(t *testing.T, accessService accesscontract.Cli
 		Socket: filepath.Join(t.TempDir(), "access.sock"),
 		Auth:   &accessserver.AuthServices{Access: accessService},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, providerSocket)
+			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},
 	})
 	if err != nil {

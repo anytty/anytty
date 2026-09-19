@@ -1,7 +1,7 @@
 // Package server 是 access 的协议服务器：终结客户端 access wire，并按能力路由。
 //
 // 本包拥有单连接事件循环、Hello、请求预算与 stream channel registry；
-// 终端面转发给配置的 terminal provider（当前 = daemon），文件/转发/身份域在
+// 终端面转发给配置的 terminal provider（当前 = pool），文件/转发/身份域在
 // 后续阶段陆续在 access 本地终结。它不做鉴权：本地 unix 连接信任 0600 socket，
 // 远程连接必须先经过 remoteauth。
 package server

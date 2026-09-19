@@ -11,7 +11,7 @@ import (
 // TUI（tui2 宿主 + tui2-shell 布局程序）。
 func runV3RootCommand(cmd *cobra.Command, socket string, logFile string, configPath string) error {
 	if !isInteractiveTerminal() {
-		return fmt.Errorf("anytty TUI requires an interactive terminal; use `anytty --help` or subcommands like `new`, `ls`, `attach`, `kill`, `rm`, `daemon`")
+		return fmt.Errorf("anytty TUI requires an interactive terminal; use `anytty --help` or subcommands like `new`, `ls`, `attach`, `kill`, `rm`, `pool`")
 	}
 	if err := rejectNestedTUI(); err != nil {
 		return err

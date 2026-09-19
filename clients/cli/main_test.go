@@ -24,14 +24,14 @@ import (
 	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	"github.com/anytty/anytty/access/files"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessruntime "github.com/anytty/anytty/access/runtime"
 	accessserver "github.com/anytty/anytty/access/server"
-	corev2 "github.com/anytty/anytty/daemon/core"
-	"github.com/anytty/anytty/daemon/core/history"
-	providercore "github.com/anytty/anytty/daemon/provider"
 	"github.com/anytty/anytty/internal/protocol"
+	corev2 "github.com/anytty/anytty/pool/core"
+	"github.com/anytty/anytty/pool/core/history"
+	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -317,35 +317,57 @@ func TestAttachCmdBlocksNestedTUIByDefault(t *testing.T) {
 		t.Fatalf("expected nested attach rejection, got %v", err)
 	}
 }
-func TestDaemonAppliesHistoryStorageConfigFile(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	oldNewCoreV2Server := newCoreV2Server
-	t.Cleanup(func() { newCoreV2Server = oldNewCoreV2Server })
-	configPath := filepath.Join(t.TempDir(), "anytty.yaml")
-	if err := os.WriteFile(configPath, []byte("version: 1\ndaemon:\n  history:\n    max_size_mb: 64\n    max_age_days: 14\n    compression: s2\n    compression_level: best\n  resource_sampling:\n    interval_ms: 750\n    max_samples: 1024\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	fakeV3 := &fakeCoreV2Server{}
-	newCoreV2Server = func(opts ...corev2.ServerOption) coreV2Server {
-		server := newCoreV2TestServer(opts...)
-		if got := server.HistoryStorageConfig(); got.MaxBytesPerTerminal != 64<<20 || got.MaxAge != 14*24*time.Hour || got.Compression != corev2.HistoryCompressionS2 || got.CompressionLevel != corev2.HistoryCompressionLevelBest {
-			t.Fatalf("daemon did not apply history storage config: %#v", got)
-		}
-		if got := server.TerminalResourceSamplingConfig(); got.Interval != 750*time.Millisecond || got.MaxSamples != 1024 {
-			t.Fatalf("daemon did not apply resource sampling config: %#v", got)
-		}
-		return fakeV3
-	}
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"--config", configPath, "--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "daemon"})
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+func TestPoolAppliesHistoryStorageConfigFile(t *testing.T) {
+	// `pool:` 是当前段；`daemon:` 是升级兼容段，两者都必须被解析。
+	for _, section := range []string{"pool", "daemon"} {
+		t.Run(section, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", t.TempDir())
+			oldNewCoreV2Server := newCoreV2Server
+			t.Cleanup(func() { newCoreV2Server = oldNewCoreV2Server })
+			configPath := filepath.Join(t.TempDir(), "anytty.yaml")
+			config := "version: 1\n" + section + ":\n  history:\n    max_size_mb: 64\n    max_age_days: 14\n    compression: s2\n    compression_level: best\n  resource_sampling:\n    interval_ms: 750\n    max_samples: 1024\n"
+			if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			fakeV3 := &fakeCoreV2Server{}
+			newCoreV2Server = func(opts ...corev2.ServerOption) coreV2Server {
+				server := newCoreV2TestServer(opts...)
+				if got := server.HistoryStorageConfig(); got.MaxBytesPerTerminal != 64<<20 || got.MaxAge != 14*24*time.Hour || got.Compression != corev2.HistoryCompressionS2 || got.CompressionLevel != corev2.HistoryCompressionLevelBest {
+					t.Fatalf("pool did not apply %s history storage config: %#v", section, got)
+				}
+				if got := server.TerminalResourceSamplingConfig(); got.Interval != 750*time.Millisecond || got.MaxSamples != 1024 {
+					t.Fatalf("pool did not apply %s resource sampling config: %#v", section, got)
+				}
+				return fakeV3
+			}
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"--config", configPath, "--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "pool"})
+			cmd.SetOut(io.Discard)
+			cmd.SetErr(io.Discard)
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("Execute returned error: %v", err)
+			}
+		})
 	}
 }
 
-func TestDaemonCanDisableHistoryFromEnv(t *testing.T) {
+func TestPoolConfigSectionOverridesLegacyDaemonSection(t *testing.T) {
+	t.Setenv("ANYTTY_HISTORY_MAX_SIZE_MB", "")
+	configPath := filepath.Join(t.TempDir(), "anytty.yaml")
+	config := "version: 1\ndaemon:\n  history:\n    max_size_mb: 64\npool:\n  history:\n    max_size_mb: 32\n"
+	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadPoolRuntimeConfig(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.History.MaxSizeMB != 32 {
+		t.Fatalf("pool section must override legacy daemon section, got %d", loaded.History.MaxSizeMB)
+	}
+}
+
+func TestPoolCanDisableHistoryFromEnv(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	oldNewCoreV2Server := newCoreV2Server
@@ -360,7 +382,7 @@ func TestDaemonCanDisableHistoryFromEnv(t *testing.T) {
 		opts = append(opts, corev2.WithProcessFactory(newCoreV2ResizeRecordingProcessFactory()))
 		server := newCoreV2TestServer(opts...)
 		if server.HistoryStorageDir() != "" {
-			t.Fatalf("history disabled daemon must not configure history storage dir, got %q", server.HistoryStorageDir())
+			t.Fatalf("history disabled pool must not configure history storage dir, got %q", server.HistoryStorageDir())
 		}
 		if _, err := server.RegisterTerminal(corev2.TerminalRecord{ID: "term-disabled", Command: []string{"shell"}}); err != nil {
 			t.Fatalf("register disabled-history terminal: %v", err)
@@ -377,7 +399,7 @@ func TestDaemonCanDisableHistoryFromEnv(t *testing.T) {
 	}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "daemon"})
+	cmd.SetArgs([]string{"--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "pool"})
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
@@ -389,7 +411,7 @@ func TestDaemonCanDisableHistoryFromEnv(t *testing.T) {
 	}
 }
 
-func TestDaemonConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
+func TestPoolConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	oldNewCoreV2Server := newCoreV2Server
@@ -408,19 +430,19 @@ func TestDaemonConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
 		server := newCoreV2TestServer(opts...)
 		got := server.TerminalOutputBufferConfig()
 		if got.Overflow != corev2.TerminalOutputOverflowBlock || got.CapacityBytes != 12<<20 {
-			t.Fatalf("daemon did not pass output buffer env to core: %#v", got)
+			t.Fatalf("pool did not pass output buffer env to core: %#v", got)
 		}
 		if budget := server.TerminalOutputResidentBudget(); budget != 256<<20 {
-			t.Fatalf("daemon did not pass resident budget env to core: %d", budget)
+			t.Fatalf("pool did not pass resident budget env to core: %d", budget)
 		}
 		if resources := server.TerminalResourceSamplingConfig(); resources.Interval != 750*time.Millisecond || resources.MaxSamples != 1024 {
-			t.Fatalf("daemon did not pass resource sampling env to core: %#v", resources)
+			t.Fatalf("pool did not pass resource sampling env to core: %#v", resources)
 		}
 		return fakeV3
 	}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "daemon"})
+	cmd.SetArgs([]string{"--socket", filepath.Join(t.TempDir(), "anytty-v2.sock"), "--log-file", filepath.Join(t.TempDir(), "anytty.log"), "pool"})
 	cmd.SetOut(io.Discard)
 	cmd.SetErr(io.Discard)
 
@@ -432,12 +454,12 @@ func TestDaemonConfiguresTerminalOutputBufferFromEnv(t *testing.T) {
 	}
 }
 
-func TestV3PingConnectsExistingCoreV2Daemon(t *testing.T) {
+func TestV3PingConnectsExistingCoreV2Pool(t *testing.T) {
 	oldConnect := connectV3EndpointApplication
-	oldStart := startV3Daemon
+	oldStart := startV3Pool
 	t.Cleanup(func() {
 		connectV3EndpointApplication = oldConnect
-		startV3Daemon = oldStart
+		startV3Pool = oldStart
 	})
 
 	socketPath := filepath.Join(t.TempDir(), "anytty-v2.sock")
@@ -449,8 +471,8 @@ func TestV3PingConnectsExistingCoreV2Daemon(t *testing.T) {
 		dialed = true
 		return nil, endpointdomain.AccessRoute{}, nil
 	}
-	startV3Daemon = func(path string, logFile string) error {
-		t.Fatal("v3 ping must not auto-start when existing daemon is reachable")
+	startV3Pool = func(path string, logFile string) error {
+		t.Fatal("v3 ping must not auto-start when existing pool is reachable")
 		return nil
 	}
 
@@ -464,20 +486,20 @@ func TestV3PingConnectsExistingCoreV2Daemon(t *testing.T) {
 		t.Fatalf("Execute returned error: %v", err)
 	}
 	if !dialed {
-		t.Fatal("expected v3 ping to dial core-v2 daemon")
+		t.Fatal("expected v3 ping to dial core-v2 pool")
 	}
-	if !strings.Contains(out.String(), "anytty v3 daemon ok") || !strings.Contains(out.String(), socketPath) {
+	if !strings.Contains(out.String(), "anytty v3 pool ok") || !strings.Contains(out.String(), socketPath) {
 		t.Fatalf("unexpected v3 ping output:\n%s", out.String())
 	}
 }
 
-func TestV3PingAutoStartsCoreV2Daemon(t *testing.T) {
+func TestV3PingAutoStartsCoreV2Pool(t *testing.T) {
 	oldConnect := connectV3EndpointApplication
-	oldStart := startV3Daemon
+	oldStart := startV3Pool
 	oldAccessStart := startV3Access
 	t.Cleanup(func() {
 		connectV3EndpointApplication = oldConnect
-		startV3Daemon = oldStart
+		startV3Pool = oldStart
 		startV3Access = oldAccessStart
 	})
 
@@ -498,7 +520,7 @@ func TestV3PingAutoStartsCoreV2Daemon(t *testing.T) {
 		}
 		return nil, endpointdomain.AccessRoute{}, nil
 	}
-	startV3Daemon = func(path string, logFile string) error {
+	startV3Pool = func(path string, logFile string) error {
 		startCalls++
 		startedSocket = path
 		startedLog = logFile
@@ -522,28 +544,28 @@ func TestV3PingAutoStartsCoreV2Daemon(t *testing.T) {
 		t.Fatalf("expected one owner-managed connect attempt, got %d", connectCalls)
 	}
 	if startCalls != 1 || startedSocket != socketPath || startedLog != logPath {
-		t.Fatalf("unexpected v3 daemon auto-start: calls=%d socket=%q log=%q", startCalls, startedSocket, startedLog)
+		t.Fatalf("unexpected v3 pool auto-start: calls=%d socket=%q log=%q", startCalls, startedSocket, startedLog)
 	}
 	if accessStartCalls != 1 {
 		t.Fatalf("expected local stack auto-start to start access once, got %d", accessStartCalls)
 	}
-	if !strings.Contains(out.String(), "anytty v3 daemon ok") {
+	if !strings.Contains(out.String(), "anytty v3 pool ok") {
 		t.Fatalf("unexpected v3 ping output:\n%s", out.String())
 	}
 }
 
 func TestV3PingReturnsAutoStartError(t *testing.T) {
 	oldConnect := connectV3EndpointApplication
-	oldStart := startV3Daemon
+	oldStart := startV3Pool
 	t.Cleanup(func() {
 		connectV3EndpointApplication = oldConnect
-		startV3Daemon = oldStart
+		startV3Pool = oldStart
 	})
 
 	connectV3EndpointApplication = func(ctx context.Context, _ *clientruntime.SessionOwner, _ endpointdomain.Endpoint, _ endpointdomain.RouteID, _ clientruntime.ConnectIntent, options localadapter.Options, _ *slog.Logger) (*clientprotocol.ApplicationClient, endpointdomain.AccessRoute, error) {
 		return nil, endpointdomain.AccessRoute{}, options.Start(ctx, options.SocketOverride)
 	}
-	startV3Daemon = func(path string, logFile string) error {
+	startV3Pool = func(path string, logFile string) error {
 		return os.ErrPermission
 	}
 
@@ -558,7 +580,7 @@ func TestV3PingReturnsAutoStartError(t *testing.T) {
 	}
 }
 
-func TestV3PingConnectsRealCoreV2Daemon(t *testing.T) {
+func TestV3PingConnectsRealCoreV2Pool(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "anytty-v2.sock")
 	server := newCoreV2TestServer(corev2.WithSocketPath(socketPath + ".provider"))
 	stopProvider := startCoreV2ProviderServer(t, server, socketPath+".provider")
@@ -577,12 +599,12 @@ func TestV3PingConnectsRealCoreV2Daemon(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if !strings.Contains(out.String(), "anytty v3 daemon ok") || !strings.Contains(out.String(), socketPath) {
+	if !strings.Contains(out.String(), "anytty v3 pool ok") || !strings.Contains(out.String(), socketPath) {
 		t.Fatalf("unexpected v3 ping output:\n%s", out.String())
 	}
 }
 
-func TestStartCoreV2DaemonCommandUsesV3Daemon(t *testing.T) {
+func TestStartCoreV2PoolCommandUsesV3Pool(t *testing.T) {
 	oldExecutable := osExecutable
 	t.Cleanup(func() {
 		osExecutable = oldExecutable
@@ -592,20 +614,20 @@ func TestStartCoreV2DaemonCommandUsesV3Daemon(t *testing.T) {
 	osExecutable = func() (string, error) {
 		return exe, nil
 	}
-	got, err := buildStartCoreV2DaemonCommand("/tmp/anytty-v2.sock", "/tmp/anytty.log")
+	got, err := buildStartCoreV2PoolCommand("/tmp/anytty-v2.sock", "/tmp/anytty.log")
 	if err != nil {
-		t.Fatalf("buildStartCoreV2DaemonCommand returned error: %v", err)
+		t.Fatalf("buildStartCoreV2PoolCommand returned error: %v", err)
 	}
 	if got.Path != exe {
 		t.Fatalf("expected executable %q, got %q", exe, got.Path)
 	}
-	wantArgs := []string{exe, "--socket", "/tmp/anytty-v2.sock", "--log-file", "/tmp/anytty.log", "daemon"}
+	wantArgs := []string{exe, "--socket", "/tmp/anytty-v2.sock", "--log-file", "/tmp/anytty.log", "pool"}
 	if !reflect.DeepEqual(got.Args, wantArgs) {
-		t.Fatalf("unexpected v3 daemon args: %#v", got.Args)
+		t.Fatalf("unexpected v3 pool args: %#v", got.Args)
 	}
 }
 
-func TestStartCoreV2DaemonCommandCarriesHistoryDisableEnv(t *testing.T) {
+func TestStartCoreV2PoolCommandCarriesHistoryDisableEnv(t *testing.T) {
 	oldExecutable := osExecutable
 	t.Cleanup(func() {
 		osExecutable = oldExecutable
@@ -616,15 +638,15 @@ func TestStartCoreV2DaemonCommandCarriesHistoryDisableEnv(t *testing.T) {
 	osExecutable = func() (string, error) {
 		return exe, nil
 	}
-	got, err := buildStartCoreV2DaemonCommand("/tmp/anytty-v2.sock", "/tmp/anytty.log")
+	got, err := buildStartCoreV2PoolCommand("/tmp/anytty-v2.sock", "/tmp/anytty.log")
 	if err != nil {
-		t.Fatalf("buildStartCoreV2DaemonCommand returned error: %v", err)
+		t.Fatalf("buildStartCoreV2PoolCommand returned error: %v", err)
 	}
 	if got.Path != exe {
 		t.Fatalf("expected executable %q, got %q", exe, got.Path)
 	}
 	if !containsEnv(got.Env, "ANYTTY_HISTORY_DISABLE=1") {
-		t.Fatalf("auto-start daemon command must carry history disabled env, env=%#v", got.Env)
+		t.Fatalf("auto-start pool command must carry history disabled env, env=%#v", got.Env)
 	}
 }
 
@@ -637,7 +659,7 @@ func containsEnv(env []string, want string) bool {
 	return false
 }
 
-func TestStartCoreV2DaemonCommandCanCarryExplicitConfigPath(t *testing.T) {
+func TestStartCoreV2PoolCommandCanCarryExplicitConfigPath(t *testing.T) {
 	oldExecutable := osExecutable
 	t.Cleanup(func() {
 		osExecutable = oldExecutable
@@ -648,38 +670,38 @@ func TestStartCoreV2DaemonCommandCanCarryExplicitConfigPath(t *testing.T) {
 	osExecutable = func() (string, error) {
 		return exe, nil
 	}
-	got, err := buildStartCoreV2DaemonCommandWithConfig("/tmp/anytty-v2.sock", "/tmp/anytty.log", configPath)
+	got, err := buildStartCoreV2PoolCommandWithConfig("/tmp/anytty-v2.sock", "/tmp/anytty.log", configPath)
 	if err != nil {
-		t.Fatalf("buildStartCoreV2DaemonCommandWithConfig returned error: %v", err)
+		t.Fatalf("buildStartCoreV2PoolCommandWithConfig returned error: %v", err)
 	}
-	wantArgs := []string{exe, "--socket", "/tmp/anytty-v2.sock", "--log-file", "/tmp/anytty.log", "--config", configPath, "daemon"}
+	wantArgs := []string{exe, "--socket", "/tmp/anytty-v2.sock", "--log-file", "/tmp/anytty.log", "--config", configPath, "pool"}
 	if !reflect.DeepEqual(got.Args, wantArgs) {
-		t.Fatalf("unexpected v3 daemon args with config: %#v", got.Args)
+		t.Fatalf("unexpected v3 pool args with config: %#v", got.Args)
 	}
 }
 
 func TestDialOrStartV3ClientUsesConfigStarterWhenConfigPathIsExplicit(t *testing.T) {
 	oldDial := v3DialClient
-	oldStart := startV3Daemon
-	oldStartWithConfig := startV3DaemonWithConfig
+	oldStart := startV3Pool
+	oldStartWithConfig := startV3PoolWithConfig
 	oldAccessStart := startV3Access
 	oldConnect := connectV3EndpointApplication
 	t.Cleanup(func() {
 		v3DialClient = oldDial
-		startV3Daemon = oldStart
-		startV3DaemonWithConfig = oldStartWithConfig
+		startV3Pool = oldStart
+		startV3PoolWithConfig = oldStartWithConfig
 		startV3Access = oldAccessStart
 		connectV3EndpointApplication = oldConnect
 	})
 	configPath := filepath.Join(t.TempDir(), "anytty.yaml")
 	socketPath := filepath.Join(t.TempDir(), "anytty.sock")
 	logPath := filepath.Join(t.TempDir(), "anytty.log")
-	startV3Daemon = func(path string, logFile string) error {
-		t.Fatal("plain daemon starter must not be used when explicit config path is present")
+	startV3Pool = func(path string, logFile string) error {
+		t.Fatal("plain pool starter must not be used when explicit config path is present")
 		return nil
 	}
 	var gotSocket, gotLog, gotConfig string
-	startV3DaemonWithConfig = func(path string, logFile string, cfg string) error {
+	startV3PoolWithConfig = func(path string, logFile string, cfg string) error {
 		gotSocket, gotLog, gotConfig = path, logFile, cfg
 		return nil
 	}
@@ -887,7 +909,7 @@ func TestR448V3HistoryBacklogWritesDiagnostics(t *testing.T) {
 	startCLIAccessServer(t, socketPath)
 	client, err := dialV3Client(socketPath)
 	if err != nil {
-		t.Fatalf("dial core-v2 daemon: %v", err)
+		t.Fatalf("dial core-v2 pool: %v", err)
 	}
 	if _, err := createCLIProtoTerminal(context.Background(), client, &apipb.TerminalCreateSpec{TerminalId: "term-backlog", Command: []string{"shell"}, Size: &apipb.TerminalSize{Cols: 24, Rows: 4}}); err != nil {
 		t.Fatalf("create terminal: %v", err)
@@ -1138,7 +1160,7 @@ func newCoreV2TestServer(opts ...corev2.ServerOption) *corev2.Server {
 }
 
 // startCLIAccessServer 在 canonical socket 上启动 access（Auth 直答 + provider 路由）。
-// 调用方必须已经启动 daemon provider（<socketPath>.provider）。
+// 调用方必须已经启动 pool provider（<socketPath>.provider）。
 func startCLIAccessServer(t *testing.T, socketPath string) *accessserver.Server {
 	t.Helper()
 	access, err := accessserver.New(accessserver.Config{
@@ -1146,7 +1168,7 @@ func startCLIAccessServer(t *testing.T, socketPath string) *accessserver.Server 
 		Files:  files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")},
 		Auth:   &accessserver.AuthServices{Access: accessruntime.Service{DeviceIdentity: testCoreV2Identity()}},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, socketPath+".provider")
+			return poolprovider.DialTerminal(dialCtx, socketPath+".provider")
 		},
 	})
 	if err != nil {
@@ -1167,7 +1189,7 @@ func startCLIAccessServer(t *testing.T, socketPath string) *accessserver.Server 
 }
 
 // testCoreV2Identity 是 CLI 测试固定的 DeviceIdentity；Phase 4 后 identity
-// 由 access 直答，daemon 不再挂载 client access service。
+// 由 access 直答，pool 不再挂载 client access service。
 func testCoreV2Identity() remoteauth.Identity {
 	privateKey := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{0x42}, ed25519.SeedSize))
 	identity, err := remoteauth.NewIdentity("device-cli-test", privateKey)
@@ -1188,7 +1210,7 @@ func newCoreV2ProtocolClientForCLITestWithOptions(t *testing.T, opts ...corev2.S
 	if err != nil {
 		stopProvider()
 		_ = server.Shutdown(context.Background())
-		t.Fatalf("dial core-v2 daemon: %v", err)
+		t.Fatalf("dial core-v2 pool: %v", err)
 	}
 	closeFn := func() {
 		_ = client.Close()
@@ -1199,7 +1221,7 @@ func newCoreV2ProtocolClientForCLITestWithOptions(t *testing.T, opts ...corev2.S
 }
 
 // startCoreV2ProviderServer 在 providerSocket 上启动 provider 协议 listener，
-// 返回停止函数；daemon provider 就绪后才能启动 access。
+// 返回停止函数；pool provider 就绪后才能启动 access。
 func startCoreV2ProviderServer(t *testing.T, server *corev2.Server, providerSocket string) func() {
 	t.Helper()
 	if err := server.Start(context.Background()); err != nil {
@@ -1217,7 +1239,7 @@ func startCoreV2ProviderServer(t *testing.T, server *corev2.Server, providerSock
 	}); err != nil {
 		cancel()
 		_ = providerServer.Shutdown(context.Background())
-		t.Fatalf("daemon provider did not become ready: %v", err)
+		t.Fatalf("pool provider did not become ready: %v", err)
 	}
 	return func() {
 		cancel()

@@ -1,5 +1,5 @@
 // Package direct 拥有 Direct WebRTC 的网络入口、地址投影与 LAN discovery。
-// access gateway 组合本包；daemon 不再是 Direct listener 的 owner。
+// access gateway 组合本包；pool 不再是 Direct listener 的 owner。
 package direct
 
 import (

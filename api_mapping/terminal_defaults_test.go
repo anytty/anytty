@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"testing"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 )
 
-func TestTerminalDefaultsToProtoIncludesDaemonPlatformWithoutAliasing(t *testing.T) {
+func TestTerminalDefaultsToProtoIncludesPoolPlatformWithoutAliasing(t *testing.T) {
 	defaults := corev2.TerminalDefaults{
 		DefaultCommand: []string{"/bin/zsh"},
 		DefaultCWD:     "/Users/test",

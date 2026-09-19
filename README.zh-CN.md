@@ -19,13 +19,13 @@ AnyTTY 让终端会话一直跑在你自己的机器上。关掉窗口、切换�
 
 ## 快速安装
 
-**macOS / Linux - daemon、CLI 与 TUI**
+**macOS / Linux - 终端池、CLI 与 TUI**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
 ```
 
-**Windows PowerShell - daemon、CLI 与 TUI**
+**Windows PowerShell - 终端池、CLI 与 TUI**
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
@@ -50,15 +50,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
 
 ## 主要功能
 
-- **关掉窗口，任务继续跑。** `terminal` 是由 daemon 一直运行的任务，TUI 里的 `workspace` 和 `panel` 只是查看和操作它的界面。切换当前 panel 观察的终端，不会改变已有分屏、浮动窗或工作区布局，也不需要重启任务。
+- **关掉窗口，任务继续跑。** `terminal` 是由终端池持续运行的任务，TUI 里的 `workspace` 和 `panel` 只是查看和操作它的界面。切换当前 panel 观察的终端，不会改变已有分屏、浮动窗或工作区布局，也不需要重启任务。
 - **手机慢也不会拖累任务。** TUI Panel、CLI、WebView 和手机 App 各自按自己的节奏读取最新画面快照。某个客户端慢一点，只会让自己落后，不会让终端里的程序等待。
-- **Windows、macOS、Linux 体验一致。** Windows 是正式支持的一等平台，CLI、TUI 和 daemon 都提供 x64 与 ARM64 版本，核心功能不需要 WSL。
+- **Windows、macOS、Linux 体验一致。** Windows 是正式支持的一等平台，CLI、TUI 和终端池都提供 x64 与 ARM64 版本，核心功能不需要 WSL。
 - **本地和远程终端放在一起管理。** Local、SSH、Direct 或 Cloud 的终端都进入同一个选择器，可以像本地终端一样查看、切换和操作。远程工作站、服务器或构建机上的 AI Agent，也能纳入同一个工作流。
 - **历史记录不占内存。** 终端输出持续写入历史文件，实时界面只保留有界数据。历史记录没有固定行数上限，实际容量取决于磁盘空间。程序意外退出、连接中断或 Agent 挂机很久后，都能快速回到完整现场。
 - **快速发现停止更新的终端。** 手机 App 的终端列表和 TUI 选择器会同时展示状态与近期活动，方便定位长时间没有新输出的会话，判断任务是否还在运行。
 - **随时从不同设备接管。** 同一个终端可以在 TUI、CLI、内置 WebView 和 Android/iOS 手机 App 之间切换，不需要迁移或重启进程。移动端针对触控做了优化，提供 `Esc`、`Ctrl`、方向键、翻页等扩展按键。
-- **内网机器也能安全连接。** 可选的 AnyTTY Cloud 服务可以帮助位于 NAT 或内网中的 daemon 建立 P2P 连接；无法直连时自动使用 Relay 兜底，不需要把终端服务直接暴露到公网。
-- **远程连接默认加密。** SSH、Direct 和 Cloud 路由都使用经过身份验证和加密的连接。配对权限绑定到具体客户端，并可从 daemon 撤销。Relay 只转发加密流量，不拥有终端或文件权限。
+- **内网机器也能安全连接。** 可选的 AnyTTY Cloud 服务可以帮助位于 NAT 或内网中的终端池建立 P2P 连接；无法直连时自动使用 Relay 兜底，不需要把终端服务直接暴露到公网。
+- **远程连接默认加密。** SSH、Direct 和 Cloud 路由都使用经过身份验证和加密的连接。配对权限绑定到具体客户端，并可从终端池撤销。Relay 只转发加密流量，不拥有终端或文件权限。
 - **终端和文件走同一条连接。** AnyTTY 不只传输终端画面，还支持文件浏览、上传、下载、重命名和选择。连接远程机器后，可以像处理终端一样处理经过授权的文件。
 - **手机端文件管理和在线预览。** 手机 App 内置文件管理器，可浏览远程目录并预览常见文本、文档、图片、媒体和 3D 格式。查看日志、配置、构建结果或下载内容时，不用切换其他工具。
 
@@ -157,16 +157,16 @@ anytty update --check
 anytty update
 ```
 
-更新命令会同时核验 GitHub asset digest 和 `SHA256SUMS`。它只替换磁盘上的可执行文件，不会重启正在运行的 daemon，因此已有终端会继续由旧 daemon 进程承载，直到你主动重启它。
+更新命令会同时核验 GitHub asset digest 和 `SHA256SUMS`。它只替换磁盘上的可执行文件，不会重启正在运行的终端池，因此已有终端会继续由旧终端池进程承载，直到你主动重启它。
 
 更新检查会优先读取 `GH_TOKEN` 或 `GITHUB_TOKEN`；如果均未设置，则尝试使用已登录 GitHub CLI（`gh`）的凭据，从而避免匿名请求容易触发的共享 IP 限额。
 
 ## 快速开始
 
-启动当前用户的 daemon，然后打开 TUI：
+启动当前用户的终端池，然后打开 TUI：
 
 ```sh
-anytty daemon start
+anytty pool start
 anytty
 ```
 
@@ -183,19 +183,19 @@ anytty terminal list
 anytty attach workspace
 ```
 
-也可以在当前机器的 Web 浏览器中打开同一个 daemon：
+也可以在当前机器的 Web 浏览器中打开同一个终端池：
 
 ```sh
 anytty web
 ```
 
-该命令只监听 IPv4 回环地址并随机选择端口，然后打开默认浏览器。`anytty web --no-open` 只打印地址，`anytty web status` 查看状态，`anytty web stop` 关闭 Web 页面入口。关闭 Web 入口不会停止 daemon，也不会结束已有终端。
+该命令只监听 IPv4 回环地址并随机选择端口，然后打开默认浏览器。`anytty web --no-open` 只打印地址，`anytty web status` 查看状态，`anytty web stop` 关闭 Web 页面入口。关闭 Web 入口不会停止终端池，也不会结束已有终端。
 
 执行 `anytty --help` 可查看完整命令列表，也可以继续阅读[中文快速开始](https://anytty.com/zh-CN/docs/quick-start/)。
 
 ## 手机 App
 
-从 Release 页面安装 Android Beta APK，或通过 [TestFlight 加入 iOS 公开测试](https://testflight.apple.com/join/rfcgFyJh)，然后在 App 中选择“添加设备”。在运行 daemon 的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
+从 Release 页面安装 Android Beta APK，或通过 [TestFlight 加入 iOS 公开测试](https://testflight.apple.com/join/rfcgFyJh)，然后在 App 中选择“添加设备”。在运行终端池的机器上使用 `anytty pair create` 生成短时配对二维码或文本 claim，再用 App 扫描或粘贴。配对完成后，设备页会列出运行中的终端，并可从终端工作目录打开文件浏览器。
 
 手机 App 同时支持 Android 与 iOS。Android Beta APK 可从 Release 页面安装，iOS 公开测试可通过 [TestFlight](https://testflight.apple.com/join/rfcgFyJh) 加入。
 
@@ -225,9 +225,9 @@ make build
 
 ## 开源版本与 AnyTTY Cloud
 
-AnyTTY 的 Apache-2.0 开源版本包含 CLI、TUI、daemon、共享 UI、Android 与 iOS 源码，以及 Local、SSH、Direct 等连接方式。你可以直接用它管理本地与远程终端、文件和长期任务，也可以自行构建各平台客户端。
+AnyTTY 的 Apache-2.0 开源版本包含 CLI、TUI、终端池、共享 UI、Android 与 iOS 源码，以及 Local、SSH、Direct 等连接方式。你可以直接用它管理本地与远程终端、文件和长期任务，也可以自行构建各平台客户端。
 
-在此基础上，AnyTTY 还额外提供官方托管的 Cloud 服务，负责设备发现、P2P 协商和无法直连时的 Relay 兜底，让位于 NAT 或内网中的终端也能更轻松地安全连接。Cloud 是可选的即开即用服务，终端与文件权限仍由你自己的 daemon 控制。用户可见的信任模型见[安全边界](docs/zh-CN/SECURITY_BOUNDARY.md)。
+在此基础上，AnyTTY 还额外提供官方托管的 Cloud 服务，负责设备发现、P2P 协商和无法直连时的 Relay 兜底，让位于 NAT 或内网中的终端也能更轻松地安全连接。Cloud 是可选的即开即用服务，终端与文件权限仍由你自己的终端池控制。用户可见的信任模型见[安全边界](docs/zh-CN/SECURITY_BOUNDARY.md)。
 
 ## 项目入口
 

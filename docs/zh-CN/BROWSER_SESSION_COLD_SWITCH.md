@@ -68,7 +68,7 @@ channel 名称：`com.anytty.app/browser-proxy`
 
 native 实现必须在返回前完成本地代理或 WebView 的 per-instance route 配置。`sessionId`、`endpointId` 和 `routeId` 不匹配时 Flutter 会拒绝 lease。
 
-Android 通过 AndroidX WebKit `ProxyController` 把当前 WebView provider 的所有 scheme 指向 Flutter 在 loopback 上启动的 HTTP proxy，并移除 implicit rules。iOS 17 及以上通过默认 `WKWebsiteDataStore` 的 HTTP CONNECT proxy configuration 完成同样的绑定。WebView 在代理配置成功后才创建，因此本地负责渲染，目标连接和 DNS 由 Go daemon 通过当前 endpoint 的 browser resource 完成。
+Android 通过 AndroidX WebKit `ProxyController` 把当前 WebView provider 的所有 scheme 指向 Flutter 在 loopback 上启动的 HTTP proxy，并移除 implicit rules。iOS 17 及以上通过默认 `WKWebsiteDataStore` 的 HTTP CONNECT proxy configuration 完成同样的绑定。WebView 在代理配置成功后才创建，因此本地负责渲染，目标连接和 DNS 由 Go 终端池通过当前 endpoint 的 browser resource 完成。
 
 ### `close`
 
@@ -80,7 +80,7 @@ Android 通过 AndroidX WebKit `ProxyController` 把当前 WebView provider 的�
 
 native 实现必须关闭该 lease 产生的 listener、socket、DNS resolver 和远程 stream，并保证重复 close 幂等。
 
-Go client/daemon 已增加 `BROWSER_PROXY` resource：Flutter loopback proxy 每接收一个 HTTP CONNECT 或 HTTP 请求，就为该 TCP 连接打开一个独立 resource；数据以有界的 binary stream 双向转发，daemon 在远程 session 所在机器上执行目标 TCP dial。目标 hostname 不在手机上解析，HTTP CONNECT 对 HTTPS、WebSocket 和其他 TLS 流量保持端到端字节转发，因此 DNS 和 TCP 都留在远程 session。Android WebView 显式移除 localhost、`127.0.0.0/8` 和 link-local 地址的隐式 bypass，所以 `127.0.0.1` 指向远程 session 机器的 loopback，而不是手机本地 loopback。
+Go client/终端池已增加 `BROWSER_PROXY` resource：Flutter loopback proxy 每接收一个 HTTP CONNECT 或 HTTP 请求，就为该 TCP 连接打开一个独立 resource；数据以有界的 binary stream 双向转发，终端池在远程 session 所在机器上执行目标 TCP dial。目标 hostname 不在手机上解析，HTTP CONNECT 对 HTTPS、WebSocket 和其他 TLS 流量保持端到端字节转发，因此 DNS 和 TCP 都留在远程 session。Android WebView 显式移除 localhost、`127.0.0.0/8` 和 link-local 地址的隐式 bypass，所以 `127.0.0.1` 指向远程 session 机器的 loopback，而不是手机本地 loopback。
 
 当前实现限制为一个可见浏览器实例和一个 active native proxy lease。多 session 通过冷切换隔离：目标设备先完成 session provider、代理 listener 和快照准备，准备失败时当前 WebView 保持不变；准备成功后才关闭旧连接、从 widget tree 移除并销毁旧 WebView、清理 shared website data，再创建新实例。最后一步代理绑定发生竞态失败时，会自动排队恢复原 session。Android 需要 WebView provider 支持 `PROXY_OVERRIDE`；iOS 需要 iOS 17 或更高版本。能力不满足时会 fail closed，页面不会退回手机直连。
 

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/anytty/anytty/access/accessrun"
-	corev2 "github.com/anytty/anytty/daemon/core"
-	daemonprovider "github.com/anytty/anytty/daemon/provider"
+	corev2 "github.com/anytty/anytty/pool/core"
+	poolprovider "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/shared/perftrace"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +36,7 @@ func v3Command(socket *string, logFile *string, configPath *string) *cobra.Comma
 			return cmd.Help()
 		},
 	}
-	cmd.AddCommand(v3DaemonCommand(socket, logFile, configPath))
+	cmd.AddCommand(v3PoolCommand(socket, logFile, configPath))
 	cmd.AddCommand(v3PingCommand(socket, logFile))
 	cmd.AddCommand(v3TmuxSmokeCommand())
 	cmd.AddCommand(v3TmuxTerminalSmokeCommand())
@@ -53,12 +53,41 @@ func v3Command(socket *string, logFile *string, configPath *string) *cobra.Comma
 	return cmd
 }
 
-func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra.Command {
-	var runDaemon func(*cobra.Command, []string) error
+// v3PoolCommand is the `anytty pool` command group.
+func v3PoolCommand(socket *string, logFile *string, configPath *string) *cobra.Command {
+	return newPoolCommandGroup("pool", socket, logFile, configPath)
+}
+
+// v3DeprecatedDaemonCommand keeps `anytty daemon ...` working as a hidden alias
+// of `anytty pool ...` while printing a one-line deprecation notice.
+func v3DeprecatedDaemonCommand(socket *string, logFile *string, configPath *string) *cobra.Command {
+	command := newPoolCommandGroup("daemon", socket, logFile, configPath)
+	command.Hidden = true
+	command.Short = "Deprecated alias for `anytty pool`"
+	command.Long = "Deprecated alias for `anytty pool`. Use `anytty pool ...` instead."
+	wrapPoolCommandDeprecation(command)
+	return command
+}
+
+func wrapPoolCommandDeprecation(command *cobra.Command) {
+	if command.RunE != nil {
+		run := command.RunE
+		command.RunE = func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.ErrOrStderr(), "anytty daemon is deprecated; use `anytty pool` instead")
+			return run(cmd, args)
+		}
+	}
+	for _, child := range command.Commands() {
+		wrapPoolCommandDeprecation(child)
+	}
+}
+
+func newPoolCommandGroup(use string, socket *string, logFile *string, configPath *string) *cobra.Command {
+	var runPool func(*cobra.Command, []string) error
 	var directListen string
 	command := &cobra.Command{
-		Use:   "daemon",
-		Short: "Manage the current-user core-v2 daemon",
+		Use:   use,
+		Short: "Manage the current-user terminal pool",
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			address := strings.TrimSpace(directListen)
 			if address == "" {
@@ -71,7 +100,7 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		},
 	}
 	command.PersistentFlags().StringVar(&directListen, "route", "", "Direct listen HOST:PORT recorded for pairing route defaults; serve it with anytty-access --route")
-	runDaemon = func(cmd *cobra.Command, args []string) error {
+	runPool = func(cmd *cobra.Command, args []string) error {
 		logger, closeLogger, logPath, err := openLogFileLogger(*logFile)
 		if err != nil {
 			return err
@@ -79,11 +108,11 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		defer closeLogger()
 
 		if address := strings.TrimSpace(os.Getenv("ANYTTY_DIRECT_LISTEN")); address != "" {
-			logger.Warn("Direct listener is served by anytty-access; daemon only records this address for pairing route defaults", "route", address)
+			logger.Warn("Direct listener is served by anytty-access; terminal pool only records this address for pairing route defaults", "route", address)
 		}
 		socketPath := resolveV3Socket(*socket)
-		applyDaemonRuntimeTuning(logger)
-		runtimeConfig, err := loadDaemonRuntimeConfig(*configPath)
+		applyPoolRuntimeTuning(logger)
+		runtimeConfig, err := loadPoolRuntimeConfig(*configPath)
 		if err != nil {
 			return err
 		}
@@ -102,7 +131,7 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 			MaxSamples: runtimeConfig.ResourceSampling.MaxSamples,
 		}
 		historyDir := resolveV3HistoryStorageDir()
-		releaseRecord, err := acquireDaemonRuntimeRecord(socketPath, logPath, *configPath)
+		releaseRecord, err := acquirePoolRuntimeRecord(socketPath, logPath, *configPath)
 		if err != nil {
 			return err
 		}
@@ -129,16 +158,16 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		srv := newCoreV2Server(opts...)
 		ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 		defer stop()
-		stopPerfTrace, perfTracePath, perfTraceEnabled := perftrace.EnableFromEnvWithProcess(ctx, "core-v2-daemon")
+		stopPerfTrace, perfTracePath, perfTraceEnabled := perftrace.EnableFromEnvWithProcess(ctx, "core-v2-pool")
 		defer stopPerfTrace()
 		if perfTraceEnabled {
-			logger.Info("core-v2 daemon perftrace enabled", "path", perfTracePath)
+			logger.Info("terminal pool perftrace enabled", "path", perfTracePath)
 		}
-		writeHeapProfile := startDaemonHeapProfiler(ctx, logger)
+		writeHeapProfile := startPoolHeapProfiler(ctx, logger)
 		defer func() {
 			_ = srv.Shutdown(context.Background())
 		}()
-		logger.Info("starting core-v2 daemon", "socket", providerSocket, "client_socket", socketPath, "log_file", logPath, "history_dir", historyDir, "history_enabled", historyEnabled, "history_max_bytes_per_terminal", historyStorage.MaxBytesPerTerminal, "history_max_age", historyStorage.MaxAge, "history_compression", historyStorage.Compression, "history_compression_level", historyStorage.CompressionLevel)
+		logger.Info("starting terminal pool", "socket", providerSocket, "client_socket", socketPath, "log_file", logPath, "history_dir", historyDir, "history_enabled", historyEnabled, "history_max_bytes_per_terminal", historyStorage.MaxBytesPerTerminal, "history_max_age", historyStorage.MaxAge, "history_compression", historyStorage.Compression, "history_compression_level", historyStorage.CompressionLevel)
 		if err := srv.Start(ctx); err != nil {
 			logger.Error("core-v2 terminal server failed to start", "error", err)
 			return err
@@ -147,10 +176,10 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		if !isCoreServer {
 			// 测试注入的 server 自行管理生命周期。
 			writeHeapProfile("exit")
-			logger.Info("core-v2 daemon exited")
+			logger.Info("terminal pool exited")
 			return nil
 		}
-		providerServer, err := daemonprovider.New(coreServer, daemonprovider.Config{Socket: providerSocket, Logger: logger})
+		providerServer, err := poolprovider.New(coreServer, poolprovider.Config{Socket: providerSocket, Logger: logger})
 		if err != nil {
 			logger.Error("terminal provider server failed", "error", err)
 			return err
@@ -159,22 +188,22 @@ func v3DaemonCommand(socket *string, logFile *string, configPath *string) *cobra
 		err = providerServer.ListenAndServe(ctx)
 		writeHeapProfile("exit")
 		if err != nil {
-			logger.Error("core-v2 daemon exited with error", "error", err)
+			logger.Error("terminal pool exited with error", "error", err)
 		} else {
-			logger.Info("core-v2 daemon exited")
+			logger.Info("terminal pool exited")
 		}
 		return err
 	}
-	command.RunE = runDaemon
+	command.RunE = runPool
 	command.Args = cobra.NoArgs
-	addDaemonLifecycleCommands(command, socket, logFile, configPath, runDaemon)
+	addPoolLifecycleCommands(command, socket, logFile, configPath, runPool)
 	return command
 }
 
 func v3PingCommand(socket *string, logFile *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ping",
-		Short: "Connect to the experimental core-v2 daemon",
+		Short: "Connect to the experimental core-v2 terminal pool",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger, closeLogger, logPath, err := openLogFileLogger(*logFile)
 			if err != nil {
@@ -189,7 +218,7 @@ func v3PingCommand(socket *string, logFile *string) *cobra.Command {
 			if client != nil {
 				defer client.Close()
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "anytty v3 daemon ok: socket=%s\n", socketPath)
+			fmt.Fprintf(cmd.OutOrStdout(), "anytty v3 pool ok: socket=%s\n", socketPath)
 			return nil
 		},
 	}
@@ -237,9 +266,9 @@ func v3TmuxTerminalSmokeCommand() *cobra.Command {
 			}
 			fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"anytty v3 tmux terminal smoke ok: terminal=%s session=%s input=%s artifact_dir=%s ansi=%s plain=%s daemon_log=%s socket=%s timeline=%s\n",
+				"anytty v3 tmux terminal smoke ok: terminal=%s session=%s input=%s artifact_dir=%s ansi=%s plain=%s pool_log=%s socket=%s timeline=%s\n",
 				result.TerminalID, result.Session, result.SentInput, result.ArtifactDir,
-				result.ANSIPath, result.PlainPath, result.DaemonLog, result.SocketPath, result.TimelinePath,
+				result.ANSIPath, result.PlainPath, result.PoolLog, result.SocketPath, result.TimelinePath,
 			)
 			return nil
 		},
@@ -267,9 +296,9 @@ func v3TmuxResizeSmokeCommand() *cobra.Command {
 			}
 			fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"anytty v3 tmux resize smoke ok: terminal=%s session=%s before=%s after=%s artifact_dir=%s ansi=%s plain=%s daemon_log=%s socket=%s timeline=%s\n",
+				"anytty v3 tmux resize smoke ok: terminal=%s session=%s before=%s after=%s artifact_dir=%s ansi=%s plain=%s pool_log=%s socket=%s timeline=%s\n",
 				result.TerminalID, result.Session, result.BeforeSize, result.AfterSize, result.ArtifactDir,
-				result.ANSIPath, result.PlainPath, result.DaemonLog, result.SocketPath, result.TimelinePath,
+				result.ANSIPath, result.PlainPath, result.PoolLog, result.SocketPath, result.TimelinePath,
 			)
 			return nil
 		},
@@ -297,9 +326,9 @@ func v3TmuxANSISmokeCommand() *cobra.Command {
 			}
 			fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"anytty v3 tmux ansi smoke ok: terminal=%s session=%s artifact_dir=%s ansi=%s plain=%s daemon_log=%s socket=%s timeline=%s\n",
+				"anytty v3 tmux ansi smoke ok: terminal=%s session=%s artifact_dir=%s ansi=%s plain=%s pool_log=%s socket=%s timeline=%s\n",
 				result.TerminalID, result.Session, result.ArtifactDir,
-				result.ANSIPath, result.PlainPath, result.DaemonLog, result.SocketPath, result.TimelinePath,
+				result.ANSIPath, result.PlainPath, result.PoolLog, result.SocketPath, result.TimelinePath,
 			)
 			return nil
 		},

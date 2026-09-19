@@ -461,7 +461,7 @@ func (m *Manager) pruneDetached(state *endpointState, index map[string]*apipb.Te
 	}
 	m.mu.Unlock()
 	for _, p := range stale {
-		p.fail(fmt.Errorf("endpoint %q: terminal %s was removed on the daemon", state.cfg.Name, p.id))
+		p.fail(fmt.Errorf("endpoint %q: terminal %s was removed in the terminal pool", state.cfg.Name, p.id))
 	}
 }
 

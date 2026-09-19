@@ -31,7 +31,7 @@ type v3TmuxSmokeResult struct {
 	ArtifactDir  string
 	ANSIPath     string
 	PlainPath    string
-	DaemonLog    string
+	PoolLog      string
 	SocketPath   string
 	TimelinePath string
 }
@@ -44,7 +44,7 @@ type v3TmuxResizeSmokeResult struct {
 	ArtifactDir  string
 	ANSIPath     string
 	PlainPath    string
-	DaemonLog    string
+	PoolLog      string
 	SocketPath   string
 	TimelinePath string
 }
@@ -55,7 +55,7 @@ type v3TmuxANSISmokeResult struct {
 	ArtifactDir  string
 	ANSIPath     string
 	PlainPath    string
-	DaemonLog    string
+	PoolLog      string
 	SocketPath   string
 	TimelinePath string
 }
@@ -71,7 +71,7 @@ type v3TmuxHarness struct {
 	session      string
 	artifactDir  string
 	socketPath   string
-	daemonLog    string
+	poolLog      string
 	harnessEnv   []string
 	anyttyBin    string
 	timelinePath string
@@ -113,7 +113,7 @@ func runV3TmuxSmoke(ctx context.Context, anyttyBin string) (v3TmuxSmokeResult, e
 	return v3TmuxSmokeResult{
 		Session: harness.session, TerminalID: "term-1", SentInput: "echo tui2-smoke-ok",
 		ArtifactDir: harness.artifactDir, ANSIPath: ansiPath, PlainPath: plainPath,
-		DaemonLog: harness.daemonLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
+		PoolLog: harness.poolLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
 	}, nil
 }
 
@@ -154,7 +154,7 @@ func runV3TmuxTerminalSmoke(ctx context.Context, anyttyBin string) (v3TmuxSmokeR
 	return v3TmuxSmokeResult{
 		Session: harness.session, TerminalID: "term-1", SentInput: "echo attach-smoke-ok",
 		ArtifactDir: harness.artifactDir, ANSIPath: ansiPath, PlainPath: plainPath,
-		DaemonLog: harness.daemonLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
+		PoolLog: harness.poolLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
 	}, nil
 }
 
@@ -190,7 +190,7 @@ func runV3TmuxResizeSmoke(ctx context.Context, anyttyBin string) (v3TmuxResizeSm
 	return v3TmuxResizeSmokeResult{
 		Session: harness.session, TerminalID: "term-1", BeforeSize: before, AfterSize: after,
 		ArtifactDir: harness.artifactDir, ANSIPath: ansiPath, PlainPath: plainPath,
-		DaemonLog: harness.daemonLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
+		PoolLog: harness.poolLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
 	}, nil
 }
 
@@ -239,7 +239,7 @@ func runV3TmuxANSISmoke(ctx context.Context, anyttyBin string) (v3TmuxANSISmokeR
 	return v3TmuxANSISmokeResult{
 		Session: harness.session, TerminalID: "term-1",
 		ArtifactDir: harness.artifactDir, ANSIPath: ansiPath, PlainPath: plainPath,
-		DaemonLog: harness.daemonLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
+		PoolLog: harness.poolLog, SocketPath: harness.socketPath, TimelinePath: harness.timelinePath,
 	}, nil
 }
 
@@ -341,7 +341,7 @@ func newV3TmuxHarnessWithSizeAndArgs(ctx context.Context, anyttyBin, tag string,
 		return nil, err
 	}
 	return &v3TmuxHarness{
-		session: session, artifactDir: baseDir, socketPath: socketPath, daemonLog: logPath,
+		session: session, artifactDir: baseDir, socketPath: socketPath, poolLog: logPath,
 		anyttyBin: anyttyBin, timelinePath: filepath.Join(baseDir, "timeline.txt"),
 	}, nil
 }

@@ -1177,7 +1177,7 @@ func (g *gateHandler) createDaemon(req runtime.Request) (runtime.Outcome, bool) 
 	}
 	id := info.GetRef().GetTerminalId()
 	if id == "" {
-		return runtime.Outcome{Error: "daemon returned an empty terminal id"}, false
+		return runtime.Outcome{Error: "terminal pool returned an empty terminal id"}, false
 	}
 	command := append([]string(nil), info.GetCommand()...)
 	if len(command) == 0 {

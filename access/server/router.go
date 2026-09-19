@@ -8,7 +8,7 @@ import (
 )
 
 // CommandFamily 是 access 路由的能力族。Phase 1 只有 terminal provider 一项，
-// 其余族暂时透传给同一个 provider（daemon 仍有这些实现），Phase 2/4 会依次
+// 其余族暂时透传给同一个 provider（pool 仍有这些实现），Phase 2/4 会依次
 // 在 access 本地终结。
 type CommandFamily uint8
 
@@ -116,7 +116,7 @@ func familyOfCommand(command *apipb.CommandEnvelope) CommandFamily {
 
 // routeCommand 选择 command 的执行者。
 //
-// Phase 1：所有 family 都交给 terminal provider（daemon 仍实现文件/转发/storage/
+// Phase 1：所有 family 都交给 terminal provider（pool 仍实现文件/转发/storage/
 // client_access 代理），但分类已经显式化，Phase 2/4 只需替换对应分支为
 // access 本地 handler，不需要改动 session/framing 层。
 func (session *session) routeCommand(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {

@@ -16,7 +16,7 @@ body:
     id: area
     attributes:
       label: Area
-      options: [CLI/TUI, Core daemon, Shared UI, Android, iOS, Connectivity, Pairing/security, Public protocol, Documentation, Build/CI, Other]
+      options: [CLI/TUI, Core terminal pool, Shared UI, Android, iOS, Connectivity, Pairing/security, Public protocol, Documentation, Build/CI, Other]
     validations:
       required: true
   - type: textarea

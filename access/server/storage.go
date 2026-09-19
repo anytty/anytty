@@ -184,7 +184,7 @@ type localSubscription struct {
 }
 
 // storageSubscriptionRequested 报告订阅是否覆盖 storage 变更。
-// Types 为空表示订阅全部事件类型（与 daemon EventFilter 语义一致）。
+// Types 为空表示订阅全部事件类型（与 pool EventFilter 语义一致）。
 func storageSubscriptionRequested(command *apipb.EventSubscribeCommand) bool {
 	if command == nil {
 		return false

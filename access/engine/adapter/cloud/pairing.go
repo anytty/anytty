@@ -14,7 +14,7 @@ import (
 )
 
 // PairingConnector 通过 Cloud bootstrap ticket 建立 pairing-only DataChannel。
-// claim 的验证和消费仍由公共 PairingService 与 owning daemon 完成。
+// claim 的验证和消费仍由公共 PairingService 与 owning pool 完成。
 type PairingConnector struct {
 	Peers   PeerFactory
 	Cloud   *cloudclient.Client

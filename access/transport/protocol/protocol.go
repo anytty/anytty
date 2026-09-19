@@ -1,5 +1,5 @@
 // Package protocol defines the stable Cloud wire contract shared by clients,
-// daemons, and the proprietary AnyTTY Cloud services.
+// terminal pools, and the proprietary AnyTTY Cloud services.
 package protocol
 
 import "time"

@@ -1,7 +1,7 @@
 // Package terminal 定义 access 路由层使用的 terminal provider 契约。
 //
 // access 终结客户端 access wire 后，把终端能力路由给一个 Provider。当前实现是
-// daemon provider（owner-only 本地 socket）；tmux/zellij 等翻译型 provider 以后
+// pool provider（owner-only 本地 socket）；tmux/zellij 等翻译型 provider 以后
 // 实现同一契约。Provider 不持有 DeviceIdentity/AccessStore，也不做鉴权：调用方
 // （access/server）已经完成本地信任边界或 remoteauth。
 //

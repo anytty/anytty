@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
-	corehistory "github.com/anytty/anytty/daemon/core/history"
+	corev2 "github.com/anytty/anytty/pool/core"
+	corehistory "github.com/anytty/anytty/pool/core/history"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"google.golang.org/protobuf/encoding/protowire"
 )

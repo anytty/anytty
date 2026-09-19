@@ -10,7 +10,7 @@ import (
 // The v1 "command" model starts a local PTY whose argv is the endpoint
 // command, so the same protocol path serves a plain shell, a container
 // (`docker exec -it ...`) or a remote attach (`ssh host anytty attach ...`).
-// The v2 "daemon" model connects the host to an already running anytty daemon
+// The v2 "daemon" model connects the host to an already running anytty terminal pool
 // over a transport (local-unix first): the shell sends kind/socket/
 // connect_mode in terminal.create/attach and endpoint.sync, while the host
 // speaks the daemon protocol directly (ENDPOINTS.zh-CN.md §2, §3).

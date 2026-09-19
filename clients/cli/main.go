@@ -28,18 +28,6 @@ func Main(versionOverride string) int {
 	return 0
 }
 
-// RunDaemon runs the foreground daemon entry (`anytty daemon run`) and
-// returns the process exit code. It backs the daemon/cmd/anyttyd binary.
-func RunDaemon(args []string) int {
-	command := newRootCmd()
-	command.SetArgs(append([]string{"daemon", "run"}, args...))
-	if err := command.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return cliExitCode(err)
-	}
-	return 0
-}
-
 func newRootCmd() *cobra.Command {
 	var socket string
 	var logFile string
@@ -47,7 +35,7 @@ func newRootCmd() *cobra.Command {
 	var globalTimeout time.Duration
 	cmd := &cobra.Command{
 		Use:           "anytty",
-		Short:         "A terminal multiplexer for local and remote daemon endpoints",
+		Short:         "A terminal multiplexer for local and remote terminal pools",
 		Version:       version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -59,7 +47,8 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&logFile, "log-file", "", "log file path (default: $ANYTTY_LOG_FILE or XDG state dir)")
 	cmd.PersistentFlags().StringVar(&configPath, "config", "", "anytty config path (default: XDG config dir tui-v3.yaml)")
 	cmd.PersistentFlags().DurationVar(&globalTimeout, "timeout", 0, "maximum duration for the complete command (0 disables)")
-	cmd.AddCommand(v3DaemonCommand(&socket, &logFile, &configPath))
+	cmd.AddCommand(v3PoolCommand(&socket, &logFile, &configPath))
+	cmd.AddCommand(v3DeprecatedDaemonCommand(&socket, &logFile, &configPath))
 	terminalRuntime := terminalCommandRuntime{socket: &socket, logFile: &logFile, configPath: &configPath}
 	cmd.AddCommand(newTerminalCommand(terminalRuntime))
 	cmd.AddCommand(newTerminalAliasCommands(terminalRuntime)...)

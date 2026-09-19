@@ -116,7 +116,7 @@ func (factory Factory) openDirectPeer(_ context.Context, publishPassiveTCP bool)
 		if network != nil {
 			settings.SetNet(network)
 			// Android sandbox 禁止 mDNS 内部绕过 transport.Net 再读取系统网卡。
-			// Direct 使用 daemon-signed locator，Cloud 使用显式 ICE server，二者均不依赖 mDNS candidate。
+			// Direct 使用 pool-signed locator，Cloud 使用显式 ICE server，二者均不依赖 mDNS candidate。
 			settings.SetICEMulticastDNSMode(pionice.MulticastDNSModeDisabled)
 		}
 		if publishPassiveTCP && network != nil {

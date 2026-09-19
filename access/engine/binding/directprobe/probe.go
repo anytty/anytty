@@ -1,5 +1,5 @@
 // Package directprobe performs a lightweight TCP reachability check for a
-// configured Direct route. It does not authenticate the daemon or create a
+// configured Direct route. It does not authenticate the pool or create a
 // WebRTC session.
 package directprobe
 

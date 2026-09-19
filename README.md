@@ -19,13 +19,13 @@ AnyTTY keeps terminal sessions running on your own machines, so you can close th
 
 ## Quick install
 
-**macOS / Linux - daemon, CLI, and TUI**
+**macOS / Linux - terminal pool, CLI, and TUI**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anytty/anytty/main/install.sh | sh
 ```
 
-**Windows PowerShell - daemon, CLI, and TUI**
+**Windows PowerShell - terminal pool, CLI, and TUI**
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
@@ -50,15 +50,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `
 
 ## Key features
 
-- **Close the window, keep the work running.** A `terminal` is a task kept alive by the daemon. TUI `workspaces` and `panels` are just views, so switching which terminal a panel shows doesn't change your layout or restart the task.
+- **Close the window, keep the work running.** A `terminal` is a task kept alive by the terminal pool. TUI `workspaces` and `panels` are just views, so switching which terminal a panel shows doesn't change your layout or restart the task.
 - **A slow phone won't slow the task.** TUI panels, the CLI, WebView, and mobile apps each read the latest screen snapshot at their own pace. A slow client can catch up later without making the terminal process wait.
-- **Windows, macOS, and Linux all work the same way.** Windows is a first-class platform. The CLI, TUI, and daemon ship for Windows x64 and ARM64, with no WSL required for core functionality.
+- **Windows, macOS, and Linux all work the same way.** Windows is a first-class platform. The CLI, TUI, and terminal pool ship for Windows x64 and ARM64, with no WSL required for core functionality.
 - **Local and remote terminals in one place.** Local, SSH, Direct, and Cloud terminals appear in the same picker and can be viewed, switched, and operated like local terminals. Remote AI agents can become part of the same workflow.
 - **History that doesn't eat memory.** Terminal output is written to history files while the live view keeps only bounded data. There is no fixed history line limit; practical capacity depends on disk space. After a crash, disconnect, or long unattended run, you can recover full context.
 - **Find terminals that stopped updating.** The mobile terminal list and TUI picker show status and recent activity together, so you can spot sessions with no new output and decide whether a task is still running.
 - **Take control from different devices.** The same terminal can move between the TUI, CLI, embedded WebView, and Android or iOS mobile apps without migrating or restarting the process. Mobile is optimized for touch, with extra keys for `Esc`, `Ctrl`, arrows, paging, and other common actions.
-- **Reach private-network machines without exposing them.** The optional AnyTTY Cloud service helps daemons behind NAT or private networks establish P2P connections, with automatic Relay fallback when a direct path is unavailable.
-- **Remote connections are encrypted by default.** SSH, Direct, and Cloud routes use authenticated, encrypted connections. Pairing access is bound to a specific client and can be revoked from the daemon. A Relay forwards encrypted traffic without gaining terminal or file permissions.
+- **Reach private-network machines without exposing them.** The optional AnyTTY Cloud service helps terminal pools behind NAT or private networks establish P2P connections, with automatic Relay fallback when a direct path is unavailable.
+- **Remote connections are encrypted by default.** SSH, Direct, and Cloud routes use authenticated, encrypted connections. Pairing access is bound to a specific client and can be revoked from the terminal pool. A Relay forwards encrypted traffic without gaining terminal or file permissions.
 - **Terminals and files share one connection.** AnyTTY also supports file browsing, upload, download, rename, and selection. After connecting to a remote machine, you can work with authorized files on that machine just as you work with its terminals.
 - **Mobile file management and rich previews.** The mobile app includes a file manager that browses remote directories and previews common text, document, image, media, and 3D formats. Logs, configuration, build results, and downloads can be inspected without switching apps.
 
@@ -157,16 +157,16 @@ anytty update --check
 anytty update
 ```
 
-The update command verifies both the GitHub asset digest and `SHA256SUMS`. It replaces the on-disk executable but does not restart a running daemon, so existing terminals keep running on the old daemon process until you explicitly restart it.
+The update command verifies both the GitHub asset digest and `SHA256SUMS`. It replaces the on-disk executable but does not restart a running terminal pool, so existing terminals keep running on the old terminal pool process until you explicitly restart it.
 
 Update checks use `GH_TOKEN` or `GITHUB_TOKEN` when either variable is set, then fall back to credentials from an authenticated GitHub CLI (`gh`). Authentication avoids GitHub's much lower shared-IP limit for anonymous API requests.
 
 ## Quick start
 
-Start the daemon for your user and open the TUI:
+Start the terminal pool for your user and open the TUI:
 
 ```sh
-anytty daemon start
+anytty pool start
 anytty
 ```
 
@@ -183,13 +183,13 @@ anytty terminal list
 anytty attach workspace
 ```
 
-Open the same local daemon in your Web browser:
+Open the same local terminal pool in your Web browser:
 
 ```sh
 anytty web
 ```
 
-This starts a loopback-only Web interface on a random port and opens it in your default browser. Use `anytty web --no-open` to print the URL, `anytty web status` to inspect it, and `anytty web stop` to close the Web interface. Stopping the page does not stop the daemon or its terminals.
+This starts a loopback-only Web interface on a random port and opens it in your default browser. Use `anytty web --no-open` to print the URL, `anytty web status` to inspect it, and `anytty web stop` to close the Web interface. Stopping the page does not stop the terminal pool or its terminals.
 
 To protect the Web interface with a password, start it with `anytty web --password`. AnyTTY reads and confirms a passphrase of at least 12 characters without placing it in shell history or process arguments. A password-protected loopback URL can be published through an HTTPS reverse proxy or tunnel that forwards both HTTP and WebSocket traffic, including `/api/bridge`, and preserves the public Host (or supplies `X-Forwarded-Host` and `X-Forwarded-Proto`). Anyone with this password receives full terminal and file access, so use a unique passphrase. Stop the Web interface before changing its password.
 
@@ -197,7 +197,7 @@ Run `anytty --help` for the complete command list, or continue with the [quick-s
 
 ## Mobile app
 
-Install the Android Beta APK from the release page, or [join the iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh), then choose **Add device** in the app. On the machine running the daemon, use `anytty pair create` to generate a short-lived pairing QR code or text claim, then scan or paste it in the app. Once paired, the device page lists running terminals and opens the file browser from a terminal's working directory.
+Install the Android Beta APK from the release page, or [join the iOS beta on TestFlight](https://testflight.apple.com/join/rfcgFyJh), then choose **Add device** in the app. On the machine running the terminal pool, use `anytty pair create` to generate a short-lived pairing QR code or text claim, then scan or paste it in the app. Once paired, the device page lists running terminals and opens the file browser from a terminal's working directory.
 
 Give each new authorization an owner-defined name so it remains identifiable later. Grants are permanent until revoked unless `--grant-ttl` is set explicitly:
 
@@ -235,9 +235,9 @@ The binary is written to `.artifacts/bin/anytty`. The browser UI is committed as
 
 ## Open source and AnyTTY Cloud
 
-The Apache-2.0 version includes the CLI, TUI, daemon, shared UI, Android and iOS source, plus Local, SSH, and Direct connection options. You can use it directly to manage local and remote terminals, files, and long-running tasks, and build clients for each platform.
+The Apache-2.0 version includes the CLI, TUI, terminal pool, shared UI, Android and iOS source, plus Local, SSH, and Direct connection options. You can use it directly to manage local and remote terminals, files, and long-running tasks, and build clients for each platform.
 
-On top of that, AnyTTY provides an official managed Cloud service for device discovery, P2P negotiation, and Relay fallback when a direct connection is unavailable, making terminals behind NAT or private networks easier to reach securely. Cloud is an optional ready-to-use service; terminal and file permissions stay with your daemon. See the [security boundary](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
+On top of that, AnyTTY provides an official managed Cloud service for device discovery, P2P negotiation, and Relay fallback when a direct connection is unavailable, making terminals behind NAT or private networks easier to reach securely. Cloud is an optional ready-to-use service; terminal and file permissions stay with your terminal pool. See the [security boundary](docs/SECURITY_BOUNDARY.md) for the user-visible trust model.
 
 ## Project links
 

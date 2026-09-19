@@ -138,7 +138,7 @@ type Listener struct {
 }
 
 // NewListener 创建一个同进程 memory listener。
-// addr 只用于测试诊断展示，不参与路由或 daemon identity。
+// addr 只用于测试诊断展示，不参与路由或 pool identity。
 func NewListener(addr string) *Listener {
 	return &Listener{
 		ch:   make(chan transport.Transport),

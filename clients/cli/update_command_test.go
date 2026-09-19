@@ -73,7 +73,7 @@ func TestUpdateCheckDoesNotReplaceExecutable(t *testing.T) {
 	}
 }
 
-func TestUpdateInstallsVerifiedReleaseWithoutRestartingDaemon(t *testing.T) {
+func TestUpdateInstallsVerifiedReleaseWithoutRestartingPool(t *testing.T) {
 	fixture := newUpdateFixture(t, "v1.1.0", []byte("new anytty"), "")
 	target := filepath.Join(t.TempDir(), "anytty")
 	if err := os.WriteFile(target, []byte("old anytty"), 0o755); err != nil {
@@ -259,7 +259,7 @@ func TestUpdateReportsUpToDateAsJSON(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &view); err != nil {
 		t.Fatal(err)
 	}
-	if view.Status != "up_to_date" || view.DaemonRestart {
+	if view.Status != "up_to_date" || view.PoolRestart {
 		t.Fatalf("update view = %#v", view)
 	}
 }

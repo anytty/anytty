@@ -1,4 +1,4 @@
-// Package direct 实现不依赖 AnyTTY Cloud 的 daemon embedded signaling + ICE-TCP connector。
+// Package direct 实现不依赖 AnyTTY Cloud 的 pool embedded signaling + ICE-TCP connector。
 // Endpoint/Route 选择与 generation 属于 client/runtime；本包只执行当前 Direct attempt 的 signaling、DTLS auth、Hello 和资源清理。
 package direct
 
@@ -51,15 +51,15 @@ type RouteNetworkPeerFactory interface {
 	DialContextForRoute(context.Context, endpoint.AccessRoute, string, string) (net.Conn, error)
 }
 
-// SignalingClient 是 Direct connector 对 daemon embedded signaling 的单次 exchange 边界。
+// SignalingClient 是 Direct connector 对 pool embedded signaling 的单次 exchange 边界。
 // 实现只能传输 generated Proto request/response，不能返回预授权 session 或修改 Endpoint pin。
 type SignalingClient interface {
-	// Exchange 在给定 locator 中建立一条 signaling TCP connection，并返回 daemon-signed answer。
+	// Exchange 在给定 locator 中建立一条 signaling TCP connection，并返回 pool-signed answer。
 	Exchange(context.Context, []string, *remoteauthpb.DirectSignalingRequestV2) (*remoteauthpb.DirectSignalingAnswerV2, error)
 }
 
 // Dialer 是 direct-webrtc-tcp Route 的 Go-owned connector。
-// 成功结果已经完成 daemon-signed signaling、实际 DTLS-bound capability auth、protocol Hello 与 ReadyPeerSession 装配。
+// 成功结果已经完成 pool-signed signaling、实际 DTLS-bound capability auth、protocol Hello 与 ReadyPeerSession 装配。
 type Dialer struct {
 	Peers           PeerFactory
 	Signaling       SignalingClient
@@ -74,7 +74,7 @@ type Dialer struct {
 }
 
 // Connect 只尝试 request 指定的 Direct Route；任何失败都会关闭 peer、DataChannel 和 protocol client。
-// signaling locator 变化不改变 Endpoint identity，answer 必须由 pin 对应的 daemon DeviceIdentity 签名。
+// signaling locator 变化不改变 Endpoint identity，answer 必须由 pin 对应的 pool DeviceIdentity 签名。
 func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.AttemptRequest) (result clientruntime.ReadyPeerSession, resultErr error) {
 	ctx, trace := connecttrace.Start(ctx, "direct_route")
 	defer func() { trace.End(resultErr) }()
@@ -358,7 +358,7 @@ func (dialer routeContextDialer) DialContext(ctx context.Context, network, addre
 	return dialer.factory.DialContextForRoute(ctx, dialer.route, network, address)
 }
 
-// ProjectVerifiedTCPAnswer 把已经通过 daemon DeviceIdentity 签名验证的 TCP candidates 投影到 Route 声明的可达 locator。
+// ProjectVerifiedTCPAnswer 把已经通过 pool DeviceIdentity 签名验证的 TCP candidates 投影到 Route 声明的可达 locator。
 // 该函数不验证签名也不选择 Route；调用方必须先完成 VerifyDirectSignalingAnswer，地址投影失败时必须终止当前 attempt。
 func ProjectVerifiedTCPAnswer(answer *remoteauthpb.DirectSignalingAnswerV2, addresses []string) (*remoteauthpb.DirectSignalingAnswerV2, error) {
 	if answer == nil {
@@ -543,7 +543,7 @@ type ContextDialer interface {
 const defaultSignalingExchangeTimeout = 8 * time.Second
 
 // Exchange races dial plus request/response. Each multi-address attempt gets a
-// fresh request ID so one daemon's replay protection cannot consume the ID for
+// fresh request ID so one pool's replay protection cannot consume the ID for
 // a second candidate before that candidate has a chance to answer.
 func (client TCPSignalingClient) Exchange(ctx context.Context, addresses []string, request *remoteauthpb.DirectSignalingRequestV2) (*remoteauthpb.DirectSignalingAnswerV2, error) {
 	if ctx == nil || request == nil || len(addresses) == 0 {
@@ -668,7 +668,7 @@ func exchangeSignalingConnection(ctx context.Context, connection net.Conn, reque
 	}
 }
 
-// SignalingError 是 daemon 返回的稳定 Direct signaling admission 失败。
+// SignalingError 是 pool 返回的稳定 Direct signaling admission 失败。
 type SignalingError struct {
 	Code    remoteauthpb.DirectSignalingErrorCode
 	Message string

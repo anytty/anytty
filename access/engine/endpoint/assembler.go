@@ -24,7 +24,7 @@ type EndpointCandidate struct {
 	CredentialDescriptors []CredentialDescriptor `json:"credential_descriptors,omitempty"`
 }
 
-// ConfirmedIdentityBinding 表示用户已确认把一个 identity 为空的本地/SSH Endpoint 绑定到已验证 daemon identity。
+// ConfirmedIdentityBinding 表示用户已确认把一个 identity 为空的本地/SSH Endpoint 绑定到已验证 pool identity。
 // Identity 必须同时出现在本次 assembler candidates 中；该输入只表达本地确认结果，不能由 Cloud/bootstrap/share payload 自行指定。
 type ConfirmedIdentityBinding struct {
 	EndpointID EndpointID     `json:"endpoint_id"`
@@ -224,7 +224,7 @@ func applyConfirmedIdentityBindings(registry *Registry, bindings []ConfirmedIden
 			return connectionError(ErrorIdentityConflict, "endpoint %q has multiple confirmed identity bindings", binding.EndpointID)
 		}
 		if _, duplicate := seenIdentities[key]; duplicate {
-			return connectionError(ErrorIdentityConflict, "daemon identity is confirmed for multiple endpoints")
+			return connectionError(ErrorIdentityConflict, "pool identity is confirmed for multiple endpoints")
 		}
 		seenEndpoints[binding.EndpointID] = struct{}{}
 		seenIdentities[key] = struct{}{}
@@ -235,7 +235,7 @@ func applyConfirmedIdentityBindings(registry *Registry, bindings []ConfirmedIden
 		}
 		if !endpoint.DaemonIdentity.Empty() {
 			if endpoint.DaemonIdentity != binding.Identity {
-				return connectionError(ErrorIdentityConflict, "endpoint %q is already pinned to a different daemon identity", binding.EndpointID)
+				return connectionError(ErrorIdentityConflict, "endpoint %q is already pinned to a different pool identity", binding.EndpointID)
 			}
 			continue
 		}
@@ -244,7 +244,7 @@ func applyConfirmedIdentityBindings(registry *Registry, bindings []ConfirmedIden
 			return err
 		}
 		if found && existingID != binding.EndpointID {
-			return connectionError(ErrorIdentityConflict, "daemon identity is already pinned to endpoint %q", existingID)
+			return connectionError(ErrorIdentityConflict, "pool identity is already pinned to endpoint %q", existingID)
 		}
 		endpoint.DaemonIdentity = binding.Identity
 		registry.Endpoints[binding.EndpointID] = endpoint

@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/anytty/anytty/access/localstate"
-	remotev2daemon "github.com/anytty/anytty/daemon/remote"
+	remote "github.com/anytty/anytty/access/remote"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
 	unixtransport "github.com/anytty/anytty/shared/transport/unix"
@@ -62,7 +62,7 @@ func (rt Runtime) StartPairingListener(ctx context.Context, logger *slog.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("listen for local PairingExchange: %w", err)
 	}
-	acceptor := remotev2daemon.PairingAcceptor{Identity: rt.Identity, AccessStore: rt.Store}
+	acceptor := remote.PairingAcceptor{Identity: rt.Identity, AccessStore: rt.Store}
 	serveCtx, cancel := context.WithCancel(ctx)
 	acceptDone := make(chan struct{})
 	shutdownDone := make(chan struct{})

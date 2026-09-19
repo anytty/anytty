@@ -1,6 +1,6 @@
 // Package provider defines the session-provider seam of the access product
 // line. A provider turns an endpoint identity into one live byte stream; the
-// daemon provider (access/provider/daemon) dials the local daemon socket, and
+// pool provider (access/provider/pool) dials the local pool socket, and
 // future providers (for example tmux) implement the same Dial contract.
 //
 // The contract deliberately stops at net.Conn: the gateway is byte-transparent

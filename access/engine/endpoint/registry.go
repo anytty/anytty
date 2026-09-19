@@ -33,18 +33,18 @@ const (
 	// DefaultFileName 是 CLI/TUI 共享连接注册表的默认文件名。
 	// v2 使用独立文件，避免旧 v1 connections schema 阻断默认本地入口；旧文件不迁移、不覆盖。
 	DefaultFileName = "endpoints.yaml"
-	// DefaultEndpointID 是缺省本地 daemon endpoint 的稳定客户端引用。
+	// DefaultEndpointID 是缺省本地 pool endpoint 的稳定客户端引用。
 	DefaultEndpointID EndpointID = "local"
 	// DefaultLocalRouteID 是缺省本地 unix route 的稳定 route 引用。
 	DefaultLocalRouteID RouteID = "local"
 )
 
 const (
-	// RouteLocalUnix 表示当前客户端通过本机 unix socket 到达 daemon。
+	// RouteLocalUnix 表示当前客户端通过本机 unix socket 到达 pool。
 	RouteLocalUnix RouteKind = "local-unix"
-	// RouteSSHWebRTCTCP 表示通过 Go SSH direct-tcpip tunnel 到达 daemon 的 WebRTC ICE-TCP listener。
+	// RouteSSHWebRTCTCP 表示通过 Go SSH direct-tcpip tunnel 到达 pool 的 WebRTC ICE-TCP listener。
 	RouteSSHWebRTCTCP RouteKind = "ssh-webrtc-tcp"
-	// RouteDirectWebRTCTCP 表示通过 daemon embedded signaling 与 ICE-TCP 建立 WebRTC DataChannel。
+	// RouteDirectWebRTCTCP 表示通过 pool embedded signaling 与 ICE-TCP 建立 WebRTC DataChannel。
 	RouteDirectWebRTCTCP RouteKind = "direct-webrtc-tcp"
 	// RouteManagedWebRTC 表示通过 Cloud Companion/Hub 建立 managed WebRTC DataChannel。
 	RouteManagedWebRTC RouteKind = "managed-webrtc"
@@ -82,7 +82,7 @@ const (
 	SourceLocal EndpointSource = "local"
 	// SourceCloud 表示 Cloud directory 提供的 managed route projection。
 	SourceCloud EndpointSource = "cloud"
-	// SourceBootstrap 表示 daemon-signed EndpointBootstrapBundle 提供的配置。
+	// SourceBootstrap 表示 pool-signed EndpointBootstrapBundle 提供的配置。
 	SourceBootstrap EndpointSource = "bootstrap"
 	// SourceManual 表示用户手工验证并提交的 route 配置。
 	SourceManual EndpointSource = "manual"
@@ -101,7 +101,7 @@ const (
 	CredentialSSHPrivateKey CredentialKind = "ssh-private-key"
 	// CredentialSSHPassword 表示 route 依赖目标平台 secure store 中的 SSH password。
 	CredentialSSHPassword CredentialKind = "ssh-password"
-	// CredentialCapabilityGrant 表示 direct/managed route 依赖 daemon capability credential。
+	// CredentialCapabilityGrant 表示 direct/managed route 依赖 pool capability credential。
 	CredentialCapabilityGrant CredentialKind = "capability-grant"
 	// CredentialCloudProfile 表示 managed route 依赖本机 Cloud account profile。
 	CredentialCloudProfile CredentialKind = "cloud-profile"
@@ -124,7 +124,7 @@ const (
 	ErrorRouteUnavailable ErrorCode = "route_unavailable"
 	// ErrorCredentialRequired 表示 route 配置存在但目标平台缺少本地 credential。
 	ErrorCredentialRequired ErrorCode = "credential_required"
-	// ErrorAuthorizationRequired 表示 endpoint 已发现但尚无 daemon-local capability。
+	// ErrorAuthorizationRequired 表示 endpoint 已发现但尚无 pool-local capability。
 	ErrorAuthorizationRequired ErrorCode = "authorization_required"
 )
 
@@ -133,7 +133,7 @@ const (
 type EndpointID string
 
 // RouteID 是一个 Endpoint 内的稳定 route 配置引用。
-// RouteID 只在所属 Endpoint 内唯一，不能代替 daemon identity 或 runtime AttemptID。
+// RouteID 只在所属 Endpoint 内唯一，不能代替 pool identity 或 runtime AttemptID。
 type RouteID string
 
 // RouteKind 描述到达 Endpoint 的持久配置类型。
@@ -179,7 +179,7 @@ type AttemptID string
 // 旧世代的 live/history/input/file 结果必须由 session owner 拒绝。
 type SessionGeneration uint64
 
-// SessionLifecycle 是 EndpointSession 的客户端运行时阶段；它不表示 daemon terminal lifecycle。
+// SessionLifecycle 是 EndpointSession 的客户端运行时阶段；它不表示 pool terminal lifecycle。
 type SessionLifecycle string
 
 const (
@@ -194,7 +194,7 @@ const (
 const (
 	// RoutePreferenceAuto 允许所有合格 Route 按 priority/full race 参与计划。
 	RoutePreferenceAuto RoutePreference = "auto"
-	// RoutePreferenceDirect 只允许 daemon embedded signaling + ICE-TCP Route。
+	// RoutePreferenceDirect 只允许 pool embedded signaling + ICE-TCP Route。
 	RoutePreferenceDirect RoutePreference = "direct"
 	// RoutePreferenceSSH 只允许 SSH tunnel Route。
 	RoutePreferenceSSH RoutePreference = "ssh"
@@ -235,7 +235,7 @@ func connectionError(code ErrorCode, format string, args ...any) error {
 	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
-// DaemonIdentity 是跨来源、跨 route 合并同一 daemon 的安全锚点。
+// DaemonIdentity 是跨来源、跨 route 合并同一 pool 的安全锚点。
 // DeviceID 只用于目录/路由；DeviceFingerprint 是长期 public key 的规范化 pin，二者必须成对出现。
 type DaemonIdentity struct {
 	DeviceID          string `json:"device_id"`
@@ -249,7 +249,7 @@ func LocalUnixIdentity(socketPath string) DaemonIdentity {
 	return DaemonIdentity{DeviceID: "local-unix", DeviceFingerprint: "local-unix-sha256:" + hex.EncodeToString(digest[:16])}
 }
 
-// Empty 表示当前 Endpoint 尚未经过可验证 daemon identity handshake。
+// Empty 表示当前 Endpoint 尚未经过可验证 pool identity handshake。
 // CONN001 只允许既有 local/SSH 单 route 处于该状态；自动跨来源合并永远要求完整 identity。
 func (identity DaemonIdentity) Empty() bool {
 	return identity.DeviceID == "" && identity.DeviceFingerprint == ""
@@ -264,14 +264,14 @@ func (identity DaemonIdentity) Validate(required bool) error {
 		if identity.Empty() {
 			return nil
 		}
-		return connectionError(ErrorConfig, "empty daemon identity fields must use exact empty strings")
+		return connectionError(ErrorConfig, "empty pool identity fields must use exact empty strings")
 	}
 	if deviceID == "" || fingerprint == "" {
-		return connectionError(ErrorConfig, "daemon identity requires both device_id and device_fingerprint")
+		return connectionError(ErrorConfig, "pool identity requires both device_id and device_fingerprint")
 	}
 	invalidIdentityRune := func(value rune) bool { return unicode.IsSpace(value) || unicode.IsControl(value) }
 	if identity.DeviceID != deviceID || identity.DeviceFingerprint != fingerprint || strings.IndexFunc(deviceID, invalidIdentityRune) >= 0 || strings.IndexFunc(fingerprint, invalidIdentityRune) >= 0 {
-		return connectionError(ErrorConfig, "daemon identity fields must not contain whitespace or control characters")
+		return connectionError(ErrorConfig, "pool identity fields must not contain whitespace or control characters")
 	}
 	return nil
 }
@@ -332,8 +332,8 @@ type AccessRoute struct {
 	RelayTransport    RelayTransport `json:"relay_transport,omitempty"`
 }
 
-// Endpoint 表示当前客户端要访问的一个逻辑 daemon。
-// Routes 只是到达方式；terminal lifecycle/history/file truth 始终由该 daemon 的 core-v2 持有。
+// Endpoint 表示当前客户端要访问的一个逻辑 pool。
+// Routes 只是到达方式；terminal lifecycle/history/file truth 始终由该 pool 的 core-v2 持有。
 type Endpoint struct {
 	ID              EndpointID              `json:"endpoint_id"`
 	Label           string                  `json:"label"`
@@ -355,7 +355,7 @@ type Registry struct {
 }
 
 // ConnectIntent 描述本次连接要求的用户动作和最小 capability。
-// planner 只用它过滤 route；它不拥有 terminal lifecycle，也不能扩大 daemon grant scope。
+// planner 只用它过滤 route；它不拥有 terminal lifecycle，也不能扩大 pool grant scope。
 type ConnectIntent struct {
 	Kind           string   `json:"kind"`
 	TerminalID     string   `json:"terminal_id,omitempty"`
@@ -363,7 +363,7 @@ type ConnectIntent struct {
 }
 
 // RouteAttempt 是 planner 交给具体 route dialer 的不可变输入。
-// 它只冻结 EndpointID、期望 daemon identity 和唯一选中 route；不得再携带包含 Routes 的完整 Endpoint 副本形成第二份 route 真值。
+// 它只冻结 EndpointID、期望 pool identity 和唯一选中 route；不得再携带包含 Routes 的完整 Endpoint 副本形成第二份 route 真值。
 type RouteAttempt struct {
 	AttemptID        AttemptID         `json:"attempt_id"`
 	EndpointID       EndpointID        `json:"endpoint_id"`
@@ -373,7 +373,7 @@ type RouteAttempt struct {
 	Generation       SessionGeneration `json:"session_generation"`
 }
 
-// ReadyPeerSession 表示 transport、daemon identity、authorization 和 protocol Hello 均已成功。
+// ReadyPeerSession 表示 transport、pool identity、authorization 和 protocol Hello 均已成功。
 // 只有该状态可以参加 winner CAS；底层 socket/SSH/WebRTC ready 均不能提前胜出。
 type ReadyPeerSession struct {
 	AttemptID          AttemptID         `json:"attempt_id"`
@@ -572,7 +572,7 @@ func (registry Registry) Normalize() (Registry, error) {
 			if existingID, duplicate := deviceIDs[endpoint.DaemonIdentity.DeviceID]; duplicate {
 				existing := normalized.Endpoints[existingID].DaemonIdentity
 				if existing.DeviceFingerprint == endpoint.DaemonIdentity.DeviceFingerprint {
-					return Registry{}, connectionError(ErrorIdentityConflict, "endpoints %q and %q repeat daemon identity", existingID, endpoint.ID)
+					return Registry{}, connectionError(ErrorIdentityConflict, "endpoints %q and %q repeat pool identity", existingID, endpoint.ID)
 				}
 				return Registry{}, connectionError(ErrorIdentityConflict, "device_id %q is pinned to multiple fingerprints", endpoint.DaemonIdentity.DeviceID)
 			}
@@ -621,7 +621,7 @@ func (registry Registry) DefaultEndpoint() (Endpoint, bool) {
 }
 
 // Validate 校验 Endpoint identity、route 集合和 selection policy。
-// 本方法不做网络 IO；host-key、TLS certificate 和 daemon proof 只能在具体安全握手中验证。
+// 本方法不做网络 IO；host-key、TLS certificate 和 pool proof 只能在具体安全握手中验证。
 func (endpoint Endpoint) Validate() error {
 	if err := validateIdentifier("endpoint", string(endpoint.ID)); err != nil {
 		return err

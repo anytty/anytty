@@ -37,7 +37,7 @@ func v3NewCommand(socket *string, logFile *string) *cobra.Command {
 			terminalID := newV3TerminalID()
 			if terminalName := strings.TrimSpace(name); terminalName != "" {
 				// 中文说明：CLI first-party create 与 TUI 保持同一 identity 语义：
-				// 用户名称就是 daemon-local terminal key，随机 ID 只服务无名称的兼容入口。
+				// 用户名称就是 pool-local terminal key，随机 ID 只服务无名称的兼容入口。
 				terminalID = terminalName
 			}
 			application, err := newLocalApplicationSession(client)
@@ -145,7 +145,7 @@ func v3RemoveCommand(socket *string, logFile *string) *cobra.Command {
 	return &cobra.Command{
 		Use:     "rm <id>",
 		Aliases: []string{"delete", "remove", "del"},
-		Short:   "Delete a terminal from the core-v2 daemon inventory",
+		Short:   "Delete a terminal from the core-v2 terminal pool inventory",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger, closeLogger, logPath, err := openLogFileLogger(*logFile)

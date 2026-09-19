@@ -40,12 +40,12 @@ func TestEnableFromEnvJSONLAppendsProcessRecords(t *testing.T) {
 	t.Setenv(envPath, path)
 	t.Setenv(envIntervalMs, "10000")
 
-	stopDaemon, _, ok := EnableFromEnvWithProcess(context.Background(), "core-v2-daemon")
+	stopPool, _, ok := EnableFromEnvWithProcess(context.Background(), "core-v2-pool")
 	if !ok {
-		t.Fatal("expected daemon perftrace enabled")
+		t.Fatal("expected pool perftrace enabled")
 	}
-	Count("daemon.event", 1)
-	stopDaemon()
+	Count("pool.event", 1)
+	stopPool()
 
 	stopTUI, _, ok := EnableFromEnvWithProcess(context.Background(), "tui-v3")
 	if !ok {
@@ -62,15 +62,15 @@ func TestEnableFromEnvJSONLAppendsProcessRecords(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 jsonl records, got %d: %s", len(lines), data)
 	}
-	var daemonRecord TraceRecord
-	if err := json.Unmarshal(lines[0], &daemonRecord); err != nil {
-		t.Fatalf("decode daemon record: %v", err)
+	var poolRecord TraceRecord
+	if err := json.Unmarshal(lines[0], &poolRecord); err != nil {
+		t.Fatalf("decode pool record: %v", err)
 	}
-	if daemonRecord.Format != traceRecordFormat || daemonRecord.Process != "core-v2-daemon" || daemonRecord.Sequence != 1 {
-		t.Fatalf("unexpected daemon record: %+v", daemonRecord)
+	if poolRecord.Format != traceRecordFormat || poolRecord.Process != "core-v2-pool" || poolRecord.Sequence != 1 {
+		t.Fatalf("unexpected pool record: %+v", poolRecord)
 	}
-	if _, ok := daemonRecord.Snapshot.Event("daemon.event"); !ok {
-		t.Fatal("daemon record missing daemon event")
+	if _, ok := poolRecord.Snapshot.Event("pool.event"); !ok {
+		t.Fatal("pool record missing pool event")
 	}
 	var tuiRecord TraceRecord
 	if err := json.Unmarshal(lines[1], &tuiRecord); err != nil {

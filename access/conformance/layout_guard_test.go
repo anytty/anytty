@@ -51,13 +51,12 @@ func hasPrefix(importPath string, prefixes ...string) bool {
 	return false
 }
 
-// TestDaemonProductPackagesDoNotImportClientSide enforces the dependency
-// direction of the daemon product line: daemon/core, daemon/remote and
-// daemon/cloud never depend on the access engine/gateway, the clients tree or
+// TestPoolProductPackagesDoNotImportClientSide enforces the dependency
+// direction of the terminal pool product line: pool/core, access/remote and
+// access/cloud never depend on the access engine/gateway, the clients tree or
 // the old TUI trees. access/transport is a shared wire/transport layer and is
-// deliberately allowed (daemon/cloud uses the webrtc/cloud transports).
-// daemon/cmd/anyttyd is the composition entry and is checked separately.
-func TestDaemonProductPackagesDoNotImportClientSide(t *testing.T) {
+// deliberately allowed (access/cloud uses the webrtc/cloud transports).
+func TestPoolProductPackagesDoNotImportClientSide(t *testing.T) {
 	forbidden := []string{
 		"github.com/anytty/anytty/access/engine",
 		"github.com/anytty/anytty/access/localweb",
@@ -69,8 +68,12 @@ func TestDaemonProductPackagesDoNotImportClientSide(t *testing.T) {
 		"github.com/anytty/anytty/tui2",
 	}
 	root := repoRoot(t)
-	for _, pkg := range []string{"core", "remote", "cloud"} {
-		root := filepath.Join(root, "daemon", pkg)
+	for _, pkg := range []string{
+		filepath.Join("pool", "core"),
+		filepath.Join("access", "remote"),
+		filepath.Join("access", "cloud"),
+	} {
+		root := filepath.Join(root, pkg)
 		walkProductionImports(t, root, func(path, importPath string) {
 			if hasPrefix(importPath, forbidden...) {
 				t.Errorf("%s imports forbidden client-side package %s", path, importPath)
@@ -79,19 +82,18 @@ func TestDaemonProductPackagesDoNotImportClientSide(t *testing.T) {
 	}
 }
 
-// TestAnyTTYDaemonEntryOnlyComposesCLI documents the one deliberate exception
-// of the daemon tree: the anyttyd entry binary composes the shared CLI
-// implementation while the daemon product packages stay independent.
-func TestAnyTTYDaemonEntryOnlyComposesCLI(t *testing.T) {
-	root := filepath.Join(repoRoot(t), "daemon", "cmd", "anyttyd")
-	walkProductionImports(t, root, func(path, importPath string) {
-		if !strings.HasPrefix(importPath, "github.com/anytty/anytty/") {
-			return
+// TestSingleBinaryPolicyKeepsDaemonEntryDeleted pins the single-binary policy:
+// `anytty pool run` is the terminal pool entry, so the old anyttyd binary must
+// not reappear.
+func TestSingleBinaryPolicyKeepsDaemonEntryDeleted(t *testing.T) {
+	for _, path := range []string{
+		filepath.Join(repoRoot(t), "daemon", "cmd", "anyttyd"),
+		filepath.Join(repoRoot(t), "cmd", "anyttyd"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("single-binary policy violated: %s must stay deleted", path)
 		}
-		if !hasPrefix(importPath, "github.com/anytty/anytty/clients/cli") {
-			t.Errorf("daemon entry %s grows an unexpected internal dependency on %s", path, importPath)
-		}
-	})
+	}
 }
 
 // TestAccessDoesNotImportTheTUIFrontend keeps the access product line

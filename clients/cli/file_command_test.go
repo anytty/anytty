@@ -13,14 +13,14 @@ import (
 
 	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
 	"github.com/anytty/anytty/access/files"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessserver "github.com/anytty/anytty/access/server"
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/shared/securefs"
 )
 
-func TestFileCommandRealDaemonLifecycleAndTransfers(t *testing.T) {
+func TestFileCommandRealPoolLifecycleAndTransfers(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	socketPath, closeServer := startCLIAccessStack(t)
 	defer closeServer()
@@ -146,7 +146,7 @@ func TestFileDownloadAcrossCreditWindows(t *testing.T) {
 	}
 }
 
-// startCLIAccessStack 启动 Phase 3 拓扑的本地栈：daemon 在 <sock>.provider，
+// startCLIAccessStack 启动 Phase 3 拓扑的本地栈：pool 在 <sock>.provider，
 // access 在 canonical <sock> 上终结 file/storage/proxy 并路由终端。
 func startCLIAccessStack(t *testing.T) (string, func()) {
 	t.Helper()
@@ -160,7 +160,7 @@ func startCLIAccessStack(t *testing.T) (string, func()) {
 		Socket: socketPath,
 		Files:  files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, providerSocket)
+			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},
 	})
 	if err != nil {

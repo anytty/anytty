@@ -10,7 +10,7 @@ import (
 )
 
 // LocalCertificateFingerprint 返回当前 PeerConnection 实际使用的本端 SHA-256 DTLS certificate fingerprint。
-// daemon 用它绑定 DeviceHello；该值来自 Pion DTLSTransport，而不是 signaling SDP 或 Companion 返回字段。
+// pool 用它绑定 DeviceHello；该值来自 Pion DTLSTransport，而不是 signaling SDP 或 Companion 返回字段。
 func LocalCertificateFingerprint(peer *pion.PeerConnection) (string, error) {
 	dtls, err := dtlsTransport(peer)
 	if err != nil {

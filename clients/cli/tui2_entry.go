@@ -79,7 +79,7 @@ func runTUI2Runtime(ctx context.Context, cfg tui2EntryConfig) error {
 	return runTUI2Process(hostPath, args, defaultTUI2Routes())
 }
 
-// ensureTUI2LocalStack 在 canonical socket 不可用时自动拉起 daemon+access；
+// ensureTUI2LocalStack 在 canonical socket 不可用时自动拉起 pool+access；
 // 这与旧 CLI TUI 的 auto-start 行为一致。
 func ensureTUI2LocalStack(socketPath, logFile, configPath string) error {
 	if strings.TrimSpace(socketPath) == "" {

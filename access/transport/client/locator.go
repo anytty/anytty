@@ -49,7 +49,7 @@ func DecodeEdgeLocator(payload []byte) (*cloudv1.EdgeLocator, error) {
 	return edge, nil
 }
 
-// NewCachedCapabilityRoute 从 secure credential 中的 locator 和 daemon grant 重建直连请求。
+// NewCachedCapabilityRoute 从 secure credential 中的 locator 和 pool grant 重建直连请求。
 func NewCachedCapabilityRoute(locatorPayload, grantPayload []byte) (*RouteResolution, error) {
 	edge, err := DecodeEdgeLocator(locatorPayload)
 	if err != nil {
@@ -63,7 +63,7 @@ func NewCachedCapabilityRoute(locatorPayload, grantPayload []byte) (*RouteResolu
 }
 
 // ShouldRefreshEdgeLocator 只把位置失效或旧 Edge 不可达解释为目录缓存失效。
-// 授权、配额和 daemon 拒绝不能通过回源 Controller 掩盖。
+// 授权、配额和 pool 拒绝不能通过回源 Controller 掩盖。
 func ShouldRefreshEdgeLocator(err error) bool {
 	if err == nil {
 		return false

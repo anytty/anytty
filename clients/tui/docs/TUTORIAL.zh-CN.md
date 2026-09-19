@@ -224,7 +224,7 @@ pty 驱动覆盖 attach/输入/split/picker/回看复制（OSC52）/resize/退�
 one-line notice`（布局程序只有一个瞬时 notice 槽，后续端点 notice 可能先覆盖
 它；同内容的持久日志断言仍执行）。两者通过数对比与同用例一致性抽样见
 `scripts/driver-parity.sh`。脚本会自动重置 SIGHUP（GNU `env --default-signal`），
-所以 `nohup` 下也能稳定重跑——否则被 daemon 杀掉的 `sh` 会继承 SIG_IGN 并让
+所以 `nohup` 下也能稳定重跑——否则被 终端池 杀掉的 `sh` 会继承 SIG_IGN 并让
 kill 用例误报。
 
 ## 6. 常见问题

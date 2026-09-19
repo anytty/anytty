@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/spf13/cobra"
 )
 
@@ -36,9 +36,9 @@ func newHistoryDeleteCommand(socket, logFile, configPath *string) *cobra.Command
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			release, err := acquireDaemonRuntimeRecord(resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), *configPath)
+			release, err := acquirePoolRuntimeRecord(resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), *configPath)
 			if err != nil {
-				return fmt.Errorf("history deletion requires the daemon to be stopped: %w", err)
+				return fmt.Errorf("history deletion requires the terminal pool to be stopped: %w", err)
 			}
 			defer release()
 			var removed int
@@ -69,13 +69,13 @@ func newHistoryPruneCommand(socket, logFile, configPath *string) *cobra.Command 
 		Short: "Apply configured history retention immediately",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := loadDaemonRuntimeConfig(*configPath)
+			cfg, err := loadPoolRuntimeConfig(*configPath)
 			if err != nil {
 				return err
 			}
-			release, err := acquireDaemonRuntimeRecord(resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), *configPath)
+			release, err := acquirePoolRuntimeRecord(resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), *configPath)
 			if err != nil {
-				return fmt.Errorf("manual history pruning requires the daemon to be stopped: %w", err)
+				return fmt.Errorf("manual history pruning requires the terminal pool to be stopped: %w", err)
 			}
 			defer release()
 			storage := corev2.HistoryStorageConfig{

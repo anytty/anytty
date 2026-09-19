@@ -48,7 +48,7 @@ func (client *ApplicationClient) MarkReady(evidence clientruntime.ReadyPeerSessi
 	return nil
 }
 
-// VerifyDaemonIdentity 通过当前已经完成 Hello 的 authenticated application session读取 daemon public identity，
+// VerifyDaemonIdentity 通过当前已经完成 Hello 的 authenticated application session读取 pool public identity，
 // 校验 public key fingerprint，并在 Endpoint 已有 pin 时要求 DeviceID/Fingerprint 精确匹配。
 func VerifyDaemonIdentity(ctx context.Context, session *clientruntime.ApplicationSession, expected endpoint.DaemonIdentity) (endpoint.DaemonIdentity, error) {
 	result, err := VerifyDaemonIdentityResult(ctx, session, expected)
@@ -63,29 +63,29 @@ func VerifyDaemonIdentity(ctx context.Context, session *clientruntime.Applicatio
 // 它不授予 capability；调用方仍只能在 local/SSH 已授权 session 或 managed remote-auth 后调用。
 func VerifyDaemonIdentityResult(ctx context.Context, session *clientruntime.ApplicationSession, expected endpoint.DaemonIdentity) (*apipb.ClientAccessIdentityResult, error) {
 	if session == nil {
-		return nil, errors.New("application session is required for daemon identity proof")
+		return nil, errors.New("application session is required for pool identity proof")
 	}
 	challenge := make([]byte, remoteauth.DeviceIdentityChallengeBytes)
 	if _, err := rand.Read(challenge); err != nil {
-		return nil, fmt.Errorf("generate daemon identity challenge: %w", err)
+		return nil, fmt.Errorf("generate pool identity challenge: %w", err)
 	}
 	result, err := session.ClientAccessIdentity(ctx, &apipb.ClientAccessIdentityCommand{Challenge: challenge})
 	if err != nil {
-		return nil, fmt.Errorf("read daemon identity proof: %w", err)
+		return nil, fmt.Errorf("read pool identity proof: %w", err)
 	}
 	identity := result.GetIdentity()
 	if identity == nil || !bytes.Equal(result.GetChallenge(), challenge) {
-		return nil, errors.New("daemon identity proof is incomplete")
+		return nil, errors.New("pool identity proof is incomplete")
 	}
 	verified := endpoint.DaemonIdentity{DeviceID: identity.GetDeviceId(), DeviceFingerprint: identity.GetDeviceFingerprint()}
 	if err := verified.Validate(true); err != nil {
-		return nil, fmt.Errorf("daemon identity proof is invalid: %w", err)
+		return nil, fmt.Errorf("pool identity proof is invalid: %w", err)
 	}
 	if err := remoteauth.VerifyDeviceIdentityProof(challenge, identity.GetDeviceId(), identity.GetDeviceFingerprint(), identity.GetDevicePublicKey(), result.GetProof()); err != nil {
 		return nil, err
 	}
 	if !expected.Empty() && verified != expected {
-		return nil, errors.New("daemon identity proof does not match endpoint pin")
+		return nil, errors.New("pool identity proof does not match endpoint pin")
 	}
 	return result, nil
 }

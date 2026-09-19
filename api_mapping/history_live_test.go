@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
-	"github.com/anytty/anytty/daemon/core/history"
+	corev2 "github.com/anytty/anytty/pool/core"
+	"github.com/anytty/anytty/pool/core/history"
 	"github.com/anytty/anytty/proto/access/apipb"
 	vterm "github.com/anytty/anytty/vterm/vterm"
 	"google.golang.org/protobuf/proto"

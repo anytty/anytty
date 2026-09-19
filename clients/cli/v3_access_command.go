@@ -15,7 +15,7 @@ import (
 )
 
 func v3AccessCommand(socket *string, logFile *string) *cobra.Command {
-	command := &cobra.Command{Use: "access", Short: "Inspect and revoke daemon client-bound access"}
+	command := &cobra.Command{Use: "access", Short: "Inspect and revoke terminal pool client-bound access"}
 	command.AddCommand(accessRunCommand(socket, logFile))
 	command.AddCommand(accessStartCommand(socket))
 	command.AddCommand(accessStopCommand(socket))
@@ -31,7 +31,7 @@ func v3AccessCommand(socket *string, logFile *string) *cobra.Command {
 func v3AccessIdentityCommand(socket *string, logFile *string) *cobra.Command {
 	jsonOutput := false
 	command := &cobra.Command{
-		Use: "identity", Short: "Show the local daemon global DeviceIdentity", Args: cobra.NoArgs,
+		Use: "identity", Short: "Show the local terminal pool global DeviceIdentity", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := dialOrStartV3ClientContext(cmd.Context(), resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), nil)
 			if err != nil {
@@ -69,7 +69,7 @@ func v3AccessIdentityCommand(socket *string, logFile *string) *cobra.Command {
 func v3AccessListCommand(socket *string, logFile *string) *cobra.Command {
 	jsonOutput := false
 	command := &cobra.Command{
-		Use: "list", Short: "List daemon-local client access grants", Args: cobra.NoArgs,
+		Use: "list", Short: "List pool-local client access grants", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := dialOrStartV3ClientContext(cmd.Context(), resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), nil)
 			if err != nil {
@@ -164,7 +164,7 @@ func formatClientAccessScope(scope *remoteauthpb.ClientAccessScope) string {
 func v3AccessRevokeCommand(socket *string, logFile *string) *cobra.Command {
 	jsonOutput := false
 	command := &cobra.Command{
-		Use: "revoke GRANT_ID", Short: "Revoke one daemon-local client access grant", Args: cobra.ExactArgs(1),
+		Use: "revoke GRANT_ID", Short: "Revoke one pool-local client access grant", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			grantID := strings.TrimSpace(args[0])
 			if grantID == "" {

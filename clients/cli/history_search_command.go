@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/anytty/anytty/daemon/core/history"
+	"github.com/anytty/anytty/pool/core/history"
 	"github.com/anytty/anytty/proto/access/apipb"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"

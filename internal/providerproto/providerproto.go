@@ -1,6 +1,6 @@
-// Package providerproto 是 daemon terminal provider 协议的 framing 与控制载荷边界。
+// Package providerproto 是 pool terminal provider 协议的 framing 与控制载荷边界。
 //
-// provider 协议只服务 access→daemon 的内部连接：channel 0 承载 Hello/Request/
+// provider 协议只服务 access→pool 的内部连接：channel 0 承载 Hello/Request/
 // Response/Error/Event protobuf 载荷，channel > 0 预留给 attachment/history/live
 // 流（复用现有 [channel:2][type:1] frame 与 wirepb 载荷）。它不是客户端 wire。
 package providerproto

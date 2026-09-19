@@ -47,12 +47,12 @@ func (host *bindingHost) OpenSession(ctx context.Context, request *bindingpb.Ope
 	if request == nil || strings.TrimSpace(request.GetEndpointId()) != localEndpointID {
 		return nil, fmt.Errorf("local web endpoint must be %q", localEndpointID)
 	}
-	clientTransport, daemonTransport := memory.NewPair()
+	clientTransport, poolTransport := memory.NewPair()
 	serveCtx, cancelServe := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	go func() {
 		defer close(serveDone)
-		_ = host.core.ServeTransport(serveCtx, daemonTransport)
+		_ = host.core.ServeTransport(serveCtx, poolTransport)
 	}()
 
 	client := internalprotocol.NewClient(clientTransport)
@@ -79,7 +79,7 @@ func (host *bindingHost) OpenSession(ctx context.Context, request *bindingpb.Ope
 	identity, err := protocoladapter.VerifyDaemonIdentity(ctx, ready.ApplicationSession, endpoint.DaemonIdentity{})
 	if err != nil {
 		closeFailed()
-		return nil, fmt.Errorf("verify local daemon identity: %w", err)
+		return nil, fmt.Errorf("verify local pool identity: %w", err)
 	}
 	if err := ready.MarkReady(clientruntime.ReadyPeerSessionEvidence{
 		Identity: identity, IdentityVerified: true, AuthorizationVerified: true, ProtocolVersion: wire.Version,

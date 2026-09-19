@@ -5,8 +5,8 @@ import (
 	"crypto/ed25519"
 	"testing"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	accessruntime "github.com/anytty/anytty/access/runtime"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/shared/remoteauth"
 )
@@ -21,7 +21,7 @@ func TestDefaultPairingLabelUsesCloudEnrollmentName(t *testing.T) {
 		EdgeId: "edge-cloud-label", PublicEndpoint: "edge.example:41102", ServerName: "edge.example", CaCertificatePem: []byte("test-ca"),
 	})
 	record.DisplayName = "Shanghai Development Mac"
-	if err := clouddaemon.SaveRecord(v3CloudEnrollmentRecordPath(), record); err != nil {
+	if err := cloud.SaveRecord(v3CloudEnrollmentRecordPath(), record); err != nil {
 		t.Fatal(err)
 	}
 	if label := accessruntime.DefaultPairingLabelFromEnrollment(v3CloudEnrollmentRecordPath()); label != record.DisplayName {

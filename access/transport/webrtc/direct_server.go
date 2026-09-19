@@ -92,14 +92,14 @@ func (connection *directConnection) Close() error {
 	return connection.closeErr
 }
 
-// WithPionLogger routes embedded Pion diagnostics through the daemon logger.
+// WithPionLogger routes embedded Pion diagnostics through the pool logger.
 func WithPionLogger(logger *slog.Logger) DirectServerOption {
 	return func(options *directServerOptions) {
 		options.logger = logger
 	}
 }
 
-// DirectServer 是 daemon embedded signaling 与共享 ICE-TCP mux 的生命周期 owner。
+// DirectServer 是 pool embedded signaling 与共享 ICE-TCP mux 的生命周期 owner。
 // signaling connection 只交换一次短期 Proto offer/answer；terminal capability 仍必须在建立后的 DataChannel 内由 Handler 验证。
 type DirectServer struct {
 	identity          remoteauth.Identity
@@ -136,7 +136,7 @@ type DirectSignalingAdmission interface {
 	PairingClaimActive(digest, clientPublicKey []byte, expiresAt time.Time) bool
 }
 
-// NewDirectServer 使用 daemon 已绑定的 signaling 与 ICE-TCP listener 创建服务。
+// NewDirectServer 使用 pool 已绑定的 signaling 与 ICE-TCP listener 创建服务。
 // ICE listener 被单个 Pion TCPMux 接管并在所有 peer 间共享；任一依赖缺失都在启动前失败，不创建 fallback listener。
 func NewDirectServer(identity remoteauth.Identity, handler DataChannelSessionHandler, signalingListener, iceListener net.Listener, now func() time.Time, serverOptions ...DirectServerOption) (*DirectServer, error) {
 	if err := identity.Validate(); err != nil {
@@ -236,7 +236,7 @@ func (server *DirectServer) Serve(ctx context.Context) error {
 	}
 }
 
-// Close 幂等关闭 daemon embedded signaling 与共享 ICE-TCP listener。
+// Close 幂等关闭 pool embedded signaling 与共享 ICE-TCP listener。
 // 已建立 peer 会因 mux/ICE 关闭而结束；调用方不得在同一 server 上重新启动第二个 generation。
 func (server *DirectServer) Close() error {
 	if server == nil {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/anytty/anytty/daemon/core/live"
+	"github.com/anytty/anytty/pool/core/live"
 )
 
 func main() {

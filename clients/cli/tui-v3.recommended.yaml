@@ -1,10 +1,10 @@
-# AnyTTY daemon 配置（history / output buffer / resource sampling）。
+# AnyTTY terminal pool 配置（history / output buffer / resource sampling）。
 # 保存为：~/.config/anytty/tui-v3.yaml
-# 文件名是历史遗留（旧 TUI 曾共用该文件）；现在只有 daemon 读取 daemon: 段，
-# 未列出的设置继续使用运行时默认值。
+# 文件名是历史遗留（旧 TUI 曾共用该文件）；现在只有 terminal pool 读取 pool: 段，
+# 旧 daemon: 段仍作为升级兼容被解析，未列出的设置继续使用运行时默认值。
 version: 1
 
-daemon:
+pool:
   history:
     # 每个 terminal 的历史物理保留上限（MiB）；0 表示不设上限。
     max_size_mb: 512

@@ -14,7 +14,7 @@ import (
 const listenerRecordVersion = 1
 
 // ListenerRecord 是 access owner 发布的 Direct listener 运行记录。
-// daemon 与 CLI 只读它来生成 pairing 默认地址，不把 daemon 变成网络 owner。
+// pool 与 CLI 只读它来生成 pairing 默认地址，不把 pool 变成网络 owner。
 type ListenerRecord struct {
 	Version   int       `json:"version"`
 	Listen    string    `json:"listen,omitempty"`
@@ -23,7 +23,7 @@ type ListenerRecord struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// RecordPath 返回给定 daemon socket 对应的 Direct listener 记录路径。
+// RecordPath 返回给定 pool socket 对应的 Direct listener 记录路径。
 func RecordPath(socketPath string) string {
 	return strings.TrimSpace(socketPath) + ".direct"
 }

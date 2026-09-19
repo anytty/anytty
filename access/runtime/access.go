@@ -1,6 +1,6 @@
 // Package accessruntime 是 access 进程的本地授权 runtime：
 // DeviceIdentity、AccessStore、local pairing 与 client access service。
-// daemon 只通过本地 control 通道消费它，不再自行持有授权真值。
+// pool 只通过本地 control 通道消费它，不再自行持有授权真值。
 package accessruntime
 
 import (
@@ -12,9 +12,9 @@ import (
 	"runtime"
 	"strings"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	accesscontract "github.com/anytty/anytty/access/contract"
 	"github.com/anytty/anytty/access/sessions"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
 	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/protobuf/proto"
@@ -57,7 +57,7 @@ func (service Service) CreateTicket(_ context.Context, request accesscontract.Cl
 		}
 		route := proto.Clone(value).(*remoteauthpb.EndpointRouteConfigV1)
 		if managed := route.GetManagedWebrtc(); managed != nil {
-			// owning access runtime 的 DeviceIdentity 是 managed Route 唯一目标；调用者不能让客户端伪造其它 daemon ID。
+			// owning access runtime 的 DeviceIdentity 是 managed Route 唯一目标；调用者不能让客户端伪造其它 pool ID。
 			managed.TargetDeviceId = service.DeviceIdentity.DeviceID
 		}
 		routes = append(routes, route)
@@ -126,7 +126,7 @@ func NewEphemeralService(deviceID string) (Service, error) {
 // DefaultPairingLabelFromEnrollment 用 Cloud enrollment display name 作为默认 pairing 标签，
 // 缺失或损坏时回退 hostname；它只读 Cloud 状态文件，不加载身份或 store。
 func DefaultPairingLabelFromEnrollment(recordPath string) string {
-	if record, err := clouddaemon.LoadRecord(recordPath); err == nil {
+	if record, err := cloud.LoadRecord(recordPath); err == nil {
 		return record.DisplayName
 	}
 	hostname, err := os.Hostname()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 发布产物 smoke：只构建当前主机的 release 归档，验证归档内容、
-# 三件套可执行以及隔离的 daemon+access 生命周期（不触碰用户环境）。
+# 三件套可执行以及隔离的 pool+access 生命周期（不触碰用户环境）。
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -41,8 +41,8 @@ mkdir -p "$XDG_STATE_HOME" "$XDG_CONFIG_HOME" "$XDG_RUNTIME_DIR"
 socket="$XDG_RUNTIME_DIR/anytty-v2-wire7.sock"
 log_file="$XDG_STATE_HOME/anytty/anytty.log"
 
-"$package_dir/anytty" --socket "$socket" --log-file "$log_file" daemon start
-"$package_dir/anytty" --socket "$socket" --log-file "$log_file" daemon status
-"$package_dir/anytty" --socket "$socket" --log-file "$log_file" daemon stop
+"$package_dir/anytty" --socket "$socket" --log-file "$log_file" pool start
+"$package_dir/anytty" --socket "$socket" --log-file "$log_file" pool status
+"$package_dir/anytty" --socket "$socket" --log-file "$log_file" pool stop
 
-echo "release artifact smoke ok: $archive_base (anytty, tui2, tui2-shell + daemon/access lifecycle)"
+echo "release artifact smoke ok: $archive_base (anytty, tui2, tui2-shell + pool/access lifecycle)"

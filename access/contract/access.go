@@ -1,6 +1,6 @@
 // Package contract 定义 access owner 的 typed 服务边界与 core-native 投影。
-// 这些类型原先寄居在 daemon/core；Phase 4 后 identity/pair/remote 都由 access
-// runtime 持有，daemon 不再挂载，因此归 access 所有。
+// 这些类型原先寄居在 pool/core；Phase 4 后 identity/pair/remote 都由 access
+// runtime 持有，pool 不再挂载，因此归 access 所有。
 package contract
 
 import (

@@ -1,4 +1,4 @@
-// Package userdirs 提供 CLI、TUI 和 daemon 共享的用户级配置与状态目录策略。
+// Package userdirs 提供 CLI、TUI 和 terminal pool 共享的用户级配置与状态目录策略。
 package userdirs
 
 import (

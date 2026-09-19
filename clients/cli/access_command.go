@@ -89,12 +89,12 @@ func accessRunCommand(socket, logFile *string) *cobra.Command {
 	command.Flags().StringVar(&pairToken, "pair-token", "", "optional pair token (prefer --pair-token-file)")
 	command.Flags().StringVar(&pairTokenFile, "pair-token-file", "", "optional file holding the pair token")
 	command.Flags().StringVar(&accessSocket, "access-socket", "", "access client protocol listener path (default: topology default)")
-	command.Flags().StringVar(&providerSocket, "provider-socket", "", "daemon terminal provider socket path (default: topology default)")
+	command.Flags().StringVar(&providerSocket, "provider-socket", "", "pool terminal provider socket path (default: topology default)")
 	command.Flags().StringVar(&transferDir, "transfer-dir", "", "durable file-transfer resume record directory")
 	return command
 }
 
-// accessStatusCommand 报告 access 进程状态（与 daemon 进程分开）。
+// accessStatusCommand 报告 access 进程状态（与 pool 进程分开）。
 func accessStatusCommand(socket *string) *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
@@ -113,7 +113,7 @@ func accessStatusCommand(socket *string) *cobra.Command {
 	return command
 }
 
-// accessLogsCommand 读取 access 进程日志；与 daemon 日志分开。
+// accessLogsCommand 读取 access 进程日志；与 pool 日志分开。
 func accessLogsCommand() *cobra.Command {
 	var follow bool
 	var lines int
@@ -140,7 +140,7 @@ func accessLogsCommand() *cobra.Command {
 	return command
 }
 
-// accessLogsPath 返回 access 日志路径；环境变量与默认路径分开于 daemon 日志。
+// accessLogsPath 返回 access 日志路径；环境变量与默认路径分开于 pool 日志。
 func accessLogsPath() string {
 	if path := strings.TrimSpace(os.Getenv("ANYTTY_ACCESS_LOG_FILE")); path != "" {
 		return path

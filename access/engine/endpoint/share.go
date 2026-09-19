@@ -18,7 +18,7 @@ type ShareRouteDiff struct {
 }
 
 // ShareDiff 是接收端在原子导入前展示的 Go-owned 配置差异。
-// EndpointID 是按当前 registry 解析的本地引用，daemon identity 才是跨客户端归并真值。
+// EndpointID 是按当前 registry 解析的本地引用，pool identity 才是跨客户端归并真值。
 type ShareDiff struct {
 	EndpointID             EndpointID
 	Label                  string
@@ -40,7 +40,7 @@ func NewClientEndpointShareBundle(target Endpoint, transferID string, now time.T
 		return nil, err
 	}
 	if normalized.DaemonIdentity.Empty() {
-		return nil, connectionError(ErrorConfig, "endpoint share requires a pinned daemon identity")
+		return nil, connectionError(ErrorConfig, "endpoint share requires a pinned pool identity")
 	}
 	now = now.UTC()
 	bundle := &remoteauthpb.ClientEndpointShareBundleV1{

@@ -164,7 +164,7 @@
 ```
 
 代价：组件内焦点/选择语义与独立进程成本（"组件→程序事件"通道 v1 已提供：`component`）；收益：可复用。**决策规则**：
-需要特权（PTY/剪贴板/daemon）或独立进程/独占资源 → 做组件；纯展示与选择策略 → 放程序侧 SDK 库，不走协议。
+需要特权（PTY/剪贴板/终端池）或独立进程/独占资源 → 做组件；纯展示与选择策略 → 放程序侧 SDK 库，不走协议。
 
 
 
@@ -216,14 +216,14 @@ Slot{id,ratio,source?}          ← source = attach 结果绑定；无 source �
 
 ## 11. 场景：终端与 slot 的生命周期绑不绑（tmux 式 vs anytty 式）
 
-同一组宿主原语，两套程序策略。终端的生命属于 daemon，slot 的生命属于程序。
+同一组宿主原语，两套程序策略。终端的生命属于 终端池，slot 的生命属于程序。
 
 | 时机 | tmux 式（同生共死） | anytty 式（完全解绑） |
 |---|---|---|
 | split 新 slot | `create` → 宿主建 PTY+attach → 绑定 | 空 slot，等待 picker / `attach` 已有终端 |
 | 关 slot | `kill`（+`remove`） | 只解绑（不发方法）；终端继续运行 |
 | 终端 `exited` | 关 slot（可配置 `remain-on-exit` 保留角标） | slot 保留：`[exited N]` + `Ctrl-E` restart |
-| 退出 TUI | 可选 `system.quit{cleanup_owned:true}` 清理本程序创建的终端 | 纯 detach，终端留在 daemon |
+| 退出 TUI | 可选 `system.quit{cleanup_owned:true}` 清理本程序创建的终端 | 纯 detach，终端留在 终端池 |
 
 **必须处理的三个细节**
 

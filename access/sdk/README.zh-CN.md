@@ -8,4 +8,4 @@ Python / TypeScript 只实现同一 wire 的编解码与最小会话封装。
 - wire 快照：见 `access/conformance/`。
 
 当前目录先固定边界与文档；Python / TypeScript 薄壳随对应迁移任务落地，
-不改变既有 CLI、daemon 与 Flutter 的行为。
+不改变既有 CLI、terminal pool 与 Flutter 的行为。

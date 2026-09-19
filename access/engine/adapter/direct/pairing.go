@@ -14,7 +14,7 @@ import (
 	"github.com/anytty/anytty/shared/remoteauth"
 )
 
-// PairingConnector 通过 daemon embedded signaling 与 ICE-TCP 建立一次性 PairingExchange peer。
+// PairingConnector 通过 pool embedded signaling 与 ICE-TCP 建立一次性 PairingExchange peer。
 // 它不执行 capability auth 或 Hello；PairingService 成功或失败后会精确关闭当前 DataChannel/peer。
 type PairingConnector struct {
 	Peers           PeerFactory

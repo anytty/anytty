@@ -496,7 +496,7 @@ func attemptedRuntimeError(route endpoint.AccessRoute, err error) error {
 		if socket == "" || socket == "auto" {
 			message = fmt.Sprintf("local route %q has no explicit Unix socket; pass --socket PATH or set the correct socket in endpoints.yaml", route.ID)
 		} else {
-			message = fmt.Sprintf("local route %q failed; configured Unix socket is %q. Pass --socket %q or update endpoints.yaml if this is not the daemon socket", route.ID, socket, socket)
+			message = fmt.Sprintf("local route %q failed; configured Unix socket is %q. Pass --socket %q or update endpoints.yaml if this is not the pool socket", route.ID, socket, socket)
 		}
 	}
 	if reason := strings.TrimSpace(errorMessage(err)); reason != "" {

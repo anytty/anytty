@@ -5,7 +5,7 @@
 Search for `anytty connect` and follow `trace_id` from `host_open` through
 authorization, Controller resolution, Edge exchange, DataChannel authentication,
 and protocol readiness. Outgoing gRPC metadata propagates the trace ID.
-`session_id` links Edge and daemon signaling; `request_id` links native platform
+`session_id` links Edge and terminal pool signaling; `request_id` links native platform
 requests to Flutter queue, storage, public-key derivation, and signing timings.
 Transport reuse logs both the caller trace and the transport creator trace.
 
@@ -57,7 +57,7 @@ Development-device samples on 2026-09-07 are not a performance guarantee:
   completion callbacks for otherwise fast platform reads.
 - A cached gRPC `READY` state is not proof that an application-level exchange
   will finish promptly. Edge response waits require correlated server-side
-  stages before blaming transport reuse, relay allocation, or daemon signaling.
+  stages before blaming transport reuse, relay allocation, or terminal pool signaling.
 
 The server instrumentation must be deployed separately to observe its stages.
-Do not restart an active AnyTTY process or daemon to collect these diagnostics.
+Do not restart an active AnyTTY process or terminal pool to collect these diagnostics.

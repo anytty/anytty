@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	daemonBindingDomain    = "anytty.cloud.daemon-binding.v2\x00"
+	daemonBindingDomain    = "anytty.cloud.pool-binding.v2\x00"
 	agentProofDomain       = "anytty.cloud.agent-hello-proof.v2\x00"
 	cloudRouteGrantDomain  = "anytty.cloud.route-grant.v1\x00"
 	clientRouteProofDomain = "anytty.cloud.client-route-proof.v1\x00"
@@ -36,7 +36,7 @@ const (
 
 var verificationKeyIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
-// KeySet 是 Edge 当前有效 KeyBundle 中的 daemon binding 公钥集合。
+// KeySet 是 Edge 当前有效 KeyBundle 中的 pool binding 公钥集合。
 type KeySet map[string]ed25519.PublicKey
 
 // ValidateKeyBundle 严格校验 revision、有效期和规范化 Ed25519 keyset，并返回只读验签快照。
@@ -125,7 +125,7 @@ func parseVerificationKeys(keys []*cloudv1.VerificationKey) (KeySet, error) {
 func SignDaemonBinding(keyID string, privateKey ed25519.PrivateKey, claims *cloudv1.DaemonBindingClaims) (*cloudv1.SignedEnvelope, error) {
 	keyID = strings.TrimSpace(keyID)
 	if keyID == "" || len(privateKey) != ed25519.PrivateKeySize {
-		return nil, errors.New("daemon binding signer is invalid")
+		return nil, errors.New("pool binding signer is invalid")
 	}
 	if err := validateDaemonBinding(claims, time.Time{}, 0); err != nil {
 		return nil, err
@@ -140,21 +140,21 @@ func SignDaemonBinding(keyID string, privateKey ed25519.PrivateKey, claims *clou
 // VerifyDaemonBinding 在 Edge 本地验签并校验 target、期限和时钟偏差。
 func VerifyDaemonBinding(envelope *cloudv1.SignedEnvelope, keys KeySet, edgeID string, now time.Time, skew time.Duration) (*cloudv1.DaemonBindingClaims, error) {
 	if envelope == nil || len(envelope.GetSignature()) != ed25519.SignatureSize {
-		return nil, errors.New("daemon binding envelope is invalid")
+		return nil, errors.New("pool binding envelope is invalid")
 	}
 	publicKey := keys[strings.TrimSpace(envelope.GetKeyId())]
 	if len(publicKey) != ed25519.PublicKeySize || !ed25519.Verify(publicKey, signingBytes(daemonBindingDomain, envelope.GetPayload()), envelope.GetSignature()) {
-		return nil, errors.New("daemon binding signature is invalid")
+		return nil, errors.New("pool binding signature is invalid")
 	}
 	claims := &cloudv1.DaemonBindingClaims{}
 	if err := proto.Unmarshal(envelope.GetPayload(), claims); err != nil {
-		return nil, errors.New("daemon binding payload is invalid")
+		return nil, errors.New("pool binding payload is invalid")
 	}
 	if err := validateDaemonBinding(claims, now, skew); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(claims.GetEdgeId()) != strings.TrimSpace(edgeID) {
-		return nil, errors.New("daemon binding targets another Edge")
+		return nil, errors.New("pool binding targets another Edge")
 	}
 	return claims, nil
 }
@@ -208,7 +208,7 @@ func VerifyAgentHelloProof(publicKey, proof []byte, challenge *cloudv1.EdgeChall
 	return nil
 }
 
-// SignCloudRouteGrant 使用 daemon DeviceIdentity 对只含发现信息的 grant 做 domain-separated 签名。
+// SignCloudRouteGrant 使用 pool DeviceIdentity 对只含发现信息的 grant 做 domain-separated 签名。
 func SignCloudRouteGrant(identity remoteauth.Identity, claims *cloudv1.CloudRouteGrantClaims) (*cloudv1.SignedEnvelope, error) {
 	if err := identity.Validate(); err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func SignCloudRouteGrant(identity remoteauth.Identity, claims *cloudv1.CloudRout
 	return &cloudv1.SignedEnvelope{KeyId: identity.Fingerprint, Payload: payload, Signature: ed25519.Sign(identity.PrivateKey, signingBytes(cloudRouteGrantDomain, payload))}, nil
 }
 
-// VerifyCloudRouteGrant 使用 Controller 持久化的 daemon 公钥验签，不读取或保存在线拓扑。
+// VerifyCloudRouteGrant 使用 Controller 持久化的 pool 公钥验签，不读取或保存在线拓扑。
 func VerifyCloudRouteGrant(envelope *cloudv1.SignedEnvelope, daemonPublicKey ed25519.PublicKey, expectedDaemonID string, now time.Time) (*cloudv1.CloudRouteGrantClaims, error) {
 	if envelope == nil || len(daemonPublicKey) != ed25519.PublicKeySize || len(envelope.GetSignature()) != ed25519.SignatureSize ||
 		strings.TrimSpace(envelope.GetKeyId()) != remoteauth.Fingerprint(daemonPublicKey) {
@@ -240,7 +240,7 @@ func VerifyCloudRouteGrant(envelope *cloudv1.SignedEnvelope, daemonPublicKey ed2
 		return nil, err
 	}
 	if claims.GetDaemonId() != strings.TrimSpace(expectedDaemonID) {
-		return nil, errors.New("CloudRouteGrant targets another daemon")
+		return nil, errors.New("CloudRouteGrant targets another pool")
 	}
 	return claims, nil
 }
@@ -389,15 +389,15 @@ func validateDaemonBinding(claims *cloudv1.DaemonBindingClaims, now time.Time, s
 		strings.TrimSpace(claims.GetAccountId()) == "" || strings.TrimSpace(claims.GetEdgeId()) == "" || strings.TrimSpace(claims.GetDeviceId()) == "" ||
 		len(claims.GetDevicePublicKey()) != ed25519.PublicKeySize || len(claims.GetEdgeLocatorSha256()) != sha256.Size || claims.GetIssuedAt() == nil || claims.GetExpiresAt() == nil ||
 		claims.GetIssuedAt().CheckValid() != nil || claims.GetExpiresAt().CheckValid() != nil || !claims.GetExpiresAt().AsTime().After(claims.GetIssuedAt().AsTime()) {
-		return errors.New("daemon binding claims are incomplete")
+		return errors.New("pool binding claims are incomplete")
 	}
 	if len(claims.GetCapabilities()) == 0 {
-		return errors.New("daemon binding has no capability")
+		return errors.New("pool binding has no capability")
 	}
 	if !now.IsZero() {
 		now = now.UTC()
 		if claims.GetIssuedAt().AsTime().After(now.Add(skew)) || !claims.GetExpiresAt().AsTime().After(now.Add(-skew)) {
-			return fmt.Errorf("daemon binding is outside its validity window")
+			return fmt.Errorf("pool binding is outside its validity window")
 		}
 	}
 	return nil

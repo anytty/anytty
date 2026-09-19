@@ -1,8 +1,8 @@
 // Package gateway is the AnyTTY access gateway: an independent process that
-// makes the current user's daemon reachable over operator-chosen listeners
+// makes the current user's pool reachable over operator-chosen listeners
 // (tcp, unix) while staying byte-transparent to the access wire.
 //
-// One client connection is paired with one daemon socket connection and the
+// One client connection is paired with one pool socket connection and the
 // bytes are copied in both directions (a controlled socat). The gateway does
 // not parse frames, does not negotiate the Hello/version handshake and does
 // not participate in pairing or capability grants: clients keep speaking the
@@ -34,14 +34,14 @@ import (
 // DefaultHandshakeTimeout bounds the optional pair-token pre-handshake.
 const DefaultHandshakeTimeout = 5 * time.Second
 
-// DefaultDialTimeout bounds one daemon socket dial when the provider does not
+// DefaultDialTimeout bounds one pool socket dial when the provider does not
 // carry its own timeout.
 const DefaultDialTimeout = 5 * time.Second
 
 // Config describes one gateway. Provider and at least one Listener are
 // required. Allow, PairToken, Logger and timeouts are optional.
 type Config struct {
-	// Provider opens the daemon-side byte stream for every accepted client.
+	// Provider opens the pool-side byte stream for every accepted client.
 	Provider provider.SessionProvider
 	// Listeners are the parsed listener specs to bind, e.g.
 	// "tcp:127.0.0.1:7331" or "unix:/tmp/anytty-access.sock".
@@ -286,7 +286,7 @@ func (g *Gateway) serveConn(ctx context.Context, client net.Conn) {
 	upstream, err := g.cfg.Provider.Dial(dialCtx)
 	cancel()
 	if err != nil {
-		g.cfg.Logger.Warn("anytty-access daemon dial failed", "peer", client.RemoteAddr().String(), "error", err)
+		g.cfg.Logger.Warn("anytty-access pool dial failed", "peer", client.RemoteAddr().String(), "error", err)
 		return
 	}
 	g.cfg.Logger.Info("anytty-access connection established", "peer", client.RemoteAddr().String())

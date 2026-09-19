@@ -47,7 +47,7 @@ type Snapshot struct {
 }
 
 // TraceRecord 是 ANYTTY_PERF_TRACE=.jsonl 统一日志中的单条进程快照。
-// 它携带进程角色和 PID，允许 daemon 与 TUI 继承同一路径并追加写入，
+// 它携带进程角色和 PID，允许 pool 与 TUI 继承同一路径并追加写入，
 // 诊断工具再按 process/pid/sequence 还原各自的耗时链路。
 type TraceRecord struct {
 	Format    string    `json:"format"`
@@ -104,8 +104,8 @@ func EnableFromEnv(ctx context.Context) (func(), string, bool) {
 }
 
 // EnableFromEnvWithProcess 按 ANYTTY_PERF_TRACE 打开带进程角色的性能采样。
-// process 是统一日志里的消息链路归属，例如 core-v2-daemon 或 tui-v3；
-// 当 daemon/TUI 共享同一个 .jsonl 路径时，写入边界由追加记录表达，不互相覆盖。
+// process 是统一日志里的消息链路归属，例如 core-v2-pool 或 tui-v3；
+// 当 pool/TUI 共享同一个 .jsonl 路径时，写入边界由追加记录表达，不互相覆盖。
 func EnableFromEnvWithProcess(ctx context.Context, process string) (func(), string, bool) {
 	path := strings.TrimSpace(os.Getenv(envPath))
 	if path == "" {

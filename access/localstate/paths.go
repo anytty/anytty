@@ -34,4 +34,4 @@ func PairingSocketPath(socketPath string) string {
 	return strings.TrimSpace(socketPath) + ".pair"
 }
 
-// ControlSocketPath 返回 daemon 到 access owner 的 owner-only control socket 路径。
+// ControlSocketPath 返回 pool 到 access owner 的 owner-only control socket 路径。

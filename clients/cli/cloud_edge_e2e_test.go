@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
+	cloud "github.com/anytty/anytty/access/cloud"
 	cloudprotocol "github.com/anytty/anytty/access/transport/protocol"
 	"github.com/anytty/anytty/access/transport/ticket"
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"google.golang.org/grpc"
@@ -41,7 +41,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestCloudEdgeListRealDaemonE2E(t *testing.T) {
+func TestCloudEdgeListRealPoolE2E(t *testing.T) {
 	binary := buildAnyTTYBinaryForTest(t)
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
@@ -67,19 +67,19 @@ func TestCloudEdgeListRealDaemonE2E(t *testing.T) {
 	t.Setenv("ANYTTY_CLOUD_CONTROLLER_CA", controllerCA)
 
 	record := cloudEdgeListE2ERecord(t, daemonID, accountID, identity, edgeLocator)
-	if err := clouddaemon.SaveRecord(v3CloudEnrollmentRecordPath(), record); err != nil {
+	if err := cloud.SaveRecord(v3CloudEnrollmentRecordPath(), record); err != nil {
 		t.Fatal(err)
 	}
 
 	socketPath := filepath.Join(root, "anytty.sock")
 	logPath := filepath.Join(root, "anytty.log")
 	t.Cleanup(func() {
-		stop := exec.Command(binary, "--socket", socketPath, "--log-file", logPath, "daemon", "stop")
+		stop := exec.Command(binary, "--socket", socketPath, "--log-file", logPath, "pool", "stop")
 		stop.Env = os.Environ()
 		_, _ = stop.CombinedOutput()
 	})
 
-	_ = executeCloudEdgeE2EBinary(t, binary, logPath, "--socket", socketPath, "--log-file", logPath, "daemon", "start", "--json")
+	_ = executeCloudEdgeE2EBinary(t, binary, logPath, "--socket", socketPath, "--log-file", logPath, "pool", "start", "--json")
 	output := executeCloudEdgeE2EBinary(t, binary, logPath, "--socket", socketPath, "--log-file", logPath, "cloud", "edge", "list")
 	if !strings.Contains(output, "E2E Edge") || !strings.Contains(output, "edge-e2e-1") {
 		t.Fatalf("cloud edge list output did not include measured Edge:\n%s", output)
@@ -272,7 +272,7 @@ func startCloudEdgeListE2ETLSServer(t *testing.T, serverName string, register fu
 	}
 }
 
-func cloudEdgeListE2ERecord(t *testing.T, daemonID, accountID string, identity remoteauth.Identity, locator *cloudv1.EdgeLocator) clouddaemon.EnrollmentRecord {
+func cloudEdgeListE2ERecord(t *testing.T, daemonID, accountID string, identity remoteauth.Identity, locator *cloudv1.EdgeLocator) cloud.EnrollmentRecord {
 	t.Helper()
 	binding, err := cloudEdgeListE2EBinding(daemonID, accountID, identity, locator)
 	if err != nil {
@@ -286,7 +286,7 @@ func cloudEdgeListE2ERecord(t *testing.T, daemonID, accountID string, identity r
 	if err != nil {
 		t.Fatal(err)
 	}
-	return clouddaemon.EnrollmentRecord{
+	return cloud.EnrollmentRecord{
 		Version: 3, DaemonID: daemonID, AccountID: accountID, DisplayName: "Edge list Mac", DaemonBinding: bindingPayload, EdgeLocator: locatorPayload, EnrolledAt: time.Now().UTC(),
 	}
 }

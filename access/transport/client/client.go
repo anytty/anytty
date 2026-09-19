@@ -63,9 +63,9 @@ type daemonLifecycleError struct {
 
 func (err *daemonLifecycleError) Error() string {
 	if err.code == cloudprotocol.DaemonDeletedCode {
-		return "daemon Cloud enrollment was deleted"
+		return "pool Cloud enrollment was deleted"
 	}
-	return "daemon Cloud access is temporarily disabled"
+	return "pool Cloud access is temporarily disabled"
 }
 
 // DaemonLifecycleCode returns the stable ClientGateway state rejection code.
@@ -88,7 +88,7 @@ type daemonOfflineError struct {
 	cause error
 }
 
-func (err *daemonOfflineError) Error() string { return "daemon is offline" }
+func (err *daemonOfflineError) Error() string { return "pool is offline" }
 func (err *daemonOfflineError) Unwrap() error { return err.cause }
 
 func IsDaemonOffline(err error) bool {
@@ -146,7 +146,7 @@ func EntitlementFailure(err error) *cloudv1.CloudEntitlementFailure {
 	return nil
 }
 
-// RouteResolution 是一次已认证的目录结果，或者由本机缓存 Edge locator 与原始 daemon grant 重建。
+// RouteResolution 是一次已认证的目录结果，或者由本机缓存 Edge locator 与原始 pool grant 重建。
 type RouteResolution struct {
 	locator          *cloudv1.EdgeLocator
 	routeGrant       *cloudv1.SignedEnvelope
@@ -371,7 +371,7 @@ func signalStreamErrorText(err error) string {
 	return err.Error()
 }
 
-// Answer 返回 daemon 生成的不可变 SDP answer 投影。
+// Answer 返回 pool 生成的不可变 SDP answer 投影。
 func (session *SignalSession) Answer() *cloudv1.EdgeAnswer {
 	if session == nil || session.answer == nil {
 		return nil
@@ -754,7 +754,7 @@ func NewClient(config Config) (*Client, error) {
 	return &Client{config: config, bootID: config.BootID, transports: pool}, nil
 }
 
-// Resolve 只在本机没有 Edge locator 或旧 Edge 失效时查询实时 Presence；返回结果仍使用原始 daemon grant 准入。
+// Resolve 只在本机没有 Edge locator 或旧 Edge 失效时查询实时 Presence；返回结果仍使用原始 pool grant 准入。
 func (client *Client) Resolve(ctx context.Context, cloudRouteGrant []byte, signer Signer) (result *RouteResolution, resultErr error) {
 	ctx, trace := connecttrace.Start(ctx, "controller_resolve")
 	defer func() { trace.End(resultErr) }()
@@ -819,7 +819,7 @@ func classifyDaemonLifecycleError(err error) error {
 		return &daemonLifecycleError{code: cloudprotocol.DaemonBlockedCode}
 	case grpcStatus.Code() == codes.NotFound && grpcStatus.Message() == cloudprotocol.DaemonDeletedCode:
 		return &daemonLifecycleError{code: cloudprotocol.DaemonDeletedCode}
-	case grpcStatus.Code() == codes.Unavailable && grpcStatus.Message() == "daemon is offline":
+	case grpcStatus.Code() == codes.Unavailable && grpcStatus.Message() == "pool is offline":
 		return &daemonOfflineError{cause: err}
 	default:
 		return err
@@ -827,7 +827,7 @@ func classifyDaemonLifecycleError(err error) error {
 }
 
 // PairingRoute 只使用 claim offer 内的紧凑 Edge 入口和 CA pin，不访问 Controller。
-// 最终 daemon 身份由端到端 DeviceHello 验证，完整 locator 只接受 PairingAccepted 返回值。
+// 最终 pool 身份由端到端 DeviceHello 验证，完整 locator 只接受 PairingAccepted 返回值。
 func (client *Client) PairingRoute(pairingClaimOffer []byte) (*RouteResolution, error) {
 	if client == nil || len(pairingClaimOffer) == 0 {
 		return nil, errors.New("Cloud pairing route input is incomplete")
@@ -856,7 +856,7 @@ func (client *Client) PairingRoute(pairingClaimOffer []byte) (*RouteResolution, 
 	return &RouteResolution{pairingBootstrap: bootstrap, pairingAdmission: admission}, nil
 }
 
-// ProbePresence asks the cached Edge whether the paired daemon currently owns
+// ProbePresence asks the cached Edge whether the paired pool currently owns
 // an authenticated AgentGateway connection. It deliberately does not fall back
 // to the Controller and never creates a signaling session, Relay reservation,
 // WebRTC peer, or application protocol client.
@@ -914,13 +914,13 @@ func (client *Client) ProbePresence(ctx context.Context, resolution *RouteResolu
 	if response.GetProtocolVersion() != cloudprotocol.ClientGatewayVersion || strings.TrimSpace(response.GetMessageId()) == "" ||
 		response.GetSenderId() != challenge.GetEdgeId() || response.GetBootId() != challenge.GetEdgeBootId() || response.GetConnectionId() != sessionID ||
 		response.GetStreamSeq() != 2 || response.GetSentAt() == nil || response.GetSentAt().CheckValid() != nil || response.GetPresence() == nil {
-		return false, errors.New("Cloud daemon presence response is invalid")
+		return false, errors.New("Cloud pool presence response is invalid")
 	}
 	return response.GetPresence().GetOnline(), nil
 }
 
 // Exchange 连接目标 Edge，并用长期 RouteGrant 或一次性 pairing admission 与本次 client proof 完成 offer/answer。
-// relayTransport 绑定本次 Relay attempt；Edge 必须把它透传给 daemon。
+// relayTransport 绑定本次 Relay attempt；Edge 必须把它透传给 pool。
 func (client *Client) Exchange(ctx context.Context, resolution *RouteResolution, identity remoteauth.ClientAccessIdentity, signer Signer, product cloudv1.ClientProduct, attemptGeneration uint64, relayPreference cloudv1.RelayPreference, relayTransport cloudv1.RelayTransport, createOffer func(context.Context, *cloudv1.ClientReady) (string, error)) (result *SignalSession, err error) {
 	capabilityRoute := resolution != nil && resolution.locator != nil && resolution.routeGrant != nil && resolution.pairingBootstrap == nil && resolution.pairingAdmission == nil
 	pairingRoute := resolution != nil && resolution.locator == nil && resolution.routeGrant == nil && resolution.pairingBootstrap != nil && resolution.pairingAdmission != nil

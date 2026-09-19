@@ -8,14 +8,14 @@ import (
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	"github.com/anytty/anytty/access/provider/terminal/tmux"
 	accessserver "github.com/anytty/anytty/access/server"
 	"github.com/anytty/anytty/access/sessions"
-	corev2 "github.com/anytty/anytty/daemon/core"
-	providercore "github.com/anytty/anytty/daemon/provider"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
+	corev2 "github.com/anytty/anytty/pool/core"
+	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/transport/memory"
@@ -27,7 +27,7 @@ import (
 func TestGrantRevokeClosesProviderSession(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	daemonSocket := filepath.Join(dir, "anyttyd.sock")
+	daemonSocket := filepath.Join(dir, "pool.sock")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -52,7 +52,7 @@ func TestGrantRevokeClosesProviderSession(t *testing.T) {
 		Files:   accessserverTestFiles(t),
 		Tracker: registry,
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, daemonSocket)
+			return poolprovider.DialTerminal(dialCtx, daemonSocket)
 		},
 	})
 	if err != nil {

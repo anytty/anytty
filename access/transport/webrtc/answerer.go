@@ -41,7 +41,7 @@ type ICEServer struct {
 }
 
 // SignalingOffer 是 Answerer 接受的单次 WebRTC offer。
-// SessionID 只用于请求与响应关联，不代表 Cloud 或 daemon session 真值。
+// SessionID 只用于请求与响应关联，不代表 Cloud 或 pool session 真值。
 type SignalingOffer struct {
 	SessionID  string
 	SDP        string
@@ -140,7 +140,7 @@ func (lifecycle *peerLifecycle) closeAndWait() {
 }
 
 func (lifecycle *peerLifecycle) finalize() {
-	_, trace := connecttrace.Start(connecttrace.Attach(context.Background(), lifecycle.traceID), "daemon_peer_close")
+	_, trace := connecttrace.Start(connecttrace.Attach(context.Background(), lifecycle.traceID), "pool_peer_close")
 	var closeErr error
 	trace.Mark("peer_close_started")
 	func() {
@@ -178,15 +178,15 @@ func (lifecycle *peerLifecycle) finalize() {
 	close(lifecycle.done)
 }
 
-// DataChannelSessionHandler 是 daemon 侧 DTLS DataChannel 的端到端授权 owner。
+// DataChannelSessionHandler 是 pool 侧 DTLS DataChannel 的端到端授权 owner。
 // 实现必须先在 DataChannel 内完成 DeviceIdentity proof 与 CapabilityGrant 校验，再把受限 scope 交给 core-v2。
 type DataChannelSessionHandler interface {
 	// ServeDataChannel 接收尚未授权的可靠有序 DataChannel；实现完成握手前不得调用 core-v2。
-	// daemonDTLSFingerprint 必须由 WebRTC adapter 从当前本端 DTLSTransport 读取，不能来自 SDP。
+	// peerDTLSFingerprint 必须由 WebRTC adapter 从当前本端 DTLSTransport 读取，不能来自 SDP。
 	ServeDataChannel(context.Context, transport.Transport, string) error
 }
 
-// Answerer 把一个公开 WebRTC offer 协商成 daemon answer。
+// Answerer 把一个公开 WebRTC offer 协商成 pool answer。
 // PeerConnection 只负责 ICE/DTLS/SCTP，不接收 grant、terminal payload 或 Cloud runtime 类型。
 type Answerer struct {
 	Handler DataChannelSessionHandler
@@ -200,7 +200,7 @@ type Answerer struct {
 	CloseOnDisconnected bool
 	// OnPeerClosed 在 Pion peer 真正关闭后调用一次，供 listener 释放有界 admission token。
 	OnPeerClosed func()
-	// OnSessionStart 在可靠有序 DataChannel 打开并即将进入 daemon 端到端授权入口时调用。
+	// OnSessionStart 在可靠有序 DataChannel 打开并即将进入 pool 端到端授权入口时调用。
 	// 它只用于连接级可观测性，不能修改授权、session generation 或 PeerConnection lifecycle。
 	OnSessionStart func()
 	// OnSessionError 接收 DataChannel 端到端认证或 application handler 的失败。
@@ -210,16 +210,16 @@ type Answerer struct {
 
 // Answer 创建 WebRTC answer，并把唯一可靠有序的 anytty DataChannel 交给端到端授权 handler。
 func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceServers []ICEServer) (result *SignalingAnswer, resultErr error) {
-	ctx, trace := connecttrace.Start(ctx, "daemon_answer")
+	ctx, trace := connecttrace.Start(ctx, "pool_answer")
 	defer func() { trace.End(resultErr) }()
 	if offer != nil && answerer.PionLogger != nil {
 		answerer.PionLogger.Info("anytty connect correlation", "trace_id", connecttrace.ID(ctx), "session_id", offer.SessionID)
 	}
 	if answerer.Handler == nil {
-		return nil, fmt.Errorf("remote daemon authorized data channel handler is not configured")
+		return nil, fmt.Errorf("remote pool authorized data channel handler is not configured")
 	}
 	if offer == nil || strings.TrimSpace(offer.SDP) == "" {
-		return nil, fmt.Errorf("remote daemon signaling offer is empty")
+		return nil, fmt.Errorf("remote pool signaling offer is empty")
 	}
 	configuration := pion.Configuration{ICEServers: make([]pion.ICEServer, 0, len(iceServers))}
 	if answerer.RequireRelay {
@@ -242,7 +242,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	peer, err := peerFactory(configuration)
 	trace.Mark("peer_created")
 	if err != nil {
-		return nil, fmt.Errorf("create remote daemon peer connection: %w", err)
+		return nil, fmt.Errorf("create remote pool peer connection: %w", err)
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)
 	if perftrace.Current() != nil && answerer.PionLogger != nil {
@@ -274,8 +274,8 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	})
 	peer.OnConnectionStateChange(func(state pion.PeerConnectionState) {
 		if answerer.PionLogger != nil {
-			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "peer", "value", state.String())
-			logDaemonSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "peer_"+state.String())
+			answerer.PionLogger.Info("AnyTTY Cloud pool WebRTC state", "session_id", offer.SessionID, "component", "peer", "value", state.String())
+			logPoolSelectedCandidatePair(answerer.PionLogger, peer, offer.SessionID, "peer_"+state.String())
 		}
 		if state == pion.PeerConnectionStateClosed {
 			lifecycle.requestClose()
@@ -287,7 +287,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	})
 	peer.OnICEConnectionStateChange(func(state pion.ICEConnectionState) {
 		if answerer.PionLogger != nil {
-			answerer.PionLogger.Info("AnyTTY Cloud daemon WebRTC state", "session_id", offer.SessionID, "component", "ice", "value", state.String())
+			answerer.PionLogger.Info("AnyTTY Cloud pool WebRTC state", "session_id", offer.SessionID, "component", "ice", "value", state.String())
 			// ICE graceful shutdown waits for this synchronous callback while
 			// holding the gatherer lock. Read pair stats in the async peer callback.
 		}
@@ -326,24 +326,24 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	})
 	if err := peer.SetRemoteDescription(pion.SessionDescription{Type: pion.SDPTypeOffer, SDP: offer.SDP}); err != nil {
 		lifecycle.closeAndWait()
-		return nil, fmt.Errorf("set remote daemon offer: %w", err)
+		return nil, fmt.Errorf("set remote pool offer: %w", err)
 	}
 	for _, candidate := range offer.Candidates {
 		if err := peer.AddICECandidate(toPionCandidate(candidate)); err != nil {
 			lifecycle.closeAndWait()
-			return nil, fmt.Errorf("add remote daemon ICE candidate: %w", err)
+			return nil, fmt.Errorf("add remote pool ICE candidate: %w", err)
 		}
 	}
 	localAnswer, err := peer.CreateAnswer(nil)
 	if err != nil {
 		lifecycle.closeAndWait()
-		return nil, fmt.Errorf("create remote daemon answer: %w", err)
+		return nil, fmt.Errorf("create remote pool answer: %w", err)
 	}
 	gatherComplete := pion.GatheringCompletePromise(peer)
 	trace.Mark("offer_applied_answer_created")
 	if err := peer.SetLocalDescription(localAnswer); err != nil {
 		lifecycle.closeAndWait()
-		return nil, fmt.Errorf("set remote daemon answer: %w", err)
+		return nil, fmt.Errorf("set remote pool answer: %w", err)
 	}
 	timeout := directGatherTimeout
 	if len(iceServers) > 0 {
@@ -357,7 +357,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	trace.Mark("ice_gathered")
 	if description == nil || strings.TrimSpace(description.SDP) == "" {
 		lifecycle.closeAndWait()
-		return nil, fmt.Errorf("remote daemon answer has no local description")
+		return nil, fmt.Errorf("remote pool answer has no local description")
 	}
 	candidateMu.Lock()
 	wireCandidates := append([]ICECandidate(nil), candidates...)
@@ -365,23 +365,23 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	return &SignalingAnswer{SessionID: offer.SessionID, SDP: description.SDP, Candidates: wireCandidates, lifecycle: lifecycle}, nil
 }
 
-func logDaemonSelectedCandidatePair(logger *slog.Logger, peer *pion.PeerConnection, sessionID, event string) {
+func logPoolSelectedCandidatePair(logger *slog.Logger, peer *pion.PeerConnection, sessionID, event string) {
 	if logger == nil || peer == nil || peer.SCTP() == nil || peer.SCTP().Transport() == nil || peer.SCTP().Transport().ICETransport() == nil {
 		return
 	}
 	pair, ok := peer.SCTP().Transport().ICETransport().GetSelectedCandidatePairStats()
 	if !ok {
-		logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", false)
+		logger.Info("AnyTTY Cloud pool WebRTC selected pair", "session_id", sessionID, "event", event, "selected", false)
 		return
 	}
 	report := peer.GetStats()
 	local, localOK := report[pair.LocalCandidateID].(pion.ICECandidateStats)
 	remote, remoteOK := report[pair.RemoteCandidateID].(pion.ICECandidateStats)
 	if !localOK || !remoteOK {
-		logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "candidates", "unavailable")
+		logger.Info("AnyTTY Cloud pool WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "candidates", "unavailable")
 		return
 	}
-	logger.Info("AnyTTY Cloud daemon WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "pair_id", pair.ID, "local_type", local.CandidateType.String(), "local_address", local.IP, "local_port", local.Port, "local_protocol", local.Protocol, "local_relay_protocol", local.RelayProtocol, "remote_type", remote.CandidateType.String(), "remote_address", remote.IP, "remote_port", remote.Port, "remote_protocol", remote.Protocol, "bytes_sent", pair.BytesSent, "bytes_received", pair.BytesReceived)
+	logger.Info("AnyTTY Cloud pool WebRTC selected pair", "session_id", sessionID, "event", event, "selected", true, "pair_id", pair.ID, "local_type", local.CandidateType.String(), "local_address", local.IP, "local_port", local.Port, "local_protocol", local.Protocol, "local_relay_protocol", local.RelayProtocol, "remote_type", remote.CandidateType.String(), "remote_address", remote.IP, "remote_port", remote.Port, "remote_protocol", remote.Protocol, "bytes_sent", pair.BytesSent, "bytes_received", pair.BytesReceived)
 }
 
 func toPionCandidate(candidate ICECandidate) pion.ICECandidateInit {

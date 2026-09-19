@@ -8,24 +8,24 @@
 
 > 状态（T5 后）：Phase 0–4 + T1（provider 协议）/ T2 / T3（插件协议删除）/
 > T4（CLI 默认入口切到 `clients/tui`：tui2 宿主 + tui2-shell，旧 `tui/` 删除）/
-> T5（dead-code 清理与过期引用收口）完成。daemon 只在 `<canonical>.provider`
+> T5（dead-code 清理与过期引用收口）完成。pool 只在 `<canonical>.provider`
 > 上服务 provider 协议；access 终结客户端 wire 与 file/storage/proxy/auth；
-> 旧 daemon client-protocol 栈与 `api_layer` 已删除（Slice C）。§3 的
-> `protocolserver` 抽包**不再需要**（daemon 客户端协议已整体删除）。
+> 旧 pool client-protocol 栈与 `api_layer` 已删除（Slice C）。§3 的
+> `protocolserver` 抽包**不再需要**（pool 客户端协议已整体删除）。
 
 | 阶段 | 状态 | 说明 |
 |---|---|---|
-| Phase 0 骨架 | 完成 | `access/server`（session 循环 + 路由）、`access/provider/terminal` 契约、daemon provider（client engine）、tmux 占位；`protocolserver` 抽包按 §3 退路改为 access 新建 session 循环（daemon/core 协议测试直接读写未导出字段，原样迁移会破坏回归护栏）。 |
-| Phase 1 终端路由 | 完成 | client→access→provider→daemon PTY 全链路（create/list/get/kill、attach 流桥接、input/resize、history/live、events）；`access/sessions` tracker 在 `access/server.ServeTransport` 挂钩，revoke 关闭客户端 transport 后 provider/附件/桥接随之释放。 |
-| Phase 2 文件/转发 | **完成（access 侧）** | `access/storage`、`access/files`（metadata 全命令 + 可续传 transfer）、`access/proxy`（browser proxy）已迁移并在 `access/server` 本地终结；§11 路径安全/断点续传/自适应窗口/进度合并全部落地（含 e2e 与基准）。daemon/core 旧实现暂时保留，等 Phase 3 socket flip 后与直连客户端一起删除。 |
-| Phase 3 入口切换 | **完成** | canonical socket 由 access 持有；daemon 移 `<canonical>.provider`；`anytty daemon start/stop/status` 双进程管理（独立日志）；daemon file/proxy/storage 实现与测试已删除（生成器缺失导致 port 方法保留 fail-closed stub）。 |
-| Phase 4 收尾 | **完成** | `access/runtime/control` 与 `provider/daemonpipe` 已删除；`client_access.*`/`cloud.*` 由 `access/server` 的 `FamilyAuth` 直答 `access/runtime`；daemon 不再挂载 ClientAccessService/RemoteService；tmux 仍为接口占位。压缩/结构化进度事件因缺 codegen 显式跳过。 |
+| Phase 0 骨架 | 完成 | `access/server`（session 循环 + 路由）、`access/provider/terminal` 契约、pool provider（client engine）、tmux 占位；`protocolserver` 抽包按 §3 退路改为 access 新建 session 循环（pool/core 协议测试直接读写未导出字段，原样迁移会破坏回归护栏）。 |
+| Phase 1 终端路由 | 完成 | client→access→provider→pool PTY 全链路（create/list/get/kill、attach 流桥接、input/resize、history/live、events）；`access/sessions` tracker 在 `access/server.ServeTransport` 挂钩，revoke 关闭客户端 transport 后 provider/附件/桥接随之释放。 |
+| Phase 2 文件/转发 | **完成（access 侧）** | `access/storage`、`access/files`（metadata 全命令 + 可续传 transfer）、`access/proxy`（browser proxy）已迁移并在 `access/server` 本地终结；§11 路径安全/断点续传/自适应窗口/进度合并全部落地（含 e2e 与基准）。pool/core 旧实现暂时保留，等 Phase 3 socket flip 后与直连客户端一起删除。 |
+| Phase 3 入口切换 | **完成** | canonical socket 由 access 持有；pool 移到 `<canonical>.provider`；`anytty pool start/stop/status` 双进程管理（独立日志）；pool file/proxy/storage 实现与测试已删除（生成器缺失导致 port 方法保留 fail-closed stub）。 |
+| Phase 4 收尾 | **完成** | `access/runtime/control` 与 `provider/daemonpipe`（历史名，已删除）；`client_access.*`/`cloud.*` 由 `access/server` 的 `FamilyAuth` 直答 `access/runtime`；pool 不再挂载 ClientAccessService/RemoteService；tmux 仍为接口占位。压缩/结构化进度事件因缺 codegen 显式跳过。 |
 
 ### Phase 2 交付细节（2026-09-19）
 
 - **命令迁移**：`file.list/stat/preview/mkdir/rename/delete/copy/move`、
   `file.download_open/upload_open/transfer_cancel`、`browser.proxy.open` 全部在
-  `access/server` 路由（`FamilyFile`/`FamilyProxy`），不再经过 daemon；
+  `access/server` 路由（`FamilyFile`/`FamilyProxy`），不再经过 pool；
   `storage.*` 同样本地终结。Resource token 由 access 以同一不透明形状签发
   （file `[channel:2]+"ft"+hexID`，browser `[channel:2]+random`），provider token
   不暴露给客户端。
@@ -56,7 +56,7 @@
 
 客户端只连 **access**；access 终结 access wire，按能力路由：鉴权/配对/Cloud、
 文件管理、端口转发由 access 自己处理；终端请求转给 **terminal provider**
-（现在 = anyttyd，以后 = tmux/zellij 等）。daemon 降级为纯终端 provider，
+（现在 = 内置 terminal pool，以后 = tmux/zellij 等）。pool 降级为纯终端 provider，
 只监听内部本地 socket。
 
 ## 1. 角色
@@ -64,7 +64,7 @@
 | 组件 | 职责 |
 |---|---|
 | access（`anytty-access`） | 唯一客户端入口；协议服务器（Hello/请求/流/事件）；DeviceIdentity + AccessStore + 配对；文件服务；端口转发；终端路由；撤销/过期踢线 |
-| daemon（`anyttyd`） | 终端 provider：PTY/进程/history/live/snapshot；只监听内部 owner-only socket；无身份、无账本、无文件、无网络出口 |
+| terminal pool（`anytty pool run`） | 终端 provider：PTY/进程/history/live/snapshot；只监听内部 owner-only socket；无身份、无账本、无文件、无网络出口 |
 | 客户端（TUI/CLI/Flutter/Web） | access wire 不变；本地与远程都连 access |
 
 ## 2. 拓扑
@@ -82,7 +82,7 @@
 └───────────────┬──────────────────────────────────────────────────────┘
                 │ provider 协议（owner-only 本地 socket）
                 ▼
-        ┌─ daemon provider（现在，= 现有 daemon 收窄为终端面）─┐
+        ┌─ pool provider（现在，= 现有 pool 收窄为终端面）─┐
         │ PTY/进程 · history · live snapshot · terminal events  │
         └───────────────────────────────────────────────────────┘
         （以后：tmux provider —— 翻译成 tmux control mode）
@@ -93,22 +93,22 @@
 | socket | 归属 | 说明 |
 |---|---|---|
 | `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock` | **access** | 客户端入口；owner-only；本地连接免鉴权（信任边界=0600） |
-| `<client sock>.provider` | daemon | 终端 provider 协议；只有 access 会连 |
+| `<client sock>.provider` | pool | 终端 provider 协议；只有 access 会连 |
 | `<client sock>.pair` | access | 本地 PairingExchange |
 | `<client sock>.direct` | access | Direct listener 记录 |
 | `<client sock>.control` | — | Phase 4 已删除（access 直答 client_access/cloud） |
 
-生命周期：`anytty daemon start/stop` 同时管理 daemon 与 access（daemon 先起，
-access 绑定客户端 socket）。日志分开：`anyttyd.log`、`anytty-access.log`。
+生命周期：`anytty pool start/stop` 同时管理 pool 与 access（pool 先起，
+access 绑定客户端 socket）。日志分开：`anytty.log`、`anytty-access.log`。
 
 ## 3. 协议服务器
 
 - access 使用 `access/server` 自己的 session 循环（frame/Hello/请求预算/stream
   registry/事件转发）；复用 `internal/protocol` 的 frame 与消息编码。
-- daemon 侧不再有客户端协议服务器：provider server（`daemon/provider`）只服务
+- pool 侧不再有客户端协议服务器：provider server（`pool/provider`）只服务
   access 的 owner-only `.provider` 连接。
-- 原计划把 `daemon/core/protocol_service.go` 抽成 `protocolserver` 包供 access
-  复用；T1–T4 完成后该路径已**作废**（daemon 协议栈整体删除，access session
+- 原计划把 `pool/core/protocol_service.go` 抽成 `protocolserver` 包供 access
+  复用；T1–T4 完成后该路径已**作废**（pool 协议栈整体删除，access session
   循环已独立稳定），不再实施。
 
 ## 4. 能力路由（access host）
@@ -121,7 +121,7 @@ access 绑定客户端 socket）。日志分开：`anyttyd.log`、`anytty-access
 | file.*（list/stat/preview/mkdir/rename/delete/move/copy） | `access/files` |
 | 上传/下载流（`file_transfer` channel） | `access/files` 终结（窗口/续传在 access） |
 | browser proxy open + 流 | `access/proxy`（从 access 主机拨号） |
-| storage.* | `access/storage`（迁移 `daemon/core/storage.go`） |
+| storage.* | `access/storage`（迁移 `pool/core/storage.go`） |
 | terminal create/list/get/kill | provider 调用 + 结果映射 |
 | terminal attach + PTY 流 | provider 附件流原样桥接到客户端 channel |
 | terminal input/resize/history/live | provider 调用 |
@@ -152,7 +152,7 @@ type Provider interface {
 }
 ```
 
-- **daemon provider（本期）**：access 用现成客户端引擎
+- **pool provider（本期）**：access 用现成客户端引擎
   （`access/engine/adapter/protocol` + `clientruntime.ApplicationSession`）连
   `<sock>.provider`，把 provider 方法逐条映射；attach 流用 `OpenResourceStream` 桥接。
 - **tmux provider（后置）**：实现同一接口（translate 到 tmux control mode/pane 流）；
@@ -163,10 +163,10 @@ type Provider interface {
 ## 6. 服务迁移
 
 ### 6.1 `access/files`
-从 `daemon/core` 搬迁（同机语义不变，操作 access 主机文件系统）：
+从 `pool/core` 搬迁（同机语义不变，操作 access 主机文件系统）：
 - `file_service.go`、`file_domain.go`、`file_roots_other.go`、`file_roots_windows.go`、
   `path_list.go`、`file_transfer.go`（含窗口/续传/temp/resume token）及对应测试；
-- daemon 删除这些文件与命令实现；映射层随后续清理演进（`api_layer` 已于 Slice C
+- pool 删除这些文件与命令实现；映射层随后续清理演进（`api_layer` 已于 Slice C
   删除；`api_mapping` 保留验证与 access 侧映射面）。
 
 ### 6.2 `access/proxy`
@@ -175,77 +175,77 @@ type Provider interface {
   （`access/engine/browserproxy`）不动。
 
 ### 6.3 `access/storage`
-- `daemon/core/storage.go`（通用 KV + 事件）迁移；客户端命令 `storage.*` 不变。
+- `pool/core/storage.go`（通用 KV + 事件）迁移；客户端命令 `storage.*` 不变。
 
 ### 6.4 删除/退役
-- `access/runtime/control`（daemon→access 反向 RPC）在 access 直答后删除；
-- daemon 的 `ClientAccessService/RemoteService` 挂载点删除；
-- `access/provider/daemonpipe`（plan A 的认证后直通管道）退役，改由 provider 客户端替代；
-- daemon 的 Direct/Cloud 相关残留（此前已删）确认清零。
+- `access/runtime/control`（pool→access 反向 RPC）在 access 直答后删除；
+- pool 的 `ClientAccessService/RemoteService` 挂载点删除；
+- `access/provider/poolpipe`（plan A 的认证后直通管道）退役，改由 provider 客户端替代；
+- pool 的 Direct/Cloud 相关残留（此前已删）确认清零。
 
 ## 7. 客户端与生命周期
 
 - `resolveV3Socket` 语义不变：默认客户端 socket 由 access 提供；
 - 本地连接仍免鉴权（owner-only 0600）；远程走 remoteauth；
-- `anytty daemon start|stop` 同时起停两个进程；`daemon status` 汇总两者；
+- `anytty pool start|stop` 同时起停两个进程；`pool status` 汇总两者；
 - TUI/CLI/Flutter access wire 一个字节不改；Flutter 无需发版；
 - `--route`/`--listen`/`--allow`/`--pair-token` 全在 access 侧不变。
 
 ## 8. 历史实施阶段（归档；Phase 0–4 + T1–T5 均已完成）
 
 > 以下是最初的分阶段计划，作为决策背景保留。实际执行中的偏差：
-> `protocolserver` 抽包未做（daemon 客户端协议栈已整体删除，见 §3）；
+> `protocolserver` 抽包未做（pool 客户端协议栈已整体删除，见 §3）；
 > `api_layer` 随 Slice C 删除；旧 `tui/` 随 T4 删除。
 
 ### Phase 0：骨架与协议服务器
-- 抽出 `protocolserver` + `SessionHost`，daemon 切过去（行为不变）；
+- 抽出 `protocolserver` + `SessionHost`，pool 切过去（行为不变）；
 - 新建 `access/server`（路由 host 骨架）、`access/provider/terminal` 接口；
 - 新增 access 本地监听 `<client sock>.access`（临时开发口，Phase 3 换成 canonical）。
 
 ### Phase 1：终端路由打通
-- access/server 接通 provider（daemon 客户端引擎），terminal 全命令 + attach 流 + 事件；
+- access/server 接通 provider（pool 客户端引擎），terminal 全命令 + attach 流 + 事件；
 - e2e：client→access(.access)→provider→PTY 输入输出；kick/过期关会话；
-- 旧路径（直连 daemon）保持可用。
+- 旧路径（直连 pool）保持可用。
 
 ### Phase 2：文件与转发搬入 access
 - `access/files`、`access/proxy` 迁移；路由本地终结；
-- 删除 daemon 对应实现与测试；文件/转发 e2e（本地 + Direct/Cloud 远程）。
+- 删除 pool 对应实现与测试；文件/转发 e2e（本地 + Direct/Cloud 远程）。
 
 ### Phase 3：入口切换
-- access 绑定 canonical 客户端 socket；daemon 移到 `.provider`；
-- `anytty daemon start/stop` 双进程生命周期；日志/诊断更新；
+- access 绑定 canonical 客户端 socket；pool 移到 `.provider`；
+- `anytty pool start/stop` 双进程生命周期；日志/诊断更新；
 - 全量 TUI/CLI/tmux smoke、Flutter 手测（wire 不变）。
 
 ### Phase 4：收尾
-- 删除 control RPC 反向路径、daemonpipe、daemon 非终端代码；
+- 删除 control RPC 反向路径、daemonpipe（历史名）、pool 非终端代码；
 - storage 迁移（若确认）；provider 错误面收口；
 - tmux provider 接口占位与文档；
 - 更新 `docs/HANDOFF.zh-CN.md`、`access/docs/GATEWAY.zh-CN.md`、`access/docs/ARCHITECTURE.zh-CN.md`。
 
 ## 9. 单二进制与角色隔离（升级模型）
 
-- 同一个 `anytty` 二进制承担三种角色：默认前台（确保栈 + tui2）、`anytty daemon run`（终端 provider）、
-  `anytty access run`（协议服务器）。`anyttyd` / `anytty-access` 只是共享同一装配的薄壳。
+- 同一个 `anytty` 二进制承担三种角色：默认前台（确保栈 + tui2）、`anytty pool run`（终端 provider）、
+  `anytty access run`（协议服务器）。`anytty pool run` / `anytty-access` 只是共享同一装配的薄壳。
 - 默认栈由两个**独立进程**组成（Unix `Setsid` / Windows detached + 独立进程组）：
-  daemon 只绑 `<canonical>.provider`，access 绑 canonical 客户端 socket；互不持有对方生命周期。
+  pool 只绑 `<canonical>.provider`，access 绑 canonical 客户端 socket；互不持有对方生命周期。
 - 角色命令：
   - `anytty access start|stop|restart|status|logs`
-  - `anytty daemon start|stop|restart|status|logs`（`restart --keep-access` 只重启 daemon）
+  - `anytty pool start|stop|restart|status|logs`（`restart --keep-access` 只重启 pool）
 - 升级路径：
-  - 只升级 access：替换二进制后 `anytty access restart` —— daemon PID 与终端记录不变；
-  - 只升级 daemon：`anytty daemon restart --keep-access` —— access PID 不变，终端随 daemon 重建（PTY 属于 daemon）；
-  - `anytty daemon stop` 停整栈；`anytty access stop` 只停 access，daemon 与终端继续运行。
+  - 只升级 access：替换二进制后 `anytty access restart` —— pool PID 与终端记录不变；
+  - 只升级 pool：`anytty pool restart --keep-access` —— access PID 不变，终端随 pool 重建（PTY 属于 pool）；
+  - `anytty pool stop` 停整栈；`anytty access stop` 只停 access，pool 与终端继续运行。
 - 崩溃隔离（`TestAccessLifecycleIsolationAndIndependentUpgrade`）：
-  - access 被 kill → daemon 与终端存活，`access start` 以新 PID 恢复，终端仍可列出；
-  - daemon 崩溃 → access 进程存活（新会话失败，daemon 恢复后自动可用）。
+  - access 被 kill → pool 与终端存活，`access start` 以新 PID 恢复，终端仍可列出；
+  - pool 崩溃 → access 进程存活（新会话失败，pool 恢复后自动可用）。
 - 自动拉起留给系统服务管理器（systemd/launchd/Windows Service）；CLI 不内建 watchdog，
   避免与平台服务管理重复。
 
 ## 9. 测试策略
 
-- `protocolserver` 抽取后 daemon/core 原有协议测试必须原样通过（回归护栏）；
+- `protocolserver` 抽取后 pool/core 原有协议测试必须原样通过（回归护栏）；
 - access 路由单测：命令→handler 分派表、事件合并、流终结；
-- provider 契约测试：同一套断言同时跑 daemon provider（必须绿）与 tmux provider（占位 skip）；
+- provider 契约测试：同一套断言同时跑 pool provider（必须绿）与 tmux provider（占位 skip）；
 - e2e：本地 TUI/tmux smoke 经 access；Direct/Cloud 远程全链路；文件上传下载；
   webview 转发；revoke/TTL 踢线；
 - Flutter 只做 wire 兼容性手测（不发版）。
@@ -253,15 +253,15 @@ type Provider interface {
 ## 10. 风险与决策
 
 **风险**
-1. protocolserver 抽取是最大工程，先抽后改，daemon 测试作回归护栏；
+1. protocolserver 抽取是最大工程，先抽后改，pool 测试作回归护栏；
 2. attach 流的 owner/resize epoch/raw PTY 语义必须由 provider 桥接完整保留；
 3. 本地入口切到 access 后，access 不在时本地终端不可用（已接受）；
 4. 多一跳的性能：access 只做 frame 转发与本地服务，不额外拷贝。
 
 **已确认（2026-09-19）**
-1. socket 拓扑：access 拿 canonical 客户端 socket，daemon 移 `.provider`；
+1. socket 拓扑：access 拿 canonical 客户端 socket，pool 移 `.provider`；
 2. `storage.*` 随文件/转发一起搬进 access；
-3. `anytty daemon start` 同时拉起 daemon+access；
+3. `anytty pool start` 同时拉起 pool+access；
 4. tmux provider 本期只留接口，不实现。
 
 ## 11. 文件传输优化（性能 + 体验，Phase 2 内完成）

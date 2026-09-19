@@ -3,7 +3,7 @@ package apimapping
 import (
 	"time"
 
-	corev2 "github.com/anytty/anytty/daemon/core"
+	corev2 "github.com/anytty/anytty/pool/core"
 	"github.com/anytty/anytty/proto/access/apipb"
 )
 
@@ -147,12 +147,12 @@ func FileTransferCancelRequestFromProto(command *apipb.FileTransferCancelCommand
 	}
 }
 
-// FileEntryToProto 映射 daemon file metadata。
+// FileEntryToProto 映射 pool file metadata。
 func FileEntryToProto(entry corev2.FileEntry) *apipb.FileEntry {
 	return &apipb.FileEntry{Path: entry.Path, Name: entry.Name, Type: fileEntryTypeToProto(entry.Type), Size: entry.Size, Mode: entry.Mode, ModifiedAtUnixNano: unixNanoOrZero(entry.ModifiedAt), LinkTarget: entry.LinkTarget}
 }
 
-// FileStatToProto 包装单个 daemon file metadata projection。
+// FileStatToProto 包装单个 pool file metadata projection。
 func FileStatToProto(entry corev2.FileEntry) *apipb.FileStatResult {
 	return &apipb.FileStatResult{Entry: FileEntryToProto(entry)}
 }

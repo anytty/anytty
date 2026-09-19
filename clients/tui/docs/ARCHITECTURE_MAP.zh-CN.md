@@ -20,16 +20,16 @@
 │   ③ 路由：claim 表 + 焦点  →  程序 或 组件（图 3）                                │
 │   ④ 布局解算：盒子 → rect/flex/hit/overlay（纯函数）                              │
 │   ⑤ 帧合成：程序帧 + 组件帧 + overlay 帧（z 序，图 5）                            │
-│   ⑥ 连接：daemon 数据面、组件进程、协议连接                                        │
+│   ⑥ 连接：终端池 数据面、组件进程、协议连接                                        │
 └───────┬────────────────────────────────────────────────▲─────────┬──────────────┘
         │ view / result（二进制帧）                       │ events   │ 数据面调用
         ▼                                                 │          ▼
 ┌──────────────────────────────┐                          │  ┌──────────────────────────┐
-│ 布局程序（子进程，可重启）      │──────────────────────────┘  │ daemon（终端生命的 owner） │
+│ 布局程序（子进程，可重启）      │──────────────────────────┘  │ 终端池（终端生命的 owner） │
 │  状态机：workspace/tab/slot/  │                             │  · PTY 与进程生命周期      │
 │  focus/mode/overlay/ratio     │                             │  · history（回看窗口）     │
 │  只做：声明 + 方法调用          │                             │  · clipboard（OSC52 出口） │
-│  禁止：PTY/剪贴板/daemon/尺寸数字│                             │  · attachment/尺寸权属     │
+│  禁止：PTY/剪贴板/终端池/尺寸数字│                             │  · attachment/尺寸权属     │
 └──────────────────────────────┘                             └────────────┬─────────────┘
                                                                            ▼
                                                               ┌────────────────────────┐
@@ -37,7 +37,7 @@
                                                               └────────────────────────┘
 ```
 
-**要点**：程序崩了宿主能重启它（重放 hello/sources）；daemon 崩了终端才真的死；宿主永远不认"tab/pane/picker"。
+**要点**：程序崩了宿主能重启它（重放 hello/sources）；终端池 崩了终端才真的死；宿主永远不认"tab/pane/picker"。
 
 ## 图 2 · 消息面（五种帧类型）
 
@@ -47,7 +47,7 @@
 
 宿主 ──1 HELLO{view_id,epoch,schema,视口,组件,方法,features,limits(max_inflight_requests/owner_lease_ttl_ms/…)}──▶ 程序
 程序 ──2 VIEW{epoch,rev,keys{claim,all},root}──▶ 宿主 ──解算/合成──▶ 屏幕（超限则回 view_rejected）
-程序 ──4 RESULT{request_id,epoch,method,params}──▶ 宿主 ──授权──▶ daemon/组件 执行副作用
+程序 ──4 RESULT{request_id,epoch,method,params}──▶ 宿主 ──授权──▶ 终端池/组件 执行副作用
 宿主 ──5 RESPONSE{request_id,epoch,ok,data|error}──▶ 程序
 宿主 ──3 EVENT(sources/key/paste/mouse/wheel/resize/notice/component/view_rejected)──▶ 程序
 ```
@@ -90,7 +90,7 @@ bytes → 解析
 │                mouse/wheel · component · notice                    │
 └────────────────────────────────────────────────────────────────────┘
 分工：能力=组件 · 策略=程序 · 管道=宿主
-决策：需要特权(PTY/剪贴板/daemon)/独立进程/独占资源 → 做组件；
+决策：需要特权(PTY/剪贴板/终端池)/独立进程/独占资源 → 做组件；
       纯展示与选择策略(picker/help/prompt) → 程序侧 SDK 库，不进协议。
 ```
 
@@ -101,7 +101,7 @@ bytes → 解析
                                                         │
         ┌组件B┐ ◀──②声明式 props（view 盒子字段）────────┤
         └组件B┘ ◀──③命令式 result{method}─── 宿主授权 ────┘
-   组件X ──▶ ④宿主共享能力（clipboard/history/daemon）     ✘ 组件A⇄组件B 直连（不存在）
+   组件X ──▶ ④宿主共享能力（clipboard/history/终端池）     ✘ 组件A⇄组件B 直连（不存在）
                                                           ✘ 组件内嵌组件（宿主不支持；"嵌套"=终端内再跑复用器，或另一客户端 attach 同一终端）
 ```
 
@@ -122,7 +122,7 @@ z 序（从下往上合成）                     尺寸（三段接力）
 ## 图 6 · 生命周期归属（两种语义只是一个 switch）
 
 ```
-daemon 拥有终端生命：  create → running → exited → kill/remove
+终端池 拥有终端生命：  create → running → exited → kill/remove
 程序   拥有 slot 生命： split → 空槽 → attach(绑定) → 解绑/关闭
                     ┌──────────────┴──────────────┐
         tmux 式（同生共死）              anytty 式（完全解绑）
@@ -167,7 +167,7 @@ NORMAL/PANE ──滚轮/PgUp──▶ SCROLL（[↑N]；scroll→RESPONSE.data�
 ## 图 8 · 一次完整时序：分屏 → 绑定 → 输入 → 关闭
 
 ```
-用户            程序                  宿主                     daemon/PTY
+用户            程序                  宿主                     终端池/PTY
  │ Ctrl-P, %     │                     │                          │
  ├──────────────▶│ 追加空槽, focus=新槽  │                          │
  │               ├─view{epoch,rev,keys}▶│ 解算/合成                 │

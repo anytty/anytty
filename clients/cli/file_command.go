@@ -64,7 +64,7 @@ type fileTransferView struct {
 
 func newFileCommand(socket, logFile *string) *cobra.Command {
 	runtime := &fileCommandRuntime{socket: socket, logFile: logFile}
-	command := &cobra.Command{Use: "file", Short: "Operate on an endpoint daemon file system"}
+	command := &cobra.Command{Use: "file", Short: "Operate on an endpoint terminal pool file system"}
 	command.PersistentFlags().DurationVar(&runtime.timeout, "timeout", 2*time.Minute, "operation timeout")
 	command.AddCommand(
 		newFileListCommand(runtime), newFileStatCommand(runtime), newFileCatCommand(runtime),
@@ -106,7 +106,7 @@ func newFileListCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var limit int
 	var all, jsonOutput bool
 	command := &cobra.Command{
-		Use: "list ENDPOINT [PATH]", Short: "List a daemon-owned directory", Args: cobra.RangeArgs(1, 2),
+		Use: "list ENDPOINT [PATH]", Short: "List a terminal-pool-owned directory", Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if limit <= 0 || limit > 10000 {
 				return usageCLIError("--limit must be 1..10000")
@@ -144,7 +144,7 @@ func newFileListCommand(runtime *fileCommandRuntime) *cobra.Command {
 					break
 				}
 				if _, duplicate := seen[next]; duplicate {
-					return &cliError{code: 6, message: "daemon returned a repeated file cursor"}
+					return &cliError{code: 6, message: "pool returned a repeated file cursor"}
 				}
 				seen[next] = struct{}{}
 			}
@@ -165,7 +165,7 @@ func newFileListCommand(runtime *fileCommandRuntime) *cobra.Command {
 			return writeCLITable(cmd.OutOrStdout(), []string{"TYPE", "SIZE", "MODIFIED", "NAME"}, rows)
 		},
 	}
-	command.Flags().StringVar(&cursor, "cursor", "", "daemon-issued pagination cursor")
+	command.Flags().StringVar(&cursor, "cursor", "", "pool-issued pagination cursor")
 	command.Flags().IntVar(&limit, "limit", 200, "entries per page")
 	command.Flags().BoolVar(&all, "all", false, "read all pages")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
@@ -175,7 +175,7 @@ func newFileListCommand(runtime *fileCommandRuntime) *cobra.Command {
 func newFileStatCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
-		Use: "stat ENDPOINT PATH", Short: "Show daemon-owned file metadata", Args: cobra.ExactArgs(2),
+		Use: "stat ENDPOINT PATH", Short: "Show terminal-pool-owned file metadata", Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -212,7 +212,7 @@ func newFileStatCommand(runtime *fileCommandRuntime) *cobra.Command {
 
 func newFileCatCommand(runtime *fileCommandRuntime) *cobra.Command {
 	return &cobra.Command{
-		Use: "cat ENDPOINT PATH", Short: "Stream a daemon-owned file to stdout", Args: cobra.ExactArgs(2),
+		Use: "cat ENDPOINT PATH", Short: "Stream a terminal-pool-owned file to stdout", Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -230,7 +230,7 @@ func newFileCatCommand(runtime *fileCommandRuntime) *cobra.Command {
 func newFileDownloadCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var overwrite, jsonOutput bool
 	command := &cobra.Command{
-		Use: "download ENDPOINT REMOTE [LOCAL]", Short: "Download and verify a daemon-owned file", Args: cobra.RangeArgs(2, 3),
+		Use: "download ENDPOINT REMOTE [LOCAL]", Short: "Download and verify a terminal-pool-owned file", Args: cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -270,7 +270,7 @@ func newFileDownloadCommand(runtime *fileCommandRuntime) *cobra.Command {
 func newFileUploadCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var overwrite, jsonOutput bool
 	command := &cobra.Command{
-		Use: "upload ENDPOINT LOCAL [REMOTE]", Short: "Upload a local file and wait for daemon checksum confirmation", Args: cobra.RangeArgs(2, 3),
+		Use: "upload ENDPOINT LOCAL [REMOTE]", Short: "Upload a local file and wait for terminal pool checksum confirmation", Args: cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -313,7 +313,7 @@ func newFileUploadCommand(runtime *fileCommandRuntime) *cobra.Command {
 func newFileMkdirCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var parents, jsonOutput bool
 	command := &cobra.Command{
-		Use: "mkdir ENDPOINT PATH", Short: "Create a daemon-owned directory", Args: cobra.ExactArgs(2),
+		Use: "mkdir ENDPOINT PATH", Short: "Create a terminal-pool-owned directory", Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFileSingleMutation(cmd, runtime, args[0], jsonOutput, func(ctx context.Context, client *protocoladapter.ApplicationClient) (*apipb.FileOperationResult, error) {
 				return client.ApplicationSession.FileMkdir(ctx, &apipb.FileMkdirCommand{Path: args[1], Recursive: parents})
@@ -328,7 +328,7 @@ func newFileMkdirCommand(runtime *fileCommandRuntime) *cobra.Command {
 func newFileRenameCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var overwrite, jsonOutput bool
 	command := &cobra.Command{
-		Use: "rename ENDPOINT OLD NEW", Short: "Rename a daemon-owned path", Args: cobra.ExactArgs(3),
+		Use: "rename ENDPOINT OLD NEW", Short: "Rename a terminal-pool-owned path", Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFileSingleMutation(cmd, runtime, args[0], jsonOutput, func(ctx context.Context, client *protocoladapter.ApplicationClient) (*apipb.FileOperationResult, error) {
 				return client.ApplicationSession.FileRename(ctx, &apipb.FileRenameCommand{Path: args[1], NewPath: args[2], Overwrite: overwrite})
@@ -347,7 +347,7 @@ func newFileCopyMoveCommand(runtime *fileCommandRuntime, move bool) *cobra.Comma
 		verb = "move"
 	}
 	command := &cobra.Command{
-		Use: verb + " ENDPOINT SRC... DEST_DIR", Short: strings.ToUpper(verb[:1]) + verb[1:] + " daemon-owned paths", Args: cobra.MinimumNArgs(3),
+		Use: verb + " ENDPOINT SRC... DEST_DIR", Short: strings.ToUpper(verb[:1]) + verb[1:] + " terminal-pool-owned paths", Args: cobra.MinimumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -377,7 +377,7 @@ func newFileCopyMoveCommand(runtime *fileCommandRuntime, move bool) *cobra.Comma
 func newFileRemoveCommand(runtime *fileCommandRuntime) *cobra.Command {
 	var recursive, jsonOutput bool
 	command := &cobra.Command{
-		Use: "remove ENDPOINT PATH...", Short: "Remove daemon-owned paths", Args: cobra.MinimumNArgs(2),
+		Use: "remove ENDPOINT PATH...", Short: "Remove terminal-pool-owned paths", Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := runtime.context(cmd)
 			defer cancel()
@@ -501,7 +501,7 @@ func downloadEndpointFile(ctx context.Context, client *protocoladapter.Applicati
 			_, _ = hash.Write(data.Data)
 			offset += int64(len(data.Data))
 			bytesSinceAcknowledgement += int64(len(data.Data))
-			// The daemon replenishes a completed window, not individual chunks.
+			// The pool replenishes a completed window, not individual chunks.
 			// Match the mobile client and avoid queuing ACKs ahead of that boundary.
 			if bytesSinceAcknowledgement == opened.GetWindowBytes() {
 				ack, err := protocol.EncodeFileTransferAck(protocol.FileTransferAck{Offset: offset, WindowBytes: bytesSinceAcknowledgement})
@@ -713,13 +713,13 @@ func uploadEndpointFile(ctx context.Context, client *protocoladapter.Application
 
 func validateFileTransferOpen(opened *apipb.FileTransferHandle, expectedSize int64, allowResume bool) error {
 	if opened == nil || opened.GetResource() == nil || strings.TrimSpace(opened.GetPath()) == "" {
-		return fmt.Errorf("daemon returned incomplete file transfer metadata")
+		return fmt.Errorf("pool returned incomplete file transfer metadata")
 	}
 	if opened.GetSize() < 0 || (expectedSize >= 0 && opened.GetSize() != expectedSize) {
-		return fmt.Errorf("daemon returned an invalid file transfer size")
+		return fmt.Errorf("pool returned an invalid file transfer size")
 	}
 	if opened.GetOffset() < 0 || opened.GetOffset() > opened.GetSize() || (!allowResume && opened.GetOffset() != 0) {
-		return fmt.Errorf("daemon returned an invalid file transfer offset")
+		return fmt.Errorf("pool returned an invalid file transfer offset")
 	}
 	return nil
 }

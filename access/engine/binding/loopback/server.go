@@ -144,7 +144,7 @@ type client struct {
 }
 
 // Start listens only on an ephemeral IPv4 loopback port. Additional origins
-// let a daemon-owned local web page use the same authenticated bridge without
+// let a pool-owned local web page use the same authenticated bridge without
 // weakening the native WebView origin checks.
 func Start(engine Engine, token string, additionalOrigins ...string) (*Server, error) {
 	if engine == nil {

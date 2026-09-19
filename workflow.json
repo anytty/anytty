@@ -9,7 +9,7 @@
     "layout_program": "默认 shell/（Go 子进程）：产出盒子树 JSON；改 JSON = 改布局；自己处理按键/切页/弹窗。",
     "components": "content.self 的引用解析：内置组件（builtin.header/footer/terminal:<id>…，宿主渲染）或注册的 provider（路径/进程/引用值，后续）。",
     "plugin_ui": "取消“声明式插件 UI”概念。第三方想做 UI：注册一个引用并在某个 rect 里用，或直接写布局程序。",
-    "data_plane": "不变：数据/命令经该资源所属 endpoint 的 daemon；daemon 侧插件只供数据，不供 UI。"
+    "data_plane": "不变：数据/命令经该资源所属 endpoint 的 terminal pool；terminal pool 侧插件只供数据，不供 UI。"
   },
   "rules": {
     "box_model": "宿主只认识盒子（rect/div）：size/pos/flow/visible/content/border/input/focused/children。",
@@ -167,7 +167,7 @@
         "overlay/授权出现时由宿主渲染",
         "程序无法伪装/隐藏这些界面"
       ],
-      "result": "已落：程序节点不得占用宿主保留的 core.* id（program.StripReservedIDs，host 解码时强制）；独立安全 overlay 层 tui/program/host/safety.go（CoreOverlay/CoreOverlayFrames，LayerOverlay，永远追加在程序帧之后合成，程序不能覆盖/隐藏）；保留键 ReservedKeyFor（Ctrl-Q 退出确认、Ctrl-C 强制逃生，程序收不到）；overlay 打开时输入只归宿主（OverlayInput：enter/y 允许、esc/n/ctrl-c 拒绝、其余消耗）。typed result 授权执行：tui/program/host/result.go（Result/DecodeMessage，view 与 result 分流，result 不覆盖展示树），cmd/anytty/program_host.go 白名单 executor——terminal.attach/terminal.create 经数据面直接执行，workbench.command 的 kill/delete 与 system.quit 必须先由 core overlay 授权，确认后命令带 PaneConfirmAccepted 仅由宿主经 app message path 执行；程序拿不到 daemon socket/lease。E2E（tmux+隔离 dev daemon）验证：Ctrl-Q 出宿主 overlay；terminal.create 经数据面创建真实 terminal；pane.kill 出宿主授权 overlay；程序进程被杀后宿主不崩、旧 UI 回退可继续打字。"
+      "result": "已落：程序节点不得占用宿主保留的 core.* id（program.StripReservedIDs，host 解码时强制）；独立安全 overlay 层 tui/program/host/safety.go（CoreOverlay/CoreOverlayFrames，LayerOverlay，永远追加在程序帧之后合成，程序不能覆盖/隐藏）；保留键 ReservedKeyFor（Ctrl-Q 退出确认、Ctrl-C 强制逃生，程序收不到）；overlay 打开时输入只归宿主（OverlayInput：enter/y 允许、esc/n/ctrl-c 拒绝、其余消耗）。typed result 授权执行：tui/program/host/result.go（Result/DecodeMessage，view 与 result 分流，result 不覆盖展示树），cmd/anytty/program_host.go 白名单 executor——terminal.attach/terminal.create 经数据面直接执行，workbench.command 的 kill/delete 与 system.quit 必须先由 core overlay 授权，确认后命令带 PaneConfirmAccepted 仅由宿主经 app message path 执行；程序拿不到 pool socket/lease。E2E（tmux+隔离 dev 终端池）验证：Ctrl-Q 出宿主 overlay；terminal.create 经数据面创建真实 terminal；pane.kill 出宿主授权 overlay；程序进程被杀后宿主不崩、旧 UI 回退可继续打字。"
     },
     {
       "id": 11,
@@ -205,7 +205,7 @@
     {
       "id": 14,
       "title": "组件能力：回看/复制（框架内核不变）",
-      "detail": "terminal 组件的新能力（滚动视图、选择高亮、复制），不是框架内核任务：框架的盒子模型/协议/安全内核不变。需要的是：runtime 增加每终端视图状态（scroll offset/selection）与 typed result（terminal.scroll/terminal.copy/terminal.selection）；精简恢复 daemon history 数据面端口（旧 port/history.go 删除时被误当 UI）；本机剪贴板写端口（OSC52 或系统剪贴板）；shell 只做键位/模式策略（何时进入回看、滚轮映射、复制快捷键）。",
+      "detail": "terminal 组件的新能力（滚动视图、选择高亮、复制），不是框架内核任务：框架的盒子模型/协议/安全内核不变。需要的是：runtime 增加每终端视图状态（scroll offset/selection）与 typed result（terminal.scroll/terminal.copy/terminal.selection）；精简恢复 pool history 数据面端口（旧 port/history.go 删除时被误当 UI）；本机剪贴板写端口（OSC52 或系统剪贴板）；shell 只做键位/模式策略（何时进入回看、滚轮映射、复制快捷键）。",
       "status": "done",
       "checks": [
         "go build/vet/test",
@@ -235,7 +235,7 @@
       "id": 17,
       "title": "CLI 默认入口切到新 TUI（tui2）并删除旧 tui/",
       "status": "done",
-      "detail": "anytty 根命令与 attach 改为加载 endpoint registry 后启动 tui2 宿主（TUI2_BIN/TUI2_SHELL 或同目录/PATH 查找），必要时自动拉起 daemon+access；--socket 通过临时 registry override 注入，--config 转发给 tui2-shell，--log-file 传给宿主。tui2-shell 新增 -attach 目标绑定。删除旧 tui/ 整树与 shell/、cmd/anytty-program-harness、cmd/anytty-keyprobe；api_layer 已在 Slice C 删除。CLI tmux smokes 重写为新入口黑盒（picker/输入/ANSI+Unicode/resize stty/多轮稳定性）。",
+      "detail": "anytty 根命令与 attach 改为加载 endpoint registry 后启动 tui2 宿主（TUI2_BIN/TUI2_SHELL 或同目录/PATH 查找），必要时自动拉起 pool+access；--socket 通过临时 registry override 注入，--config 转发给 tui2-shell，--log-file 传给宿主。tui2-shell 新增 -attach 目标绑定。删除旧 tui/ 整树与 shell/、cmd/anytty-program-harness、cmd/anytty-keyprobe；api_layer 已在 Slice C 删除。CLI tmux smokes 重写为新入口黑盒（picker/输入/ANSI+Unicode/resize stty/多轮稳定性）。",
       "verify": [
         "go build ./... && go vet ./...",
         "ANYTTY_ALLOW_NESTED=1 go test -count=1 ./clients/cli/... ./clients/tui/...",
@@ -249,11 +249,11 @@
       "id": 18,
       "title": "T5 最终清理（dead-code 与过期引用）",
       "status": "done",
-      "detail": "deadcode 可达性扫描（anytty/anyttyd/anytty-access/tui2/tui2-shell/androidlib）；删除定义后无调用的迁移残留；过期引用只在历史说明中保留；本工作日志标记为历史归档。",
+      "detail": "deadcode 可达性扫描（anytty/anytty-access/tui2/tui2-shell/androidlib；anyttyd 已删除）；删除定义后无调用的迁移残留；过期引用只在历史说明中保留；本工作日志标记为历史归档。",
       "verify": [
         "go build ./... && go vet ./...",
         "ANYTTY_ALLOW_NESTED=1 go test -count=1 -p 4 ./...",
-        "go test -race -p 2 ./access/... ./daemon/... ./clients/cli/...",
+        "go test -race -p 2 ./access/... ./pool/... ./clients/cli/...",
         "go run ./scripts/generate_application_api.go -check"
       ],
       "result": "见 docs/HANDOFF.zh-CN.md T5 段与最终验证结果。"
@@ -287,7 +287,7 @@
   },
   "notes": [
     "以 docs/design/TUI_PROGRAM_MODEL.zh-CN.md 为准；TUI_SURFACE_REFACTOR.zh-CN.md 仅作历史。",
-    "宿主红线：数据和命令经 endpoint daemon；像素/输入只在本机。",
+    "宿主红线：数据和命令经 endpoint terminal pool；像素/输入只在本机。",
     "验证命令：go build ./...；go vet ./...；go test ./tui/... ./shell；ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty ./shell；ANYTTY_ALLOW_NESTED=1 bash scripts/anytty-dev.sh cli v3 tmux-terminal-smoke。",
     "cmd/anytty 的 attach 类测试与 tmux smoke 需要 ANYTTY_ALLOW_NESTED=1。"
   ],

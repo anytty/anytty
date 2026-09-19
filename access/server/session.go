@@ -34,7 +34,7 @@ const defaultMaxInFlightRequests = 64
 // maxProtocolChannelID 与 framing uint16 channel 空间一致。
 const maxProtocolChannelID uint32 = math.MaxUint16
 
-// accessTokenBytes 是 access 重写后 resource token 的长度，保持与 daemon token 一致的不透明性。
+// accessTokenBytes 是 access 重写后 resource token 的长度，保持与 pool token 一致的不透明性。
 const accessTokenBytes = 32
 
 type session struct {

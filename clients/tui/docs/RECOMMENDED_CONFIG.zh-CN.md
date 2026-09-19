@@ -16,12 +16,12 @@
 | `tui/config/config.go` `Default()` | 非推荐默认：`profile default`、Palette `host`、`tab_create_icon "+"`、状态 glyph `○●◐○×!?`、`DimInactivePanels 0.5` |
 | `tui/state/config.go` `DefaultTUIPickerEndpointStatusConfig()` | endpoint 状态 glyph：unknown/idle/disabled `○`、connected `●`、connecting `◐`、offline `×`、reconnect `!`、unregistered `?` |
 | `tui/render/glyphs.go` `defaultPaneChromeGlyphs` | 非推荐 pane 字形：`×`/`↗`/`│`/`─`/`■`… |
-| `~/.config/anytty/endpoints.yaml` + `scripts/anytty-dev.sh:write_endpoints` | 老 endpoint 模型 = **daemon 协议**：`version: 3`、`default`、`endpoints.<id>{label,label_source,enabled,connect_mode,routes}`，route kind 有 `local-unix`/`managed-webrtc`/`direct-webrtc-tcp`（字段 socket/credential_ref/target_device_id/signaling_addresses/ice_tcp_addresses/relay_mode…）；dev 脚本写的是 `local-unix` + socket 路径 |
+| `~/.config/anytty/endpoints.yaml` + `scripts/anytty-dev.sh:write_endpoints` | 老 endpoint 模型 = **终端池协议**：`version: 3`、`default`、`endpoints.<id>{label,label_source,enabled,connect_mode,routes}`，route kind 有 `local-unix`/`managed-webrtc`/`direct-webrtc-tcp`（字段 socket/credential_ref/target_device_id/signaling_addresses/ice_tcp_addresses/relay_mode…）；dev 脚本写的是 `local-unix` + socket 路径 |
 
 **模型结论**：老推荐配置 = 一套**表现层 profile**（主题色 + Nerd Font 图标 + 模板 +
-场景键位标签），挂在**daemon 协议 endpoint 模型**（routes/连接策略）之上。
+场景键位标签），挂在**终端池协议 endpoint 模型**（routes/连接策略）之上。
 tui2 的 v1 里：表现层全量可映射（见 §1/§2），endpoint 先用"命令式 endpoint"落地
-（见 §4），daemon 协议差异显式记录。
+（见 §4），终端池协议差异显式记录。
 
 ## 1. 图标清单（codepoint + 用途 + v2 字段）
 
@@ -190,9 +190,9 @@ yaml 中**v2 已实现**的键位，未实现的场景动作不显示、不映�
   Go shell 从**最终合成帧**取 footer 行（`footer_golden_test.go`），legacy.py
   `--footer-lines` 输出同一格式，两侧由同一规格表驱动逐字符比对（parity 30/30）。
 
-## 4. Endpoint 模型（老 daemon 协议 → v2 连接策略）
+## 4. Endpoint 模型（老 终端池协议 → v2 连接策略）
 
-老模型（`endpoints.yaml` v3，daemon 协议）：
+老模型（`endpoints.yaml` v3，终端池协议）：
 
 ```yaml
 version: 3
@@ -226,17 +226,17 @@ v2（`tui2.json` `endpoints`，两种 kind）：
 |---|---|---|
 | endpoint id（map key） | `name` | 成为协议 source id `terminal:<endpoint>:<id>`；禁 `:` |
 | `label` | `label` | picker 展示名，缺省用 `name` |
-| `routes.local.kind=local-unix` + `socket` | `kind: "daemon"` + `socket` | host 按 daemon 协议连接（list/attach/input/resize/kill/remove/重连），picker 分组显示 endpoint 与其终端 |
+| `routes.local.kind=local-unix` + `socket` | `kind: "daemon"` + `socket` | host 按 终端池协议连接（list/attach/input/resize/kill/remove/重连），picker 分组显示 endpoint 与其终端 |
 | `connect_mode`（auto/on_demand/manual） | `connect_mode` | `local-unix`/`tcp` 已实现（tcp 用 `address: HOST:PORT` 指向 `ssh -L`/桥）；`direct-webrtc-tcp`/`managed-webrtc` 不做（配置可写，连接报可读错误） |
-| 命令式等价用法 | `kind: "command"` + `argv` | 起本地 PTY；远程 daemon 也可在 argv 里跑 `ssh host anytty attach ...` |
-| `enabled` | 无 | 列入配置即用；daemon 断线自动退避重连并给 health/notice |
-| `env`/cwd（daemon 侧） | `env`/`cwd` | daemon endpoint 下作为新建终端的 spec（协议字段 5/6/7） |
+| 命令式等价用法 | `kind: "command"` + `argv` | 起本地 PTY；远程 终端池 也可在 argv 里跑 `ssh host anytty attach ...` |
+| `enabled` | 无 | 列入配置即用；终端池 断线自动退避重连并给 health/notice |
+| `env`/cwd（终端池 侧） | `env`/`cwd` | 终端池 endpoint 下作为新建终端的 spec（协议字段 5/6/7） |
 
 行为：picker 在已知终端之后、`+ New terminal` 之前列出配置 endpoint
 （`󰌷 label` + `endpoint · command <argv[0]>` 或 `endpoint · daemon local-unix`）；
-配置了 daemon endpoint 时按 endpoint 分组（组头 `  <endpoint>`，daemon 终端带
-`<endpoint> · live/exited/offline`）。daemon endpoint 选中即
-`terminal.create{endpoint,kind,socket,...}`；已有 daemon 终端单击即
+配置了 终端池 endpoint 时按 endpoint 分组（组头 `  <endpoint>`，终端池 终端带
+`<endpoint> · live/exited/offline`）。终端池 endpoint 选中即
+`terminal.create{endpoint,kind,socket,...}`；已有 终端池 终端单击即
 `terminal.attach`，之后与本地终端同一条组件/输入/scrollback 路径。
 
 完整调用序列、health 语义、支持矩阵与断线/错误路径见

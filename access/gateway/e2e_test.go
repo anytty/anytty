@@ -23,11 +23,11 @@ import (
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	"github.com/anytty/anytty/access/gateway"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessserver "github.com/anytty/anytty/access/server"
-	core "github.com/anytty/anytty/daemon/core"
-	providercore "github.com/anytty/anytty/daemon/provider"
+	core "github.com/anytty/anytty/pool/core"
+	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -39,7 +39,7 @@ const e2eTimeout = 20 * time.Second
 
 // testDaemon is one real daemon core with an identity service so the engine's
 // local adapter can complete its Hello and identity proof exactly like it does
-// against anyttyd.
+// against `anytty pool run`.
 type testDaemon struct {
 	socket string
 	server *core.Server
@@ -72,7 +72,7 @@ func startTestDaemon(t *testing.T) *testDaemon {
 		Socket: accessSocket,
 		Auth:   &accessserver.AuthServices{Access: testAccessService{identity: identity}},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, providerSocket)
+			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},
 	})
 	if err != nil {
@@ -168,7 +168,7 @@ func newGatewayFixture(t *testing.T, token []byte) *gatewayFixture {
 func (fixture *gatewayFixture) startGateway(t *testing.T, specs ...gateway.ListenerSpec) {
 	t.Helper()
 	gw, err := gateway.New(gateway.Config{
-		Provider:  daemonprovider.New(fixture.daemon.socket),
+		Provider:  poolprovider.New(fixture.daemon.socket),
 		Listeners: specs,
 		PairToken: fixture.token,
 	})
@@ -559,7 +559,7 @@ func TestGatewayMultipleListeners(t *testing.T) {
 	daemon := startTestDaemon(t)
 	unixSocket := filepath.Join(t.TempDir(), "gateway-access.sock")
 	gw, err := gateway.New(gateway.Config{
-		Provider: daemonprovider.New(daemon.socket),
+		Provider: poolprovider.New(daemon.socket),
 		Listeners: []gateway.ListenerSpec{
 			{Network: "tcp", Address: "127.0.0.1:0"},
 			{Network: "unix", Address: unixSocket},
@@ -603,14 +603,14 @@ func TestGatewayMultipleListeners(t *testing.T) {
 // process owns only the gateway's TCP listeners, so the in-process daemon
 // contributes no network listener and cannot be reached by tcp except through
 // the gateway.
-func TestDaemonHasNoTCPListeners(t *testing.T) {
+func TestPoolHasNoTCPListeners(t *testing.T) {
 	_ = startTestDaemon(t)
 	if len(processTCPListeners(t)) != 0 {
 		t.Fatalf("daemon-only process owns tcp listeners: %v", processTCPListeners(t))
 	}
 	gw := func() *gateway.Gateway {
 		gw, err := gateway.New(gateway.Config{
-			Provider:  daemonprovider.New("unused-for-this-assertion"),
+			Provider:  poolprovider.New("unused-for-this-assertion"),
 			Listeners: []gateway.ListenerSpec{tcpSpec()},
 		})
 		if err != nil {
@@ -649,7 +649,7 @@ func TestDaemonHasNoTCPListeners(t *testing.T) {
 // serving other connections.
 func TestGatewayProviderDialUsesDaemonSocket(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "missing-daemon.sock")
-	gw := startGateway(t, gateway.Config{Provider: daemonprovider.New(socket), Listeners: []gateway.ListenerSpec{tcpSpec()}})
+	gw := startGateway(t, gateway.Config{Provider: poolprovider.New(socket), Listeners: []gateway.ListenerSpec{tcpSpec()}})
 	conn := dialTCP(t, gw.Addrs()[0])
 	_ = conn.SetReadDeadline(time.Now().Add(e2eTimeout))
 	if _, err := io.ReadAll(conn); err != nil {

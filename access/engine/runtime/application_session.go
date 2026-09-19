@@ -75,7 +75,7 @@ type TerminalResponseApplicationExecutor interface {
 }
 
 // ApplicationReadyPeerSession 是已经完成 transport、授权与 protocol Hello 的可执行 session。
-// route adapter 返回该接口后，runtime/binding 只能通过 generated Proto command/event 访问 daemon；关闭和 generation fence 仍由 ReadyPeerSession 约束。
+// route adapter 返回该接口后，runtime/binding 只能通过 generated Proto command/event 访问 pool；关闭和 generation fence 仍由 ReadyPeerSession 约束。
 type ApplicationReadyPeerSession interface {
 	ReadyPeerSession
 	ProtoApplicationExecutor
@@ -308,7 +308,7 @@ func (session *ApplicationSession) HistoryWindow(ctx context.Context, command *a
 	return nil, ctx.Err()
 }
 
-// EventSubscribe 建立 daemon session-owned subscription，并返回对应的 Proto event stream。
+// EventSubscribe 建立 pool session-owned subscription，并返回对应的 Proto event stream。
 func (session *ApplicationSession) EventSubscribe(ctx context.Context, command *apipb.EventSubscribeCommand) (*apipb.EventSubscriptionResult, <-chan *apipb.EventEnvelope, error) {
 	source, ok := session.executor.(protoApplicationEventSource)
 	if !ok {

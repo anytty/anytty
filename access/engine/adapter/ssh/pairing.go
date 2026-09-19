@@ -13,7 +13,7 @@ import (
 	"github.com/anytty/anytty/shared/remoteauth"
 )
 
-// PairingConnector 通过 SSH direct-tcpip 到达 daemon 的 loopback signaling/ICE，并复用公共 PairingService。
+// PairingConnector 通过 SSH direct-tcpip 到达 pool 的 loopback signaling/ICE，并复用公共 PairingService。
 // SSH 只负责可达性和 host key pin；DeviceIdentity、claim 与 grant 仍在端到端 DTLS DataChannel 内校验和签发。
 type PairingConnector struct {
 	Peers          direct.PeerFactory

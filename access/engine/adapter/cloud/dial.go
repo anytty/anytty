@@ -332,9 +332,9 @@ func cloudConnectionError(err error) error {
 	case cloudclient.IsAdminDisconnect(err):
 		return cloudSignalingTermination(err)
 	case cloudclient.IsDaemonBlocked(err):
-		return &clientruntime.Error{Code: clientruntime.ErrorDaemonBlocked, Message: "daemon Cloud access is temporarily disabled", Cause: err, Retryable: true}
+		return &clientruntime.Error{Code: clientruntime.ErrorDaemonBlocked, Message: "pool Cloud access is temporarily disabled", Cause: err, Retryable: true}
 	case cloudclient.IsDaemonDeleted(err):
-		return &clientruntime.Error{Code: clientruntime.ErrorDaemonDeleted, Message: "daemon Cloud enrollment was deleted", Cause: err}
+		return &clientruntime.Error{Code: clientruntime.ErrorDaemonDeleted, Message: "pool Cloud enrollment was deleted", Cause: err}
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_QUOTA_EXHAUSTED:
 		return &clientruntime.Error{Code: clientruntime.ErrorRelayQuotaExhausted, Message: cloudEntitlementMessage(failure), Cause: err}
 	case failure != nil && failure.GetCode() == cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED:
@@ -380,7 +380,7 @@ func cloudEntitlementMessage(failure *cloudv1.CloudEntitlementFailure) string {
 	}
 	switch failure.GetCode() {
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_DAEMON_LIMIT_EXHAUSTED:
-		return "Cloud daemon connection limit is reached; stop another Cloud daemon or upgrade the plan. Direct and SSH remain available"
+		return "Cloud pool connection limit is reached; stop another Cloud pool or upgrade the plan. Direct and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_QUOTA_EXHAUSTED:
 		return "Relay traffic quota is exhausted; Direct, P2P, and SSH remain available"
 	case cloudv1.CloudEntitlementErrorCode_CLOUD_ENTITLEMENT_ERROR_CODE_RELAY_CONCURRENCY_EXHAUSTED:

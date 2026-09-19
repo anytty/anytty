@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anytty/anytty/daemon/core/history/linehist"
+	"github.com/anytty/anytty/pool/core/history/linehist"
 )
 
-func TestHistoryDeleteCommandRemovesTerminalHistoryWhileDaemonStopped(t *testing.T) {
+func TestHistoryDeleteCommandRemovesTerminalHistoryWhilePoolStopped(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	dir := resolveV3HistoryStorageDir()
@@ -47,11 +47,11 @@ func TestHistoryDeleteCommandRemovesTerminalHistoryWhileDaemonStopped(t *testing
 	}
 }
 
-func TestHistoryDeleteCommandRefusesWhileDaemonOwnsRuntimeRecord(t *testing.T) {
+func TestHistoryDeleteCommandRefusesWhilePoolOwnsRuntimeRecord(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	socketPath := filepath.Join(t.TempDir(), "daemon.sock")
-	release, err := acquireDaemonRuntimeRecord(socketPath, filepath.Join(t.TempDir(), "daemon.log"), "")
+	release, err := acquirePoolRuntimeRecord(socketPath, filepath.Join(t.TempDir(), "daemon.log"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestHistoryDeleteCommandRefusesWhileDaemonOwnsRuntimeRecord(t *testing.T) {
 	command.SetErr(&bytes.Buffer{})
 	command.SetArgs([]string{"--socket", socketPath, "history", "delete", "--all"})
 	err = command.Execute()
-	if err == nil || !strings.Contains(err.Error(), "requires the daemon to be stopped") {
-		t.Fatalf("unexpected running-daemon error: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "requires the terminal pool to be stopped") {
+		t.Fatalf("unexpected running-pool error: %v", err)
 	}
 }

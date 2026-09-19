@@ -139,11 +139,11 @@ func newWebStopCommand(socket, logFile, configPath *string) *cobra.Command {
 }
 
 func readLocalWebStatus(cmd *cobra.Command, socket, logFile, configPath *string) (localWebStatusView, error) {
-	daemon, _, err := daemonStatus(resolveV3Socket(*socket), *logFile, *configPath)
+	pool, _, err := poolStatus(resolveV3Socket(*socket), *logFile, *configPath)
 	if err != nil {
 		return localWebStatusView{}, err
 	}
-	if daemon.State != "running" {
+	if pool.State != "running" {
 		return localWebStatusView{}, nil
 	}
 	response, err := callLocalWeb(cmd, socket, logFile, configPath, func(ctx context.Context, application localWebApplicationSession) (*apipb.RemoteLocalStatusResult, error) {

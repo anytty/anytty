@@ -15,11 +15,11 @@ import (
 	"time"
 
 	accesscontract "github.com/anytty/anytty/access/contract"
-	daemonprovider "github.com/anytty/anytty/access/provider/daemon"
+	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	accessserver "github.com/anytty/anytty/access/server"
-	corev2 "github.com/anytty/anytty/daemon/core"
-	providercore "github.com/anytty/anytty/daemon/provider"
+	corev2 "github.com/anytty/anytty/pool/core"
+	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/bindingpb"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -61,7 +61,7 @@ func TestServerOpensAuthenticatedBindingSession(t *testing.T) {
 		Socket: filepath.Join(t.TempDir(), "access.sock"),
 		Auth:   &accessserver.AuthServices{Access: &localWebTestAccessService{identity: identity}},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
-			return daemonprovider.DialTerminal(dialCtx, providerSocket)
+			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},
 	})
 	if err != nil {

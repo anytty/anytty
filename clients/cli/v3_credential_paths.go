@@ -10,7 +10,7 @@ func v3RemoteCredentialDir() string {
 	return localstate.RemoteCredentialDir()
 }
 
-// v3RemoteIdentityDir 返回 daemon DeviceIdentity 的 owner-only 持久目录。
+// v3RemoteIdentityDir 返回 pool DeviceIdentity 的 owner-only 持久目录。
 // Identity 是 Direct/SSH 端到端认证真值，不属于 Cloud 配置。
 func v3RemoteIdentityDir() string {
 	return localstate.RemoteIdentityDir()

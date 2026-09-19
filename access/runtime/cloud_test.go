@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	clouddaemon "github.com/anytty/anytty/daemon/cloud"
+	cloud "github.com/anytty/anytty/access/cloud"
 )
 
 func TestCloudRuntimeControlRestartsChangedEnrollment(t *testing.T) {
-	oldRecord := clouddaemon.EnrollmentRecord{DaemonID: "daemon-old", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC()}
-	newRecord := clouddaemon.EnrollmentRecord{DaemonID: "daemon-new", AccountID: "account", EnrolledAt: time.Unix(2, 0).UTC()}
+	oldRecord := cloud.EnrollmentRecord{DaemonID: "daemon-old", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC()}
+	newRecord := cloud.EnrollmentRecord{DaemonID: "daemon-new", AccountID: "account", EnrolledAt: time.Unix(2, 0).UTC()}
 	canceled := false
 	control := &CloudControl{
-		runtime:           new(clouddaemon.Runtime),
+		runtime:           new(cloud.Runtime),
 		runtimeCancel:     func() { canceled = true },
 		runtimeEnrollment: cloudEnrollmentIdentityFromRecord(oldRecord),
 	}
@@ -23,10 +23,10 @@ func TestCloudRuntimeControlRestartsChangedEnrollment(t *testing.T) {
 }
 
 func TestCloudRuntimeControlKeepsMatchingEnrollment(t *testing.T) {
-	record := clouddaemon.EnrollmentRecord{DaemonID: "daemon", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC()}
+	record := cloud.EnrollmentRecord{DaemonID: "daemon", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC()}
 	canceled := false
 	control := &CloudControl{
-		runtime:           new(clouddaemon.Runtime),
+		runtime:           new(cloud.Runtime),
 		runtimeCancel:     func() { canceled = true },
 		runtimeEnrollment: cloudEnrollmentIdentityFromRecord(record),
 	}
@@ -40,12 +40,12 @@ func TestCloudRuntimeControlKeepsMatchingEnrollment(t *testing.T) {
 }
 
 func TestCloudRuntimeStatusRejectsStaleEnrollment(t *testing.T) {
-	record := clouddaemon.EnrollmentRecord{DaemonID: "daemon-new", AccountID: "account", EnrolledAt: time.Unix(2, 0).UTC()}
-	stale := clouddaemon.StatusSnapshot{DaemonID: "daemon-old", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC(), Ready: true}
+	record := cloud.EnrollmentRecord{DaemonID: "daemon-new", AccountID: "account", EnrolledAt: time.Unix(2, 0).UTC()}
+	stale := cloud.StatusSnapshot{DaemonID: "daemon-old", AccountID: "account", EnrolledAt: time.Unix(1, 0).UTC(), Ready: true}
 	if cloudRuntimeMatchesEnrollment(record, stale) {
 		t.Fatal("stale ready runtime matched the replacement enrollment")
 	}
-	current := clouddaemon.StatusSnapshot{DaemonID: record.DaemonID, AccountID: record.AccountID, EnrolledAt: record.EnrolledAt, Ready: true}
+	current := cloud.StatusSnapshot{DaemonID: record.DaemonID, AccountID: record.AccountID, EnrolledAt: record.EnrolledAt, Ready: true}
 	if !cloudRuntimeMatchesEnrollment(record, current) {
 		t.Fatal("current runtime did not match its enrollment")
 	}

@@ -52,7 +52,7 @@ func (source cliEndpointPlanSource) Snapshot(ctx context.Context, endpointID cli
 	}
 	target, ok := registry.Endpoints[endpointID]
 	if !ok {
-		// pairing import 在 registry 事务提交前必须先对候选 Endpoint 完成 daemon-authenticated handshake。
+		// pairing import 在 registry 事务提交前必须先对候选 Endpoint 完成 pool-authenticated handshake。
 		// 该显式 invocation 输入只覆盖“同 ID 尚不存在”；已持久化 Endpoint 永远以 registry 最新值为准。
 		if source.initialTarget.ID != endpointID {
 			return clientruntime.EndpointPlanSnapshot{}, &clientruntime.Error{Code: clientruntime.ErrorNotFound, Message: fmt.Sprintf("endpoint %q is not configured", endpointID)}
