@@ -19,10 +19,12 @@ import (
 
 	accesscontract "github.com/anytty/anytty/access/contract"
 	"github.com/anytty/anytty/access/engine/adapter/direct"
+	"github.com/anytty/anytty/access/engine/adapter/internal/e2etest"
 	peeradapter "github.com/anytty/anytty/access/engine/adapter/peer"
 	pionadapter "github.com/anytty/anytty/access/engine/adapter/webrtc/pion"
 	"github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
+	"github.com/anytty/anytty/access/files"
 	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	remote "github.com/anytty/anytty/access/remote"
@@ -32,6 +34,7 @@ import (
 	providercore "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/remoteauthpb"
+	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport"
 	pionwebrtc "github.com/pion/webrtc/v4"
@@ -87,6 +90,98 @@ func TestDirectICETCPCompletesOverOneSharedTCPPort(t *testing.T) {
 	}
 	if fixture.signalingAddress != fixture.iceAddress {
 		t.Fatalf("shared-port fixture used signaling=%q ice=%q", fixture.signalingAddress, fixture.iceAddress)
+	}
+}
+
+// TestDirectICETCPFullSessionTerminalAndFileRoundTrip 覆盖 Direct 完整 session：
+// terminal create/list/attach/input/PTY output 之后，在同一 ready session 上做
+// upload→download 文件往返，校验字节一致与 ack/window 语义。
+func TestDirectICETCPFullSessionTerminalAndFileRoundTrip(t *testing.T) {
+	fixture := newDirectFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ready, err := fixture.dialer(pionadapter.Factory{PeerConnections: directClientAPI().NewPeerConnection}).Connect(ctx, fixture.attempt(t, 7))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ready.Close() }()
+	session, ok := ready.(*direct.Session)
+	if !ok {
+		t.Fatalf("Direct ready session type = %T", ready)
+	}
+
+	created, err := session.TerminalCreate(ctx, &apipb.TerminalCreateCommand{Terminal: &apipb.TerminalCreateSpec{
+		TerminalId: "direct-e2e", Name: "direct-e2e", Command: []string{"/bin/sh"}, Size: &apipb.TerminalSize{Cols: 80, Rows: 24},
+	}})
+	if err != nil {
+		t.Fatalf("Direct terminal create: %v", err)
+	}
+	ref := created.GetTerminal().GetRef()
+	if ref.GetTerminalId() != "direct-e2e" {
+		t.Fatalf("Direct terminal create ref = %#v", ref)
+	}
+	list, err := session.TerminalList(ctx, &apipb.TerminalListCommand{})
+	if err != nil {
+		t.Fatalf("Direct terminal list: %v", err)
+	}
+	found := false
+	for _, terminal := range list.GetTerminals() {
+		if terminal.GetRef().GetTerminalId() == "direct-e2e" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Direct terminal list = %#v", list.GetTerminals())
+	}
+
+	attached, err := session.TerminalAttach(ctx, &apipb.TerminalAttachCommand{
+		Terminal: ref, Mode: apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR,
+		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_OWNER, SurfaceId: "direct-e2e", ViewId: "e2e",
+	})
+	if err != nil {
+		t.Fatalf("Direct terminal attach: %v", err)
+	}
+	attachment := attached.GetAttachment()
+	if attachment.GetResource().GetKind() != apipb.ResourceKind_RESOURCE_KIND_TERMINAL_ATTACHMENT {
+		t.Fatalf("Direct attachment resource = %#v", attachment.GetResource())
+	}
+	stream, err := session.OpenResourceStream(attachment.GetResource())
+	if err != nil {
+		t.Fatalf("Direct open attachment stream: %v", err)
+	}
+	defer func() { _ = stream.Close() }()
+	// The echoed command line contains "DIRECT-E2E-$(echo FULL)"; only execution
+	// output can contain the joined marker.
+	if err := session.TerminalInput(ctx, &apipb.TerminalInputCommand{
+		Attachment: attachment.GetResource(), Data: []byte("echo DIRECT-E2E-$(echo FULL)\r"),
+	}); err != nil {
+		t.Fatalf("Direct terminal input: %v", err)
+	}
+	if output := waitForDirectPTYOutput(t, ctx, stream, "DIRECT-E2E-FULL"); output == "" {
+		t.Fatal("Direct PTY output did not reach the client")
+	}
+
+	// Slightly larger than the 1 MiB download window so the transfer must
+	// exercise the window/ack flow, with a tail that is not chunk-aligned.
+	content := make([]byte, 1<<20+12345)
+	for index := range content {
+		content[index] = byte(index * 31)
+	}
+	remotePath := filepath.Join(t.TempDir(), "direct-session.bin")
+	e2etest.UploadFile(t, ctx, session, remotePath, content)
+	if stored, err := os.ReadFile(remotePath); err != nil || !bytes.Equal(stored, content) {
+		t.Fatalf("Direct uploaded file mismatch: bytes=%d err=%v", len(stored), err)
+	}
+	e2etest.DownloadFile(t, ctx, session, remotePath, content)
+
+	if err := session.TerminalDetach(ctx, &apipb.TerminalDetachCommand{Attachment: attachment.GetResource()}); err != nil {
+		t.Fatalf("Direct terminal detach: %v", err)
+	}
+	if err := session.TerminalKill(ctx, &apipb.TerminalKillCommand{Terminal: ref}); err != nil {
+		t.Fatalf("Direct terminal kill: %v", err)
+	}
+	if err := session.TerminalRemove(ctx, &apipb.TerminalRemoveCommand{Terminal: ref}); err != nil {
+		t.Fatalf("Direct terminal remove: %v", err)
 	}
 }
 
@@ -581,6 +676,28 @@ func directClientAPI() *pionwebrtc.API {
 	return pionwebrtc.NewAPI(pionwebrtc.WithSettingEngine(settings))
 }
 
+func waitForDirectPTYOutput(t *testing.T, ctx context.Context, stream clientruntime.ResourceStream, needle string) string {
+	t.Helper()
+	output := &strings.Builder{}
+	for {
+		typ, payload, err := stream.Receive(ctx)
+		if err != nil {
+			t.Fatalf("receive Direct attachment frame: %v; output=%q", err, output.String())
+		}
+		switch typ {
+		case wire.TypePTYOutput:
+			output.Write(payload)
+			if strings.Contains(output.String(), needle) {
+				return output.String()
+			}
+		case wire.TypeError:
+			t.Fatalf("Direct attachment stream error: %s", string(payload))
+		case wire.TypeClosed, wire.TypeSyncLost:
+			t.Fatalf("Direct attachment stream closed before %q; output=%q", needle, output.String())
+		}
+	}
+}
+
 func selectedPair(t *testing.T, peer *pionwebrtc.PeerConnection) *pionwebrtc.ICECandidatePair {
 	t.Helper()
 	if peer == nil || peer.SCTP() == nil || peer.SCTP().Transport() == nil || peer.SCTP().Transport().ICETransport() == nil {
@@ -640,6 +757,7 @@ func startAccessCoreForRemoteTest(t *testing.T, accessService accesscontract.Cli
 	accessCore, err := accessserver.New(accessserver.Config{
 		Socket: filepath.Join(t.TempDir(), "access.sock"),
 		Auth:   &accessserver.AuthServices{Access: accessService},
+		Files:  files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
 			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},

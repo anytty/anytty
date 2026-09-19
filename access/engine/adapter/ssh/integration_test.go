@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -18,11 +19,13 @@ import (
 	"time"
 
 	accesscontract "github.com/anytty/anytty/access/contract"
+	"github.com/anytty/anytty/access/engine/adapter/internal/e2etest"
 	peeradapter "github.com/anytty/anytty/access/engine/adapter/peer"
 	pionadapter "github.com/anytty/anytty/access/engine/adapter/webrtc/pion"
 	"github.com/anytty/anytty/access/engine/endpoint"
 	"github.com/anytty/anytty/access/engine/port"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
+	"github.com/anytty/anytty/access/files"
 	poolprovider "github.com/anytty/anytty/access/provider/pool"
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	remote "github.com/anytty/anytty/access/remote"
@@ -89,6 +92,17 @@ func TestSSHDirectTCPIPCompletesWebRTCAuthHelloAndProtoAPI(t *testing.T) {
 	if session.forwarder.accepted.Load() == 0 {
 		t.Fatal("SSH ICE forwarder did not carry the selected TCP pair")
 	}
+	// One file round trip over the same authenticated DataChannel: upload then
+	// download must preserve bytes and complete the transfer ack/window flow.
+	// Larger than the 1 MiB download window so the same window/ack flow runs
+	// over the SSH tunnel.
+	content := append(bytes.Repeat([]byte("ssh-e2e-file-payload-"), 1<<16), []byte("ssh-e2e-tail")...)
+	remotePath := filepath.Join(t.TempDir(), "ssh-e2e.bin")
+	e2etest.UploadFile(t, ctx, session, remotePath, content)
+	if stored, err := os.ReadFile(remotePath); err != nil || !bytes.Equal(stored, content) {
+		t.Fatalf("SSH uploaded file mismatch: bytes=%d err=%v", len(stored), err)
+	}
+	e2etest.DownloadFile(t, ctx, session, remotePath, content)
 	if err := ready.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -534,6 +548,7 @@ func startAccessCoreForRemoteTest(t *testing.T, accessService accesscontract.Cli
 	accessCore, err := accessserver.New(accessserver.Config{
 		Socket: filepath.Join(t.TempDir(), "access.sock"),
 		Auth:   &accessserver.AuthServices{Access: accessService},
+		Files:  files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")},
 		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
 			return poolprovider.DialTerminal(dialCtx, providerSocket)
 		},

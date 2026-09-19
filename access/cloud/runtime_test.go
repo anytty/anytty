@@ -804,7 +804,9 @@ func TestConnectAttemptTimeoutStopsAfterAgentReady(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	const attemptTimeout = 40 * time.Millisecond
+	// Keep the attempt timeout comfortably above a real AgentGateway round trip
+	// (slower under -race) so AgentReady wins before the guard can cancel.
+	const attemptTimeout = 500 * time.Millisecond
 	go func() {
 		done <- runtime.connectEdge(ctx, runtime.currentRecord().DaemonID, &cloudv1.SignedEnvelope{KeyId: "test-binding"}, locator, attemptTimeout)
 	}()
