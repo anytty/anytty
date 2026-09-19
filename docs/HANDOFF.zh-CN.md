@@ -113,6 +113,10 @@ anytty/
 
 ## 5. 常用命令
 
+单二进制 / 角色隔离：`anytty` 同一二进制以两个独立进程运行 daemon（`.provider`）与 access
+（canonical socket）。`anytty access start|stop|restart` 只动 access；`anytty daemon restart
+--keep-access` 只动 daemon；access 崩溃不影响终端。详见 `access/docs/ARCHITECTURE.zh-CN.md` §9。
+
 ```bash
 go build ./... && go vet ./...
 ANYTTY_ALLOW_NESTED=1 go test -count=1 -p 4 ./...

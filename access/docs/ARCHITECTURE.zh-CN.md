@@ -222,6 +222,25 @@ type Provider interface {
 - tmux provider 接口占位与文档；
 - 更新 `docs/HANDOFF.zh-CN.md`、`access/docs/GATEWAY.zh-CN.md`、`access/docs/ARCHITECTURE.zh-CN.md`。
 
+## 9. 单二进制与角色隔离（升级模型）
+
+- 同一个 `anytty` 二进制承担三种角色：默认前台（确保栈 + tui2）、`anytty daemon run`（终端 provider）、
+  `anytty access run`（协议服务器）。`anyttyd` / `anytty-access` 只是共享同一装配的薄壳。
+- 默认栈由两个**独立进程**组成（Unix `Setsid` / Windows detached + 独立进程组）：
+  daemon 只绑 `<canonical>.provider`，access 绑 canonical 客户端 socket；互不持有对方生命周期。
+- 角色命令：
+  - `anytty access start|stop|restart|status|logs`
+  - `anytty daemon start|stop|restart|status|logs`（`restart --keep-access` 只重启 daemon）
+- 升级路径：
+  - 只升级 access：替换二进制后 `anytty access restart` —— daemon PID 与终端记录不变；
+  - 只升级 daemon：`anytty daemon restart --keep-access` —— access PID 不变，终端随 daemon 重建（PTY 属于 daemon）；
+  - `anytty daemon stop` 停整栈；`anytty access stop` 只停 access，daemon 与终端继续运行。
+- 崩溃隔离（`TestAccessLifecycleIsolationAndIndependentUpgrade`）：
+  - access 被 kill → daemon 与终端存活，`access start` 以新 PID 恢复，终端仍可列出；
+  - daemon 崩溃 → access 进程存活（新会话失败，daemon 恢复后自动可用）。
+- 自动拉起留给系统服务管理器（systemd/launchd/Windows Service）；CLI 不内建 watchdog，
+  避免与平台服务管理重复。
+
 ## 9. 测试策略
 
 - `protocolserver` 抽取后 daemon/core 原有协议测试必须原样通过（回归护栏）；

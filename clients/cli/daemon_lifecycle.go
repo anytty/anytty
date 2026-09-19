@@ -323,17 +323,23 @@ func newDaemonStopCommand(socket *string) *cobra.Command {
 }
 
 func newDaemonRestartCommand(socket, logFile, configPath *string) *cobra.Command {
-	return &cobra.Command{
+	var keepAccess bool
+	command := &cobra.Command{
 		Use: "restart", Short: "Restart the current-user daemon service", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			status, record, err := daemonStatus(resolveV3Socket(*socket), *logFile, *configPath)
+			socketPath := resolveV3Socket(*socket)
+			status, record, err := daemonStatus(socketPath, *logFile, *configPath)
 			if err != nil {
 				return err
 			}
+			// access 是独立进程：默认随 daemon 重启；--keep-access 保留它，实现"只升级 daemon"。
+			accessPreserved := false
+			if keepAccess && daemonRecordAccessMatches(record) {
+				accessPreserved = true
+			} else if err := stopManagedAccess(record); err != nil {
+				return classifyCLIError(err)
+			}
 			if status.State == "running" || status.State == "starting" {
-				if err := stopManagedAccess(record); err != nil {
-					return classifyCLIError(err)
-				}
 				if err := stopDaemonProcess(record.PID); err != nil {
 					return classifyCLIError(err)
 				}
@@ -351,31 +357,54 @@ func newDaemonRestartCommand(socket, logFile, configPath *string) *cobra.Command
 					return err
 				}
 			}
-			if err := startDetachedDaemon(resolveV3Socket(*socket), resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath)); err != nil {
+			if err := startDetachedDaemon(socketPath, resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath)); err != nil {
 				return classifyCLIError(err)
 			}
 			deadline := time.Now().Add(5 * time.Second)
 			for time.Now().Before(deadline) {
-				status, _, err = daemonStatus(resolveV3Socket(*socket), *logFile, *configPath)
+				status, _, err = daemonStatus(socketPath, *logFile, *configPath)
 				if err == nil && status.State == "running" {
-					if err := startManagedAccess(resolveV3Socket(*socket)); err != nil {
-						if status.PID > 0 {
-							_ = stopDaemonProcess(status.PID)
-						}
-						return classifyCLIError(err)
-					}
-					status, _, err = daemonStatus(resolveV3Socket(*socket), *logFile, *configPath)
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(cmd.OutOrStdout(), "Daemon running (pid %d), access running (pid %d)\n", status.PID, status.AccessPID)
-					return nil
+					break
 				}
 				time.Sleep(25 * time.Millisecond)
 			}
-			return &cliError{code: 6, message: "daemon did not become ready after restart"}
+			if err != nil || status.State != "running" {
+				return &cliError{code: 6, message: "daemon did not become ready after restart"}
+			}
+			accessReady := false
+			if accessPreserved {
+				if patchErr := patchDaemonRecordAccess(socketPath, record.AccessPID, record.AccessProcessID, record.AccessLogPath); patchErr == nil {
+					if view, _, readErr := currentAccessStatus(socketPath); readErr == nil && view.State == "running" {
+						accessReady = true
+					}
+				}
+			}
+			if !accessReady {
+				if accessPreserved {
+					// Keep-access 期望保留的进程已不可用：先清理旧身份再拉起新的。
+					_, staleRecord, _ := currentAccessStatus(socketPath)
+					_ = stopManagedAccess(staleRecord)
+				}
+				if err := startManagedAccess(socketPath); err != nil {
+					if status.PID > 0 {
+						_ = stopDaemonProcess(status.PID)
+					}
+					return classifyCLIError(err)
+				}
+			}
+			view, _, err := currentAccessStatus(socketPath)
+			if err != nil {
+				return err
+			}
+			if view.State != "running" {
+				return &cliError{code: 6, message: "access is not running after restart"}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Daemon running (pid %d), access running (pid %d)\n", status.PID, view.PID)
+			return nil
 		},
 	}
+	command.Flags().BoolVar(&keepAccess, "keep-access", false, "restart the daemon only; keep the running access process and terminals")
+	return command
 }
 
 func newDaemonStatusCommand(socket, logFile, configPath *string) *cobra.Command {

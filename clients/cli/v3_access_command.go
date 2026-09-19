@@ -17,6 +17,9 @@ import (
 func v3AccessCommand(socket *string, logFile *string) *cobra.Command {
 	command := &cobra.Command{Use: "access", Short: "Inspect and revoke daemon client-bound access"}
 	command.AddCommand(accessRunCommand(socket, logFile))
+	command.AddCommand(accessStartCommand(socket))
+	command.AddCommand(accessStopCommand(socket))
+	command.AddCommand(accessRestartCommand(socket))
 	command.AddCommand(accessStatusCommand(socket))
 	command.AddCommand(accessLogsCommand())
 	command.AddCommand(v3AccessIdentityCommand(socket, logFile))

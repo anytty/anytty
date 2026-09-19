@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -104,42 +102,11 @@ func accessStatusCommand(socket *string) *cobra.Command {
 		Short: "Show access protocol server status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			socketPath := resolveV3Socket(*socket)
-			view := struct {
-				State      string `json:"state"`
-				PID        int    `json:"pid,omitempty"`
-				SocketPath string `json:"socket_path"`
-				LogPath    string `json:"log_path"`
-			}{State: "stopped", SocketPath: accessHealthSocket(socketPath), LogPath: accessLogPath()}
-			record, err := readDaemonRuntimeRecord(daemonRecordPath(socketPath))
-			switch {
-			case err == nil:
-				view.State = accessProcessState(record)
-				if view.State != "stale" && view.State != "stopped" {
-					view.PID = record.AccessPID
-				}
-				if record.AccessLogPath != "" {
-					view.LogPath = record.AccessLogPath
-				}
-			case os.IsNotExist(err):
-				if probeErr := probeV3Socket(accessHealthSocket(socketPath)); probeErr == nil {
-					view.State = "running"
-				}
-			default:
+			view, _, err := currentAccessStatus(resolveV3Socket(*socket))
+			if err != nil {
 				return err
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(view)
-			}
-			fields := []cliField{{Label: "State", Value: view.State}}
-			if view.PID > 0 {
-				fields = append(fields, cliField{Label: "PID", Value: fmt.Sprintf("%d", view.PID)})
-			}
-			fields = append(fields,
-				cliField{Label: "Socket", Value: view.SocketPath},
-				cliField{Label: "Log", Value: view.LogPath},
-			)
-			return writeCLIFields(cmd.OutOrStdout(), fields...)
+			return writeAccessStatus(cmd.OutOrStdout(), view, jsonOutput)
 		},
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print machine-readable JSON")
