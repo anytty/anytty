@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/anytty/anytty/proto/apipb"
+	"github.com/anytty/anytty/proto/access/apipb"
 	"google.golang.org/protobuf/proto"
 )
 

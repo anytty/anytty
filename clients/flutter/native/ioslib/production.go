@@ -4,12 +4,12 @@ package main
 
 import (
 	"context"
-	pionadapter "github.com/anytty/anytty/client/adapter/webrtc/pion"
-	"github.com/anytty/anytty/client/binding"
-	"github.com/anytty/anytty/client/binding/enginehost"
-	"github.com/anytty/anytty/client/mobileconfig"
-	clientruntime "github.com/anytty/anytty/client/runtime"
-	"github.com/anytty/anytty/proto/bindingpb"
+	pionadapter "github.com/anytty/anytty/access/engine/adapter/webrtc/pion"
+	"github.com/anytty/anytty/access/engine/binding"
+	"github.com/anytty/anytty/access/engine/binding/enginehost"
+	"github.com/anytty/anytty/access/engine/mobileconfig"
+	clientruntime "github.com/anytty/anytty/access/engine/runtime"
+	"github.com/anytty/anytty/proto/access/bindingpb"
 	cloudv1 "github.com/anytty/anytty/proto/cloud/v1"
 )
 

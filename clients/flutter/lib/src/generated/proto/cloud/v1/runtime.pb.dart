@@ -36,7 +36,7 @@ class AgentPresence extends $pb.GeneratedMessage {
     $core.String? bindingId,
     $0.Timestamp? bindingIssuedAt,
   }) {
-    final result = create();
+    final result = AgentPresence._();
     if (daemonId != null) result.daemonId = daemonId;
     if (accountId != null) result.accountId = accountId;
     if (bootId != null) result.bootId = bootId;
@@ -51,16 +51,16 @@ class AgentPresence extends $pb.GeneratedMessage {
 
   factory AgentPresence.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentPresence()..mergeFromBuffer(data, registry);
   factory AgentPresence.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentPresence()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentPresence',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentPresence.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'daemonId')
     ..aOS(2, _omitFieldNames ? '' : 'accountId')
     ..aOS(3, _omitFieldNames ? '' : 'bootId')
@@ -70,7 +70,7 @@ class AgentPresence extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(6, _omitFieldNames ? '' : 'bindingId')
     ..aOM<$0.Timestamp>(7, _omitFieldNames ? '' : 'bindingIssuedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -84,12 +84,15 @@ class AgentPresence extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentPresence() / AgentPresence.new instead')
   static AgentPresence create() => AgentPresence._();
+  static $pb.GeneratedMessage $_createMessage() => AgentPresence._();
   @$core.override
-  AgentPresence createEmptyInstance() => create();
+  AgentPresence createEmptyInstance() => AgentPresence._();
   @$core.pragma('dart2js:noInline')
-  static AgentPresence getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentPresence>(create);
+  static AgentPresence getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AgentPresence>(
+          AgentPresence.$_createMessage);
   static AgentPresence? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -176,7 +179,7 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
     $0.Timestamp? relayConnectedAt,
     $core.Iterable<$1.RelayTransport>? relayTransports,
   }) {
-    final result = create();
+    final result = ClientSessionSummary._();
     if (sessionId != null) result.sessionId = sessionId;
     if (accountId != null) result.accountId = accountId;
     if (daemonId != null) result.daemonId = daemonId;
@@ -198,16 +201,16 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
 
   factory ClientSessionSummary.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientSessionSummary()..mergeFromBuffer(data, registry);
   factory ClientSessionSummary.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientSessionSummary()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientSessionSummary',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientSessionSummary.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'accountId')
     ..aOS(3, _omitFieldNames ? '' : 'daemonId')
@@ -229,7 +232,7 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
         11, _omitFieldNames ? '' : 'relayEgressBytes', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(12, _omitFieldNames ? '' : 'relayConnectedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..pc<$1.RelayTransport>(
         13, _omitFieldNames ? '' : 'relayTransports', $pb.PbFieldType.KE,
         valueOf: $1.RelayTransport.valueOf,
@@ -248,12 +251,16 @@ class ClientSessionSummary extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientSessionSummary() / ClientSessionSummary.new instead')
   static ClientSessionSummary create() => ClientSessionSummary._();
+  static $pb.GeneratedMessage $_createMessage() => ClientSessionSummary._();
   @$core.override
-  ClientSessionSummary createEmptyInstance() => create();
+  ClientSessionSummary createEmptyInstance() => ClientSessionSummary._();
   @$core.pragma('dart2js:noInline')
   static ClientSessionSummary getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientSessionSummary>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientSessionSummary>(
+          ClientSessionSummary.$_createMessage);
   static ClientSessionSummary? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -377,7 +384,7 @@ class RuntimeSnapshot extends $pb.GeneratedMessage {
     $core.Iterable<AgentPresence>? agents,
     $core.Iterable<ClientSessionSummary>? sessions,
   }) {
-    final result = create();
+    final result = RuntimeSnapshot._();
     if (revision != null) result.revision = revision;
     if (agents != null) result.agents.addAll(agents);
     if (sessions != null) result.sessions.addAll(sessions);
@@ -388,23 +395,23 @@ class RuntimeSnapshot extends $pb.GeneratedMessage {
 
   factory RuntimeSnapshot.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RuntimeSnapshot()..mergeFromBuffer(data, registry);
   factory RuntimeSnapshot.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RuntimeSnapshot()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RuntimeSnapshot',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RuntimeSnapshot.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..pPM<AgentPresence>(2, _omitFieldNames ? '' : 'agents',
-        subBuilder: AgentPresence.create)
+        subBuilder: AgentPresence.$_createMessage)
     ..pPM<ClientSessionSummary>(3, _omitFieldNames ? '' : 'sessions',
-        subBuilder: ClientSessionSummary.create)
+        subBuilder: ClientSessionSummary.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -418,12 +425,15 @@ class RuntimeSnapshot extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use RuntimeSnapshot() / RuntimeSnapshot.new instead')
   static RuntimeSnapshot create() => RuntimeSnapshot._();
+  static $pb.GeneratedMessage $_createMessage() => RuntimeSnapshot._();
   @$core.override
-  RuntimeSnapshot createEmptyInstance() => create();
+  RuntimeSnapshot createEmptyInstance() => RuntimeSnapshot._();
   @$core.pragma('dart2js:noInline')
-  static RuntimeSnapshot getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RuntimeSnapshot>(create);
+  static RuntimeSnapshot getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RuntimeSnapshot>(
+          RuntimeSnapshot.$_createMessage);
   static RuntimeSnapshot? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -447,7 +457,7 @@ class AgentRemoved extends $pb.GeneratedMessage {
     $core.String? daemonId,
     $fixnum.Int64? generation,
   }) {
-    final result = create();
+    final result = AgentRemoved._();
     if (daemonId != null) result.daemonId = daemonId;
     if (generation != null) result.generation = generation;
     return result;
@@ -457,16 +467,16 @@ class AgentRemoved extends $pb.GeneratedMessage {
 
   factory AgentRemoved.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentRemoved()..mergeFromBuffer(data, registry);
   factory AgentRemoved.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentRemoved()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentRemoved',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentRemoved.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'daemonId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
@@ -484,12 +494,15 @@ class AgentRemoved extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentRemoved() / AgentRemoved.new instead')
   static AgentRemoved create() => AgentRemoved._();
+  static $pb.GeneratedMessage $_createMessage() => AgentRemoved._();
   @$core.override
-  AgentRemoved createEmptyInstance() => create();
+  AgentRemoved createEmptyInstance() => AgentRemoved._();
   @$core.pragma('dart2js:noInline')
-  static AgentRemoved getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentRemoved>(create);
+  static AgentRemoved getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AgentRemoved>(
+          AgentRemoved.$_createMessage);
   static AgentRemoved? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -516,7 +529,7 @@ class ClientSessionRemoved extends $pb.GeneratedMessage {
     $core.String? sessionId,
     $fixnum.Int64? generation,
   }) {
-    final result = create();
+    final result = ClientSessionRemoved._();
     if (sessionId != null) result.sessionId = sessionId;
     if (generation != null) result.generation = generation;
     return result;
@@ -526,16 +539,16 @@ class ClientSessionRemoved extends $pb.GeneratedMessage {
 
   factory ClientSessionRemoved.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientSessionRemoved()..mergeFromBuffer(data, registry);
   factory ClientSessionRemoved.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientSessionRemoved()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientSessionRemoved',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientSessionRemoved.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
@@ -553,12 +566,16 @@ class ClientSessionRemoved extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientSessionRemoved() / ClientSessionRemoved.new instead')
   static ClientSessionRemoved create() => ClientSessionRemoved._();
+  static $pb.GeneratedMessage $_createMessage() => ClientSessionRemoved._();
   @$core.override
-  ClientSessionRemoved createEmptyInstance() => create();
+  ClientSessionRemoved createEmptyInstance() => ClientSessionRemoved._();
   @$core.pragma('dart2js:noInline')
   static ClientSessionRemoved getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientSessionRemoved>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientSessionRemoved>(
+          ClientSessionRemoved.$_createMessage);
   static ClientSessionRemoved? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -597,7 +614,7 @@ class RuntimeDelta extends $pb.GeneratedMessage {
     ClientSessionSummary? sessionUpserted,
     ClientSessionRemoved? sessionRemoved,
   }) {
-    final result = create();
+    final result = RuntimeDelta._();
     if (revision != null) result.revision = revision;
     if (agentUpserted != null) result.agentUpserted = agentUpserted;
     if (agentRemoved != null) result.agentRemoved = agentRemoved;
@@ -610,10 +627,10 @@ class RuntimeDelta extends $pb.GeneratedMessage {
 
   factory RuntimeDelta.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RuntimeDelta()..mergeFromBuffer(data, registry);
   factory RuntimeDelta.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RuntimeDelta()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, RuntimeDelta_Change>
       _RuntimeDelta_ChangeByTag = {
@@ -627,19 +644,19 @@ class RuntimeDelta extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'RuntimeDelta',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RuntimeDelta.$_createMessage)
     ..oo(0, [10, 11, 12, 13])
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<AgentPresence>(10, _omitFieldNames ? '' : 'agentUpserted',
-        subBuilder: AgentPresence.create)
+        subBuilder: AgentPresence.$_createMessage)
     ..aOM<AgentRemoved>(11, _omitFieldNames ? '' : 'agentRemoved',
-        subBuilder: AgentRemoved.create)
+        subBuilder: AgentRemoved.$_createMessage)
     ..aOM<ClientSessionSummary>(12, _omitFieldNames ? '' : 'sessionUpserted',
-        subBuilder: ClientSessionSummary.create)
+        subBuilder: ClientSessionSummary.$_createMessage)
     ..aOM<ClientSessionRemoved>(13, _omitFieldNames ? '' : 'sessionRemoved',
-        subBuilder: ClientSessionRemoved.create)
+        subBuilder: ClientSessionRemoved.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -653,12 +670,15 @@ class RuntimeDelta extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use RuntimeDelta() / RuntimeDelta.new instead')
   static RuntimeDelta create() => RuntimeDelta._();
+  static $pb.GeneratedMessage $_createMessage() => RuntimeDelta._();
   @$core.override
-  RuntimeDelta createEmptyInstance() => create();
+  RuntimeDelta createEmptyInstance() => RuntimeDelta._();
   @$core.pragma('dart2js:noInline')
-  static RuntimeDelta getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RuntimeDelta>(create);
+  static RuntimeDelta getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RuntimeDelta>(
+          RuntimeDelta.$_createMessage);
   static RuntimeDelta? _defaultInstance;
 
   @$pb.TagNumber(10)

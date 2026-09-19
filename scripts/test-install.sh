@@ -24,9 +24,11 @@ release_dir="$work_dir/release"
 package_dir="$work_dir/package/$archive_base"
 archive_name="$archive_base.tar.gz"
 mkdir -p "$release_dir" "$package_dir"
-printf '#!/usr/bin/env sh\nprintf "test anytty\\n"\n' >"$package_dir/anytty"
-chmod 0755 "$package_dir/anytty"
-cp "$repo_root/tui/docs/tui-v3.recommended.yaml" "$package_dir/tui-v3.yaml"
+for binary in anytty tui2 tui2-shell; do
+  printf '#!/usr/bin/env sh\nprintf "test %s\\n"\n' "$binary" >"$package_dir/$binary"
+  chmod 0755 "$package_dir/$binary"
+done
+cp "$repo_root/clients/cli/tui-v3.recommended.yaml" "$package_dir/tui-v3.yaml"
 tar -C "$work_dir/package" -czf "$release_dir/$archive_name" "$archive_base"
 
 if command -v shasum >/dev/null 2>&1; then
@@ -54,11 +56,15 @@ ANYTTY_TEST_CODESIGN_LOG="$codesign_log" \
 PATH="$mock_bin:$PATH" \
   sh "$repo_root/install.sh" --bin-dir "$install_dir"
 
-cmp "$package_dir/anytty" "$install_dir/anytty"
-cmp "$repo_root/tui/docs/tui-v3.recommended.yaml" "$config_home/anytty/tui-v3.yaml"
+for binary in anytty tui2 tui2-shell; do
+  cmp "$package_dir/$binary" "$install_dir/$binary"
+done
+cmp "$repo_root/clients/cli/tui-v3.recommended.yaml" "$config_home/anytty/tui-v3.yaml"
 if [[ "$os" == darwin ]]; then
   grep -q -- '--force --sign -' "$codesign_log"
-  grep -q -- '--identifier com.anytty.cli' "$codesign_log"
+  for binary in anytty tui2 tui2-shell; do
+    grep -q -- "--identifier com.anytty.$binary" "$codesign_log"
+  done
   grep -q -- '--verify --strict' "$codesign_log"
 else
   [[ ! -e "$codesign_log" ]]

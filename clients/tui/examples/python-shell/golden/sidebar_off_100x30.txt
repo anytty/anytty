@@ -1,0 +1,30 @@
+ WS main  ▎1 main ×  +
+┌ ▎ unconnected ───────────────────────────────────────────────────────────────────────────────────┐
+│No terminal connected                                                                             │
+│Choose a terminal or create one.                                                                  │
+│Press Ctrl-F to open the terminal picker.                                                         │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+ [Ctrl+P] PANE │ [Ctrl+R] RESIZE │ [Ctrl+G] GLOBAL │ [Ctrl+F] PICKER │ [?] HELP │ [:] CMD ws:main ta

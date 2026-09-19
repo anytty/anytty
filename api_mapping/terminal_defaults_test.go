@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	corev2 "github.com/anytty/anytty/core"
+	corev2 "github.com/anytty/anytty/daemon/core"
 )
 
 func TestTerminalDefaultsToProtoIncludesDaemonPlatformWithoutAliasing(t *testing.T) {

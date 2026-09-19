@@ -40,7 +40,7 @@ class EdgeHello extends $pb.GeneratedMessage {
     $fixnum.Int64? desiredConfigVersion,
     $0.EdgePublicCertificateStatus? publicCertificate,
   }) {
-    final result = create();
+    final result = EdgeHello._();
     if (edgeId != null) result.edgeId = edgeId;
     if (softwareVersion != null) result.softwareVersion = softwareVersion;
     if (capabilities != null) result.capabilities.addAll(capabilities);
@@ -54,16 +54,16 @@ class EdgeHello extends $pb.GeneratedMessage {
 
   factory EdgeHello.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeHello()..mergeFromBuffer(data, registry);
   factory EdgeHello.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeHello()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeHello',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeHello.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..aOS(2, _omitFieldNames ? '' : 'softwareVersion')
     ..pc<EdgeCapability>(
@@ -76,7 +76,7 @@ class EdgeHello extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.EdgePublicCertificateStatus>(
         5, _omitFieldNames ? '' : 'publicCertificate',
-        subBuilder: $0.EdgePublicCertificateStatus.create)
+        subBuilder: $0.EdgePublicCertificateStatus.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -89,12 +89,14 @@ class EdgeHello extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeHello() / EdgeHello.new instead')
   static EdgeHello create() => EdgeHello._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeHello._();
   @$core.override
-  EdgeHello createEmptyInstance() => create();
+  EdgeHello createEmptyInstance() => EdgeHello._();
   @$core.pragma('dart2js:noInline')
-  static EdgeHello getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeHello>(create);
+  static EdgeHello getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EdgeHello>(EdgeHello.$_createMessage);
   static EdgeHello? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -148,7 +150,7 @@ class EdgeWelcome extends $pb.GeneratedMessage {
     $1.HeartbeatPolicy? heartbeat,
     $1.KeyBundle? bindingKeyBundle,
   }) {
-    final result = create();
+    final result = EdgeWelcome._();
     if (acceptedProtocolVersion != null)
       result.acceptedProtocolVersion = acceptedProtocolVersion;
     if (heartbeat != null) result.heartbeat = heartbeat;
@@ -160,22 +162,22 @@ class EdgeWelcome extends $pb.GeneratedMessage {
 
   factory EdgeWelcome.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeWelcome()..mergeFromBuffer(data, registry);
   factory EdgeWelcome.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeWelcome()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeWelcome',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeWelcome.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'acceptedProtocolVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.HeartbeatPolicy>(2, _omitFieldNames ? '' : 'heartbeat',
-        subBuilder: $1.HeartbeatPolicy.create)
+        subBuilder: $1.HeartbeatPolicy.$_createMessage)
     ..aOM<$1.KeyBundle>(3, _omitFieldNames ? '' : 'bindingKeyBundle',
-        subBuilder: $1.KeyBundle.create)
+        subBuilder: $1.KeyBundle.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -189,12 +191,15 @@ class EdgeWelcome extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeWelcome() / EdgeWelcome.new instead')
   static EdgeWelcome create() => EdgeWelcome._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeWelcome._();
   @$core.override
-  EdgeWelcome createEmptyInstance() => create();
+  EdgeWelcome createEmptyInstance() => EdgeWelcome._();
   @$core.pragma('dart2js:noInline')
-  static EdgeWelcome getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeWelcome>(create);
+  static EdgeWelcome getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeWelcome>(
+          EdgeWelcome.$_createMessage);
   static EdgeWelcome? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -235,7 +240,7 @@ class SnapshotBegin extends $pb.GeneratedMessage {
     $core.String? snapshotId,
     $fixnum.Int64? revision,
   }) {
-    final result = create();
+    final result = SnapshotBegin._();
     if (snapshotId != null) result.snapshotId = snapshotId;
     if (revision != null) result.revision = revision;
     return result;
@@ -245,16 +250,16 @@ class SnapshotBegin extends $pb.GeneratedMessage {
 
   factory SnapshotBegin.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SnapshotBegin()..mergeFromBuffer(data, registry);
   factory SnapshotBegin.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SnapshotBegin()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SnapshotBegin',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SnapshotBegin.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'snapshotId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
@@ -272,12 +277,15 @@ class SnapshotBegin extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SnapshotBegin() / SnapshotBegin.new instead')
   static SnapshotBegin create() => SnapshotBegin._();
+  static $pb.GeneratedMessage $_createMessage() => SnapshotBegin._();
   @$core.override
-  SnapshotBegin createEmptyInstance() => create();
+  SnapshotBegin createEmptyInstance() => SnapshotBegin._();
   @$core.pragma('dart2js:noInline')
-  static SnapshotBegin getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SnapshotBegin>(create);
+  static SnapshotBegin getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SnapshotBegin>(
+          SnapshotBegin.$_createMessage);
   static SnapshotBegin? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -307,7 +315,7 @@ class SnapshotChunk extends $pb.GeneratedMessage {
     $core.Iterable<$2.AgentPresence>? agents,
     $core.Iterable<$2.ClientSessionSummary>? sessions,
   }) {
-    final result = create();
+    final result = SnapshotChunk._();
     if (snapshotId != null) result.snapshotId = snapshotId;
     if (chunkIndex != null) result.chunkIndex = chunkIndex;
     if (agents != null) result.agents.addAll(agents);
@@ -319,22 +327,22 @@ class SnapshotChunk extends $pb.GeneratedMessage {
 
   factory SnapshotChunk.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SnapshotChunk()..mergeFromBuffer(data, registry);
   factory SnapshotChunk.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SnapshotChunk()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SnapshotChunk',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SnapshotChunk.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'snapshotId')
     ..aI(2, _omitFieldNames ? '' : 'chunkIndex', fieldType: $pb.PbFieldType.OU3)
     ..pPM<$2.AgentPresence>(3, _omitFieldNames ? '' : 'agents',
-        subBuilder: $2.AgentPresence.create)
+        subBuilder: $2.AgentPresence.$_createMessage)
     ..pPM<$2.ClientSessionSummary>(4, _omitFieldNames ? '' : 'sessions',
-        subBuilder: $2.ClientSessionSummary.create)
+        subBuilder: $2.ClientSessionSummary.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -348,12 +356,15 @@ class SnapshotChunk extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SnapshotChunk() / SnapshotChunk.new instead')
   static SnapshotChunk create() => SnapshotChunk._();
+  static $pb.GeneratedMessage $_createMessage() => SnapshotChunk._();
   @$core.override
-  SnapshotChunk createEmptyInstance() => create();
+  SnapshotChunk createEmptyInstance() => SnapshotChunk._();
   @$core.pragma('dart2js:noInline')
-  static SnapshotChunk getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SnapshotChunk>(create);
+  static SnapshotChunk getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SnapshotChunk>(
+          SnapshotChunk.$_createMessage);
   static SnapshotChunk? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -389,7 +400,7 @@ class SnapshotEnd extends $pb.GeneratedMessage {
     $core.int? chunkCount,
     $core.List<$core.int>? digest,
   }) {
-    final result = create();
+    final result = SnapshotEnd._();
     if (snapshotId != null) result.snapshotId = snapshotId;
     if (revision != null) result.revision = revision;
     if (chunkCount != null) result.chunkCount = chunkCount;
@@ -401,16 +412,16 @@ class SnapshotEnd extends $pb.GeneratedMessage {
 
   factory SnapshotEnd.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SnapshotEnd()..mergeFromBuffer(data, registry);
   factory SnapshotEnd.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SnapshotEnd()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SnapshotEnd',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SnapshotEnd.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'snapshotId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
@@ -431,12 +442,15 @@ class SnapshotEnd extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SnapshotEnd() / SnapshotEnd.new instead')
   static SnapshotEnd create() => SnapshotEnd._();
+  static $pb.GeneratedMessage $_createMessage() => SnapshotEnd._();
   @$core.override
-  SnapshotEnd createEmptyInstance() => create();
+  SnapshotEnd createEmptyInstance() => SnapshotEnd._();
   @$core.pragma('dart2js:noInline')
-  static SnapshotEnd getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SnapshotEnd>(create);
+  static SnapshotEnd getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SnapshotEnd>(
+          SnapshotEnd.$_createMessage);
   static SnapshotEnd? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -481,7 +495,7 @@ class EdgeHeartbeat extends $pb.GeneratedMessage {
   factory EdgeHeartbeat({
     $fixnum.Int64? runtimeRevision,
   }) {
-    final result = create();
+    final result = EdgeHeartbeat._();
     if (runtimeRevision != null) result.runtimeRevision = runtimeRevision;
     return result;
   }
@@ -490,16 +504,16 @@ class EdgeHeartbeat extends $pb.GeneratedMessage {
 
   factory EdgeHeartbeat.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeHeartbeat()..mergeFromBuffer(data, registry);
   factory EdgeHeartbeat.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeHeartbeat()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeHeartbeat',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeHeartbeat.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'runtimeRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -516,12 +530,15 @@ class EdgeHeartbeat extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeHeartbeat() / EdgeHeartbeat.new instead')
   static EdgeHeartbeat create() => EdgeHeartbeat._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeHeartbeat._();
   @$core.override
-  EdgeHeartbeat createEmptyInstance() => create();
+  EdgeHeartbeat createEmptyInstance() => EdgeHeartbeat._();
   @$core.pragma('dart2js:noInline')
-  static EdgeHeartbeat getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeHeartbeat>(create);
+  static EdgeHeartbeat getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeHeartbeat>(
+          EdgeHeartbeat.$_createMessage);
   static EdgeHeartbeat? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -540,7 +557,7 @@ class SnapshotAccepted extends $pb.GeneratedMessage {
     $core.String? snapshotId,
     $fixnum.Int64? revision,
   }) {
-    final result = create();
+    final result = SnapshotAccepted._();
     if (snapshotId != null) result.snapshotId = snapshotId;
     if (revision != null) result.revision = revision;
     return result;
@@ -550,16 +567,16 @@ class SnapshotAccepted extends $pb.GeneratedMessage {
 
   factory SnapshotAccepted.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SnapshotAccepted()..mergeFromBuffer(data, registry);
   factory SnapshotAccepted.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SnapshotAccepted()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SnapshotAccepted',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SnapshotAccepted.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'snapshotId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
@@ -577,12 +594,15 @@ class SnapshotAccepted extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SnapshotAccepted() / SnapshotAccepted.new instead')
   static SnapshotAccepted create() => SnapshotAccepted._();
+  static $pb.GeneratedMessage $_createMessage() => SnapshotAccepted._();
   @$core.override
-  SnapshotAccepted createEmptyInstance() => create();
+  SnapshotAccepted createEmptyInstance() => SnapshotAccepted._();
   @$core.pragma('dart2js:noInline')
-  static SnapshotAccepted getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SnapshotAccepted>(create);
+  static SnapshotAccepted getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SnapshotAccepted>(
+          SnapshotAccepted.$_createMessage);
   static SnapshotAccepted? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -610,7 +630,7 @@ class ResyncRequired extends $pb.GeneratedMessage {
     $fixnum.Int64? expectedRevision,
     $core.String? reason,
   }) {
-    final result = create();
+    final result = ResyncRequired._();
     if (expectedRevision != null) result.expectedRevision = expectedRevision;
     if (reason != null) result.reason = reason;
     return result;
@@ -620,16 +640,16 @@ class ResyncRequired extends $pb.GeneratedMessage {
 
   factory ResyncRequired.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResyncRequired()..mergeFromBuffer(data, registry);
   factory ResyncRequired.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResyncRequired()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResyncRequired',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResyncRequired.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'expectedRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -647,12 +667,15 @@ class ResyncRequired extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResyncRequired() / ResyncRequired.new instead')
   static ResyncRequired create() => ResyncRequired._();
+  static $pb.GeneratedMessage $_createMessage() => ResyncRequired._();
   @$core.override
-  ResyncRequired createEmptyInstance() => create();
+  ResyncRequired createEmptyInstance() => ResyncRequired._();
   @$core.pragma('dart2js:noInline')
-  static ResyncRequired getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResyncRequired>(create);
+  static ResyncRequired getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResyncRequired>(
+          ResyncRequired.$_createMessage);
   static ResyncRequired? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -681,7 +704,7 @@ class ConfigApplied extends $pb.GeneratedMessage {
     $core.bool? applied,
     $core.String? errorCode,
   }) {
-    final result = create();
+    final result = ConfigApplied._();
     if (version != null) result.version = version;
     if (applied != null) result.applied = applied;
     if (errorCode != null) result.errorCode = errorCode;
@@ -692,16 +715,16 @@ class ConfigApplied extends $pb.GeneratedMessage {
 
   factory ConfigApplied.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ConfigApplied()..mergeFromBuffer(data, registry);
   factory ConfigApplied.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ConfigApplied()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ConfigApplied',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ConfigApplied.$_createMessage)
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOB(2, _omitFieldNames ? '' : 'applied')
@@ -719,12 +742,15 @@ class ConfigApplied extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ConfigApplied() / ConfigApplied.new instead')
   static ConfigApplied create() => ConfigApplied._();
+  static $pb.GeneratedMessage $_createMessage() => ConfigApplied._();
   @$core.override
-  ConfigApplied createEmptyInstance() => create();
+  ConfigApplied createEmptyInstance() => ConfigApplied._();
   @$core.pragma('dart2js:noInline')
-  static ConfigApplied getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ConfigApplied>(create);
+  static ConfigApplied getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ConfigApplied>(
+          ConfigApplied.$_createMessage);
   static ConfigApplied? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -764,7 +790,7 @@ class EdgeIdentityRenewRequest extends $pb.GeneratedMessage {
     $core.List<$core.int>? currentCertificateSha256,
     $3.Timestamp? requestedAt,
   }) {
-    final result = create();
+    final result = EdgeIdentityRenewRequest._();
     if (requestId != null) result.requestId = requestId;
     if (csrPem != null) result.csrPem = csrPem;
     if (currentCertificateSha256 != null)
@@ -777,23 +803,23 @@ class EdgeIdentityRenewRequest extends $pb.GeneratedMessage {
 
   factory EdgeIdentityRenewRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeIdentityRenewRequest()..mergeFromBuffer(data, registry);
   factory EdgeIdentityRenewRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeIdentityRenewRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeIdentityRenewRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeIdentityRenewRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'csrPem', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(3,
         _omitFieldNames ? '' : 'currentCertificateSha256', $pb.PbFieldType.OY)
     ..aOM<$3.Timestamp>(4, _omitFieldNames ? '' : 'requestedAt',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -808,12 +834,17 @@ class EdgeIdentityRenewRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgeIdentityRenewRequest() / EdgeIdentityRenewRequest.new instead')
   static EdgeIdentityRenewRequest create() => EdgeIdentityRenewRequest._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeIdentityRenewRequest._();
   @$core.override
-  EdgeIdentityRenewRequest createEmptyInstance() => create();
+  EdgeIdentityRenewRequest createEmptyInstance() =>
+      EdgeIdentityRenewRequest._();
   @$core.pragma('dart2js:noInline')
   static EdgeIdentityRenewRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityRenewRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityRenewRequest>(
+          EdgeIdentityRenewRequest.$_createMessage);
   static EdgeIdentityRenewRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -864,7 +895,7 @@ class EdgeIdentityRenewResponse extends $pb.GeneratedMessage {
     $core.List<$core.int>? certificateSha256,
     $3.Timestamp? notAfter,
   }) {
-    final result = create();
+    final result = EdgeIdentityRenewResponse._();
     if (requestId != null) result.requestId = requestId;
     if (certificatePem != null) result.certificatePem = certificatePem;
     if (certificateSha256 != null) result.certificateSha256 = certificateSha256;
@@ -876,23 +907,23 @@ class EdgeIdentityRenewResponse extends $pb.GeneratedMessage {
 
   factory EdgeIdentityRenewResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeIdentityRenewResponse()..mergeFromBuffer(data, registry);
   factory EdgeIdentityRenewResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeIdentityRenewResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeIdentityRenewResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeIdentityRenewResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'certificatePem', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'certificateSha256', $pb.PbFieldType.OY)
     ..aOM<$3.Timestamp>(4, _omitFieldNames ? '' : 'notAfter',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -907,12 +938,18 @@ class EdgeIdentityRenewResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgeIdentityRenewResponse() / EdgeIdentityRenewResponse.new instead')
   static EdgeIdentityRenewResponse create() => EdgeIdentityRenewResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EdgeIdentityRenewResponse._();
   @$core.override
-  EdgeIdentityRenewResponse createEmptyInstance() => create();
+  EdgeIdentityRenewResponse createEmptyInstance() =>
+      EdgeIdentityRenewResponse._();
   @$core.pragma('dart2js:noInline')
   static EdgeIdentityRenewResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityRenewResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityRenewResponse>(
+          EdgeIdentityRenewResponse.$_createMessage);
   static EdgeIdentityRenewResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -964,7 +1001,7 @@ class EdgeIdentityApplied extends $pb.GeneratedMessage {
     $core.String? errorCode,
     $core.String? errorMessage,
   }) {
-    final result = create();
+    final result = EdgeIdentityApplied._();
     if (requestId != null) result.requestId = requestId;
     if (certificateSha256 != null) result.certificateSha256 = certificateSha256;
     if (notAfter != null) result.notAfter = notAfter;
@@ -978,21 +1015,21 @@ class EdgeIdentityApplied extends $pb.GeneratedMessage {
 
   factory EdgeIdentityApplied.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeIdentityApplied()..mergeFromBuffer(data, registry);
   factory EdgeIdentityApplied.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeIdentityApplied()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeIdentityApplied',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeIdentityApplied.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'certificateSha256', $pb.PbFieldType.OY)
     ..aOM<$3.Timestamp>(3, _omitFieldNames ? '' : 'notAfter',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOB(4, _omitFieldNames ? '' : 'applied')
     ..aOS(5, _omitFieldNames ? '' : 'errorCode')
     ..aOS(6, _omitFieldNames ? '' : 'errorMessage')
@@ -1009,12 +1046,16 @@ class EdgeIdentityApplied extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use EdgeIdentityApplied() / EdgeIdentityApplied.new instead')
   static EdgeIdentityApplied create() => EdgeIdentityApplied._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeIdentityApplied._();
   @$core.override
-  EdgeIdentityApplied createEmptyInstance() => create();
+  EdgeIdentityApplied createEmptyInstance() => EdgeIdentityApplied._();
   @$core.pragma('dart2js:noInline')
   static EdgeIdentityApplied getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityApplied>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeIdentityApplied>(
+          EdgeIdentityApplied.$_createMessage);
   static EdgeIdentityApplied? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1079,7 +1120,7 @@ class DaemonStateSnapshot extends $pb.GeneratedMessage {
   factory DaemonStateSnapshot({
     $core.Iterable<$4.DaemonStateRecord>? daemons,
   }) {
-    final result = create();
+    final result = DaemonStateSnapshot._();
     if (daemons != null) result.daemons.addAll(daemons);
     return result;
   }
@@ -1088,18 +1129,18 @@ class DaemonStateSnapshot extends $pb.GeneratedMessage {
 
   factory DaemonStateSnapshot.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateSnapshot()..mergeFromBuffer(data, registry);
   factory DaemonStateSnapshot.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateSnapshot()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateSnapshot',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateSnapshot.$_createMessage)
     ..pPM<$4.DaemonStateRecord>(1, _omitFieldNames ? '' : 'daemons',
-        subBuilder: $4.DaemonStateRecord.create)
+        subBuilder: $4.DaemonStateRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1113,12 +1154,16 @@ class DaemonStateSnapshot extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use DaemonStateSnapshot() / DaemonStateSnapshot.new instead')
   static DaemonStateSnapshot create() => DaemonStateSnapshot._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateSnapshot._();
   @$core.override
-  DaemonStateSnapshot createEmptyInstance() => create();
+  DaemonStateSnapshot createEmptyInstance() => DaemonStateSnapshot._();
   @$core.pragma('dart2js:noInline')
   static DaemonStateSnapshot getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateSnapshot>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonStateSnapshot>(
+          DaemonStateSnapshot.$_createMessage);
   static DaemonStateSnapshot? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1133,7 +1178,7 @@ class DaemonStateSyncRequest extends $pb.GeneratedMessage {
     $core.String? syncId,
     $core.Iterable<$core.String>? daemonIds,
   }) {
-    final result = create();
+    final result = DaemonStateSyncRequest._();
     if (syncId != null) result.syncId = syncId;
     if (daemonIds != null) result.daemonIds.addAll(daemonIds);
     return result;
@@ -1143,16 +1188,16 @@ class DaemonStateSyncRequest extends $pb.GeneratedMessage {
 
   factory DaemonStateSyncRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateSyncRequest()..mergeFromBuffer(data, registry);
   factory DaemonStateSyncRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateSyncRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateSyncRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateSyncRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'syncId')
     ..pPS(2, _omitFieldNames ? '' : 'daemonIds')
     ..hasRequiredFields = false;
@@ -1169,12 +1214,16 @@ class DaemonStateSyncRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonStateSyncRequest() / DaemonStateSyncRequest.new instead')
   static DaemonStateSyncRequest create() => DaemonStateSyncRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateSyncRequest._();
   @$core.override
-  DaemonStateSyncRequest createEmptyInstance() => create();
+  DaemonStateSyncRequest createEmptyInstance() => DaemonStateSyncRequest._();
   @$core.pragma('dart2js:noInline')
   static DaemonStateSyncRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncRequest>(
+          DaemonStateSyncRequest.$_createMessage);
   static DaemonStateSyncRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1196,7 +1245,7 @@ class DaemonStateSyncChunk extends $pb.GeneratedMessage {
     $core.int? chunkIndex,
     $core.Iterable<$4.DaemonStateRecord>? daemons,
   }) {
-    final result = create();
+    final result = DaemonStateSyncChunk._();
     if (syncId != null) result.syncId = syncId;
     if (chunkIndex != null) result.chunkIndex = chunkIndex;
     if (daemons != null) result.daemons.addAll(daemons);
@@ -1207,20 +1256,20 @@ class DaemonStateSyncChunk extends $pb.GeneratedMessage {
 
   factory DaemonStateSyncChunk.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateSyncChunk()..mergeFromBuffer(data, registry);
   factory DaemonStateSyncChunk.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateSyncChunk()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateSyncChunk',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateSyncChunk.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'syncId')
     ..aI(2, _omitFieldNames ? '' : 'chunkIndex', fieldType: $pb.PbFieldType.OU3)
     ..pPM<$4.DaemonStateRecord>(3, _omitFieldNames ? '' : 'daemons',
-        subBuilder: $4.DaemonStateRecord.create)
+        subBuilder: $4.DaemonStateRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1234,12 +1283,16 @@ class DaemonStateSyncChunk extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonStateSyncChunk() / DaemonStateSyncChunk.new instead')
   static DaemonStateSyncChunk create() => DaemonStateSyncChunk._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateSyncChunk._();
   @$core.override
-  DaemonStateSyncChunk createEmptyInstance() => create();
+  DaemonStateSyncChunk createEmptyInstance() => DaemonStateSyncChunk._();
   @$core.pragma('dart2js:noInline')
   static DaemonStateSyncChunk getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncChunk>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncChunk>(
+          DaemonStateSyncChunk.$_createMessage);
   static DaemonStateSyncChunk? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1269,7 +1322,7 @@ class DaemonStateSyncEnd extends $pb.GeneratedMessage {
     $core.String? syncId,
     $core.int? chunkCount,
   }) {
-    final result = create();
+    final result = DaemonStateSyncEnd._();
     if (syncId != null) result.syncId = syncId;
     if (chunkCount != null) result.chunkCount = chunkCount;
     return result;
@@ -1279,16 +1332,16 @@ class DaemonStateSyncEnd extends $pb.GeneratedMessage {
 
   factory DaemonStateSyncEnd.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateSyncEnd()..mergeFromBuffer(data, registry);
   factory DaemonStateSyncEnd.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateSyncEnd()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateSyncEnd',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateSyncEnd.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'syncId')
     ..aI(2, _omitFieldNames ? '' : 'chunkCount', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
@@ -1304,12 +1357,15 @@ class DaemonStateSyncEnd extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DaemonStateSyncEnd() / DaemonStateSyncEnd.new instead')
   static DaemonStateSyncEnd create() => DaemonStateSyncEnd._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateSyncEnd._();
   @$core.override
-  DaemonStateSyncEnd createEmptyInstance() => create();
+  DaemonStateSyncEnd createEmptyInstance() => DaemonStateSyncEnd._();
   @$core.pragma('dart2js:noInline')
   static DaemonStateSyncEnd getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncEnd>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonStateSyncEnd>(
+          DaemonStateSyncEnd.$_createMessage);
   static DaemonStateSyncEnd? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1335,7 +1391,7 @@ class DaemonStateDelta extends $pb.GeneratedMessage {
   factory DaemonStateDelta({
     $4.DaemonStateRecord? daemon,
   }) {
-    final result = create();
+    final result = DaemonStateDelta._();
     if (daemon != null) result.daemon = daemon;
     return result;
   }
@@ -1344,18 +1400,18 @@ class DaemonStateDelta extends $pb.GeneratedMessage {
 
   factory DaemonStateDelta.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateDelta()..mergeFromBuffer(data, registry);
   factory DaemonStateDelta.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateDelta()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateDelta',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateDelta.$_createMessage)
     ..aOM<$4.DaemonStateRecord>(1, _omitFieldNames ? '' : 'daemon',
-        subBuilder: $4.DaemonStateRecord.create)
+        subBuilder: $4.DaemonStateRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1369,12 +1425,15 @@ class DaemonStateDelta extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DaemonStateDelta() / DaemonStateDelta.new instead')
   static DaemonStateDelta create() => DaemonStateDelta._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateDelta._();
   @$core.override
-  DaemonStateDelta createEmptyInstance() => create();
+  DaemonStateDelta createEmptyInstance() => DaemonStateDelta._();
   @$core.pragma('dart2js:noInline')
-  static DaemonStateDelta getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateDelta>(create);
+  static DaemonStateDelta getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DaemonStateDelta>(
+          DaemonStateDelta.$_createMessage);
   static DaemonStateDelta? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1394,7 +1453,7 @@ class DaemonStateQuery extends $pb.GeneratedMessage {
     $core.String? requestId,
     $core.String? daemonId,
   }) {
-    final result = create();
+    final result = DaemonStateQuery._();
     if (requestId != null) result.requestId = requestId;
     if (daemonId != null) result.daemonId = daemonId;
     return result;
@@ -1404,16 +1463,16 @@ class DaemonStateQuery extends $pb.GeneratedMessage {
 
   factory DaemonStateQuery.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateQuery()..mergeFromBuffer(data, registry);
   factory DaemonStateQuery.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateQuery()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateQuery',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateQuery.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOS(2, _omitFieldNames ? '' : 'daemonId')
     ..hasRequiredFields = false;
@@ -1429,12 +1488,15 @@ class DaemonStateQuery extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DaemonStateQuery() / DaemonStateQuery.new instead')
   static DaemonStateQuery create() => DaemonStateQuery._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateQuery._();
   @$core.override
-  DaemonStateQuery createEmptyInstance() => create();
+  DaemonStateQuery createEmptyInstance() => DaemonStateQuery._();
   @$core.pragma('dart2js:noInline')
-  static DaemonStateQuery getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateQuery>(create);
+  static DaemonStateQuery getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DaemonStateQuery>(
+          DaemonStateQuery.$_createMessage);
   static DaemonStateQuery? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1463,7 +1525,7 @@ class DaemonStateQueryResult extends $pb.GeneratedMessage {
     $core.bool? found,
     $4.DaemonStateRecord? daemon,
   }) {
-    final result = create();
+    final result = DaemonStateQueryResult._();
     if (requestId != null) result.requestId = requestId;
     if (daemonId != null) result.daemonId = daemonId;
     if (found != null) result.found = found;
@@ -1475,21 +1537,21 @@ class DaemonStateQueryResult extends $pb.GeneratedMessage {
 
   factory DaemonStateQueryResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonStateQueryResult()..mergeFromBuffer(data, registry);
   factory DaemonStateQueryResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonStateQueryResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonStateQueryResult',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonStateQueryResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOS(2, _omitFieldNames ? '' : 'daemonId')
     ..aOB(3, _omitFieldNames ? '' : 'found')
     ..aOM<$4.DaemonStateRecord>(4, _omitFieldNames ? '' : 'daemon',
-        subBuilder: $4.DaemonStateRecord.create)
+        subBuilder: $4.DaemonStateRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1504,12 +1566,16 @@ class DaemonStateQueryResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonStateQueryResult() / DaemonStateQueryResult.new instead')
   static DaemonStateQueryResult create() => DaemonStateQueryResult._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonStateQueryResult._();
   @$core.override
-  DaemonStateQueryResult createEmptyInstance() => create();
+  DaemonStateQueryResult createEmptyInstance() => DaemonStateQueryResult._();
   @$core.pragma('dart2js:noInline')
   static DaemonStateQueryResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonStateQueryResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonStateQueryResult>(
+          DaemonStateQueryResult.$_createMessage);
   static DaemonStateQueryResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1562,7 +1628,7 @@ class DaemonConnectionAdmissionRequest extends $pb.GeneratedMessage {
     $core.String? agentConnectionId,
     $core.bool? release,
   }) {
-    final result = create();
+    final result = DaemonConnectionAdmissionRequest._();
     if (requestId != null) result.requestId = requestId;
     if (admissionId != null) result.admissionId = admissionId;
     if (daemonId != null) result.daemonId = daemonId;
@@ -1577,16 +1643,16 @@ class DaemonConnectionAdmissionRequest extends $pb.GeneratedMessage {
   factory DaemonConnectionAdmissionRequest.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonConnectionAdmissionRequest()..mergeFromBuffer(data, registry);
   factory DaemonConnectionAdmissionRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonConnectionAdmissionRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonConnectionAdmissionRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonConnectionAdmissionRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOS(2, _omitFieldNames ? '' : 'admissionId')
     ..aOS(3, _omitFieldNames ? '' : 'daemonId')
@@ -1608,14 +1674,19 @@ class DaemonConnectionAdmissionRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonConnectionAdmissionRequest() / DaemonConnectionAdmissionRequest.new instead')
   static DaemonConnectionAdmissionRequest create() =>
       DaemonConnectionAdmissionRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DaemonConnectionAdmissionRequest._();
   @$core.override
-  DaemonConnectionAdmissionRequest createEmptyInstance() => create();
+  DaemonConnectionAdmissionRequest createEmptyInstance() =>
+      DaemonConnectionAdmissionRequest._();
   @$core.pragma('dart2js:noInline')
   static DaemonConnectionAdmissionRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<DaemonConnectionAdmissionRequest>(
-          create);
+          DaemonConnectionAdmissionRequest.$_createMessage);
   static DaemonConnectionAdmissionRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1682,7 +1753,7 @@ class DaemonConnectionAdmissionResponse extends $pb.GeneratedMessage {
     $core.String? message,
     $1.CloudEntitlementFailure? entitlementFailure,
   }) {
-    final result$ = create();
+    final result$ = DaemonConnectionAdmissionResponse._();
     if (requestId != null) result$.requestId = requestId;
     if (admissionId != null) result$.admissionId = admissionId;
     if (result != null) result$.result = result;
@@ -1698,16 +1769,16 @@ class DaemonConnectionAdmissionResponse extends $pb.GeneratedMessage {
   factory DaemonConnectionAdmissionResponse.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonConnectionAdmissionResponse()..mergeFromBuffer(data, registry);
   factory DaemonConnectionAdmissionResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonConnectionAdmissionResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonConnectionAdmissionResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonConnectionAdmissionResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOS(2, _omitFieldNames ? '' : 'admissionId')
     ..aE<DaemonConnectionAdmissionResult>(3, _omitFieldNames ? '' : 'result',
@@ -1716,7 +1787,7 @@ class DaemonConnectionAdmissionResponse extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'message')
     ..aOM<$1.CloudEntitlementFailure>(
         6, _omitFieldNames ? '' : 'entitlementFailure',
-        subBuilder: $1.CloudEntitlementFailure.create)
+        subBuilder: $1.CloudEntitlementFailure.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1732,14 +1803,19 @@ class DaemonConnectionAdmissionResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonConnectionAdmissionResponse() / DaemonConnectionAdmissionResponse.new instead')
   static DaemonConnectionAdmissionResponse create() =>
       DaemonConnectionAdmissionResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DaemonConnectionAdmissionResponse._();
   @$core.override
-  DaemonConnectionAdmissionResponse createEmptyInstance() => create();
+  DaemonConnectionAdmissionResponse createEmptyInstance() =>
+      DaemonConnectionAdmissionResponse._();
   @$core.pragma('dart2js:noInline')
   static DaemonConnectionAdmissionResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<DaemonConnectionAdmissionResponse>(
-          create);
+          DaemonConnectionAdmissionResponse.$_createMessage);
   static DaemonConnectionAdmissionResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1809,7 +1885,7 @@ class CloseDaemonConnection extends $pb.GeneratedMessage {
     $fixnum.Int64? generation,
     $core.String? reason,
   }) {
-    final result = create();
+    final result = CloseDaemonConnection._();
     if (commandId != null) result.commandId = commandId;
     if (correlationId != null) result.correlationId = correlationId;
     if (deadline != null) result.deadline = deadline;
@@ -1823,20 +1899,20 @@ class CloseDaemonConnection extends $pb.GeneratedMessage {
 
   factory CloseDaemonConnection.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CloseDaemonConnection()..mergeFromBuffer(data, registry);
   factory CloseDaemonConnection.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CloseDaemonConnection()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CloseDaemonConnection',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CloseDaemonConnection.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'commandId')
     ..aOS(2, _omitFieldNames ? '' : 'correlationId')
     ..aOM<$3.Timestamp>(3, _omitFieldNames ? '' : 'deadline',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'daemonId')
     ..a<$fixnum.Int64>(
         5, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
@@ -1856,12 +1932,16 @@ class CloseDaemonConnection extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CloseDaemonConnection() / CloseDaemonConnection.new instead')
   static CloseDaemonConnection create() => CloseDaemonConnection._();
+  static $pb.GeneratedMessage $_createMessage() => CloseDaemonConnection._();
   @$core.override
-  CloseDaemonConnection createEmptyInstance() => create();
+  CloseDaemonConnection createEmptyInstance() => CloseDaemonConnection._();
   @$core.pragma('dart2js:noInline')
   static CloseDaemonConnection getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloseDaemonConnection>(create);
+      $pb.GeneratedMessage.$_defaultFor<CloseDaemonConnection>(
+          CloseDaemonConnection.$_createMessage);
   static CloseDaemonConnection? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1930,7 +2010,7 @@ class CloseClientSession extends $pb.GeneratedMessage {
     $fixnum.Int64? generation,
     $core.String? reason,
   }) {
-    final result = create();
+    final result = CloseClientSession._();
     if (commandId != null) result.commandId = commandId;
     if (correlationId != null) result.correlationId = correlationId;
     if (deadline != null) result.deadline = deadline;
@@ -1944,20 +2024,20 @@ class CloseClientSession extends $pb.GeneratedMessage {
 
   factory CloseClientSession.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CloseClientSession()..mergeFromBuffer(data, registry);
   factory CloseClientSession.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CloseClientSession()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CloseClientSession',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CloseClientSession.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'commandId')
     ..aOS(2, _omitFieldNames ? '' : 'correlationId')
     ..aOM<$3.Timestamp>(3, _omitFieldNames ? '' : 'deadline',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'sessionId')
     ..a<$fixnum.Int64>(
         5, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
@@ -1976,12 +2056,15 @@ class CloseClientSession extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CloseClientSession() / CloseClientSession.new instead')
   static CloseClientSession create() => CloseClientSession._();
+  static $pb.GeneratedMessage $_createMessage() => CloseClientSession._();
   @$core.override
-  CloseClientSession createEmptyInstance() => create();
+  CloseClientSession createEmptyInstance() => CloseClientSession._();
   @$core.pragma('dart2js:noInline')
   static CloseClientSession getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloseClientSession>(create);
+      $pb.GeneratedMessage.$_defaultFor<CloseClientSession>(
+          CloseClientSession.$_createMessage);
   static CloseClientSession? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2050,7 +2133,7 @@ class ReselectDaemonEdge extends $pb.GeneratedMessage {
     $fixnum.Int64? generation,
     $fixnum.Int64? preferenceRevision,
   }) {
-    final result = create();
+    final result = ReselectDaemonEdge._();
     if (commandId != null) result.commandId = commandId;
     if (correlationId != null) result.correlationId = correlationId;
     if (deadline != null) result.deadline = deadline;
@@ -2065,20 +2148,20 @@ class ReselectDaemonEdge extends $pb.GeneratedMessage {
 
   factory ReselectDaemonEdge.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ReselectDaemonEdge()..mergeFromBuffer(data, registry);
   factory ReselectDaemonEdge.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ReselectDaemonEdge()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ReselectDaemonEdge',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ReselectDaemonEdge.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'commandId')
     ..aOS(2, _omitFieldNames ? '' : 'correlationId')
     ..aOM<$3.Timestamp>(3, _omitFieldNames ? '' : 'deadline',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'daemonId')
     ..a<$fixnum.Int64>(
         5, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
@@ -2099,12 +2182,15 @@ class ReselectDaemonEdge extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ReselectDaemonEdge() / ReselectDaemonEdge.new instead')
   static ReselectDaemonEdge create() => ReselectDaemonEdge._();
+  static $pb.GeneratedMessage $_createMessage() => ReselectDaemonEdge._();
   @$core.override
-  ReselectDaemonEdge createEmptyInstance() => create();
+  ReselectDaemonEdge createEmptyInstance() => ReselectDaemonEdge._();
   @$core.pragma('dart2js:noInline')
   static ReselectDaemonEdge getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ReselectDaemonEdge>(create);
+      $pb.GeneratedMessage.$_defaultFor<ReselectDaemonEdge>(
+          ReselectDaemonEdge.$_createMessage);
   static ReselectDaemonEdge? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2172,7 +2258,7 @@ class EdgeCommandResult extends $pb.GeneratedMessage {
     $core.String? message,
     $3.Timestamp? completedAt,
   }) {
-    final result = create();
+    final result = EdgeCommandResult._();
     if (commandId != null) result.commandId = commandId;
     if (correlationId != null) result.correlationId = correlationId;
     if (code != null) result.code = code;
@@ -2185,23 +2271,23 @@ class EdgeCommandResult extends $pb.GeneratedMessage {
 
   factory EdgeCommandResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeCommandResult()..mergeFromBuffer(data, registry);
   factory EdgeCommandResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeCommandResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeCommandResult',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeCommandResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'commandId')
     ..aOS(2, _omitFieldNames ? '' : 'correlationId')
     ..aE<CommandResultCode>(3, _omitFieldNames ? '' : 'code',
         enumValues: CommandResultCode.values)
     ..aOS(4, _omitFieldNames ? '' : 'message')
     ..aOM<$3.Timestamp>(5, _omitFieldNames ? '' : 'completedAt',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2215,12 +2301,15 @@ class EdgeCommandResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeCommandResult() / EdgeCommandResult.new instead')
   static EdgeCommandResult create() => EdgeCommandResult._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeCommandResult._();
   @$core.override
-  EdgeCommandResult createEmptyInstance() => create();
+  EdgeCommandResult createEmptyInstance() => EdgeCommandResult._();
   @$core.pragma('dart2js:noInline')
-  static EdgeCommandResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeCommandResult>(create);
+  static EdgeCommandResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeCommandResult>(
+          EdgeCommandResult.$_createMessage);
   static EdgeCommandResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2329,7 +2418,7 @@ class EdgeEvent extends $pb.GeneratedMessage {
     DaemonStateSyncRequest? daemonStateSync,
     $0.EdgePublicCertificateRenewRequest? publicCertificateRenew,
   }) {
-    final result = create();
+    final result = EdgeEvent._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -2368,10 +2457,10 @@ class EdgeEvent extends $pb.GeneratedMessage {
 
   factory EdgeEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeEvent()..mergeFromBuffer(data, registry);
   factory EdgeEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeEvent()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EdgeEvent_Payload> _EdgeEvent_PayloadByTag =
       {
@@ -2402,7 +2491,7 @@ class EdgeEvent extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EdgeEvent',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeEvent.$_createMessage)
     ..oo(0, [
       20,
       21,
@@ -2436,52 +2525,52 @@ class EdgeEvent extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$3.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOM<EdgeHello>(20, _omitFieldNames ? '' : 'hello',
-        subBuilder: EdgeHello.create)
+        subBuilder: EdgeHello.$_createMessage)
     ..aOM<SnapshotBegin>(21, _omitFieldNames ? '' : 'snapshotBegin',
-        subBuilder: SnapshotBegin.create)
+        subBuilder: SnapshotBegin.$_createMessage)
     ..aOM<SnapshotChunk>(22, _omitFieldNames ? '' : 'snapshotChunk',
-        subBuilder: SnapshotChunk.create)
+        subBuilder: SnapshotChunk.$_createMessage)
     ..aOM<SnapshotEnd>(23, _omitFieldNames ? '' : 'snapshotEnd',
-        subBuilder: SnapshotEnd.create)
+        subBuilder: SnapshotEnd.$_createMessage)
     ..aOM<$2.RuntimeDelta>(24, _omitFieldNames ? '' : 'runtimeDelta',
-        subBuilder: $2.RuntimeDelta.create)
+        subBuilder: $2.RuntimeDelta.$_createMessage)
     ..aOM<EdgeHeartbeat>(25, _omitFieldNames ? '' : 'heartbeat',
-        subBuilder: EdgeHeartbeat.create)
+        subBuilder: EdgeHeartbeat.$_createMessage)
     ..aOM<ConfigApplied>(26, _omitFieldNames ? '' : 'configApplied',
-        subBuilder: ConfigApplied.create)
+        subBuilder: ConfigApplied.$_createMessage)
     ..aOM<$5.RelayReserveRequest>(28, _omitFieldNames ? '' : 'relayReserve',
-        subBuilder: $5.RelayReserveRequest.create)
+        subBuilder: $5.RelayReserveRequest.$_createMessage)
     ..aOM<EdgeCommandResult>(29, _omitFieldNames ? '' : 'commandResult',
-        subBuilder: EdgeCommandResult.create)
+        subBuilder: EdgeCommandResult.$_createMessage)
     ..aOM<$0.EdgePublicCertificateApplied>(
         30, _omitFieldNames ? '' : 'publicCertificateApplied',
-        subBuilder: $0.EdgePublicCertificateApplied.create)
+        subBuilder: $0.EdgePublicCertificateApplied.$_createMessage)
     ..aOM<$5.RelayRenewRequest>(31, _omitFieldNames ? '' : 'relayRenew',
-        subBuilder: $5.RelayRenewRequest.create)
+        subBuilder: $5.RelayRenewRequest.$_createMessage)
     ..aOM<$5.RelaySettlement>(32, _omitFieldNames ? '' : 'relaySettle',
-        subBuilder: $5.RelaySettlement.create)
+        subBuilder: $5.RelaySettlement.$_createMessage)
     ..aOM<$5.RelayQueryRequest>(33, _omitFieldNames ? '' : 'relayQuery',
-        subBuilder: $5.RelayQueryRequest.create)
+        subBuilder: $5.RelayQueryRequest.$_createMessage)
     ..aOM<DaemonStateQuery>(34, _omitFieldNames ? '' : 'daemonStateQuery',
-        subBuilder: DaemonStateQuery.create)
+        subBuilder: DaemonStateQuery.$_createMessage)
     ..aOM<EdgeIdentityRenewRequest>(35, _omitFieldNames ? '' : 'identityRenew',
-        subBuilder: EdgeIdentityRenewRequest.create)
+        subBuilder: EdgeIdentityRenewRequest.$_createMessage)
     ..aOM<EdgeIdentityApplied>(36, _omitFieldNames ? '' : 'identityApplied',
-        subBuilder: EdgeIdentityApplied.create)
+        subBuilder: EdgeIdentityApplied.$_createMessage)
     ..aOM<DaemonConnectionAdmissionRequest>(
         37, _omitFieldNames ? '' : 'daemonConnectionAdmission',
-        subBuilder: DaemonConnectionAdmissionRequest.create)
+        subBuilder: DaemonConnectionAdmissionRequest.$_createMessage)
     ..aOM<$5.RelayAuthorizeRequest>(38, _omitFieldNames ? '' : 'relayAuthorize',
-        subBuilder: $5.RelayAuthorizeRequest.create)
+        subBuilder: $5.RelayAuthorizeRequest.$_createMessage)
     ..aOM<$5.RelayUsageBatch>(39, _omitFieldNames ? '' : 'relayUsageBatch',
-        subBuilder: $5.RelayUsageBatch.create)
+        subBuilder: $5.RelayUsageBatch.$_createMessage)
     ..aOM<DaemonStateSyncRequest>(40, _omitFieldNames ? '' : 'daemonStateSync',
-        subBuilder: DaemonStateSyncRequest.create)
+        subBuilder: DaemonStateSyncRequest.$_createMessage)
     ..aOM<$0.EdgePublicCertificateRenewRequest>(
         41, _omitFieldNames ? '' : 'publicCertificateRenew',
-        subBuilder: $0.EdgePublicCertificateRenewRequest.create)
+        subBuilder: $0.EdgePublicCertificateRenewRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2494,12 +2583,14 @@ class EdgeEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeEvent() / EdgeEvent.new instead')
   static EdgeEvent create() => EdgeEvent._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeEvent._();
   @$core.override
-  EdgeEvent createEmptyInstance() => create();
+  EdgeEvent createEmptyInstance() => EdgeEvent._();
   @$core.pragma('dart2js:noInline')
-  static EdgeEvent getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeEvent>(create);
+  static EdgeEvent getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<EdgeEvent>(EdgeEvent.$_createMessage);
   static EdgeEvent? _defaultInstance;
 
   @$pb.TagNumber(20)
@@ -2910,7 +3001,7 @@ class ControllerCommand extends $pb.GeneratedMessage {
     DaemonStateSyncChunk? daemonStateSyncChunk,
     DaemonStateSyncEnd? daemonStateSyncEnd,
   }) {
-    final result = create();
+    final result = ControllerCommand._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -2954,10 +3045,10 @@ class ControllerCommand extends $pb.GeneratedMessage {
 
   factory ControllerCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ControllerCommand()..mergeFromBuffer(data, registry);
   factory ControllerCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ControllerCommand()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ControllerCommand_Payload>
       _ControllerCommand_PayloadByTag = {
@@ -2989,7 +3080,7 @@ class ControllerCommand extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ControllerCommand',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ControllerCommand.$_createMessage)
     ..oo(0, [
       20,
       21,
@@ -3024,58 +3115,58 @@ class ControllerCommand extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$3.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $3.Timestamp.create)
+        subBuilder: $3.Timestamp.$_createMessage)
     ..aOM<EdgeWelcome>(20, _omitFieldNames ? '' : 'welcome',
-        subBuilder: EdgeWelcome.create)
+        subBuilder: EdgeWelcome.$_createMessage)
     ..aOM<SnapshotAccepted>(21, _omitFieldNames ? '' : 'snapshotAccepted',
-        subBuilder: SnapshotAccepted.create)
+        subBuilder: SnapshotAccepted.$_createMessage)
     ..aOM<ResyncRequired>(22, _omitFieldNames ? '' : 'resyncRequired',
-        subBuilder: ResyncRequired.create)
+        subBuilder: ResyncRequired.$_createMessage)
     ..aOM<$6.SignedEdgeDesiredConfig>(
         23, _omitFieldNames ? '' : 'desiredConfig',
-        subBuilder: $6.SignedEdgeDesiredConfig.create)
+        subBuilder: $6.SignedEdgeDesiredConfig.$_createMessage)
     ..aOM<$1.KeyBundle>(24, _omitFieldNames ? '' : 'bindingKeyBundle',
-        subBuilder: $1.KeyBundle.create)
+        subBuilder: $1.KeyBundle.$_createMessage)
     ..aOM<$5.RelayReserveResponse>(25, _omitFieldNames ? '' : 'relayReserve',
-        subBuilder: $5.RelayReserveResponse.create)
+        subBuilder: $5.RelayReserveResponse.$_createMessage)
     ..aOM<CloseDaemonConnection>(26, _omitFieldNames ? '' : 'closeDaemon',
-        subBuilder: CloseDaemonConnection.create)
+        subBuilder: CloseDaemonConnection.$_createMessage)
     ..aOM<CloseClientSession>(27, _omitFieldNames ? '' : 'closeSession',
-        subBuilder: CloseClientSession.create)
+        subBuilder: CloseClientSession.$_createMessage)
     ..aOM<$0.EdgePublicCertificateRenewResponse>(
         28, _omitFieldNames ? '' : 'publicCertificateRenew',
-        subBuilder: $0.EdgePublicCertificateRenewResponse.create)
+        subBuilder: $0.EdgePublicCertificateRenewResponse.$_createMessage)
     ..aOM<$5.RelayRenewResponse>(29, _omitFieldNames ? '' : 'relayRenew',
-        subBuilder: $5.RelayRenewResponse.create)
+        subBuilder: $5.RelayRenewResponse.$_createMessage)
     ..aOM<$5.RelaySettlementAck>(30, _omitFieldNames ? '' : 'relaySettle',
-        subBuilder: $5.RelaySettlementAck.create)
+        subBuilder: $5.RelaySettlementAck.$_createMessage)
     ..aOM<$5.RelayQueryResponse>(31, _omitFieldNames ? '' : 'relayQuery',
-        subBuilder: $5.RelayQueryResponse.create)
+        subBuilder: $5.RelayQueryResponse.$_createMessage)
     ..aOM<DaemonStateDelta>(32, _omitFieldNames ? '' : 'daemonStateDelta',
-        subBuilder: DaemonStateDelta.create)
+        subBuilder: DaemonStateDelta.$_createMessage)
     ..aOM<DaemonStateQueryResult>(
         33, _omitFieldNames ? '' : 'daemonStateQueryResult',
-        subBuilder: DaemonStateQueryResult.create)
+        subBuilder: DaemonStateQueryResult.$_createMessage)
     ..aOM<ReselectDaemonEdge>(34, _omitFieldNames ? '' : 'reselectDaemonEdge',
-        subBuilder: ReselectDaemonEdge.create)
+        subBuilder: ReselectDaemonEdge.$_createMessage)
     ..aOM<EdgeIdentityRenewResponse>(35, _omitFieldNames ? '' : 'identityRenew',
-        subBuilder: EdgeIdentityRenewResponse.create)
+        subBuilder: EdgeIdentityRenewResponse.$_createMessage)
     ..aOM<DaemonConnectionAdmissionResponse>(
         36, _omitFieldNames ? '' : 'daemonConnectionAdmission',
-        subBuilder: DaemonConnectionAdmissionResponse.create)
+        subBuilder: DaemonConnectionAdmissionResponse.$_createMessage)
     ..aOM<$5.RelayAuthorizeResponse>(
         37, _omitFieldNames ? '' : 'relayAuthorize',
-        subBuilder: $5.RelayAuthorizeResponse.create)
+        subBuilder: $5.RelayAuthorizeResponse.$_createMessage)
     ..aOM<$5.RelayUsageAck>(38, _omitFieldNames ? '' : 'relayUsageAck',
-        subBuilder: $5.RelayUsageAck.create)
+        subBuilder: $5.RelayUsageAck.$_createMessage)
     ..aOM<$5.RelayAccountAction>(
         39, _omitFieldNames ? '' : 'relayAccountAction',
-        subBuilder: $5.RelayAccountAction.create)
+        subBuilder: $5.RelayAccountAction.$_createMessage)
     ..aOM<DaemonStateSyncChunk>(
         40, _omitFieldNames ? '' : 'daemonStateSyncChunk',
-        subBuilder: DaemonStateSyncChunk.create)
+        subBuilder: DaemonStateSyncChunk.$_createMessage)
     ..aOM<DaemonStateSyncEnd>(41, _omitFieldNames ? '' : 'daemonStateSyncEnd',
-        subBuilder: DaemonStateSyncEnd.create)
+        subBuilder: DaemonStateSyncEnd.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3089,12 +3180,15 @@ class ControllerCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ControllerCommand() / ControllerCommand.new instead')
   static ControllerCommand create() => ControllerCommand._();
+  static $pb.GeneratedMessage $_createMessage() => ControllerCommand._();
   @$core.override
-  ControllerCommand createEmptyInstance() => create();
+  ControllerCommand createEmptyInstance() => ControllerCommand._();
   @$core.pragma('dart2js:noInline')
-  static ControllerCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ControllerCommand>(create);
+  static ControllerCommand getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ControllerCommand>(
+          ControllerCommand.$_createMessage);
   static ControllerCommand? _defaultInstance;
 
   @$pb.TagNumber(20)

@@ -8,7 +8,7 @@ FLUTTER_DIR := $(CURDIR)/clients/flutter
 ANDROID_ARTIFACT_DIR := $(ARTIFACT_DIR)/android
 RELEASE_VERSION ?=
 
-.PHONY: build release sync-version test test-clients test-android local-web-bundle public-check clean
+.PHONY: build release sync-version test test-clients test-android test-release local-web-bundle public-check clean
 
 build:
 	mkdir -p "$(dir $(ANYTTY_BIN))"
@@ -23,6 +23,9 @@ release: sync-version
 test:
 	scripts/test-install.sh
 	GOWORK=off go test ./... -count=1
+
+test-release:
+	scripts/test-release-artifacts.sh
 
 test-clients:
 	npm run test

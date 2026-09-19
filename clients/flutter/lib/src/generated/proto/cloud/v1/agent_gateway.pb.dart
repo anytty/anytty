@@ -33,7 +33,7 @@ class AgentHello extends $pb.GeneratedMessage {
     $core.String? softwareVersion,
     $fixnum.Int64? attemptGeneration,
   }) {
-    final result = create();
+    final result = AgentHello._();
     if (daemonBinding != null) result.daemonBinding = daemonBinding;
     if (deviceProof != null) result.deviceProof = deviceProof;
     if (softwareVersion != null) result.softwareVersion = softwareVersion;
@@ -45,18 +45,18 @@ class AgentHello extends $pb.GeneratedMessage {
 
   factory AgentHello.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentHello()..mergeFromBuffer(data, registry);
   factory AgentHello.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentHello()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentHello',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentHello.$_createMessage)
     ..aOM<$0.SignedEnvelope>(1, _omitFieldNames ? '' : 'daemonBinding',
-        subBuilder: $0.SignedEnvelope.create)
+        subBuilder: $0.SignedEnvelope.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'deviceProof', $pb.PbFieldType.OY)
     ..aOS(3, _omitFieldNames ? '' : 'softwareVersion')
@@ -75,12 +75,14 @@ class AgentHello extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentHello() / AgentHello.new instead')
   static AgentHello create() => AgentHello._();
+  static $pb.GeneratedMessage $_createMessage() => AgentHello._();
   @$core.override
-  AgentHello createEmptyInstance() => create();
+  AgentHello createEmptyInstance() => AgentHello._();
   @$core.pragma('dart2js:noInline')
   static AgentHello getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentHello>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentHello>(AgentHello.$_createMessage);
   static AgentHello? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -126,7 +128,7 @@ class AgentHeartbeat extends $pb.GeneratedMessage {
   factory AgentHeartbeat({
     $fixnum.Int64? generation,
   }) {
-    final result = create();
+    final result = AgentHeartbeat._();
     if (generation != null) result.generation = generation;
     return result;
   }
@@ -135,16 +137,16 @@ class AgentHeartbeat extends $pb.GeneratedMessage {
 
   factory AgentHeartbeat.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentHeartbeat()..mergeFromBuffer(data, registry);
   factory AgentHeartbeat.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentHeartbeat()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentHeartbeat',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentHeartbeat.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -161,12 +163,15 @@ class AgentHeartbeat extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentHeartbeat() / AgentHeartbeat.new instead')
   static AgentHeartbeat create() => AgentHeartbeat._();
+  static $pb.GeneratedMessage $_createMessage() => AgentHeartbeat._();
   @$core.override
-  AgentHeartbeat createEmptyInstance() => create();
+  AgentHeartbeat createEmptyInstance() => AgentHeartbeat._();
   @$core.pragma('dart2js:noInline')
-  static AgentHeartbeat getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentHeartbeat>(create);
+  static AgentHeartbeat getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AgentHeartbeat>(
+          AgentHeartbeat.$_createMessage);
   static AgentHeartbeat? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -192,7 +197,7 @@ class AgentOffer extends $pb.GeneratedMessage {
     $core.List<$core.int>? pairingClaimSha256,
     $2.RelayTransport? relayTransport,
   }) {
-    final result = create();
+    final result = AgentOffer._();
     if (correlationId != null) result.correlationId = correlationId;
     if (sessionId != null) result.sessionId = sessionId;
     if (agentGeneration != null) result.agentGeneration = agentGeneration;
@@ -211,16 +216,16 @@ class AgentOffer extends $pb.GeneratedMessage {
 
   factory AgentOffer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentOffer()..mergeFromBuffer(data, registry);
   factory AgentOffer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentOffer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentOffer',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentOffer.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'correlationId')
     ..aOS(2, _omitFieldNames ? '' : 'sessionId')
     ..a<$fixnum.Int64>(
@@ -230,9 +235,9 @@ class AgentOffer extends $pb.GeneratedMessage {
         4, _omitFieldNames ? '' : 'clientPublicKey', $pb.PbFieldType.OY)
     ..aOS(5, _omitFieldNames ? '' : 'offerSdp')
     ..pPM<$1.CloudICECandidate>(6, _omitFieldNames ? '' : 'candidates',
-        subBuilder: $1.CloudICECandidate.create)
+        subBuilder: $1.CloudICECandidate.$_createMessage)
     ..aOM<$2.RelayICEConfig>(7, _omitFieldNames ? '' : 'relay',
-        subBuilder: $2.RelayICEConfig.create)
+        subBuilder: $2.RelayICEConfig.$_createMessage)
     ..aE<$5.CloudClientAccessMode>(8, _omitFieldNames ? '' : 'accessMode',
         enumValues: $5.CloudClientAccessMode.values)
     ..a<$core.List<$core.int>>(
@@ -251,12 +256,14 @@ class AgentOffer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentOffer() / AgentOffer.new instead')
   static AgentOffer create() => AgentOffer._();
+  static $pb.GeneratedMessage $_createMessage() => AgentOffer._();
   @$core.override
-  AgentOffer createEmptyInstance() => create();
+  AgentOffer createEmptyInstance() => AgentOffer._();
   @$core.pragma('dart2js:noInline')
   static AgentOffer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentOffer>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentOffer>(AgentOffer.$_createMessage);
   static AgentOffer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -358,7 +365,7 @@ class AgentAuthorize extends $pb.GeneratedMessage {
     $5.CloudClientAccessMode? accessMode,
     $core.List<$core.int>? pairingClaimSha256,
   }) {
-    final result = create();
+    final result = AgentAuthorize._();
     if (correlationId != null) result.correlationId = correlationId;
     if (sessionId != null) result.sessionId = sessionId;
     if (agentGeneration != null) result.agentGeneration = agentGeneration;
@@ -374,16 +381,16 @@ class AgentAuthorize extends $pb.GeneratedMessage {
 
   factory AgentAuthorize.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentAuthorize()..mergeFromBuffer(data, registry);
   factory AgentAuthorize.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentAuthorize()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentAuthorize',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentAuthorize.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'correlationId')
     ..aOS(2, _omitFieldNames ? '' : 'sessionId')
     ..a<$fixnum.Int64>(
@@ -410,12 +417,15 @@ class AgentAuthorize extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentAuthorize() / AgentAuthorize.new instead')
   static AgentAuthorize create() => AgentAuthorize._();
+  static $pb.GeneratedMessage $_createMessage() => AgentAuthorize._();
   @$core.override
-  AgentAuthorize createEmptyInstance() => create();
+  AgentAuthorize createEmptyInstance() => AgentAuthorize._();
   @$core.pragma('dart2js:noInline')
-  static AgentAuthorize getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentAuthorize>(create);
+  static AgentAuthorize getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AgentAuthorize>(
+          AgentAuthorize.$_createMessage);
   static AgentAuthorize? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -490,7 +500,7 @@ class AgentAuthorizationResult extends $pb.GeneratedMessage {
     $core.String? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = AgentAuthorizationResult._();
     if (correlationId != null) result.correlationId = correlationId;
     if (sessionId != null) result.sessionId = sessionId;
     if (authorized != null) result.authorized = authorized;
@@ -503,16 +513,16 @@ class AgentAuthorizationResult extends $pb.GeneratedMessage {
 
   factory AgentAuthorizationResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentAuthorizationResult()..mergeFromBuffer(data, registry);
   factory AgentAuthorizationResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentAuthorizationResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentAuthorizationResult',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentAuthorizationResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'correlationId')
     ..aOS(2, _omitFieldNames ? '' : 'sessionId')
     ..aOB(3, _omitFieldNames ? '' : 'authorized')
@@ -532,12 +542,17 @@ class AgentAuthorizationResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use AgentAuthorizationResult() / AgentAuthorizationResult.new instead')
   static AgentAuthorizationResult create() => AgentAuthorizationResult._();
+  static $pb.GeneratedMessage $_createMessage() => AgentAuthorizationResult._();
   @$core.override
-  AgentAuthorizationResult createEmptyInstance() => create();
+  AgentAuthorizationResult createEmptyInstance() =>
+      AgentAuthorizationResult._();
   @$core.pragma('dart2js:noInline')
   static AgentAuthorizationResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentAuthorizationResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentAuthorizationResult>(
+          AgentAuthorizationResult.$_createMessage);
   static AgentAuthorizationResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -593,7 +608,7 @@ class AgentAnswer extends $pb.GeneratedMessage {
     $core.String? answerSdp,
     $core.Iterable<$1.CloudICECandidate>? candidates,
   }) {
-    final result = create();
+    final result = AgentAnswer._();
     if (correlationId != null) result.correlationId = correlationId;
     if (sessionId != null) result.sessionId = sessionId;
     if (answerSdp != null) result.answerSdp = answerSdp;
@@ -605,21 +620,21 @@ class AgentAnswer extends $pb.GeneratedMessage {
 
   factory AgentAnswer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentAnswer()..mergeFromBuffer(data, registry);
   factory AgentAnswer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentAnswer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentAnswer',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentAnswer.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'correlationId')
     ..aOS(2, _omitFieldNames ? '' : 'sessionId')
     ..aOS(3, _omitFieldNames ? '' : 'answerSdp')
     ..pPM<$1.CloudICECandidate>(4, _omitFieldNames ? '' : 'candidates',
-        subBuilder: $1.CloudICECandidate.create)
+        subBuilder: $1.CloudICECandidate.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -633,12 +648,15 @@ class AgentAnswer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentAnswer() / AgentAnswer.new instead')
   static AgentAnswer create() => AgentAnswer._();
+  static $pb.GeneratedMessage $_createMessage() => AgentAnswer._();
   @$core.override
-  AgentAnswer createEmptyInstance() => create();
+  AgentAnswer createEmptyInstance() => AgentAnswer._();
   @$core.pragma('dart2js:noInline')
-  static AgentAnswer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentAnswer>(create);
+  static AgentAnswer getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AgentAnswer>(
+          AgentAnswer.$_createMessage);
   static AgentAnswer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -679,7 +697,7 @@ class AgentSignalRejected extends $pb.GeneratedMessage {
     $core.String? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = AgentSignalRejected._();
     if (correlationId != null) result.correlationId = correlationId;
     if (sessionId != null) result.sessionId = sessionId;
     if (code != null) result.code = code;
@@ -691,16 +709,16 @@ class AgentSignalRejected extends $pb.GeneratedMessage {
 
   factory AgentSignalRejected.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentSignalRejected()..mergeFromBuffer(data, registry);
   factory AgentSignalRejected.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentSignalRejected()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentSignalRejected',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentSignalRejected.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'correlationId')
     ..aOS(2, _omitFieldNames ? '' : 'sessionId')
     ..aOS(3, _omitFieldNames ? '' : 'code')
@@ -718,12 +736,16 @@ class AgentSignalRejected extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use AgentSignalRejected() / AgentSignalRejected.new instead')
   static AgentSignalRejected create() => AgentSignalRejected._();
+  static $pb.GeneratedMessage $_createMessage() => AgentSignalRejected._();
   @$core.override
-  AgentSignalRejected createEmptyInstance() => create();
+  AgentSignalRejected createEmptyInstance() => AgentSignalRejected._();
   @$core.pragma('dart2js:noInline')
   static AgentSignalRejected getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentSignalRejected>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentSignalRejected>(
+          AgentSignalRejected.$_createMessage);
   static AgentSignalRejected? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -769,7 +791,7 @@ class AgentReady extends $pb.GeneratedMessage {
     $0.HeartbeatPolicy? heartbeat,
     $3.DaemonStateRecord? daemonState,
   }) {
-    final result = create();
+    final result = AgentReady._();
     if (generation != null) result.generation = generation;
     if (heartbeat != null) result.heartbeat = heartbeat;
     if (daemonState != null) result.daemonState = daemonState;
@@ -780,23 +802,23 @@ class AgentReady extends $pb.GeneratedMessage {
 
   factory AgentReady.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentReady()..mergeFromBuffer(data, registry);
   factory AgentReady.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentReady()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentReady',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentReady.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.HeartbeatPolicy>(2, _omitFieldNames ? '' : 'heartbeat',
-        subBuilder: $0.HeartbeatPolicy.create)
+        subBuilder: $0.HeartbeatPolicy.$_createMessage)
     ..aOM<$3.DaemonStateRecord>(3, _omitFieldNames ? '' : 'daemonState',
-        subBuilder: $3.DaemonStateRecord.create)
+        subBuilder: $3.DaemonStateRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -809,12 +831,14 @@ class AgentReady extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentReady() / AgentReady.new instead')
   static AgentReady create() => AgentReady._();
+  static $pb.GeneratedMessage $_createMessage() => AgentReady._();
   @$core.override
-  AgentReady createEmptyInstance() => create();
+  AgentReady createEmptyInstance() => AgentReady._();
   @$core.pragma('dart2js:noInline')
   static AgentReady getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentReady>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentReady>(AgentReady.$_createMessage);
   static AgentReady? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -855,7 +879,7 @@ class DaemonLifecycleCommand extends $pb.GeneratedMessage {
     $3.DaemonStateRecord? daemonState,
     $fixnum.Int64? agentGeneration,
   }) {
-    final result = create();
+    final result = DaemonLifecycleCommand._();
     if (daemonState != null) result.daemonState = daemonState;
     if (agentGeneration != null) result.agentGeneration = agentGeneration;
     return result;
@@ -865,18 +889,18 @@ class DaemonLifecycleCommand extends $pb.GeneratedMessage {
 
   factory DaemonLifecycleCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonLifecycleCommand()..mergeFromBuffer(data, registry);
   factory DaemonLifecycleCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonLifecycleCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonLifecycleCommand',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonLifecycleCommand.$_createMessage)
     ..aOM<$3.DaemonStateRecord>(1, _omitFieldNames ? '' : 'daemonState',
-        subBuilder: $3.DaemonStateRecord.create)
+        subBuilder: $3.DaemonStateRecord.$_createMessage)
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'agentGeneration', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -894,12 +918,16 @@ class DaemonLifecycleCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonLifecycleCommand() / DaemonLifecycleCommand.new instead')
   static DaemonLifecycleCommand create() => DaemonLifecycleCommand._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonLifecycleCommand._();
   @$core.override
-  DaemonLifecycleCommand createEmptyInstance() => create();
+  DaemonLifecycleCommand createEmptyInstance() => DaemonLifecycleCommand._();
   @$core.pragma('dart2js:noInline')
   static DaemonLifecycleCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonLifecycleCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonLifecycleCommand>(
+          DaemonLifecycleCommand.$_createMessage);
   static DaemonLifecycleCommand? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -931,7 +959,7 @@ class DaemonLifecycleResult extends $pb.GeneratedMessage {
     $core.bool? applied,
     $core.String? errorMessage,
   }) {
-    final result = create();
+    final result = DaemonLifecycleResult._();
     if (daemonState != null) result.daemonState = daemonState;
     if (agentGeneration != null) result.agentGeneration = agentGeneration;
     if (applied != null) result.applied = applied;
@@ -943,18 +971,18 @@ class DaemonLifecycleResult extends $pb.GeneratedMessage {
 
   factory DaemonLifecycleResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonLifecycleResult()..mergeFromBuffer(data, registry);
   factory DaemonLifecycleResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonLifecycleResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonLifecycleResult',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonLifecycleResult.$_createMessage)
     ..aOM<$3.DaemonStateRecord>(1, _omitFieldNames ? '' : 'daemonState',
-        subBuilder: $3.DaemonStateRecord.create)
+        subBuilder: $3.DaemonStateRecord.$_createMessage)
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'agentGeneration', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -974,12 +1002,16 @@ class DaemonLifecycleResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonLifecycleResult() / DaemonLifecycleResult.new instead')
   static DaemonLifecycleResult create() => DaemonLifecycleResult._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonLifecycleResult._();
   @$core.override
-  DaemonLifecycleResult createEmptyInstance() => create();
+  DaemonLifecycleResult createEmptyInstance() => DaemonLifecycleResult._();
   @$core.pragma('dart2js:noInline')
   static DaemonLifecycleResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonLifecycleResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonLifecycleResult>(
+          DaemonLifecycleResult.$_createMessage);
   static DaemonLifecycleResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1027,7 +1059,7 @@ class DaemonEdgeReselectCommand extends $pb.GeneratedMessage {
     $fixnum.Int64? agentGeneration,
     $fixnum.Int64? preferenceRevision,
   }) {
-    final result = create();
+    final result = DaemonEdgeReselectCommand._();
     if (agentGeneration != null) result.agentGeneration = agentGeneration;
     if (preferenceRevision != null)
       result.preferenceRevision = preferenceRevision;
@@ -1038,16 +1070,16 @@ class DaemonEdgeReselectCommand extends $pb.GeneratedMessage {
 
   factory DaemonEdgeReselectCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonEdgeReselectCommand()..mergeFromBuffer(data, registry);
   factory DaemonEdgeReselectCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonEdgeReselectCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonEdgeReselectCommand',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonEdgeReselectCommand.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'agentGeneration', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -1068,12 +1100,18 @@ class DaemonEdgeReselectCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DaemonEdgeReselectCommand() / DaemonEdgeReselectCommand.new instead')
   static DaemonEdgeReselectCommand create() => DaemonEdgeReselectCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DaemonEdgeReselectCommand._();
   @$core.override
-  DaemonEdgeReselectCommand createEmptyInstance() => create();
+  DaemonEdgeReselectCommand createEmptyInstance() =>
+      DaemonEdgeReselectCommand._();
   @$core.pragma('dart2js:noInline')
   static DaemonEdgeReselectCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonEdgeReselectCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonEdgeReselectCommand>(
+          DaemonEdgeReselectCommand.$_createMessage);
   static DaemonEdgeReselectCommand? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1121,7 +1159,7 @@ class AgentEvent extends $pb.GeneratedMessage {
     AgentAuthorizationResult? authorization,
     DaemonLifecycleResult? lifecycleResult,
   }) {
-    final result = create();
+    final result = AgentEvent._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -1142,10 +1180,10 @@ class AgentEvent extends $pb.GeneratedMessage {
 
   factory AgentEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentEvent()..mergeFromBuffer(data, registry);
   factory AgentEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentEvent()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, AgentEvent_Payload>
       _AgentEvent_PayloadByTag = {
@@ -1161,7 +1199,7 @@ class AgentEvent extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'AgentEvent',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentEvent.$_createMessage)
     ..oo(0, [20, 21, 22, 23, 24, 25])
     ..aI(1, _omitFieldNames ? '' : 'protocolVersion',
         fieldType: $pb.PbFieldType.OU3)
@@ -1173,19 +1211,19 @@ class AgentEvent extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$4.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $4.Timestamp.create)
+        subBuilder: $4.Timestamp.$_createMessage)
     ..aOM<AgentHello>(20, _omitFieldNames ? '' : 'hello',
-        subBuilder: AgentHello.create)
+        subBuilder: AgentHello.$_createMessage)
     ..aOM<AgentHeartbeat>(21, _omitFieldNames ? '' : 'heartbeat',
-        subBuilder: AgentHeartbeat.create)
+        subBuilder: AgentHeartbeat.$_createMessage)
     ..aOM<AgentAnswer>(22, _omitFieldNames ? '' : 'answer',
-        subBuilder: AgentAnswer.create)
+        subBuilder: AgentAnswer.$_createMessage)
     ..aOM<AgentSignalRejected>(23, _omitFieldNames ? '' : 'rejected',
-        subBuilder: AgentSignalRejected.create)
+        subBuilder: AgentSignalRejected.$_createMessage)
     ..aOM<AgentAuthorizationResult>(24, _omitFieldNames ? '' : 'authorization',
-        subBuilder: AgentAuthorizationResult.create)
+        subBuilder: AgentAuthorizationResult.$_createMessage)
     ..aOM<DaemonLifecycleResult>(25, _omitFieldNames ? '' : 'lifecycleResult',
-        subBuilder: DaemonLifecycleResult.create)
+        subBuilder: DaemonLifecycleResult.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1198,12 +1236,14 @@ class AgentEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AgentEvent() / AgentEvent.new instead')
   static AgentEvent create() => AgentEvent._();
+  static $pb.GeneratedMessage $_createMessage() => AgentEvent._();
   @$core.override
-  AgentEvent createEmptyInstance() => create();
+  AgentEvent createEmptyInstance() => AgentEvent._();
   @$core.pragma('dart2js:noInline')
   static AgentEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentEvent>(AgentEvent.$_createMessage);
   static AgentEvent? _defaultInstance;
 
   @$pb.TagNumber(20)
@@ -1380,7 +1420,7 @@ class EdgeCommand extends $pb.GeneratedMessage {
     DaemonLifecycleCommand? lifecycle,
     DaemonEdgeReselectCommand? edgeReselect,
   }) {
-    final result = create();
+    final result = EdgeCommand._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -1401,10 +1441,10 @@ class EdgeCommand extends $pb.GeneratedMessage {
 
   factory EdgeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeCommand()..mergeFromBuffer(data, registry);
   factory EdgeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeCommand()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EdgeCommand_Payload>
       _EdgeCommand_PayloadByTag = {
@@ -1420,7 +1460,7 @@ class EdgeCommand extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EdgeCommand',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeCommand.$_createMessage)
     ..oo(0, [20, 21, 22, 23, 24, 25])
     ..aI(1, _omitFieldNames ? '' : 'protocolVersion',
         fieldType: $pb.PbFieldType.OU3)
@@ -1432,19 +1472,19 @@ class EdgeCommand extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$4.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $4.Timestamp.create)
+        subBuilder: $4.Timestamp.$_createMessage)
     ..aOM<AgentReady>(20, _omitFieldNames ? '' : 'ready',
-        subBuilder: AgentReady.create)
+        subBuilder: AgentReady.$_createMessage)
     ..aOM<AgentOffer>(21, _omitFieldNames ? '' : 'offer',
-        subBuilder: AgentOffer.create)
+        subBuilder: AgentOffer.$_createMessage)
     ..aOM<AgentAuthorize>(22, _omitFieldNames ? '' : 'authorize',
-        subBuilder: AgentAuthorize.create)
+        subBuilder: AgentAuthorize.$_createMessage)
     ..aOM<$0.EdgeChallenge>(23, _omitFieldNames ? '' : 'challenge',
-        subBuilder: $0.EdgeChallenge.create)
+        subBuilder: $0.EdgeChallenge.$_createMessage)
     ..aOM<DaemonLifecycleCommand>(24, _omitFieldNames ? '' : 'lifecycle',
-        subBuilder: DaemonLifecycleCommand.create)
+        subBuilder: DaemonLifecycleCommand.$_createMessage)
     ..aOM<DaemonEdgeReselectCommand>(25, _omitFieldNames ? '' : 'edgeReselect',
-        subBuilder: DaemonEdgeReselectCommand.create)
+        subBuilder: DaemonEdgeReselectCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1458,12 +1498,15 @@ class EdgeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeCommand() / EdgeCommand.new instead')
   static EdgeCommand create() => EdgeCommand._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeCommand._();
   @$core.override
-  EdgeCommand createEmptyInstance() => create();
+  EdgeCommand createEmptyInstance() => EdgeCommand._();
   @$core.pragma('dart2js:noInline')
-  static EdgeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeCommand>(create);
+  static EdgeCommand getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeCommand>(
+          EdgeCommand.$_createMessage);
   static EdgeCommand? _defaultInstance;
 
   @$pb.TagNumber(20)

@@ -27,7 +27,7 @@ class TerminalRef extends $pb.GeneratedMessage {
     $core.String? endpointId,
     $core.String? terminalId,
   }) {
-    final result = create();
+    final result = TerminalRef._();
     if (endpointId != null) result.endpointId = endpointId;
     if (terminalId != null) result.terminalId = terminalId;
     return result;
@@ -37,15 +37,15 @@ class TerminalRef extends $pb.GeneratedMessage {
 
   factory TerminalRef.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalRef()..mergeFromBuffer(data, registry);
   factory TerminalRef.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalRef()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalRef',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalRef.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'endpointId')
     ..aOS(2, _omitFieldNames ? '' : 'terminalId')
     ..hasRequiredFields = false;
@@ -61,12 +61,15 @@ class TerminalRef extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalRef() / TerminalRef.new instead')
   static TerminalRef create() => TerminalRef._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalRef._();
   @$core.override
-  TerminalRef createEmptyInstance() => create();
+  TerminalRef createEmptyInstance() => TerminalRef._();
   @$core.pragma('dart2js:noInline')
-  static TerminalRef getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalRef>(create);
+  static TerminalRef getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalRef>(
+          TerminalRef.$_createMessage);
   static TerminalRef? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -93,7 +96,7 @@ class TerminalSize extends $pb.GeneratedMessage {
     $core.int? cols,
     $core.int? rows,
   }) {
-    final result = create();
+    final result = TerminalSize._();
     if (cols != null) result.cols = cols;
     if (rows != null) result.rows = rows;
     return result;
@@ -103,15 +106,15 @@ class TerminalSize extends $pb.GeneratedMessage {
 
   factory TerminalSize.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalSize()..mergeFromBuffer(data, registry);
   factory TerminalSize.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalSize()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalSize',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalSize.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'cols', fieldType: $pb.PbFieldType.OU3)
     ..aI(2, _omitFieldNames ? '' : 'rows', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
@@ -127,12 +130,15 @@ class TerminalSize extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalSize() / TerminalSize.new instead')
   static TerminalSize create() => TerminalSize._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalSize._();
   @$core.override
-  TerminalSize createEmptyInstance() => create();
+  TerminalSize createEmptyInstance() => TerminalSize._();
   @$core.pragma('dart2js:noInline')
-  static TerminalSize getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalSize>(create);
+  static TerminalSize getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalSize>(
+          TerminalSize.$_createMessage);
   static TerminalSize? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -161,7 +167,7 @@ class TerminalResourceUsage extends $pb.GeneratedMessage {
     $fixnum.Int64? memoryBytes,
     $fixnum.Int64? sampledAtUnixNano,
   }) {
-    final result = create();
+    final result = TerminalResourceUsage._();
     if (pid != null) result.pid = pid;
     if (cpuPercentX100 != null) result.cpuPercentX100 = cpuPercentX100;
     if (memoryBytes != null) result.memoryBytes = memoryBytes;
@@ -173,15 +179,15 @@ class TerminalResourceUsage extends $pb.GeneratedMessage {
 
   factory TerminalResourceUsage.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalResourceUsage()..mergeFromBuffer(data, registry);
   factory TerminalResourceUsage.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalResourceUsage()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalResourceUsage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalResourceUsage.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'pid')
     ..aI(2, _omitFieldNames ? '' : 'cpuPercentX100')
     ..a<$fixnum.Int64>(
@@ -202,12 +208,16 @@ class TerminalResourceUsage extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalResourceUsage() / TerminalResourceUsage.new instead')
   static TerminalResourceUsage create() => TerminalResourceUsage._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalResourceUsage._();
   @$core.override
-  TerminalResourceUsage createEmptyInstance() => create();
+  TerminalResourceUsage createEmptyInstance() => TerminalResourceUsage._();
   @$core.pragma('dart2js:noInline')
   static TerminalResourceUsage getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalResourceUsage>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalResourceUsage>(
+          TerminalResourceUsage.$_createMessage);
   static TerminalResourceUsage? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -267,7 +277,7 @@ class TerminalInfo extends $pb.GeneratedMessage {
     $fixnum.Int64? lastOutputAtUnixNano,
     $core.String? foregroundCwd,
   }) {
-    final result = create();
+    final result = TerminalInfo._();
     if (ref != null) result.ref = ref;
     if (name != null) result.name = name;
     if (command != null) result.command.addAll(command);
@@ -293,17 +303,17 @@ class TerminalInfo extends $pb.GeneratedMessage {
 
   factory TerminalInfo.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalInfo()..mergeFromBuffer(data, registry);
   factory TerminalInfo.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalInfo()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalInfo',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalInfo.$_createMessage)
     ..aOM<TerminalRef>(1, _omitFieldNames ? '' : 'ref',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..pPS(3, _omitFieldNames ? '' : 'command')
     ..m<$core.String, $core.String>(4, _omitFieldNames ? '' : 'tags',
@@ -312,7 +322,7 @@ class TerminalInfo extends $pb.GeneratedMessage {
         valueFieldType: $pb.PbFieldType.OS,
         packageName: const $pb.PackageName('anytty.api.v1'))
     ..aOM<TerminalSize>(5, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aE<TerminalState>(6, _omitFieldNames ? '' : 'state',
         enumValues: TerminalState.values)
     ..aOS(7, _omitFieldNames ? '' : 'cwd')
@@ -322,9 +332,9 @@ class TerminalInfo extends $pb.GeneratedMessage {
     ..aInt64(11, _omitFieldNames ? '' : 'exitedAtUnixNano')
     ..aI(12, _omitFieldNames ? '' : 'attachmentCount')
     ..aOM<TerminalResourceUsage>(13, _omitFieldNames ? '' : 'resources',
-        subBuilder: TerminalResourceUsage.create)
+        subBuilder: TerminalResourceUsage.$_createMessage)
     ..pPM<TerminalResourceUsage>(14, _omitFieldNames ? '' : 'resourceHistory',
-        subBuilder: TerminalResourceUsage.create)
+        subBuilder: TerminalResourceUsage.$_createMessage)
     ..aOS(15, _omitFieldNames ? '' : 'foregroundProcess')
     ..aInt64(16, _omitFieldNames ? '' : 'lastOutputAtUnixNano')
     ..aOS(17, _omitFieldNames ? '' : 'foregroundCwd')
@@ -341,12 +351,15 @@ class TerminalInfo extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalInfo() / TerminalInfo.new instead')
   static TerminalInfo create() => TerminalInfo._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalInfo._();
   @$core.override
-  TerminalInfo createEmptyInstance() => create();
+  TerminalInfo createEmptyInstance() => TerminalInfo._();
   @$core.pragma('dart2js:noInline')
-  static TerminalInfo getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalInfo>(create);
+  static TerminalInfo getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalInfo>(
+          TerminalInfo.$_createMessage);
   static TerminalInfo? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -507,7 +520,7 @@ class TerminalCreateSpec extends $pb.GeneratedMessage {
     $fixnum.Int64? scrollbackMaxBytes,
     $fixnum.Int64? scrollbackMaxAgeSeconds,
   }) {
-    final result = create();
+    final result = TerminalCreateSpec._();
     if (terminalId != null) result.terminalId = terminalId;
     if (name != null) result.name = name;
     if (command != null) result.command.addAll(command);
@@ -527,15 +540,15 @@ class TerminalCreateSpec extends $pb.GeneratedMessage {
 
   factory TerminalCreateSpec.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalCreateSpec()..mergeFromBuffer(data, registry);
   factory TerminalCreateSpec.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalCreateSpec()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalCreateSpec',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalCreateSpec.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'terminalId')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..pPS(3, _omitFieldNames ? '' : 'command')
@@ -545,7 +558,7 @@ class TerminalCreateSpec extends $pb.GeneratedMessage {
         valueFieldType: $pb.PbFieldType.OS,
         packageName: const $pb.PackageName('anytty.api.v1'))
     ..aOM<TerminalSize>(5, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aOS(6, _omitFieldNames ? '' : 'cwd')
     ..pPS(7, _omitFieldNames ? '' : 'env')
     ..aI(8, _omitFieldNames ? '' : 'scrollbackRows')
@@ -564,12 +577,15 @@ class TerminalCreateSpec extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalCreateSpec() / TerminalCreateSpec.new instead')
   static TerminalCreateSpec create() => TerminalCreateSpec._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalCreateSpec._();
   @$core.override
-  TerminalCreateSpec createEmptyInstance() => create();
+  TerminalCreateSpec createEmptyInstance() => TerminalCreateSpec._();
   @$core.pragma('dart2js:noInline')
   static TerminalCreateSpec getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalCreateSpec>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalCreateSpec>(
+          TerminalCreateSpec.$_createMessage);
   static TerminalCreateSpec? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -653,7 +669,7 @@ class TerminalDefaults extends $pb.GeneratedMessage {
     $core.String? defaultCwd,
     $core.String? platform,
   }) {
-    final result = create();
+    final result = TerminalDefaults._();
     if (defaultCommand != null) result.defaultCommand.addAll(defaultCommand);
     if (defaultCwd != null) result.defaultCwd = defaultCwd;
     if (platform != null) result.platform = platform;
@@ -664,15 +680,15 @@ class TerminalDefaults extends $pb.GeneratedMessage {
 
   factory TerminalDefaults.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalDefaults()..mergeFromBuffer(data, registry);
   factory TerminalDefaults.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalDefaults()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalDefaults',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalDefaults.$_createMessage)
     ..pPS(1, _omitFieldNames ? '' : 'defaultCommand')
     ..aOS(2, _omitFieldNames ? '' : 'defaultCwd')
     ..aOS(3, _omitFieldNames ? '' : 'platform')
@@ -689,12 +705,15 @@ class TerminalDefaults extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalDefaults() / TerminalDefaults.new instead')
   static TerminalDefaults create() => TerminalDefaults._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalDefaults._();
   @$core.override
-  TerminalDefaults createEmptyInstance() => create();
+  TerminalDefaults createEmptyInstance() => TerminalDefaults._();
   @$core.pragma('dart2js:noInline')
-  static TerminalDefaults getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalDefaults>(create);
+  static TerminalDefaults getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalDefaults>(
+          TerminalDefaults.$_createMessage);
   static TerminalDefaults? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -729,7 +748,7 @@ class ResizeOwnership extends $pb.GeneratedMessage {
     $core.bool? sizeLocked,
     $fixnum.Int64? epoch,
   }) {
-    final result = create();
+    final result = ResizeOwnership._();
     if (ownerAttachmentId != null) result.ownerAttachmentId = ownerAttachmentId;
     if (ownerSurfaceId != null) result.ownerSurfaceId = ownerSurfaceId;
     if (ownerViewId != null) result.ownerViewId = ownerViewId;
@@ -743,20 +762,20 @@ class ResizeOwnership extends $pb.GeneratedMessage {
 
   factory ResizeOwnership.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResizeOwnership()..mergeFromBuffer(data, registry);
   factory ResizeOwnership.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResizeOwnership()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResizeOwnership',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResizeOwnership.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'ownerAttachmentId')
     ..aOS(2, _omitFieldNames ? '' : 'ownerSurfaceId')
     ..aOS(3, _omitFieldNames ? '' : 'ownerViewId')
     ..aOM<TerminalSize>(4, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aOB(5, _omitFieldNames ? '' : 'sizeLocked')
     ..a<$fixnum.Int64>(6, _omitFieldNames ? '' : 'epoch', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -773,12 +792,15 @@ class ResizeOwnership extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResizeOwnership() / ResizeOwnership.new instead')
   static ResizeOwnership create() => ResizeOwnership._();
+  static $pb.GeneratedMessage $_createMessage() => ResizeOwnership._();
   @$core.override
-  ResizeOwnership createEmptyInstance() => create();
+  ResizeOwnership createEmptyInstance() => ResizeOwnership._();
   @$core.pragma('dart2js:noInline')
-  static ResizeOwnership getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResizeOwnership>(create);
+  static ResizeOwnership getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResizeOwnership>(
+          ResizeOwnership.$_createMessage);
   static ResizeOwnership? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -848,7 +870,7 @@ class ResizeControl extends $pb.GeneratedMessage {
     $core.String? ownerViewId,
     ResizeOwnership? ownership,
   }) {
-    final result = create();
+    final result = ResizeControl._();
     if (canResize != null) result.canResize = canResize;
     if (reason != null) result.reason = reason;
     if (sizeLocked != null) result.sizeLocked = sizeLocked;
@@ -863,15 +885,15 @@ class ResizeControl extends $pb.GeneratedMessage {
 
   factory ResizeControl.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResizeControl()..mergeFromBuffer(data, registry);
   factory ResizeControl.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResizeControl()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResizeControl',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResizeControl.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'canResize')
     ..aE<ResizeControlReason>(2, _omitFieldNames ? '' : 'reason',
         enumValues: ResizeControlReason.values)
@@ -880,7 +902,7 @@ class ResizeControl extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'ownerSurfaceId')
     ..aOS(6, _omitFieldNames ? '' : 'ownerViewId')
     ..aOM<ResizeOwnership>(7, _omitFieldNames ? '' : 'ownership',
-        subBuilder: ResizeOwnership.create)
+        subBuilder: ResizeOwnership.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -894,12 +916,15 @@ class ResizeControl extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResizeControl() / ResizeControl.new instead')
   static ResizeControl create() => ResizeControl._();
+  static $pb.GeneratedMessage $_createMessage() => ResizeControl._();
   @$core.override
-  ResizeControl createEmptyInstance() => create();
+  ResizeControl createEmptyInstance() => ResizeControl._();
   @$core.pragma('dart2js:noInline')
-  static ResizeControl getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResizeControl>(create);
+  static ResizeControl getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResizeControl>(
+          ResizeControl.$_createMessage);
   static ResizeControl? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -976,7 +1001,7 @@ class AttachmentHandle extends $pb.GeneratedMessage {
     $core.String? surfaceId,
     $core.String? viewId,
   }) {
-    final result = create();
+    final result = AttachmentHandle._();
     if (resource != null) result.resource = resource;
     if (terminal != null) result.terminal = terminal;
     if (operation != null) result.operation = operation;
@@ -989,21 +1014,21 @@ class AttachmentHandle extends $pb.GeneratedMessage {
 
   factory AttachmentHandle.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AttachmentHandle()..mergeFromBuffer(data, registry);
   factory AttachmentHandle.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AttachmentHandle()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AttachmentHandle',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AttachmentHandle.$_createMessage)
     ..aOM<$0.ResourceHandle>(1, _omitFieldNames ? '' : 'resource',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..aOM<$0.OperationStamp>(3, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'surfaceId')
     ..aOS(5, _omitFieldNames ? '' : 'viewId')
     ..hasRequiredFields = false;
@@ -1019,12 +1044,15 @@ class AttachmentHandle extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AttachmentHandle() / AttachmentHandle.new instead')
   static AttachmentHandle create() => AttachmentHandle._();
+  static $pb.GeneratedMessage $_createMessage() => AttachmentHandle._();
   @$core.override
-  AttachmentHandle createEmptyInstance() => create();
+  AttachmentHandle createEmptyInstance() => AttachmentHandle._();
   @$core.pragma('dart2js:noInline')
-  static AttachmentHandle getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AttachmentHandle>(create);
+  static AttachmentHandle getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AttachmentHandle>(
+          AttachmentHandle.$_createMessage);
   static AttachmentHandle? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1084,7 +1112,7 @@ class PathDirectoryEntry extends $pb.GeneratedMessage {
     $core.String? name,
     $core.String? path,
   }) {
-    final result = create();
+    final result = PathDirectoryEntry._();
     if (name != null) result.name = name;
     if (path != null) result.path = path;
     return result;
@@ -1094,15 +1122,15 @@ class PathDirectoryEntry extends $pb.GeneratedMessage {
 
   factory PathDirectoryEntry.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PathDirectoryEntry()..mergeFromBuffer(data, registry);
   factory PathDirectoryEntry.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PathDirectoryEntry()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PathDirectoryEntry',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PathDirectoryEntry.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aOS(2, _omitFieldNames ? '' : 'path')
     ..hasRequiredFields = false;
@@ -1118,12 +1146,15 @@ class PathDirectoryEntry extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PathDirectoryEntry() / PathDirectoryEntry.new instead')
   static PathDirectoryEntry create() => PathDirectoryEntry._();
+  static $pb.GeneratedMessage $_createMessage() => PathDirectoryEntry._();
   @$core.override
-  PathDirectoryEntry createEmptyInstance() => create();
+  PathDirectoryEntry createEmptyInstance() => PathDirectoryEntry._();
   @$core.pragma('dart2js:noInline')
   static PathDirectoryEntry getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PathDirectoryEntry>(create);
+      $pb.GeneratedMessage.$_defaultFor<PathDirectoryEntry>(
+          PathDirectoryEntry.$_createMessage);
   static PathDirectoryEntry? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1146,21 +1177,21 @@ class PathDirectoryEntry extends $pb.GeneratedMessage {
 }
 
 class TerminalDefaultsCommand extends $pb.GeneratedMessage {
-  factory TerminalDefaultsCommand() => create();
+  factory TerminalDefaultsCommand() => TerminalDefaultsCommand._();
 
   TerminalDefaultsCommand._();
 
   factory TerminalDefaultsCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalDefaultsCommand()..mergeFromBuffer(data, registry);
   factory TerminalDefaultsCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalDefaultsCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalDefaultsCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalDefaultsCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1175,12 +1206,16 @@ class TerminalDefaultsCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalDefaultsCommand() / TerminalDefaultsCommand.new instead')
   static TerminalDefaultsCommand create() => TerminalDefaultsCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalDefaultsCommand._();
   @$core.override
-  TerminalDefaultsCommand createEmptyInstance() => create();
+  TerminalDefaultsCommand createEmptyInstance() => TerminalDefaultsCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalDefaultsCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalDefaultsCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalDefaultsCommand>(
+          TerminalDefaultsCommand.$_createMessage);
   static TerminalDefaultsCommand? _defaultInstance;
 }
 
@@ -1188,7 +1223,7 @@ class TerminalCreateCommand extends $pb.GeneratedMessage {
   factory TerminalCreateCommand({
     TerminalCreateSpec? terminal,
   }) {
-    final result = create();
+    final result = TerminalCreateCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1197,17 +1232,17 @@ class TerminalCreateCommand extends $pb.GeneratedMessage {
 
   factory TerminalCreateCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalCreateCommand()..mergeFromBuffer(data, registry);
   factory TerminalCreateCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalCreateCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalCreateCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalCreateCommand.$_createMessage)
     ..aOM<TerminalCreateSpec>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalCreateSpec.create)
+        subBuilder: TerminalCreateSpec.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1222,12 +1257,16 @@ class TerminalCreateCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalCreateCommand() / TerminalCreateCommand.new instead')
   static TerminalCreateCommand create() => TerminalCreateCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalCreateCommand._();
   @$core.override
-  TerminalCreateCommand createEmptyInstance() => create();
+  TerminalCreateCommand createEmptyInstance() => TerminalCreateCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalCreateCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalCreateCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalCreateCommand>(
+          TerminalCreateCommand.$_createMessage);
   static TerminalCreateCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1243,21 +1282,21 @@ class TerminalCreateCommand extends $pb.GeneratedMessage {
 }
 
 class TerminalListCommand extends $pb.GeneratedMessage {
-  factory TerminalListCommand() => create();
+  factory TerminalListCommand() => TerminalListCommand._();
 
   TerminalListCommand._();
 
   factory TerminalListCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalListCommand()..mergeFromBuffer(data, registry);
   factory TerminalListCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalListCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalListCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalListCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1271,12 +1310,16 @@ class TerminalListCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use TerminalListCommand() / TerminalListCommand.new instead')
   static TerminalListCommand create() => TerminalListCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalListCommand._();
   @$core.override
-  TerminalListCommand createEmptyInstance() => create();
+  TerminalListCommand createEmptyInstance() => TerminalListCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalListCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalListCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalListCommand>(
+          TerminalListCommand.$_createMessage);
   static TerminalListCommand? _defaultInstance;
 }
 
@@ -1284,7 +1327,7 @@ class TerminalGetCommand extends $pb.GeneratedMessage {
   factory TerminalGetCommand({
     TerminalRef? terminal,
   }) {
-    final result = create();
+    final result = TerminalGetCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1293,17 +1336,17 @@ class TerminalGetCommand extends $pb.GeneratedMessage {
 
   factory TerminalGetCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalGetCommand()..mergeFromBuffer(data, registry);
   factory TerminalGetCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalGetCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalGetCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalGetCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1317,12 +1360,15 @@ class TerminalGetCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalGetCommand() / TerminalGetCommand.new instead')
   static TerminalGetCommand create() => TerminalGetCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalGetCommand._();
   @$core.override
-  TerminalGetCommand createEmptyInstance() => create();
+  TerminalGetCommand createEmptyInstance() => TerminalGetCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalGetCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalGetCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalGetCommand>(
+          TerminalGetCommand.$_createMessage);
   static TerminalGetCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1341,7 +1387,7 @@ class TerminalRestartCommand extends $pb.GeneratedMessage {
   factory TerminalRestartCommand({
     TerminalRef? terminal,
   }) {
-    final result = create();
+    final result = TerminalRestartCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1350,17 +1396,17 @@ class TerminalRestartCommand extends $pb.GeneratedMessage {
 
   factory TerminalRestartCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalRestartCommand()..mergeFromBuffer(data, registry);
   factory TerminalRestartCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalRestartCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalRestartCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalRestartCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1375,12 +1421,16 @@ class TerminalRestartCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalRestartCommand() / TerminalRestartCommand.new instead')
   static TerminalRestartCommand create() => TerminalRestartCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalRestartCommand._();
   @$core.override
-  TerminalRestartCommand createEmptyInstance() => create();
+  TerminalRestartCommand createEmptyInstance() => TerminalRestartCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalRestartCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalRestartCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalRestartCommand>(
+          TerminalRestartCommand.$_createMessage);
   static TerminalRestartCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1399,7 +1449,7 @@ class TerminalKillCommand extends $pb.GeneratedMessage {
   factory TerminalKillCommand({
     TerminalRef? terminal,
   }) {
-    final result = create();
+    final result = TerminalKillCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1408,17 +1458,17 @@ class TerminalKillCommand extends $pb.GeneratedMessage {
 
   factory TerminalKillCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalKillCommand()..mergeFromBuffer(data, registry);
   factory TerminalKillCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalKillCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalKillCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalKillCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1432,12 +1482,16 @@ class TerminalKillCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use TerminalKillCommand() / TerminalKillCommand.new instead')
   static TerminalKillCommand create() => TerminalKillCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalKillCommand._();
   @$core.override
-  TerminalKillCommand createEmptyInstance() => create();
+  TerminalKillCommand createEmptyInstance() => TerminalKillCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalKillCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalKillCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalKillCommand>(
+          TerminalKillCommand.$_createMessage);
   static TerminalKillCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1456,7 +1510,7 @@ class TerminalRemoveCommand extends $pb.GeneratedMessage {
   factory TerminalRemoveCommand({
     TerminalRef? terminal,
   }) {
-    final result = create();
+    final result = TerminalRemoveCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1465,17 +1519,17 @@ class TerminalRemoveCommand extends $pb.GeneratedMessage {
 
   factory TerminalRemoveCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalRemoveCommand()..mergeFromBuffer(data, registry);
   factory TerminalRemoveCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalRemoveCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalRemoveCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalRemoveCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1490,12 +1544,16 @@ class TerminalRemoveCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalRemoveCommand() / TerminalRemoveCommand.new instead')
   static TerminalRemoveCommand create() => TerminalRemoveCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalRemoveCommand._();
   @$core.override
-  TerminalRemoveCommand createEmptyInstance() => create();
+  TerminalRemoveCommand createEmptyInstance() => TerminalRemoveCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalRemoveCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalRemoveCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalRemoveCommand>(
+          TerminalRemoveCommand.$_createMessage);
   static TerminalRemoveCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1516,7 +1574,7 @@ class TerminalSetMetadataCommand extends $pb.GeneratedMessage {
     $core.String? name,
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? tags,
   }) {
-    final result = create();
+    final result = TerminalSetMetadataCommand._();
     if (terminal != null) result.terminal = terminal;
     if (name != null) result.name = name;
     if (tags != null) result.tags.addEntries(tags);
@@ -1527,17 +1585,17 @@ class TerminalSetMetadataCommand extends $pb.GeneratedMessage {
 
   factory TerminalSetMetadataCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalSetMetadataCommand()..mergeFromBuffer(data, registry);
   factory TerminalSetMetadataCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalSetMetadataCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalSetMetadataCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalSetMetadataCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'name')
     ..m<$core.String, $core.String>(4, _omitFieldNames ? '' : 'tags',
         entryClassName: 'TerminalSetMetadataCommand.TagsEntry',
@@ -1559,12 +1617,18 @@ class TerminalSetMetadataCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalSetMetadataCommand() / TerminalSetMetadataCommand.new instead')
   static TerminalSetMetadataCommand create() => TerminalSetMetadataCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TerminalSetMetadataCommand._();
   @$core.override
-  TerminalSetMetadataCommand createEmptyInstance() => create();
+  TerminalSetMetadataCommand createEmptyInstance() =>
+      TerminalSetMetadataCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalSetMetadataCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalSetMetadataCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalSetMetadataCommand>(
+          TerminalSetMetadataCommand.$_createMessage);
   static TerminalSetMetadataCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1596,7 +1660,7 @@ class TerminalSetTagsCommand extends $pb.GeneratedMessage {
     TerminalRef? terminal,
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? tags,
   }) {
-    final result = create();
+    final result = TerminalSetTagsCommand._();
     if (terminal != null) result.terminal = terminal;
     if (tags != null) result.tags.addEntries(tags);
     return result;
@@ -1606,17 +1670,17 @@ class TerminalSetTagsCommand extends $pb.GeneratedMessage {
 
   factory TerminalSetTagsCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalSetTagsCommand()..mergeFromBuffer(data, registry);
   factory TerminalSetTagsCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalSetTagsCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalSetTagsCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalSetTagsCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..m<$core.String, $core.String>(3, _omitFieldNames ? '' : 'tags',
         entryClassName: 'TerminalSetTagsCommand.TagsEntry',
         keyFieldType: $pb.PbFieldType.OS,
@@ -1636,12 +1700,16 @@ class TerminalSetTagsCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalSetTagsCommand() / TerminalSetTagsCommand.new instead')
   static TerminalSetTagsCommand create() => TerminalSetTagsCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalSetTagsCommand._();
   @$core.override
-  TerminalSetTagsCommand createEmptyInstance() => create();
+  TerminalSetTagsCommand createEmptyInstance() => TerminalSetTagsCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalSetTagsCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalSetTagsCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalSetTagsCommand>(
+          TerminalSetTagsCommand.$_createMessage);
   static TerminalSetTagsCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1668,7 +1736,7 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
     $core.String? viewId,
     $0.OperationStamp? operation,
   }) {
-    final result = create();
+    final result = TerminalAttachCommand._();
     if (terminal != null) result.terminal = terminal;
     if (mode != null) result.mode = mode;
     if (resizePolicy != null) result.resizePolicy = resizePolicy;
@@ -1682,17 +1750,17 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
 
   factory TerminalAttachCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalAttachCommand()..mergeFromBuffer(data, registry);
   factory TerminalAttachCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalAttachCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalAttachCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalAttachCommand.$_createMessage)
     ..aOM<TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..aE<AttachmentMode>(3, _omitFieldNames ? '' : 'mode',
         enumValues: AttachmentMode.values)
     ..aE<ResizePolicy>(4, _omitFieldNames ? '' : 'resizePolicy',
@@ -1700,7 +1768,7 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'surfaceId')
     ..aOS(6, _omitFieldNames ? '' : 'viewId')
     ..aOM<$0.OperationStamp>(7, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1715,12 +1783,16 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalAttachCommand() / TerminalAttachCommand.new instead')
   static TerminalAttachCommand create() => TerminalAttachCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalAttachCommand._();
   @$core.override
-  TerminalAttachCommand createEmptyInstance() => create();
+  TerminalAttachCommand createEmptyInstance() => TerminalAttachCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalAttachCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalAttachCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalAttachCommand>(
+          TerminalAttachCommand.$_createMessage);
   static TerminalAttachCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1787,7 +1859,7 @@ class TerminalDetachCommand extends $pb.GeneratedMessage {
     $0.ResourceHandle? attachment,
     $0.OperationStamp? operation,
   }) {
-    final result = create();
+    final result = TerminalDetachCommand._();
     if (attachment != null) result.attachment = attachment;
     if (operation != null) result.operation = operation;
     return result;
@@ -1797,19 +1869,19 @@ class TerminalDetachCommand extends $pb.GeneratedMessage {
 
   factory TerminalDetachCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalDetachCommand()..mergeFromBuffer(data, registry);
   factory TerminalDetachCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalDetachCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalDetachCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalDetachCommand.$_createMessage)
     ..aOM<$0.ResourceHandle>(2, _omitFieldNames ? '' : 'attachment',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<$0.OperationStamp>(3, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1824,12 +1896,16 @@ class TerminalDetachCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalDetachCommand() / TerminalDetachCommand.new instead')
   static TerminalDetachCommand create() => TerminalDetachCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalDetachCommand._();
   @$core.override
-  TerminalDetachCommand createEmptyInstance() => create();
+  TerminalDetachCommand createEmptyInstance() => TerminalDetachCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalDetachCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalDetachCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalDetachCommand>(
+          TerminalDetachCommand.$_createMessage);
   static TerminalDetachCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1861,7 +1937,7 @@ class TerminalInputCommand extends $pb.GeneratedMessage {
     $0.OperationStamp? operation,
     $core.List<$core.int>? data,
   }) {
-    final result = create();
+    final result = TerminalInputCommand._();
     if (attachment != null) result.attachment = attachment;
     if (operation != null) result.operation = operation;
     if (data != null) result.data = data;
@@ -1872,19 +1948,19 @@ class TerminalInputCommand extends $pb.GeneratedMessage {
 
   factory TerminalInputCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalInputCommand()..mergeFromBuffer(data, registry);
   factory TerminalInputCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalInputCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalInputCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalInputCommand.$_createMessage)
     ..aOM<$0.ResourceHandle>(2, _omitFieldNames ? '' : 'attachment',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<$0.OperationStamp>(3, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..a<$core.List<$core.int>>(
         4, _omitFieldNames ? '' : 'data', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -1900,12 +1976,16 @@ class TerminalInputCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalInputCommand() / TerminalInputCommand.new instead')
   static TerminalInputCommand create() => TerminalInputCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalInputCommand._();
   @$core.override
-  TerminalInputCommand createEmptyInstance() => create();
+  TerminalInputCommand createEmptyInstance() => TerminalInputCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalInputCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalInputCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalInputCommand>(
+          TerminalInputCommand.$_createMessage);
   static TerminalInputCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1949,7 +2029,7 @@ class TerminalResizeCommand extends $pb.GeneratedMessage {
     $core.bool? takeOwnership,
     $fixnum.Int64? expectedOwnerEpoch,
   }) {
-    final result = create();
+    final result = TerminalResizeCommand._();
     if (attachment != null) result.attachment = attachment;
     if (operation != null) result.operation = operation;
     if (size != null) result.size = size;
@@ -1964,21 +2044,21 @@ class TerminalResizeCommand extends $pb.GeneratedMessage {
 
   factory TerminalResizeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalResizeCommand()..mergeFromBuffer(data, registry);
   factory TerminalResizeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalResizeCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalResizeCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalResizeCommand.$_createMessage)
     ..aOM<$0.ResourceHandle>(2, _omitFieldNames ? '' : 'attachment',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<$0.OperationStamp>(3, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..aOM<TerminalSize>(4, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aE<ResizePolicy>(5, _omitFieldNames ? '' : 'resizePolicy',
         enumValues: ResizePolicy.values)
     ..aOB(6, _omitFieldNames ? '' : 'takeOwnership')
@@ -1999,12 +2079,16 @@ class TerminalResizeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalResizeCommand() / TerminalResizeCommand.new instead')
   static TerminalResizeCommand create() => TerminalResizeCommand._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalResizeCommand._();
   @$core.override
-  TerminalResizeCommand createEmptyInstance() => create();
+  TerminalResizeCommand createEmptyInstance() => TerminalResizeCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalResizeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalResizeCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalResizeCommand>(
+          TerminalResizeCommand.$_createMessage);
   static TerminalResizeCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -2074,7 +2158,7 @@ class TerminalResizeLockCommand extends $pb.GeneratedMessage {
     $0.OperationStamp? operation,
     $core.bool? locked,
   }) {
-    final result = create();
+    final result = TerminalResizeLockCommand._();
     if (attachment != null) result.attachment = attachment;
     if (operation != null) result.operation = operation;
     if (locked != null) result.locked = locked;
@@ -2085,19 +2169,19 @@ class TerminalResizeLockCommand extends $pb.GeneratedMessage {
 
   factory TerminalResizeLockCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalResizeLockCommand()..mergeFromBuffer(data, registry);
   factory TerminalResizeLockCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalResizeLockCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalResizeLockCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalResizeLockCommand.$_createMessage)
     ..aOM<$0.ResourceHandle>(2, _omitFieldNames ? '' : 'attachment',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<$0.OperationStamp>(3, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..aOB(4, _omitFieldNames ? '' : 'locked')
     ..hasRequiredFields = false;
 
@@ -2113,12 +2197,18 @@ class TerminalResizeLockCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalResizeLockCommand() / TerminalResizeLockCommand.new instead')
   static TerminalResizeLockCommand create() => TerminalResizeLockCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TerminalResizeLockCommand._();
   @$core.override
-  TerminalResizeLockCommand createEmptyInstance() => create();
+  TerminalResizeLockCommand createEmptyInstance() =>
+      TerminalResizeLockCommand._();
   @$core.pragma('dart2js:noInline')
   static TerminalResizeLockCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalResizeLockCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalResizeLockCommand>(
+          TerminalResizeLockCommand.$_createMessage);
   static TerminalResizeLockCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -2158,7 +2248,7 @@ class PathListDirectoriesCommand extends $pb.GeneratedMessage {
     $core.String? prefix,
     $core.int? limit,
   }) {
-    final result = create();
+    final result = PathListDirectoriesCommand._();
     if (prefix != null) result.prefix = prefix;
     if (limit != null) result.limit = limit;
     return result;
@@ -2168,15 +2258,15 @@ class PathListDirectoriesCommand extends $pb.GeneratedMessage {
 
   factory PathListDirectoriesCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PathListDirectoriesCommand()..mergeFromBuffer(data, registry);
   factory PathListDirectoriesCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PathListDirectoriesCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PathListDirectoriesCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PathListDirectoriesCommand.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'prefix')
     ..aI(3, _omitFieldNames ? '' : 'limit')
     ..hasRequiredFields = false;
@@ -2194,12 +2284,18 @@ class PathListDirectoriesCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PathListDirectoriesCommand() / PathListDirectoriesCommand.new instead')
   static PathListDirectoriesCommand create() => PathListDirectoriesCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PathListDirectoriesCommand._();
   @$core.override
-  PathListDirectoriesCommand createEmptyInstance() => create();
+  PathListDirectoriesCommand createEmptyInstance() =>
+      PathListDirectoriesCommand._();
   @$core.pragma('dart2js:noInline')
   static PathListDirectoriesCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PathListDirectoriesCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<PathListDirectoriesCommand>(
+          PathListDirectoriesCommand.$_createMessage);
   static PathListDirectoriesCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -2225,7 +2321,7 @@ class TerminalCreateResult extends $pb.GeneratedMessage {
   factory TerminalCreateResult({
     TerminalInfo? terminal,
   }) {
-    final result = create();
+    final result = TerminalCreateResult._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -2234,17 +2330,17 @@ class TerminalCreateResult extends $pb.GeneratedMessage {
 
   factory TerminalCreateResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalCreateResult()..mergeFromBuffer(data, registry);
   factory TerminalCreateResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalCreateResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalCreateResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalCreateResult.$_createMessage)
     ..aOM<TerminalInfo>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalInfo.create)
+        subBuilder: TerminalInfo.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2258,12 +2354,16 @@ class TerminalCreateResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalCreateResult() / TerminalCreateResult.new instead')
   static TerminalCreateResult create() => TerminalCreateResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalCreateResult._();
   @$core.override
-  TerminalCreateResult createEmptyInstance() => create();
+  TerminalCreateResult createEmptyInstance() => TerminalCreateResult._();
   @$core.pragma('dart2js:noInline')
   static TerminalCreateResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalCreateResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalCreateResult>(
+          TerminalCreateResult.$_createMessage);
   static TerminalCreateResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2282,7 +2382,7 @@ class TerminalListResult extends $pb.GeneratedMessage {
   factory TerminalListResult({
     $core.Iterable<TerminalInfo>? terminals,
   }) {
-    final result = create();
+    final result = TerminalListResult._();
     if (terminals != null) result.terminals.addAll(terminals);
     return result;
   }
@@ -2291,17 +2391,17 @@ class TerminalListResult extends $pb.GeneratedMessage {
 
   factory TerminalListResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalListResult()..mergeFromBuffer(data, registry);
   factory TerminalListResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalListResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalListResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalListResult.$_createMessage)
     ..pPM<TerminalInfo>(1, _omitFieldNames ? '' : 'terminals',
-        subBuilder: TerminalInfo.create)
+        subBuilder: TerminalInfo.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2315,12 +2415,15 @@ class TerminalListResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalListResult() / TerminalListResult.new instead')
   static TerminalListResult create() => TerminalListResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalListResult._();
   @$core.override
-  TerminalListResult createEmptyInstance() => create();
+  TerminalListResult createEmptyInstance() => TerminalListResult._();
   @$core.pragma('dart2js:noInline')
   static TerminalListResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalListResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalListResult>(
+          TerminalListResult.$_createMessage);
   static TerminalListResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2331,7 +2434,7 @@ class TerminalGetResult extends $pb.GeneratedMessage {
   factory TerminalGetResult({
     TerminalInfo? terminal,
   }) {
-    final result = create();
+    final result = TerminalGetResult._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -2340,17 +2443,17 @@ class TerminalGetResult extends $pb.GeneratedMessage {
 
   factory TerminalGetResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalGetResult()..mergeFromBuffer(data, registry);
   factory TerminalGetResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalGetResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalGetResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalGetResult.$_createMessage)
     ..aOM<TerminalInfo>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalInfo.create)
+        subBuilder: TerminalInfo.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2364,12 +2467,15 @@ class TerminalGetResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalGetResult() / TerminalGetResult.new instead')
   static TerminalGetResult create() => TerminalGetResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalGetResult._();
   @$core.override
-  TerminalGetResult createEmptyInstance() => create();
+  TerminalGetResult createEmptyInstance() => TerminalGetResult._();
   @$core.pragma('dart2js:noInline')
-  static TerminalGetResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalGetResult>(create);
+  static TerminalGetResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalGetResult>(
+          TerminalGetResult.$_createMessage);
   static TerminalGetResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2388,7 +2494,7 @@ class TerminalDefaultsResult extends $pb.GeneratedMessage {
   factory TerminalDefaultsResult({
     TerminalDefaults? defaults,
   }) {
-    final result = create();
+    final result = TerminalDefaultsResult._();
     if (defaults != null) result.defaults = defaults;
     return result;
   }
@@ -2397,17 +2503,17 @@ class TerminalDefaultsResult extends $pb.GeneratedMessage {
 
   factory TerminalDefaultsResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalDefaultsResult()..mergeFromBuffer(data, registry);
   factory TerminalDefaultsResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalDefaultsResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalDefaultsResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalDefaultsResult.$_createMessage)
     ..aOM<TerminalDefaults>(1, _omitFieldNames ? '' : 'defaults',
-        subBuilder: TerminalDefaults.create)
+        subBuilder: TerminalDefaults.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2422,12 +2528,16 @@ class TerminalDefaultsResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalDefaultsResult() / TerminalDefaultsResult.new instead')
   static TerminalDefaultsResult create() => TerminalDefaultsResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalDefaultsResult._();
   @$core.override
-  TerminalDefaultsResult createEmptyInstance() => create();
+  TerminalDefaultsResult createEmptyInstance() => TerminalDefaultsResult._();
   @$core.pragma('dart2js:noInline')
   static TerminalDefaultsResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalDefaultsResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalDefaultsResult>(
+          TerminalDefaultsResult.$_createMessage);
   static TerminalDefaultsResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2450,7 +2560,7 @@ class TerminalAttachResult extends $pb.GeneratedMessage {
     TerminalSize? size,
     ResizeControl? resizeControl,
   }) {
-    final result = create();
+    final result = TerminalAttachResult._();
     if (attachment != null) result.attachment = attachment;
     if (mode != null) result.mode = mode;
     if (resizePolicy != null) result.resizePolicy = resizePolicy;
@@ -2463,25 +2573,25 @@ class TerminalAttachResult extends $pb.GeneratedMessage {
 
   factory TerminalAttachResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalAttachResult()..mergeFromBuffer(data, registry);
   factory TerminalAttachResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalAttachResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalAttachResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalAttachResult.$_createMessage)
     ..aOM<AttachmentHandle>(1, _omitFieldNames ? '' : 'attachment',
-        subBuilder: AttachmentHandle.create)
+        subBuilder: AttachmentHandle.$_createMessage)
     ..aE<AttachmentMode>(2, _omitFieldNames ? '' : 'mode',
         enumValues: AttachmentMode.values)
     ..aE<ResizePolicy>(3, _omitFieldNames ? '' : 'resizePolicy',
         enumValues: ResizePolicy.values)
     ..aOM<TerminalSize>(4, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aOM<ResizeControl>(5, _omitFieldNames ? '' : 'resizeControl',
-        subBuilder: ResizeControl.create)
+        subBuilder: ResizeControl.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2495,12 +2605,16 @@ class TerminalAttachResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalAttachResult() / TerminalAttachResult.new instead')
   static TerminalAttachResult create() => TerminalAttachResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalAttachResult._();
   @$core.override
-  TerminalAttachResult createEmptyInstance() => create();
+  TerminalAttachResult createEmptyInstance() => TerminalAttachResult._();
   @$core.pragma('dart2js:noInline')
   static TerminalAttachResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalAttachResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalAttachResult>(
+          TerminalAttachResult.$_createMessage);
   static TerminalAttachResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2561,7 +2675,7 @@ class TerminalResizeResult extends $pb.GeneratedMessage {
     $core.bool? resized,
     ResizeControl? resizeControl,
   }) {
-    final result = create();
+    final result = TerminalResizeResult._();
     if (size != null) result.size = size;
     if (resized != null) result.resized = resized;
     if (resizeControl != null) result.resizeControl = resizeControl;
@@ -2572,20 +2686,20 @@ class TerminalResizeResult extends $pb.GeneratedMessage {
 
   factory TerminalResizeResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalResizeResult()..mergeFromBuffer(data, registry);
   factory TerminalResizeResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalResizeResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalResizeResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalResizeResult.$_createMessage)
     ..aOM<TerminalSize>(1, _omitFieldNames ? '' : 'size',
-        subBuilder: TerminalSize.create)
+        subBuilder: TerminalSize.$_createMessage)
     ..aOB(2, _omitFieldNames ? '' : 'resized')
     ..aOM<ResizeControl>(3, _omitFieldNames ? '' : 'resizeControl',
-        subBuilder: ResizeControl.create)
+        subBuilder: ResizeControl.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2599,12 +2713,16 @@ class TerminalResizeResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalResizeResult() / TerminalResizeResult.new instead')
   static TerminalResizeResult create() => TerminalResizeResult._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalResizeResult._();
   @$core.override
-  TerminalResizeResult createEmptyInstance() => create();
+  TerminalResizeResult createEmptyInstance() => TerminalResizeResult._();
   @$core.pragma('dart2js:noInline')
   static TerminalResizeResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalResizeResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalResizeResult>(
+          TerminalResizeResult.$_createMessage);
   static TerminalResizeResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2646,7 +2764,7 @@ class PathListDirectoriesResult extends $pb.GeneratedMessage {
     $core.bool? missing,
     $core.bool? truncated,
   }) {
-    final result = create();
+    final result = PathListDirectoriesResult._();
     if (basePath != null) result.basePath = basePath;
     if (entries != null) result.entries.addAll(entries);
     if (missing != null) result.missing = missing;
@@ -2658,18 +2776,18 @@ class PathListDirectoriesResult extends $pb.GeneratedMessage {
 
   factory PathListDirectoriesResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PathListDirectoriesResult()..mergeFromBuffer(data, registry);
   factory PathListDirectoriesResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PathListDirectoriesResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PathListDirectoriesResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PathListDirectoriesResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'basePath')
     ..pPM<PathDirectoryEntry>(2, _omitFieldNames ? '' : 'entries',
-        subBuilder: PathDirectoryEntry.create)
+        subBuilder: PathDirectoryEntry.$_createMessage)
     ..aOB(3, _omitFieldNames ? '' : 'missing')
     ..aOB(4, _omitFieldNames ? '' : 'truncated')
     ..hasRequiredFields = false;
@@ -2686,12 +2804,18 @@ class PathListDirectoriesResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PathListDirectoriesResult() / PathListDirectoriesResult.new instead')
   static PathListDirectoriesResult create() => PathListDirectoriesResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PathListDirectoriesResult._();
   @$core.override
-  PathListDirectoriesResult createEmptyInstance() => create();
+  PathListDirectoriesResult createEmptyInstance() =>
+      PathListDirectoriesResult._();
   @$core.pragma('dart2js:noInline')
   static PathListDirectoriesResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PathListDirectoriesResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<PathListDirectoriesResult>(
+          PathListDirectoriesResult.$_createMessage);
   static PathListDirectoriesResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2732,7 +2856,7 @@ class TerminalLifecycleEvent extends $pb.GeneratedMessage {
     ResizeControl? resizeControl,
     $fixnum.Int64? resizeEpoch,
   }) {
-    final result = create();
+    final result = TerminalLifecycleEvent._();
     if (terminal != null) result.terminal = terminal;
     if (attachmentProjection != null)
       result.attachmentProjection = attachmentProjection;
@@ -2745,20 +2869,20 @@ class TerminalLifecycleEvent extends $pb.GeneratedMessage {
 
   factory TerminalLifecycleEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalLifecycleEvent()..mergeFromBuffer(data, registry);
   factory TerminalLifecycleEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalLifecycleEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalLifecycleEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalLifecycleEvent.$_createMessage)
     ..aOM<TerminalInfo>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalInfo.create)
+        subBuilder: TerminalInfo.$_createMessage)
     ..aOB(2, _omitFieldNames ? '' : 'attachmentProjection')
     ..aOM<ResizeControl>(3, _omitFieldNames ? '' : 'resizeControl',
-        subBuilder: ResizeControl.create)
+        subBuilder: ResizeControl.$_createMessage)
     ..a<$fixnum.Int64>(
         4, _omitFieldNames ? '' : 'resizeEpoch', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -2776,12 +2900,16 @@ class TerminalLifecycleEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalLifecycleEvent() / TerminalLifecycleEvent.new instead')
   static TerminalLifecycleEvent create() => TerminalLifecycleEvent._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalLifecycleEvent._();
   @$core.override
-  TerminalLifecycleEvent createEmptyInstance() => create();
+  TerminalLifecycleEvent createEmptyInstance() => TerminalLifecycleEvent._();
   @$core.pragma('dart2js:noInline')
   static TerminalLifecycleEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalLifecycleEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalLifecycleEvent>(
+          TerminalLifecycleEvent.$_createMessage);
   static TerminalLifecycleEvent? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2831,7 +2959,7 @@ class TerminalResizeControlEvent extends $pb.GeneratedMessage {
     TerminalRef? terminal,
     ResizeControl? resizeControl,
   }) {
-    final result = create();
+    final result = TerminalResizeControlEvent._();
     if (terminal != null) result.terminal = terminal;
     if (resizeControl != null) result.resizeControl = resizeControl;
     return result;
@@ -2841,19 +2969,19 @@ class TerminalResizeControlEvent extends $pb.GeneratedMessage {
 
   factory TerminalResizeControlEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalResizeControlEvent()..mergeFromBuffer(data, registry);
   factory TerminalResizeControlEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalResizeControlEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalResizeControlEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalResizeControlEvent.$_createMessage)
     ..aOM<TerminalRef>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: TerminalRef.create)
+        subBuilder: TerminalRef.$_createMessage)
     ..aOM<ResizeControl>(2, _omitFieldNames ? '' : 'resizeControl',
-        subBuilder: ResizeControl.create)
+        subBuilder: ResizeControl.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2869,12 +2997,18 @@ class TerminalResizeControlEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TerminalResizeControlEvent() / TerminalResizeControlEvent.new instead')
   static TerminalResizeControlEvent create() => TerminalResizeControlEvent._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      TerminalResizeControlEvent._();
   @$core.override
-  TerminalResizeControlEvent createEmptyInstance() => create();
+  TerminalResizeControlEvent createEmptyInstance() =>
+      TerminalResizeControlEvent._();
   @$core.pragma('dart2js:noInline')
   static TerminalResizeControlEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalResizeControlEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<TerminalResizeControlEvent>(
+          TerminalResizeControlEvent.$_createMessage);
   static TerminalResizeControlEvent? _defaultInstance;
 
   @$pb.TagNumber(1)

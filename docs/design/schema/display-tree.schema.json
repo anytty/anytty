@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "anytty display tree (box model)",
+  "description": "外部程序产出的纯展示树。宿主只认识盒子（rect/div）：布局、裁剪、z-order、命中、合成；不认识 list/tree/input/select/terminal 等语义。",
+  "type": "object",
+  "required": ["root"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1, "description": "展示树 schema 版本" },
+    "rev": { "type": "integer", "minimum": 0, "description": "程序自增的帧版本" },
+    "root": { "$ref": "#/definitions/box" }
+  },
+  "definitions": {
+    "box": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "稳定唯一 id；用于命中与增量 diff" },
+        "size": { "$ref": "#/definitions/size" },
+        "pos": {
+          "type": "object",
+          "description": "绝对坐标（相对父盒子内容区），设置后脱离父 flow",
+          "properties": { "x": { "type": "integer" }, "y": { "type": "integer" } },
+          "required": ["x", "y"],
+          "additionalProperties": false
+        },
+        "flow": {
+          "type": "string",
+          "enum": ["row", "col", "stack"],
+          "description": "子盒子排布；默认 col"
+        },
+        "visible": { "type": "boolean", "default": true },
+        "content": { "$ref": "#/definitions/content" },
+        "border": { "$ref": "#/definitions/border" },
+        "input": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["key", "mouse", "wheel"] },
+          "description": "该盒子接收的输入类型（机制，不是语义）"
+        },
+        "focused": { "type": "boolean" },
+        "children": { "type": "array", "items": { "$ref": "#/definitions/box" } }
+      },
+      "additionalProperties": false
+    },
+    "size": {
+      "type": "object",
+      "properties": {
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 },
+        "flex": { "type": "integer", "minimum": 0 },
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "content": {
+      "type": "object",
+      "description": "内容三选一：self（不透明内容源）/ text / lines。宿主只负责画，不解释语义。",
+      "properties": {
+        "self": { "type": "string", "description": "不透明内容源 id；宿主按 id 绑定渲染面/进程" },
+        "text": { "type": "string" },
+        "lines": { "type": "array", "items": { "type": "string" } },
+        "style": {
+          "type": "string",
+          "description": "样式 token：header/footer/accent/muted/warning/success 或为空"
+        }
+      },
+      "additionalProperties": false
+    },
+    "border": {
+      "type": "object",
+      "description": "纯绘制边框；不产生行为",
+      "properties": {
+        "title": { "type": "string" },
+        "style": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

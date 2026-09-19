@@ -33,8 +33,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/anytty/anytty/client/binding"
-	"github.com/anytty/anytty/client/binding/loopback"
+	"github.com/anytty/anytty/access/engine/binding"
+	"github.com/anytty/anytty/access/engine/binding/loopback"
 )
 
 var iosLibrary = struct {

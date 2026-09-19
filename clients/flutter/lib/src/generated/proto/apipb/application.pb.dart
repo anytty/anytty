@@ -20,7 +20,6 @@ import 'common.pb.dart' as $0;
 import 'events.pb.dart' as $3;
 import 'file.pb.dart' as $4;
 import 'history.pb.dart' as $2;
-import 'plugin.pb.dart' as $7;
 import 'storage.pb.dart' as $5;
 import 'terminal.pb.dart' as $1;
 
@@ -30,7 +29,7 @@ class CancelOperationCommand extends $pb.GeneratedMessage {
   factory CancelOperationCommand({
     $0.OperationStamp? operation,
   }) {
-    final result = create();
+    final result = CancelOperationCommand._();
     if (operation != null) result.operation = operation;
     return result;
   }
@@ -39,17 +38,17 @@ class CancelOperationCommand extends $pb.GeneratedMessage {
 
   factory CancelOperationCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CancelOperationCommand()..mergeFromBuffer(data, registry);
   factory CancelOperationCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CancelOperationCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CancelOperationCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CancelOperationCommand.$_createMessage)
     ..aOM<$0.OperationStamp>(2, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -64,12 +63,16 @@ class CancelOperationCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CancelOperationCommand() / CancelOperationCommand.new instead')
   static CancelOperationCommand create() => CancelOperationCommand._();
+  static $pb.GeneratedMessage $_createMessage() => CancelOperationCommand._();
   @$core.override
-  CancelOperationCommand createEmptyInstance() => create();
+  CancelOperationCommand createEmptyInstance() => CancelOperationCommand._();
   @$core.pragma('dart2js:noInline')
   static CancelOperationCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CancelOperationCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<CancelOperationCommand>(
+          CancelOperationCommand.$_createMessage);
   static CancelOperationCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -88,7 +91,7 @@ class ReleaseResourceCommand extends $pb.GeneratedMessage {
   factory ReleaseResourceCommand({
     $0.ResourceHandle? resource,
   }) {
-    final result = create();
+    final result = ReleaseResourceCommand._();
     if (resource != null) result.resource = resource;
     return result;
   }
@@ -97,17 +100,17 @@ class ReleaseResourceCommand extends $pb.GeneratedMessage {
 
   factory ReleaseResourceCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ReleaseResourceCommand()..mergeFromBuffer(data, registry);
   factory ReleaseResourceCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ReleaseResourceCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ReleaseResourceCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ReleaseResourceCommand.$_createMessage)
     ..aOM<$0.ResourceHandle>(2, _omitFieldNames ? '' : 'resource',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -122,12 +125,16 @@ class ReleaseResourceCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ReleaseResourceCommand() / ReleaseResourceCommand.new instead')
   static ReleaseResourceCommand create() => ReleaseResourceCommand._();
+  static $pb.GeneratedMessage $_createMessage() => ReleaseResourceCommand._();
   @$core.override
-  ReleaseResourceCommand createEmptyInstance() => create();
+  ReleaseResourceCommand createEmptyInstance() => ReleaseResourceCommand._();
   @$core.pragma('dart2js:noInline')
   static ReleaseResourceCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ReleaseResourceCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<ReleaseResourceCommand>(
+          ReleaseResourceCommand.$_createMessage);
   static ReleaseResourceCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -151,7 +158,7 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
     $core.int? receiveWindowBytes,
     $core.int? sendWindowBytes,
   }) {
-    final result = create();
+    final result = BrowserProxyOpenCommand._();
     if (host != null) result.host = host;
     if (port != null) result.port = port;
     if (receiveWindowBytes != null)
@@ -164,15 +171,15 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
 
   factory BrowserProxyOpenCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      BrowserProxyOpenCommand()..mergeFromBuffer(data, registry);
   factory BrowserProxyOpenCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      BrowserProxyOpenCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'BrowserProxyOpenCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: BrowserProxyOpenCommand.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'host')
     ..aI(2, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
     ..aI(3, _omitFieldNames ? '' : 'receiveWindowBytes',
@@ -193,12 +200,16 @@ class BrowserProxyOpenCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use BrowserProxyOpenCommand() / BrowserProxyOpenCommand.new instead')
   static BrowserProxyOpenCommand create() => BrowserProxyOpenCommand._();
+  static $pb.GeneratedMessage $_createMessage() => BrowserProxyOpenCommand._();
   @$core.override
-  BrowserProxyOpenCommand createEmptyInstance() => create();
+  BrowserProxyOpenCommand createEmptyInstance() => BrowserProxyOpenCommand._();
   @$core.pragma('dart2js:noInline')
   static BrowserProxyOpenCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenCommand>(
+          BrowserProxyOpenCommand.$_createMessage);
   static BrowserProxyOpenCommand? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -296,7 +307,6 @@ enum CommandEnvelope_Command {
   remoteCloudEnable,
   remoteCloudDisable,
   browserProxyOpen,
-  plugin,
   notSet
 }
 
@@ -358,9 +368,8 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     $6.RemoteCloudEnableCommand? remoteCloudEnable,
     $6.RemoteCloudDisableCommand? remoteCloudDisable,
     BrowserProxyOpenCommand? browserProxyOpen,
-    $7.PluginCommand? plugin,
   }) {
-    final result = create();
+    final result = CommandEnvelope._();
     if (context != null) result.context = context;
     if (cancelOperation != null) result.cancelOperation = cancelOperation;
     if (releaseResource != null) result.releaseResource = releaseResource;
@@ -429,7 +438,6 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     if (remoteCloudDisable != null)
       result.remoteCloudDisable = remoteCloudDisable;
     if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
-    if (plugin != null) result.plugin = plugin;
     return result;
   }
 
@@ -437,10 +445,10 @@ class CommandEnvelope extends $pb.GeneratedMessage {
 
   factory CommandEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CommandEnvelope()..mergeFromBuffer(data, registry);
   factory CommandEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CommandEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, CommandEnvelope_Command>
       _CommandEnvelope_CommandByTag = {
@@ -499,13 +507,12 @@ class CommandEnvelope extends $pb.GeneratedMessage {
     119: CommandEnvelope_Command.remoteCloudEnable,
     120: CommandEnvelope_Command.remoteCloudDisable,
     121: CommandEnvelope_Command.browserProxyOpen,
-    130: CommandEnvelope_Command.plugin,
     0: CommandEnvelope_Command.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CommandEnvelope',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CommandEnvelope.$_createMessage)
     ..oo(0, [
       10,
       11,
@@ -561,147 +568,144 @@ class CommandEnvelope extends $pb.GeneratedMessage {
       118,
       119,
       120,
-      121,
-      130
+      121
     ])
     ..aOM<$0.RequestContext>(1, _omitFieldNames ? '' : 'context',
-        subBuilder: $0.RequestContext.create)
+        subBuilder: $0.RequestContext.$_createMessage)
     ..aOM<CancelOperationCommand>(10, _omitFieldNames ? '' : 'cancelOperation',
-        subBuilder: CancelOperationCommand.create)
+        subBuilder: CancelOperationCommand.$_createMessage)
     ..aOM<ReleaseResourceCommand>(11, _omitFieldNames ? '' : 'releaseResource',
-        subBuilder: ReleaseResourceCommand.create)
+        subBuilder: ReleaseResourceCommand.$_createMessage)
     ..aOM<$1.TerminalDefaultsCommand>(
         20, _omitFieldNames ? '' : 'terminalDefaults',
-        subBuilder: $1.TerminalDefaultsCommand.create)
+        subBuilder: $1.TerminalDefaultsCommand.$_createMessage)
     ..aOM<$1.TerminalCreateCommand>(21, _omitFieldNames ? '' : 'terminalCreate',
-        subBuilder: $1.TerminalCreateCommand.create)
+        subBuilder: $1.TerminalCreateCommand.$_createMessage)
     ..aOM<$1.TerminalListCommand>(22, _omitFieldNames ? '' : 'terminalList',
-        subBuilder: $1.TerminalListCommand.create)
+        subBuilder: $1.TerminalListCommand.$_createMessage)
     ..aOM<$1.TerminalGetCommand>(23, _omitFieldNames ? '' : 'terminalGet',
-        subBuilder: $1.TerminalGetCommand.create)
+        subBuilder: $1.TerminalGetCommand.$_createMessage)
     ..aOM<$1.TerminalRestartCommand>(
         24, _omitFieldNames ? '' : 'terminalRestart',
-        subBuilder: $1.TerminalRestartCommand.create)
+        subBuilder: $1.TerminalRestartCommand.$_createMessage)
     ..aOM<$1.TerminalKillCommand>(25, _omitFieldNames ? '' : 'terminalKill',
-        subBuilder: $1.TerminalKillCommand.create)
+        subBuilder: $1.TerminalKillCommand.$_createMessage)
     ..aOM<$1.TerminalRemoveCommand>(26, _omitFieldNames ? '' : 'terminalRemove',
-        subBuilder: $1.TerminalRemoveCommand.create)
+        subBuilder: $1.TerminalRemoveCommand.$_createMessage)
     ..aOM<$1.TerminalSetMetadataCommand>(
         27, _omitFieldNames ? '' : 'terminalSetMetadata',
-        subBuilder: $1.TerminalSetMetadataCommand.create)
+        subBuilder: $1.TerminalSetMetadataCommand.$_createMessage)
     ..aOM<$1.TerminalSetTagsCommand>(
         28, _omitFieldNames ? '' : 'terminalSetTags',
-        subBuilder: $1.TerminalSetTagsCommand.create)
+        subBuilder: $1.TerminalSetTagsCommand.$_createMessage)
     ..aOM<$1.TerminalAttachCommand>(29, _omitFieldNames ? '' : 'terminalAttach',
-        subBuilder: $1.TerminalAttachCommand.create)
+        subBuilder: $1.TerminalAttachCommand.$_createMessage)
     ..aOM<$1.TerminalDetachCommand>(30, _omitFieldNames ? '' : 'terminalDetach',
-        subBuilder: $1.TerminalDetachCommand.create)
+        subBuilder: $1.TerminalDetachCommand.$_createMessage)
     ..aOM<$1.TerminalInputCommand>(31, _omitFieldNames ? '' : 'terminalInput',
-        subBuilder: $1.TerminalInputCommand.create)
+        subBuilder: $1.TerminalInputCommand.$_createMessage)
     ..aOM<$1.TerminalResizeCommand>(32, _omitFieldNames ? '' : 'terminalResize',
-        subBuilder: $1.TerminalResizeCommand.create)
+        subBuilder: $1.TerminalResizeCommand.$_createMessage)
     ..aOM<$1.TerminalResizeLockCommand>(
         33, _omitFieldNames ? '' : 'terminalResizeLock',
-        subBuilder: $1.TerminalResizeLockCommand.create)
+        subBuilder: $1.TerminalResizeLockCommand.$_createMessage)
     ..aOM<$1.PathListDirectoriesCommand>(
         34, _omitFieldNames ? '' : 'pathListDirectories',
-        subBuilder: $1.PathListDirectoriesCommand.create)
+        subBuilder: $1.PathListDirectoriesCommand.$_createMessage)
     ..aOM<$2.HistoryWindowCommand>(40, _omitFieldNames ? '' : 'historyWindow',
-        subBuilder: $2.HistoryWindowCommand.create)
+        subBuilder: $2.HistoryWindowCommand.$_createMessage)
     ..aOM<$2.HistoryCopyCommand>(41, _omitFieldNames ? '' : 'historyCopy',
-        subBuilder: $2.HistoryCopyCommand.create)
+        subBuilder: $2.HistoryCopyCommand.$_createMessage)
     ..aOM<$2.HistoryReleaseCommand>(42, _omitFieldNames ? '' : 'historyRelease',
-        subBuilder: $2.HistoryReleaseCommand.create)
+        subBuilder: $2.HistoryReleaseCommand.$_createMessage)
     ..aOM<$2.HistoryBacklogStatusCommand>(
         43, _omitFieldNames ? '' : 'historyBacklogStatus',
-        subBuilder: $2.HistoryBacklogStatusCommand.create)
+        subBuilder: $2.HistoryBacklogStatusCommand.$_createMessage)
     ..aOM<$2.LiveScreenNextCommand>(44, _omitFieldNames ? '' : 'liveScreenNext',
-        subBuilder: $2.LiveScreenNextCommand.create)
+        subBuilder: $2.LiveScreenNextCommand.$_createMessage)
     ..aOM<$2.HistorySearchCommand>(45, _omitFieldNames ? '' : 'historySearch',
-        subBuilder: $2.HistorySearchCommand.create)
+        subBuilder: $2.HistorySearchCommand.$_createMessage)
     ..aOM<$3.EventSubscribeCommand>(46, _omitFieldNames ? '' : 'eventSubscribe',
-        subBuilder: $3.EventSubscribeCommand.create)
+        subBuilder: $3.EventSubscribeCommand.$_createMessage)
     ..aOM<$4.FileListCommand>(60, _omitFieldNames ? '' : 'fileList',
-        subBuilder: $4.FileListCommand.create)
+        subBuilder: $4.FileListCommand.$_createMessage)
     ..aOM<$4.FileStatCommand>(61, _omitFieldNames ? '' : 'fileStat',
-        subBuilder: $4.FileStatCommand.create)
+        subBuilder: $4.FileStatCommand.$_createMessage)
     ..aOM<$4.FilePreviewCommand>(62, _omitFieldNames ? '' : 'filePreview',
-        subBuilder: $4.FilePreviewCommand.create)
+        subBuilder: $4.FilePreviewCommand.$_createMessage)
     ..aOM<$4.FileMkdirCommand>(63, _omitFieldNames ? '' : 'fileMkdir',
-        subBuilder: $4.FileMkdirCommand.create)
+        subBuilder: $4.FileMkdirCommand.$_createMessage)
     ..aOM<$4.FileRenameCommand>(64, _omitFieldNames ? '' : 'fileRename',
-        subBuilder: $4.FileRenameCommand.create)
+        subBuilder: $4.FileRenameCommand.$_createMessage)
     ..aOM<$4.FileDeleteCommand>(65, _omitFieldNames ? '' : 'fileDelete',
-        subBuilder: $4.FileDeleteCommand.create)
+        subBuilder: $4.FileDeleteCommand.$_createMessage)
     ..aOM<$4.FileCopyCommand>(66, _omitFieldNames ? '' : 'fileCopy',
-        subBuilder: $4.FileCopyCommand.create)
+        subBuilder: $4.FileCopyCommand.$_createMessage)
     ..aOM<$4.FileMoveCommand>(67, _omitFieldNames ? '' : 'fileMove',
-        subBuilder: $4.FileMoveCommand.create)
+        subBuilder: $4.FileMoveCommand.$_createMessage)
     ..aOM<$4.FileDownloadOpenCommand>(
         68, _omitFieldNames ? '' : 'fileDownloadOpen',
-        subBuilder: $4.FileDownloadOpenCommand.create)
+        subBuilder: $4.FileDownloadOpenCommand.$_createMessage)
     ..aOM<$4.FileUploadOpenCommand>(69, _omitFieldNames ? '' : 'fileUploadOpen',
-        subBuilder: $4.FileUploadOpenCommand.create)
+        subBuilder: $4.FileUploadOpenCommand.$_createMessage)
     ..aOM<$4.FileTransferCancelCommand>(
         70, _omitFieldNames ? '' : 'fileTransferCancel',
-        subBuilder: $4.FileTransferCancelCommand.create)
+        subBuilder: $4.FileTransferCancelCommand.$_createMessage)
     ..aOM<$5.StorageGetCommand>(80, _omitFieldNames ? '' : 'storageGet',
-        subBuilder: $5.StorageGetCommand.create)
+        subBuilder: $5.StorageGetCommand.$_createMessage)
     ..aOM<$5.StoragePutCommand>(81, _omitFieldNames ? '' : 'storagePut',
-        subBuilder: $5.StoragePutCommand.create)
+        subBuilder: $5.StoragePutCommand.$_createMessage)
     ..aOM<$5.StorageDeleteCommand>(82, _omitFieldNames ? '' : 'storageDelete',
-        subBuilder: $5.StorageDeleteCommand.create)
+        subBuilder: $5.StorageDeleteCommand.$_createMessage)
     ..aOM<$5.StorageListCommand>(83, _omitFieldNames ? '' : 'storageList',
-        subBuilder: $5.StorageListCommand.create)
+        subBuilder: $5.StorageListCommand.$_createMessage)
     ..aOM<$6.ClientAccessIdentityCommand>(
         100, _omitFieldNames ? '' : 'clientAccessIdentity',
-        subBuilder: $6.ClientAccessIdentityCommand.create)
+        subBuilder: $6.ClientAccessIdentityCommand.$_createMessage)
     ..aOM<$6.ClientAccessListCommand>(
         101, _omitFieldNames ? '' : 'clientAccessList',
-        subBuilder: $6.ClientAccessListCommand.create)
+        subBuilder: $6.ClientAccessListCommand.$_createMessage)
     ..aOM<$6.ClientAccessTicketCreateCommand>(
         102, _omitFieldNames ? '' : 'clientAccessTicketCreate',
-        subBuilder: $6.ClientAccessTicketCreateCommand.create)
+        subBuilder: $6.ClientAccessTicketCreateCommand.$_createMessage)
     ..aOM<$6.ClientAccessRevokeCommand>(
         103, _omitFieldNames ? '' : 'clientAccessRevoke',
-        subBuilder: $6.ClientAccessRevokeCommand.create)
+        subBuilder: $6.ClientAccessRevokeCommand.$_createMessage)
     ..aOM<$6.RemoteStatusCommand>(110, _omitFieldNames ? '' : 'remoteStatus',
-        subBuilder: $6.RemoteStatusCommand.create)
+        subBuilder: $6.RemoteStatusCommand.$_createMessage)
     ..aOM<$6.RemotePairStartCommand>(
         111, _omitFieldNames ? '' : 'remotePairStart',
-        subBuilder: $6.RemotePairStartCommand.create)
+        subBuilder: $6.RemotePairStartCommand.$_createMessage)
     ..aOM<$6.RemoteLocalEnableCommand>(
         112, _omitFieldNames ? '' : 'remoteLocalEnable',
-        subBuilder: $6.RemoteLocalEnableCommand.create)
+        subBuilder: $6.RemoteLocalEnableCommand.$_createMessage)
     ..aOM<$6.RemoteLocalStatusCommand>(
         113, _omitFieldNames ? '' : 'remoteLocalStatus',
-        subBuilder: $6.RemoteLocalStatusCommand.create)
+        subBuilder: $6.RemoteLocalStatusCommand.$_createMessage)
     ..aOM<$6.RemoteLocalDisableCommand>(
         114, _omitFieldNames ? '' : 'remoteLocalDisable',
-        subBuilder: $6.RemoteLocalDisableCommand.create)
+        subBuilder: $6.RemoteLocalDisableCommand.$_createMessage)
     ..aOM<$6.RemoteCloudEdgesCommand>(
         115, _omitFieldNames ? '' : 'remoteCloudEdges',
-        subBuilder: $6.RemoteCloudEdgesCommand.create)
+        subBuilder: $6.RemoteCloudEdgesCommand.$_createMessage)
     ..aOM<$6.RemoteCloudPreferEdgeCommand>(
         116, _omitFieldNames ? '' : 'remoteCloudPreferEdge',
-        subBuilder: $6.RemoteCloudPreferEdgeCommand.create)
+        subBuilder: $6.RemoteCloudPreferEdgeCommand.$_createMessage)
     ..aOM<$6.RemoteCloudReselectEdgeCommand>(
         117, _omitFieldNames ? '' : 'remoteCloudReselectEdge',
-        subBuilder: $6.RemoteCloudReselectEdgeCommand.create)
+        subBuilder: $6.RemoteCloudReselectEdgeCommand.$_createMessage)
     ..aOM<$6.RemoteCloudStatusCommand>(
         118, _omitFieldNames ? '' : 'remoteCloudStatus',
-        subBuilder: $6.RemoteCloudStatusCommand.create)
+        subBuilder: $6.RemoteCloudStatusCommand.$_createMessage)
     ..aOM<$6.RemoteCloudEnableCommand>(
         119, _omitFieldNames ? '' : 'remoteCloudEnable',
-        subBuilder: $6.RemoteCloudEnableCommand.create)
+        subBuilder: $6.RemoteCloudEnableCommand.$_createMessage)
     ..aOM<$6.RemoteCloudDisableCommand>(
         120, _omitFieldNames ? '' : 'remoteCloudDisable',
-        subBuilder: $6.RemoteCloudDisableCommand.create)
+        subBuilder: $6.RemoteCloudDisableCommand.$_createMessage)
     ..aOM<BrowserProxyOpenCommand>(
         121, _omitFieldNames ? '' : 'browserProxyOpen',
-        subBuilder: BrowserProxyOpenCommand.create)
-    ..aOM<$7.PluginCommand>(130, _omitFieldNames ? '' : 'plugin',
-        subBuilder: $7.PluginCommand.create)
+        subBuilder: BrowserProxyOpenCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -715,12 +719,15 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CommandEnvelope() / CommandEnvelope.new instead')
   static CommandEnvelope create() => CommandEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() => CommandEnvelope._();
   @$core.override
-  CommandEnvelope createEmptyInstance() => create();
+  CommandEnvelope createEmptyInstance() => CommandEnvelope._();
   @$core.pragma('dart2js:noInline')
-  static CommandEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CommandEnvelope>(create);
+  static CommandEnvelope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CommandEnvelope>(
+          CommandEnvelope.$_createMessage);
   static CommandEnvelope? _defaultInstance;
 
   @$pb.TagNumber(10)
@@ -778,7 +785,6 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
   @$pb.TagNumber(121)
-  @$pb.TagNumber(130)
   CommandEnvelope_Command whichCommand() =>
       _CommandEnvelope_CommandByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -836,7 +842,6 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(119)
   @$pb.TagNumber(120)
   @$pb.TagNumber(121)
-  @$pb.TagNumber(130)
   void clearCommand() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -1477,35 +1482,24 @@ class CommandEnvelope extends $pb.GeneratedMessage {
   void clearBrowserProxyOpen() => $_clearField(121);
   @$pb.TagNumber(121)
   BrowserProxyOpenCommand ensureBrowserProxyOpen() => $_ensure(55);
-
-  @$pb.TagNumber(130)
-  $7.PluginCommand get plugin => $_getN(56);
-  @$pb.TagNumber(130)
-  set plugin($7.PluginCommand value) => $_setField(130, value);
-  @$pb.TagNumber(130)
-  $core.bool hasPlugin() => $_has(56);
-  @$pb.TagNumber(130)
-  void clearPlugin() => $_clearField(130);
-  @$pb.TagNumber(130)
-  $7.PluginCommand ensurePlugin() => $_ensure(56);
 }
 
 class AcknowledgeResult extends $pb.GeneratedMessage {
-  factory AcknowledgeResult() => create();
+  factory AcknowledgeResult() => AcknowledgeResult._();
 
   AcknowledgeResult._();
 
   factory AcknowledgeResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AcknowledgeResult()..mergeFromBuffer(data, registry);
   factory AcknowledgeResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AcknowledgeResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AcknowledgeResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AcknowledgeResult.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1519,12 +1513,15 @@ class AcknowledgeResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AcknowledgeResult() / AcknowledgeResult.new instead')
   static AcknowledgeResult create() => AcknowledgeResult._();
+  static $pb.GeneratedMessage $_createMessage() => AcknowledgeResult._();
   @$core.override
-  AcknowledgeResult createEmptyInstance() => create();
+  AcknowledgeResult createEmptyInstance() => AcknowledgeResult._();
   @$core.pragma('dart2js:noInline')
-  static AcknowledgeResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AcknowledgeResult>(create);
+  static AcknowledgeResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AcknowledgeResult>(
+          AcknowledgeResult.$_createMessage);
   static AcknowledgeResult? _defaultInstance;
 }
 
@@ -1565,7 +1562,6 @@ enum ResultEnvelope_Result {
   remoteCloudEdges,
   remoteCloudStatus,
   browserProxyOpen,
-  plugin,
   notSet
 }
 
@@ -1609,9 +1605,8 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     $6.RemoteCloudEdgesResult? remoteCloudEdges,
     $6.RemoteCloudStatusResult? remoteCloudStatus,
     BrowserProxyOpenResult? browserProxyOpen,
-    $7.PluginResult? plugin,
   }) {
-    final result = create();
+    final result = ResultEnvelope._();
     if (requestId != null) result.requestId = requestId;
     if (originSession != null) result.originSession = originSession;
     if (acknowledge != null) result.acknowledge = acknowledge;
@@ -1656,7 +1651,6 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     if (remoteCloudEdges != null) result.remoteCloudEdges = remoteCloudEdges;
     if (remoteCloudStatus != null) result.remoteCloudStatus = remoteCloudStatus;
     if (browserProxyOpen != null) result.browserProxyOpen = browserProxyOpen;
-    if (plugin != null) result.plugin = plugin;
     return result;
   }
 
@@ -1664,10 +1658,10 @@ class ResultEnvelope extends $pb.GeneratedMessage {
 
   factory ResultEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResultEnvelope()..mergeFromBuffer(data, registry);
   factory ResultEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResultEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ResultEnvelope_Result>
       _ResultEnvelope_ResultByTag = {
@@ -1707,13 +1701,12 @@ class ResultEnvelope extends $pb.GeneratedMessage {
     113: ResultEnvelope_Result.remoteCloudEdges,
     114: ResultEnvelope_Result.remoteCloudStatus,
     115: ResultEnvelope_Result.browserProxyOpen,
-    130: ResultEnvelope_Result.plugin,
     0: ResultEnvelope_Result.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResultEnvelope',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResultEnvelope.$_createMessage)
     ..oo(0, [
       10,
       11,
@@ -1750,101 +1743,98 @@ class ResultEnvelope extends $pb.GeneratedMessage {
       112,
       113,
       114,
-      115,
-      130
+      115
     ])
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOM<$0.EndpointSessionStamp>(2, _omitFieldNames ? '' : 'originSession',
-        subBuilder: $0.EndpointSessionStamp.create)
+        subBuilder: $0.EndpointSessionStamp.$_createMessage)
     ..aOM<AcknowledgeResult>(10, _omitFieldNames ? '' : 'acknowledge',
-        subBuilder: AcknowledgeResult.create)
+        subBuilder: AcknowledgeResult.$_createMessage)
     ..aOM<$0.ApiError>(11, _omitFieldNames ? '' : 'error',
-        subBuilder: $0.ApiError.create)
+        subBuilder: $0.ApiError.$_createMessage)
     ..aOM<$1.TerminalDefaultsResult>(
         20, _omitFieldNames ? '' : 'terminalDefaults',
-        subBuilder: $1.TerminalDefaultsResult.create)
+        subBuilder: $1.TerminalDefaultsResult.$_createMessage)
     ..aOM<$1.TerminalCreateResult>(21, _omitFieldNames ? '' : 'terminalCreate',
-        subBuilder: $1.TerminalCreateResult.create)
+        subBuilder: $1.TerminalCreateResult.$_createMessage)
     ..aOM<$1.TerminalListResult>(22, _omitFieldNames ? '' : 'terminalList',
-        subBuilder: $1.TerminalListResult.create)
+        subBuilder: $1.TerminalListResult.$_createMessage)
     ..aOM<$1.TerminalGetResult>(23, _omitFieldNames ? '' : 'terminalGet',
-        subBuilder: $1.TerminalGetResult.create)
+        subBuilder: $1.TerminalGetResult.$_createMessage)
     ..aOM<$1.TerminalAttachResult>(24, _omitFieldNames ? '' : 'terminalAttach',
-        subBuilder: $1.TerminalAttachResult.create)
+        subBuilder: $1.TerminalAttachResult.$_createMessage)
     ..aOM<$1.TerminalResizeResult>(25, _omitFieldNames ? '' : 'terminalResize',
-        subBuilder: $1.TerminalResizeResult.create)
+        subBuilder: $1.TerminalResizeResult.$_createMessage)
     ..aOM<$1.PathListDirectoriesResult>(
         26, _omitFieldNames ? '' : 'pathListDirectories',
-        subBuilder: $1.PathListDirectoriesResult.create)
+        subBuilder: $1.PathListDirectoriesResult.$_createMessage)
     ..aOM<$2.HistoryWindowResult>(40, _omitFieldNames ? '' : 'historyWindow',
-        subBuilder: $2.HistoryWindowResult.create)
+        subBuilder: $2.HistoryWindowResult.$_createMessage)
     ..aOM<$2.HistoryCopyResult>(41, _omitFieldNames ? '' : 'historyCopy',
-        subBuilder: $2.HistoryCopyResult.create)
+        subBuilder: $2.HistoryCopyResult.$_createMessage)
     ..aOM<$2.HistoryBacklogStatusResult>(
         42, _omitFieldNames ? '' : 'historyBacklogStatus',
-        subBuilder: $2.HistoryBacklogStatusResult.create)
+        subBuilder: $2.HistoryBacklogStatusResult.$_createMessage)
     ..aOM<$2.NativeScreenResult>(43, _omitFieldNames ? '' : 'liveScreen',
-        subBuilder: $2.NativeScreenResult.create)
+        subBuilder: $2.NativeScreenResult.$_createMessage)
     ..aOM<$2.HistorySearchResult>(44, _omitFieldNames ? '' : 'historySearch',
-        subBuilder: $2.HistorySearchResult.create)
+        subBuilder: $2.HistorySearchResult.$_createMessage)
     ..aOM<$3.EventSubscriptionResult>(
         45, _omitFieldNames ? '' : 'eventSubscription',
-        subBuilder: $3.EventSubscriptionResult.create)
+        subBuilder: $3.EventSubscriptionResult.$_createMessage)
     ..aOM<$4.FileListResult>(60, _omitFieldNames ? '' : 'fileList',
-        subBuilder: $4.FileListResult.create)
+        subBuilder: $4.FileListResult.$_createMessage)
     ..aOM<$4.FileStatResult>(61, _omitFieldNames ? '' : 'fileStat',
-        subBuilder: $4.FileStatResult.create)
+        subBuilder: $4.FileStatResult.$_createMessage)
     ..aOM<$4.FilePreviewResult>(62, _omitFieldNames ? '' : 'filePreview',
-        subBuilder: $4.FilePreviewResult.create)
+        subBuilder: $4.FilePreviewResult.$_createMessage)
     ..aOM<$4.FileOperationResult>(63, _omitFieldNames ? '' : 'fileOperation',
-        subBuilder: $4.FileOperationResult.create)
+        subBuilder: $4.FileOperationResult.$_createMessage)
     ..aOM<$4.FileBatchResult>(64, _omitFieldNames ? '' : 'fileBatch',
-        subBuilder: $4.FileBatchResult.create)
+        subBuilder: $4.FileBatchResult.$_createMessage)
     ..aOM<$4.FileTransferOpenResult>(
         65, _omitFieldNames ? '' : 'fileTransferOpen',
-        subBuilder: $4.FileTransferOpenResult.create)
+        subBuilder: $4.FileTransferOpenResult.$_createMessage)
     ..aOM<$4.FileTransferCancelResult>(
         66, _omitFieldNames ? '' : 'fileTransferCancel',
-        subBuilder: $4.FileTransferCancelResult.create)
+        subBuilder: $4.FileTransferCancelResult.$_createMessage)
     ..aOM<$5.StorageGetResult>(80, _omitFieldNames ? '' : 'storageGet',
-        subBuilder: $5.StorageGetResult.create)
+        subBuilder: $5.StorageGetResult.$_createMessage)
     ..aOM<$5.StoragePutResult>(81, _omitFieldNames ? '' : 'storagePut',
-        subBuilder: $5.StoragePutResult.create)
+        subBuilder: $5.StoragePutResult.$_createMessage)
     ..aOM<$5.StorageDeleteResult>(82, _omitFieldNames ? '' : 'storageDelete',
-        subBuilder: $5.StorageDeleteResult.create)
+        subBuilder: $5.StorageDeleteResult.$_createMessage)
     ..aOM<$5.StorageListResult>(83, _omitFieldNames ? '' : 'storageList',
-        subBuilder: $5.StorageListResult.create)
+        subBuilder: $5.StorageListResult.$_createMessage)
     ..aOM<$6.ClientAccessIdentityResult>(
         100, _omitFieldNames ? '' : 'clientAccessIdentity',
-        subBuilder: $6.ClientAccessIdentityResult.create)
+        subBuilder: $6.ClientAccessIdentityResult.$_createMessage)
     ..aOM<$6.ClientAccessListResult>(
         101, _omitFieldNames ? '' : 'clientAccessList',
-        subBuilder: $6.ClientAccessListResult.create)
+        subBuilder: $6.ClientAccessListResult.$_createMessage)
     ..aOM<$6.ClientAccessTicketCreateResult>(
         102, _omitFieldNames ? '' : 'clientAccessTicketCreate',
-        subBuilder: $6.ClientAccessTicketCreateResult.create)
+        subBuilder: $6.ClientAccessTicketCreateResult.$_createMessage)
     ..aOM<$6.ClientAccessRevokeResult>(
         103, _omitFieldNames ? '' : 'clientAccessRevoke',
-        subBuilder: $6.ClientAccessRevokeResult.create)
+        subBuilder: $6.ClientAccessRevokeResult.$_createMessage)
     ..aOM<$6.RemoteStatusResult>(110, _omitFieldNames ? '' : 'remoteStatus',
-        subBuilder: $6.RemoteStatusResult.create)
+        subBuilder: $6.RemoteStatusResult.$_createMessage)
     ..aOM<$6.RemotePairStartResult>(
         111, _omitFieldNames ? '' : 'remotePairStart',
-        subBuilder: $6.RemotePairStartResult.create)
+        subBuilder: $6.RemotePairStartResult.$_createMessage)
     ..aOM<$6.RemoteLocalStatusResult>(
         112, _omitFieldNames ? '' : 'remoteLocalStatus',
-        subBuilder: $6.RemoteLocalStatusResult.create)
+        subBuilder: $6.RemoteLocalStatusResult.$_createMessage)
     ..aOM<$6.RemoteCloudEdgesResult>(
         113, _omitFieldNames ? '' : 'remoteCloudEdges',
-        subBuilder: $6.RemoteCloudEdgesResult.create)
+        subBuilder: $6.RemoteCloudEdgesResult.$_createMessage)
     ..aOM<$6.RemoteCloudStatusResult>(
         114, _omitFieldNames ? '' : 'remoteCloudStatus',
-        subBuilder: $6.RemoteCloudStatusResult.create)
+        subBuilder: $6.RemoteCloudStatusResult.$_createMessage)
     ..aOM<BrowserProxyOpenResult>(
         115, _omitFieldNames ? '' : 'browserProxyOpen',
-        subBuilder: BrowserProxyOpenResult.create)
-    ..aOM<$7.PluginResult>(130, _omitFieldNames ? '' : 'plugin',
-        subBuilder: $7.PluginResult.create)
+        subBuilder: BrowserProxyOpenResult.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1858,12 +1848,15 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResultEnvelope() / ResultEnvelope.new instead')
   static ResultEnvelope create() => ResultEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() => ResultEnvelope._();
   @$core.override
-  ResultEnvelope createEmptyInstance() => create();
+  ResultEnvelope createEmptyInstance() => ResultEnvelope._();
   @$core.pragma('dart2js:noInline')
-  static ResultEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResultEnvelope>(create);
+  static ResultEnvelope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResultEnvelope>(
+          ResultEnvelope.$_createMessage);
   static ResultEnvelope? _defaultInstance;
 
   @$pb.TagNumber(10)
@@ -1902,7 +1895,6 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
   @$pb.TagNumber(115)
-  @$pb.TagNumber(130)
   ResultEnvelope_Result whichResult() =>
       _ResultEnvelope_ResultByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
@@ -1941,7 +1933,6 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   @$pb.TagNumber(113)
   @$pb.TagNumber(114)
   @$pb.TagNumber(115)
-  @$pb.TagNumber(130)
   void clearResult() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -2373,17 +2364,6 @@ class ResultEnvelope extends $pb.GeneratedMessage {
   void clearBrowserProxyOpen() => $_clearField(115);
   @$pb.TagNumber(115)
   BrowserProxyOpenResult ensureBrowserProxyOpen() => $_ensure(37);
-
-  @$pb.TagNumber(130)
-  $7.PluginResult get plugin => $_getN(38);
-  @$pb.TagNumber(130)
-  set plugin($7.PluginResult value) => $_setField(130, value);
-  @$pb.TagNumber(130)
-  $core.bool hasPlugin() => $_has(38);
-  @$pb.TagNumber(130)
-  void clearPlugin() => $_clearField(130);
-  @$pb.TagNumber(130)
-  $7.PluginResult ensurePlugin() => $_ensure(38);
 }
 
 class BrowserProxyOpenResult extends $pb.GeneratedMessage {
@@ -2392,7 +2372,7 @@ class BrowserProxyOpenResult extends $pb.GeneratedMessage {
     $core.int? receiveWindowBytes,
     $core.int? sendWindowBytes,
   }) {
-    final result = create();
+    final result = BrowserProxyOpenResult._();
     if (resource != null) result.resource = resource;
     if (receiveWindowBytes != null)
       result.receiveWindowBytes = receiveWindowBytes;
@@ -2404,17 +2384,17 @@ class BrowserProxyOpenResult extends $pb.GeneratedMessage {
 
   factory BrowserProxyOpenResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      BrowserProxyOpenResult()..mergeFromBuffer(data, registry);
   factory BrowserProxyOpenResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      BrowserProxyOpenResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'BrowserProxyOpenResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: BrowserProxyOpenResult.$_createMessage)
     ..aOM<$0.ResourceHandle>(1, _omitFieldNames ? '' : 'resource',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aI(2, _omitFieldNames ? '' : 'receiveWindowBytes',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(3, _omitFieldNames ? '' : 'sendWindowBytes',
@@ -2433,12 +2413,16 @@ class BrowserProxyOpenResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use BrowserProxyOpenResult() / BrowserProxyOpenResult.new instead')
   static BrowserProxyOpenResult create() => BrowserProxyOpenResult._();
+  static $pb.GeneratedMessage $_createMessage() => BrowserProxyOpenResult._();
   @$core.override
-  BrowserProxyOpenResult createEmptyInstance() => create();
+  BrowserProxyOpenResult createEmptyInstance() => BrowserProxyOpenResult._();
   @$core.pragma('dart2js:noInline')
   static BrowserProxyOpenResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<BrowserProxyOpenResult>(
+          BrowserProxyOpenResult.$_createMessage);
   static BrowserProxyOpenResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2477,7 +2461,7 @@ class OperationCancelledEvent extends $pb.GeneratedMessage {
   factory OperationCancelledEvent({
     $0.OperationStamp? operation,
   }) {
-    final result = create();
+    final result = OperationCancelledEvent._();
     if (operation != null) result.operation = operation;
     return result;
   }
@@ -2486,17 +2470,17 @@ class OperationCancelledEvent extends $pb.GeneratedMessage {
 
   factory OperationCancelledEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      OperationCancelledEvent()..mergeFromBuffer(data, registry);
   factory OperationCancelledEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      OperationCancelledEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'OperationCancelledEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: OperationCancelledEvent.$_createMessage)
     ..aOM<$0.OperationStamp>(1, _omitFieldNames ? '' : 'operation',
-        subBuilder: $0.OperationStamp.create)
+        subBuilder: $0.OperationStamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2511,12 +2495,16 @@ class OperationCancelledEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use OperationCancelledEvent() / OperationCancelledEvent.new instead')
   static OperationCancelledEvent create() => OperationCancelledEvent._();
+  static $pb.GeneratedMessage $_createMessage() => OperationCancelledEvent._();
   @$core.override
-  OperationCancelledEvent createEmptyInstance() => create();
+  OperationCancelledEvent createEmptyInstance() => OperationCancelledEvent._();
   @$core.pragma('dart2js:noInline')
   static OperationCancelledEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<OperationCancelledEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<OperationCancelledEvent>(
+          OperationCancelledEvent.$_createMessage);
   static OperationCancelledEvent? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2535,7 +2523,7 @@ class ResourceReleasedEvent extends $pb.GeneratedMessage {
   factory ResourceReleasedEvent({
     $0.ResourceHandle? resource,
   }) {
-    final result = create();
+    final result = ResourceReleasedEvent._();
     if (resource != null) result.resource = resource;
     return result;
   }
@@ -2544,17 +2532,17 @@ class ResourceReleasedEvent extends $pb.GeneratedMessage {
 
   factory ResourceReleasedEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResourceReleasedEvent()..mergeFromBuffer(data, registry);
   factory ResourceReleasedEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResourceReleasedEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResourceReleasedEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResourceReleasedEvent.$_createMessage)
     ..aOM<$0.ResourceHandle>(1, _omitFieldNames ? '' : 'resource',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2569,12 +2557,16 @@ class ResourceReleasedEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ResourceReleasedEvent() / ResourceReleasedEvent.new instead')
   static ResourceReleasedEvent create() => ResourceReleasedEvent._();
+  static $pb.GeneratedMessage $_createMessage() => ResourceReleasedEvent._();
   @$core.override
-  ResourceReleasedEvent createEmptyInstance() => create();
+  ResourceReleasedEvent createEmptyInstance() => ResourceReleasedEvent._();
   @$core.pragma('dart2js:noInline')
   static ResourceReleasedEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResourceReleasedEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<ResourceReleasedEvent>(
+          ResourceReleasedEvent.$_createMessage);
   static ResourceReleasedEvent? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2611,7 +2603,7 @@ class EventEnvelope extends $pb.GeneratedMessage {
     $5.StorageChangedEvent? storageChanged,
     $4.FileTransferCompletedEvent? fileTransferCompleted,
   }) {
-    final result = create();
+    final result = EventEnvelope._();
     if (eventId != null) result.eventId = eventId;
     if (timestampUnixNano != null) result.timestampUnixNano = timestampUnixNano;
     if (apiVersion != null) result.apiVersion = apiVersion;
@@ -2631,10 +2623,10 @@ class EventEnvelope extends $pb.GeneratedMessage {
 
   factory EventEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EventEnvelope()..mergeFromBuffer(data, registry);
   factory EventEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EventEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EventEnvelope_Event>
       _EventEnvelope_EventByTag = {
@@ -2648,29 +2640,29 @@ class EventEnvelope extends $pb.GeneratedMessage {
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EventEnvelope',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EventEnvelope.$_createMessage)
     ..oo(0, [10, 11, 20, 30, 40])
     ..aOS(1, _omitFieldNames ? '' : 'eventId')
     ..aInt64(2, _omitFieldNames ? '' : 'timestampUnixNano')
     ..aOM<$0.ApiVersion>(3, _omitFieldNames ? '' : 'apiVersion',
-        subBuilder: $0.ApiVersion.create)
+        subBuilder: $0.ApiVersion.$_createMessage)
     ..aOM<$0.EndpointSessionStamp>(4, _omitFieldNames ? '' : 'originSession',
-        subBuilder: $0.EndpointSessionStamp.create)
+        subBuilder: $0.EndpointSessionStamp.$_createMessage)
     ..aOM<$0.ResourceHandle>(5, _omitFieldNames ? '' : 'subscription',
-        subBuilder: $0.ResourceHandle.create)
+        subBuilder: $0.ResourceHandle.$_createMessage)
     ..aOM<OperationCancelledEvent>(
         10, _omitFieldNames ? '' : 'operationCancelled',
-        subBuilder: OperationCancelledEvent.create)
+        subBuilder: OperationCancelledEvent.$_createMessage)
     ..aOM<ResourceReleasedEvent>(11, _omitFieldNames ? '' : 'resourceReleased',
-        subBuilder: ResourceReleasedEvent.create)
+        subBuilder: ResourceReleasedEvent.$_createMessage)
     ..aOM<$1.TerminalLifecycleEvent>(
         20, _omitFieldNames ? '' : 'terminalLifecycle',
-        subBuilder: $1.TerminalLifecycleEvent.create)
+        subBuilder: $1.TerminalLifecycleEvent.$_createMessage)
     ..aOM<$5.StorageChangedEvent>(30, _omitFieldNames ? '' : 'storageChanged',
-        subBuilder: $5.StorageChangedEvent.create)
+        subBuilder: $5.StorageChangedEvent.$_createMessage)
     ..aOM<$4.FileTransferCompletedEvent>(
         40, _omitFieldNames ? '' : 'fileTransferCompleted',
-        subBuilder: $4.FileTransferCompletedEvent.create)
+        subBuilder: $4.FileTransferCompletedEvent.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2684,12 +2676,15 @@ class EventEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EventEnvelope() / EventEnvelope.new instead')
   static EventEnvelope create() => EventEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() => EventEnvelope._();
   @$core.override
-  EventEnvelope createEmptyInstance() => create();
+  EventEnvelope createEmptyInstance() => EventEnvelope._();
   @$core.pragma('dart2js:noInline')
-  static EventEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EventEnvelope>(create);
+  static EventEnvelope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EventEnvelope>(
+          EventEnvelope.$_createMessage);
   static EventEnvelope? _defaultInstance;
 
   @$pb.TagNumber(10)

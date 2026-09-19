@@ -3,8 +3,8 @@ package apimapping
 import (
 	"fmt"
 
-	corev2 "github.com/anytty/anytty/core"
-	"github.com/anytty/anytty/proto/apipb"
+	corev2 "github.com/anytty/anytty/daemon/core"
+	"github.com/anytty/anytty/proto/access/apipb"
 	"google.golang.org/protobuf/proto"
 )
 

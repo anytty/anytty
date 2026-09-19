@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/anytty/anytty/proto/apipb"
-	"github.com/anytty/anytty/proto/wire"
-	"github.com/anytty/anytty/proto/wirepb"
+	"github.com/anytty/anytty/proto/access/apipb"
+	"github.com/anytty/anytty/proto/access/wire"
+	"github.com/anytty/anytty/proto/access/wirepb"
 	"google.golang.org/protobuf/proto"
 )
 

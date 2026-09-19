@@ -72,16 +72,20 @@ try {
     }
 
     Expand-Archive -LiteralPath $ArchivePath -DestinationPath $WorkDir -Force
-    $SourceBinary = Join-Path $WorkDir "$ArchiveBase\anytty.exe"
-    if (-not (Test-Path -LiteralPath $SourceBinary -PathType Leaf)) {
-        throw 'Release archive does not contain anytty.exe'
+    foreach ($BinaryName in @('anytty.exe', 'tui2.exe', 'tui2-shell.exe')) {
+        $SourceBinary = Join-Path $WorkDir "$ArchiveBase\$BinaryName"
+        if (-not (Test-Path -LiteralPath $SourceBinary -PathType Leaf)) {
+            throw "Release archive does not contain $BinaryName"
+        }
     }
     $SourceConfig = Join-Path $WorkDir "$ArchiveBase\tui-v3.yaml"
     if (-not (Test-Path -LiteralPath $SourceConfig -PathType Leaf)) {
         throw 'Release archive does not contain tui-v3.yaml'
     }
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-    Copy-Item -LiteralPath $SourceBinary -Destination (Join-Path $InstallDir 'anytty.exe') -Force
+    foreach ($BinaryName in @('anytty.exe', 'tui2.exe', 'tui2-shell.exe')) {
+        Copy-Item -LiteralPath (Join-Path $WorkDir "$ArchiveBase\$BinaryName") -Destination (Join-Path $InstallDir $BinaryName) -Force
+    }
 
     $ConfigHome = if ($env:XDG_CONFIG_HOME -and $env:XDG_CONFIG_HOME.Trim()) {
         $env:XDG_CONFIG_HOME.Trim()
@@ -119,5 +123,5 @@ if (-not $NoModifyPath) {
     }
 }
 
-Write-Host "Installed AnyTTY $Version to $(Join-Path $InstallDir 'anytty.exe')"
+Write-Host "Installed AnyTTY $Version to $InstallDir (anytty.exe, tui2.exe, tui2-shell.exe)"
 Write-Host $ConfigStatus

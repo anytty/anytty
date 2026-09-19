@@ -1,0 +1,56 @@
+ 󰙅 main  ⎇ auto-push · T1  󰅖  ⎇ local · T2  󰅖  ⎇ tab 3 · T3  󰅖  󰐕 
+┌─ □  anytty-surface@hs ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ●  x1  owner  ─ 󰁌      󰅖 ─┐
+│  ┃                                                                                                                                                                                │
+│  ┃  Click to collapse                                                                                                                     anytty TUI 宿主运行时补完与旧 UI        │
+│  ┃                                                                                                                                        删除                                    │
+│                                                                                                                                                                                   │
+│     给你三条命令，按需要选：                                                                                                              Context                                 │
+│                                                                                                                                           330,970 tokens                          │
+│     1) 纯本地（Go shell，日常用）                                                                                                         33% used                                │
+│                                                                                                                                           $1.46 spent                             │
+│     cd /mnt/ssd/workdir/anytty/anytty                                                                                                                                             │
+│     bash tui2/scripts/run.sh                                                                                                              MCP                                     │
+│                                                                                                                                           • pencil ENOENT: no such file or        │
+│     （自动构建 + 启动；进去后冷启动是 picker，enter 建终端就能打字；Ctrl-P 面板模式、Ctrl-Q 退出）                                          directory, posix_spawn '/             │
+│                                                                                                                                             Applications/Pen.app/Contents/        │
+│     2) 老界面效果（Python 像素级复刻）                                                                                                      Resources/app.asar.unpacked/out/      │
+│                                                                                                                                             mcp-server-darwin-arm64'              │
+│     TUI2_SHELL_CMD='python3 tui2/examples/python-shell/legacy.py' bash tui2/scripts/run.sh                                                                                        │
+│                                                                                                                                           LSP                                     │
+│     3) 带 daemon endpoint（测本轮新能力）                                                                                                 LSPs are disabled                       │
+│                                                                                                                                                                                   │
+│     先起隔离 dev daemon 并建一个终端：                                                                                                    ▼ Todo                                  │
+│                                                                                                                                           [•] T1: host restart/backoff + cmd      │
+│     bash scripts/anytty-dev.sh daemon start                                                                                                   last-good-tree/notice (no old UI    │
+│     bash scripts/anytty-dev.sh cli v3 new          # 记下输出里的 socket                                                                      fallback)                           │
+│                                                                                                                                           [ ] T2: components package +            │
+│     写配置 ~/.config/anytty/tui2.json（没有就新建）：                                                                                         LiveSurfaceLines export + cmd       │
+│                                                                                                                                               collect wiring                      │
+│     {                                                                                                                                     [ ] T3: tui/program/runtime package     │
+│       "endpoints": [                                                                                                                          + cmd wiring + unit tests           │
+│         { "name": "dev", "kind": "daemon", "connect_mode": "local-unix",                                                                  [ ] T4: delete old UI code in           │
+│           "socket": "/run/user/1000/anytty-v2-wire7-dev.sock" }                                                                               batches (deadcode list +            │
+│       ]                                                                                                                                       workflow delete list)               │
+│     }                                                                                                                                     [ ] Final acceptance: build/vet/test/   │
+│                                                                                                                                               smoke + workflow.json update        │
+│     然后 bash tui2/scripts/run.sh —— picker 里会按 endpoint 分组显示 dev 下的终端；attach 后就是 daemon 里那个真实终端（可以另开一个                                              │
+│     shell 用 v3 ls 看它、:kill 看退出态、Ctrl-E 重启）。                                                                                                                          │
+│                                                                                                                                                                                   │
+│     两种 shell 的像素基准回归（可随时跑）：                                                                                                                                       │
+│                                                                                                                                                                                   │
+│     python3 tui2/examples/python-shell/parity_test.py   # 31 项                                                                                                                   │
+│     bash tui2/scripts/acceptance.sh                     # 180 项                                                                                                                  │
+│                                                                                                                                                                                   │
+│     测出问题直接丢给我。                                                                                                                                                          │
+│                                                                                                                                                                                   │
+│     ▣  Build · DeepSeek V4.1 Flash · 30.2s                                                                                                                                        │
+│                                                                                                                                                                                   │
+│  ┃                                                                                                                                                                                │
+│  ┃  啊，也不是像素级的呀。                                                                                                                                                        │
+│  ┃                                                                                                                                        /mnt/ssd/workdir/anytty/anytty:         │
+│  ┃  Build · DeepSeek V4.1 Flash OpenCode Go · max                                                                                         refactor/tui-surface                    │
+│  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀                                            │
+│   /mnt/ssd/workdir/anytty/anytty                                                                 331.0K (33%) · $1.46  ctrl+p commands    • OpenCode 1.18.31                      │
+│                                                                                                                                                                                   │
+└───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+ 󰌌 CTRL  ·  P  PANE ·  R 󰙖 SIZE ·  O 󰹙 FLOAT ·  T 󰓩 TAB ·  W 󰙅 WORKSPACE ·  F 󰱼 PICK ·  ⇧C 󰒉 SELECT ·  ⇧H 󰅌 CLIPBOARD ·  ⇧V 󰆏 PASTE ·  G 󰒓 SYSTEM                   󰙅 main 󰹙 0  11

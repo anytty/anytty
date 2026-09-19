@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	corev2 "github.com/anytty/anytty/core"
-	"github.com/anytty/anytty/proto/apipb"
-	"github.com/anytty/anytty/proto/remoteauthpb"
+	accesscontract "github.com/anytty/anytty/access/contract"
+	"github.com/anytty/anytty/proto/access/apipb"
+	"github.com/anytty/anytty/proto/access/remoteauthpb"
 )
 
 func TestValidateClientAccessIdentityRequiresFreshChallenge(t *testing.T) {
@@ -30,7 +30,7 @@ func TestClientAccessOwnerLabelRoundTripsThroughAPIMapping(t *testing.T) {
 	if request.AccessLabel != "App Store review phone" {
 		t.Fatalf("ticket access label = %q", request.AccessLabel)
 	}
-	record := ClientAccessRecordToProto(corev2.ClientAccessRecord{
+	record := ClientAccessRecordToProto(accesscontract.ClientAccessRecord{
 		GrantID: "grant-1", AccessLabel: request.AccessLabel, ClientLabel: "anytty-ios", IssuedAt: time.Unix(1, 0).UTC(),
 	})
 	if record.GetAccessLabel() != "App Store review phone" || record.GetClientLabel() != "anytty-ios" {
@@ -64,7 +64,7 @@ func TestRemoteLocalPasswordStateRoundTripsThroughAPIMapping(t *testing.T) {
 		t.Fatal("API mapping retained the protobuf password buffer")
 	}
 
-	status := RemoteLocalStatusToProto(corev2.RemoteLocalStatus{Enabled: true, PasswordProtected: true})
+	status := RemoteLocalStatusToProto(accesscontract.RemoteLocalStatus{Enabled: true, PasswordProtected: true})
 	if !status.GetPasswordProtected() {
 		t.Fatal("password-protected status was not projected")
 	}

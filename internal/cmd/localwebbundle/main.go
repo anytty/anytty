@@ -17,7 +17,7 @@ import (
 
 func main() {
 	dist := flag.String("dist", "clients/web/dist", "built web asset directory")
-	output := flag.String("output", "localweb/web-dist.tar.gz", "output bundle")
+	output := flag.String("output", "access/localweb/web-dist.tar.gz", "output bundle")
 	check := flag.Bool("check", false, "fail when the committed bundle is stale")
 	flag.Parse()
 

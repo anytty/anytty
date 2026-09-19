@@ -4,7 +4,7 @@ AnyTTY Third-Party Notices
 
 Artifact Notice Bundles
 
-- anytty CLI/daemon: cmd/anytty/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
+- anytty CLI/daemon: clients/cli/THIRD_PARTY_NOTICES.txt; 用户入口为 anytty licenses。
 - Web client: clients/web/public/THIRD_PARTY_NOTICES.txt 和 clients/web/public/third-party/; 随 daemon 的 Local Web bundle 分发。
 - Flutter clients: clients/flutter/assets/licenses/; 随 Android 与 iOS 应用分发。
 

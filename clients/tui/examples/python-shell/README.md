@@ -1,0 +1,7 @@
+# Python 布局程序（协议参考实现，纯标准库）
+
+- 运行：`go build -o /tmp/tui2 ./clients/tui/cmd/tui2 && /tmp/tui2 -shell "python3 clients/tui/examples/python-shell/shell.py"`（Python 3.8+，无需 pip/venv）。
+- 支持：tab 条 + 分屏槽（空槽提示）+ footer；Ctrl-P 后 `%`/`"` 分屏、`x` 关闭、Tab 切焦点、`1..9` 切 tab、Esc 退出；Ctrl-F picker 回车单键绑定/新建终端（也支持鼠标点击）；Ctrl-T 新建 tab；`terminal.attach/create` 走 RESULT 并按 RESPONSE 回填槽位。
+- 扩展：wire 编解码已迁到 Python SDK（`clients/tui/sdk/python/tui2sdk/wire.py`，纯标准库）；`pb.py` 只是兼容 shim，`shell.py`/`legacy.py` 无需改动。新程序直接 `from tui2sdk import Client, App, builder`（core/builder/widgets 三层与一致性说明见 `clients/tui/docs/SDK.zh-CN.md`）；`clients/tui/proto/tui2.proto` 是唯一真相，本目录不依赖任何 Go 包。
+- 像素级兼容示例：`legacy.py` 复刻老默认 UI（`shell/main.go`）的逐格画面与交互（自绘边框/标题、焦点 `▎`、退出角标、picker/prompt/help/回看/拖拽）；规格与缺口见 `clients/tui/docs/LEGACY_PARITY.zh-CN.md`。运行 `/tmp/tui2 -shell "python3 clients/tui/examples/python-shell/legacy.py"`，逐格回归 `python3 clients/tui/examples/python-shell/parity_test.py`（14 场景 × 120x32/100x30，golden 在 `golden/`）。
+- 老 v3 TUI 像素复刻：`v3ui.py`（**467 行**，chrome 全部来自 `tui2sdk.widgets`）复刻 git HEAD 的 surface framework（recommended/coralline-candy）——powerline workspace/tab 顶条、card 窗口题字与 `zoom/split/close` 按钮、`┃ Click to collapse` 提示、footer 场景键组、floating/picker；内容区用 v2 terminal 组件 + `chrome.inset=0`。运行 `/tmp/tui2 -shell "python3 clients/tui/examples/python-shell/v3ui.py"`（`--demo` 为 1.txt 目标态），逐字符回归 `python3 clients/tui/examples/python-shell/v3_parity_test.py`（规格/缺口见 `clients/tui/docs/V3_PARITY.zh-CN.md`，golden 在 `golden/v3_*`）。

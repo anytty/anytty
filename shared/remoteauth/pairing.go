@@ -14,8 +14,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	endpointdomain "github.com/anytty/anytty/client/endpoint"
-	"github.com/anytty/anytty/proto/remoteauthpb"
+	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
+	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"google.golang.org/protobuf/proto"
 )
 

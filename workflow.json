@@ -1,0 +1,296 @@
+{
+  "version": 1,
+  "name": "盒子模型 TUI 迁移工作日志（历史归档）",
+  "status": "historical",
+  "updated": "2026-09-19",
+  "goal": "历史记录：tui2（clients/tui）盒子模型迁移的分步实施日志。当前架构以 docs/HANDOFF.zh-CN.md 为准；本文件仅供追溯。",
+  "model": {
+    "host": "anytty 进程：盒子框架 + 组件注册表（引用解析）+ 子进程管理 + 命中/输入路由 + 安全内核。宿主不懂业务语义（不知道 picker/terminal/workspace）。",
+    "layout_program": "默认 shell/（Go 子进程）：产出盒子树 JSON；改 JSON = 改布局；自己处理按键/切页/弹窗。",
+    "components": "content.self 的引用解析：内置组件（builtin.header/footer/terminal:<id>…，宿主渲染）或注册的 provider（路径/进程/引用值，后续）。",
+    "plugin_ui": "取消“声明式插件 UI”概念。第三方想做 UI：注册一个引用并在某个 rect 里用，或直接写布局程序。",
+    "data_plane": "不变：数据/命令经该资源所属 endpoint 的 daemon；daemon 侧插件只供数据，不供 UI。"
+  },
+  "rules": {
+    "box_model": "宿主只认识盒子（rect/div）：size/pos/flow/visible/content/border/input/focused/children。",
+    "content": "content 三选一：self（不透明引用）、text、lines；都没有则由 children 负责。",
+    "no_business_semantics": "宿主不得内置 list/tree/input/select/terminal/workspace 等语义；组件只是渲染器。",
+    "safety_kernel": "core-owned（配对/授权确认、破坏性确认、全局逃生/退出）由宿主渲染、程序不可覆盖。"
+  },
+  "target_layout": {
+    "cmd/anytty": "宿主入口（保留；删旧 UI 接线）",
+    "tui/box": "盒子模型（现 tui/program）",
+    "tui/box/host": "子进程协议/回退（现 tui/program/host）",
+    "tui/box/components": "内置组件渲染器（header/footer/terminal…）",
+    "shell": "默认布局程序（由 cmd/anytty-shell-program 迁入）",
+    "examples": "其他语言示例（保留 program-hello.py）"
+  },
+  "keep": [
+    "tui/render 最小集：canvas*、surface.go(SurfaceFrame/RenderSurfaceComposite)、result/style/width/glyphs",
+    "tui/render/regions.go：HeaderFrame/FooterFrame/PanelFrames（作为内置组件基础）",
+    "tui/terminalhost、tui/input",
+    "tui/state 中 endpoint/terminal/session/live 数据",
+    "client/*、core/*、shared/*、plugin/{host,sdk}（数据面与数据插件）",
+    "cmd/anytty/program_host.go（宿主接线，逐步收敛）",
+    "tui/program、tui/program/host",
+    "examples/program-hello.py、docs/design/*（以 PROGRAM_MODEL 为准）"
+  ],
+  "delete": [
+    "声明式插件 UI：tui/render/plugin.go、tui/app/plugin*.go、tui/state/plugin.go(UI 部分)、plugins/agents/ui.go、apipb 插件 UI 节点/mount/query 的 TUI 使用、manifest [[mounts]]/[[actions]]、TUI 侧插件进程",
+    "老 UI 组成层：tui/app（reducer/live/copy/plugin glue）、tui/render 老框架（framework.go、layout_plan.go、layout_hit_regions*.go、vm.go、product_content_*.go、overlay_*.go、panel_chrome.go、projection.go、copy_history.go 等）",
+    "tui/state 纯 UI 状态（shell/pane/focus/copy/plugin UI）",
+    "cmd/anytty-shell-program（迁到 shell/ 后删除）"
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "title": "修键盘回归",
+      "detail": "默认组件路径下，终端 rect 命中后输入要真正到达 bash（宿主已识别命中并让位，链路后半段需定位 app 输入管线）。",
+      "status": "done",
+      "checks": [
+        "tmux: 在默认启动的盒子界面输入 echo ok + Enter，真实 bash 回显"
+      ],
+      "result": "通过：默认盒子界面输入 echo live-ok 进真实 bash；根因是程序模式绕过旧渲染导致 LiveTargets 未注册，已补 render.CollectLiveTargets 挂到返回帧。"
+    },
+    {
+      "id": 2,
+      "title": "布局程序迁到 shell/",
+      "detail": "cmd/anytty-shell-program → shell/；更新 scripts/anytty-dev.sh 构建；默认程序解析名保持 anytty-shell-program。",
+      "status": "done",
+      "checks": [
+        "go build ./...",
+        "dev 构建产出 shell 程序",
+        "默认启动使用它"
+      ],
+      "result": "布局程序已迁到 shell/（package main），构建脚本指向 ./shell，测试通过。"
+    },
+    {
+      "id": 3,
+      "title": "删声明式插件 UI",
+      "detail": "移除 render/plugin.go、app/plugin*.go、state/plugin.go UI 部分、manifest mounts/actions、TUI 插件启动；组件注册表去掉 builtin.plugin。",
+      "status": "done",
+      "checks": [
+        "go build ./...",
+        "go test ./tui/...",
+        "插件数据面（agents 状态）不受影响"
+      ],
+      "result": "已删声明式插件 UI 的渲染层（tui/render/plugin.go、PluginFrames、plan.Plugins、renderPlugins/renderPluginHeaderMounts、pluginHitRegions）与宿主 builtin.plugin；相关测试删除。app/state 的插件 UI 数据管线在步骤4删除。"
+    },
+    {
+      "id": 4,
+      "title": "【最后做】删除未被引用的旧 UI 代码",
+      "detail": "等新版（组件/宿主运行时/安全内核）完成、旧代码不再被引用后，统一删除 tui/app、tui/render 老框架、tui/state 纯 UI 状态、app/state 插件 UI 管线等。",
+      "status": "done",
+      "checks": [
+        "go build ./... + go vet ./...",
+        "go test ./tui/... ./shell",
+        "ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty ./shell ./plugins/... ./plugin/...",
+        "ANYTTY_ALLOW_NESTED=1 bash scripts/anytty-dev.sh cli v3 tmux-terminal-smoke",
+        "git diff --stat go.mod go.sum 为空",
+        "默认盒子界面仍可用、能打字"
+      ],
+      "result": "已完成统一删除，分批 build+vet+test 全绿。第一批：声明式插件 UI 全链路（上一会话）。第二批：cmd 旧 UI 接线（cmd/anytty/program_host.go、program_host_test.go、v3_e2e_smoke.go、v3_attach_content_test.go、v3_command.go 的 smoke/visual-snapshot/e2e-smoke/pane-command 命令、旧 app 运行时构造器与 v3InteractiveRuntimeOptions/v3EmptyRootShell、tui/tui.go 旧视觉 smoke 生成器），然后整包删除 tui/app。第三批：tui/render 从 28k 行收到 3.9k 行，只留 canvas*/surface/result/style/width/glyphs/geometry/helpers/live_lines/vm_live/live_ansi/content_viewport/types（+最小 math 与 dim no-op）；tui/state 从 20.9k 行收到 2.8k 行，只留 endpoint/endpoint_status/config/host_theme/live/terminal_role；删除 tui/testkit、tui/adapter/localstorage、tui/adapter/system、clientruntime endpoint 连接/事件投影与对应 port；history/clipboard/workbench storage 端口与适配器删除；cmd 主路径去掉 CoreClient 依赖。剩余 unreachable（deadcode -test ./cmd/anytty）主要是保留包内的旧快捷键/表情/尺寸辅助函数，不再有旧 UI 文件级遗留。go.mod/go.sum 无变化。",
+      "remaining": []
+    },
+    {
+      "id": 5,
+      "title": "组件注册表：引用解析 + 元数据",
+      "detail": "内置组件 + 可注册 provider；sources 事件带 kind/title/endpoint/terminal 元数据，供布局程序按 kind 摆放。",
+      "status": "done",
+      "checks": [
+        "布局程序按 kind 使用 header/footer/terminal",
+        "新增一个 provider 不改宿主语义"
+      ],
+      "result": "组件改为注册表+collector（cmd/anytty/components.go）：内置 header/footer/terminal 通过 collector 注册，宿主用 registry.collect(vm,root) 解析 content.self 引用并附带 kind/title 元数据；新增组件只需注册 collector。本步补充：sources 事件带 endpoint/terminal_id 元数据（host.Source/SourcesEvent），终端组件带 pane 标题。"
+    },
+    {
+      "id": 10,
+      "title": "统一删除旧代码（tui/app、tui/render 老框架、tui/state 纯 UI）",
+      "detail": "主路径切到宿主小运行时后，分批删除旧 UI 文件与仅测试引用的接线，保持每批 build+vet+test 全绿。",
+      "status": "done",
+      "checks": [
+        "go build ./... + go vet ./...",
+        "go test ./tui/... ./shell",
+        "ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty ./shell ./plugins/... ./plugin/...",
+        "ANYTTY_ALLOW_NESTED=1 bash scripts/anytty-dev.sh cli v3 tmux-terminal-smoke",
+        "git diff --stat go.mod go.sum 为空"
+      ],
+      "result": "见步骤 4 的 result：tui/app 整包删除；tui/render 28,459→3,930 行；tui/state 20,909→2,829 行；tui/testkit、tui/adapter/localstorage、tui/adapter/system、clientruntime endpoint 连接/事件投影、history/clipboard/workbench storage 端口与适配器删除；cmd 旧接线删除。删除后默认盒子 TUI 复测：attach→echo final-delete-ok 真实回显。"
+    },
+    {
+      "id": 9,
+      "title": "宿主小运行时（tui/program/runtime）",
+      "detail": "新包 tui/program/runtime：持有 programhost.Host/Program、组件注册表、core overlay、typed result 执行计划；最小状态 terminals/viewport/focus；数据面经 owning endpoint 的 TerminalService/LiveScreenSource/PathService；live 订阅由上一帧实际展示的 terminal+revision 驱动 LiveScreenNext；输入直连 PTY；事件循环消费 Size/InputEvents/EventsReady/FrameSink。cmd 主路径只接线。",
+      "status": "done",
+      "checks": [
+        "go build ./... + go vet ./...",
+        "go test ./tui/... ./shell",
+        "ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty",
+        "tmux 手动：attach/render/输入顺序/live 刷新/create/kill 授权/overlay/程序重启",
+        "tmux-terminal-smoke / tmux-resize-smoke / tmux-ansi-smoke / tmux-stability-smoke / tmux-visual-compare"
+      ],
+      "result": "已落：tui/program/runtime（runtime.go/terminal.go/result.go）。Program 是最小布局程序边界（*programhost.Host 实现；测试用 fake）。Run() 单线程事件循环消费 host 输入/尺寸/ops；异步数据面结果一律经 ops channel 回投。attach/create/kill/resize/list 全部走 tuiport；attach 后按 placement 内容矩形（去掉 2 边）resize PTY，resize 结果回写 surface/epoch；输入按 EncodeTerminalInput 编码后经每终端串行 writer 发送（修复并发 SendInput 交错导致的字符乱序）；live 以本帧渲染的 (endpoint, terminal, revision) 驱动 LiveScreenNext，结果 ApplySnapshot 后唤醒下一帧继续订阅（服务端阻塞式，形成连续刷新且不空转）；保留键/overlay 输入拦截与 typed result 授权沿用安全内核。cmd/anytty：新增 program_runtime.go（resolveLayoutProgram/startLayoutProgram/newV3ProgramRuntime），runV3AttachRuntime 与 runV3RootEmptyRuntime 改用新运行时；旧 app 运行时构造器仅剩测试引用。shell 程序：sources 带 attached 状态（未 attach 只在 picker 出现）、侧栏固定 30 宽、PANE 模式可进命令面板。测试：runtime 包 7 个单测（sources/渲染、输入直达 PTY、revision 订阅、resize、overlay 拦截+授权 kill、quit 授权、缺程序提示、Ctrl-Q 宿主独占）；tmux 实测 attach→输入 clean-order-ok 回显、:kill pane 出宿主授权框并按框执行、程序 kill 后保留最后一棵树并自动重启、picker 创建 terminal-2 并在 v3 ls 可见。tmux resize smoke 改为布局无关断言（before=68x26 after=88x36，同向增长）；全绿。"
+    },
+    {
+      "id": 8,
+      "title": "内置组件渲染脱离老框架",
+      "detail": "terminal 组件从 state.TerminalSurfaceStore 直接渲染 cell 帧（不引入 RenderVM/整屏渲染）；header/footer 组件从注册表移除，交给布局程序自绘。cmd 只做接线：collect(surfaces) → 组件帧 + sources 元数据。",
+      "status": "done",
+      "checks": [
+        "go build ./... + go vet ./...",
+        "go test ./tui/... ./shell",
+        "ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty",
+        "tmux-terminal-smoke / tmux-resize-smoke / tmux-ansi-smoke / tmux-stability-smoke / tmux-visual-compare"
+      ],
+      "result": "已落：tui/render/live_lines.go 导出 LiveSurfaceLines(surface)（terminalLiveLineVMs 的最小封装，不依赖 RenderVM）；新包 tui/program/components——View/Source 元数据（kind/title/endpoint/terminal_id）+ Registry.Collect(placements, views) 渲染自包含组件帧（自带边框/标题/焦点标记，按 placement.Rect 精确裁剪与补宽）+ components.Sources(views) 广播可用引用（否则程序永远学不到引用，死锁）；terminal 组件渲染 state.TerminalSurfaceStore 的 live cells。cmd/anytty/components.go 改为 componentViews(root) 从 root.Surface 的 live 数据投影终端视图；program_host.go 删除 RenderVMBuilder/Renderer/PanelFrames/CollectLiveTargets，LiveTargets 改为由本帧实际渲染的组件帧给出（endpoint/terminal/revision）。header/footer 组件不再提供，shell 程序自绘。单测覆盖元数据、裁剪、微型 rect、未注册 kind、未摆放引用。tmux 实测：默认界面 50/50 布局 + 真实终端边框标题，echo t2-ok/t2-pad 均回显；五个 tmux smoke 全绿；cmd/anytty 与 tui 全绿。"
+    },
+    {
+      "id": 7,
+      "title": "崩溃回退：最后一棵好树 + 程序重启（替代旧 UI fallback）",
+      "detail": "程序退出/崩溃时保留最后一棵好树；host 带退避自动重启（超过 N 次连续崩溃停止）；完全找不到布局程序时宿主渲染 core-owned 提示框，不再回退旧 UI。",
+      "status": "done",
+      "checks": [
+        "go build ./... + go vet ./...",
+        "go test ./tui/... ./shell",
+        "ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty",
+        "ANYTTY_ALLOW_NESTED=1 bash scripts/anytty-dev.sh cli v3 tmux-terminal-smoke",
+        "tmux 手动：kill 布局程序 PID → 画面保留、自动重启、继续打字；程序缺失 → core-owned 提示框"
+      ],
+      "result": "已落：tui/program/host 增加 RestartPolicy（Max/Delay/MaxDelay/ResetAfter）与 processEnded/restart 带退避重启，保留最后一棵好树，新增 Started/Generation/Restarts 观测点；cmd/anytty newTUIProgramHost 改为：找不到/拉不起程序也返回宿主（missing=true），Frame 在无程序或程序未产出时渲染 core-owned 提示框（CoreOverlayFrames），blocked 之外永不回退旧 UI；程序退出后继续渲染最后一棵好树。单测：RestartPolicy 退避、崩溃保留好树并重启到上限、稳定运行重置计数。tmux 实测：kill 布局程序 PID 67338 → 画面保留；~3s 后新 PID 68139 自动重启；随后 echo t1-restarted 正常回显；临时移走 anytty-shell-program → 画面显示 core-owned“layout program not found; set ANYTTY_PROGRAM”提示框。cmd/anytty 测试中 4 个纯旧 UI 行为测试（mouse divider hit region、e2e-smoke 旧 live 路径、tmux emoji-dots 两项）随旧 UI 迁移删除；buildAnyTTYBinaryForTest 现在同时构建 anytty-shell-program 到测试二进制同目录，默认即盒子模型。全部命令绿。"
+    },
+    {
+      "id": 6,
+      "title": "安全内核（core-owned）",
+      "detail": "配对/授权确认、破坏性确认、全局逃生/退出由宿主渲染在最上层；保留键不发给程序；程序不可覆盖。",
+      "status": "done",
+      "checks": [
+        "overlay/授权出现时由宿主渲染",
+        "程序无法伪装/隐藏这些界面"
+      ],
+      "result": "已落：程序节点不得占用宿主保留的 core.* id（program.StripReservedIDs，host 解码时强制）；独立安全 overlay 层 tui/program/host/safety.go（CoreOverlay/CoreOverlayFrames，LayerOverlay，永远追加在程序帧之后合成，程序不能覆盖/隐藏）；保留键 ReservedKeyFor（Ctrl-Q 退出确认、Ctrl-C 强制逃生，程序收不到）；overlay 打开时输入只归宿主（OverlayInput：enter/y 允许、esc/n/ctrl-c 拒绝、其余消耗）。typed result 授权执行：tui/program/host/result.go（Result/DecodeMessage，view 与 result 分流，result 不覆盖展示树），cmd/anytty/program_host.go 白名单 executor——terminal.attach/terminal.create 经数据面直接执行，workbench.command 的 kill/delete 与 system.quit 必须先由 core overlay 授权，确认后命令带 PaneConfirmAccepted 仅由宿主经 app message path 执行；程序拿不到 daemon socket/lease。E2E（tmux+隔离 dev daemon）验证：Ctrl-Q 出宿主 overlay；terminal.create 经数据面创建真实 terminal；pane.kill 出宿主授权 overlay；程序进程被杀后宿主不崩、旧 UI 回退可继续打字。"
+    },
+    {
+      "id": 11,
+      "title": "框架 P0：终端退出检测 + 退出动作",
+      "detail": "runtime 订阅 WatchTerminalEvents，把 exited 状态写入终端状态/组件视图（标题后缀、置灰、光标隐藏）；components.View/Source 与 sources 事件带 exited/exit_code；typed result terminal.restart（直执行）与 terminal.remove（授权）；shell picker 标记 exited 并可重启。",
+      "status": "done",
+      "checks": [
+        "go build/vet/test",
+        "tmux: exit 后界面显示退出态、restart 后恢复"
+      ],
+      "result": "已落：runtime 增加 Ports.Events（TerminalEventSource）与 watchTerminalEvents（带 1s 重连），退出事件写入 terminalState.Exited/ExitCode + surface MarkExitedWithMetadataRef，停止 live 轮询、通知程序并刷新 roster；roster 的 exited 状态兜底；typed result terminal.restart（直执行，清空旧 attachment/surface 后重新 attach，observed revision 归零）与 terminal.remove（授权 overlay）；components.View/Source/宿主 Source 带 exited/exit_code，terminal 组件标题后缀 [exited N]、warning 边框、隐藏光标；shell picker 用 ✕ 标记 exited、选择即重启，footer 出 [Ctrl+E] RESTART、Ctrl-E 触发 terminal.restart。数据面修正：tui/adapter/protocol 的 lifecycle 映射原先只放行 attachment projection，现在把 TERMINAL_STATE_EXITED/ExitCode/ExitedAt/Command 映射进事件。单测：runtime（退出标记 + sources exited + restart 后重新 attach）、shell（picker 标记/焦点/重启提示/空启动自动弹 picker）。tmux 实测：exit → 标题 [exited] + footer 提示；Ctrl-E → 重启并回到新 bash，echo 回显正常。"
+    },
+    {
+      "id": 12,
+      "title": "框架 P0：鼠标透传 + 点击聚焦 + 输入编码补全",
+      "detail": "终端 mouse tracking 开启（surface.Modes）且 placement 声明 mouse 时，鼠标/滚轮编码成 SGR 字节直发 PTY；shell 点击 terminal pane 切换焦点；EncodeTerminalInput 补 PgUp/PgDn/Home/End/Delete/Insert/F1-F12/Alt 组合。",
+      "status": "done",
+      "checks": [
+        "go build/vet/test",
+        "tmux: htop/鼠标场景、点击聚焦、按键透传"
+      ],
+      "result": "已落：tui/program/host EncodeTerminalInput 补全 PgUp/PgDn/Home/End/Delete/Insert/Shift-Tab/F1-F12/Alt 组合与带修饰方向键（CSI 1;m）；新增 EncodeTerminalMouse（SGR 1006，含 drag/release/wheel/修饰键）与 MouseTrackingPassthrough；runtime 在终端开启 mouse tracking 且 placement 声明 mouse 时把鼠标字节经串行 writer 直发 PTY，否则仍给布局程序；shell 点击 source:* 节点切换焦点。单测：host（按键序列与 SGR 鼠标编码）、runtime（tracking 终端收到 SGR 字节、未开启时事件归程序）。tmux 实测：cat -v 下 Home/PageUp/F5/Delete/End 分别输出 ^[[H ^[[5~ ^[[15~ ^[[3~ ^[[F。"
+    },
+    {
+      "id": 13,
+      "title": "框架 P1：program 光标协议 + 能力握手 + 协议文档",
+      "detail": "布局程序可在盒子上声明自己的光标位置（overlay 输入框）；盒子协议能力握手与 schema 文档；第三方组件 provider。",
+      "status": "done",
+      "checks": [
+        "go build/vet/test",
+        "协议文档评审"
+      ],
+      "result": "已落：盒子协议新增 Node.Cursor（相对内容区的程序光标，block/bar，可选 visible），解算时换算成绝对 Cursor/CursorRect/HasCursor；runtime 光标优先级 = core overlay > 程序光标 > 聚焦终端光标；布局程序启动/重启后收到 hello 能力握手（schema/components/events/results/features）；shell 的 prompt 覆盖层声明输入框光标作为示范；docs/design/TUI_PROGRAM_PROTOCOL.zh-CN.md 落地（视图 schema、事件、typed results 授权表、hello、版本策略）。单测：program 光标换算、runtime program 光标优先、hello features。"
+    },
+    {
+      "id": 14,
+      "title": "组件能力：回看/复制（框架内核不变）",
+      "detail": "terminal 组件的新能力（滚动视图、选择高亮、复制），不是框架内核任务：框架的盒子模型/协议/安全内核不变。需要的是：runtime 增加每终端视图状态（scroll offset/selection）与 typed result（terminal.scroll/terminal.copy/terminal.selection）；精简恢复 daemon history 数据面端口（旧 port/history.go 删除时被误当 UI）；本机剪贴板写端口（OSC52 或系统剪贴板）；shell 只做键位/模式策略（何时进入回看、滚轮映射、复制快捷键）。",
+      "status": "done",
+      "checks": [
+        "go build/vet/test",
+        "tmux: 回看历史并复制"
+      ],
+      "result": "已落（组件能力，框架内核未改）：精简恢复 port.HistorySource（HistoryWindow/ReleaseHistory + HistoryRow/Cell）与 protocol adapter；router 转发；runtime 增加每终端 scrollOffset/history 缓存、terminal.scroll/scrollEnd/copy typed result、历史窗口切片与 render.Line 投影、visiblePlainLines + OSC52 剪贴板写（terminalhost.WriteClipboard）；组件 View 增加 Scrolled/ScrollOffset/HistoryLines 并渲染回看窗口与 [↑N] 标题；shell 滚轮/PANE 模式 PgUp/PgDn 回看、y 复制、Esc 回 live、footer 提示。另修输入批内焦点屏障（同一批事件在前一个事件归程序后不再按旧 placements 送 PTY）。单测：history 拉取与窗口、scrollEnd 释放、剪贴板内容。tmux 实测：seq 1 200 → 回看到更早内容（[↑18]）→ y 复制（tmux buffer 命中可见行）→ Esc 回 live。"
+    },
+    {
+      "id": 15,
+      "title": "工程收尾：deadcode 清理 + E2E 自动化 + 性能基线",
+      "detail": "清理保留包内的 unreachable（旧快捷键系统等）；tmux E2E 覆盖崩溃重启/授权 overlay/创建；建立新渲染性能基线。",
+      "status": "partial",
+      "checks": [
+        "deadcode 清单下降",
+        "go test 全绿",
+        "性能基线记录"
+      ],
+      "result": "已完成：性能基线（新增 benchmark，本机 32 核：RenderSurfaceComposite 120x48 约 2.97ms/989KB/5482 allocs；LiveSurfaceLines 120x48 约 0.65ms/791KB/49 allocs；TerminalFrame 100x40 约 1.13ms/1.58MB/128 allocs）。deadcode -test ./cmd/anytty 的 tui/ 内 unreachable 从上一会话约 90 项降到当前 217 项（统计口径含保留包内旧快捷键/尺寸辅助，主要在 tui/input/bindings.go、tui/state/live.go、tui/render 多余辅助、clientruntime 已删文件的残留导出）。未完成：逐函数清理 217 项 deadcode（唯一剩余项）。 追加完成：tmux E2E 崩溃回退已自动化——runV3TmuxTerminalSmoke 新增 v3TmuxCrashRecovery 阶段（用 pane PID 的直系子进程 pgrep -P 定位布局程序并 kill -9；验证最后一棵树保留、自动重启（新 PID）、重启后输入仍进真实 PTY 并回显 crash-recovered）；cmd/anytty 全量测试通过。 追加完成：tmux E2E 授权 overlay——v3TmuxAuthorizationOverlay 经 Ctrl-P/:quit 触发 system.quit，断言宿主确认框 'Quit anytty' 出现、Esc 拒绝后 overlay 消失且会话存活（最后一棵好树保留）。性能阈值化——新增 AllocationBudget 测试（tui/render/perf_budget_test.go、tui/program/components/perf_budget_test.go），用 testing.AllocsPerRun 设分配预算（Composite≤12000、LiveSurfaceLines≤300、TerminalFrame≤600，基线分别为 5482/49/128），CI 稳定不受负载影响。验证：AllocationBudget 三项 PASS；ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty 76.3s ok。"
+    },
+    {
+      "id": 16,
+      "title": "修复用户手测反馈（overlay z 序 / footer 分组与右对齐 / Ctrl-F picker / PTY 尺寸）",
+      "status": "done",
+      "result": "1) overlay z 序（框架根因）：program 绝对定位（Pos）子树拆到 LayoutResult.OverlayFrames + AllFrames()，runtime 把它合成在所有组件 surface 之上；修复 picker/help/prompt/toast 全被终端帧盖住的问题。host.CoreOverlayFrames 同步改用 AllFrames。2) footer 分组：footerHints() 按层级返回快捷键组（PANE 显示 [%]/[\"]/[x]/[tab]/[Ctrl+F]/[:]/[esc]；RESIZE/GLOBAL 各自一组），PANE 模式补齐 ctrl-p/f/t/w/r/g 与 ? 处理；状态 ws:/tabs:/panes: 用 DisplayWidth 补空格右对齐。3) Ctrl-F 在终端聚焦时也已可用（Ctrl 组合归程序）+ picker 去掉重复标题，实测弹出。4) PTY 尺寸不可靠：根因是 runtime 以 resize follower 附加且 TakeOwnership=CanResize(false)，服务端只有 resize owner 能改尺寸（core/protocol_service.go resizeControlForRequest / resizeTerminalForCurrentOwner），旧终端保留历史尺寸（实测 181x57 vs pane 88x28）。改为 requestResize 带 TakeOwnership=true + ExpectedOwnerEpoch CAS 接管；实测 attach 后 PTY=88x28 与 pane 内容区一致，新建终端 43x28 正确。5) toast 改底部单行、按键即消失（不再遮挡终端输出，修复 resize/stability smoke 因 notice 覆盖输出而超时）。验证：go vet ./... 通过；go test ./tui/... ./shell ./plugin/... 全 ok；ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty 71.8s ok（含 resize/stability/terminal smoke）。"
+    },
+    {
+      "id": 17,
+      "title": "CLI 默认入口切到新 TUI（tui2）并删除旧 tui/",
+      "status": "done",
+      "detail": "anytty 根命令与 attach 改为加载 endpoint registry 后启动 tui2 宿主（TUI2_BIN/TUI2_SHELL 或同目录/PATH 查找），必要时自动拉起 daemon+access；--socket 通过临时 registry override 注入，--config 转发给 tui2-shell，--log-file 传给宿主。tui2-shell 新增 -attach 目标绑定。删除旧 tui/ 整树与 shell/、cmd/anytty-program-harness、cmd/anytty-keyprobe；api_layer 已在 Slice C 删除。CLI tmux smokes 重写为新入口黑盒（picker/输入/ANSI+Unicode/resize stty/多轮稳定性）。",
+      "verify": [
+        "go build ./... && go vet ./...",
+        "ANYTTY_ALLOW_NESTED=1 go test -count=1 ./clients/cli/... ./clients/tui/...",
+        "ANYTTY_ALLOW_NESTED=1 go test -count=1 -p 4 ./...",
+        "go test -race ./clients/cli/... ./clients/tui/...",
+        "go run ./scripts/generate_application_api.go -check"
+      ],
+      "result": "默认入口、config 命令（tui2 JSON）、tmux smokes 全绿；旧 tui/ 删除后 build/vet/full suite 通过。"
+    },
+    {
+      "id": 18,
+      "title": "T5 最终清理（dead-code 与过期引用）",
+      "status": "done",
+      "detail": "deadcode 可达性扫描（anytty/anyttyd/anytty-access/tui2/tui2-shell/androidlib）；删除定义后无调用的迁移残留；过期引用只在历史说明中保留；本工作日志标记为历史归档。",
+      "verify": [
+        "go build ./... && go vet ./...",
+        "ANYTTY_ALLOW_NESTED=1 go test -count=1 -p 4 ./...",
+        "go test -race -p 2 ./access/... ./daemon/... ./clients/cli/...",
+        "go run ./scripts/generate_application_api.go -check"
+      ],
+      "result": "见 docs/HANDOFF.zh-CN.md T5 段与最终验证结果。"
+    }
+  ],
+  "acceptance": [
+    "默认启动即盒子模型（无需 ANYTTY_PROGRAM）",
+    "真终端：画面来自宿主组件，键盘进 bash，滚动/尺寸变化正常",
+    "布局程序崩溃：宿主保留最后一棵好树并重启/回退，不崩",
+    "core-owned 界面不可被程序覆盖或伪装",
+    "go build ./...、go vet、go test ./tui/... 全绿；go.mod 不变"
+  ],
+  "current_state": {
+    "done": [
+      "盒子模型（tui/program）+ 子进程宿主（tui/program/host，含退避重启与最后一棵好树）",
+      "默认走程序（自动解析同目录 anytty-shell-program；缺失时 core-owned 提示框）",
+      "组件注册表（tui/program/components）：terminal 组件从 live surface 直接渲染，元数据带 kind/title/endpoint/terminal_id/attached",
+      "步骤1：默认盒子界面键盘进 bash",
+      "步骤2：布局程序迁到 shell/",
+      "步骤3：声明式插件 UI 渲染层删除",
+      "宿主小运行时（tui/program/runtime）：attach/create/kill/resize/list 数据面、LiveScreenNext 订阅、输入直达 PTY、core overlay/typed result 授权、事件循环与 cmd 接线",
+      "步骤4/10：tui/app 整包、tui/render 老框架、tui/state 纯 UI 状态、存储端口/适配器、cmd 旧接线统一删除",
+      "步骤5：组件注册表（引用解析 + 元数据 + sources endpoint/terminal_id）",
+      "步骤6：安全内核（保留 id、保留键、独立 core overlay、typed result 授权执行）"
+    ],
+    "blocked": [],
+    "not_started": [],
+    "next": [
+      "步骤15 收尾：deadcode 逐函数清理（217 项，按文件分批，每批 build+vet+test）"
+    ]
+  },
+  "notes": [
+    "以 docs/design/TUI_PROGRAM_MODEL.zh-CN.md 为准；TUI_SURFACE_REFACTOR.zh-CN.md 仅作历史。",
+    "宿主红线：数据和命令经 endpoint daemon；像素/输入只在本机。",
+    "验证命令：go build ./...；go vet ./...；go test ./tui/... ./shell；ANYTTY_ALLOW_NESTED=1 go test ./cmd/anytty ./shell；ANYTTY_ALLOW_NESTED=1 bash scripts/anytty-dev.sh cli v3 tmux-terminal-smoke。",
+    "cmd/anytty 的 attach 类测试与 tmux smoke 需要 ANYTTY_ALLOW_NESTED=1。"
+  ],
+  "strategy": "先把新版做完（做新版时可参考/复用旧代码），最后再统一删除未被引用的旧代码。",
+  "historical": true
+}

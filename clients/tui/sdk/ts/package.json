@@ -1,0 +1,22 @@
+{
+  "name": "@anytty/tui2-sdk",
+  "version": "0.1.0",
+  "description": "TUI v2 layout-program SDK (core client + builder) for Node.js",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "conformance.js",
+    "verify.js"
+  ],
+  "scripts": {
+    "verify": "node verify.js",
+    "conformance": "node conformance.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -3,8 +3,8 @@ package apimapping
 import (
 	"time"
 
-	corev2 "github.com/anytty/anytty/core"
-	"github.com/anytty/anytty/proto/apipb"
+	corev2 "github.com/anytty/anytty/daemon/core"
+	"github.com/anytty/anytty/proto/access/apipb"
 )
 
 // ValidateFileStorageCommand 校验 file/storage command 的边界字段和 operation/resource fence。

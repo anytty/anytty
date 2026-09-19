@@ -25,10 +25,6 @@ func Log(event string, kv ...any) {
 	write(event, 0, kv...)
 }
 
-func LogLimited(event string, limit int, kv ...any) {
-	write(event, limit, kv...)
-}
-
 func Short(s string, limit int) string {
 	if limit <= 0 || len(s) <= limit {
 		return s

@@ -1,0 +1,8 @@
+# buf generation template for access proto trees.
+# Used by scripts/generate-access-proto.sh against a staging root whose logical
+# paths match the checked-in .pb.go sources (apipb/, remoteauthpb/, wirepb/, cloud/).
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: .
+    opt: paths=source_relative

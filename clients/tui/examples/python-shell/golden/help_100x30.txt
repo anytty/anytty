@@ -1,0 +1,30 @@
+ WS main  ▎1 main ×  +
+┌ status ────────────────────┐┌ ▎ unconnected ─────────────────────────────────────────────────────┐
+│tabs      1                 ││No terminal connected                                               │
+│panes     1                 ││Choose a terminal or create one.                                    │
+│mode                        ││Press Ctrl-F to open the terminal picker.                           │
+│host panes 0 · endpoints 1 ·││                                                                    │
+└────────────────────────────┘│                                                                    │
+                              │                                                                    │
+                  ┌ Help ────────────────────────────────────────────────────────┐                 │
+                  │Help                                                          │                 │
+                  │Keys                                                          │                 │
+                  │  ctrl-p   pane mode (% split, " split, x close, tab focus)   │                 │
+                  │  ctrl-f   terminal picker                                    │                 │
+                  │  ctrl-t   new tab      ctrl-w  toggle sidebar                │                 │
+                  │  1..9     switch tab    ?       this help                    │                 │
+                  │  :        command palette                                    │                 │
+                  │Mouse                                                         │                 │
+                  │  click tab / tab × / pane / picker item / + create           │                 │
+                  │  wheel over a pane to scroll; drag a divider to resize       │                 │
+                  │esc close                                                     │                 │
+                  └──────────────────────────────────────────────────────────────┘                 │
+                              │                                                                    │
+                              │                                                                    │
+                              │                                                                    │
+                              │                                                                    │
+                              │                                                                    │
+                              │                                                                    │
+                              │                                                                    │
+                              └────────────────────────────────────────────────────────────────────┘
+ [Ctrl+P] PANE │ [Ctrl+R] RESIZE │ [Ctrl+G] GLOBAL │ [Ctrl+F] PICKER │ [?] HELP │ [:] CMD ws:main ta

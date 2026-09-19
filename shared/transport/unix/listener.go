@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/klauspost/compress/zstd"
 )

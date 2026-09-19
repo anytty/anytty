@@ -124,13 +124,14 @@ const FileTransferData$json = {
   '2': [
     {'1': 'offset', '3': 1, '4': 1, '5': 3, '10': 'offset'},
     {'1': 'data', '3': 2, '4': 1, '5': 12, '10': 'data'},
+    {'1': 'encoding', '3': 3, '4': 1, '5': 9, '10': 'encoding'},
   ],
 };
 
 /// Descriptor for `FileTransferData`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List fileTransferDataDescriptor = $convert.base64Decode(
     'ChBGaWxlVHJhbnNmZXJEYXRhEhYKBm9mZnNldBgBIAEoA1IGb2Zmc2V0EhIKBGRhdGEYAiABKA'
-    'xSBGRhdGE=');
+    'xSBGRhdGESGgoIZW5jb2RpbmcYAyABKAlSCGVuY29kaW5n');
 
 @$core.Deprecated('Use fileTransferAckDescriptor instead')
 const FileTransferAck$json = {
@@ -138,13 +139,24 @@ const FileTransferAck$json = {
   '2': [
     {'1': 'offset', '3': 1, '4': 1, '5': 3, '10': 'offset'},
     {'1': 'window_bytes', '3': 2, '4': 1, '5': 3, '10': 'windowBytes'},
+    {
+      '1': 'transferred_bytes',
+      '3': 3,
+      '4': 1,
+      '5': 3,
+      '10': 'transferredBytes'
+    },
+    {'1': 'total_bytes', '3': 4, '4': 1, '5': 3, '10': 'totalBytes'},
+    {'1': 'elapsed_millis', '3': 5, '4': 1, '5': 3, '10': 'elapsedMillis'},
   ],
 };
 
 /// Descriptor for `FileTransferAck`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List fileTransferAckDescriptor = $convert.base64Decode(
     'Cg9GaWxlVHJhbnNmZXJBY2sSFgoGb2Zmc2V0GAEgASgDUgZvZmZzZXQSIQoMd2luZG93X2J5dG'
-    'VzGAIgASgDUgt3aW5kb3dCeXRlcw==');
+    'VzGAIgASgDUgt3aW5kb3dCeXRlcxIrChF0cmFuc2ZlcnJlZF9ieXRlcxgDIAEoA1IQdHJhbnNm'
+    'ZXJyZWRCeXRlcxIfCgt0b3RhbF9ieXRlcxgEIAEoA1IKdG90YWxCeXRlcxIlCg5lbGFwc2VkX2'
+    '1pbGxpcxgFIAEoA1INZWxhcHNlZE1pbGxpcw==');
 
 @$core.Deprecated('Use fileTransferFinishDescriptor instead')
 const FileTransferFinish$json = {
@@ -152,13 +164,14 @@ const FileTransferFinish$json = {
   '2': [
     {'1': 'size', '3': 1, '4': 1, '5': 3, '10': 'size'},
     {'1': 'sha256', '3': 2, '4': 1, '5': 12, '10': 'sha256'},
+    {'1': 'elapsed_millis', '3': 3, '4': 1, '5': 3, '10': 'elapsedMillis'},
   ],
 };
 
 /// Descriptor for `FileTransferFinish`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List fileTransferFinishDescriptor = $convert.base64Decode(
     'ChJGaWxlVHJhbnNmZXJGaW5pc2gSEgoEc2l6ZRgBIAEoA1IEc2l6ZRIWCgZzaGEyNTYYAiABKA'
-    'xSBnNoYTI1Ng==');
+    'xSBnNoYTI1NhIlCg5lbGFwc2VkX21pbGxpcxgDIAEoA1INZWxhcHNlZE1pbGxpcw==');
 
 @$core.Deprecated('Use fileTransferResultDescriptor instead')
 const FileTransferResult$json = {

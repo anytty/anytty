@@ -24,7 +24,7 @@ class ClientAccessIdentityCommand extends $pb.GeneratedMessage {
   factory ClientAccessIdentityCommand({
     $core.List<$core.int>? challenge,
   }) {
-    final result = create();
+    final result = ClientAccessIdentityCommand._();
     if (challenge != null) result.challenge = challenge;
     return result;
   }
@@ -33,15 +33,15 @@ class ClientAccessIdentityCommand extends $pb.GeneratedMessage {
 
   factory ClientAccessIdentityCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessIdentityCommand()..mergeFromBuffer(data, registry);
   factory ClientAccessIdentityCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessIdentityCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessIdentityCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessIdentityCommand.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'challenge', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -59,13 +59,19 @@ class ClientAccessIdentityCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessIdentityCommand() / ClientAccessIdentityCommand.new instead')
   static ClientAccessIdentityCommand create() =>
       ClientAccessIdentityCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessIdentityCommand._();
   @$core.override
-  ClientAccessIdentityCommand createEmptyInstance() => create();
+  ClientAccessIdentityCommand createEmptyInstance() =>
+      ClientAccessIdentityCommand._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessIdentityCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityCommand>(
+          ClientAccessIdentityCommand.$_createMessage);
   static ClientAccessIdentityCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -79,21 +85,21 @@ class ClientAccessIdentityCommand extends $pb.GeneratedMessage {
 }
 
 class ClientAccessListCommand extends $pb.GeneratedMessage {
-  factory ClientAccessListCommand() => create();
+  factory ClientAccessListCommand() => ClientAccessListCommand._();
 
   ClientAccessListCommand._();
 
   factory ClientAccessListCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessListCommand()..mergeFromBuffer(data, registry);
   factory ClientAccessListCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessListCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessListCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessListCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -108,12 +114,16 @@ class ClientAccessListCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessListCommand() / ClientAccessListCommand.new instead')
   static ClientAccessListCommand create() => ClientAccessListCommand._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessListCommand._();
   @$core.override
-  ClientAccessListCommand createEmptyInstance() => create();
+  ClientAccessListCommand createEmptyInstance() => ClientAccessListCommand._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessListCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessListCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessListCommand>(
+          ClientAccessListCommand.$_createMessage);
   static ClientAccessListCommand? _defaultInstance;
 }
 
@@ -121,7 +131,7 @@ class ClientAccessTicketCreateCommand extends $pb.GeneratedMessage {
   factory ClientAccessTicketCreateCommand({
     $0.ClientAccessTicketCreateRequest? request,
   }) {
-    final result = create();
+    final result = ClientAccessTicketCreateCommand._();
     if (request != null) result.request = request;
     return result;
   }
@@ -130,18 +140,18 @@ class ClientAccessTicketCreateCommand extends $pb.GeneratedMessage {
 
   factory ClientAccessTicketCreateCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessTicketCreateCommand()..mergeFromBuffer(data, registry);
   factory ClientAccessTicketCreateCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessTicketCreateCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessTicketCreateCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessTicketCreateCommand.$_createMessage)
     ..aOM<$0.ClientAccessTicketCreateRequest>(
         2, _omitFieldNames ? '' : 'request',
-        subBuilder: $0.ClientAccessTicketCreateRequest.create)
+        subBuilder: $0.ClientAccessTicketCreateRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -157,14 +167,19 @@ class ClientAccessTicketCreateCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessTicketCreateCommand() / ClientAccessTicketCreateCommand.new instead')
   static ClientAccessTicketCreateCommand create() =>
       ClientAccessTicketCreateCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessTicketCreateCommand._();
   @$core.override
-  ClientAccessTicketCreateCommand createEmptyInstance() => create();
+  ClientAccessTicketCreateCommand createEmptyInstance() =>
+      ClientAccessTicketCreateCommand._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessTicketCreateCommand getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateCommand>(
-          create);
+          ClientAccessTicketCreateCommand.$_createMessage);
   static ClientAccessTicketCreateCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -183,7 +198,7 @@ class ClientAccessRevokeCommand extends $pb.GeneratedMessage {
   factory ClientAccessRevokeCommand({
     $0.ClientAccessRevokeRequest? request,
   }) {
-    final result = create();
+    final result = ClientAccessRevokeCommand._();
     if (request != null) result.request = request;
     return result;
   }
@@ -192,17 +207,17 @@ class ClientAccessRevokeCommand extends $pb.GeneratedMessage {
 
   factory ClientAccessRevokeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessRevokeCommand()..mergeFromBuffer(data, registry);
   factory ClientAccessRevokeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessRevokeCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessRevokeCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessRevokeCommand.$_createMessage)
     ..aOM<$0.ClientAccessRevokeRequest>(2, _omitFieldNames ? '' : 'request',
-        subBuilder: $0.ClientAccessRevokeRequest.create)
+        subBuilder: $0.ClientAccessRevokeRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -217,12 +232,18 @@ class ClientAccessRevokeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessRevokeCommand() / ClientAccessRevokeCommand.new instead')
   static ClientAccessRevokeCommand create() => ClientAccessRevokeCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessRevokeCommand._();
   @$core.override
-  ClientAccessRevokeCommand createEmptyInstance() => create();
+  ClientAccessRevokeCommand createEmptyInstance() =>
+      ClientAccessRevokeCommand._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessRevokeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeCommand>(
+          ClientAccessRevokeCommand.$_createMessage);
   static ClientAccessRevokeCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -243,7 +264,7 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
     $core.List<$core.int>? challenge,
     $core.List<$core.int>? proof,
   }) {
-    final result = create();
+    final result = ClientAccessIdentityResult._();
     if (identity != null) result.identity = identity;
     if (challenge != null) result.challenge = challenge;
     if (proof != null) result.proof = proof;
@@ -254,17 +275,17 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
 
   factory ClientAccessIdentityResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessIdentityResult()..mergeFromBuffer(data, registry);
   factory ClientAccessIdentityResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessIdentityResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessIdentityResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessIdentityResult.$_createMessage)
     ..aOM<$0.ClientAccessIdentityResult>(1, _omitFieldNames ? '' : 'identity',
-        subBuilder: $0.ClientAccessIdentityResult.create)
+        subBuilder: $0.ClientAccessIdentityResult.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'challenge', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
@@ -284,12 +305,18 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessIdentityResult() / ClientAccessIdentityResult.new instead')
   static ClientAccessIdentityResult create() => ClientAccessIdentityResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessIdentityResult._();
   @$core.override
-  ClientAccessIdentityResult createEmptyInstance() => create();
+  ClientAccessIdentityResult createEmptyInstance() =>
+      ClientAccessIdentityResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessIdentityResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityResult>(
+          ClientAccessIdentityResult.$_createMessage);
   static ClientAccessIdentityResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -326,7 +353,7 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
   factory ClientAccessListResult({
     $0.ClientAccessListResult? access,
   }) {
-    final result = create();
+    final result = ClientAccessListResult._();
     if (access != null) result.access = access;
     return result;
   }
@@ -335,17 +362,17 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
 
   factory ClientAccessListResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessListResult()..mergeFromBuffer(data, registry);
   factory ClientAccessListResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessListResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessListResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessListResult.$_createMessage)
     ..aOM<$0.ClientAccessListResult>(1, _omitFieldNames ? '' : 'access',
-        subBuilder: $0.ClientAccessListResult.create)
+        subBuilder: $0.ClientAccessListResult.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -360,12 +387,16 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessListResult() / ClientAccessListResult.new instead')
   static ClientAccessListResult create() => ClientAccessListResult._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessListResult._();
   @$core.override
-  ClientAccessListResult createEmptyInstance() => create();
+  ClientAccessListResult createEmptyInstance() => ClientAccessListResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessListResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessListResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessListResult>(
+          ClientAccessListResult.$_createMessage);
   static ClientAccessListResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -384,7 +415,7 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
   factory ClientAccessTicketCreateResult({
     $0.ClientAccessTicketCreateResult? ticket,
   }) {
-    final result = create();
+    final result = ClientAccessTicketCreateResult._();
     if (ticket != null) result.ticket = ticket;
     return result;
   }
@@ -393,17 +424,17 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
 
   factory ClientAccessTicketCreateResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessTicketCreateResult()..mergeFromBuffer(data, registry);
   factory ClientAccessTicketCreateResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessTicketCreateResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessTicketCreateResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessTicketCreateResult.$_createMessage)
     ..aOM<$0.ClientAccessTicketCreateResult>(1, _omitFieldNames ? '' : 'ticket',
-        subBuilder: $0.ClientAccessTicketCreateResult.create)
+        subBuilder: $0.ClientAccessTicketCreateResult.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -419,13 +450,19 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessTicketCreateResult() / ClientAccessTicketCreateResult.new instead')
   static ClientAccessTicketCreateResult create() =>
       ClientAccessTicketCreateResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessTicketCreateResult._();
   @$core.override
-  ClientAccessTicketCreateResult createEmptyInstance() => create();
+  ClientAccessTicketCreateResult createEmptyInstance() =>
+      ClientAccessTicketCreateResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessTicketCreateResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateResult>(
+          ClientAccessTicketCreateResult.$_createMessage);
   static ClientAccessTicketCreateResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -444,7 +481,7 @@ class ClientAccessRevokeResult extends $pb.GeneratedMessage {
   factory ClientAccessRevokeResult({
     $0.ClientAccessRecord? record,
   }) {
-    final result = create();
+    final result = ClientAccessRevokeResult._();
     if (record != null) result.record = record;
     return result;
   }
@@ -453,17 +490,17 @@ class ClientAccessRevokeResult extends $pb.GeneratedMessage {
 
   factory ClientAccessRevokeResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessRevokeResult()..mergeFromBuffer(data, registry);
   factory ClientAccessRevokeResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessRevokeResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessRevokeResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessRevokeResult.$_createMessage)
     ..aOM<$0.ClientAccessRecord>(1, _omitFieldNames ? '' : 'record',
-        subBuilder: $0.ClientAccessRecord.create)
+        subBuilder: $0.ClientAccessRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -478,12 +515,17 @@ class ClientAccessRevokeResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessRevokeResult() / ClientAccessRevokeResult.new instead')
   static ClientAccessRevokeResult create() => ClientAccessRevokeResult._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessRevokeResult._();
   @$core.override
-  ClientAccessRevokeResult createEmptyInstance() => create();
+  ClientAccessRevokeResult createEmptyInstance() =>
+      ClientAccessRevokeResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessRevokeResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeResult>(
+          ClientAccessRevokeResult.$_createMessage);
   static ClientAccessRevokeResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -499,21 +541,21 @@ class ClientAccessRevokeResult extends $pb.GeneratedMessage {
 }
 
 class RemoteStatusCommand extends $pb.GeneratedMessage {
-  factory RemoteStatusCommand() => create();
+  factory RemoteStatusCommand() => RemoteStatusCommand._();
 
   RemoteStatusCommand._();
 
   factory RemoteStatusCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteStatusCommand()..mergeFromBuffer(data, registry);
   factory RemoteStatusCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteStatusCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteStatusCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteStatusCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -527,12 +569,16 @@ class RemoteStatusCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use RemoteStatusCommand() / RemoteStatusCommand.new instead')
   static RemoteStatusCommand create() => RemoteStatusCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteStatusCommand._();
   @$core.override
-  RemoteStatusCommand createEmptyInstance() => create();
+  RemoteStatusCommand createEmptyInstance() => RemoteStatusCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteStatusCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteStatusCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteStatusCommand>(
+          RemoteStatusCommand.$_createMessage);
   static RemoteStatusCommand? _defaultInstance;
 }
 
@@ -542,7 +588,7 @@ class RemotePairStartCommand extends $pb.GeneratedMessage {
     $core.int? ttlSeconds,
     $core.int? authTtlSeconds,
   }) {
-    final result = create();
+    final result = RemotePairStartCommand._();
     if (localPairUrl != null) result.localPairUrl = localPairUrl;
     if (ttlSeconds != null) result.ttlSeconds = ttlSeconds;
     if (authTtlSeconds != null) result.authTtlSeconds = authTtlSeconds;
@@ -553,15 +599,15 @@ class RemotePairStartCommand extends $pb.GeneratedMessage {
 
   factory RemotePairStartCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemotePairStartCommand()..mergeFromBuffer(data, registry);
   factory RemotePairStartCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemotePairStartCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemotePairStartCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemotePairStartCommand.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'localPairUrl')
     ..aI(3, _omitFieldNames ? '' : 'ttlSeconds')
     ..aI(4, _omitFieldNames ? '' : 'authTtlSeconds')
@@ -579,12 +625,16 @@ class RemotePairStartCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemotePairStartCommand() / RemotePairStartCommand.new instead')
   static RemotePairStartCommand create() => RemotePairStartCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemotePairStartCommand._();
   @$core.override
-  RemotePairStartCommand createEmptyInstance() => create();
+  RemotePairStartCommand createEmptyInstance() => RemotePairStartCommand._();
   @$core.pragma('dart2js:noInline')
   static RemotePairStartCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemotePairStartCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemotePairStartCommand>(
+          RemotePairStartCommand.$_createMessage);
   static RemotePairStartCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -625,7 +675,7 @@ class RemoteLocalEnableCommand extends $pb.GeneratedMessage {
     $core.String? region,
     $core.List<$core.int>? localWebPassword,
   }) {
-    final result = create();
+    final result = RemoteLocalEnableCommand._();
     if (localWebAddress != null) result.localWebAddress = localWebAddress;
     if (iceTcpAddress != null) result.iceTcpAddress = iceTcpAddress;
     if (hubUrls != null) result.hubUrls.addAll(hubUrls);
@@ -640,15 +690,15 @@ class RemoteLocalEnableCommand extends $pb.GeneratedMessage {
 
   factory RemoteLocalEnableCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteLocalEnableCommand()..mergeFromBuffer(data, registry);
   factory RemoteLocalEnableCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteLocalEnableCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteLocalEnableCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteLocalEnableCommand.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'localWebAddress')
     ..aOS(3, _omitFieldNames ? '' : 'iceTcpAddress')
     ..pPS(4, _omitFieldNames ? '' : 'hubUrls')
@@ -671,12 +721,17 @@ class RemoteLocalEnableCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteLocalEnableCommand() / RemoteLocalEnableCommand.new instead')
   static RemoteLocalEnableCommand create() => RemoteLocalEnableCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteLocalEnableCommand._();
   @$core.override
-  RemoteLocalEnableCommand createEmptyInstance() => create();
+  RemoteLocalEnableCommand createEmptyInstance() =>
+      RemoteLocalEnableCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteLocalEnableCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteLocalEnableCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteLocalEnableCommand>(
+          RemoteLocalEnableCommand.$_createMessage);
   static RemoteLocalEnableCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -738,21 +793,21 @@ class RemoteLocalEnableCommand extends $pb.GeneratedMessage {
 }
 
 class RemoteLocalStatusCommand extends $pb.GeneratedMessage {
-  factory RemoteLocalStatusCommand() => create();
+  factory RemoteLocalStatusCommand() => RemoteLocalStatusCommand._();
 
   RemoteLocalStatusCommand._();
 
   factory RemoteLocalStatusCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteLocalStatusCommand()..mergeFromBuffer(data, registry);
   factory RemoteLocalStatusCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteLocalStatusCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteLocalStatusCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteLocalStatusCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -767,31 +822,36 @@ class RemoteLocalStatusCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteLocalStatusCommand() / RemoteLocalStatusCommand.new instead')
   static RemoteLocalStatusCommand create() => RemoteLocalStatusCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteLocalStatusCommand._();
   @$core.override
-  RemoteLocalStatusCommand createEmptyInstance() => create();
+  RemoteLocalStatusCommand createEmptyInstance() =>
+      RemoteLocalStatusCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteLocalStatusCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteLocalStatusCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteLocalStatusCommand>(
+          RemoteLocalStatusCommand.$_createMessage);
   static RemoteLocalStatusCommand? _defaultInstance;
 }
 
 class RemoteLocalDisableCommand extends $pb.GeneratedMessage {
-  factory RemoteLocalDisableCommand() => create();
+  factory RemoteLocalDisableCommand() => RemoteLocalDisableCommand._();
 
   RemoteLocalDisableCommand._();
 
   factory RemoteLocalDisableCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteLocalDisableCommand()..mergeFromBuffer(data, registry);
   factory RemoteLocalDisableCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteLocalDisableCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteLocalDisableCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteLocalDisableCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -806,31 +866,37 @@ class RemoteLocalDisableCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteLocalDisableCommand() / RemoteLocalDisableCommand.new instead')
   static RemoteLocalDisableCommand create() => RemoteLocalDisableCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RemoteLocalDisableCommand._();
   @$core.override
-  RemoteLocalDisableCommand createEmptyInstance() => create();
+  RemoteLocalDisableCommand createEmptyInstance() =>
+      RemoteLocalDisableCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteLocalDisableCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteLocalDisableCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteLocalDisableCommand>(
+          RemoteLocalDisableCommand.$_createMessage);
   static RemoteLocalDisableCommand? _defaultInstance;
 }
 
 class RemoteCloudStatusCommand extends $pb.GeneratedMessage {
-  factory RemoteCloudStatusCommand() => create();
+  factory RemoteCloudStatusCommand() => RemoteCloudStatusCommand._();
 
   RemoteCloudStatusCommand._();
 
   factory RemoteCloudStatusCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudStatusCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudStatusCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudStatusCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudStatusCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudStatusCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -845,31 +911,36 @@ class RemoteCloudStatusCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudStatusCommand() / RemoteCloudStatusCommand.new instead')
   static RemoteCloudStatusCommand create() => RemoteCloudStatusCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteCloudStatusCommand._();
   @$core.override
-  RemoteCloudStatusCommand createEmptyInstance() => create();
+  RemoteCloudStatusCommand createEmptyInstance() =>
+      RemoteCloudStatusCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudStatusCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudStatusCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudStatusCommand>(
+          RemoteCloudStatusCommand.$_createMessage);
   static RemoteCloudStatusCommand? _defaultInstance;
 }
 
 class RemoteCloudEnableCommand extends $pb.GeneratedMessage {
-  factory RemoteCloudEnableCommand() => create();
+  factory RemoteCloudEnableCommand() => RemoteCloudEnableCommand._();
 
   RemoteCloudEnableCommand._();
 
   factory RemoteCloudEnableCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudEnableCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudEnableCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudEnableCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudEnableCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudEnableCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -884,31 +955,36 @@ class RemoteCloudEnableCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudEnableCommand() / RemoteCloudEnableCommand.new instead')
   static RemoteCloudEnableCommand create() => RemoteCloudEnableCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteCloudEnableCommand._();
   @$core.override
-  RemoteCloudEnableCommand createEmptyInstance() => create();
+  RemoteCloudEnableCommand createEmptyInstance() =>
+      RemoteCloudEnableCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudEnableCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEnableCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEnableCommand>(
+          RemoteCloudEnableCommand.$_createMessage);
   static RemoteCloudEnableCommand? _defaultInstance;
 }
 
 class RemoteCloudDisableCommand extends $pb.GeneratedMessage {
-  factory RemoteCloudDisableCommand() => create();
+  factory RemoteCloudDisableCommand() => RemoteCloudDisableCommand._();
 
   RemoteCloudDisableCommand._();
 
   factory RemoteCloudDisableCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudDisableCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudDisableCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudDisableCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudDisableCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudDisableCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -923,31 +999,37 @@ class RemoteCloudDisableCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudDisableCommand() / RemoteCloudDisableCommand.new instead')
   static RemoteCloudDisableCommand create() => RemoteCloudDisableCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RemoteCloudDisableCommand._();
   @$core.override
-  RemoteCloudDisableCommand createEmptyInstance() => create();
+  RemoteCloudDisableCommand createEmptyInstance() =>
+      RemoteCloudDisableCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudDisableCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudDisableCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudDisableCommand>(
+          RemoteCloudDisableCommand.$_createMessage);
   static RemoteCloudDisableCommand? _defaultInstance;
 }
 
 class RemoteCloudEdgesCommand extends $pb.GeneratedMessage {
-  factory RemoteCloudEdgesCommand() => create();
+  factory RemoteCloudEdgesCommand() => RemoteCloudEdgesCommand._();
 
   RemoteCloudEdgesCommand._();
 
   factory RemoteCloudEdgesCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudEdgesCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudEdgesCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudEdgesCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudEdgesCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudEdgesCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -962,12 +1044,16 @@ class RemoteCloudEdgesCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudEdgesCommand() / RemoteCloudEdgesCommand.new instead')
   static RemoteCloudEdgesCommand create() => RemoteCloudEdgesCommand._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteCloudEdgesCommand._();
   @$core.override
-  RemoteCloudEdgesCommand createEmptyInstance() => create();
+  RemoteCloudEdgesCommand createEmptyInstance() => RemoteCloudEdgesCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudEdgesCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEdgesCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEdgesCommand>(
+          RemoteCloudEdgesCommand.$_createMessage);
   static RemoteCloudEdgesCommand? _defaultInstance;
 }
 
@@ -976,7 +1062,7 @@ class RemoteCloudPreferEdgeCommand extends $pb.GeneratedMessage {
     $core.String? edgeId,
     $fixnum.Int64? expectedPreferenceRevision,
   }) {
-    final result = create();
+    final result = RemoteCloudPreferEdgeCommand._();
     if (edgeId != null) result.edgeId = edgeId;
     if (expectedPreferenceRevision != null)
       result.expectedPreferenceRevision = expectedPreferenceRevision;
@@ -987,15 +1073,15 @@ class RemoteCloudPreferEdgeCommand extends $pb.GeneratedMessage {
 
   factory RemoteCloudPreferEdgeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudPreferEdgeCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudPreferEdgeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudPreferEdgeCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudPreferEdgeCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudPreferEdgeCommand.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'edgeId')
     ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'expectedPreferenceRevision',
         $pb.PbFieldType.OU6,
@@ -1015,13 +1101,19 @@ class RemoteCloudPreferEdgeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudPreferEdgeCommand() / RemoteCloudPreferEdgeCommand.new instead')
   static RemoteCloudPreferEdgeCommand create() =>
       RemoteCloudPreferEdgeCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RemoteCloudPreferEdgeCommand._();
   @$core.override
-  RemoteCloudPreferEdgeCommand createEmptyInstance() => create();
+  RemoteCloudPreferEdgeCommand createEmptyInstance() =>
+      RemoteCloudPreferEdgeCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudPreferEdgeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudPreferEdgeCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudPreferEdgeCommand>(
+          RemoteCloudPreferEdgeCommand.$_createMessage);
   static RemoteCloudPreferEdgeCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1044,21 +1136,22 @@ class RemoteCloudPreferEdgeCommand extends $pb.GeneratedMessage {
 }
 
 class RemoteCloudReselectEdgeCommand extends $pb.GeneratedMessage {
-  factory RemoteCloudReselectEdgeCommand() => create();
+  factory RemoteCloudReselectEdgeCommand() =>
+      RemoteCloudReselectEdgeCommand._();
 
   RemoteCloudReselectEdgeCommand._();
 
   factory RemoteCloudReselectEdgeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudReselectEdgeCommand()..mergeFromBuffer(data, registry);
   factory RemoteCloudReselectEdgeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudReselectEdgeCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudReselectEdgeCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudReselectEdgeCommand.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1074,13 +1167,19 @@ class RemoteCloudReselectEdgeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudReselectEdgeCommand() / RemoteCloudReselectEdgeCommand.new instead')
   static RemoteCloudReselectEdgeCommand create() =>
       RemoteCloudReselectEdgeCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RemoteCloudReselectEdgeCommand._();
   @$core.override
-  RemoteCloudReselectEdgeCommand createEmptyInstance() => create();
+  RemoteCloudReselectEdgeCommand createEmptyInstance() =>
+      RemoteCloudReselectEdgeCommand._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudReselectEdgeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudReselectEdgeCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudReselectEdgeCommand>(
+          RemoteCloudReselectEdgeCommand.$_createMessage);
   static RemoteCloudReselectEdgeCommand? _defaultInstance;
 }
 
@@ -1099,7 +1198,7 @@ class RemoteStatusResult extends $pb.GeneratedMessage {
     $core.int? terminalCount,
     $fixnum.Int64? updatedAtUnixNano,
   }) {
-    final result = create();
+    final result = RemoteStatusResult._();
     if (state != null) result.state = state;
     if (detail != null) result.detail = detail;
     if (deviceId != null) result.deviceId = deviceId;
@@ -1119,15 +1218,15 @@ class RemoteStatusResult extends $pb.GeneratedMessage {
 
   factory RemoteStatusResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteStatusResult()..mergeFromBuffer(data, registry);
   factory RemoteStatusResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteStatusResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteStatusResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteStatusResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'state')
     ..aOS(2, _omitFieldNames ? '' : 'detail')
     ..aOS(3, _omitFieldNames ? '' : 'deviceId')
@@ -1153,12 +1252,15 @@ class RemoteStatusResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use RemoteStatusResult() / RemoteStatusResult.new instead')
   static RemoteStatusResult create() => RemoteStatusResult._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteStatusResult._();
   @$core.override
-  RemoteStatusResult createEmptyInstance() => create();
+  RemoteStatusResult createEmptyInstance() => RemoteStatusResult._();
   @$core.pragma('dart2js:noInline')
   static RemoteStatusResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteStatusResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteStatusResult>(
+          RemoteStatusResult.$_createMessage);
   static RemoteStatusResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1275,7 +1377,7 @@ class RemotePairStartResult extends $pb.GeneratedMessage {
     $core.String? answerProofSecret,
     $fixnum.Int64? expiresAtUnixNano,
   }) {
-    final result = create();
+    final result = RemotePairStartResult._();
     if (type != null) result.type = type;
     if (machineId != null) result.machineId = machineId;
     if (machineName != null) result.machineName = machineName;
@@ -1291,15 +1393,15 @@ class RemotePairStartResult extends $pb.GeneratedMessage {
 
   factory RemotePairStartResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemotePairStartResult()..mergeFromBuffer(data, registry);
   factory RemotePairStartResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemotePairStartResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemotePairStartResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemotePairStartResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'type')
     ..aOS(2, _omitFieldNames ? '' : 'machineId')
     ..aOS(3, _omitFieldNames ? '' : 'machineName')
@@ -1322,12 +1424,16 @@ class RemotePairStartResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemotePairStartResult() / RemotePairStartResult.new instead')
   static RemotePairStartResult create() => RemotePairStartResult._();
+  static $pb.GeneratedMessage $_createMessage() => RemotePairStartResult._();
   @$core.override
-  RemotePairStartResult createEmptyInstance() => create();
+  RemotePairStartResult createEmptyInstance() => RemotePairStartResult._();
   @$core.pragma('dart2js:noInline')
   static RemotePairStartResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemotePairStartResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemotePairStartResult>(
+          RemotePairStartResult.$_createMessage);
   static RemotePairStartResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1415,7 +1521,7 @@ class RemoteLocalStatusResult extends $pb.GeneratedMessage {
     $fixnum.Int64? updatedAtUnixNano,
     $core.bool? passwordProtected,
   }) {
-    final result = create();
+    final result = RemoteLocalStatusResult._();
     if (enabled != null) result.enabled = enabled;
     if (httpUrl != null) result.httpUrl = httpUrl;
     if (localWebAddress != null) result.localWebAddress = localWebAddress;
@@ -1432,15 +1538,15 @@ class RemoteLocalStatusResult extends $pb.GeneratedMessage {
 
   factory RemoteLocalStatusResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteLocalStatusResult()..mergeFromBuffer(data, registry);
   factory RemoteLocalStatusResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteLocalStatusResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteLocalStatusResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteLocalStatusResult.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'enabled')
     ..aOS(2, _omitFieldNames ? '' : 'httpUrl')
     ..aOS(3, _omitFieldNames ? '' : 'localWebAddress')
@@ -1464,12 +1570,16 @@ class RemoteLocalStatusResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteLocalStatusResult() / RemoteLocalStatusResult.new instead')
   static RemoteLocalStatusResult create() => RemoteLocalStatusResult._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteLocalStatusResult._();
   @$core.override
-  RemoteLocalStatusResult createEmptyInstance() => create();
+  RemoteLocalStatusResult createEmptyInstance() => RemoteLocalStatusResult._();
   @$core.pragma('dart2js:noInline')
   static RemoteLocalStatusResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteLocalStatusResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteLocalStatusResult>(
+          RemoteLocalStatusResult.$_createMessage);
   static RemoteLocalStatusResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1577,7 +1687,7 @@ class RemoteCloudStatusResult extends $pb.GeneratedMessage {
     $core.String? recordPath,
     $core.String? disabledPath,
   }) {
-    final result = create();
+    final result = RemoteCloudStatusResult._();
     if (enrolled != null) result.enrolled = enrolled;
     if (enabled != null) result.enabled = enabled;
     if (running != null) result.running = running;
@@ -1606,15 +1716,15 @@ class RemoteCloudStatusResult extends $pb.GeneratedMessage {
 
   factory RemoteCloudStatusResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudStatusResult()..mergeFromBuffer(data, registry);
   factory RemoteCloudStatusResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudStatusResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudStatusResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudStatusResult.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'enrolled')
     ..aOB(2, _omitFieldNames ? '' : 'enabled')
     ..aOB(3, _omitFieldNames ? '' : 'running')
@@ -1651,12 +1761,16 @@ class RemoteCloudStatusResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudStatusResult() / RemoteCloudStatusResult.new instead')
   static RemoteCloudStatusResult create() => RemoteCloudStatusResult._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteCloudStatusResult._();
   @$core.override
-  RemoteCloudStatusResult createEmptyInstance() => create();
+  RemoteCloudStatusResult createEmptyInstance() => RemoteCloudStatusResult._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudStatusResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudStatusResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudStatusResult>(
+          RemoteCloudStatusResult.$_createMessage);
   static RemoteCloudStatusResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1844,7 +1958,7 @@ class RemoteCloudEdgesResult extends $pb.GeneratedMessage {
   factory RemoteCloudEdgesResult({
     $1.DaemonEdgeSelection? selection,
   }) {
-    final result = create();
+    final result = RemoteCloudEdgesResult._();
     if (selection != null) result.selection = selection;
     return result;
   }
@@ -1853,17 +1967,17 @@ class RemoteCloudEdgesResult extends $pb.GeneratedMessage {
 
   factory RemoteCloudEdgesResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RemoteCloudEdgesResult()..mergeFromBuffer(data, registry);
   factory RemoteCloudEdgesResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RemoteCloudEdgesResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RemoteCloudEdgesResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RemoteCloudEdgesResult.$_createMessage)
     ..aOM<$1.DaemonEdgeSelection>(1, _omitFieldNames ? '' : 'selection',
-        subBuilder: $1.DaemonEdgeSelection.create)
+        subBuilder: $1.DaemonEdgeSelection.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1878,12 +1992,16 @@ class RemoteCloudEdgesResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RemoteCloudEdgesResult() / RemoteCloudEdgesResult.new instead')
   static RemoteCloudEdgesResult create() => RemoteCloudEdgesResult._();
+  static $pb.GeneratedMessage $_createMessage() => RemoteCloudEdgesResult._();
   @$core.override
-  RemoteCloudEdgesResult createEmptyInstance() => create();
+  RemoteCloudEdgesResult createEmptyInstance() => RemoteCloudEdgesResult._();
   @$core.pragma('dart2js:noInline')
   static RemoteCloudEdgesResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEdgesResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<RemoteCloudEdgesResult>(
+          RemoteCloudEdgesResult.$_createMessage);
   static RemoteCloudEdgesResult? _defaultInstance;
 
   @$pb.TagNumber(1)

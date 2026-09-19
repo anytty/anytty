@@ -599,15 +599,6 @@ const CommandEnvelope$json = {
       '9': 0,
       '10': 'browserProxyOpen'
     },
-    {
-      '1': 'plugin',
-      '3': 130,
-      '4': 1,
-      '5': 11,
-      '6': '.anytty.api.v1.PluginCommand',
-      '9': 0,
-      '10': 'plugin'
-    },
   ],
   '8': [
     {'1': 'command'},
@@ -699,8 +690,7 @@ final $typed_data.Uint8List commandEnvelopeDescriptor = $convert.base64Decode(
     'EXJlbW90ZUNsb3VkRW5hYmxlElwKFHJlbW90ZV9jbG91ZF9kaXNhYmxlGHggASgLMiguYW55dH'
     'R5LmFwaS52MS5SZW1vdGVDbG91ZERpc2FibGVDb21tYW5kSABSEnJlbW90ZUNsb3VkRGlzYWJs'
     'ZRJWChJicm93c2VyX3Byb3h5X29wZW4YeSABKAsyJi5hbnl0dHkuYXBpLnYxLkJyb3dzZXJQcm'
-    '94eU9wZW5Db21tYW5kSABSEGJyb3dzZXJQcm94eU9wZW4SNwoGcGx1Z2luGIIBIAEoCzIcLmFu'
-    'eXR0eS5hcGkudjEuUGx1Z2luQ29tbWFuZEgAUgZwbHVnaW5CCQoHY29tbWFuZA==');
+    '94eU9wZW5Db21tYW5kSABSEGJyb3dzZXJQcm94eU9wZW5CCQoHY29tbWFuZA==');
 
 @$core.Deprecated('Use acknowledgeResultDescriptor instead')
 const AcknowledgeResult$json = {
@@ -1048,15 +1038,6 @@ const ResultEnvelope$json = {
       '9': 0,
       '10': 'browserProxyOpen'
     },
-    {
-      '1': 'plugin',
-      '3': 130,
-      '4': 1,
-      '5': 11,
-      '6': '.anytty.api.v1.PluginResult',
-      '9': 0,
-      '10': 'plugin'
-    },
   ],
   '8': [
     {'1': 'result'},
@@ -1118,9 +1099,8 @@ final $typed_data.Uint8List resultEnvelopeDescriptor = $convert.base64Decode(
     'MS5SZW1vdGVDbG91ZEVkZ2VzUmVzdWx0SABSEHJlbW90ZUNsb3VkRWRnZXMSWAoTcmVtb3RlX2'
     'Nsb3VkX3N0YXR1cxhyIAEoCzImLmFueXR0eS5hcGkudjEuUmVtb3RlQ2xvdWRTdGF0dXNSZXN1'
     'bHRIAFIRcmVtb3RlQ2xvdWRTdGF0dXMSVQoSYnJvd3Nlcl9wcm94eV9vcGVuGHMgASgLMiUuYW'
-    '55dHR5LmFwaS52MS5Ccm93c2VyUHJveHlPcGVuUmVzdWx0SABSEGJyb3dzZXJQcm94eU9wZW4S'
-    'NgoGcGx1Z2luGIIBIAEoCzIbLmFueXR0eS5hcGkudjEuUGx1Z2luUmVzdWx0SABSBnBsdWdpbk'
-    'IICgZyZXN1bHQ=');
+    '55dHR5LmFwaS52MS5Ccm93c2VyUHJveHlPcGVuUmVzdWx0SABSEGJyb3dzZXJQcm94eU9wZW5C'
+    'CAoGcmVzdWx0');
 
 @$core.Deprecated('Use browserProxyOpenResultDescriptor instead')
 const BrowserProxyOpenResult$json = {

@@ -244,6 +244,20 @@ const FileDownloadOpenCommand$json = {
       '6': '.anytty.api.v1.OperationStamp',
       '10': 'operation'
     },
+    {
+      '1': 'accept_compression',
+      '3': 7,
+      '4': 3,
+      '5': 9,
+      '10': 'acceptCompression'
+    },
+    {
+      '1': 'progress_interval_bytes',
+      '3': 8,
+      '4': 1,
+      '5': 3,
+      '10': 'progressIntervalBytes'
+    },
   ],
   '9': [
     {'1': 1, '2': 2},
@@ -256,7 +270,9 @@ final $typed_data.Uint8List fileDownloadOpenCommandDescriptor = $convert.base64D
     'gDIAEoA1IGb2Zmc2V0EiMKDWV4cGVjdGVkX3NpemUYBCABKANSDGV4cGVjdGVkU2l6ZRJCCh5l'
     'eHBlY3RlZF9tb2RpZmllZF9hdF91bml4X25hbm8YBSABKANSGmV4cGVjdGVkTW9kaWZpZWRBdF'
     'VuaXhOYW5vEjsKCW9wZXJhdGlvbhgGIAEoCzIdLmFueXR0eS5hcGkudjEuT3BlcmF0aW9uU3Rh'
-    'bXBSCW9wZXJhdGlvbkoECAEQAg==');
+    'bXBSCW9wZXJhdGlvbhItChJhY2NlcHRfY29tcHJlc3Npb24YByADKAlSEWFjY2VwdENvbXByZX'
+    'NzaW9uEjYKF3Byb2dyZXNzX2ludGVydmFsX2J5dGVzGAggASgDUhVwcm9ncmVzc0ludGVydmFs'
+    'Qnl0ZXNKBAgBEAI=');
 
 @$core.Deprecated('Use fileUploadOpenCommandDescriptor instead')
 const FileUploadOpenCommand$json = {
@@ -281,6 +297,20 @@ const FileUploadOpenCommand$json = {
       '6': '.anytty.api.v1.OperationStamp',
       '10': 'operation'
     },
+    {
+      '1': 'accept_compression',
+      '3': 7,
+      '4': 3,
+      '5': 9,
+      '10': 'acceptCompression'
+    },
+    {
+      '1': 'progress_interval_bytes',
+      '3': 8,
+      '4': 1,
+      '5': 3,
+      '10': 'progressIntervalBytes'
+    },
   ],
   '9': [
     {'1': 1, '2': 2},
@@ -292,8 +322,9 @@ final $typed_data.Uint8List fileUploadOpenCommandDescriptor = $convert.base64Dec
     'ChVGaWxlVXBsb2FkT3BlbkNvbW1hbmQSEgoEcGF0aBgCIAEoCVIEcGF0aBISCgRzaXplGAMgAS'
     'gDUgRzaXplEhwKCW92ZXJ3cml0ZRgEIAEoCFIJb3ZlcndyaXRlEj0KBnJlc3VtZRgFIAEoCzIl'
     'LmFueXR0eS5hcGkudjEuRmlsZVVwbG9hZFJlc3VtZUhhbmRsZVIGcmVzdW1lEjsKCW9wZXJhdG'
-    'lvbhgGIAEoCzIdLmFueXR0eS5hcGkudjEuT3BlcmF0aW9uU3RhbXBSCW9wZXJhdGlvbkoECAEQ'
-    'Ag==');
+    'lvbhgGIAEoCzIdLmFueXR0eS5hcGkudjEuT3BlcmF0aW9uU3RhbXBSCW9wZXJhdGlvbhItChJh'
+    'Y2NlcHRfY29tcHJlc3Npb24YByADKAlSEWFjY2VwdENvbXByZXNzaW9uEjYKF3Byb2dyZXNzX2'
+    'ludGVydmFsX2J5dGVzGAggASgDUhVwcm9ncmVzc0ludGVydmFsQnl0ZXNKBAgBEAI=');
 
 @$core.Deprecated('Use fileTransferCancelCommandDescriptor instead')
 const FileTransferCancelCommand$json = {
@@ -485,6 +516,14 @@ const FileTransferHandle$json = {
     },
     {'1': 'chunk_bytes', '3': 8, '4': 1, '5': 13, '10': 'chunkBytes'},
     {'1': 'window_bytes', '3': 9, '4': 1, '5': 3, '10': 'windowBytes'},
+    {'1': 'content_encoding', '3': 10, '4': 1, '5': 9, '10': 'contentEncoding'},
+    {
+      '1': 'progress_interval_bytes',
+      '3': 11,
+      '4': 1,
+      '5': 3,
+      '10': 'progressIntervalBytes'
+    },
   ],
 };
 
@@ -496,7 +535,9 @@ final $typed_data.Uint8List fileTransferHandleDescriptor = $convert.base64Decode
     '5vGAUgASgDUhJtb2RpZmllZEF0VW5peE5hbm8SOwoJb3BlcmF0aW9uGAYgASgLMh0uYW55dHR5'
     'LmFwaS52MS5PcGVyYXRpb25TdGFtcFIJb3BlcmF0aW9uEj0KBnJlc3VtZRgHIAEoCzIlLmFueX'
     'R0eS5hcGkudjEuRmlsZVVwbG9hZFJlc3VtZUhhbmRsZVIGcmVzdW1lEh8KC2NodW5rX2J5dGVz'
-    'GAggASgNUgpjaHVua0J5dGVzEiEKDHdpbmRvd19ieXRlcxgJIAEoA1ILd2luZG93Qnl0ZXM=');
+    'GAggASgNUgpjaHVua0J5dGVzEiEKDHdpbmRvd19ieXRlcxgJIAEoA1ILd2luZG93Qnl0ZXMSKQ'
+    'oQY29udGVudF9lbmNvZGluZxgKIAEoCVIPY29udGVudEVuY29kaW5nEjYKF3Byb2dyZXNzX2lu'
+    'dGVydmFsX2J5dGVzGAsgASgDUhVwcm9ncmVzc0ludGVydmFsQnl0ZXM=');
 
 @$core.Deprecated('Use fileTransferOpenResultDescriptor instead')
 const FileTransferOpenResult$json = {

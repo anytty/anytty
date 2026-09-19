@@ -35,7 +35,7 @@ class CloudICECandidate extends $pb.GeneratedMessage {
     $core.int? sdpMlineIndex,
     $core.String? usernameFragment,
   }) {
-    final result = create();
+    final result = CloudICECandidate._();
     if (candidate != null) result.candidate = candidate;
     if (sdpMid != null) result.sdpMid = sdpMid;
     if (sdpMlineIndex != null) result.sdpMlineIndex = sdpMlineIndex;
@@ -47,16 +47,16 @@ class CloudICECandidate extends $pb.GeneratedMessage {
 
   factory CloudICECandidate.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CloudICECandidate()..mergeFromBuffer(data, registry);
   factory CloudICECandidate.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CloudICECandidate()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CloudICECandidate',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CloudICECandidate.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'candidate')
     ..aOS(2, _omitFieldNames ? '' : 'sdpMid')
     ..aI(3, _omitFieldNames ? '' : 'sdpMlineIndex',
@@ -75,12 +75,15 @@ class CloudICECandidate extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CloudICECandidate() / CloudICECandidate.new instead')
   static CloudICECandidate create() => CloudICECandidate._();
+  static $pb.GeneratedMessage $_createMessage() => CloudICECandidate._();
   @$core.override
-  CloudICECandidate createEmptyInstance() => create();
+  CloudICECandidate createEmptyInstance() => CloudICECandidate._();
   @$core.pragma('dart2js:noInline')
-  static CloudICECandidate getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudICECandidate>(create);
+  static CloudICECandidate getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CloudICECandidate>(
+          CloudICECandidate.$_createMessage);
   static CloudICECandidate? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -130,7 +133,7 @@ class PairingAdmission extends $pb.GeneratedMessage {
     $core.List<$core.int>? pairingClaimSha256,
     $fixnum.Int64? expiresAtUnixNano,
   }) {
-    final result = create();
+    final result = PairingAdmission._();
     if (daemonId != null) result.daemonId = daemonId;
     if (deviceId != null) result.deviceId = deviceId;
     if (devicePublicKey != null) result.devicePublicKey = devicePublicKey;
@@ -144,16 +147,16 @@ class PairingAdmission extends $pb.GeneratedMessage {
 
   factory PairingAdmission.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingAdmission()..mergeFromBuffer(data, registry);
   factory PairingAdmission.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingAdmission()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingAdmission',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingAdmission.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'daemonId')
     ..aOS(2, _omitFieldNames ? '' : 'deviceId')
     ..a<$core.List<$core.int>>(
@@ -174,12 +177,15 @@ class PairingAdmission extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PairingAdmission() / PairingAdmission.new instead')
   static PairingAdmission create() => PairingAdmission._();
+  static $pb.GeneratedMessage $_createMessage() => PairingAdmission._();
   @$core.override
-  PairingAdmission createEmptyInstance() => create();
+  PairingAdmission createEmptyInstance() => PairingAdmission._();
   @$core.pragma('dart2js:noInline')
-  static PairingAdmission getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingAdmission>(create);
+  static PairingAdmission getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PairingAdmission>(
+          PairingAdmission.$_createMessage);
   static PairingAdmission? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -243,7 +249,7 @@ class ClientHello extends $pb.GeneratedMessage {
     $0.SignedEnvelope? cloudRouteGrant,
     PairingAdmission? pairingAdmission,
   }) {
-    final result = create();
+    final result = ClientHello._();
     if (clientPublicKey != null) result.clientPublicKey = clientPublicKey;
     if (clientProof != null) result.clientProof = clientProof;
     if (product != null) result.product = product;
@@ -261,10 +267,10 @@ class ClientHello extends $pb.GeneratedMessage {
 
   factory ClientHello.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientHello()..mergeFromBuffer(data, registry);
   factory ClientHello.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientHello()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ClientHello_Authorization>
       _ClientHello_AuthorizationByTag = {
@@ -276,7 +282,7 @@ class ClientHello extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ClientHello',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientHello.$_createMessage)
     ..oo(0, [10, 11])
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'clientPublicKey', $pb.PbFieldType.OY)
@@ -294,9 +300,9 @@ class ClientHello extends $pb.GeneratedMessage {
     ..aE<$1.RelayTransport>(9, _omitFieldNames ? '' : 'relayTransport',
         enumValues: $1.RelayTransport.values)
     ..aOM<$0.SignedEnvelope>(10, _omitFieldNames ? '' : 'cloudRouteGrant',
-        subBuilder: $0.SignedEnvelope.create)
+        subBuilder: $0.SignedEnvelope.$_createMessage)
     ..aOM<PairingAdmission>(11, _omitFieldNames ? '' : 'pairingAdmission',
-        subBuilder: PairingAdmission.create)
+        subBuilder: PairingAdmission.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -310,12 +316,15 @@ class ClientHello extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientHello() / ClientHello.new instead')
   static ClientHello create() => ClientHello._();
+  static $pb.GeneratedMessage $_createMessage() => ClientHello._();
   @$core.override
-  ClientHello createEmptyInstance() => create();
+  ClientHello createEmptyInstance() => ClientHello._();
   @$core.pragma('dart2js:noInline')
-  static ClientHello getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientHello>(create);
+  static ClientHello getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientHello>(
+          ClientHello.$_createMessage);
   static ClientHello? _defaultInstance;
 
   @$pb.TagNumber(10)
@@ -434,7 +443,7 @@ class ClientReady extends $pb.GeneratedMessage {
     $1.RelayICEConfig? relay,
     $0.CloudEntitlementFailure? relayFailure,
   }) {
-    final result = create();
+    final result = ClientReady._();
     if (sessionId != null) result.sessionId = sessionId;
     if (generation != null) result.generation = generation;
     if (relay != null) result.relay = relay;
@@ -446,24 +455,24 @@ class ClientReady extends $pb.GeneratedMessage {
 
   factory ClientReady.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientReady()..mergeFromBuffer(data, registry);
   factory ClientReady.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientReady()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientReady',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientReady.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$1.RelayICEConfig>(3, _omitFieldNames ? '' : 'relay',
-        subBuilder: $1.RelayICEConfig.create)
+        subBuilder: $1.RelayICEConfig.$_createMessage)
     ..aOM<$0.CloudEntitlementFailure>(4, _omitFieldNames ? '' : 'relayFailure',
-        subBuilder: $0.CloudEntitlementFailure.create)
+        subBuilder: $0.CloudEntitlementFailure.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -477,12 +486,15 @@ class ClientReady extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientReady() / ClientReady.new instead')
   static ClientReady create() => ClientReady._();
+  static $pb.GeneratedMessage $_createMessage() => ClientReady._();
   @$core.override
-  ClientReady createEmptyInstance() => create();
+  ClientReady createEmptyInstance() => ClientReady._();
   @$core.pragma('dart2js:noInline')
-  static ClientReady getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientReady>(create);
+  static ClientReady getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientReady>(
+          ClientReady.$_createMessage);
   static ClientReady? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -536,7 +548,7 @@ class ClientPathDecision extends $pb.GeneratedMessage {
     $core.String? decisionId,
     CloudPathDecision? decision,
   }) {
-    final result = create();
+    final result = ClientPathDecision._();
     if (sessionId != null) result.sessionId = sessionId;
     if (decisionId != null) result.decisionId = decisionId;
     if (decision != null) result.decision = decision;
@@ -547,16 +559,16 @@ class ClientPathDecision extends $pb.GeneratedMessage {
 
   factory ClientPathDecision.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientPathDecision()..mergeFromBuffer(data, registry);
   factory ClientPathDecision.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientPathDecision()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientPathDecision',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientPathDecision.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'decisionId')
     ..aE<CloudPathDecision>(3, _omitFieldNames ? '' : 'decision',
@@ -574,12 +586,15 @@ class ClientPathDecision extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientPathDecision() / ClientPathDecision.new instead')
   static ClientPathDecision create() => ClientPathDecision._();
+  static $pb.GeneratedMessage $_createMessage() => ClientPathDecision._();
   @$core.override
-  ClientPathDecision createEmptyInstance() => create();
+  ClientPathDecision createEmptyInstance() => ClientPathDecision._();
   @$core.pragma('dart2js:noInline')
   static ClientPathDecision getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientPathDecision>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientPathDecision>(
+          ClientPathDecision.$_createMessage);
   static ClientPathDecision? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -620,7 +635,7 @@ class EdgePathDecisionAck extends $pb.GeneratedMessage {
     $core.String? decisionId,
     CloudPathDecision? decision,
   }) {
-    final result = create();
+    final result = EdgePathDecisionAck._();
     if (sessionId != null) result.sessionId = sessionId;
     if (decisionId != null) result.decisionId = decisionId;
     if (decision != null) result.decision = decision;
@@ -631,16 +646,16 @@ class EdgePathDecisionAck extends $pb.GeneratedMessage {
 
   factory EdgePathDecisionAck.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgePathDecisionAck()..mergeFromBuffer(data, registry);
   factory EdgePathDecisionAck.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgePathDecisionAck()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgePathDecisionAck',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgePathDecisionAck.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'decisionId')
     ..aE<CloudPathDecision>(3, _omitFieldNames ? '' : 'decision',
@@ -658,12 +673,16 @@ class EdgePathDecisionAck extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use EdgePathDecisionAck() / EdgePathDecisionAck.new instead')
   static EdgePathDecisionAck create() => EdgePathDecisionAck._();
+  static $pb.GeneratedMessage $_createMessage() => EdgePathDecisionAck._();
   @$core.override
-  EdgePathDecisionAck createEmptyInstance() => create();
+  EdgePathDecisionAck createEmptyInstance() => EdgePathDecisionAck._();
   @$core.pragma('dart2js:noInline')
   static EdgePathDecisionAck getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgePathDecisionAck>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgePathDecisionAck>(
+          EdgePathDecisionAck.$_createMessage);
   static EdgePathDecisionAck? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -701,7 +720,7 @@ class ClientSessionRelease extends $pb.GeneratedMessage {
     $core.String? sessionId,
     $core.String? releaseId,
   }) {
-    final result = create();
+    final result = ClientSessionRelease._();
     if (sessionId != null) result.sessionId = sessionId;
     if (releaseId != null) result.releaseId = releaseId;
     return result;
@@ -711,16 +730,16 @@ class ClientSessionRelease extends $pb.GeneratedMessage {
 
   factory ClientSessionRelease.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientSessionRelease()..mergeFromBuffer(data, registry);
   factory ClientSessionRelease.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientSessionRelease()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientSessionRelease',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientSessionRelease.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'releaseId')
     ..hasRequiredFields = false;
@@ -736,12 +755,16 @@ class ClientSessionRelease extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientSessionRelease() / ClientSessionRelease.new instead')
   static ClientSessionRelease create() => ClientSessionRelease._();
+  static $pb.GeneratedMessage $_createMessage() => ClientSessionRelease._();
   @$core.override
-  ClientSessionRelease createEmptyInstance() => create();
+  ClientSessionRelease createEmptyInstance() => ClientSessionRelease._();
   @$core.pragma('dart2js:noInline')
   static ClientSessionRelease getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientSessionRelease>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientSessionRelease>(
+          ClientSessionRelease.$_createMessage);
   static ClientSessionRelease? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -770,7 +793,7 @@ class EdgeSessionReleaseAck extends $pb.GeneratedMessage {
     $core.String? sessionId,
     $core.String? releaseId,
   }) {
-    final result = create();
+    final result = EdgeSessionReleaseAck._();
     if (sessionId != null) result.sessionId = sessionId;
     if (releaseId != null) result.releaseId = releaseId;
     return result;
@@ -780,16 +803,16 @@ class EdgeSessionReleaseAck extends $pb.GeneratedMessage {
 
   factory EdgeSessionReleaseAck.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeSessionReleaseAck()..mergeFromBuffer(data, registry);
   factory EdgeSessionReleaseAck.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeSessionReleaseAck()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeSessionReleaseAck',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeSessionReleaseAck.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'releaseId')
     ..hasRequiredFields = false;
@@ -806,12 +829,16 @@ class EdgeSessionReleaseAck extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgeSessionReleaseAck() / EdgeSessionReleaseAck.new instead')
   static EdgeSessionReleaseAck create() => EdgeSessionReleaseAck._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeSessionReleaseAck._();
   @$core.override
-  EdgeSessionReleaseAck createEmptyInstance() => create();
+  EdgeSessionReleaseAck createEmptyInstance() => EdgeSessionReleaseAck._();
   @$core.pragma('dart2js:noInline')
   static EdgeSessionReleaseAck getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeSessionReleaseAck>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeSessionReleaseAck>(
+          EdgeSessionReleaseAck.$_createMessage);
   static EdgeSessionReleaseAck? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -839,7 +866,7 @@ class ClientOffer extends $pb.GeneratedMessage {
     $core.String? offerSdp,
     $core.Iterable<CloudICECandidate>? candidates,
   }) {
-    final result = create();
+    final result = ClientOffer._();
     if (sessionId != null) result.sessionId = sessionId;
     if (offerSdp != null) result.offerSdp = offerSdp;
     if (candidates != null) result.candidates.addAll(candidates);
@@ -850,20 +877,20 @@ class ClientOffer extends $pb.GeneratedMessage {
 
   factory ClientOffer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientOffer()..mergeFromBuffer(data, registry);
   factory ClientOffer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientOffer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientOffer',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientOffer.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'offerSdp')
     ..pPM<CloudICECandidate>(3, _omitFieldNames ? '' : 'candidates',
-        subBuilder: CloudICECandidate.create)
+        subBuilder: CloudICECandidate.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -877,12 +904,15 @@ class ClientOffer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientOffer() / ClientOffer.new instead')
   static ClientOffer create() => ClientOffer._();
+  static $pb.GeneratedMessage $_createMessage() => ClientOffer._();
   @$core.override
-  ClientOffer createEmptyInstance() => create();
+  ClientOffer createEmptyInstance() => ClientOffer._();
   @$core.pragma('dart2js:noInline')
-  static ClientOffer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientOffer>(create);
+  static ClientOffer getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientOffer>(
+          ClientOffer.$_createMessage);
   static ClientOffer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -913,7 +943,7 @@ class EdgeAnswer extends $pb.GeneratedMessage {
     $core.String? answerSdp,
     $core.Iterable<CloudICECandidate>? candidates,
   }) {
-    final result = create();
+    final result = EdgeAnswer._();
     if (sessionId != null) result.sessionId = sessionId;
     if (answerSdp != null) result.answerSdp = answerSdp;
     if (candidates != null) result.candidates.addAll(candidates);
@@ -924,20 +954,20 @@ class EdgeAnswer extends $pb.GeneratedMessage {
 
   factory EdgeAnswer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeAnswer()..mergeFromBuffer(data, registry);
   factory EdgeAnswer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeAnswer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeAnswer',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeAnswer.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'answerSdp')
     ..pPM<CloudICECandidate>(3, _omitFieldNames ? '' : 'candidates',
-        subBuilder: CloudICECandidate.create)
+        subBuilder: CloudICECandidate.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -950,12 +980,14 @@ class EdgeAnswer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeAnswer() / EdgeAnswer.new instead')
   static EdgeAnswer create() => EdgeAnswer._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeAnswer._();
   @$core.override
-  EdgeAnswer createEmptyInstance() => create();
+  EdgeAnswer createEmptyInstance() => EdgeAnswer._();
   @$core.pragma('dart2js:noInline')
   static EdgeAnswer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeAnswer>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeAnswer>(EdgeAnswer.$_createMessage);
   static EdgeAnswer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -987,7 +1019,7 @@ class SignalRejected extends $pb.GeneratedMessage {
     $core.String? message,
     $0.CloudEntitlementFailure? entitlementFailure,
   }) {
-    final result = create();
+    final result = SignalRejected._();
     if (sessionId != null) result.sessionId = sessionId;
     if (code != null) result.code = code;
     if (message != null) result.message = message;
@@ -1000,22 +1032,22 @@ class SignalRejected extends $pb.GeneratedMessage {
 
   factory SignalRejected.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SignalRejected()..mergeFromBuffer(data, registry);
   factory SignalRejected.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SignalRejected()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SignalRejected',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SignalRejected.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aOS(2, _omitFieldNames ? '' : 'code')
     ..aOS(3, _omitFieldNames ? '' : 'message')
     ..aOM<$0.CloudEntitlementFailure>(
         4, _omitFieldNames ? '' : 'entitlementFailure',
-        subBuilder: $0.CloudEntitlementFailure.create)
+        subBuilder: $0.CloudEntitlementFailure.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1029,12 +1061,15 @@ class SignalRejected extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SignalRejected() / SignalRejected.new instead')
   static SignalRejected create() => SignalRejected._();
+  static $pb.GeneratedMessage $_createMessage() => SignalRejected._();
   @$core.override
-  SignalRejected createEmptyInstance() => create();
+  SignalRejected createEmptyInstance() => SignalRejected._();
   @$core.pragma('dart2js:noInline')
-  static SignalRejected getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SignalRejected>(create);
+  static SignalRejected getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SignalRejected>(
+          SignalRejected.$_createMessage);
   static SignalRejected? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1083,7 +1118,7 @@ class SignalSessionClosed extends $pb.GeneratedMessage {
     SignalSessionCloseCode? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = SignalSessionClosed._();
     if (sessionId != null) result.sessionId = sessionId;
     if (code != null) result.code = code;
     if (message != null) result.message = message;
@@ -1094,16 +1129,16 @@ class SignalSessionClosed extends $pb.GeneratedMessage {
 
   factory SignalSessionClosed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SignalSessionClosed()..mergeFromBuffer(data, registry);
   factory SignalSessionClosed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SignalSessionClosed()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SignalSessionClosed',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SignalSessionClosed.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'sessionId')
     ..aE<SignalSessionCloseCode>(2, _omitFieldNames ? '' : 'code',
         enumValues: SignalSessionCloseCode.values)
@@ -1121,12 +1156,16 @@ class SignalSessionClosed extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use SignalSessionClosed() / SignalSessionClosed.new instead')
   static SignalSessionClosed create() => SignalSessionClosed._();
+  static $pb.GeneratedMessage $_createMessage() => SignalSessionClosed._();
   @$core.override
-  SignalSessionClosed createEmptyInstance() => create();
+  SignalSessionClosed createEmptyInstance() => SignalSessionClosed._();
   @$core.pragma('dart2js:noInline')
   static SignalSessionClosed getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SignalSessionClosed>(create);
+      $pb.GeneratedMessage.$_defaultFor<SignalSessionClosed>(
+          SignalSessionClosed.$_createMessage);
   static SignalSessionClosed? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1164,7 +1203,7 @@ class DaemonPresence extends $pb.GeneratedMessage {
   factory DaemonPresence({
     $core.bool? online,
   }) {
-    final result = create();
+    final result = DaemonPresence._();
     if (online != null) result.online = online;
     return result;
   }
@@ -1173,16 +1212,16 @@ class DaemonPresence extends $pb.GeneratedMessage {
 
   factory DaemonPresence.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonPresence()..mergeFromBuffer(data, registry);
   factory DaemonPresence.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonPresence()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonPresence',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonPresence.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'online')
     ..hasRequiredFields = false;
 
@@ -1197,12 +1236,15 @@ class DaemonPresence extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DaemonPresence() / DaemonPresence.new instead')
   static DaemonPresence create() => DaemonPresence._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonPresence._();
   @$core.override
-  DaemonPresence createEmptyInstance() => create();
+  DaemonPresence createEmptyInstance() => DaemonPresence._();
   @$core.pragma('dart2js:noInline')
-  static DaemonPresence getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonPresence>(create);
+  static DaemonPresence getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DaemonPresence>(
+          DaemonPresence.$_createMessage);
   static DaemonPresence? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1231,7 +1273,7 @@ class ClientSignal extends $pb.GeneratedMessage {
     ClientPathDecision? pathDecision,
     ClientSessionRelease? sessionRelease,
   }) {
-    final result = create();
+    final result = ClientSignal._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -1250,10 +1292,10 @@ class ClientSignal extends $pb.GeneratedMessage {
 
   factory ClientSignal.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientSignal()..mergeFromBuffer(data, registry);
   factory ClientSignal.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientSignal()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ClientSignal_Payload>
       _ClientSignal_PayloadByTag = {
@@ -1267,7 +1309,7 @@ class ClientSignal extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ClientSignal',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientSignal.$_createMessage)
     ..oo(0, [20, 21, 22, 23])
     ..aI(1, _omitFieldNames ? '' : 'protocolVersion',
         fieldType: $pb.PbFieldType.OU3)
@@ -1279,15 +1321,15 @@ class ClientSignal extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$2.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $2.Timestamp.create)
+        subBuilder: $2.Timestamp.$_createMessage)
     ..aOM<ClientHello>(20, _omitFieldNames ? '' : 'hello',
-        subBuilder: ClientHello.create)
+        subBuilder: ClientHello.$_createMessage)
     ..aOM<ClientOffer>(21, _omitFieldNames ? '' : 'offer',
-        subBuilder: ClientOffer.create)
+        subBuilder: ClientOffer.$_createMessage)
     ..aOM<ClientPathDecision>(22, _omitFieldNames ? '' : 'pathDecision',
-        subBuilder: ClientPathDecision.create)
+        subBuilder: ClientPathDecision.$_createMessage)
     ..aOM<ClientSessionRelease>(23, _omitFieldNames ? '' : 'sessionRelease',
-        subBuilder: ClientSessionRelease.create)
+        subBuilder: ClientSessionRelease.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1301,12 +1343,15 @@ class ClientSignal extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientSignal() / ClientSignal.new instead')
   static ClientSignal create() => ClientSignal._();
+  static $pb.GeneratedMessage $_createMessage() => ClientSignal._();
   @$core.override
-  ClientSignal createEmptyInstance() => create();
+  ClientSignal createEmptyInstance() => ClientSignal._();
   @$core.pragma('dart2js:noInline')
-  static ClientSignal getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientSignal>(create);
+  static ClientSignal getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientSignal>(
+          ClientSignal.$_createMessage);
   static ClientSignal? _defaultInstance;
 
   @$pb.TagNumber(20)
@@ -1461,7 +1506,7 @@ class EdgeSignal extends $pb.GeneratedMessage {
     EdgePathDecisionAck? pathDecisionAck,
     EdgeSessionReleaseAck? sessionReleaseAck,
   }) {
-    final result = create();
+    final result = EdgeSignal._();
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (messageId != null) result.messageId = messageId;
     if (senderId != null) result.senderId = senderId;
@@ -1484,10 +1529,10 @@ class EdgeSignal extends $pb.GeneratedMessage {
 
   factory EdgeSignal.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeSignal()..mergeFromBuffer(data, registry);
   factory EdgeSignal.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeSignal()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EdgeSignal_Payload>
       _EdgeSignal_PayloadByTag = {
@@ -1505,7 +1550,7 @@ class EdgeSignal extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EdgeSignal',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeSignal.$_createMessage)
     ..oo(0, [20, 21, 22, 23, 24, 25, 26, 27])
     ..aI(1, _omitFieldNames ? '' : 'protocolVersion',
         fieldType: $pb.PbFieldType.OU3)
@@ -1517,23 +1562,23 @@ class EdgeSignal extends $pb.GeneratedMessage {
         6, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$2.Timestamp>(7, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $2.Timestamp.create)
+        subBuilder: $2.Timestamp.$_createMessage)
     ..aOM<ClientReady>(20, _omitFieldNames ? '' : 'ready',
-        subBuilder: ClientReady.create)
+        subBuilder: ClientReady.$_createMessage)
     ..aOM<EdgeAnswer>(21, _omitFieldNames ? '' : 'answer',
-        subBuilder: EdgeAnswer.create)
+        subBuilder: EdgeAnswer.$_createMessage)
     ..aOM<SignalRejected>(22, _omitFieldNames ? '' : 'rejected',
-        subBuilder: SignalRejected.create)
+        subBuilder: SignalRejected.$_createMessage)
     ..aOM<$0.EdgeChallenge>(23, _omitFieldNames ? '' : 'challenge',
-        subBuilder: $0.EdgeChallenge.create)
+        subBuilder: $0.EdgeChallenge.$_createMessage)
     ..aOM<SignalSessionClosed>(24, _omitFieldNames ? '' : 'closed',
-        subBuilder: SignalSessionClosed.create)
+        subBuilder: SignalSessionClosed.$_createMessage)
     ..aOM<DaemonPresence>(25, _omitFieldNames ? '' : 'presence',
-        subBuilder: DaemonPresence.create)
+        subBuilder: DaemonPresence.$_createMessage)
     ..aOM<EdgePathDecisionAck>(26, _omitFieldNames ? '' : 'pathDecisionAck',
-        subBuilder: EdgePathDecisionAck.create)
+        subBuilder: EdgePathDecisionAck.$_createMessage)
     ..aOM<EdgeSessionReleaseAck>(27, _omitFieldNames ? '' : 'sessionReleaseAck',
-        subBuilder: EdgeSessionReleaseAck.create)
+        subBuilder: EdgeSessionReleaseAck.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1546,12 +1591,14 @@ class EdgeSignal extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeSignal() / EdgeSignal.new instead')
   static EdgeSignal create() => EdgeSignal._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeSignal._();
   @$core.override
-  EdgeSignal createEmptyInstance() => create();
+  EdgeSignal createEmptyInstance() => EdgeSignal._();
   @$core.pragma('dart2js:noInline')
   static EdgeSignal getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeSignal>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeSignal>(EdgeSignal.$_createMessage);
   static EdgeSignal? _defaultInstance;
 
   @$pb.TagNumber(20)

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -55,15 +55,6 @@ func (binding ChannelBinding) Validate() error {
 
 // DirectTLSChannelBinding 从实际 TLS peer certificate DER bytes 生成 direct TLS binding。
 // certificateDER 必须来自当前 tls.ConnectionState，不能使用 server_name、配置 pin 或证书文本替代。
-func DirectTLSChannelBinding(certificateDER []byte) (ChannelBinding, error) {
-	if len(certificateDER) == 0 {
-		return ChannelBinding{}, newHandshakeError(remoteauthpb.AuthErrorCode_AUTH_ERROR_CODE_PROTOCOL, "direct TLS certificate is empty", nil)
-	}
-	return ChannelBinding{Kind: remoteauthpb.ChannelBindingKind_CHANNEL_BINDING_KIND_DIRECT_TLS, Hash: sha256.Sum256(certificateDER)}, nil
-}
-
-// DTLSChannelBinding 从 Pion 读取的实际远端 DTLS certificate fingerprint 生成 canonical binding。
-// 输入只接受 SHA-256 fingerprint；解析后使用原始 32-byte digest，避免字符串大小写或冒号格式形成跨平台分叉。
 func DTLSChannelBinding(fingerprint string) (ChannelBinding, error) {
 	normalized, err := NormalizeDTLSCertificateFingerprint(fingerprint)
 	if err != nil {

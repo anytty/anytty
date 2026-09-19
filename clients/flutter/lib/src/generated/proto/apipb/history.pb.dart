@@ -33,7 +33,7 @@ class CellStyle extends $pb.GeneratedMessage {
     $core.bool? reverse,
     $core.bool? strikethrough,
   }) {
-    final result = create();
+    final result = CellStyle._();
     if (foreground != null) result.foreground = foreground;
     if (background != null) result.background = background;
     if (bold != null) result.bold = bold;
@@ -49,15 +49,15 @@ class CellStyle extends $pb.GeneratedMessage {
 
   factory CellStyle.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CellStyle()..mergeFromBuffer(data, registry);
   factory CellStyle.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CellStyle()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CellStyle',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CellStyle.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'foreground')
     ..aOS(2, _omitFieldNames ? '' : 'background')
     ..aOB(3, _omitFieldNames ? '' : 'bold')
@@ -78,12 +78,14 @@ class CellStyle extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CellStyle() / CellStyle.new instead')
   static CellStyle create() => CellStyle._();
+  static $pb.GeneratedMessage $_createMessage() => CellStyle._();
   @$core.override
-  CellStyle createEmptyInstance() => create();
+  CellStyle createEmptyInstance() => CellStyle._();
   @$core.pragma('dart2js:noInline')
-  static CellStyle getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CellStyle>(create);
+  static CellStyle getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CellStyle>(CellStyle.$_createMessage);
   static CellStyle? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -167,7 +169,7 @@ class ScreenCell extends $pb.GeneratedMessage {
     $core.String? linkUrl,
     $core.String? linkParams,
   }) {
-    final result = create();
+    final result = ScreenCell._();
     if (content != null) result.content = content;
     if (width != null) result.width = width;
     if (style != null) result.style = style;
@@ -180,19 +182,19 @@ class ScreenCell extends $pb.GeneratedMessage {
 
   factory ScreenCell.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ScreenCell()..mergeFromBuffer(data, registry);
   factory ScreenCell.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ScreenCell()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScreenCell',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ScreenCell.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'content')
     ..aI(2, _omitFieldNames ? '' : 'width')
     ..aOM<CellStyle>(3, _omitFieldNames ? '' : 'style',
-        subBuilder: CellStyle.create)
+        subBuilder: CellStyle.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'linkUrl')
     ..aOS(5, _omitFieldNames ? '' : 'linkParams')
     ..hasRequiredFields = false;
@@ -207,12 +209,14 @@ class ScreenCell extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScreenCell() / ScreenCell.new instead')
   static ScreenCell create() => ScreenCell._();
+  static $pb.GeneratedMessage $_createMessage() => ScreenCell._();
   @$core.override
-  ScreenCell createEmptyInstance() => create();
+  ScreenCell createEmptyInstance() => ScreenCell._();
   @$core.pragma('dart2js:noInline')
   static ScreenCell getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ScreenCell>(create);
+      $pb.GeneratedMessage.$_defaultFor<ScreenCell>(ScreenCell.$_createMessage);
   static ScreenCell? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -269,7 +273,7 @@ class ScreenRow extends $pb.GeneratedMessage {
     CellStyle? tailFill,
     $core.bool? wrapped,
   }) {
-    final result = create();
+    final result = ScreenRow._();
     if (cells != null) result.cells.addAll(cells);
     if (tailFill != null) result.tailFill = tailFill;
     if (wrapped != null) result.wrapped = wrapped;
@@ -280,19 +284,19 @@ class ScreenRow extends $pb.GeneratedMessage {
 
   factory ScreenRow.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ScreenRow()..mergeFromBuffer(data, registry);
   factory ScreenRow.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ScreenRow()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScreenRow',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ScreenRow.$_createMessage)
     ..pPM<ScreenCell>(1, _omitFieldNames ? '' : 'cells',
-        subBuilder: ScreenCell.create)
+        subBuilder: ScreenCell.$_createMessage)
     ..aOM<CellStyle>(2, _omitFieldNames ? '' : 'tailFill',
-        subBuilder: CellStyle.create)
+        subBuilder: CellStyle.$_createMessage)
     ..aOB(3, _omitFieldNames ? '' : 'wrapped')
     ..hasRequiredFields = false;
 
@@ -306,12 +310,14 @@ class ScreenRow extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScreenRow() / ScreenRow.new instead')
   static ScreenRow create() => ScreenRow._();
+  static $pb.GeneratedMessage $_createMessage() => ScreenRow._();
   @$core.override
-  ScreenRow createEmptyInstance() => create();
+  ScreenRow createEmptyInstance() => ScreenRow._();
   @$core.pragma('dart2js:noInline')
-  static ScreenRow getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ScreenRow>(create);
+  static ScreenRow getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ScreenRow>(ScreenRow.$_createMessage);
   static ScreenRow? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -347,7 +353,7 @@ class TerminalCursor extends $pb.GeneratedMessage {
     CursorShape? shape,
     $core.bool? blink,
   }) {
-    final result = create();
+    final result = TerminalCursor._();
     if (row != null) result.row = row;
     if (col != null) result.col = col;
     if (visible != null) result.visible = visible;
@@ -360,15 +366,15 @@ class TerminalCursor extends $pb.GeneratedMessage {
 
   factory TerminalCursor.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalCursor()..mergeFromBuffer(data, registry);
   factory TerminalCursor.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalCursor()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalCursor',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalCursor.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'row')
     ..aI(2, _omitFieldNames ? '' : 'col')
     ..aOB(3, _omitFieldNames ? '' : 'visible')
@@ -388,12 +394,15 @@ class TerminalCursor extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalCursor() / TerminalCursor.new instead')
   static TerminalCursor create() => TerminalCursor._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalCursor._();
   @$core.override
-  TerminalCursor createEmptyInstance() => create();
+  TerminalCursor createEmptyInstance() => TerminalCursor._();
   @$core.pragma('dart2js:noInline')
-  static TerminalCursor getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalCursor>(create);
+  static TerminalCursor getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalCursor>(
+          TerminalCursor.$_createMessage);
   static TerminalCursor? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -456,7 +465,7 @@ class TerminalModes extends $pb.GeneratedMessage {
     $core.bool? applicationCursor,
     $core.bool? autoWrap,
   }) {
-    final result = create();
+    final result = TerminalModes._();
     if (alternateScreen != null) result.alternateScreen = alternateScreen;
     if (alternateScroll != null) result.alternateScroll = alternateScroll;
     if (mouseTracking != null) result.mouseTracking = mouseTracking;
@@ -475,15 +484,15 @@ class TerminalModes extends $pb.GeneratedMessage {
 
   factory TerminalModes.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TerminalModes()..mergeFromBuffer(data, registry);
   factory TerminalModes.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TerminalModes()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TerminalModes',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TerminalModes.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'alternateScreen')
     ..aOB(2, _omitFieldNames ? '' : 'alternateScroll')
     ..aOB(3, _omitFieldNames ? '' : 'mouseTracking')
@@ -508,12 +517,15 @@ class TerminalModes extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TerminalModes() / TerminalModes.new instead')
   static TerminalModes create() => TerminalModes._();
+  static $pb.GeneratedMessage $_createMessage() => TerminalModes._();
   @$core.override
-  TerminalModes createEmptyInstance() => create();
+  TerminalModes createEmptyInstance() => TerminalModes._();
   @$core.pragma('dart2js:noInline')
-  static TerminalModes getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TerminalModes>(create);
+  static TerminalModes getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<TerminalModes>(
+          TerminalModes.$_createMessage);
   static TerminalModes? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -622,7 +634,7 @@ class HistoryCursor extends $pb.GeneratedMessage {
     $core.int? rowInLine,
     HistoryCursorSegment? segment,
   }) {
-    final result = create();
+    final result = HistoryCursor._();
     if (lineId != null) result.lineId = lineId;
     if (rowInLine != null) result.rowInLine = rowInLine;
     if (segment != null) result.segment = segment;
@@ -633,15 +645,15 @@ class HistoryCursor extends $pb.GeneratedMessage {
 
   factory HistoryCursor.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryCursor()..mergeFromBuffer(data, registry);
   factory HistoryCursor.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryCursor()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryCursor',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryCursor.$_createMessage)
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'lineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aI(2, _omitFieldNames ? '' : 'rowInLine')
@@ -660,12 +672,15 @@ class HistoryCursor extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryCursor() / HistoryCursor.new instead')
   static HistoryCursor create() => HistoryCursor._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryCursor._();
   @$core.override
-  HistoryCursor createEmptyInstance() => create();
+  HistoryCursor createEmptyInstance() => HistoryCursor._();
   @$core.pragma('dart2js:noInline')
-  static HistoryCursor getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryCursor>(create);
+  static HistoryCursor getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HistoryCursor>(
+          HistoryCursor.$_createMessage);
   static HistoryCursor? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -703,7 +718,7 @@ class HistoryRange extends $pb.GeneratedMessage {
     $fixnum.Int64? endLineId,
     $core.int? endCol,
   }) {
-    final result = create();
+    final result = HistoryRange._();
     if (startLineId != null) result.startLineId = startLineId;
     if (startCol != null) result.startCol = startCol;
     if (endLineId != null) result.endLineId = endLineId;
@@ -715,15 +730,15 @@ class HistoryRange extends $pb.GeneratedMessage {
 
   factory HistoryRange.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryRange()..mergeFromBuffer(data, registry);
   factory HistoryRange.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryRange()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryRange',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryRange.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'startLineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -745,12 +760,15 @@ class HistoryRange extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryRange() / HistoryRange.new instead')
   static HistoryRange create() => HistoryRange._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryRange._();
   @$core.override
-  HistoryRange createEmptyInstance() => create();
+  HistoryRange createEmptyInstance() => HistoryRange._();
   @$core.pragma('dart2js:noInline')
-  static HistoryRange getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryRange>(create);
+  static HistoryRange getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HistoryRange>(
+          HistoryRange.$_createMessage);
   static HistoryRange? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -804,7 +822,7 @@ class HistoryWindowCommand extends $pb.GeneratedMessage {
     $fixnum.Int64? boundaryLastLineId,
     HistoryRange? range,
   }) {
-    final result = create();
+    final result = HistoryWindowCommand._();
     if (terminal != null) result.terminal = terminal;
     if (mode != null) result.mode = mode;
     if (limit != null) result.limit = limit;
@@ -825,17 +843,17 @@ class HistoryWindowCommand extends $pb.GeneratedMessage {
 
   factory HistoryWindowCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryWindowCommand()..mergeFromBuffer(data, registry);
   factory HistoryWindowCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryWindowCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryWindowCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryWindowCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aE<HistoryWindowMode>(3, _omitFieldNames ? '' : 'mode',
         enumValues: HistoryWindowMode.values)
     ..aI(5, _omitFieldNames ? '' : 'limit')
@@ -845,9 +863,9 @@ class HistoryWindowCommand extends $pb.GeneratedMessage {
         8, _omitFieldNames ? '' : 'historyGeneration', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<HistoryCursor>(9, _omitFieldNames ? '' : 'beforeCursor',
-        subBuilder: HistoryCursor.create)
+        subBuilder: HistoryCursor.$_createMessage)
     ..aOM<HistoryCursor>(10, _omitFieldNames ? '' : 'afterCursor',
-        subBuilder: HistoryCursor.create)
+        subBuilder: HistoryCursor.$_createMessage)
     ..a<$fixnum.Int64>(
         11, _omitFieldNames ? '' : 'boundaryFirstLineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -855,7 +873,7 @@ class HistoryWindowCommand extends $pb.GeneratedMessage {
         12, _omitFieldNames ? '' : 'boundaryLastLineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<HistoryRange>(13, _omitFieldNames ? '' : 'range',
-        subBuilder: HistoryRange.create)
+        subBuilder: HistoryRange.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -869,12 +887,16 @@ class HistoryWindowCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistoryWindowCommand() / HistoryWindowCommand.new instead')
   static HistoryWindowCommand create() => HistoryWindowCommand._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryWindowCommand._();
   @$core.override
-  HistoryWindowCommand createEmptyInstance() => create();
+  HistoryWindowCommand createEmptyInstance() => HistoryWindowCommand._();
   @$core.pragma('dart2js:noInline')
   static HistoryWindowCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryWindowCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryWindowCommand>(
+          HistoryWindowCommand.$_createMessage);
   static HistoryWindowCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -992,7 +1014,7 @@ class HistoryCopyCommand extends $pb.GeneratedMessage {
     $core.int? maxLines,
     $core.int? maxBytes,
   }) {
-    final result = create();
+    final result = HistoryCopyCommand._();
     if (terminal != null) result.terminal = terminal;
     if (window != null) result.window = window;
     if (maxLines != null) result.maxLines = maxLines;
@@ -1004,19 +1026,19 @@ class HistoryCopyCommand extends $pb.GeneratedMessage {
 
   factory HistoryCopyCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryCopyCommand()..mergeFromBuffer(data, registry);
   factory HistoryCopyCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryCopyCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryCopyCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryCopyCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOM<HistoryWindowCommand>(3, _omitFieldNames ? '' : 'window',
-        subBuilder: HistoryWindowCommand.create)
+        subBuilder: HistoryWindowCommand.$_createMessage)
     ..aI(4, _omitFieldNames ? '' : 'maxLines')
     ..aI(5, _omitFieldNames ? '' : 'maxBytes')
     ..hasRequiredFields = false;
@@ -1032,12 +1054,15 @@ class HistoryCopyCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryCopyCommand() / HistoryCopyCommand.new instead')
   static HistoryCopyCommand create() => HistoryCopyCommand._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryCopyCommand._();
   @$core.override
-  HistoryCopyCommand createEmptyInstance() => create();
+  HistoryCopyCommand createEmptyInstance() => HistoryCopyCommand._();
   @$core.pragma('dart2js:noInline')
   static HistoryCopyCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryCopyCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryCopyCommand>(
+          HistoryCopyCommand.$_createMessage);
   static HistoryCopyCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1086,7 +1111,7 @@ class HistoryTextPosition extends $pb.GeneratedMessage {
     $fixnum.Int64? lineId,
     $core.int? col,
   }) {
-    final result = create();
+    final result = HistoryTextPosition._();
     if (lineId != null) result.lineId = lineId;
     if (col != null) result.col = col;
     return result;
@@ -1096,15 +1121,15 @@ class HistoryTextPosition extends $pb.GeneratedMessage {
 
   factory HistoryTextPosition.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryTextPosition()..mergeFromBuffer(data, registry);
   factory HistoryTextPosition.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryTextPosition()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryTextPosition',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryTextPosition.$_createMessage)
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'lineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aI(2, _omitFieldNames ? '' : 'col')
@@ -1121,12 +1146,16 @@ class HistoryTextPosition extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use HistoryTextPosition() / HistoryTextPosition.new instead')
   static HistoryTextPosition create() => HistoryTextPosition._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryTextPosition._();
   @$core.override
-  HistoryTextPosition createEmptyInstance() => create();
+  HistoryTextPosition createEmptyInstance() => HistoryTextPosition._();
   @$core.pragma('dart2js:noInline')
   static HistoryTextPosition getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryTextPosition>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryTextPosition>(
+          HistoryTextPosition.$_createMessage);
   static HistoryTextPosition? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1163,7 +1192,7 @@ class HistorySearchCommand extends $pb.GeneratedMessage {
     $core.bool? scan,
     $core.int? maxMatches,
   }) {
-    final result = create();
+    final result = HistorySearchCommand._();
     if (terminal != null) result.terminal = terminal;
     if (token != null) result.token = token;
     if (historyGeneration != null) result.historyGeneration = historyGeneration;
@@ -1183,17 +1212,17 @@ class HistorySearchCommand extends $pb.GeneratedMessage {
 
   factory HistorySearchCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistorySearchCommand()..mergeFromBuffer(data, registry);
   factory HistorySearchCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistorySearchCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistorySearchCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistorySearchCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'token')
     ..a<$fixnum.Int64>(
         4, _omitFieldNames ? '' : 'historyGeneration', $pb.PbFieldType.OU6,
@@ -1204,7 +1233,7 @@ class HistorySearchCommand extends $pb.GeneratedMessage {
     ..aI(7, _omitFieldNames ? '' : 'cols')
     ..aI(8, _omitFieldNames ? '' : 'limit')
     ..aOM<HistoryTextPosition>(9, _omitFieldNames ? '' : 'start',
-        subBuilder: HistoryTextPosition.create)
+        subBuilder: HistoryTextPosition.$_createMessage)
     ..aE<HistorySearchMode>(10, _omitFieldNames ? '' : 'mode',
         enumValues: HistorySearchMode.values)
     ..aI(11, _omitFieldNames ? '' : 'contextBefore')
@@ -1223,12 +1252,16 @@ class HistorySearchCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistorySearchCommand() / HistorySearchCommand.new instead')
   static HistorySearchCommand create() => HistorySearchCommand._();
+  static $pb.GeneratedMessage $_createMessage() => HistorySearchCommand._();
   @$core.override
-  HistorySearchCommand createEmptyInstance() => create();
+  HistorySearchCommand createEmptyInstance() => HistorySearchCommand._();
   @$core.pragma('dart2js:noInline')
   static HistorySearchCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistorySearchCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistorySearchCommand>(
+          HistorySearchCommand.$_createMessage);
   static HistorySearchCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1351,7 +1384,7 @@ class HistoryReleaseCommand extends $pb.GeneratedMessage {
     $core.String? token,
     $fixnum.Int64? historyGeneration,
   }) {
-    final result = create();
+    final result = HistoryReleaseCommand._();
     if (terminal != null) result.terminal = terminal;
     if (token != null) result.token = token;
     if (historyGeneration != null) result.historyGeneration = historyGeneration;
@@ -1362,17 +1395,17 @@ class HistoryReleaseCommand extends $pb.GeneratedMessage {
 
   factory HistoryReleaseCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryReleaseCommand()..mergeFromBuffer(data, registry);
   factory HistoryReleaseCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryReleaseCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryReleaseCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryReleaseCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'token')
     ..a<$fixnum.Int64>(
         4, _omitFieldNames ? '' : 'historyGeneration', $pb.PbFieldType.OU6,
@@ -1391,12 +1424,16 @@ class HistoryReleaseCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistoryReleaseCommand() / HistoryReleaseCommand.new instead')
   static HistoryReleaseCommand create() => HistoryReleaseCommand._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryReleaseCommand._();
   @$core.override
-  HistoryReleaseCommand createEmptyInstance() => create();
+  HistoryReleaseCommand createEmptyInstance() => HistoryReleaseCommand._();
   @$core.pragma('dart2js:noInline')
   static HistoryReleaseCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryReleaseCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryReleaseCommand>(
+          HistoryReleaseCommand.$_createMessage);
   static HistoryReleaseCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1433,7 +1470,7 @@ class HistoryBacklogStatusCommand extends $pb.GeneratedMessage {
   factory HistoryBacklogStatusCommand({
     $0.TerminalRef? terminal,
   }) {
-    final result = create();
+    final result = HistoryBacklogStatusCommand._();
     if (terminal != null) result.terminal = terminal;
     return result;
   }
@@ -1442,17 +1479,17 @@ class HistoryBacklogStatusCommand extends $pb.GeneratedMessage {
 
   factory HistoryBacklogStatusCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryBacklogStatusCommand()..mergeFromBuffer(data, registry);
   factory HistoryBacklogStatusCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryBacklogStatusCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryBacklogStatusCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryBacklogStatusCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1468,13 +1505,19 @@ class HistoryBacklogStatusCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistoryBacklogStatusCommand() / HistoryBacklogStatusCommand.new instead')
   static HistoryBacklogStatusCommand create() =>
       HistoryBacklogStatusCommand._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      HistoryBacklogStatusCommand._();
   @$core.override
-  HistoryBacklogStatusCommand createEmptyInstance() => create();
+  HistoryBacklogStatusCommand createEmptyInstance() =>
+      HistoryBacklogStatusCommand._();
   @$core.pragma('dart2js:noInline')
   static HistoryBacklogStatusCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryBacklogStatusCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryBacklogStatusCommand>(
+          HistoryBacklogStatusCommand.$_createMessage);
   static HistoryBacklogStatusCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1504,7 +1547,7 @@ class HistoryLineSpan extends $pb.GeneratedMessage {
     $core.bool? clippedBefore,
     $core.bool? clippedAfter,
   }) {
-    final result = create();
+    final result = HistoryLineSpan._();
     if (startRow != null) result.startRow = startRow;
     if (endRow != null) result.endRow = endRow;
     if (rowKind != null) result.rowKind = rowKind;
@@ -1526,15 +1569,15 @@ class HistoryLineSpan extends $pb.GeneratedMessage {
 
   factory HistoryLineSpan.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryLineSpan()..mergeFromBuffer(data, registry);
   factory HistoryLineSpan.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryLineSpan()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryLineSpan',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryLineSpan.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'startRow')
     ..aI(2, _omitFieldNames ? '' : 'endRow')
     ..aOS(3, _omitFieldNames ? '' : 'rowKind')
@@ -1565,12 +1608,15 @@ class HistoryLineSpan extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryLineSpan() / HistoryLineSpan.new instead')
   static HistoryLineSpan create() => HistoryLineSpan._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryLineSpan._();
   @$core.override
-  HistoryLineSpan createEmptyInstance() => create();
+  HistoryLineSpan createEmptyInstance() => HistoryLineSpan._();
   @$core.pragma('dart2js:noInline')
-  static HistoryLineSpan getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryLineSpan>(create);
+  static HistoryLineSpan getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HistoryLineSpan>(
+          HistoryLineSpan.$_createMessage);
   static HistoryLineSpan? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1699,7 +1745,7 @@ class HistoryRow extends $pb.GeneratedMessage {
     $fixnum.Int64? logicalLineId,
     $core.int? rowInLine,
   }) {
-    final result = create();
+    final result = HistoryRow._();
     if (row != null) result.row = row;
     if (timestampUnixNano != null) result.timestampUnixNano = timestampUnixNano;
     if (rowKind != null) result.rowKind = rowKind;
@@ -1721,17 +1767,17 @@ class HistoryRow extends $pb.GeneratedMessage {
 
   factory HistoryRow.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryRow()..mergeFromBuffer(data, registry);
   factory HistoryRow.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryRow()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryRow',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryRow.$_createMessage)
     ..aOM<ScreenRow>(1, _omitFieldNames ? '' : 'row',
-        subBuilder: ScreenRow.create)
+        subBuilder: ScreenRow.$_createMessage)
     ..aInt64(2, _omitFieldNames ? '' : 'timestampUnixNano')
     ..aOS(3, _omitFieldNames ? '' : 'rowKind')
     ..aOB(4, _omitFieldNames ? '' : 'wrapped')
@@ -1764,12 +1810,14 @@ class HistoryRow extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryRow() / HistoryRow.new instead')
   static HistoryRow create() => HistoryRow._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryRow._();
   @$core.override
-  HistoryRow createEmptyInstance() => create();
+  HistoryRow createEmptyInstance() => HistoryRow._();
   @$core.pragma('dart2js:noInline')
   static HistoryRow getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryRow>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryRow>(HistoryRow.$_createMessage);
   static HistoryRow? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1909,7 +1957,7 @@ class HistoryViewportAnchor extends $pb.GeneratedMessage {
     $core.int? screenCols,
     $core.int? screenRows,
   }) {
-    final result = create();
+    final result = HistoryViewportAnchor._();
     if (topLineId != null) result.topLineId = topLineId;
     if (topCellOffset != null) result.topCellOffset = topCellOffset;
     if (atEnd != null) result.atEnd = atEnd;
@@ -1922,15 +1970,15 @@ class HistoryViewportAnchor extends $pb.GeneratedMessage {
 
   factory HistoryViewportAnchor.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryViewportAnchor()..mergeFromBuffer(data, registry);
   factory HistoryViewportAnchor.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryViewportAnchor()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryViewportAnchor',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryViewportAnchor.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'topLineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -1952,12 +2000,16 @@ class HistoryViewportAnchor extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistoryViewportAnchor() / HistoryViewportAnchor.new instead')
   static HistoryViewportAnchor create() => HistoryViewportAnchor._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryViewportAnchor._();
   @$core.override
-  HistoryViewportAnchor createEmptyInstance() => create();
+  HistoryViewportAnchor createEmptyInstance() => HistoryViewportAnchor._();
   @$core.pragma('dart2js:noInline')
   static HistoryViewportAnchor getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryViewportAnchor>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryViewportAnchor>(
+          HistoryViewportAnchor.$_createMessage);
   static HistoryViewportAnchor? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2028,7 +2080,7 @@ class HistoryWindowResult extends $pb.GeneratedMessage {
     $fixnum.Int64? timestampUnixNano,
     HistoryViewportAnchor? viewportAnchor,
   }) {
-    final result = create();
+    final result = HistoryWindowResult._();
     if (terminal != null) result.terminal = terminal;
     if (token != null) result.token = token;
     if (operation != null) result.operation = operation;
@@ -2055,26 +2107,26 @@ class HistoryWindowResult extends $pb.GeneratedMessage {
 
   factory HistoryWindowResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryWindowResult()..mergeFromBuffer(data, registry);
   factory HistoryWindowResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryWindowResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryWindowResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryWindowResult.$_createMessage)
     ..aOM<$0.TerminalRef>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'token')
     ..aE<HistoryWindowOperation>(3, _omitFieldNames ? '' : 'operation',
         enumValues: HistoryWindowOperation.values)
     ..aOM<$0.TerminalSize>(4, _omitFieldNames ? '' : 'size',
-        subBuilder: $0.TerminalSize.create)
+        subBuilder: $0.TerminalSize.$_createMessage)
     ..pPM<HistoryRow>(5, _omitFieldNames ? '' : 'rows',
-        subBuilder: HistoryRow.create)
+        subBuilder: HistoryRow.$_createMessage)
     ..pPM<HistoryLineSpan>(6, _omitFieldNames ? '' : 'lines',
-        subBuilder: HistoryLineSpan.create)
+        subBuilder: HistoryLineSpan.$_createMessage)
     ..aI(8, _omitFieldNames ? '' : 'loadedRows')
     ..aI(9, _omitFieldNames ? '' : 'totalRows')
     ..aI(10, _omitFieldNames ? '' : 'loadedLines')
@@ -2096,10 +2148,10 @@ class HistoryWindowResult extends $pb.GeneratedMessage {
         17, _omitFieldNames ? '' : 'lastLineId', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<HistoryCursor>(18, _omitFieldNames ? '' : 'cursor',
-        subBuilder: HistoryCursor.create)
+        subBuilder: HistoryCursor.$_createMessage)
     ..aInt64(19, _omitFieldNames ? '' : 'timestampUnixNano')
     ..aOM<HistoryViewportAnchor>(20, _omitFieldNames ? '' : 'viewportAnchor',
-        subBuilder: HistoryViewportAnchor.create)
+        subBuilder: HistoryViewportAnchor.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2113,12 +2165,16 @@ class HistoryWindowResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use HistoryWindowResult() / HistoryWindowResult.new instead')
   static HistoryWindowResult create() => HistoryWindowResult._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryWindowResult._();
   @$core.override
-  HistoryWindowResult createEmptyInstance() => create();
+  HistoryWindowResult createEmptyInstance() => HistoryWindowResult._();
   @$core.pragma('dart2js:noInline')
   static HistoryWindowResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryWindowResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryWindowResult>(
+          HistoryWindowResult.$_createMessage);
   static HistoryWindowResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2295,7 +2351,7 @@ class HistoryCopyResult extends $pb.GeneratedMessage {
     HistoryTextPosition? next,
     $core.bool? done,
   }) {
-    final result = create();
+    final result = HistoryCopyResult._();
     if (text != null) result.text = text;
     if (next != null) result.next = next;
     if (done != null) result.done = done;
@@ -2306,18 +2362,18 @@ class HistoryCopyResult extends $pb.GeneratedMessage {
 
   factory HistoryCopyResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryCopyResult()..mergeFromBuffer(data, registry);
   factory HistoryCopyResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryCopyResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryCopyResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryCopyResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'text')
     ..aOM<HistoryTextPosition>(2, _omitFieldNames ? '' : 'next',
-        subBuilder: HistoryTextPosition.create)
+        subBuilder: HistoryTextPosition.$_createMessage)
     ..aOB(3, _omitFieldNames ? '' : 'done')
     ..hasRequiredFields = false;
 
@@ -2332,12 +2388,15 @@ class HistoryCopyResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HistoryCopyResult() / HistoryCopyResult.new instead')
   static HistoryCopyResult create() => HistoryCopyResult._();
+  static $pb.GeneratedMessage $_createMessage() => HistoryCopyResult._();
   @$core.override
-  HistoryCopyResult createEmptyInstance() => create();
+  HistoryCopyResult createEmptyInstance() => HistoryCopyResult._();
   @$core.pragma('dart2js:noInline')
-  static HistoryCopyResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryCopyResult>(create);
+  static HistoryCopyResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HistoryCopyResult>(
+          HistoryCopyResult.$_createMessage);
   static HistoryCopyResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2380,7 +2439,7 @@ class HistorySearchResult extends $pb.GeneratedMessage {
     HistoryTextPosition? scanNext,
     $core.bool? scanDone,
   }) {
-    final result = create();
+    final result = HistorySearchResult._();
     if (found != null) result.found = found;
     if (match != null) result.match = match;
     if (window != null) result.window = window;
@@ -2395,25 +2454,25 @@ class HistorySearchResult extends $pb.GeneratedMessage {
 
   factory HistorySearchResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistorySearchResult()..mergeFromBuffer(data, registry);
   factory HistorySearchResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistorySearchResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistorySearchResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistorySearchResult.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'found')
     ..aOM<HistoryRange>(2, _omitFieldNames ? '' : 'match',
-        subBuilder: HistoryRange.create)
+        subBuilder: HistoryRange.$_createMessage)
     ..aOM<HistoryWindowResult>(3, _omitFieldNames ? '' : 'window',
-        subBuilder: HistoryWindowResult.create)
+        subBuilder: HistoryWindowResult.$_createMessage)
     ..aOB(4, _omitFieldNames ? '' : 'wrapped')
     ..pPM<HistoryRange>(5, _omitFieldNames ? '' : 'scanMatches',
-        subBuilder: HistoryRange.create)
+        subBuilder: HistoryRange.$_createMessage)
     ..aOM<HistoryTextPosition>(6, _omitFieldNames ? '' : 'scanNext',
-        subBuilder: HistoryTextPosition.create)
+        subBuilder: HistoryTextPosition.$_createMessage)
     ..aOB(7, _omitFieldNames ? '' : 'scanDone')
     ..hasRequiredFields = false;
 
@@ -2428,12 +2487,16 @@ class HistorySearchResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use HistorySearchResult() / HistorySearchResult.new instead')
   static HistorySearchResult create() => HistorySearchResult._();
+  static $pb.GeneratedMessage $_createMessage() => HistorySearchResult._();
   @$core.override
-  HistorySearchResult createEmptyInstance() => create();
+  HistorySearchResult createEmptyInstance() => HistorySearchResult._();
   @$core.pragma('dart2js:noInline')
   static HistorySearchResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistorySearchResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistorySearchResult>(
+          HistorySearchResult.$_createMessage);
   static HistorySearchResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2516,7 +2579,7 @@ class HistoryBacklogStatusResult extends $pb.GeneratedMessage {
     $core.String? unavailableReason,
     $core.bool? closed,
   }) {
-    final result = create();
+    final result = HistoryBacklogStatusResult._();
     if (terminal != null) result.terminal = terminal;
     if (historyEnabled != null) result.historyEnabled = historyEnabled;
     if (outputBufferPolicy != null)
@@ -2542,17 +2605,17 @@ class HistoryBacklogStatusResult extends $pb.GeneratedMessage {
 
   factory HistoryBacklogStatusResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HistoryBacklogStatusResult()..mergeFromBuffer(data, registry);
   factory HistoryBacklogStatusResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HistoryBacklogStatusResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HistoryBacklogStatusResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HistoryBacklogStatusResult.$_createMessage)
     ..aOM<$0.TerminalRef>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOB(2, _omitFieldNames ? '' : 'historyEnabled')
     ..aOS(3, _omitFieldNames ? '' : 'outputBufferPolicy')
     ..aInt64(4, _omitFieldNames ? '' : 'bufferCapacityBytes')
@@ -2584,12 +2647,18 @@ class HistoryBacklogStatusResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use HistoryBacklogStatusResult() / HistoryBacklogStatusResult.new instead')
   static HistoryBacklogStatusResult create() => HistoryBacklogStatusResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      HistoryBacklogStatusResult._();
   @$core.override
-  HistoryBacklogStatusResult createEmptyInstance() => create();
+  HistoryBacklogStatusResult createEmptyInstance() =>
+      HistoryBacklogStatusResult._();
   @$core.pragma('dart2js:noInline')
   static HistoryBacklogStatusResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HistoryBacklogStatusResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<HistoryBacklogStatusResult>(
+          HistoryBacklogStatusResult.$_createMessage);
   static HistoryBacklogStatusResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2717,7 +2786,7 @@ class LiveScreenNextCommand extends $pb.GeneratedMessage {
     $0.TerminalRef? terminal,
     $fixnum.Int64? observedRevision,
   }) {
-    final result = create();
+    final result = LiveScreenNextCommand._();
     if (terminal != null) result.terminal = terminal;
     if (observedRevision != null) result.observedRevision = observedRevision;
     return result;
@@ -2727,17 +2796,17 @@ class LiveScreenNextCommand extends $pb.GeneratedMessage {
 
   factory LiveScreenNextCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LiveScreenNextCommand()..mergeFromBuffer(data, registry);
   factory LiveScreenNextCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LiveScreenNextCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LiveScreenNextCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LiveScreenNextCommand.$_createMessage)
     ..aOM<$0.TerminalRef>(2, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..a<$fixnum.Int64>(
         3, _omitFieldNames ? '' : 'observedRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -2755,12 +2824,16 @@ class LiveScreenNextCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LiveScreenNextCommand() / LiveScreenNextCommand.new instead')
   static LiveScreenNextCommand create() => LiveScreenNextCommand._();
+  static $pb.GeneratedMessage $_createMessage() => LiveScreenNextCommand._();
   @$core.override
-  LiveScreenNextCommand createEmptyInstance() => create();
+  LiveScreenNextCommand createEmptyInstance() => LiveScreenNextCommand._();
   @$core.pragma('dart2js:noInline')
   static LiveScreenNextCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LiveScreenNextCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<LiveScreenNextCommand>(
+          LiveScreenNextCommand.$_createMessage);
   static LiveScreenNextCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -2790,7 +2863,7 @@ class ScreenRowCopy extends $pb.GeneratedMessage {
     $core.int? destinationRow,
     $core.int? count,
   }) {
-    final result = create();
+    final result = ScreenRowCopy._();
     if (sourceRow != null) result.sourceRow = sourceRow;
     if (destinationRow != null) result.destinationRow = destinationRow;
     if (count != null) result.count = count;
@@ -2801,15 +2874,15 @@ class ScreenRowCopy extends $pb.GeneratedMessage {
 
   factory ScreenRowCopy.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ScreenRowCopy()..mergeFromBuffer(data, registry);
   factory ScreenRowCopy.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ScreenRowCopy()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScreenRowCopy',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ScreenRowCopy.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'sourceRow')
     ..aI(2, _omitFieldNames ? '' : 'destinationRow')
     ..aI(3, _omitFieldNames ? '' : 'count')
@@ -2826,12 +2899,15 @@ class ScreenRowCopy extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScreenRowCopy() / ScreenRowCopy.new instead')
   static ScreenRowCopy create() => ScreenRowCopy._();
+  static $pb.GeneratedMessage $_createMessage() => ScreenRowCopy._();
   @$core.override
-  ScreenRowCopy createEmptyInstance() => create();
+  ScreenRowCopy createEmptyInstance() => ScreenRowCopy._();
   @$core.pragma('dart2js:noInline')
-  static ScreenRowCopy getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ScreenRowCopy>(create);
+  static ScreenRowCopy getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ScreenRowCopy>(
+          ScreenRowCopy.$_createMessage);
   static ScreenRowCopy? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2867,7 +2943,7 @@ class ScreenRowReplace extends $pb.GeneratedMessage {
     $core.int? rowIndex,
     ScreenRow? row,
   }) {
-    final result = create();
+    final result = ScreenRowReplace._();
     if (rowIndex != null) result.rowIndex = rowIndex;
     if (row != null) result.row = row;
     return result;
@@ -2877,18 +2953,18 @@ class ScreenRowReplace extends $pb.GeneratedMessage {
 
   factory ScreenRowReplace.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ScreenRowReplace()..mergeFromBuffer(data, registry);
   factory ScreenRowReplace.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ScreenRowReplace()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScreenRowReplace',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ScreenRowReplace.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'rowIndex')
     ..aOM<ScreenRow>(2, _omitFieldNames ? '' : 'row',
-        subBuilder: ScreenRow.create)
+        subBuilder: ScreenRow.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2902,12 +2978,15 @@ class ScreenRowReplace extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScreenRowReplace() / ScreenRowReplace.new instead')
   static ScreenRowReplace create() => ScreenRowReplace._();
+  static $pb.GeneratedMessage $_createMessage() => ScreenRowReplace._();
   @$core.override
-  ScreenRowReplace createEmptyInstance() => create();
+  ScreenRowReplace createEmptyInstance() => ScreenRowReplace._();
   @$core.pragma('dart2js:noInline')
-  static ScreenRowReplace getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ScreenRowReplace>(create);
+  static ScreenRowReplace getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ScreenRowReplace>(
+          ScreenRowReplace.$_createMessage);
   static ScreenRowReplace? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2945,7 +3024,7 @@ class NativeScreenResult extends $pb.GeneratedMessage {
     $core.Iterable<ScreenRowCopy>? rowCopies,
     $core.bool? fullReplace,
   }) {
-    final result = create();
+    final result = NativeScreenResult._();
     if (terminal != null) result.terminal = terminal;
     if (liveRevision != null) result.liveRevision = liveRevision;
     if (size != null) result.size = size;
@@ -2964,35 +3043,35 @@ class NativeScreenResult extends $pb.GeneratedMessage {
 
   factory NativeScreenResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      NativeScreenResult()..mergeFromBuffer(data, registry);
   factory NativeScreenResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      NativeScreenResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'NativeScreenResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: NativeScreenResult.$_createMessage)
     ..aOM<$0.TerminalRef>(1, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'liveRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.TerminalSize>(3, _omitFieldNames ? '' : 'size',
-        subBuilder: $0.TerminalSize.create)
+        subBuilder: $0.TerminalSize.$_createMessage)
     ..pPM<ScreenRowReplace>(4, _omitFieldNames ? '' : 'rowReplacements',
-        subBuilder: ScreenRowReplace.create)
+        subBuilder: ScreenRowReplace.$_createMessage)
     ..aOB(5, _omitFieldNames ? '' : 'alternateScreen')
     ..aOM<TerminalCursor>(6, _omitFieldNames ? '' : 'cursor',
-        subBuilder: TerminalCursor.create)
+        subBuilder: TerminalCursor.$_createMessage)
     ..aOM<TerminalModes>(7, _omitFieldNames ? '' : 'modes',
-        subBuilder: TerminalModes.create)
+        subBuilder: TerminalModes.$_createMessage)
     ..aInt64(8, _omitFieldNames ? '' : 'timestampUnixNano')
     ..a<$fixnum.Int64>(
         9, _omitFieldNames ? '' : 'baseRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..pPM<ScreenRowCopy>(10, _omitFieldNames ? '' : 'rowCopies',
-        subBuilder: ScreenRowCopy.create)
+        subBuilder: ScreenRowCopy.$_createMessage)
     ..aOB(11, _omitFieldNames ? '' : 'fullReplace')
     ..hasRequiredFields = false;
 
@@ -3007,12 +3086,15 @@ class NativeScreenResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NativeScreenResult() / NativeScreenResult.new instead')
   static NativeScreenResult create() => NativeScreenResult._();
+  static $pb.GeneratedMessage $_createMessage() => NativeScreenResult._();
   @$core.override
-  NativeScreenResult createEmptyInstance() => create();
+  NativeScreenResult createEmptyInstance() => NativeScreenResult._();
   @$core.pragma('dart2js:noInline')
   static NativeScreenResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<NativeScreenResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<NativeScreenResult>(
+          NativeScreenResult.$_createMessage);
   static NativeScreenResult? _defaultInstance;
 
   @$pb.TagNumber(1)

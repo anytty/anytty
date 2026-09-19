@@ -1,0 +1,8 @@
+HELP|                                                                                                        󰙅 main 󰹙 0  11 |
+LIVE| 󰌌 CTRL  ·  P  PANE ·  R 󰙖 SIZE ·  O 󰹙 FLOAT ·  T 󰓩 TAB ·  W 󰙅 WORKSPACE ·  F 󰱼 PICK ·  ⇧C 󰒉 SELECT ·  G 󰒓 SYSTEM   󰹙 0|
+PANE|  PANE  ·  X 󰅖 CLOSE ·  CTRL+D  VSPLIT ·  CTRL+E  HSPLIT ·  H/L 󰜴 FOCUS ·  Q 󰚈 KILL+CLOSE            󰙅 main 󰹙 0  11 |
+PICKER| 󰱼 PICK  ·  ←/→ ENDPOINT ·  ↑/↓ SELECT ·  ENTER 󰋺 ATTACH ·  ESC BACK                                    󰙅 main 󰹙 0  11 |
+PROMPT| 󰘧  ·  ENTER 󰘧 RUN                                                                                      󰙅 main 󰹙 0  11 |
+RESIZE| 󰙖 SIZE  ·  H ← LEFT ·  L → RIGHT ·  K ↑ UP ·  J ↓ DOWN ·  S 󰌾 LOCK ·  SPACE 󰘶 LAYOUT ·  R 󰐐 RESET ·  = 󰕕 BALANCE    󰹙 0|
+SYSTEM| 󰒓 SYSTEM  ·  P  TERMINALS ·  E 󰌷 CONNECTIONS ·  W 󰙅 TREE ·  O  COMMAND                               󰙅 main 󰹙 0  11 |
+TAB| 󰓩 TAB  ·  N 󰒭 NEXT ·  P 󰒮 PREV                                                                         󰙅 main 󰹙 0  11 |

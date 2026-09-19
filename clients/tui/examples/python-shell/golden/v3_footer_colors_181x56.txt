@@ -1,0 +1,41 @@
+LIVE|0|fg:#f0abfc;bold| 󰌌 CTRL |
+LIVE|1|fg:#9ca3c9| · |
+LIVE|2|fg:#f0abfc;bold| P  PANE|
+LIVE|3|fg:#9ca3c9| · |
+LIVE|4|fg:#fde68a;bold| R 󰙖 SIZE|
+LIVE|5|fg:#9ca3c9| · |
+LIVE|6|fg:#bcbdfc;bold| O 󰹙 FLOAT|
+LIVE|7|fg:#9ca3c9| · |
+LIVE|8|fg:#7dd3fc;bold| T 󰓩 TAB|
+LIVE|9|fg:#9ca3c9| · |
+LIVE|10|fg:#86efac;bold| W 󰙅 WORKSPACE|
+LIVE|11|fg:#9ca3c9| · |
+LIVE|12|fg:#fc9a87;bold| F 󰱼 PICK|
+LIVE|13|fg:#9ca3c9| · |
+LIVE|14|fg:#7dd3fc;bold| ⇧C 󰒉 SELECT|
+LIVE|15|fg:#9ca3c9| · |
+LIVE|16|fg:#83e5c8;bold| ⇧H 󰅌 CLIPBOARD|
+LIVE|17|fg:#9ca3c9| · |
+LIVE|18|fg:#7dd3fc| ⇧V 󰆏 PASTE|
+LIVE|19|fg:#9ca3c9| · |
+LIVE|20|fg:#f5c0d4;bold| G 󰒓 SYSTEM|
+PANE|21|fg:#f0abfc;bold|  PANE |
+PANE|22|fg:#9ca3c9| · |
+PANE|23|fg:#fb7185| X 󰅖 CLOSE|
+PANE|24|fg:#9ca3c9| · |
+PANE|25|fg:#83e5c8;bold| CTRL+D  VSPLIT|
+PANE|26|fg:#9ca3c9| · |
+PANE|27|fg:#fde68a;bold| CTRL+E  HSPLIT|
+PANE|28|fg:#9ca3c9| · |
+PANE|29|fg:#fc9a87;bold| H/L 󰜴 FOCUS|
+PANE|30|fg:#9ca3c9| · |
+PANE|31|fg:#fb7185;bold| Q 󰚈 KILL+CLOSE|
+PICKER|32|fg:#fc9a87;bold| 󰱼 PICK |
+PICKER|33|fg:#9ca3c9| · |
+PICKER|34|fg:#bcbdfc;bold| ←/→ ENDPOINT|
+PICKER|35|fg:#9ca3c9| · |
+PICKER|36|fg:#7dd3fc;bold| ↑/↓ SELECT|
+PICKER|37|fg:#9ca3c9| · |
+PICKER|38|fg:#fde68a;bold| ENTER 󰋺 ATTACH|
+PICKER|39|fg:#9ca3c9| · |
+PICKER|40|fg:#f0abfc;bold| ESC BACK|

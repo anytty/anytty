@@ -23,7 +23,7 @@ Homebrew core requires a stable tagged release, so the beta belongs in a project
 
 ## npm
 
-`packaging/npm` is a small `@anytty/cli` package. Its postinstall script selects the current OS and architecture, downloads the matching GitHub Release archive, and checks SHA-256 before exposing the `anytty` command.
+`packaging/npm` is a small `@anytty/cli` package. Its postinstall script selects the current OS and architecture, downloads the matching GitHub Release archive, checks SHA-256, and installs `anytty`, `tui2`, and `tui2-shell` (the default TUI host and its layout program).
 
 ```sh
 cd packaging/npm

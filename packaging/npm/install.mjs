@@ -40,12 +40,15 @@ try {
   if (extraction.error) throw extraction.error
   if (extraction.status !== 0) throw new Error(`Archive extraction failed with exit code ${extraction.status}`)
 
-  const executableName = os === 'windows' ? 'anytty.exe' : 'anytty'
-  const source = join(workDir, archiveBase, executableName)
-  const destination = join(packageRoot, 'vendor', executableName)
-  await mkdir(dirname(destination), { recursive: true })
-  await copyFile(source, destination)
-  if (os !== 'windows') await chmod(destination, 0o755)
+  const names = ['anytty', 'tui2', 'tui2-shell']
+  for (const name of names) {
+    const executableName = os === 'windows' ? `${name}.exe` : name
+    const source = join(workDir, archiveBase, executableName)
+    const destination = join(packageRoot, 'vendor', executableName)
+    await mkdir(dirname(destination), { recursive: true })
+    await copyFile(source, destination)
+    if (os !== 'windows') await chmod(destination, 0o755)
+  }
   console.log(`Installed AnyTTY ${packageJson.version} for ${os}/${arch}`)
 } finally {
   await rm(workDir, { recursive: true, force: true })

@@ -6,9 +6,9 @@ import (
 	"math"
 	"time"
 
-	corev2 "github.com/anytty/anytty/core"
-	corehistory "github.com/anytty/anytty/core/history"
-	"github.com/anytty/anytty/proto/apipb"
+	corev2 "github.com/anytty/anytty/daemon/core"
+	corehistory "github.com/anytty/anytty/daemon/core/history"
+	"github.com/anytty/anytty/proto/access/apipb"
 )
 
 const (
@@ -609,8 +609,6 @@ func applicationCapabilityToCore(capability apipb.ApiCapability) corev2.Applicat
 		return corev2.ApplicationCapabilityClientAccess
 	case apipb.ApiCapability_API_CAPABILITY_REMOTE_CONTROL:
 		return corev2.ApplicationCapabilityRemoteControl
-	case apipb.ApiCapability_API_CAPABILITY_PLUGIN:
-		return corev2.ApplicationCapabilityPlugin
 	case apipb.ApiCapability_API_CAPABILITY_BROWSER_PROXY:
 		return corev2.ApplicationCapabilityBrowserProxy
 	default:

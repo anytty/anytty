@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/proto/access/wire"
 )
 
 const (

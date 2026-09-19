@@ -5,8 +5,8 @@ package main
 import (
 	"context"
 
-	"github.com/anytty/anytty/client/binding/localprobe"
-	"github.com/anytty/anytty/proto/bindingpb"
+	"github.com/anytty/anytty/access/engine/binding/localprobe"
+	"github.com/anytty/anytty/proto/access/bindingpb"
 	"google.golang.org/protobuf/proto"
 )
 

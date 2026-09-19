@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package anytty.protocol.wirepb;
+
+option go_package = "github.com/anytty/anytty/proto/access/wirepb";
+
+// wirepb 只拥有 DataChannel framing 与 file resource stream payload。
+// application command/result/event 必须使用 apipb，不得在本包重新定义。
+message Hello {
+  uint32 version = 1;
+  string client = 2;
+  string server = 3;
+}
+
+// SessionClose 是已完成 Hello 的客户端主动结束当前 protocol session 的单向 control frame。
+// daemon 收到后必须先释放 request/resource 并关闭 transport；它不改变 Endpoint、terminal 或 grant lifecycle。
+message SessionClose {
+  uint32 version = 1;
+}
+
+// RequestCancel cancels one in-flight control request without closing the
+// protocol session. Unknown or already completed IDs are an idempotent no-op.
+message RequestCancel {
+  uint64 id = 1;
+}
+
+message RequestEnvelope {
+  uint64 id = 1;
+  string method = 2;
+  bytes params = 3;
+}
+
+message ResponseEnvelope {
+  uint64 id = 1;
+  bytes result = 2;
+}
+
+message ProtocolError {
+  int32 code = 1;
+  string message = 2;
+}
+
+message ErrorEnvelope {
+  uint64 id = 1;
+  ProtocolError error = 2;
+}
+
+message FileTransferData {
+  int64 offset = 1;
+  bytes data = 2;
+  // encoding 是当前帧 data 的编码（""=identity，"zstd"=独立 zstd frame）。
+  // 旧接收端忽略该字段；未协商压缩时始终为空，payload 字节不变。
+  string encoding = 3;
+}
+
+message FileTransferAck {
+  int64 offset = 1;
+  int64 window_bytes = 2;
+  // 以下为可选结构化进度：transferred_bytes/total_bytes 是发送方的权威进度，
+  // elapsed_millis 是 transfer 打开以来的毫秒数。0 = 未启用（旧行为的精确字节）。
+  int64 transferred_bytes = 3;
+  int64 total_bytes = 4;
+  int64 elapsed_millis = 5;
+}
+
+message FileTransferFinish {
+  int64 size = 1;
+  bytes sha256 = 2;
+  // elapsed_millis 是可选的发送方耗时；0 = 未报告（旧行为字节不变）。
+  int64 elapsed_millis = 3;
+}
+
+message FileTransferResult {
+  string path = 1;
+  int64 size = 2;
+  bytes sha256 = 3;
+}

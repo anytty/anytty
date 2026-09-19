@@ -1,0 +1,30 @@
+ WS main  ▎1 main ×  +
+┌ status ────────────────────┐┌   unconnected ─────────────────┐│┌ ▎ unconnected copy ─────────────┐
+│tabs      1                 ││No terminal connected           │ │split row                        │
+│panes     2                 ││Choose a terminal or create one.│ │                                 │
+│mode      PANE              ││Press Ctrl-F to open the termina│ │                                 │
+│host panes 0 · endpoints 1 ·││                                │ │                                 │
+└────────────────────────────┘│                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              │                                │ │                                 │
+                              └────────────────────────────────┘ └─────────────────────────────────┘
+ [%] SPLIT H │ ["] SPLIT V │ [x] CLOSE │ [tab] NEXT │ [Ctrl+F] PICKER │ [:] CMD │ [esc] EXIT ws:main

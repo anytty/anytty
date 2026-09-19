@@ -33,7 +33,7 @@ class VerificationKey extends $pb.GeneratedMessage {
     $core.String? algorithm,
     $core.List<$core.int>? publicKey,
   }) {
-    final result = create();
+    final result = VerificationKey._();
     if (keyId != null) result.keyId = keyId;
     if (algorithm != null) result.algorithm = algorithm;
     if (publicKey != null) result.publicKey = publicKey;
@@ -44,16 +44,16 @@ class VerificationKey extends $pb.GeneratedMessage {
 
   factory VerificationKey.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      VerificationKey()..mergeFromBuffer(data, registry);
   factory VerificationKey.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      VerificationKey()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'VerificationKey',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: VerificationKey.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'keyId')
     ..aOS(2, _omitFieldNames ? '' : 'algorithm')
     ..a<$core.List<$core.int>>(
@@ -71,12 +71,15 @@ class VerificationKey extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use VerificationKey() / VerificationKey.new instead')
   static VerificationKey create() => VerificationKey._();
+  static $pb.GeneratedMessage $_createMessage() => VerificationKey._();
   @$core.override
-  VerificationKey createEmptyInstance() => create();
+  VerificationKey createEmptyInstance() => VerificationKey._();
   @$core.pragma('dart2js:noInline')
-  static VerificationKey getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<VerificationKey>(create);
+  static VerificationKey getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<VerificationKey>(
+          VerificationKey.$_createMessage);
   static VerificationKey? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -116,7 +119,7 @@ class KeyBundle extends $pb.GeneratedMessage {
     $0.Timestamp? expiresAt,
     $core.Iterable<VerificationKey>? keys,
   }) {
-    final result = create();
+    final result = KeyBundle._();
     if (revision != null) result.revision = revision;
     if (issuedAt != null) result.issuedAt = issuedAt;
     if (expiresAt != null) result.expiresAt = expiresAt;
@@ -128,25 +131,25 @@ class KeyBundle extends $pb.GeneratedMessage {
 
   factory KeyBundle.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      KeyBundle()..mergeFromBuffer(data, registry);
   factory KeyBundle.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      KeyBundle()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'KeyBundle',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: KeyBundle.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(2, _omitFieldNames ? '' : 'issuedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..pPM<VerificationKey>(4, _omitFieldNames ? '' : 'keys',
-        subBuilder: VerificationKey.create)
+        subBuilder: VerificationKey.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -159,12 +162,14 @@ class KeyBundle extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use KeyBundle() / KeyBundle.new instead')
   static KeyBundle create() => KeyBundle._();
+  static $pb.GeneratedMessage $_createMessage() => KeyBundle._();
   @$core.override
-  KeyBundle createEmptyInstance() => create();
+  KeyBundle createEmptyInstance() => KeyBundle._();
   @$core.pragma('dart2js:noInline')
-  static KeyBundle getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<KeyBundle>(create);
+  static KeyBundle getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<KeyBundle>(KeyBundle.$_createMessage);
   static KeyBundle? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -208,7 +213,7 @@ class HeartbeatPolicy extends $pb.GeneratedMessage {
     $1.Duration? interval,
     $1.Duration? timeout,
   }) {
-    final result = create();
+    final result = HeartbeatPolicy._();
     if (interval != null) result.interval = interval;
     if (timeout != null) result.timeout = timeout;
     return result;
@@ -218,20 +223,20 @@ class HeartbeatPolicy extends $pb.GeneratedMessage {
 
   factory HeartbeatPolicy.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      HeartbeatPolicy()..mergeFromBuffer(data, registry);
   factory HeartbeatPolicy.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      HeartbeatPolicy()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'HeartbeatPolicy',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: HeartbeatPolicy.$_createMessage)
     ..aOM<$1.Duration>(1, _omitFieldNames ? '' : 'interval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(2, _omitFieldNames ? '' : 'timeout',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -245,12 +250,15 @@ class HeartbeatPolicy extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use HeartbeatPolicy() / HeartbeatPolicy.new instead')
   static HeartbeatPolicy create() => HeartbeatPolicy._();
+  static $pb.GeneratedMessage $_createMessage() => HeartbeatPolicy._();
   @$core.override
-  HeartbeatPolicy createEmptyInstance() => create();
+  HeartbeatPolicy createEmptyInstance() => HeartbeatPolicy._();
   @$core.pragma('dart2js:noInline')
-  static HeartbeatPolicy getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<HeartbeatPolicy>(create);
+  static HeartbeatPolicy getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<HeartbeatPolicy>(
+          HeartbeatPolicy.$_createMessage);
   static HeartbeatPolicy? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -283,7 +291,7 @@ class SignedEnvelope extends $pb.GeneratedMessage {
     $core.List<$core.int>? payload,
     $core.List<$core.int>? signature,
   }) {
-    final result = create();
+    final result = SignedEnvelope._();
     if (keyId != null) result.keyId = keyId;
     if (payload != null) result.payload = payload;
     if (signature != null) result.signature = signature;
@@ -294,16 +302,16 @@ class SignedEnvelope extends $pb.GeneratedMessage {
 
   factory SignedEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SignedEnvelope()..mergeFromBuffer(data, registry);
   factory SignedEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SignedEnvelope()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SignedEnvelope',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SignedEnvelope.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'keyId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'payload', $pb.PbFieldType.OY)
@@ -322,12 +330,15 @@ class SignedEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SignedEnvelope() / SignedEnvelope.new instead')
   static SignedEnvelope create() => SignedEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() => SignedEnvelope._();
   @$core.override
-  SignedEnvelope createEmptyInstance() => create();
+  SignedEnvelope createEmptyInstance() => SignedEnvelope._();
   @$core.pragma('dart2js:noInline')
-  static SignedEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SignedEnvelope>(create);
+  static SignedEnvelope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SignedEnvelope>(
+          SignedEnvelope.$_createMessage);
   static SignedEnvelope? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -368,7 +379,7 @@ class CloudEntitlementFailure extends $pb.GeneratedMessage {
     $fixnum.Int64? remainingBytes,
     $0.Timestamp? periodEnd,
   }) {
-    final result = create();
+    final result = CloudEntitlementFailure._();
     if (code != null) result.code = code;
     if (message != null) result.message = message;
     if (limit != null) result.limit = limit;
@@ -382,16 +393,16 @@ class CloudEntitlementFailure extends $pb.GeneratedMessage {
 
   factory CloudEntitlementFailure.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CloudEntitlementFailure()..mergeFromBuffer(data, registry);
   factory CloudEntitlementFailure.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CloudEntitlementFailure()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CloudEntitlementFailure',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CloudEntitlementFailure.$_createMessage)
     ..aE<CloudEntitlementErrorCode>(1, _omitFieldNames ? '' : 'code',
         enumValues: CloudEntitlementErrorCode.values)
     ..aOS(2, _omitFieldNames ? '' : 'message')
@@ -403,7 +414,7 @@ class CloudEntitlementFailure extends $pb.GeneratedMessage {
         5, _omitFieldNames ? '' : 'remainingBytes', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(6, _omitFieldNames ? '' : 'periodEnd',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -418,12 +429,16 @@ class CloudEntitlementFailure extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CloudEntitlementFailure() / CloudEntitlementFailure.new instead')
   static CloudEntitlementFailure create() => CloudEntitlementFailure._();
+  static $pb.GeneratedMessage $_createMessage() => CloudEntitlementFailure._();
   @$core.override
-  CloudEntitlementFailure createEmptyInstance() => create();
+  CloudEntitlementFailure createEmptyInstance() => CloudEntitlementFailure._();
   @$core.pragma('dart2js:noInline')
   static CloudEntitlementFailure getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudEntitlementFailure>(create);
+      $pb.GeneratedMessage.$_defaultFor<CloudEntitlementFailure>(
+          CloudEntitlementFailure.$_createMessage);
   static CloudEntitlementFailure? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -495,7 +510,7 @@ class EdgeChallenge extends $pb.GeneratedMessage {
     $0.Timestamp? expiresAt,
     EdgeChallengeTarget? target,
   }) {
-    final result = create();
+    final result = EdgeChallenge._();
     if (nonce != null) result.nonce = nonce;
     if (edgeId != null) result.edgeId = edgeId;
     if (edgeBootId != null) result.edgeBootId = edgeBootId;
@@ -510,25 +525,25 @@ class EdgeChallenge extends $pb.GeneratedMessage {
 
   factory EdgeChallenge.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeChallenge()..mergeFromBuffer(data, registry);
   factory EdgeChallenge.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeChallenge()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeChallenge',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeChallenge.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'nonce', $pb.PbFieldType.OY)
     ..aOS(2, _omitFieldNames ? '' : 'edgeId')
     ..aOS(3, _omitFieldNames ? '' : 'edgeBootId')
     ..aOS(4, _omitFieldNames ? '' : 'streamId')
     ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'issuedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(6, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aE<EdgeChallengeTarget>(7, _omitFieldNames ? '' : 'target',
         enumValues: EdgeChallengeTarget.values)
     ..hasRequiredFields = false;
@@ -544,12 +559,15 @@ class EdgeChallenge extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeChallenge() / EdgeChallenge.new instead')
   static EdgeChallenge create() => EdgeChallenge._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeChallenge._();
   @$core.override
-  EdgeChallenge createEmptyInstance() => create();
+  EdgeChallenge createEmptyInstance() => EdgeChallenge._();
   @$core.pragma('dart2js:noInline')
-  static EdgeChallenge getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeChallenge>(create);
+  static EdgeChallenge getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeChallenge>(
+          EdgeChallenge.$_createMessage);
   static EdgeChallenge? _defaultInstance;
 
   @$pb.TagNumber(1)

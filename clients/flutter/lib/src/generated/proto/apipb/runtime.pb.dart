@@ -26,7 +26,7 @@ class EndpointProbeRequest extends $pb.GeneratedMessage {
     $core.String? endpointId,
     $core.String? routeOverride,
   }) {
-    final result = create();
+    final result = EndpointProbeRequest._();
     if (endpointId != null) result.endpointId = endpointId;
     if (routeOverride != null) result.routeOverride = routeOverride;
     return result;
@@ -36,15 +36,15 @@ class EndpointProbeRequest extends $pb.GeneratedMessage {
 
   factory EndpointProbeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointProbeRequest()..mergeFromBuffer(data, registry);
   factory EndpointProbeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointProbeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointProbeRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointProbeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'endpointId')
     ..aOS(2, _omitFieldNames ? '' : 'routeOverride')
     ..hasRequiredFields = false;
@@ -60,12 +60,16 @@ class EndpointProbeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointProbeRequest() / EndpointProbeRequest.new instead')
   static EndpointProbeRequest create() => EndpointProbeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointProbeRequest._();
   @$core.override
-  EndpointProbeRequest createEmptyInstance() => create();
+  EndpointProbeRequest createEmptyInstance() => EndpointProbeRequest._();
   @$core.pragma('dart2js:noInline')
   static EndpointProbeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointProbeRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointProbeRequest>(
+          EndpointProbeRequest.$_createMessage);
   static EndpointProbeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -93,7 +97,7 @@ class EndpointProbeResult extends $pb.GeneratedMessage {
     $core.String? observedPath,
     $core.String? routeSelectionReason,
   }) {
-    final result = create();
+    final result = EndpointProbeResult._();
     if (session != null) result.session = session;
     if (observedPath != null) result.observedPath = observedPath;
     if (routeSelectionReason != null)
@@ -105,17 +109,17 @@ class EndpointProbeResult extends $pb.GeneratedMessage {
 
   factory EndpointProbeResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointProbeResult()..mergeFromBuffer(data, registry);
   factory EndpointProbeResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointProbeResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointProbeResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointProbeResult.$_createMessage)
     ..aOM<$0.EndpointSessionStamp>(1, _omitFieldNames ? '' : 'session',
-        subBuilder: $0.EndpointSessionStamp.create)
+        subBuilder: $0.EndpointSessionStamp.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'observedPath')
     ..aOS(3, _omitFieldNames ? '' : 'routeSelectionReason')
     ..hasRequiredFields = false;
@@ -131,12 +135,16 @@ class EndpointProbeResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use EndpointProbeResult() / EndpointProbeResult.new instead')
   static EndpointProbeResult create() => EndpointProbeResult._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointProbeResult._();
   @$core.override
-  EndpointProbeResult createEmptyInstance() => create();
+  EndpointProbeResult createEmptyInstance() => EndpointProbeResult._();
   @$core.pragma('dart2js:noInline')
   static EndpointProbeResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointProbeResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointProbeResult>(
+          EndpointProbeResult.$_createMessage);
   static EndpointProbeResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -176,7 +184,7 @@ class EndpointRuntimeEvent extends $pb.GeneratedMessage {
     $0.EndpointSessionStamp? session,
     $0.ApiError? error,
   }) {
-    final result = create();
+    final result = EndpointRuntimeEvent._();
     if (endpointId != null) result.endpointId = endpointId;
     if (phase != null) result.phase = phase;
     if (session != null) result.session = session;
@@ -188,22 +196,22 @@ class EndpointRuntimeEvent extends $pb.GeneratedMessage {
 
   factory EndpointRuntimeEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointRuntimeEvent()..mergeFromBuffer(data, registry);
   factory EndpointRuntimeEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointRuntimeEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointRuntimeEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointRuntimeEvent.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'endpointId')
     ..aE<EndpointRuntimePhase>(2, _omitFieldNames ? '' : 'phase',
         enumValues: EndpointRuntimePhase.values)
     ..aOM<$0.EndpointSessionStamp>(3, _omitFieldNames ? '' : 'session',
-        subBuilder: $0.EndpointSessionStamp.create)
+        subBuilder: $0.EndpointSessionStamp.$_createMessage)
     ..aOM<$0.ApiError>(4, _omitFieldNames ? '' : 'error',
-        subBuilder: $0.ApiError.create)
+        subBuilder: $0.ApiError.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -217,12 +225,16 @@ class EndpointRuntimeEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointRuntimeEvent() / EndpointRuntimeEvent.new instead')
   static EndpointRuntimeEvent create() => EndpointRuntimeEvent._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointRuntimeEvent._();
   @$core.override
-  EndpointRuntimeEvent createEmptyInstance() => create();
+  EndpointRuntimeEvent createEmptyInstance() => EndpointRuntimeEvent._();
   @$core.pragma('dart2js:noInline')
   static EndpointRuntimeEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointRuntimeEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointRuntimeEvent>(
+          EndpointRuntimeEvent.$_createMessage);
   static EndpointRuntimeEvent? _defaultInstance;
 
   @$pb.TagNumber(1)

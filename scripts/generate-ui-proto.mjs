@@ -51,9 +51,9 @@ function normalizeGenerated(directory) {
 
 if (requestedGroup === 'all' || requestedGroup === 'api') {
   const sources = [
-    ...protoFiles('apipb'),
-    join(protoRoot, 'bindingpb', 'client_binding.proto'),
-    join(protoRoot, 'remoteauthpb', 'remote_auth.proto'),
+    ...protoFiles('access/apipb'),
+    join(protoRoot, 'access', 'bindingpb', 'client_binding.proto'),
+    join(protoRoot, 'access', 'remoteauthpb', 'remote_auth.proto'),
     ...protoFiles(join('cloud', 'v1')),
   ].map((path) => relative(repoRoot, path))
   runProtoc([
@@ -66,7 +66,7 @@ if (requestedGroup === 'all' || requestedGroup === 'api') {
 }
 
 if (requestedGroup === 'all' || requestedGroup === 'wire') {
-  const wireRoot = join(protoRoot, 'wirepb')
+  const wireRoot = join(protoRoot, 'access', 'wirepb')
   runProtoc([
     `--es_out=${relative(repoRoot, join(outputRoot, 'wirepb'))}`,
     '--es_opt=target=ts,import_extension=none',

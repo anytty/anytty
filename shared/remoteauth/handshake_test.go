@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"github.com/anytty/anytty/shared/transport"
 	"github.com/anytty/anytty/shared/transport/memory"
 	"google.golang.org/protobuf/encoding/protowire"

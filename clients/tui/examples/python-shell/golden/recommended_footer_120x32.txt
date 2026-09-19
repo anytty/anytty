@@ -1,0 +1,10 @@
+# Recommended-profile footer golden (M3): one exact 120x32 footer row per v2 scene.
+# Format: <SCENE>|<exact row, leading/trailing spaces included>|
+EXITED| 󰌌 CTRL  ·  E 󰑐 RESTART ·  F 󰱼 PICK                                                                     󰙅 local 󰹙 0  1 |
+HELP| HELP                                                                                                                   |
+NORMAL| 󰌌 CTRL  ·  P  PANE ·  T 󰓩 TAB ·  W 󰙅 WORKSPACE ·  F 󰱼 PICK                                            󰙅 local 󰹙 0  0 |
+NORMAL_2PANE| 󰌌 CTRL  ·  P  PANE ·  T 󰓩 TAB ·  W 󰙅 WORKSPACE ·  F 󰱼 PICK                                            󰙅 local 󰹙 0  0 |
+PANE|  PANE  ·  X 󰅖 CLOSE ·  %  VSPLIT ·  "  HSPLIT ·  TAB 󰜴 FOCUS ·  ESC BACK                                            |
+PICKER| 󰱼 PICK  ·  ↑/↓ SELECT ·  ENTER 󰋺 ATTACH ·  ESC BACK                                                                    |
+PROMPT| PROMPT  ·  ENTER 󰘧 RUN                                                                                                 |
+SCROLL| 󰆏 COPY  ·  PGUP 󰁝 OLDER ·  PGDN 󰁅 NEWER ·  Y 󰆏 COPY ·  ESC LIVE                                                        |

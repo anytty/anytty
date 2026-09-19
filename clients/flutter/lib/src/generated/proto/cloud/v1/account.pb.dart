@@ -36,7 +36,7 @@ class AccountProfile extends $pb.GeneratedMessage {
     $0.Timestamp? updatedAt,
     $core.bool? emailVerified,
   }) {
-    final result = create();
+    final result = AccountProfile._();
     if (accountId != null) result.accountId = accountId;
     if (email != null) result.email = email;
     if (displayName != null) result.displayName = displayName;
@@ -52,16 +52,16 @@ class AccountProfile extends $pb.GeneratedMessage {
 
   factory AccountProfile.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AccountProfile()..mergeFromBuffer(data, registry);
   factory AccountProfile.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AccountProfile()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AccountProfile',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AccountProfile.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
     ..aOS(2, _omitFieldNames ? '' : 'email')
     ..aOS(3, _omitFieldNames ? '' : 'displayName')
@@ -71,9 +71,9 @@ class AccountProfile extends $pb.GeneratedMessage {
         5, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(6, _omitFieldNames ? '' : 'createdAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(7, _omitFieldNames ? '' : 'updatedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOB(8, _omitFieldNames ? '' : 'emailVerified')
     ..hasRequiredFields = false;
 
@@ -88,12 +88,15 @@ class AccountProfile extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AccountProfile() / AccountProfile.new instead')
   static AccountProfile create() => AccountProfile._();
+  static $pb.GeneratedMessage $_createMessage() => AccountProfile._();
   @$core.override
-  AccountProfile createEmptyInstance() => create();
+  AccountProfile createEmptyInstance() => AccountProfile._();
   @$core.pragma('dart2js:noInline')
-  static AccountProfile getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AccountProfile>(create);
+  static AccountProfile getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AccountProfile>(
+          AccountProfile.$_createMessage);
   static AccountProfile? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -183,7 +186,7 @@ class AccountTokenCredential extends $pb.GeneratedMessage {
     $0.Timestamp? refreshExpiresAt,
     $core.List<$core.int>? csrfToken,
   }) {
-    final result = create();
+    final result = AccountTokenCredential._();
     if (refreshId != null) result.refreshId = refreshId;
     if (accessToken != null) result.accessToken = accessToken;
     if (refreshToken != null) result.refreshToken = refreshToken;
@@ -197,24 +200,24 @@ class AccountTokenCredential extends $pb.GeneratedMessage {
 
   factory AccountTokenCredential.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AccountTokenCredential()..mergeFromBuffer(data, registry);
   factory AccountTokenCredential.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AccountTokenCredential()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AccountTokenCredential',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AccountTokenCredential.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'refreshId')
     ..aOS(2, _omitFieldNames ? '' : 'accessToken')
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'refreshToken', $pb.PbFieldType.OY)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'accessExpiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'refreshExpiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..a<$core.List<$core.int>>(
         6, _omitFieldNames ? '' : 'csrfToken', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -231,12 +234,16 @@ class AccountTokenCredential extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use AccountTokenCredential() / AccountTokenCredential.new instead')
   static AccountTokenCredential create() => AccountTokenCredential._();
+  static $pb.GeneratedMessage $_createMessage() => AccountTokenCredential._();
   @$core.override
-  AccountTokenCredential createEmptyInstance() => create();
+  AccountTokenCredential createEmptyInstance() => AccountTokenCredential._();
   @$core.pragma('dart2js:noInline')
   static AccountTokenCredential getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AccountTokenCredential>(create);
+      $pb.GeneratedMessage.$_defaultFor<AccountTokenCredential>(
+          AccountTokenCredential.$_createMessage);
   static AccountTokenCredential? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -303,7 +310,7 @@ class LoginAccountRequest extends $pb.GeneratedMessage {
     $core.String? login,
     $core.String? password,
   }) {
-    final result = create();
+    final result = LoginAccountRequest._();
     if (login != null) result.login = login;
     if (password != null) result.password = password;
     return result;
@@ -313,16 +320,16 @@ class LoginAccountRequest extends $pb.GeneratedMessage {
 
   factory LoginAccountRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LoginAccountRequest()..mergeFromBuffer(data, registry);
   factory LoginAccountRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LoginAccountRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LoginAccountRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LoginAccountRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'login')
     ..aOS(2, _omitFieldNames ? '' : 'password')
     ..hasRequiredFields = false;
@@ -338,12 +345,16 @@ class LoginAccountRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use LoginAccountRequest() / LoginAccountRequest.new instead')
   static LoginAccountRequest create() => LoginAccountRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LoginAccountRequest._();
   @$core.override
-  LoginAccountRequest createEmptyInstance() => create();
+  LoginAccountRequest createEmptyInstance() => LoginAccountRequest._();
   @$core.pragma('dart2js:noInline')
   static LoginAccountRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LoginAccountRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<LoginAccountRequest>(
+          LoginAccountRequest.$_createMessage);
   static LoginAccountRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -371,7 +382,7 @@ class LoginAccountResponse extends $pb.GeneratedMessage {
     $core.Iterable<AccountRole>? roles,
     AccountTokenCredential? credential,
   }) {
-    final result = create();
+    final result = LoginAccountResponse._();
     if (account != null) result.account = account;
     if (roles != null) result.roles.addAll(roles);
     if (credential != null) result.credential = credential;
@@ -382,24 +393,24 @@ class LoginAccountResponse extends $pb.GeneratedMessage {
 
   factory LoginAccountResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LoginAccountResponse()..mergeFromBuffer(data, registry);
   factory LoginAccountResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LoginAccountResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LoginAccountResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LoginAccountResponse.$_createMessage)
     ..aOM<AccountProfile>(1, _omitFieldNames ? '' : 'account',
-        subBuilder: AccountProfile.create)
+        subBuilder: AccountProfile.$_createMessage)
     ..pc<AccountRole>(2, _omitFieldNames ? '' : 'roles', $pb.PbFieldType.KE,
         valueOf: AccountRole.valueOf,
         enumValues: AccountRole.values,
         defaultEnumValue: AccountRole.ACCOUNT_ROLE_UNSPECIFIED)
     ..aOM<AccountTokenCredential>(3, _omitFieldNames ? '' : 'credential',
-        subBuilder: AccountTokenCredential.create)
+        subBuilder: AccountTokenCredential.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -413,12 +424,16 @@ class LoginAccountResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LoginAccountResponse() / LoginAccountResponse.new instead')
   static LoginAccountResponse create() => LoginAccountResponse._();
+  static $pb.GeneratedMessage $_createMessage() => LoginAccountResponse._();
   @$core.override
-  LoginAccountResponse createEmptyInstance() => create();
+  LoginAccountResponse createEmptyInstance() => LoginAccountResponse._();
   @$core.pragma('dart2js:noInline')
   static LoginAccountResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LoginAccountResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<LoginAccountResponse>(
+          LoginAccountResponse.$_createMessage);
   static LoginAccountResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -451,7 +466,7 @@ class RefreshAccountTokenRequest extends $pb.GeneratedMessage {
   factory RefreshAccountTokenRequest({
     $core.List<$core.int>? refreshToken,
   }) {
-    final result = create();
+    final result = RefreshAccountTokenRequest._();
     if (refreshToken != null) result.refreshToken = refreshToken;
     return result;
   }
@@ -460,16 +475,16 @@ class RefreshAccountTokenRequest extends $pb.GeneratedMessage {
 
   factory RefreshAccountTokenRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RefreshAccountTokenRequest()..mergeFromBuffer(data, registry);
   factory RefreshAccountTokenRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RefreshAccountTokenRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RefreshAccountTokenRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RefreshAccountTokenRequest.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'refreshToken', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -487,12 +502,18 @@ class RefreshAccountTokenRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RefreshAccountTokenRequest() / RefreshAccountTokenRequest.new instead')
   static RefreshAccountTokenRequest create() => RefreshAccountTokenRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RefreshAccountTokenRequest._();
   @$core.override
-  RefreshAccountTokenRequest createEmptyInstance() => create();
+  RefreshAccountTokenRequest createEmptyInstance() =>
+      RefreshAccountTokenRequest._();
   @$core.pragma('dart2js:noInline')
   static RefreshAccountTokenRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RefreshAccountTokenRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<RefreshAccountTokenRequest>(
+          RefreshAccountTokenRequest.$_createMessage);
   static RefreshAccountTokenRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -511,7 +532,7 @@ class RefreshAccountTokenResponse extends $pb.GeneratedMessage {
     $core.Iterable<AccountRole>? roles,
     AccountTokenCredential? credential,
   }) {
-    final result = create();
+    final result = RefreshAccountTokenResponse._();
     if (account != null) result.account = account;
     if (roles != null) result.roles.addAll(roles);
     if (credential != null) result.credential = credential;
@@ -522,24 +543,24 @@ class RefreshAccountTokenResponse extends $pb.GeneratedMessage {
 
   factory RefreshAccountTokenResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RefreshAccountTokenResponse()..mergeFromBuffer(data, registry);
   factory RefreshAccountTokenResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RefreshAccountTokenResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RefreshAccountTokenResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RefreshAccountTokenResponse.$_createMessage)
     ..aOM<AccountProfile>(1, _omitFieldNames ? '' : 'account',
-        subBuilder: AccountProfile.create)
+        subBuilder: AccountProfile.$_createMessage)
     ..pc<AccountRole>(2, _omitFieldNames ? '' : 'roles', $pb.PbFieldType.KE,
         valueOf: AccountRole.valueOf,
         enumValues: AccountRole.values,
         defaultEnumValue: AccountRole.ACCOUNT_ROLE_UNSPECIFIED)
     ..aOM<AccountTokenCredential>(3, _omitFieldNames ? '' : 'credential',
-        subBuilder: AccountTokenCredential.create)
+        subBuilder: AccountTokenCredential.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -555,13 +576,19 @@ class RefreshAccountTokenResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RefreshAccountTokenResponse() / RefreshAccountTokenResponse.new instead')
   static RefreshAccountTokenResponse create() =>
       RefreshAccountTokenResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RefreshAccountTokenResponse._();
   @$core.override
-  RefreshAccountTokenResponse createEmptyInstance() => create();
+  RefreshAccountTokenResponse createEmptyInstance() =>
+      RefreshAccountTokenResponse._();
   @$core.pragma('dart2js:noInline')
   static RefreshAccountTokenResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RefreshAccountTokenResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RefreshAccountTokenResponse>(
+          RefreshAccountTokenResponse.$_createMessage);
   static RefreshAccountTokenResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -594,7 +621,7 @@ class LogoutAccountRequest extends $pb.GeneratedMessage {
   factory LogoutAccountRequest({
     $core.bool? allRefreshTokens,
   }) {
-    final result = create();
+    final result = LogoutAccountRequest._();
     if (allRefreshTokens != null) result.allRefreshTokens = allRefreshTokens;
     return result;
   }
@@ -603,16 +630,16 @@ class LogoutAccountRequest extends $pb.GeneratedMessage {
 
   factory LogoutAccountRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LogoutAccountRequest()..mergeFromBuffer(data, registry);
   factory LogoutAccountRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LogoutAccountRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LogoutAccountRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LogoutAccountRequest.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'allRefreshTokens')
     ..hasRequiredFields = false;
 
@@ -627,12 +654,16 @@ class LogoutAccountRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LogoutAccountRequest() / LogoutAccountRequest.new instead')
   static LogoutAccountRequest create() => LogoutAccountRequest._();
+  static $pb.GeneratedMessage $_createMessage() => LogoutAccountRequest._();
   @$core.override
-  LogoutAccountRequest createEmptyInstance() => create();
+  LogoutAccountRequest createEmptyInstance() => LogoutAccountRequest._();
   @$core.pragma('dart2js:noInline')
   static LogoutAccountRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LogoutAccountRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<LogoutAccountRequest>(
+          LogoutAccountRequest.$_createMessage);
   static LogoutAccountRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -646,22 +677,22 @@ class LogoutAccountRequest extends $pb.GeneratedMessage {
 }
 
 class LogoutAccountResponse extends $pb.GeneratedMessage {
-  factory LogoutAccountResponse() => create();
+  factory LogoutAccountResponse() => LogoutAccountResponse._();
 
   LogoutAccountResponse._();
 
   factory LogoutAccountResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LogoutAccountResponse()..mergeFromBuffer(data, registry);
   factory LogoutAccountResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LogoutAccountResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LogoutAccountResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LogoutAccountResponse.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -676,32 +707,36 @@ class LogoutAccountResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LogoutAccountResponse() / LogoutAccountResponse.new instead')
   static LogoutAccountResponse create() => LogoutAccountResponse._();
+  static $pb.GeneratedMessage $_createMessage() => LogoutAccountResponse._();
   @$core.override
-  LogoutAccountResponse createEmptyInstance() => create();
+  LogoutAccountResponse createEmptyInstance() => LogoutAccountResponse._();
   @$core.pragma('dart2js:noInline')
   static LogoutAccountResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LogoutAccountResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<LogoutAccountResponse>(
+          LogoutAccountResponse.$_createMessage);
   static LogoutAccountResponse? _defaultInstance;
 }
 
 class GetCurrentAccountRequest extends $pb.GeneratedMessage {
-  factory GetCurrentAccountRequest() => create();
+  factory GetCurrentAccountRequest() => GetCurrentAccountRequest._();
 
   GetCurrentAccountRequest._();
 
   factory GetCurrentAccountRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetCurrentAccountRequest()..mergeFromBuffer(data, registry);
   factory GetCurrentAccountRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetCurrentAccountRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetCurrentAccountRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetCurrentAccountRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -716,12 +751,17 @@ class GetCurrentAccountRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GetCurrentAccountRequest() / GetCurrentAccountRequest.new instead')
   static GetCurrentAccountRequest create() => GetCurrentAccountRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GetCurrentAccountRequest._();
   @$core.override
-  GetCurrentAccountRequest createEmptyInstance() => create();
+  GetCurrentAccountRequest createEmptyInstance() =>
+      GetCurrentAccountRequest._();
   @$core.pragma('dart2js:noInline')
   static GetCurrentAccountRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCurrentAccountRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<GetCurrentAccountRequest>(
+          GetCurrentAccountRequest.$_createMessage);
   static GetCurrentAccountRequest? _defaultInstance;
 }
 
@@ -730,7 +770,7 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
     AccountProfile? account,
     $core.Iterable<AccountRole>? roles,
   }) {
-    final result = create();
+    final result = GetCurrentAccountResponse._();
     if (account != null) result.account = account;
     if (roles != null) result.roles.addAll(roles);
     return result;
@@ -740,18 +780,18 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
 
   factory GetCurrentAccountResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetCurrentAccountResponse()..mergeFromBuffer(data, registry);
   factory GetCurrentAccountResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetCurrentAccountResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetCurrentAccountResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetCurrentAccountResponse.$_createMessage)
     ..aOM<AccountProfile>(1, _omitFieldNames ? '' : 'account',
-        subBuilder: AccountProfile.create)
+        subBuilder: AccountProfile.$_createMessage)
     ..pc<AccountRole>(2, _omitFieldNames ? '' : 'roles', $pb.PbFieldType.KE,
         valueOf: AccountRole.valueOf,
         enumValues: AccountRole.values,
@@ -770,12 +810,18 @@ class GetCurrentAccountResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GetCurrentAccountResponse() / GetCurrentAccountResponse.new instead')
   static GetCurrentAccountResponse create() => GetCurrentAccountResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GetCurrentAccountResponse._();
   @$core.override
-  GetCurrentAccountResponse createEmptyInstance() => create();
+  GetCurrentAccountResponse createEmptyInstance() =>
+      GetCurrentAccountResponse._();
   @$core.pragma('dart2js:noInline')
   static GetCurrentAccountResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetCurrentAccountResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<GetCurrentAccountResponse>(
+          GetCurrentAccountResponse.$_createMessage);
   static GetCurrentAccountResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -802,7 +848,7 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
     $0.Timestamp? expiresAt,
     $fixnum.Int64? revision,
   }) {
-    final result = create();
+    final result = AccountRefreshTokenProjection._();
     if (refreshId != null) result.refreshId = refreshId;
     if (current != null) result.current = current;
     if (createdAt != null) result.createdAt = createdAt;
@@ -815,22 +861,22 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
 
   factory AccountRefreshTokenProjection.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AccountRefreshTokenProjection()..mergeFromBuffer(data, registry);
   factory AccountRefreshTokenProjection.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AccountRefreshTokenProjection()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AccountRefreshTokenProjection',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AccountRefreshTokenProjection.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'refreshId')
     ..aOB(2, _omitFieldNames ? '' : 'current')
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'createdAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..a<$fixnum.Int64>(
         6, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -849,13 +895,19 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use AccountRefreshTokenProjection() / AccountRefreshTokenProjection.new instead')
   static AccountRefreshTokenProjection create() =>
       AccountRefreshTokenProjection._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      AccountRefreshTokenProjection._();
   @$core.override
-  AccountRefreshTokenProjection createEmptyInstance() => create();
+  AccountRefreshTokenProjection createEmptyInstance() =>
+      AccountRefreshTokenProjection._();
   @$core.pragma('dart2js:noInline')
   static AccountRefreshTokenProjection getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AccountRefreshTokenProjection>(create);
+      $pb.GeneratedMessage.$_defaultFor<AccountRefreshTokenProjection>(
+          AccountRefreshTokenProjection.$_createMessage);
   static AccountRefreshTokenProjection? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -909,22 +961,23 @@ class AccountRefreshTokenProjection extends $pb.GeneratedMessage {
 }
 
 class ListAccountRefreshTokensRequest extends $pb.GeneratedMessage {
-  factory ListAccountRefreshTokensRequest() => create();
+  factory ListAccountRefreshTokensRequest() =>
+      ListAccountRefreshTokensRequest._();
 
   ListAccountRefreshTokensRequest._();
 
   factory ListAccountRefreshTokensRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListAccountRefreshTokensRequest()..mergeFromBuffer(data, registry);
   factory ListAccountRefreshTokensRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListAccountRefreshTokensRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListAccountRefreshTokensRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListAccountRefreshTokensRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -940,14 +993,19 @@ class ListAccountRefreshTokensRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListAccountRefreshTokensRequest() / ListAccountRefreshTokensRequest.new instead')
   static ListAccountRefreshTokensRequest create() =>
       ListAccountRefreshTokensRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ListAccountRefreshTokensRequest._();
   @$core.override
-  ListAccountRefreshTokensRequest createEmptyInstance() => create();
+  ListAccountRefreshTokensRequest createEmptyInstance() =>
+      ListAccountRefreshTokensRequest._();
   @$core.pragma('dart2js:noInline')
   static ListAccountRefreshTokensRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<ListAccountRefreshTokensRequest>(
-          create);
+          ListAccountRefreshTokensRequest.$_createMessage);
   static ListAccountRefreshTokensRequest? _defaultInstance;
 }
 
@@ -955,7 +1013,7 @@ class ListAccountRefreshTokensResponse extends $pb.GeneratedMessage {
   factory ListAccountRefreshTokensResponse({
     $core.Iterable<AccountRefreshTokenProjection>? refreshTokens,
   }) {
-    final result = create();
+    final result = ListAccountRefreshTokensResponse._();
     if (refreshTokens != null) result.refreshTokens.addAll(refreshTokens);
     return result;
   }
@@ -965,19 +1023,19 @@ class ListAccountRefreshTokensResponse extends $pb.GeneratedMessage {
   factory ListAccountRefreshTokensResponse.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListAccountRefreshTokensResponse()..mergeFromBuffer(data, registry);
   factory ListAccountRefreshTokensResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListAccountRefreshTokensResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListAccountRefreshTokensResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListAccountRefreshTokensResponse.$_createMessage)
     ..pPM<AccountRefreshTokenProjection>(
         1, _omitFieldNames ? '' : 'refreshTokens',
-        subBuilder: AccountRefreshTokenProjection.create)
+        subBuilder: AccountRefreshTokenProjection.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -993,14 +1051,19 @@ class ListAccountRefreshTokensResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListAccountRefreshTokensResponse() / ListAccountRefreshTokensResponse.new instead')
   static ListAccountRefreshTokensResponse create() =>
       ListAccountRefreshTokensResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ListAccountRefreshTokensResponse._();
   @$core.override
-  ListAccountRefreshTokensResponse createEmptyInstance() => create();
+  ListAccountRefreshTokensResponse createEmptyInstance() =>
+      ListAccountRefreshTokensResponse._();
   @$core.pragma('dart2js:noInline')
   static ListAccountRefreshTokensResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<ListAccountRefreshTokensResponse>(
-          create);
+          ListAccountRefreshTokensResponse.$_createMessage);
   static ListAccountRefreshTokensResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1011,7 +1074,7 @@ class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
   factory ChangeAccountPasswordRequest({
     $core.String? newPassword,
   }) {
-    final result = create();
+    final result = ChangeAccountPasswordRequest._();
     if (newPassword != null) result.newPassword = newPassword;
     return result;
   }
@@ -1020,16 +1083,16 @@ class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
 
   factory ChangeAccountPasswordRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ChangeAccountPasswordRequest()..mergeFromBuffer(data, registry);
   factory ChangeAccountPasswordRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ChangeAccountPasswordRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ChangeAccountPasswordRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ChangeAccountPasswordRequest.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'newPassword')
     ..hasRequiredFields = false;
 
@@ -1046,13 +1109,19 @@ class ChangeAccountPasswordRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ChangeAccountPasswordRequest() / ChangeAccountPasswordRequest.new instead')
   static ChangeAccountPasswordRequest create() =>
       ChangeAccountPasswordRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ChangeAccountPasswordRequest._();
   @$core.override
-  ChangeAccountPasswordRequest createEmptyInstance() => create();
+  ChangeAccountPasswordRequest createEmptyInstance() =>
+      ChangeAccountPasswordRequest._();
   @$core.pragma('dart2js:noInline')
   static ChangeAccountPasswordRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ChangeAccountPasswordRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<ChangeAccountPasswordRequest>(
+          ChangeAccountPasswordRequest.$_createMessage);
   static ChangeAccountPasswordRequest? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -1069,7 +1138,7 @@ class ChangeAccountPasswordResponse extends $pb.GeneratedMessage {
   factory ChangeAccountPasswordResponse({
     AccountProfile? account,
   }) {
-    final result = create();
+    final result = ChangeAccountPasswordResponse._();
     if (account != null) result.account = account;
     return result;
   }
@@ -1078,18 +1147,18 @@ class ChangeAccountPasswordResponse extends $pb.GeneratedMessage {
 
   factory ChangeAccountPasswordResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ChangeAccountPasswordResponse()..mergeFromBuffer(data, registry);
   factory ChangeAccountPasswordResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ChangeAccountPasswordResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ChangeAccountPasswordResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ChangeAccountPasswordResponse.$_createMessage)
     ..aOM<AccountProfile>(1, _omitFieldNames ? '' : 'account',
-        subBuilder: AccountProfile.create)
+        subBuilder: AccountProfile.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1105,13 +1174,19 @@ class ChangeAccountPasswordResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ChangeAccountPasswordResponse() / ChangeAccountPasswordResponse.new instead')
   static ChangeAccountPasswordResponse create() =>
       ChangeAccountPasswordResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ChangeAccountPasswordResponse._();
   @$core.override
-  ChangeAccountPasswordResponse createEmptyInstance() => create();
+  ChangeAccountPasswordResponse createEmptyInstance() =>
+      ChangeAccountPasswordResponse._();
   @$core.pragma('dart2js:noInline')
   static ChangeAccountPasswordResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ChangeAccountPasswordResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<ChangeAccountPasswordResponse>(
+          ChangeAccountPasswordResponse.$_createMessage);
   static ChangeAccountPasswordResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1131,7 +1206,7 @@ class RedeemAccountSetupRequest extends $pb.GeneratedMessage {
     $core.String? setupCredential,
     $core.String? newPassword,
   }) {
-    final result = create();
+    final result = RedeemAccountSetupRequest._();
     if (setupCredential != null) result.setupCredential = setupCredential;
     if (newPassword != null) result.newPassword = newPassword;
     return result;
@@ -1141,16 +1216,16 @@ class RedeemAccountSetupRequest extends $pb.GeneratedMessage {
 
   factory RedeemAccountSetupRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RedeemAccountSetupRequest()..mergeFromBuffer(data, registry);
   factory RedeemAccountSetupRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RedeemAccountSetupRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RedeemAccountSetupRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RedeemAccountSetupRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'setupCredential')
     ..aOS(2, _omitFieldNames ? '' : 'newPassword')
     ..hasRequiredFields = false;
@@ -1167,12 +1242,18 @@ class RedeemAccountSetupRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RedeemAccountSetupRequest() / RedeemAccountSetupRequest.new instead')
   static RedeemAccountSetupRequest create() => RedeemAccountSetupRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RedeemAccountSetupRequest._();
   @$core.override
-  RedeemAccountSetupRequest createEmptyInstance() => create();
+  RedeemAccountSetupRequest createEmptyInstance() =>
+      RedeemAccountSetupRequest._();
   @$core.pragma('dart2js:noInline')
   static RedeemAccountSetupRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RedeemAccountSetupRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<RedeemAccountSetupRequest>(
+          RedeemAccountSetupRequest.$_createMessage);
   static RedeemAccountSetupRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1200,7 +1281,7 @@ class RedeemAccountSetupResponse extends $pb.GeneratedMessage {
     $core.Iterable<AccountRole>? roles,
     AccountTokenCredential? credential,
   }) {
-    final result = create();
+    final result = RedeemAccountSetupResponse._();
     if (account != null) result.account = account;
     if (roles != null) result.roles.addAll(roles);
     if (credential != null) result.credential = credential;
@@ -1211,24 +1292,24 @@ class RedeemAccountSetupResponse extends $pb.GeneratedMessage {
 
   factory RedeemAccountSetupResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RedeemAccountSetupResponse()..mergeFromBuffer(data, registry);
   factory RedeemAccountSetupResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RedeemAccountSetupResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RedeemAccountSetupResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RedeemAccountSetupResponse.$_createMessage)
     ..aOM<AccountProfile>(1, _omitFieldNames ? '' : 'account',
-        subBuilder: AccountProfile.create)
+        subBuilder: AccountProfile.$_createMessage)
     ..pc<AccountRole>(2, _omitFieldNames ? '' : 'roles', $pb.PbFieldType.KE,
         valueOf: AccountRole.valueOf,
         enumValues: AccountRole.values,
         defaultEnumValue: AccountRole.ACCOUNT_ROLE_UNSPECIFIED)
     ..aOM<AccountTokenCredential>(3, _omitFieldNames ? '' : 'credential',
-        subBuilder: AccountTokenCredential.create)
+        subBuilder: AccountTokenCredential.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1244,12 +1325,18 @@ class RedeemAccountSetupResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RedeemAccountSetupResponse() / RedeemAccountSetupResponse.new instead')
   static RedeemAccountSetupResponse create() => RedeemAccountSetupResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RedeemAccountSetupResponse._();
   @$core.override
-  RedeemAccountSetupResponse createEmptyInstance() => create();
+  RedeemAccountSetupResponse createEmptyInstance() =>
+      RedeemAccountSetupResponse._();
   @$core.pragma('dart2js:noInline')
   static RedeemAccountSetupResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RedeemAccountSetupResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RedeemAccountSetupResponse>(
+          RedeemAccountSetupResponse.$_createMessage);
   static RedeemAccountSetupResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1282,7 +1369,7 @@ class RevokeAccountRefreshTokenRequest extends $pb.GeneratedMessage {
   factory RevokeAccountRefreshTokenRequest({
     $core.String? refreshId,
   }) {
-    final result = create();
+    final result = RevokeAccountRefreshTokenRequest._();
     if (refreshId != null) result.refreshId = refreshId;
     return result;
   }
@@ -1292,16 +1379,16 @@ class RevokeAccountRefreshTokenRequest extends $pb.GeneratedMessage {
   factory RevokeAccountRefreshTokenRequest.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RevokeAccountRefreshTokenRequest()..mergeFromBuffer(data, registry);
   factory RevokeAccountRefreshTokenRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RevokeAccountRefreshTokenRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RevokeAccountRefreshTokenRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RevokeAccountRefreshTokenRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'refreshId')
     ..hasRequiredFields = false;
 
@@ -1318,14 +1405,19 @@ class RevokeAccountRefreshTokenRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RevokeAccountRefreshTokenRequest() / RevokeAccountRefreshTokenRequest.new instead')
   static RevokeAccountRefreshTokenRequest create() =>
       RevokeAccountRefreshTokenRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RevokeAccountRefreshTokenRequest._();
   @$core.override
-  RevokeAccountRefreshTokenRequest createEmptyInstance() => create();
+  RevokeAccountRefreshTokenRequest createEmptyInstance() =>
+      RevokeAccountRefreshTokenRequest._();
   @$core.pragma('dart2js:noInline')
   static RevokeAccountRefreshTokenRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<RevokeAccountRefreshTokenRequest>(
-          create);
+          RevokeAccountRefreshTokenRequest.$_createMessage);
   static RevokeAccountRefreshTokenRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1339,23 +1431,24 @@ class RevokeAccountRefreshTokenRequest extends $pb.GeneratedMessage {
 }
 
 class RevokeAccountRefreshTokenResponse extends $pb.GeneratedMessage {
-  factory RevokeAccountRefreshTokenResponse() => create();
+  factory RevokeAccountRefreshTokenResponse() =>
+      RevokeAccountRefreshTokenResponse._();
 
   RevokeAccountRefreshTokenResponse._();
 
   factory RevokeAccountRefreshTokenResponse.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RevokeAccountRefreshTokenResponse()..mergeFromBuffer(data, registry);
   factory RevokeAccountRefreshTokenResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RevokeAccountRefreshTokenResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RevokeAccountRefreshTokenResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RevokeAccountRefreshTokenResponse.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1371,35 +1464,40 @@ class RevokeAccountRefreshTokenResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RevokeAccountRefreshTokenResponse() / RevokeAccountRefreshTokenResponse.new instead')
   static RevokeAccountRefreshTokenResponse create() =>
       RevokeAccountRefreshTokenResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RevokeAccountRefreshTokenResponse._();
   @$core.override
-  RevokeAccountRefreshTokenResponse createEmptyInstance() => create();
+  RevokeAccountRefreshTokenResponse createEmptyInstance() =>
+      RevokeAccountRefreshTokenResponse._();
   @$core.pragma('dart2js:noInline')
   static RevokeAccountRefreshTokenResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<RevokeAccountRefreshTokenResponse>(
-          create);
+          RevokeAccountRefreshTokenResponse.$_createMessage);
   static RevokeAccountRefreshTokenResponse? _defaultInstance;
 }
 
 /// DeleteAccountRequest 由已登录账号所有者提交，永久删除账号及其个人数据（GDPR）。
 class DeleteAccountRequest extends $pb.GeneratedMessage {
-  factory DeleteAccountRequest() => create();
+  factory DeleteAccountRequest() => DeleteAccountRequest._();
 
   DeleteAccountRequest._();
 
   factory DeleteAccountRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeleteAccountRequest()..mergeFromBuffer(data, registry);
   factory DeleteAccountRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeleteAccountRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeleteAccountRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeleteAccountRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1413,32 +1511,36 @@ class DeleteAccountRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteAccountRequest() / DeleteAccountRequest.new instead')
   static DeleteAccountRequest create() => DeleteAccountRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteAccountRequest._();
   @$core.override
-  DeleteAccountRequest createEmptyInstance() => create();
+  DeleteAccountRequest createEmptyInstance() => DeleteAccountRequest._();
   @$core.pragma('dart2js:noInline')
   static DeleteAccountRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteAccountRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<DeleteAccountRequest>(
+          DeleteAccountRequest.$_createMessage);
   static DeleteAccountRequest? _defaultInstance;
 }
 
 class DeleteAccountResponse extends $pb.GeneratedMessage {
-  factory DeleteAccountResponse() => create();
+  factory DeleteAccountResponse() => DeleteAccountResponse._();
 
   DeleteAccountResponse._();
 
   factory DeleteAccountResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeleteAccountResponse()..mergeFromBuffer(data, registry);
   factory DeleteAccountResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeleteAccountResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeleteAccountResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeleteAccountResponse.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1453,12 +1555,16 @@ class DeleteAccountResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeleteAccountResponse() / DeleteAccountResponse.new instead')
   static DeleteAccountResponse create() => DeleteAccountResponse._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteAccountResponse._();
   @$core.override
-  DeleteAccountResponse createEmptyInstance() => create();
+  DeleteAccountResponse createEmptyInstance() => DeleteAccountResponse._();
   @$core.pragma('dart2js:noInline')
   static DeleteAccountResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteAccountResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<DeleteAccountResponse>(
+          DeleteAccountResponse.$_createMessage);
   static DeleteAccountResponse? _defaultInstance;
 }
 

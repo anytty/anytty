@@ -37,6 +37,7 @@ jobs:
       - run: npm ci
       - run: make test
       - run: make test-clients
+      - run: make test-release
       - run: npm run public:check
 
   flutter-android:
@@ -79,7 +80,7 @@ jobs:
           flutter analyze
           dart run rive_native:setup --clean --platform linux
           flutter test
-          go test ../../client/binding/...
+          go test ../../access/engine/binding/...
       - name: Build arm64 Flutter release APK
         working-directory: clients/flutter
         run: flutter build apk --release --target-platform android-arm64 --split-per-abi

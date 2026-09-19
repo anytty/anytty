@@ -41,7 +41,7 @@ class DaemonBindingClaims extends $pb.GeneratedMessage {
     $0.Timestamp? expiresAt,
     $core.List<$core.int>? edgeLocatorSha256,
   }) {
-    final result = create();
+    final result = DaemonBindingClaims._();
     if (bindingId != null) result.bindingId = bindingId;
     if (daemonId != null) result.daemonId = daemonId;
     if (accountId != null) result.accountId = accountId;
@@ -59,16 +59,16 @@ class DaemonBindingClaims extends $pb.GeneratedMessage {
 
   factory DaemonBindingClaims.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DaemonBindingClaims()..mergeFromBuffer(data, registry);
   factory DaemonBindingClaims.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DaemonBindingClaims()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DaemonBindingClaims',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DaemonBindingClaims.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'bindingId')
     ..aOS(2, _omitFieldNames ? '' : 'daemonId')
     ..aOS(3, _omitFieldNames ? '' : 'accountId')
@@ -82,9 +82,9 @@ class DaemonBindingClaims extends $pb.GeneratedMessage {
         enumValues: DaemonCapability.values,
         defaultEnumValue: DaemonCapability.DAEMON_CAPABILITY_UNSPECIFIED)
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'issuedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..a<$core.List<$core.int>>(
         12, _omitFieldNames ? '' : 'edgeLocatorSha256', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -100,12 +100,16 @@ class DaemonBindingClaims extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use DaemonBindingClaims() / DaemonBindingClaims.new instead')
   static DaemonBindingClaims create() => DaemonBindingClaims._();
+  static $pb.GeneratedMessage $_createMessage() => DaemonBindingClaims._();
   @$core.override
-  DaemonBindingClaims createEmptyInstance() => create();
+  DaemonBindingClaims createEmptyInstance() => DaemonBindingClaims._();
   @$core.pragma('dart2js:noInline')
   static DaemonBindingClaims getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DaemonBindingClaims>(create);
+      $pb.GeneratedMessage.$_defaultFor<DaemonBindingClaims>(
+          DaemonBindingClaims.$_createMessage);
   static DaemonBindingClaims? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -212,7 +216,7 @@ class AgentHelloProofInput extends $pb.GeneratedMessage {
     $core.String? softwareVersion,
     $fixnum.Int64? attemptGeneration,
   }) {
-    final result = create();
+    final result = AgentHelloProofInput._();
     if (bindingEnvelopeSha256 != null)
       result.bindingEnvelopeSha256 = bindingEnvelopeSha256;
     if (daemonId != null) result.daemonId = daemonId;
@@ -232,23 +236,23 @@ class AgentHelloProofInput extends $pb.GeneratedMessage {
 
   factory AgentHelloProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AgentHelloProofInput()..mergeFromBuffer(data, registry);
   factory AgentHelloProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AgentHelloProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'AgentHelloProofInput',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AgentHelloProofInput.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'bindingEnvelopeSha256', $pb.PbFieldType.OY)
     ..aOS(2, _omitFieldNames ? '' : 'daemonId')
     ..aOS(3, _omitFieldNames ? '' : 'daemonBootId')
     ..aOS(4, _omitFieldNames ? '' : 'daemonSessionId')
     ..aOM<$1.EdgeChallenge>(5, _omitFieldNames ? '' : 'challenge',
-        subBuilder: $1.EdgeChallenge.create)
+        subBuilder: $1.EdgeChallenge.$_createMessage)
     ..aI(6, _omitFieldNames ? '' : 'protocolVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(7, _omitFieldNames ? '' : 'messageId')
@@ -256,7 +260,7 @@ class AgentHelloProofInput extends $pb.GeneratedMessage {
         8, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOS(10, _omitFieldNames ? '' : 'softwareVersion')
     ..a<$fixnum.Int64>(
         11, _omitFieldNames ? '' : 'attemptGeneration', $pb.PbFieldType.OU6,
@@ -274,12 +278,16 @@ class AgentHelloProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use AgentHelloProofInput() / AgentHelloProofInput.new instead')
   static AgentHelloProofInput create() => AgentHelloProofInput._();
+  static $pb.GeneratedMessage $_createMessage() => AgentHelloProofInput._();
   @$core.override
-  AgentHelloProofInput createEmptyInstance() => create();
+  AgentHelloProofInput createEmptyInstance() => AgentHelloProofInput._();
   @$core.pragma('dart2js:noInline')
   static AgentHelloProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AgentHelloProofInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<AgentHelloProofInput>(
+          AgentHelloProofInput.$_createMessage);
   static AgentHelloProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -398,7 +406,7 @@ class CloudRouteGrantClaims extends $pb.GeneratedMessage {
     $0.Timestamp? issuedAt,
     $0.Timestamp? expiresAt,
   }) {
-    final result = create();
+    final result = CloudRouteGrantClaims._();
     if (grantId != null) result.grantId = grantId;
     if (daemonId != null) result.daemonId = daemonId;
     if (clientPublicKey != null) result.clientPublicKey = clientPublicKey;
@@ -412,16 +420,16 @@ class CloudRouteGrantClaims extends $pb.GeneratedMessage {
 
   factory CloudRouteGrantClaims.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CloudRouteGrantClaims()..mergeFromBuffer(data, registry);
   factory CloudRouteGrantClaims.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CloudRouteGrantClaims()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CloudRouteGrantClaims',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CloudRouteGrantClaims.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grantId')
     ..aOS(2, _omitFieldNames ? '' : 'daemonId')
     ..a<$core.List<$core.int>>(
@@ -429,9 +437,9 @@ class CloudRouteGrantClaims extends $pb.GeneratedMessage {
     ..aE<$2.ClientProduct>(4, _omitFieldNames ? '' : 'product',
         enumValues: $2.ClientProduct.values)
     ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'issuedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(6, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -446,12 +454,16 @@ class CloudRouteGrantClaims extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CloudRouteGrantClaims() / CloudRouteGrantClaims.new instead')
   static CloudRouteGrantClaims create() => CloudRouteGrantClaims._();
+  static $pb.GeneratedMessage $_createMessage() => CloudRouteGrantClaims._();
   @$core.override
-  CloudRouteGrantClaims createEmptyInstance() => create();
+  CloudRouteGrantClaims createEmptyInstance() => CloudRouteGrantClaims._();
   @$core.pragma('dart2js:noInline')
   static CloudRouteGrantClaims getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CloudRouteGrantClaims>(create);
+      $pb.GeneratedMessage.$_defaultFor<CloudRouteGrantClaims>(
+          CloudRouteGrantClaims.$_createMessage);
   static CloudRouteGrantClaims? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -521,7 +533,7 @@ class ClientRouteProofInput extends $pb.GeneratedMessage {
     $core.List<$core.int>? grantPayloadSha256,
     $core.String? requestId,
   }) {
-    final result = create();
+    final result = ClientRouteProofInput._();
     if (challengeId != null) result.challengeId = challengeId;
     if (challenge != null) result.challenge = challenge;
     if (grantPayloadSha256 != null)
@@ -534,16 +546,16 @@ class ClientRouteProofInput extends $pb.GeneratedMessage {
 
   factory ClientRouteProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientRouteProofInput()..mergeFromBuffer(data, registry);
   factory ClientRouteProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientRouteProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientRouteProofInput',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientRouteProofInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'challengeId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'challenge', $pb.PbFieldType.OY)
@@ -564,12 +576,16 @@ class ClientRouteProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientRouteProofInput() / ClientRouteProofInput.new instead')
   static ClientRouteProofInput create() => ClientRouteProofInput._();
+  static $pb.GeneratedMessage $_createMessage() => ClientRouteProofInput._();
   @$core.override
-  ClientRouteProofInput createEmptyInstance() => create();
+  ClientRouteProofInput createEmptyInstance() => ClientRouteProofInput._();
   @$core.pragma('dart2js:noInline')
   static ClientRouteProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientRouteProofInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientRouteProofInput>(
+          ClientRouteProofInput.$_createMessage);
   static ClientRouteProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -631,7 +647,7 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
     $core.bool? presenceProbe,
     $3.RelayTransport? relayTransport,
   }) {
-    final result = create();
+    final result = GatewayClientHelloProofInput._();
     if (challenge != null) result.challenge = challenge;
     if (authorizationSha256 != null)
       result.authorizationSha256 = authorizationSha256;
@@ -657,18 +673,18 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
 
   factory GatewayClientHelloProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GatewayClientHelloProofInput()..mergeFromBuffer(data, registry);
   factory GatewayClientHelloProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GatewayClientHelloProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GatewayClientHelloProofInput',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GatewayClientHelloProofInput.$_createMessage)
     ..aOM<$1.EdgeChallenge>(1, _omitFieldNames ? '' : 'challenge',
-        subBuilder: $1.EdgeChallenge.create)
+        subBuilder: $1.EdgeChallenge.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'authorizationSha256', $pb.PbFieldType.OY)
     ..aE<$2.CloudClientAccessMode>(3, _omitFieldNames ? '' : 'accessMode',
@@ -683,7 +699,7 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
         9, _omitFieldNames ? '' : 'streamSeq', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(10, _omitFieldNames ? '' : 'sentAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..a<$core.List<$core.int>>(
         11, _omitFieldNames ? '' : 'clientPublicKey', $pb.PbFieldType.OY)
     ..aE<$2.ClientProduct>(12, _omitFieldNames ? '' : 'product',
@@ -712,13 +728,19 @@ class GatewayClientHelloProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use GatewayClientHelloProofInput() / GatewayClientHelloProofInput.new instead')
   static GatewayClientHelloProofInput create() =>
       GatewayClientHelloProofInput._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      GatewayClientHelloProofInput._();
   @$core.override
-  GatewayClientHelloProofInput createEmptyInstance() => create();
+  GatewayClientHelloProofInput createEmptyInstance() =>
+      GatewayClientHelloProofInput._();
   @$core.pragma('dart2js:noInline')
   static GatewayClientHelloProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GatewayClientHelloProofInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<GatewayClientHelloProofInput>(
+          GatewayClientHelloProofInput.$_createMessage);
   static GatewayClientHelloProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)

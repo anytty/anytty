@@ -33,7 +33,7 @@ class EdgePublicCertificateStatus extends $pb.GeneratedMessage {
     $0.Timestamp? lastAttemptAt,
     $0.Timestamp? appliedAt,
   }) {
-    final result = create();
+    final result = EdgePublicCertificateStatus._();
     if (publicEndpoint != null) result.publicEndpoint = publicEndpoint;
     if (certificateSha256 != null) result.certificateSha256 = certificateSha256;
     if (notBefore != null) result.notBefore = notBefore;
@@ -50,30 +50,30 @@ class EdgePublicCertificateStatus extends $pb.GeneratedMessage {
 
   factory EdgePublicCertificateStatus.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgePublicCertificateStatus()..mergeFromBuffer(data, registry);
   factory EdgePublicCertificateStatus.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgePublicCertificateStatus()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgePublicCertificateStatus',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgePublicCertificateStatus.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'publicEndpoint')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'certificateSha256', $pb.PbFieldType.OY)
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'notBefore',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'notAfter',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOB(5, _omitFieldNames ? '' : 'renewalPending')
     ..aOS(6, _omitFieldNames ? '' : 'lastErrorCode')
     ..aOS(7, _omitFieldNames ? '' : 'lastErrorMessage')
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'lastAttemptAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'appliedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -89,13 +89,19 @@ class EdgePublicCertificateStatus extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgePublicCertificateStatus() / EdgePublicCertificateStatus.new instead')
   static EdgePublicCertificateStatus create() =>
       EdgePublicCertificateStatus._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EdgePublicCertificateStatus._();
   @$core.override
-  EdgePublicCertificateStatus createEmptyInstance() => create();
+  EdgePublicCertificateStatus createEmptyInstance() =>
+      EdgePublicCertificateStatus._();
   @$core.pragma('dart2js:noInline')
   static EdgePublicCertificateStatus getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateStatus>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateStatus>(
+          EdgePublicCertificateStatus.$_createMessage);
   static EdgePublicCertificateStatus? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -197,7 +203,7 @@ class EdgePublicCertificateRenewRequest extends $pb.GeneratedMessage {
     $core.List<$core.int>? currentCertificateSha256,
     $0.Timestamp? requestedAt,
   }) {
-    final result = create();
+    final result = EdgePublicCertificateRenewRequest._();
     if (requestId != null) result.requestId = requestId;
     if (csrPem != null) result.csrPem = csrPem;
     if (currentCertificateSha256 != null)
@@ -211,23 +217,23 @@ class EdgePublicCertificateRenewRequest extends $pb.GeneratedMessage {
   factory EdgePublicCertificateRenewRequest.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgePublicCertificateRenewRequest()..mergeFromBuffer(data, registry);
   factory EdgePublicCertificateRenewRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgePublicCertificateRenewRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgePublicCertificateRenewRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgePublicCertificateRenewRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'csrPem', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(3,
         _omitFieldNames ? '' : 'currentCertificateSha256', $pb.PbFieldType.OY)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'requestedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -243,14 +249,19 @@ class EdgePublicCertificateRenewRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgePublicCertificateRenewRequest() / EdgePublicCertificateRenewRequest.new instead')
   static EdgePublicCertificateRenewRequest create() =>
       EdgePublicCertificateRenewRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EdgePublicCertificateRenewRequest._();
   @$core.override
-  EdgePublicCertificateRenewRequest createEmptyInstance() => create();
+  EdgePublicCertificateRenewRequest createEmptyInstance() =>
+      EdgePublicCertificateRenewRequest._();
   @$core.pragma('dart2js:noInline')
   static EdgePublicCertificateRenewRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateRenewRequest>(
-          create);
+          EdgePublicCertificateRenewRequest.$_createMessage);
   static EdgePublicCertificateRenewRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -303,7 +314,7 @@ class EdgePublicCertificateRenewResponse extends $pb.GeneratedMessage {
     $0.Timestamp? notBefore,
     $0.Timestamp? notAfter,
   }) {
-    final result = create();
+    final result = EdgePublicCertificateRenewResponse._();
     if (requestId != null) result.requestId = requestId;
     if (certificatePem != null) result.certificatePem = certificatePem;
     if (certificateSha256 != null) result.certificateSha256 = certificateSha256;
@@ -317,25 +328,25 @@ class EdgePublicCertificateRenewResponse extends $pb.GeneratedMessage {
   factory EdgePublicCertificateRenewResponse.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgePublicCertificateRenewResponse()..mergeFromBuffer(data, registry);
   factory EdgePublicCertificateRenewResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgePublicCertificateRenewResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgePublicCertificateRenewResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgePublicCertificateRenewResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'certificatePem', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'certificateSha256', $pb.PbFieldType.OY)
     ..aOM<$0.Timestamp>(4, _omitFieldNames ? '' : 'notBefore',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(5, _omitFieldNames ? '' : 'notAfter',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -351,14 +362,19 @@ class EdgePublicCertificateRenewResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgePublicCertificateRenewResponse() / EdgePublicCertificateRenewResponse.new instead')
   static EdgePublicCertificateRenewResponse create() =>
       EdgePublicCertificateRenewResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EdgePublicCertificateRenewResponse._();
   @$core.override
-  EdgePublicCertificateRenewResponse createEmptyInstance() => create();
+  EdgePublicCertificateRenewResponse createEmptyInstance() =>
+      EdgePublicCertificateRenewResponse._();
   @$core.pragma('dart2js:noInline')
   static EdgePublicCertificateRenewResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateRenewResponse>(
-          create);
+          EdgePublicCertificateRenewResponse.$_createMessage);
   static EdgePublicCertificateRenewResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -421,7 +437,7 @@ class EdgePublicCertificateApplied extends $pb.GeneratedMessage {
     $core.String? errorCode,
     $core.String? errorMessage,
   }) {
-    final result = create();
+    final result = EdgePublicCertificateApplied._();
     if (requestId != null) result.requestId = requestId;
     if (status != null) result.status = status;
     if (applied != null) result.applied = applied;
@@ -434,19 +450,19 @@ class EdgePublicCertificateApplied extends $pb.GeneratedMessage {
 
   factory EdgePublicCertificateApplied.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgePublicCertificateApplied()..mergeFromBuffer(data, registry);
   factory EdgePublicCertificateApplied.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgePublicCertificateApplied()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgePublicCertificateApplied',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgePublicCertificateApplied.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'requestId')
     ..aOM<EdgePublicCertificateStatus>(2, _omitFieldNames ? '' : 'status',
-        subBuilder: EdgePublicCertificateStatus.create)
+        subBuilder: EdgePublicCertificateStatus.$_createMessage)
     ..aOB(3, _omitFieldNames ? '' : 'applied')
     ..aOS(4, _omitFieldNames ? '' : 'errorCode')
     ..aOS(5, _omitFieldNames ? '' : 'errorMessage')
@@ -465,13 +481,19 @@ class EdgePublicCertificateApplied extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgePublicCertificateApplied() / EdgePublicCertificateApplied.new instead')
   static EdgePublicCertificateApplied create() =>
       EdgePublicCertificateApplied._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EdgePublicCertificateApplied._();
   @$core.override
-  EdgePublicCertificateApplied createEmptyInstance() => create();
+  EdgePublicCertificateApplied createEmptyInstance() =>
+      EdgePublicCertificateApplied._();
   @$core.pragma('dart2js:noInline')
   static EdgePublicCertificateApplied getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateApplied>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgePublicCertificateApplied>(
+          EdgePublicCertificateApplied.$_createMessage);
   static EdgePublicCertificateApplied? _defaultInstance;
 
   @$pb.TagNumber(1)

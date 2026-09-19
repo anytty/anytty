@@ -32,7 +32,7 @@ class EventSubscribeCommand extends $pb.GeneratedMessage {
     $core.String? storageOwnerId,
     $core.String? storageKeyPrefix,
   }) {
-    final result = create();
+    final result = EventSubscribeCommand._();
     if (types != null) result.types.addAll(types);
     if (terminal != null) result.terminal = terminal;
     if (storageAppId != null) result.storageAppId = storageAppId;
@@ -46,15 +46,15 @@ class EventSubscribeCommand extends $pb.GeneratedMessage {
 
   factory EventSubscribeCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EventSubscribeCommand()..mergeFromBuffer(data, registry);
   factory EventSubscribeCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EventSubscribeCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EventSubscribeCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EventSubscribeCommand.$_createMessage)
     ..pc<ApplicationEventType>(
         2, _omitFieldNames ? '' : 'types', $pb.PbFieldType.KE,
         valueOf: ApplicationEventType.valueOf,
@@ -62,7 +62,7 @@ class EventSubscribeCommand extends $pb.GeneratedMessage {
         defaultEnumValue:
             ApplicationEventType.APPLICATION_EVENT_TYPE_UNSPECIFIED)
     ..aOM<$0.TerminalRef>(3, _omitFieldNames ? '' : 'terminal',
-        subBuilder: $0.TerminalRef.create)
+        subBuilder: $0.TerminalRef.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'storageAppId')
     ..aE<$2.StorageScope>(5, _omitFieldNames ? '' : 'storageScope',
         enumValues: $2.StorageScope.values)
@@ -82,12 +82,16 @@ class EventSubscribeCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EventSubscribeCommand() / EventSubscribeCommand.new instead')
   static EventSubscribeCommand create() => EventSubscribeCommand._();
+  static $pb.GeneratedMessage $_createMessage() => EventSubscribeCommand._();
   @$core.override
-  EventSubscribeCommand createEmptyInstance() => create();
+  EventSubscribeCommand createEmptyInstance() => EventSubscribeCommand._();
   @$core.pragma('dart2js:noInline')
   static EventSubscribeCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EventSubscribeCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<EventSubscribeCommand>(
+          EventSubscribeCommand.$_createMessage);
   static EventSubscribeCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -145,7 +149,7 @@ class EventSubscriptionResult extends $pb.GeneratedMessage {
   factory EventSubscriptionResult({
     $1.ResourceHandle? subscription,
   }) {
-    final result = create();
+    final result = EventSubscriptionResult._();
     if (subscription != null) result.subscription = subscription;
     return result;
   }
@@ -154,17 +158,17 @@ class EventSubscriptionResult extends $pb.GeneratedMessage {
 
   factory EventSubscriptionResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EventSubscriptionResult()..mergeFromBuffer(data, registry);
   factory EventSubscriptionResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EventSubscriptionResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EventSubscriptionResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EventSubscriptionResult.$_createMessage)
     ..aOM<$1.ResourceHandle>(1, _omitFieldNames ? '' : 'subscription',
-        subBuilder: $1.ResourceHandle.create)
+        subBuilder: $1.ResourceHandle.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -179,12 +183,16 @@ class EventSubscriptionResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EventSubscriptionResult() / EventSubscriptionResult.new instead')
   static EventSubscriptionResult create() => EventSubscriptionResult._();
+  static $pb.GeneratedMessage $_createMessage() => EventSubscriptionResult._();
   @$core.override
-  EventSubscriptionResult createEmptyInstance() => create();
+  EventSubscriptionResult createEmptyInstance() => EventSubscriptionResult._();
   @$core.pragma('dart2js:noInline')
   static EventSubscriptionResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EventSubscriptionResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<EventSubscriptionResult>(
+          EventSubscriptionResult.$_createMessage);
   static EventSubscriptionResult? _defaultInstance;
 
   @$pb.TagNumber(1)

@@ -32,7 +32,7 @@ class EdgeDesiredConfig extends $pb.GeneratedMessage {
     $core.String? publicEndpoint,
     $core.bool? enabled,
   }) {
-    final result = create();
+    final result = EdgeDesiredConfig._();
     if (edgeId != null) result.edgeId = edgeId;
     if (version != null) result.version = version;
     if (name != null) result.name = name;
@@ -47,16 +47,16 @@ class EdgeDesiredConfig extends $pb.GeneratedMessage {
 
   factory EdgeDesiredConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeDesiredConfig()..mergeFromBuffer(data, registry);
   factory EdgeDesiredConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeDesiredConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeDesiredConfig',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeDesiredConfig.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -80,12 +80,15 @@ class EdgeDesiredConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EdgeDesiredConfig() / EdgeDesiredConfig.new instead')
   static EdgeDesiredConfig create() => EdgeDesiredConfig._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeDesiredConfig._();
   @$core.override
-  EdgeDesiredConfig createEmptyInstance() => create();
+  EdgeDesiredConfig createEmptyInstance() => EdgeDesiredConfig._();
   @$core.pragma('dart2js:noInline')
-  static EdgeDesiredConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeDesiredConfig>(create);
+  static EdgeDesiredConfig getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EdgeDesiredConfig>(
+          EdgeDesiredConfig.$_createMessage);
   static EdgeDesiredConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -159,7 +162,7 @@ class SignedEdgeDesiredConfig extends $pb.GeneratedMessage {
     $core.List<$core.int>? payload,
     $core.List<$core.int>? signature,
   }) {
-    final result = create();
+    final result = SignedEdgeDesiredConfig._();
     if (keyId != null) result.keyId = keyId;
     if (payload != null) result.payload = payload;
     if (signature != null) result.signature = signature;
@@ -170,16 +173,16 @@ class SignedEdgeDesiredConfig extends $pb.GeneratedMessage {
 
   factory SignedEdgeDesiredConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SignedEdgeDesiredConfig()..mergeFromBuffer(data, registry);
   factory SignedEdgeDesiredConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SignedEdgeDesiredConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SignedEdgeDesiredConfig',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SignedEdgeDesiredConfig.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'keyId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'payload', $pb.PbFieldType.OY)
@@ -199,12 +202,16 @@ class SignedEdgeDesiredConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SignedEdgeDesiredConfig() / SignedEdgeDesiredConfig.new instead')
   static SignedEdgeDesiredConfig create() => SignedEdgeDesiredConfig._();
+  static $pb.GeneratedMessage $_createMessage() => SignedEdgeDesiredConfig._();
   @$core.override
-  SignedEdgeDesiredConfig createEmptyInstance() => create();
+  SignedEdgeDesiredConfig createEmptyInstance() => SignedEdgeDesiredConfig._();
   @$core.pragma('dart2js:noInline')
   static SignedEdgeDesiredConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SignedEdgeDesiredConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<SignedEdgeDesiredConfig>(
+          SignedEdgeDesiredConfig.$_createMessage);
   static SignedEdgeDesiredConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -248,7 +255,7 @@ class EdgeRuntimeProjection extends $pb.GeneratedMessage {
     $0.Timestamp? connectedAt,
     $0.Timestamp? lastHeartbeat,
   }) {
-    final result = create();
+    final result = EdgeRuntimeProjection._();
     if (online != null) result.online = online;
     if (bootId != null) result.bootId = bootId;
     if (connectionId != null) result.connectionId = connectionId;
@@ -265,16 +272,16 @@ class EdgeRuntimeProjection extends $pb.GeneratedMessage {
 
   factory EdgeRuntimeProjection.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EdgeRuntimeProjection()..mergeFromBuffer(data, registry);
   factory EdgeRuntimeProjection.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EdgeRuntimeProjection()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EdgeRuntimeProjection',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EdgeRuntimeProjection.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'online')
     ..aOS(2, _omitFieldNames ? '' : 'bootId')
     ..aOS(3, _omitFieldNames ? '' : 'connectionId')
@@ -289,9 +296,9 @@ class EdgeRuntimeProjection extends $pb.GeneratedMessage {
         7, _omitFieldNames ? '' : 'sessionCount', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'connectedAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<$0.Timestamp>(9, _omitFieldNames ? '' : 'lastHeartbeat',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -306,12 +313,16 @@ class EdgeRuntimeProjection extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EdgeRuntimeProjection() / EdgeRuntimeProjection.new instead')
   static EdgeRuntimeProjection create() => EdgeRuntimeProjection._();
+  static $pb.GeneratedMessage $_createMessage() => EdgeRuntimeProjection._();
   @$core.override
-  EdgeRuntimeProjection createEmptyInstance() => create();
+  EdgeRuntimeProjection createEmptyInstance() => EdgeRuntimeProjection._();
   @$core.pragma('dart2js:noInline')
   static EdgeRuntimeProjection getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EdgeRuntimeProjection>(create);
+      $pb.GeneratedMessage.$_defaultFor<EdgeRuntimeProjection>(
+          EdgeRuntimeProjection.$_createMessage);
   static EdgeRuntimeProjection? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -408,7 +419,7 @@ class ManagedEdge extends $pb.GeneratedMessage {
     EdgeRuntimeProjection? runtime,
     $1.EdgePublicCertificateStatus? publicCertificate,
   }) {
-    final result = create();
+    final result = ManagedEdge._();
     if (config != null) result.config = config;
     if (configRevision != null) result.configRevision = configRevision;
     if (runtime != null) result.runtime = runtime;
@@ -420,26 +431,26 @@ class ManagedEdge extends $pb.GeneratedMessage {
 
   factory ManagedEdge.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ManagedEdge()..mergeFromBuffer(data, registry);
   factory ManagedEdge.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ManagedEdge()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ManagedEdge',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ManagedEdge.$_createMessage)
     ..aOM<EdgeDesiredConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: EdgeDesiredConfig.create)
+        subBuilder: EdgeDesiredConfig.$_createMessage)
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'configRevision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<EdgeRuntimeProjection>(3, _omitFieldNames ? '' : 'runtime',
-        subBuilder: EdgeRuntimeProjection.create)
+        subBuilder: EdgeRuntimeProjection.$_createMessage)
     ..aOM<$1.EdgePublicCertificateStatus>(
         4, _omitFieldNames ? '' : 'publicCertificate',
-        subBuilder: $1.EdgePublicCertificateStatus.create)
+        subBuilder: $1.EdgePublicCertificateStatus.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -453,12 +464,15 @@ class ManagedEdge extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ManagedEdge() / ManagedEdge.new instead')
   static ManagedEdge create() => ManagedEdge._();
+  static $pb.GeneratedMessage $_createMessage() => ManagedEdge._();
   @$core.override
-  ManagedEdge createEmptyInstance() => create();
+  ManagedEdge createEmptyInstance() => ManagedEdge._();
   @$core.pragma('dart2js:noInline')
-  static ManagedEdge getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ManagedEdge>(create);
+  static ManagedEdge getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ManagedEdge>(
+          ManagedEdge.$_createMessage);
   static ManagedEdge? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -506,22 +520,22 @@ class ManagedEdge extends $pb.GeneratedMessage {
 }
 
 class ListEdgesRequest extends $pb.GeneratedMessage {
-  factory ListEdgesRequest() => create();
+  factory ListEdgesRequest() => ListEdgesRequest._();
 
   ListEdgesRequest._();
 
   factory ListEdgesRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListEdgesRequest()..mergeFromBuffer(data, registry);
   factory ListEdgesRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListEdgesRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListEdgesRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListEdgesRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -535,12 +549,15 @@ class ListEdgesRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ListEdgesRequest() / ListEdgesRequest.new instead')
   static ListEdgesRequest create() => ListEdgesRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ListEdgesRequest._();
   @$core.override
-  ListEdgesRequest createEmptyInstance() => create();
+  ListEdgesRequest createEmptyInstance() => ListEdgesRequest._();
   @$core.pragma('dart2js:noInline')
-  static ListEdgesRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListEdgesRequest>(create);
+  static ListEdgesRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListEdgesRequest>(
+          ListEdgesRequest.$_createMessage);
   static ListEdgesRequest? _defaultInstance;
 }
 
@@ -548,7 +565,7 @@ class ListEdgesResponse extends $pb.GeneratedMessage {
   factory ListEdgesResponse({
     $core.Iterable<ManagedEdge>? edges,
   }) {
-    final result = create();
+    final result = ListEdgesResponse._();
     if (edges != null) result.edges.addAll(edges);
     return result;
   }
@@ -557,18 +574,18 @@ class ListEdgesResponse extends $pb.GeneratedMessage {
 
   factory ListEdgesResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListEdgesResponse()..mergeFromBuffer(data, registry);
   factory ListEdgesResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListEdgesResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListEdgesResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListEdgesResponse.$_createMessage)
     ..pPM<ManagedEdge>(1, _omitFieldNames ? '' : 'edges',
-        subBuilder: ManagedEdge.create)
+        subBuilder: ManagedEdge.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -582,12 +599,15 @@ class ListEdgesResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ListEdgesResponse() / ListEdgesResponse.new instead')
   static ListEdgesResponse create() => ListEdgesResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ListEdgesResponse._();
   @$core.override
-  ListEdgesResponse createEmptyInstance() => create();
+  ListEdgesResponse createEmptyInstance() => ListEdgesResponse._();
   @$core.pragma('dart2js:noInline')
-  static ListEdgesResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListEdgesResponse>(create);
+  static ListEdgesResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListEdgesResponse>(
+          ListEdgesResponse.$_createMessage);
   static ListEdgesResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -601,7 +621,7 @@ class CreateEdgeRequest extends $pb.GeneratedMessage {
     $fixnum.Int64? capacity,
     $core.String? publicEndpoint,
   }) {
-    final result = create();
+    final result = CreateEdgeRequest._();
     if (name != null) result.name = name;
     if (region != null) result.region = region;
     if (capacity != null) result.capacity = capacity;
@@ -613,16 +633,16 @@ class CreateEdgeRequest extends $pb.GeneratedMessage {
 
   factory CreateEdgeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CreateEdgeRequest()..mergeFromBuffer(data, registry);
   factory CreateEdgeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CreateEdgeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CreateEdgeRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CreateEdgeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aOS(2, _omitFieldNames ? '' : 'region')
     ..a<$fixnum.Int64>(
@@ -642,12 +662,15 @@ class CreateEdgeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CreateEdgeRequest() / CreateEdgeRequest.new instead')
   static CreateEdgeRequest create() => CreateEdgeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => CreateEdgeRequest._();
   @$core.override
-  CreateEdgeRequest createEmptyInstance() => create();
+  CreateEdgeRequest createEmptyInstance() => CreateEdgeRequest._();
   @$core.pragma('dart2js:noInline')
-  static CreateEdgeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateEdgeRequest>(create);
+  static CreateEdgeRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateEdgeRequest>(
+          CreateEdgeRequest.$_createMessage);
   static CreateEdgeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -693,7 +716,7 @@ class CreateEdgeResponse extends $pb.GeneratedMessage {
     $core.String? installCommand,
     $0.Timestamp? claimExpiresAt,
   }) {
-    final result = create();
+    final result = CreateEdgeResponse._();
     if (edge != null) result.edge = edge;
     if (installCommand != null) result.installCommand = installCommand;
     if (claimExpiresAt != null) result.claimExpiresAt = claimExpiresAt;
@@ -704,21 +727,21 @@ class CreateEdgeResponse extends $pb.GeneratedMessage {
 
   factory CreateEdgeResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CreateEdgeResponse()..mergeFromBuffer(data, registry);
   factory CreateEdgeResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CreateEdgeResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CreateEdgeResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CreateEdgeResponse.$_createMessage)
     ..aOM<ManagedEdge>(1, _omitFieldNames ? '' : 'edge',
-        subBuilder: ManagedEdge.create)
+        subBuilder: ManagedEdge.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'installCommand')
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'claimExpiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -732,12 +755,15 @@ class CreateEdgeResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CreateEdgeResponse() / CreateEdgeResponse.new instead')
   static CreateEdgeResponse create() => CreateEdgeResponse._();
+  static $pb.GeneratedMessage $_createMessage() => CreateEdgeResponse._();
   @$core.override
-  CreateEdgeResponse createEmptyInstance() => create();
+  CreateEdgeResponse createEmptyInstance() => CreateEdgeResponse._();
   @$core.pragma('dart2js:noInline')
   static CreateEdgeResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateEdgeResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<CreateEdgeResponse>(
+          CreateEdgeResponse.$_createMessage);
   static CreateEdgeResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -782,7 +808,7 @@ class UpdateEdgeRequest extends $pb.GeneratedMessage {
     $core.String? publicEndpoint,
     $core.bool? enabled,
   }) {
-    final result = create();
+    final result = UpdateEdgeRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     if (expectedRevision != null) result.expectedRevision = expectedRevision;
     if (name != null) result.name = name;
@@ -797,16 +823,16 @@ class UpdateEdgeRequest extends $pb.GeneratedMessage {
 
   factory UpdateEdgeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      UpdateEdgeRequest()..mergeFromBuffer(data, registry);
   factory UpdateEdgeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      UpdateEdgeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'UpdateEdgeRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: UpdateEdgeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'expectedRevision', $pb.PbFieldType.OU6,
@@ -831,12 +857,15 @@ class UpdateEdgeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use UpdateEdgeRequest() / UpdateEdgeRequest.new instead')
   static UpdateEdgeRequest create() => UpdateEdgeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => UpdateEdgeRequest._();
   @$core.override
-  UpdateEdgeRequest createEmptyInstance() => create();
+  UpdateEdgeRequest createEmptyInstance() => UpdateEdgeRequest._();
   @$core.pragma('dart2js:noInline')
-  static UpdateEdgeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateEdgeRequest>(create);
+  static UpdateEdgeRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UpdateEdgeRequest>(
+          UpdateEdgeRequest.$_createMessage);
   static UpdateEdgeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -907,7 +936,7 @@ class UpdateEdgeResponse extends $pb.GeneratedMessage {
   factory UpdateEdgeResponse({
     ManagedEdge? edge,
   }) {
-    final result = create();
+    final result = UpdateEdgeResponse._();
     if (edge != null) result.edge = edge;
     return result;
   }
@@ -916,18 +945,18 @@ class UpdateEdgeResponse extends $pb.GeneratedMessage {
 
   factory UpdateEdgeResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      UpdateEdgeResponse()..mergeFromBuffer(data, registry);
   factory UpdateEdgeResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      UpdateEdgeResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'UpdateEdgeResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: UpdateEdgeResponse.$_createMessage)
     ..aOM<ManagedEdge>(1, _omitFieldNames ? '' : 'edge',
-        subBuilder: ManagedEdge.create)
+        subBuilder: ManagedEdge.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -941,12 +970,15 @@ class UpdateEdgeResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use UpdateEdgeResponse() / UpdateEdgeResponse.new instead')
   static UpdateEdgeResponse create() => UpdateEdgeResponse._();
+  static $pb.GeneratedMessage $_createMessage() => UpdateEdgeResponse._();
   @$core.override
-  UpdateEdgeResponse createEmptyInstance() => create();
+  UpdateEdgeResponse createEmptyInstance() => UpdateEdgeResponse._();
   @$core.pragma('dart2js:noInline')
   static UpdateEdgeResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateEdgeResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<UpdateEdgeResponse>(
+          UpdateEdgeResponse.$_createMessage);
   static UpdateEdgeResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -965,7 +997,7 @@ class RegenerateEdgeInstallRequest extends $pb.GeneratedMessage {
   factory RegenerateEdgeInstallRequest({
     $core.String? edgeId,
   }) {
-    final result = create();
+    final result = RegenerateEdgeInstallRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     return result;
   }
@@ -974,16 +1006,16 @@ class RegenerateEdgeInstallRequest extends $pb.GeneratedMessage {
 
   factory RegenerateEdgeInstallRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RegenerateEdgeInstallRequest()..mergeFromBuffer(data, registry);
   factory RegenerateEdgeInstallRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RegenerateEdgeInstallRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RegenerateEdgeInstallRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RegenerateEdgeInstallRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..hasRequiredFields = false;
 
@@ -1000,13 +1032,19 @@ class RegenerateEdgeInstallRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RegenerateEdgeInstallRequest() / RegenerateEdgeInstallRequest.new instead')
   static RegenerateEdgeInstallRequest create() =>
       RegenerateEdgeInstallRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RegenerateEdgeInstallRequest._();
   @$core.override
-  RegenerateEdgeInstallRequest createEmptyInstance() => create();
+  RegenerateEdgeInstallRequest createEmptyInstance() =>
+      RegenerateEdgeInstallRequest._();
   @$core.pragma('dart2js:noInline')
   static RegenerateEdgeInstallRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegenerateEdgeInstallRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<RegenerateEdgeInstallRequest>(
+          RegenerateEdgeInstallRequest.$_createMessage);
   static RegenerateEdgeInstallRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1025,7 +1063,7 @@ class RegenerateEdgeInstallResponse extends $pb.GeneratedMessage {
     $core.String? installCommand,
     $0.Timestamp? claimExpiresAt,
   }) {
-    final result = create();
+    final result = RegenerateEdgeInstallResponse._();
     if (edge != null) result.edge = edge;
     if (installCommand != null) result.installCommand = installCommand;
     if (claimExpiresAt != null) result.claimExpiresAt = claimExpiresAt;
@@ -1036,21 +1074,21 @@ class RegenerateEdgeInstallResponse extends $pb.GeneratedMessage {
 
   factory RegenerateEdgeInstallResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RegenerateEdgeInstallResponse()..mergeFromBuffer(data, registry);
   factory RegenerateEdgeInstallResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RegenerateEdgeInstallResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RegenerateEdgeInstallResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RegenerateEdgeInstallResponse.$_createMessage)
     ..aOM<ManagedEdge>(1, _omitFieldNames ? '' : 'edge',
-        subBuilder: ManagedEdge.create)
+        subBuilder: ManagedEdge.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'installCommand')
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'claimExpiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1066,13 +1104,19 @@ class RegenerateEdgeInstallResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RegenerateEdgeInstallResponse() / RegenerateEdgeInstallResponse.new instead')
   static RegenerateEdgeInstallResponse create() =>
       RegenerateEdgeInstallResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RegenerateEdgeInstallResponse._();
   @$core.override
-  RegenerateEdgeInstallResponse createEmptyInstance() => create();
+  RegenerateEdgeInstallResponse createEmptyInstance() =>
+      RegenerateEdgeInstallResponse._();
   @$core.pragma('dart2js:noInline')
   static RegenerateEdgeInstallResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegenerateEdgeInstallResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RegenerateEdgeInstallResponse>(
+          RegenerateEdgeInstallResponse.$_createMessage);
   static RegenerateEdgeInstallResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1113,7 +1157,7 @@ class DeleteEdgeRequest extends $pb.GeneratedMessage {
     $fixnum.Int64? expectedRevision,
     $core.String? reason,
   }) {
-    final result = create();
+    final result = DeleteEdgeRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     if (expectedRevision != null) result.expectedRevision = expectedRevision;
     if (reason != null) result.reason = reason;
@@ -1124,16 +1168,16 @@ class DeleteEdgeRequest extends $pb.GeneratedMessage {
 
   factory DeleteEdgeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeleteEdgeRequest()..mergeFromBuffer(data, registry);
   factory DeleteEdgeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeleteEdgeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeleteEdgeRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeleteEdgeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'expectedRevision', $pb.PbFieldType.OU6,
@@ -1152,12 +1196,15 @@ class DeleteEdgeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DeleteEdgeRequest() / DeleteEdgeRequest.new instead')
   static DeleteEdgeRequest create() => DeleteEdgeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteEdgeRequest._();
   @$core.override
-  DeleteEdgeRequest createEmptyInstance() => create();
+  DeleteEdgeRequest createEmptyInstance() => DeleteEdgeRequest._();
   @$core.pragma('dart2js:noInline')
-  static DeleteEdgeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteEdgeRequest>(create);
+  static DeleteEdgeRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeleteEdgeRequest>(
+          DeleteEdgeRequest.$_createMessage);
   static DeleteEdgeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1189,22 +1236,22 @@ class DeleteEdgeRequest extends $pb.GeneratedMessage {
 }
 
 class DeleteEdgeResponse extends $pb.GeneratedMessage {
-  factory DeleteEdgeResponse() => create();
+  factory DeleteEdgeResponse() => DeleteEdgeResponse._();
 
   DeleteEdgeResponse._();
 
   factory DeleteEdgeResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeleteEdgeResponse()..mergeFromBuffer(data, registry);
   factory DeleteEdgeResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeleteEdgeResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeleteEdgeResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeleteEdgeResponse.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1218,12 +1265,15 @@ class DeleteEdgeResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DeleteEdgeResponse() / DeleteEdgeResponse.new instead')
   static DeleteEdgeResponse create() => DeleteEdgeResponse._();
+  static $pb.GeneratedMessage $_createMessage() => DeleteEdgeResponse._();
   @$core.override
-  DeleteEdgeResponse createEmptyInstance() => create();
+  DeleteEdgeResponse createEmptyInstance() => DeleteEdgeResponse._();
   @$core.pragma('dart2js:noInline')
   static DeleteEdgeResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteEdgeResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<DeleteEdgeResponse>(
+          DeleteEdgeResponse.$_createMessage);
   static DeleteEdgeResponse? _defaultInstance;
 }
 
@@ -1235,7 +1285,7 @@ class RegisterEdgeRequest extends $pb.GeneratedMessage {
     $core.List<$core.int>? identityCsrPem,
     $core.List<$core.int>? publicCsrPem,
   }) {
-    final result = create();
+    final result = RegisterEdgeRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     if (bootstrapToken != null) result.bootstrapToken = bootstrapToken;
     if (identityCsrPem != null) result.identityCsrPem = identityCsrPem;
@@ -1247,16 +1297,16 @@ class RegisterEdgeRequest extends $pb.GeneratedMessage {
 
   factory RegisterEdgeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RegisterEdgeRequest()..mergeFromBuffer(data, registry);
   factory RegisterEdgeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RegisterEdgeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RegisterEdgeRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RegisterEdgeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..aOS(2, _omitFieldNames ? '' : 'bootstrapToken')
     ..a<$core.List<$core.int>>(
@@ -1276,12 +1326,16 @@ class RegisterEdgeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use RegisterEdgeRequest() / RegisterEdgeRequest.new instead')
   static RegisterEdgeRequest create() => RegisterEdgeRequest._();
+  static $pb.GeneratedMessage $_createMessage() => RegisterEdgeRequest._();
   @$core.override
-  RegisterEdgeRequest createEmptyInstance() => create();
+  RegisterEdgeRequest createEmptyInstance() => RegisterEdgeRequest._();
   @$core.pragma('dart2js:noInline')
   static RegisterEdgeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegisterEdgeRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<RegisterEdgeRequest>(
+          RegisterEdgeRequest.$_createMessage);
   static RegisterEdgeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1334,7 +1388,7 @@ class RegisterEdgeResponse extends $pb.GeneratedMessage {
     $core.String? configKeyId,
     $core.List<$core.int>? configSigningPublicKey,
   }) {
-    final result = create();
+    final result = RegisterEdgeResponse._();
     if (edgeId != null) result.edgeId = edgeId;
     if (identityCertificatePem != null)
       result.identityCertificatePem = identityCertificatePem;
@@ -1356,16 +1410,16 @@ class RegisterEdgeResponse extends $pb.GeneratedMessage {
 
   factory RegisterEdgeResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RegisterEdgeResponse()..mergeFromBuffer(data, registry);
   factory RegisterEdgeResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RegisterEdgeResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RegisterEdgeResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RegisterEdgeResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'identityCertificatePem', $pb.PbFieldType.OY)
@@ -1376,7 +1430,7 @@ class RegisterEdgeResponse extends $pb.GeneratedMessage {
     ..aOS(6, _omitFieldNames ? '' : 'controllerAddress')
     ..aOS(7, _omitFieldNames ? '' : 'controllerServerName')
     ..aOM<SignedEdgeDesiredConfig>(8, _omitFieldNames ? '' : 'desiredConfig',
-        subBuilder: SignedEdgeDesiredConfig.create)
+        subBuilder: SignedEdgeDesiredConfig.$_createMessage)
     ..aOS(9, _omitFieldNames ? '' : 'configKeyId')
     ..a<$core.List<$core.int>>(
         10, _omitFieldNames ? '' : 'configSigningPublicKey', $pb.PbFieldType.OY)
@@ -1393,12 +1447,16 @@ class RegisterEdgeResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RegisterEdgeResponse() / RegisterEdgeResponse.new instead')
   static RegisterEdgeResponse create() => RegisterEdgeResponse._();
+  static $pb.GeneratedMessage $_createMessage() => RegisterEdgeResponse._();
   @$core.override
-  RegisterEdgeResponse createEmptyInstance() => create();
+  RegisterEdgeResponse createEmptyInstance() => RegisterEdgeResponse._();
   @$core.pragma('dart2js:noInline')
   static RegisterEdgeResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegisterEdgeResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RegisterEdgeResponse>(
+          RegisterEdgeResponse.$_createMessage);
   static RegisterEdgeResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1492,7 +1550,7 @@ class CreateEdgeIdentityRecoveryRequest extends $pb.GeneratedMessage {
     $core.String? edgeId,
     $core.String? reason,
   }) {
-    final result = create();
+    final result = CreateEdgeIdentityRecoveryRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     if (reason != null) result.reason = reason;
     return result;
@@ -1503,16 +1561,16 @@ class CreateEdgeIdentityRecoveryRequest extends $pb.GeneratedMessage {
   factory CreateEdgeIdentityRecoveryRequest.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CreateEdgeIdentityRecoveryRequest()..mergeFromBuffer(data, registry);
   factory CreateEdgeIdentityRecoveryRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CreateEdgeIdentityRecoveryRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CreateEdgeIdentityRecoveryRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CreateEdgeIdentityRecoveryRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..aOS(2, _omitFieldNames ? '' : 'reason')
     ..hasRequiredFields = false;
@@ -1530,14 +1588,19 @@ class CreateEdgeIdentityRecoveryRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CreateEdgeIdentityRecoveryRequest() / CreateEdgeIdentityRecoveryRequest.new instead')
   static CreateEdgeIdentityRecoveryRequest create() =>
       CreateEdgeIdentityRecoveryRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      CreateEdgeIdentityRecoveryRequest._();
   @$core.override
-  CreateEdgeIdentityRecoveryRequest createEmptyInstance() => create();
+  CreateEdgeIdentityRecoveryRequest createEmptyInstance() =>
+      CreateEdgeIdentityRecoveryRequest._();
   @$core.pragma('dart2js:noInline')
   static CreateEdgeIdentityRecoveryRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<CreateEdgeIdentityRecoveryRequest>(
-          create);
+          CreateEdgeIdentityRecoveryRequest.$_createMessage);
   static CreateEdgeIdentityRecoveryRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1564,7 +1627,7 @@ class CreateEdgeIdentityRecoveryResponse extends $pb.GeneratedMessage {
     $core.String? recoveryToken,
     $0.Timestamp? expiresAt,
   }) {
-    final result = create();
+    final result = CreateEdgeIdentityRecoveryResponse._();
     if (recoveryToken != null) result.recoveryToken = recoveryToken;
     if (expiresAt != null) result.expiresAt = expiresAt;
     return result;
@@ -1575,19 +1638,19 @@ class CreateEdgeIdentityRecoveryResponse extends $pb.GeneratedMessage {
   factory CreateEdgeIdentityRecoveryResponse.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CreateEdgeIdentityRecoveryResponse()..mergeFromBuffer(data, registry);
   factory CreateEdgeIdentityRecoveryResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CreateEdgeIdentityRecoveryResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CreateEdgeIdentityRecoveryResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CreateEdgeIdentityRecoveryResponse.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'recoveryToken')
     ..aOM<$0.Timestamp>(2, _omitFieldNames ? '' : 'expiresAt',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1603,14 +1666,19 @@ class CreateEdgeIdentityRecoveryResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CreateEdgeIdentityRecoveryResponse() / CreateEdgeIdentityRecoveryResponse.new instead')
   static CreateEdgeIdentityRecoveryResponse create() =>
       CreateEdgeIdentityRecoveryResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      CreateEdgeIdentityRecoveryResponse._();
   @$core.override
-  CreateEdgeIdentityRecoveryResponse createEmptyInstance() => create();
+  CreateEdgeIdentityRecoveryResponse createEmptyInstance() =>
+      CreateEdgeIdentityRecoveryResponse._();
   @$core.pragma('dart2js:noInline')
   static CreateEdgeIdentityRecoveryResponse getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<CreateEdgeIdentityRecoveryResponse>(
-          create);
+          CreateEdgeIdentityRecoveryResponse.$_createMessage);
   static CreateEdgeIdentityRecoveryResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1642,7 +1710,7 @@ class RecoverEdgeIdentityRequest extends $pb.GeneratedMessage {
     $core.String? recoveryToken,
     $core.List<$core.int>? identityCsrPem,
   }) {
-    final result = create();
+    final result = RecoverEdgeIdentityRequest._();
     if (edgeId != null) result.edgeId = edgeId;
     if (recoveryToken != null) result.recoveryToken = recoveryToken;
     if (identityCsrPem != null) result.identityCsrPem = identityCsrPem;
@@ -1653,16 +1721,16 @@ class RecoverEdgeIdentityRequest extends $pb.GeneratedMessage {
 
   factory RecoverEdgeIdentityRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RecoverEdgeIdentityRequest()..mergeFromBuffer(data, registry);
   factory RecoverEdgeIdentityRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RecoverEdgeIdentityRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RecoverEdgeIdentityRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RecoverEdgeIdentityRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'edgeId')
     ..aOS(2, _omitFieldNames ? '' : 'recoveryToken')
     ..a<$core.List<$core.int>>(
@@ -1682,12 +1750,18 @@ class RecoverEdgeIdentityRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RecoverEdgeIdentityRequest() / RecoverEdgeIdentityRequest.new instead')
   static RecoverEdgeIdentityRequest create() => RecoverEdgeIdentityRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RecoverEdgeIdentityRequest._();
   @$core.override
-  RecoverEdgeIdentityRequest createEmptyInstance() => create();
+  RecoverEdgeIdentityRequest createEmptyInstance() =>
+      RecoverEdgeIdentityRequest._();
   @$core.pragma('dart2js:noInline')
   static RecoverEdgeIdentityRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RecoverEdgeIdentityRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<RecoverEdgeIdentityRequest>(
+          RecoverEdgeIdentityRequest.$_createMessage);
   static RecoverEdgeIdentityRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1724,7 +1798,7 @@ class RecoverEdgeIdentityResponse extends $pb.GeneratedMessage {
     $core.List<$core.int>? certificateSha256,
     $0.Timestamp? notAfter,
   }) {
-    final result = create();
+    final result = RecoverEdgeIdentityResponse._();
     if (identityCertificatePem != null)
       result.identityCertificatePem = identityCertificatePem;
     if (certificateSha256 != null) result.certificateSha256 = certificateSha256;
@@ -1736,22 +1810,22 @@ class RecoverEdgeIdentityResponse extends $pb.GeneratedMessage {
 
   factory RecoverEdgeIdentityResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RecoverEdgeIdentityResponse()..mergeFromBuffer(data, registry);
   factory RecoverEdgeIdentityResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RecoverEdgeIdentityResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RecoverEdgeIdentityResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RecoverEdgeIdentityResponse.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'identityCertificatePem', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'certificateSha256', $pb.PbFieldType.OY)
     ..aOM<$0.Timestamp>(3, _omitFieldNames ? '' : 'notAfter',
-        subBuilder: $0.Timestamp.create)
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1767,13 +1841,19 @@ class RecoverEdgeIdentityResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use RecoverEdgeIdentityResponse() / RecoverEdgeIdentityResponse.new instead')
   static RecoverEdgeIdentityResponse create() =>
       RecoverEdgeIdentityResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      RecoverEdgeIdentityResponse._();
   @$core.override
-  RecoverEdgeIdentityResponse createEmptyInstance() => create();
+  RecoverEdgeIdentityResponse createEmptyInstance() =>
+      RecoverEdgeIdentityResponse._();
   @$core.pragma('dart2js:noInline')
   static RecoverEdgeIdentityResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RecoverEdgeIdentityResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RecoverEdgeIdentityResponse>(
+          RecoverEdgeIdentityResponse.$_createMessage);
   static RecoverEdgeIdentityResponse? _defaultInstance;
 
   @$pb.TagNumber(1)

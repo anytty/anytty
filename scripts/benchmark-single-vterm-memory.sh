@@ -73,7 +73,7 @@ git -C "$repo_root" archive --format=tar --output="$baseline_tar" "$baseline_ref
 mkdir -p "$baseline_source"
 tar -xf "$baseline_tar" -C "$baseline_source"
 rm "$baseline_tar"
-install -m 0644 "$repo_root/cmd/anytty/memory_bench_signal_unix.go" "$baseline_source/cmd/anytty/memory_bench_signal_unix.go"
+install -m 0644 "$repo_root/clients/cli/memory_bench_signal_unix.go" "$baseline_source/cmd/anytty/memory_bench_signal_unix.go"
 
 echo "building baseline $baseline_ref"
 (

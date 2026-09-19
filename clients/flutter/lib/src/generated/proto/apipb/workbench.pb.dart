@@ -26,7 +26,7 @@ class WorkbenchValue extends $pb.GeneratedMessage {
     $core.String? activeWorkspaceId,
     $core.Iterable<WorkbenchWorkspace>? workspaces,
   }) {
-    final result = create();
+    final result = WorkbenchValue._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (activeWorkspaceId != null) result.activeWorkspaceId = activeWorkspaceId;
     if (workspaces != null) result.workspaces.addAll(workspaces);
@@ -37,20 +37,20 @@ class WorkbenchValue extends $pb.GeneratedMessage {
 
   factory WorkbenchValue.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      WorkbenchValue()..mergeFromBuffer(data, registry);
   factory WorkbenchValue.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      WorkbenchValue()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WorkbenchValue',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: WorkbenchValue.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'activeWorkspaceId')
     ..pPM<WorkbenchWorkspace>(3, _omitFieldNames ? '' : 'workspaces',
-        subBuilder: WorkbenchWorkspace.create)
+        subBuilder: WorkbenchWorkspace.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -64,12 +64,15 @@ class WorkbenchValue extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WorkbenchValue() / WorkbenchValue.new instead')
   static WorkbenchValue create() => WorkbenchValue._();
+  static $pb.GeneratedMessage $_createMessage() => WorkbenchValue._();
   @$core.override
-  WorkbenchValue createEmptyInstance() => create();
+  WorkbenchValue createEmptyInstance() => WorkbenchValue._();
   @$core.pragma('dart2js:noInline')
-  static WorkbenchValue getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WorkbenchValue>(create);
+  static WorkbenchValue getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WorkbenchValue>(
+          WorkbenchValue.$_createMessage);
   static WorkbenchValue? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -101,7 +104,7 @@ class WorkbenchWorkspace extends $pb.GeneratedMessage {
     $core.String? activeTabId,
     $core.Iterable<WorkbenchTab>? tabs,
   }) {
-    final result = create();
+    final result = WorkbenchWorkspace._();
     if (id != null) result.id = id;
     if (name != null) result.name = name;
     if (activeTabId != null) result.activeTabId = activeTabId;
@@ -113,20 +116,20 @@ class WorkbenchWorkspace extends $pb.GeneratedMessage {
 
   factory WorkbenchWorkspace.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      WorkbenchWorkspace()..mergeFromBuffer(data, registry);
   factory WorkbenchWorkspace.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      WorkbenchWorkspace()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WorkbenchWorkspace',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: WorkbenchWorkspace.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..aOS(3, _omitFieldNames ? '' : 'activeTabId')
     ..pPM<WorkbenchTab>(4, _omitFieldNames ? '' : 'tabs',
-        subBuilder: WorkbenchTab.create)
+        subBuilder: WorkbenchTab.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -140,12 +143,15 @@ class WorkbenchWorkspace extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WorkbenchWorkspace() / WorkbenchWorkspace.new instead')
   static WorkbenchWorkspace create() => WorkbenchWorkspace._();
+  static $pb.GeneratedMessage $_createMessage() => WorkbenchWorkspace._();
   @$core.override
-  WorkbenchWorkspace createEmptyInstance() => create();
+  WorkbenchWorkspace createEmptyInstance() => WorkbenchWorkspace._();
   @$core.pragma('dart2js:noInline')
   static WorkbenchWorkspace getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WorkbenchWorkspace>(create);
+      $pb.GeneratedMessage.$_defaultFor<WorkbenchWorkspace>(
+          WorkbenchWorkspace.$_createMessage);
   static WorkbenchWorkspace? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -187,7 +193,7 @@ class WorkbenchTab extends $pb.GeneratedMessage {
     $core.Iterable<WorkbenchPane>? panes,
     WorkbenchSplitNode? rootSplit,
   }) {
-    final result = create();
+    final result = WorkbenchTab._();
     if (id != null) result.id = id;
     if (title != null) result.title = title;
     if (activePaneId != null) result.activePaneId = activePaneId;
@@ -200,22 +206,22 @@ class WorkbenchTab extends $pb.GeneratedMessage {
 
   factory WorkbenchTab.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      WorkbenchTab()..mergeFromBuffer(data, registry);
   factory WorkbenchTab.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      WorkbenchTab()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WorkbenchTab',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: WorkbenchTab.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'title')
     ..aOS(3, _omitFieldNames ? '' : 'activePaneId')
     ..pPM<WorkbenchPane>(4, _omitFieldNames ? '' : 'panes',
-        subBuilder: WorkbenchPane.create)
+        subBuilder: WorkbenchPane.$_createMessage)
     ..aOM<WorkbenchSplitNode>(5, _omitFieldNames ? '' : 'rootSplit',
-        subBuilder: WorkbenchSplitNode.create)
+        subBuilder: WorkbenchSplitNode.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -229,12 +235,15 @@ class WorkbenchTab extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WorkbenchTab() / WorkbenchTab.new instead')
   static WorkbenchTab create() => WorkbenchTab._();
+  static $pb.GeneratedMessage $_createMessage() => WorkbenchTab._();
   @$core.override
-  WorkbenchTab createEmptyInstance() => create();
+  WorkbenchTab createEmptyInstance() => WorkbenchTab._();
   @$core.pragma('dart2js:noInline')
-  static WorkbenchTab getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WorkbenchTab>(create);
+  static WorkbenchTab getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WorkbenchTab>(
+          WorkbenchTab.$_createMessage);
   static WorkbenchTab? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -285,7 +294,7 @@ class WorkbenchPane extends $pb.GeneratedMessage {
     $core.String? title,
     $core.String? terminalId,
   }) {
-    final result = create();
+    final result = WorkbenchPane._();
     if (id != null) result.id = id;
     if (title != null) result.title = title;
     if (terminalId != null) result.terminalId = terminalId;
@@ -296,15 +305,15 @@ class WorkbenchPane extends $pb.GeneratedMessage {
 
   factory WorkbenchPane.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      WorkbenchPane()..mergeFromBuffer(data, registry);
   factory WorkbenchPane.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      WorkbenchPane()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WorkbenchPane',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: WorkbenchPane.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'title')
     ..aOS(3, _omitFieldNames ? '' : 'terminalId')
@@ -321,12 +330,15 @@ class WorkbenchPane extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WorkbenchPane() / WorkbenchPane.new instead')
   static WorkbenchPane create() => WorkbenchPane._();
+  static $pb.GeneratedMessage $_createMessage() => WorkbenchPane._();
   @$core.override
-  WorkbenchPane createEmptyInstance() => create();
+  WorkbenchPane createEmptyInstance() => WorkbenchPane._();
   @$core.pragma('dart2js:noInline')
-  static WorkbenchPane getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WorkbenchPane>(create);
+  static WorkbenchPane getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<WorkbenchPane>(
+          WorkbenchPane.$_createMessage);
   static WorkbenchPane? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -368,7 +380,7 @@ class WorkbenchSplitNode extends $pb.GeneratedMessage {
     $core.int? fixedCols,
     $core.int? fixedRows,
   }) {
-    final result = create();
+    final result = WorkbenchSplitNode._();
     if (paneId != null) result.paneId = paneId;
     if (direction != null) result.direction = direction;
     if (children != null) result.children.addAll(children);
@@ -384,20 +396,20 @@ class WorkbenchSplitNode extends $pb.GeneratedMessage {
 
   factory WorkbenchSplitNode.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      WorkbenchSplitNode()..mergeFromBuffer(data, registry);
   factory WorkbenchSplitNode.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      WorkbenchSplitNode()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'WorkbenchSplitNode',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: WorkbenchSplitNode.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'paneId')
     ..aE<WorkbenchSplitDirection>(2, _omitFieldNames ? '' : 'direction',
         enumValues: WorkbenchSplitDirection.values)
     ..pPM<WorkbenchSplitNode>(3, _omitFieldNames ? '' : 'children',
-        subBuilder: WorkbenchSplitNode.create)
+        subBuilder: WorkbenchSplitNode.$_createMessage)
     ..aD(4, _omitFieldNames ? '' : 'ratio')
     ..aI(5, _omitFieldNames ? '' : 'biasCells')
     ..aOS(6, _omitFieldNames ? '' : 'fixedPaneId')
@@ -416,12 +428,15 @@ class WorkbenchSplitNode extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use WorkbenchSplitNode() / WorkbenchSplitNode.new instead')
   static WorkbenchSplitNode create() => WorkbenchSplitNode._();
+  static $pb.GeneratedMessage $_createMessage() => WorkbenchSplitNode._();
   @$core.override
-  WorkbenchSplitNode createEmptyInstance() => create();
+  WorkbenchSplitNode createEmptyInstance() => WorkbenchSplitNode._();
   @$core.pragma('dart2js:noInline')
   static WorkbenchSplitNode getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<WorkbenchSplitNode>(create);
+      $pb.GeneratedMessage.$_defaultFor<WorkbenchSplitNode>(
+          WorkbenchSplitNode.$_createMessage);
   static WorkbenchSplitNode? _defaultInstance;
 
   @$pb.TagNumber(1)

@@ -1,0 +1,271 @@
+// TUI v2 wire payloads (tui2/docs/PROTOCOL.zh-CN.md §0, §1, §2, §3, §4).
+//
+// The frame envelope itself is binary and implemented in tui2/proto:
+//
+//	u32 length (big endian, bytes after the length field: 1 type byte + payload)
+//	u8  type   (1 HELLO, 2 VIEW, 3 EVENT, 4 RESULT, 5 RESPONSE)
+//	payload    (protobuf message defined below)
+//
+// This file only defines the payloads. Type numbers live in the Go package
+// and are append-only.
+syntax = "proto3";
+
+package anytty.tui2.v1;
+
+option go_package = "github.com/anytty/anytty/proto/ui/protobuf;protobuf";
+
+// Limits mirrors hello.limits (PROTOCOL §1).
+message Limits {
+  uint32 max_nodes = 1;
+  uint32 max_message_bytes = 2;
+  uint32 max_paste_bytes = 3;
+  uint32 max_inflight_requests = 4;
+  uint32 owner_lease_ttl_ms = 5;
+}
+
+// Hello is the handshake sent by the host on every program start/restart
+// (PROTOCOL §1).
+message Hello {
+  uint32 schema = 1;
+  string view_id = 2;
+  uint64 epoch = 3;
+  uint32 cols = 4;
+  uint32 rows = 5;
+  repeated string components = 6;
+  repeated string events = 7;
+  repeated string methods = 8;
+  map<string, bool> features = 9;
+  Limits limits = 10;
+}
+
+// Keys is the routing claim carried inside a View frame (PROTOCOL §6.5).
+// It is not a standalone frame.
+message Keys {
+  repeated string claim = 1;
+  bool all = 2;
+}
+
+// Size is the declared box geometry (PROTOCOL §9.1).
+message Size {
+  int32 width = 1;
+  int32 height = 2;
+  int32 flex = 3;
+}
+
+// Pos takes a box out of the regular flow (absolute overlay subtree).
+message Pos {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+message Content {
+  string text = 1;
+  repeated string lines = 2;
+  string self = 3;
+  // Props are program -> component properties/styles (PROTOCOL §2, §5). The
+  // host passes them through untouched; the component interprets the keys it
+  // knows and ignores every other key. The terminal component reads chrome.*
+  // explicit style strings (see components/terminal).
+  map<string, string> props = 4;
+}
+
+message Cursor {
+  int32 row = 1;
+  int32 col = 2;
+  string shape = 3;
+  // Default true when the cursor is present (PROTOCOL §9.1).
+  optional bool visible = 4;
+}
+
+// Box is one node of the view tree (PROTOCOL §2).
+message Box {
+  string id = 1;
+  Size size = 2;
+  Pos pos = 3;
+  string flow = 4;
+  // Default true; optional to keep presence on the wire.
+  optional bool visible = 5;
+  // Field 6 used to carry the kernel-drawn border. Removed: the kernel has no
+  // border concept, chrome is content/component-side and components read the
+  // program-declared styles from Content.props.
+  reserved 6;
+  reserved "border";
+  Cursor cursor = 7;
+  Content content = 8;
+  repeated string input = 9;
+  bool focused = 10;
+  repeated Box children = 11;
+  // Opaque content style: an explicit theme-free style string
+  // ("fg:#RRGGBB;bg:#RRGGBB;bold;dim;reverse") sent by the program, or a
+  // host-internal token. Empty means the host default style.
+  string style = 12;
+}
+
+// View is the full-snapshot frame sent program -> host (PROTOCOL §2).
+message View {
+  uint64 epoch = 1;
+  uint64 rev = 2;
+  Keys keys = 3;
+  Box root = 4;
+}
+
+// Source is one item of the full sources snapshot (PROTOCOL §5, §9.2).
+message Source {
+  string id = 1;
+  string kind = 2;
+  string title = 3;
+  string endpoint = 4;
+  string terminal_id = 5;
+  bool attached = 6;
+  bool exited = 7;
+  int32 exit_code = 8;
+  string health = 9;
+  string resize_owner = 10;
+  uint64 owner_epoch = 11;
+  int64 last_seen_ms = 12;
+}
+
+message SourcesEvent {
+  repeated Source items = 1;
+}
+
+message KeyEvent {
+  string id = 1;
+  string key = 2;
+  string char = 3;
+}
+
+message PasteEvent {
+  string id = 1;
+  string text = 2;
+}
+
+message MouseEvent {
+  string action = 1;
+  string button = 2;
+  int32 x = 3;
+  int32 y = 4;
+  string node = 5;
+}
+
+message WheelEvent {
+  int32 delta = 1;
+  int32 x = 2;
+  int32 y = 3;
+  string node = 4;
+}
+
+message ResizeEvent {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message NoticeEvent {
+  string level = 1;
+  string message = 2;
+}
+
+message ComponentEvent {
+  string source = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message ViewRejectedEvent {
+  uint64 epoch = 1;
+  uint64 rev = 2;
+  string reason = 3;
+}
+
+// Event is the host -> program frame (PROTOCOL §3).
+message Event {
+  oneof event {
+    KeyEvent key = 1;
+    PasteEvent paste = 2;
+    MouseEvent mouse = 3;
+    WheelEvent wheel = 4;
+    ResizeEvent resize = 5;
+    SourcesEvent sources = 6;
+    NoticeEvent notice = 7;
+    ComponentEvent component = 8;
+    ViewRejectedEvent view_rejected = 9;
+  }
+}
+
+message Selection {
+  string mode = 1;
+  int32 start = 2;
+  int32 end = 3;
+}
+
+// MethodParams carries the union of the §4 method parameters. Fields not
+// relevant to a method are left unset; absence of a required field is a
+// parameter error (RESPONSE{ok:false,error}).
+message MethodParams {
+  string endpoint = 1;
+  string id = 2;
+  optional bool fit = 3;
+  optional uint64 expected_owner_epoch = 4;
+  repeated string argv = 5;
+  string cwd = 6;
+  map<string, string> env = 7;
+  string title = 8;
+  optional bool ephemeral = 9;
+  int32 delta = 10;
+  Selection sel = 11;
+  int32 offset = 12;
+  int32 rows = 13;
+  string event_id = 14;
+  string source = 15;
+  optional bool cleanup_owned = 16;
+  // Endpoint connection metadata (ENDPOINTS.zh-CN.md §2, append-only).
+  // kind is "command" (default, local PTY argv) or "daemon" (connect to an
+  // existing anytty daemon over a transport). socket is the daemon unix
+  // socket path for the local-unix connect mode; address is the HOST:PORT
+  // peer for the tcp connect mode (an ssh -L TCP->socket forward or a
+  // byte-transparent bridge that terminates at the daemon transport).
+  // connect_mode is "local-unix" (default for daemon), "tcp",
+  // "direct-webrtc-tcp" or "managed-webrtc".
+  string kind = 17;
+  string socket = 18;
+  string connect_mode = 19;
+  string address = 20;
+  // Direct/Cloud connection metadata (REMOTE.zh-CN.md §P2, append-only):
+  // signaling_addresses/ice_tcp_addresses are the daemon signaling and
+  // ICE-TCP locators; daemon_device_id/daemon_fingerprint pin the daemon
+  // identity from `anytty pair inspect`; credential_dir/credential_ref
+  // select the paired remoteauth credential (`anytty pair import`);
+  // cloud_gateway_address is the AnyTTY Cloud controller/client_gateway.
+  repeated string signaling_addresses = 21;
+  repeated string ice_tcp_addresses = 22;
+  string daemon_device_id = 23;
+  string daemon_fingerprint = 24;
+  string credential_dir = 25;
+  string credential_ref = 26;
+  string cloud_gateway_address = 27;
+}
+
+// Result is the program -> host method call (PROTOCOL §4).
+message Result {
+  uint64 request_id = 1;
+  uint64 epoch = 2;
+  string method = 3;
+  MethodParams params = 4;
+}
+
+// MethodData is the optional response payload (PROTOCOL §4 data column).
+message MethodData {
+  repeated string rows = 1;
+  string text = 2;
+  string endpoint = 3;
+  string id = 4;
+}
+
+// Response is the host -> program reply, exactly one per Result.
+message Response {
+  uint64 request_id = 1;
+  uint64 epoch = 2;
+  bool ok = 3;
+  MethodData data = 4;
+  string error = 5;
+}

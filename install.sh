@@ -95,19 +95,23 @@ fi
 [ "$actual" = "$expected" ] || { echo "checksum verification failed for $archive_name" >&2; exit 1; }
 
 tar -xzf "$work_dir/$archive_name" -C "$work_dir"
-[ -f "$work_dir/$archive_base/anytty" ] || { echo "release archive does not contain anytty" >&2; exit 1; }
+for binary in anytty tui2 tui2-shell; do
+  [ -f "$work_dir/$archive_base/$binary" ] || { echo "release archive does not contain $binary" >&2; exit 1; }
+done
 [ -f "$work_dir/$archive_base/tui-v3.yaml" ] || { echo "release archive does not contain tui-v3.yaml" >&2; exit 1; }
 mkdir -p "$install_dir"
-install_candidate="$(mktemp "$install_dir/.anytty-install.XXXXXX")"
-cp "$work_dir/$archive_base/anytty" "$install_candidate"
-chmod 0755 "$install_candidate"
-if [ "$os" = "darwin" ]; then
-  command -v codesign >/dev/null 2>&1 || { echo "codesign is required on macOS" >&2; exit 1; }
-  codesign --force --sign - --identifier com.anytty.cli "$install_candidate"
-  codesign --verify --strict "$install_candidate"
-fi
-mv -f "$install_candidate" "$install_dir/anytty"
-install_candidate=""
+for binary in anytty tui2 tui2-shell; do
+  install_candidate="$(mktemp "$install_dir/.anytty-install.XXXXXX")"
+  cp "$work_dir/$archive_base/$binary" "$install_candidate"
+  chmod 0755 "$install_candidate"
+  if [ "$os" = "darwin" ]; then
+    command -v codesign >/dev/null 2>&1 || { echo "codesign is required on macOS" >&2; exit 1; }
+    codesign --force --sign - --identifier "com.anytty.$binary" "$install_candidate"
+    codesign --verify --strict "$install_candidate"
+  fi
+  mv -f "$install_candidate" "$install_dir/$binary"
+  install_candidate=""
+done
 
 config_home="${XDG_CONFIG_HOME:-}"
 case "$config_home" in
@@ -125,7 +129,7 @@ else
   config_status="Installed recommended AnyTTY configuration to $config_path"
 fi
 
-printf 'Installed AnyTTY %s to %s/anytty\n' "$version" "$install_dir"
+printf 'Installed AnyTTY %s to %s/ (anytty, tui2, tui2-shell)\n' "$version" "$install_dir"
 printf '%s\n' "$config_status"
 case ":${PATH:-}:" in
   *":$install_dir:"*) ;;

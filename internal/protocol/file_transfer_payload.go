@@ -3,29 +3,39 @@ package protocol
 import (
 	"fmt"
 
-	"github.com/anytty/anytty/proto/wirepb"
+	"github.com/anytty/anytty/proto/access/wirepb"
 	"google.golang.org/protobuf/proto"
 )
 
 // FileTransferData 携带 transfer channel 上一个有界且有序的数据块。
 // Offset 是该块在文件中的绝对字节位置，接收端只确认连续落地的 offset。
+// Encoding 是当前帧 data 的编码（""=identity，"zstd"=独立 zstd frame）；
+// 未协商压缩时始终为空，payload 字节与旧客户端兼容。
 type FileTransferData struct {
-	Offset int64
-	Data   []byte
+	Offset   int64
+	Data     []byte
+	Encoding string
 }
 
 // FileTransferAck 返回当前连续确认位置和发送方可继续占用的窗口字节数。
 // WindowBytes 为零时发送方必须停止发送，不能继续缓存整个文件。
+// TransferredBytes/TotalBytes/ElapsedMillis 是可选结构化进度：0 表示未启用，
+// 此时编码结果与旧版本逐字节一致。
 type FileTransferAck struct {
-	Offset      int64
-	WindowBytes int64
+	Offset           int64
+	WindowBytes      int64
+	TransferredBytes int64
+	TotalBytes       int64
+	ElapsedMillis    int64
 }
 
 // FileTransferFinish 声明发送方已完成指定大小与 SHA-256 的数据发送。
 // 接收端只有校验 size 和 digest 后才能发布上传文件或确认下载完成。
+// ElapsedMillis 是可选的发送方耗时；0 表示未报告。
 type FileTransferFinish struct {
-	Size   int64
-	SHA256 []byte
+	Size          int64
+	SHA256        []byte
+	ElapsedMillis int64
 }
 
 // FileTransferResult 是 owning daemon 对 transfer 最终完成状态的确认。
@@ -38,7 +48,9 @@ type FileTransferResult struct {
 
 // EncodeFileTransferData 编码文件数据 frame payload。
 func EncodeFileTransferData(value FileTransferData) ([]byte, error) {
-	return proto.Marshal(&wirepb.FileTransferData{Offset: value.Offset, Data: append([]byte(nil), value.Data...)})
+	return proto.Marshal(&wirepb.FileTransferData{
+		Offset: value.Offset, Data: append([]byte(nil), value.Data...), Encoding: value.Encoding,
+	})
 }
 
 // DecodeFileTransferData 解码文件数据 frame payload，并复制 data 避免复用 transport 缓冲区。
@@ -47,12 +59,15 @@ func DecodeFileTransferData(payload []byte) (FileTransferData, error) {
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		return FileTransferData{}, err
 	}
-	return FileTransferData{Offset: msg.GetOffset(), Data: append([]byte(nil), msg.GetData()...)}, nil
+	return FileTransferData{Offset: msg.GetOffset(), Data: append([]byte(nil), msg.GetData()...), Encoding: msg.GetEncoding()}, nil
 }
 
-// EncodeFileTransferAck 编码连续确认位置与接收窗口。
+// EncodeFileTransferAck 编码连续确认位置与接收窗口，以及可选结构化进度。
 func EncodeFileTransferAck(value FileTransferAck) ([]byte, error) {
-	return proto.Marshal(&wirepb.FileTransferAck{Offset: value.Offset, WindowBytes: value.WindowBytes})
+	return proto.Marshal(&wirepb.FileTransferAck{
+		Offset: value.Offset, WindowBytes: value.WindowBytes,
+		TransferredBytes: value.TransferredBytes, TotalBytes: value.TotalBytes, ElapsedMillis: value.ElapsedMillis,
+	})
 }
 
 // DecodeFileTransferAck 解码连续确认位置与接收窗口，负数值由 transfer 状态机拒绝。
@@ -61,7 +76,10 @@ func DecodeFileTransferAck(payload []byte) (FileTransferAck, error) {
 	if err := proto.Unmarshal(payload, &msg); err != nil {
 		return FileTransferAck{}, err
 	}
-	return FileTransferAck{Offset: msg.GetOffset(), WindowBytes: msg.GetWindowBytes()}, nil
+	return FileTransferAck{
+		Offset: msg.GetOffset(), WindowBytes: msg.GetWindowBytes(),
+		TransferredBytes: msg.GetTransferredBytes(), TotalBytes: msg.GetTotalBytes(), ElapsedMillis: msg.GetElapsedMillis(),
+	}, nil
 }
 
 // EncodeFileTransferFinish 编码最终 size 与 SHA-256；digest 长度必须是 32 字节。
@@ -69,7 +87,9 @@ func EncodeFileTransferFinish(value FileTransferFinish) ([]byte, error) {
 	if len(value.SHA256) != 32 {
 		return nil, fmt.Errorf("file transfer sha256 must be 32 bytes")
 	}
-	return proto.Marshal(&wirepb.FileTransferFinish{Size: value.Size, Sha256: append([]byte(nil), value.SHA256...)})
+	return proto.Marshal(&wirepb.FileTransferFinish{
+		Size: value.Size, Sha256: append([]byte(nil), value.SHA256...), ElapsedMillis: value.ElapsedMillis,
+	})
 }
 
 // DecodeFileTransferFinish 解码最终声明并拒绝非 SHA-256 长度的摘要。
@@ -81,7 +101,7 @@ func DecodeFileTransferFinish(payload []byte) (FileTransferFinish, error) {
 	if len(msg.GetSha256()) != 32 {
 		return FileTransferFinish{}, fmt.Errorf("file transfer sha256 must be 32 bytes")
 	}
-	return FileTransferFinish{Size: msg.GetSize(), SHA256: append([]byte(nil), msg.GetSha256()...)}, nil
+	return FileTransferFinish{Size: msg.GetSize(), SHA256: append([]byte(nil), msg.GetSha256()...), ElapsedMillis: msg.GetElapsedMillis()}, nil
 }
 
 // EncodeFileTransferResult 编码 daemon 已校验完成的 transfer 结果。

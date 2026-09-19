@@ -184,14 +184,6 @@ func Count(name string, bytes int) {
 	recorder.observe(name, 0, bytes)
 }
 
-func SnapshotCurrent() Snapshot {
-	recorder := Current()
-	if recorder == nil {
-		return Snapshot{}
-	}
-	return recorder.Snapshot()
-}
-
 func WriteJSON(path string, snapshot Snapshot) error {
 	if path == "" {
 		return nil

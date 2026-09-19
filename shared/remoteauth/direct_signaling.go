@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anytty/anytty/proto/remoteauthpb"
+	"github.com/anytty/anytty/proto/access/remoteauthpb"
 	"google.golang.org/protobuf/proto"
 )
 

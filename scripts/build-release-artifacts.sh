@@ -28,34 +28,46 @@ targets=(
   windows/amd64
   windows/arm64
 )
+if [[ -n "${ANYTTY_RELEASE_TARGETS:-}" ]]; then
+  read -r -a targets <<<"${ANYTTY_RELEASE_TARGETS}"
+fi
+
+release_binaries=(anytty tui2 tui2-shell)
 
 for target in "${targets[@]}"; do
   goos="${target%/*}"
   goarch="${target#*/}"
   artifact_base="anytty-$version-$goos-$goarch"
   package_dir="$work_dir/$artifact_base"
-  binary_name="anytty"
-  [[ "$goos" == windows ]] && binary_name="anytty.exe"
   mkdir -p "$package_dir"
 
+  suffix=""
+  [[ "$goos" == windows ]] && suffix=".exe"
   (
     cd "$repo_root"
     CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOWORK=off \
       go build -trimpath -ldflags="-s -w -X main.version=$version" \
-      -o "$package_dir/$binary_name" ./cmd/anytty
+      -o "$package_dir/anytty$suffix" ./cmd/anytty
+    # tui2/tui2-shell keep their own version consts; no -X override.
+    CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOWORK=off \
+      go build -trimpath -o "$package_dir/tui2$suffix" ./clients/tui/cmd/tui2
+    CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOWORK=off \
+      go build -trimpath -o "$package_dir/tui2-shell$suffix" ./clients/tui/cmd/tui2-shell
   )
   if [[ "$goos" == darwin ]]; then
     [[ "$(uname -s)" == Darwin ]] || {
       echo "Darwin release artifacts must be built on macOS so they can be signed" >&2
       exit 1
     }
-    codesign --force --sign - --identifier com.anytty.cli "$package_dir/$binary_name"
-    codesign --verify --strict "$package_dir/$binary_name"
+    for name in "${release_binaries[@]}"; do
+      codesign --force --sign - --identifier "com.anytty.$name" "$package_dir/$name"
+      codesign --verify --strict "$package_dir/$name"
+    done
   fi
   install -m 0644 "$repo_root/LICENSE" "$package_dir/LICENSE"
   install -m 0644 "$repo_root/NOTICE" "$package_dir/NOTICE"
-  install -m 0644 "$repo_root/cmd/anytty/THIRD_PARTY_NOTICES.txt" "$package_dir/THIRD_PARTY_NOTICES.txt"
-  install -m 0644 "$repo_root/tui/docs/tui-v3.recommended.yaml" "$package_dir/tui-v3.yaml"
+  install -m 0644 "$repo_root/clients/cli/THIRD_PARTY_NOTICES.txt" "$package_dir/THIRD_PARTY_NOTICES.txt"
+  install -m 0644 "$repo_root/clients/cli/tui-v3.recommended.yaml" "$package_dir/tui-v3.yaml"
 
   if [[ "$goos" == windows ]]; then
     (cd "$work_dir" && zip -q -r "$output_dir/$artifact_base.zip" "$artifact_base")

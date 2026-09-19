@@ -4,8 +4,8 @@ import (
 	"net"
 	"strings"
 
-	corev2 "github.com/anytty/anytty/core"
-	"github.com/anytty/anytty/proto/apipb"
+	corev2 "github.com/anytty/anytty/daemon/core"
+	"github.com/anytty/anytty/proto/access/apipb"
 )
 
 // ValidateBrowserProxyCommand validates a daemon-side TCP target without doing
@@ -57,11 +57,3 @@ func ValidateBrowserProxyCommand(command *apipb.CommandEnvelope) error {
 
 // BrowserProxyToProto creates the public resource handle while keeping the
 // daemon connection token opaque to the client API.
-func BrowserProxyToProto(origin *apipb.EndpointSessionStamp, proxy corev2.BrowserProxy) *apipb.BrowserProxyOpenResult {
-	return &apipb.BrowserProxyOpenResult{ReceiveWindowBytes: proxy.ReceiveWindowBytes, SendWindowBytes: proxy.SendWindowBytes, Resource: &apipb.ResourceHandle{
-		OpaqueToken: cloneBytes(proxy.Token),
-		Kind:        apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY,
-		Session:     cloneSessionStamp(origin),
-		Generation:  1,
-	}}
-}

@@ -27,7 +27,7 @@ class Anytty < Formula
   end
 
   def install
-    bin.install "anytty"
+    bin.install "anytty", "tui2", "tui2-shell"
     prefix.install "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt"
   end
 

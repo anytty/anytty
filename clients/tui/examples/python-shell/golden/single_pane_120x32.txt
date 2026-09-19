@@ -1,0 +1,32 @@
+ WS main  ▎1 main ×  +
+┌ status ────────────────────┐┌ ▎ unconnected ─────────────────────────────────────────────────────────────────────────┐
+│tabs      1                 ││No terminal connected                                                                   │
+│panes     1                 ││Choose a terminal or create one.                                                        │
+│mode                        ││Press Ctrl-F to open the terminal picker.                                               │
+│host panes 0 · endpoints 1 ·││                                                                                        │
+└────────────────────────────┘│                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              │                                                                                        │
+                              └────────────────────────────────────────────────────────────────────────────────────────┘
+ [Ctrl+P] PANE │ [Ctrl+R] RESIZE │ [Ctrl+G] GLOBAL │ [Ctrl+F] PICKER │ [?] HELP │ [:] CMD        ws:main tabs:1 panes:1

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/anytty/anytty/proto/wire"
+	"github.com/anytty/anytty/proto/access/wire"
 )
 
 func TestTransportRoundTripsProtocolFrames(t *testing.T) {

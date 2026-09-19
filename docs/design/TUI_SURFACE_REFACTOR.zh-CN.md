@@ -1,5 +1,8 @@
 # TUI Surface 重构设计稿 v0
 
+> **历史文档（已归档）**：本文描述旧 `tui/` 盒子模型实现；该目录已随 T4 删除，
+> 现行 TUI 见 `clients/tui/docs/`。仅作设计背景保留。
+
 状态：草案。范围限定在 TUI 层，不改动守护进程（daemon）。daemon 继续只提供现有 protobuf 控制接口。
 
 ## 1. 目标

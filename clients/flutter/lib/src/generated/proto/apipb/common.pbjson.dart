@@ -35,7 +35,9 @@ const ApiCapability$json = {
     {'1': 'API_CAPABILITY_CLIENT_ACCESS', '2': 13},
     {'1': 'API_CAPABILITY_REMOTE_CONTROL', '2': 14},
     {'1': 'API_CAPABILITY_BROWSER_PROXY', '2': 15},
-    {'1': 'API_CAPABILITY_PLUGIN', '2': 16},
+  ],
+  '4': [
+    {'1': 16, '2': 16},
   ],
 };
 
@@ -51,7 +53,7 @@ final $typed_data.Uint8List apiCapabilityDescriptor = $convert.base64Decode(
     'lMSVRZX0ZJTEUQChIaChZBUElfQ0FQQUJJTElUWV9TVE9SQUdFEAsSJQohQVBJX0NBUEFCSUxJ'
     'VFlfRVZFTlRfU1VCU0NSSVBUSU9OEAwSIAocQVBJX0NBUEFCSUxJVFlfQ0xJRU5UX0FDQ0VTUx'
     'ANEiEKHUFQSV9DQVBBQklMSVRZX1JFTU9URV9DT05UUk9MEA4SIAocQVBJX0NBUEFCSUxJVFlf'
-    'QlJPV1NFUl9QUk9YWRAPEhkKFUFQSV9DQVBBQklMSVRZX1BMVUdJThAQ');
+    'QlJPV1NFUl9QUk9YWRAPIgQIEBAQ');
 
 @$core.Deprecated('Use apiErrorCodeDescriptor instead')
 const ApiErrorCode$json = {

@@ -13,7 +13,7 @@ $cloudAddress = if ($env:ANYTTY_CLOUD_CONTROLLER_ADDRESS) { $env:ANYTTY_CLOUD_CO
 $cloudServerName = if ($env:ANYTTY_CLOUD_CONTROLLER_SERVER_NAME) { $env:ANYTTY_CLOUD_CONTROLLER_SERVER_NAME } else { 'cloud.anytty.com' }
 $cloudCAPEM = if ($env:ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64) { $env:ANYTTY_CLOUD_CONTROLLER_CA_PEM_BASE64 } else { '' }
 if ($cloudAddress -match '\s' -or $cloudServerName -match '\s' -or $cloudCAPEM -match '\s') { throw 'AnyTTY Cloud build configuration must not contain whitespace' }
-$cloudLdflags = "-checklinkname=0 -extldflags=-Wl,-z,max-page-size=16384 -X github.com/anytty/anytty/client/mobileconfig.ControllerAddress=$cloudAddress -X github.com/anytty/anytty/client/mobileconfig.ControllerServerName=$cloudServerName -X github.com/anytty/anytty/client/mobileconfig.ControllerCAPEMBase64=$cloudCAPEM"
+$cloudLdflags = "-checklinkname=0 -extldflags=-Wl,-z,max-page-size=16384 -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerAddress=$cloudAddress -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerServerName=$cloudServerName -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerCAPEMBase64=$cloudCAPEM"
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'clients\mobile\android\app\build\generated\anyttyJniLibs' }
 if (-not (Test-Path -LiteralPath $ndkRoot)) { throw "Android NDK $ndkVersion is not installed at $ndkRoot" }
 

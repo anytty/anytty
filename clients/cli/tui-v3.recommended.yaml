@@ -1,0 +1,28 @@
+# AnyTTY daemon 配置（history / output buffer / resource sampling）。
+# 保存为：~/.config/anytty/tui-v3.yaml
+# 文件名是历史遗留（旧 TUI 曾共用该文件）；现在只有 daemon 读取 daemon: 段，
+# 未列出的设置继续使用运行时默认值。
+version: 1
+
+daemon:
+  history:
+    # 每个 terminal 的历史物理保留上限（MiB）；0 表示不设上限。
+    max_size_mb: 512
+    # 历史物理保留天数；0 表示不设期限。
+    max_age_days: 0
+    # 块编码：zstd / s2 / none。
+    compression: zstd
+    # 压缩级别：fast / balanced / best。
+    compression_level: fast
+  output_buffer:
+    # 每条连接的输出缓冲容量（bytes）。
+    capacity_bytes: 33554432
+    # 溢出策略：block / drop。
+    overflow: block
+    # 输出缓冲常驻预算（bytes）。
+    resident_budget_bytes: 536870912
+  resource_sampling:
+    # terminal 资源采样间隔（ms）。
+    interval_ms: 500
+    # 保留的采样点数量。
+    max_samples: 512

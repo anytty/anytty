@@ -28,7 +28,7 @@ class ChannelBinding extends $pb.GeneratedMessage {
     ChannelBindingKind? kind,
     $core.List<$core.int>? bindingHash,
   }) {
-    final result = create();
+    final result = ChannelBinding._();
     if (kind != null) result.kind = kind;
     if (bindingHash != null) result.bindingHash = bindingHash;
     return result;
@@ -38,16 +38,16 @@ class ChannelBinding extends $pb.GeneratedMessage {
 
   factory ChannelBinding.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ChannelBinding()..mergeFromBuffer(data, registry);
   factory ChannelBinding.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ChannelBinding()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ChannelBinding',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ChannelBinding.$_createMessage)
     ..aE<ChannelBindingKind>(1, _omitFieldNames ? '' : 'kind',
         enumValues: ChannelBindingKind.values)
     ..a<$core.List<$core.int>>(
@@ -65,12 +65,15 @@ class ChannelBinding extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ChannelBinding() / ChannelBinding.new instead')
   static ChannelBinding create() => ChannelBinding._();
+  static $pb.GeneratedMessage $_createMessage() => ChannelBinding._();
   @$core.override
-  ChannelBinding createEmptyInstance() => create();
+  ChannelBinding createEmptyInstance() => ChannelBinding._();
   @$core.pragma('dart2js:noInline')
-  static ChannelBinding getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ChannelBinding>(create);
+  static ChannelBinding getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ChannelBinding>(
+          ChannelBinding.$_createMessage);
   static ChannelBinding? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -116,7 +119,7 @@ class AuthEnvelope extends $pb.GeneratedMessage {
     PairingOpen? pairingOpen,
     PairingAccepted? pairingAccepted,
   }) {
-    final result = create();
+    final result = AuthEnvelope._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (authSessionId != null) result.authSessionId = authSessionId;
@@ -135,10 +138,10 @@ class AuthEnvelope extends $pb.GeneratedMessage {
 
   factory AuthEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      AuthEnvelope()..mergeFromBuffer(data, registry);
   factory AuthEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      AuthEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, AuthEnvelope_Payload>
       _AuthEnvelope_PayloadByTag = {
@@ -154,23 +157,23 @@ class AuthEnvelope extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'AuthEnvelope',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: AuthEnvelope.$_createMessage)
     ..oo(0, [4, 5, 6, 7, 8, 9])
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'authSessionId')
     ..aOM<DeviceHello>(4, _omitFieldNames ? '' : 'deviceHello',
-        subBuilder: DeviceHello.create)
+        subBuilder: DeviceHello.$_createMessage)
     ..aOM<CapabilityOpen>(5, _omitFieldNames ? '' : 'capabilityOpen',
-        subBuilder: CapabilityOpen.create)
+        subBuilder: CapabilityOpen.$_createMessage)
     ..aOM<CapabilityAccepted>(6, _omitFieldNames ? '' : 'capabilityAccepted',
-        subBuilder: CapabilityAccepted.create)
+        subBuilder: CapabilityAccepted.$_createMessage)
     ..aOM<CapabilityRejected>(7, _omitFieldNames ? '' : 'capabilityRejected',
-        subBuilder: CapabilityRejected.create)
+        subBuilder: CapabilityRejected.$_createMessage)
     ..aOM<PairingOpen>(8, _omitFieldNames ? '' : 'pairingOpen',
-        subBuilder: PairingOpen.create)
+        subBuilder: PairingOpen.$_createMessage)
     ..aOM<PairingAccepted>(9, _omitFieldNames ? '' : 'pairingAccepted',
-        subBuilder: PairingAccepted.create)
+        subBuilder: PairingAccepted.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -184,12 +187,15 @@ class AuthEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AuthEnvelope() / AuthEnvelope.new instead')
   static AuthEnvelope create() => AuthEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() => AuthEnvelope._();
   @$core.override
-  AuthEnvelope createEmptyInstance() => create();
+  AuthEnvelope createEmptyInstance() => AuthEnvelope._();
   @$core.pragma('dart2js:noInline')
-  static AuthEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AuthEnvelope>(create);
+  static AuthEnvelope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AuthEnvelope>(
+          AuthEnvelope.$_createMessage);
   static AuthEnvelope? _defaultInstance;
 
   @$pb.TagNumber(4)
@@ -313,7 +319,7 @@ class DeviceHello extends $pb.GeneratedMessage {
     $fixnum.Int64? issuedAtUnixNano,
     $core.List<$core.int>? signature,
   }) {
-    final result = create();
+    final result = DeviceHello._();
     if (deviceId != null) result.deviceId = deviceId;
     if (devicePublicKey != null) result.devicePublicKey = devicePublicKey;
     if (deviceFingerprint != null) result.deviceFingerprint = deviceFingerprint;
@@ -328,16 +334,16 @@ class DeviceHello extends $pb.GeneratedMessage {
 
   factory DeviceHello.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeviceHello()..mergeFromBuffer(data, registry);
   factory DeviceHello.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeviceHello()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeviceHello',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeviceHello.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'deviceId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'devicePublicKey', $pb.PbFieldType.OY)
@@ -345,7 +351,7 @@ class DeviceHello extends $pb.GeneratedMessage {
     ..a<$core.List<$core.int>>(
         4, _omitFieldNames ? '' : 'serverNonce', $pb.PbFieldType.OY)
     ..aOM<ChannelBinding>(5, _omitFieldNames ? '' : 'channelBinding',
-        subBuilder: ChannelBinding.create)
+        subBuilder: ChannelBinding.$_createMessage)
     ..aInt64(6, _omitFieldNames ? '' : 'issuedAtUnixNano')
     ..a<$core.List<$core.int>>(
         7, _omitFieldNames ? '' : 'signature', $pb.PbFieldType.OY)
@@ -362,12 +368,15 @@ class DeviceHello extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DeviceHello() / DeviceHello.new instead')
   static DeviceHello create() => DeviceHello._();
+  static $pb.GeneratedMessage $_createMessage() => DeviceHello._();
   @$core.override
-  DeviceHello createEmptyInstance() => create();
+  DeviceHello createEmptyInstance() => DeviceHello._();
   @$core.pragma('dart2js:noInline')
-  static DeviceHello getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeviceHello>(create);
+  static DeviceHello getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeviceHello>(
+          DeviceHello.$_createMessage);
   static DeviceHello? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -445,7 +454,7 @@ class CapabilityOpen extends $pb.GeneratedMessage {
     $core.List<$core.int>? clientNonce,
     $core.List<$core.int>? proof,
   }) {
-    final result = create();
+    final result = CapabilityOpen._();
     if (grant != null) result.grant = grant;
     if (clientPublicKey != null) result.clientPublicKey = clientPublicKey;
     if (clientNonce != null) result.clientNonce = clientNonce;
@@ -457,16 +466,16 @@ class CapabilityOpen extends $pb.GeneratedMessage {
 
   factory CapabilityOpen.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CapabilityOpen()..mergeFromBuffer(data, registry);
   factory CapabilityOpen.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CapabilityOpen()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CapabilityOpen',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CapabilityOpen.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grant')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'clientPublicKey', $pb.PbFieldType.OY)
@@ -487,12 +496,15 @@ class CapabilityOpen extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CapabilityOpen() / CapabilityOpen.new instead')
   static CapabilityOpen create() => CapabilityOpen._();
+  static $pb.GeneratedMessage $_createMessage() => CapabilityOpen._();
   @$core.override
-  CapabilityOpen createEmptyInstance() => create();
+  CapabilityOpen createEmptyInstance() => CapabilityOpen._();
   @$core.pragma('dart2js:noInline')
-  static CapabilityOpen getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CapabilityOpen>(create);
+  static CapabilityOpen getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CapabilityOpen>(
+          CapabilityOpen.$_createMessage);
   static CapabilityOpen? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -543,7 +555,7 @@ class PairingOpen extends $pb.GeneratedMessage {
     $core.List<$core.int>? proof,
     $core.int? clientProduct,
   }) {
-    final result = create();
+    final result = PairingOpen._();
     if (pairingClaimOffer != null) result.pairingClaimOffer = pairingClaimOffer;
     if (clientPublicKey != null) result.clientPublicKey = clientPublicKey;
     if (clientLabel != null) result.clientLabel = clientLabel;
@@ -557,16 +569,16 @@ class PairingOpen extends $pb.GeneratedMessage {
 
   factory PairingOpen.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingOpen()..mergeFromBuffer(data, registry);
   factory PairingOpen.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingOpen()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingOpen',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingOpen.$_createMessage)
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'pairingClaimOffer', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
@@ -591,12 +603,15 @@ class PairingOpen extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PairingOpen() / PairingOpen.new instead')
   static PairingOpen create() => PairingOpen._();
+  static $pb.GeneratedMessage $_createMessage() => PairingOpen._();
   @$core.override
-  PairingOpen createEmptyInstance() => create();
+  PairingOpen createEmptyInstance() => PairingOpen._();
   @$core.pragma('dart2js:noInline')
-  static PairingOpen getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingOpen>(create);
+  static PairingOpen getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PairingOpen>(
+          PairingOpen.$_createMessage);
   static PairingOpen? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -661,7 +676,7 @@ class ScopeSummary extends $pb.GeneratedMessage {
     $core.String? terminalId,
     $core.bool? manageClientAccess,
   }) {
-    final result = create();
+    final result = ScopeSummary._();
     if (kind != null) result.kind = kind;
     if (terminalId != null) result.terminalId = terminalId;
     if (manageClientAccess != null)
@@ -673,16 +688,16 @@ class ScopeSummary extends $pb.GeneratedMessage {
 
   factory ScopeSummary.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ScopeSummary()..mergeFromBuffer(data, registry);
   factory ScopeSummary.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ScopeSummary()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ScopeSummary',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ScopeSummary.$_createMessage)
     ..aE<ScopeKind>(1, _omitFieldNames ? '' : 'kind',
         enumValues: ScopeKind.values)
     ..aOS(2, _omitFieldNames ? '' : 'terminalId')
@@ -700,12 +715,15 @@ class ScopeSummary extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ScopeSummary() / ScopeSummary.new instead')
   static ScopeSummary create() => ScopeSummary._();
+  static $pb.GeneratedMessage $_createMessage() => ScopeSummary._();
   @$core.override
-  ScopeSummary createEmptyInstance() => create();
+  ScopeSummary createEmptyInstance() => ScopeSummary._();
   @$core.pragma('dart2js:noInline')
-  static ScopeSummary getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ScopeSummary>(create);
+  static ScopeSummary getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ScopeSummary>(
+          ScopeSummary.$_createMessage);
   static ScopeSummary? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -749,7 +767,7 @@ class ClientAccessScope extends $pb.GeneratedMessage {
     $core.bool? fileMutate,
     $core.bool? manageClientAccess,
   }) {
-    final result = create();
+    final result = ClientAccessScope._();
     if (allowDaemon != null) result.allowDaemon = allowDaemon;
     if (terminalId != null) result.terminalId = terminalId;
     if (machineEventsOnly != null) result.machineEventsOnly = machineEventsOnly;
@@ -766,16 +784,16 @@ class ClientAccessScope extends $pb.GeneratedMessage {
 
   factory ClientAccessScope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessScope()..mergeFromBuffer(data, registry);
   factory ClientAccessScope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessScope()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessScope',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessScope.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'allowDaemon')
     ..aOS(2, _omitFieldNames ? '' : 'terminalId')
     ..aOB(3, _omitFieldNames ? '' : 'machineEventsOnly')
@@ -797,12 +815,15 @@ class ClientAccessScope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientAccessScope() / ClientAccessScope.new instead')
   static ClientAccessScope create() => ClientAccessScope._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessScope._();
   @$core.override
-  ClientAccessScope createEmptyInstance() => create();
+  ClientAccessScope createEmptyInstance() => ClientAccessScope._();
   @$core.pragma('dart2js:noInline')
-  static ClientAccessScope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessScope>(create);
+  static ClientAccessScope getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientAccessScope>(
+          ClientAccessScope.$_createMessage);
   static ClientAccessScope? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -884,7 +905,7 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
     $core.String? deviceFingerprint,
     $core.List<$core.int>? devicePublicKey,
   }) {
-    final result = create();
+    final result = ClientAccessIdentityResult._();
     if (deviceId != null) result.deviceId = deviceId;
     if (deviceFingerprint != null) result.deviceFingerprint = deviceFingerprint;
     if (devicePublicKey != null) result.devicePublicKey = devicePublicKey;
@@ -895,16 +916,16 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
 
   factory ClientAccessIdentityResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessIdentityResult()..mergeFromBuffer(data, registry);
   factory ClientAccessIdentityResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessIdentityResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessIdentityResult',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessIdentityResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'deviceId')
     ..aOS(2, _omitFieldNames ? '' : 'deviceFingerprint')
     ..a<$core.List<$core.int>>(
@@ -924,12 +945,18 @@ class ClientAccessIdentityResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessIdentityResult() / ClientAccessIdentityResult.new instead')
   static ClientAccessIdentityResult create() => ClientAccessIdentityResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessIdentityResult._();
   @$core.override
-  ClientAccessIdentityResult createEmptyInstance() => create();
+  ClientAccessIdentityResult createEmptyInstance() =>
+      ClientAccessIdentityResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessIdentityResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessIdentityResult>(
+          ClientAccessIdentityResult.$_createMessage);
   static ClientAccessIdentityResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -970,7 +997,7 @@ class DeviceIdentityProofInput extends $pb.GeneratedMessage {
     $core.String? deviceFingerprint,
     $core.List<$core.int>? devicePublicKey,
   }) {
-    final result = create();
+    final result = DeviceIdentityProofInput._();
     if (domain != null) result.domain = domain;
     if (challenge != null) result.challenge = challenge;
     if (deviceId != null) result.deviceId = deviceId;
@@ -983,16 +1010,16 @@ class DeviceIdentityProofInput extends $pb.GeneratedMessage {
 
   factory DeviceIdentityProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeviceIdentityProofInput()..mergeFromBuffer(data, registry);
   factory DeviceIdentityProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeviceIdentityProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeviceIdentityProofInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeviceIdentityProofInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'domain')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'challenge', $pb.PbFieldType.OY)
@@ -1014,12 +1041,17 @@ class DeviceIdentityProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeviceIdentityProofInput() / DeviceIdentityProofInput.new instead')
   static DeviceIdentityProofInput create() => DeviceIdentityProofInput._();
+  static $pb.GeneratedMessage $_createMessage() => DeviceIdentityProofInput._();
   @$core.override
-  DeviceIdentityProofInput createEmptyInstance() => create();
+  DeviceIdentityProofInput createEmptyInstance() =>
+      DeviceIdentityProofInput._();
   @$core.pragma('dart2js:noInline')
   static DeviceIdentityProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeviceIdentityProofInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<DeviceIdentityProofInput>(
+          DeviceIdentityProofInput.$_createMessage);
   static DeviceIdentityProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1077,7 +1109,7 @@ class ClientAccessTicketCreateRequest extends $pb.GeneratedMessage {
     $core.Iterable<EndpointRouteConfigV1>? routes,
     $core.String? accessLabel,
   }) {
-    final result = create();
+    final result = ClientAccessTicketCreateRequest._();
     if (label != null) result.label = label;
     if (scope != null) result.scope = scope;
     if (ticketTtlSeconds != null) result.ticketTtlSeconds = ticketTtlSeconds;
@@ -1092,23 +1124,23 @@ class ClientAccessTicketCreateRequest extends $pb.GeneratedMessage {
 
   factory ClientAccessTicketCreateRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessTicketCreateRequest()..mergeFromBuffer(data, registry);
   factory ClientAccessTicketCreateRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessTicketCreateRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessTicketCreateRequest',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessTicketCreateRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'label')
     ..aOM<ClientAccessScope>(2, _omitFieldNames ? '' : 'scope',
-        subBuilder: ClientAccessScope.create)
+        subBuilder: ClientAccessScope.$_createMessage)
     ..aInt64(3, _omitFieldNames ? '' : 'ticketTtlSeconds')
     ..aInt64(4, _omitFieldNames ? '' : 'grantLifetimeSeconds')
     ..pPM<EndpointRouteConfigV1>(5, _omitFieldNames ? '' : 'routes',
-        subBuilder: EndpointRouteConfigV1.create)
+        subBuilder: EndpointRouteConfigV1.$_createMessage)
     ..aOS(6, _omitFieldNames ? '' : 'accessLabel')
     ..hasRequiredFields = false;
 
@@ -1125,14 +1157,19 @@ class ClientAccessTicketCreateRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessTicketCreateRequest() / ClientAccessTicketCreateRequest.new instead')
   static ClientAccessTicketCreateRequest create() =>
       ClientAccessTicketCreateRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessTicketCreateRequest._();
   @$core.override
-  ClientAccessTicketCreateRequest createEmptyInstance() => create();
+  ClientAccessTicketCreateRequest createEmptyInstance() =>
+      ClientAccessTicketCreateRequest._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessTicketCreateRequest getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateRequest>(
-          create);
+          ClientAccessTicketCreateRequest.$_createMessage);
   static ClientAccessTicketCreateRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1194,7 +1231,7 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
     $core.List<$core.int>? claimOffer,
     $core.String? claimCode,
   }) {
-    final result = create();
+    final result = ClientAccessTicketCreateResult._();
     if (ticketId != null) result.ticketId = ticketId;
     if (expiresAtUnixNano != null) result.expiresAtUnixNano = expiresAtUnixNano;
     if (claimOffer != null) result.claimOffer = claimOffer;
@@ -1206,16 +1243,16 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
 
   factory ClientAccessTicketCreateResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessTicketCreateResult()..mergeFromBuffer(data, registry);
   factory ClientAccessTicketCreateResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessTicketCreateResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessTicketCreateResult',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessTicketCreateResult.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'ticketId')
     ..aInt64(2, _omitFieldNames ? '' : 'expiresAtUnixNano')
     ..a<$core.List<$core.int>>(
@@ -1236,13 +1273,19 @@ class ClientAccessTicketCreateResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessTicketCreateResult() / ClientAccessTicketCreateResult.new instead')
   static ClientAccessTicketCreateResult create() =>
       ClientAccessTicketCreateResult._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessTicketCreateResult._();
   @$core.override
-  ClientAccessTicketCreateResult createEmptyInstance() => create();
+  ClientAccessTicketCreateResult createEmptyInstance() =>
+      ClientAccessTicketCreateResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessTicketCreateResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessTicketCreateResult>(
+          ClientAccessTicketCreateResult.$_createMessage);
   static ClientAccessTicketCreateResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1286,7 +1329,7 @@ class ClientAccessRevokeRequest extends $pb.GeneratedMessage {
   factory ClientAccessRevokeRequest({
     $core.String? grantId,
   }) {
-    final result = create();
+    final result = ClientAccessRevokeRequest._();
     if (grantId != null) result.grantId = grantId;
     return result;
   }
@@ -1295,16 +1338,16 @@ class ClientAccessRevokeRequest extends $pb.GeneratedMessage {
 
   factory ClientAccessRevokeRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessRevokeRequest()..mergeFromBuffer(data, registry);
   factory ClientAccessRevokeRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessRevokeRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessRevokeRequest',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessRevokeRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grantId')
     ..hasRequiredFields = false;
 
@@ -1320,12 +1363,18 @@ class ClientAccessRevokeRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessRevokeRequest() / ClientAccessRevokeRequest.new instead')
   static ClientAccessRevokeRequest create() => ClientAccessRevokeRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientAccessRevokeRequest._();
   @$core.override
-  ClientAccessRevokeRequest createEmptyInstance() => create();
+  ClientAccessRevokeRequest createEmptyInstance() =>
+      ClientAccessRevokeRequest._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessRevokeRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessRevokeRequest>(
+          ClientAccessRevokeRequest.$_createMessage);
   static ClientAccessRevokeRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1350,7 +1399,7 @@ class ClientAccessRecord extends $pb.GeneratedMessage {
     $fixnum.Int64? revokedAtUnixNano,
     $core.String? accessLabel,
   }) {
-    final result = create();
+    final result = ClientAccessRecord._();
     if (grantId != null) result.grantId = grantId;
     if (revocationId != null) result.revocationId = revocationId;
     if (subjectKeyFingerprint != null)
@@ -1368,22 +1417,22 @@ class ClientAccessRecord extends $pb.GeneratedMessage {
 
   factory ClientAccessRecord.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessRecord()..mergeFromBuffer(data, registry);
   factory ClientAccessRecord.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessRecord()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessRecord',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessRecord.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grantId')
     ..aOS(2, _omitFieldNames ? '' : 'revocationId')
     ..aOS(3, _omitFieldNames ? '' : 'subjectKeyFingerprint')
     ..aOS(4, _omitFieldNames ? '' : 'clientLabel')
     ..aOM<ClientAccessScope>(5, _omitFieldNames ? '' : 'scope',
-        subBuilder: ClientAccessScope.create)
+        subBuilder: ClientAccessScope.$_createMessage)
     ..aInt64(6, _omitFieldNames ? '' : 'issuedAtUnixNano')
     ..aInt64(7, _omitFieldNames ? '' : 'expiresAtUnixNano')
     ..aInt64(8, _omitFieldNames ? '' : 'revokedAtUnixNano')
@@ -1401,12 +1450,15 @@ class ClientAccessRecord extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientAccessRecord() / ClientAccessRecord.new instead')
   static ClientAccessRecord create() => ClientAccessRecord._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessRecord._();
   @$core.override
-  ClientAccessRecord createEmptyInstance() => create();
+  ClientAccessRecord createEmptyInstance() => ClientAccessRecord._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessRecord getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessRecord>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessRecord>(
+          ClientAccessRecord.$_createMessage);
   static ClientAccessRecord? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1498,7 +1550,7 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
   factory ClientAccessListResult({
     $core.Iterable<ClientAccessRecord>? records,
   }) {
-    final result = create();
+    final result = ClientAccessListResult._();
     if (records != null) result.records.addAll(records);
     return result;
   }
@@ -1507,18 +1559,18 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
 
   factory ClientAccessListResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientAccessListResult()..mergeFromBuffer(data, registry);
   factory ClientAccessListResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientAccessListResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientAccessListResult',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientAccessListResult.$_createMessage)
     ..pPM<ClientAccessRecord>(1, _omitFieldNames ? '' : 'records',
-        subBuilder: ClientAccessRecord.create)
+        subBuilder: ClientAccessRecord.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1533,12 +1585,16 @@ class ClientAccessListResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientAccessListResult() / ClientAccessListResult.new instead')
   static ClientAccessListResult create() => ClientAccessListResult._();
+  static $pb.GeneratedMessage $_createMessage() => ClientAccessListResult._();
   @$core.override
-  ClientAccessListResult createEmptyInstance() => create();
+  ClientAccessListResult createEmptyInstance() => ClientAccessListResult._();
   @$core.pragma('dart2js:noInline')
   static ClientAccessListResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientAccessListResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientAccessListResult>(
+          ClientAccessListResult.$_createMessage);
   static ClientAccessListResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1552,7 +1608,7 @@ class CapabilityAccepted extends $pb.GeneratedMessage {
     ScopeSummary? scope,
     $core.String? subjectKeyFingerprint,
   }) {
-    final result = create();
+    final result = CapabilityAccepted._();
     if (grantId != null) result.grantId = grantId;
     if (scope != null) result.scope = scope;
     if (subjectKeyFingerprint != null)
@@ -1564,19 +1620,19 @@ class CapabilityAccepted extends $pb.GeneratedMessage {
 
   factory CapabilityAccepted.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CapabilityAccepted()..mergeFromBuffer(data, registry);
   factory CapabilityAccepted.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CapabilityAccepted()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CapabilityAccepted',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CapabilityAccepted.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grantId')
     ..aOM<ScopeSummary>(2, _omitFieldNames ? '' : 'scope',
-        subBuilder: ScopeSummary.create)
+        subBuilder: ScopeSummary.$_createMessage)
     ..aOS(3, _omitFieldNames ? '' : 'subjectKeyFingerprint')
     ..hasRequiredFields = false;
 
@@ -1591,12 +1647,15 @@ class CapabilityAccepted extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CapabilityAccepted() / CapabilityAccepted.new instead')
   static CapabilityAccepted create() => CapabilityAccepted._();
+  static $pb.GeneratedMessage $_createMessage() => CapabilityAccepted._();
   @$core.override
-  CapabilityAccepted createEmptyInstance() => create();
+  CapabilityAccepted createEmptyInstance() => CapabilityAccepted._();
   @$core.pragma('dart2js:noInline')
   static CapabilityAccepted getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CapabilityAccepted>(create);
+      $pb.GeneratedMessage.$_defaultFor<CapabilityAccepted>(
+          CapabilityAccepted.$_createMessage);
   static CapabilityAccepted? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1641,7 +1700,7 @@ class PairingAccepted extends $pb.GeneratedMessage {
     $core.List<$core.int>? cloudRouteGrant,
     $core.List<$core.int>? cloudEdgeLocator,
   }) {
-    final result = create();
+    final result = PairingAccepted._();
     if (grant != null) result.grant = grant;
     if (deliveryReceipt != null) result.deliveryReceipt = deliveryReceipt;
     if (subjectKeyFingerprint != null)
@@ -1657,21 +1716,21 @@ class PairingAccepted extends $pb.GeneratedMessage {
 
   factory PairingAccepted.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingAccepted()..mergeFromBuffer(data, registry);
   factory PairingAccepted.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingAccepted()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingAccepted',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingAccepted.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'grant')
     ..aOS(2, _omitFieldNames ? '' : 'deliveryReceipt')
     ..aOS(3, _omitFieldNames ? '' : 'subjectKeyFingerprint')
     ..aOM<ScopeSummary>(4, _omitFieldNames ? '' : 'scope',
-        subBuilder: ScopeSummary.create)
+        subBuilder: ScopeSummary.$_createMessage)
     ..a<$core.List<$core.int>>(
         5, _omitFieldNames ? '' : 'pairingBundle', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
@@ -1691,12 +1750,15 @@ class PairingAccepted extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PairingAccepted() / PairingAccepted.new instead')
   static PairingAccepted create() => PairingAccepted._();
+  static $pb.GeneratedMessage $_createMessage() => PairingAccepted._();
   @$core.override
-  PairingAccepted createEmptyInstance() => create();
+  PairingAccepted createEmptyInstance() => PairingAccepted._();
   @$core.pragma('dart2js:noInline')
-  static PairingAccepted getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingAccepted>(create);
+  static PairingAccepted getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PairingAccepted>(
+          PairingAccepted.$_createMessage);
   static PairingAccepted? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1771,7 +1833,7 @@ class CapabilityRejected extends $pb.GeneratedMessage {
     AuthErrorCode? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = CapabilityRejected._();
     if (code != null) result.code = code;
     if (message != null) result.message = message;
     return result;
@@ -1781,16 +1843,16 @@ class CapabilityRejected extends $pb.GeneratedMessage {
 
   factory CapabilityRejected.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      CapabilityRejected()..mergeFromBuffer(data, registry);
   factory CapabilityRejected.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      CapabilityRejected()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'CapabilityRejected',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: CapabilityRejected.$_createMessage)
     ..aE<AuthErrorCode>(1, _omitFieldNames ? '' : 'code',
         enumValues: AuthErrorCode.values)
     ..aOS(2, _omitFieldNames ? '' : 'message')
@@ -1807,12 +1869,15 @@ class CapabilityRejected extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CapabilityRejected() / CapabilityRejected.new instead')
   static CapabilityRejected create() => CapabilityRejected._();
+  static $pb.GeneratedMessage $_createMessage() => CapabilityRejected._();
   @$core.override
-  CapabilityRejected createEmptyInstance() => create();
+  CapabilityRejected createEmptyInstance() => CapabilityRejected._();
   @$core.pragma('dart2js:noInline')
   static CapabilityRejected getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CapabilityRejected>(create);
+      $pb.GeneratedMessage.$_defaultFor<CapabilityRejected>(
+          CapabilityRejected.$_createMessage);
   static CapabilityRejected? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1848,7 +1913,7 @@ class DeviceHelloSignatureInput extends $pb.GeneratedMessage {
     ChannelBinding? channelBinding,
     $fixnum.Int64? issuedAtUnixNano,
   }) {
-    final result = create();
+    final result = DeviceHelloSignatureInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (authSessionId != null) result.authSessionId = authSessionId;
@@ -1865,16 +1930,16 @@ class DeviceHelloSignatureInput extends $pb.GeneratedMessage {
 
   factory DeviceHelloSignatureInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DeviceHelloSignatureInput()..mergeFromBuffer(data, registry);
   factory DeviceHelloSignatureInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DeviceHelloSignatureInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DeviceHelloSignatureInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DeviceHelloSignatureInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'authSessionId')
@@ -1885,7 +1950,7 @@ class DeviceHelloSignatureInput extends $pb.GeneratedMessage {
     ..a<$core.List<$core.int>>(
         7, _omitFieldNames ? '' : 'serverNonce', $pb.PbFieldType.OY)
     ..aOM<ChannelBinding>(8, _omitFieldNames ? '' : 'channelBinding',
-        subBuilder: ChannelBinding.create)
+        subBuilder: ChannelBinding.$_createMessage)
     ..aInt64(9, _omitFieldNames ? '' : 'issuedAtUnixNano')
     ..hasRequiredFields = false;
 
@@ -1901,12 +1966,18 @@ class DeviceHelloSignatureInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DeviceHelloSignatureInput() / DeviceHelloSignatureInput.new instead')
   static DeviceHelloSignatureInput create() => DeviceHelloSignatureInput._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DeviceHelloSignatureInput._();
   @$core.override
-  DeviceHelloSignatureInput createEmptyInstance() => create();
+  DeviceHelloSignatureInput createEmptyInstance() =>
+      DeviceHelloSignatureInput._();
   @$core.pragma('dart2js:noInline')
   static DeviceHelloSignatureInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeviceHelloSignatureInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<DeviceHelloSignatureInput>(
+          DeviceHelloSignatureInput.$_createMessage);
   static DeviceHelloSignatureInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2007,7 +2078,7 @@ class ClientProofInput extends $pb.GeneratedMessage {
     $core.List<$core.int>? clientPublicKey,
     AuthOpenKind? openKind,
   }) {
-    final result = create();
+    final result = ClientProofInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (authSessionId != null) result.authSessionId = authSessionId;
@@ -2024,16 +2095,16 @@ class ClientProofInput extends $pb.GeneratedMessage {
 
   factory ClientProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientProofInput()..mergeFromBuffer(data, registry);
   factory ClientProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientProofInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientProofInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'authSessionId')
@@ -2042,7 +2113,7 @@ class ClientProofInput extends $pb.GeneratedMessage {
     ..a<$core.List<$core.int>>(
         5, _omitFieldNames ? '' : 'clientNonce', $pb.PbFieldType.OY)
     ..aOM<ChannelBinding>(6, _omitFieldNames ? '' : 'channelBinding',
-        subBuilder: ChannelBinding.create)
+        subBuilder: ChannelBinding.$_createMessage)
     ..a<$core.List<$core.int>>(
         7, _omitFieldNames ? '' : 'credentialSha256', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
@@ -2062,12 +2133,15 @@ class ClientProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientProofInput() / ClientProofInput.new instead')
   static ClientProofInput create() => ClientProofInput._();
+  static $pb.GeneratedMessage $_createMessage() => ClientProofInput._();
   @$core.override
-  ClientProofInput createEmptyInstance() => create();
+  ClientProofInput createEmptyInstance() => ClientProofInput._();
   @$core.pragma('dart2js:noInline')
-  static ClientProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientProofInput>(create);
+  static ClientProofInput getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientProofInput>(
+          ClientProofInput.$_createMessage);
   static ClientProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2163,7 +2237,7 @@ class DirectIceCandidate extends $pb.GeneratedMessage {
     $core.int? sdpMlineIndex,
     $core.String? usernameFragment,
   }) {
-    final result = create();
+    final result = DirectIceCandidate._();
     if (candidate != null) result.candidate = candidate;
     if (sdpMid != null) result.sdpMid = sdpMid;
     if (sdpMlineIndex != null) result.sdpMlineIndex = sdpMlineIndex;
@@ -2175,16 +2249,16 @@ class DirectIceCandidate extends $pb.GeneratedMessage {
 
   factory DirectIceCandidate.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectIceCandidate()..mergeFromBuffer(data, registry);
   factory DirectIceCandidate.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectIceCandidate()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectIceCandidate',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectIceCandidate.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'candidate')
     ..aOS(2, _omitFieldNames ? '' : 'sdpMid')
     ..aI(3, _omitFieldNames ? '' : 'sdpMlineIndex',
@@ -2203,12 +2277,15 @@ class DirectIceCandidate extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DirectIceCandidate() / DirectIceCandidate.new instead')
   static DirectIceCandidate create() => DirectIceCandidate._();
+  static $pb.GeneratedMessage $_createMessage() => DirectIceCandidate._();
   @$core.override
-  DirectIceCandidate createEmptyInstance() => create();
+  DirectIceCandidate createEmptyInstance() => DirectIceCandidate._();
   @$core.pragma('dart2js:noInline')
   static DirectIceCandidate getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectIceCandidate>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectIceCandidate>(
+          DirectIceCandidate.$_createMessage);
   static DirectIceCandidate? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2265,7 +2342,7 @@ class DirectSignalingRequestV2 extends $pb.GeneratedMessage {
     $core.List<$core.int>? pairingClientPublicKey,
     $fixnum.Int64? pairingExpiresAtUnixNano,
   }) {
-    final result = create();
+    final result = DirectSignalingRequestV2._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (requestId != null) result.requestId = requestId;
     if (expectedDeviceId != null) result.expectedDeviceId = expectedDeviceId;
@@ -2290,16 +2367,16 @@ class DirectSignalingRequestV2 extends $pb.GeneratedMessage {
 
   factory DirectSignalingRequestV2.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectSignalingRequestV2()..mergeFromBuffer(data, registry);
   factory DirectSignalingRequestV2.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectSignalingRequestV2()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectSignalingRequestV2',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectSignalingRequestV2.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'requestId')
@@ -2329,12 +2406,17 @@ class DirectSignalingRequestV2 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectSignalingRequestV2() / DirectSignalingRequestV2.new instead')
   static DirectSignalingRequestV2 create() => DirectSignalingRequestV2._();
+  static $pb.GeneratedMessage $_createMessage() => DirectSignalingRequestV2._();
   @$core.override
-  DirectSignalingRequestV2 createEmptyInstance() => create();
+  DirectSignalingRequestV2 createEmptyInstance() =>
+      DirectSignalingRequestV2._();
   @$core.pragma('dart2js:noInline')
   static DirectSignalingRequestV2 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectSignalingRequestV2>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectSignalingRequestV2>(
+          DirectSignalingRequestV2.$_createMessage);
   static DirectSignalingRequestV2? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2460,7 +2542,7 @@ class DirectSignalingAnswerV2 extends $pb.GeneratedMessage {
     $fixnum.Int64? expiresAtUnixNano,
     $core.List<$core.int>? signature,
   }) {
-    final result = create();
+    final result = DirectSignalingAnswerV2._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (requestId != null) result.requestId = requestId;
     if (identity != null) result.identity = identity;
@@ -2476,24 +2558,24 @@ class DirectSignalingAnswerV2 extends $pb.GeneratedMessage {
 
   factory DirectSignalingAnswerV2.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectSignalingAnswerV2()..mergeFromBuffer(data, registry);
   factory DirectSignalingAnswerV2.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectSignalingAnswerV2()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectSignalingAnswerV2',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectSignalingAnswerV2.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'requestId')
     ..aOM<EndpointDaemonIdentity>(3, _omitFieldNames ? '' : 'identity',
-        subBuilder: EndpointDaemonIdentity.create)
+        subBuilder: EndpointDaemonIdentity.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'answerSdp')
     ..pPM<DirectIceCandidate>(5, _omitFieldNames ? '' : 'candidates',
-        subBuilder: DirectIceCandidate.create)
+        subBuilder: DirectIceCandidate.$_createMessage)
     ..aInt64(6, _omitFieldNames ? '' : 'issuedAtUnixNano')
     ..aInt64(7, _omitFieldNames ? '' : 'expiresAtUnixNano')
     ..a<$core.List<$core.int>>(
@@ -2512,12 +2594,16 @@ class DirectSignalingAnswerV2 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectSignalingAnswerV2() / DirectSignalingAnswerV2.new instead')
   static DirectSignalingAnswerV2 create() => DirectSignalingAnswerV2._();
+  static $pb.GeneratedMessage $_createMessage() => DirectSignalingAnswerV2._();
   @$core.override
-  DirectSignalingAnswerV2 createEmptyInstance() => create();
+  DirectSignalingAnswerV2 createEmptyInstance() => DirectSignalingAnswerV2._();
   @$core.pragma('dart2js:noInline')
   static DirectSignalingAnswerV2 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectSignalingAnswerV2>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectSignalingAnswerV2>(
+          DirectSignalingAnswerV2.$_createMessage);
   static DirectSignalingAnswerV2? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2597,7 +2683,7 @@ class DirectSignalingAnswerSignatureInput extends $pb.GeneratedMessage {
     $core.int? version,
     DirectSignalingAnswerV2? answer,
   }) {
-    final result = create();
+    final result = DirectSignalingAnswerSignatureInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (answer != null) result.answer = answer;
@@ -2609,20 +2695,20 @@ class DirectSignalingAnswerSignatureInput extends $pb.GeneratedMessage {
   factory DirectSignalingAnswerSignatureInput.fromBuffer(
           $core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectSignalingAnswerSignatureInput()..mergeFromBuffer(data, registry);
   factory DirectSignalingAnswerSignatureInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectSignalingAnswerSignatureInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectSignalingAnswerSignatureInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectSignalingAnswerSignatureInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOM<DirectSignalingAnswerV2>(3, _omitFieldNames ? '' : 'answer',
-        subBuilder: DirectSignalingAnswerV2.create)
+        subBuilder: DirectSignalingAnswerV2.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2638,14 +2724,20 @@ class DirectSignalingAnswerSignatureInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectSignalingAnswerSignatureInput() / DirectSignalingAnswerSignatureInput.new instead')
   static DirectSignalingAnswerSignatureInput create() =>
       DirectSignalingAnswerSignatureInput._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DirectSignalingAnswerSignatureInput._();
   @$core.override
-  DirectSignalingAnswerSignatureInput createEmptyInstance() => create();
+  DirectSignalingAnswerSignatureInput createEmptyInstance() =>
+      DirectSignalingAnswerSignatureInput._();
   @$core.pragma('dart2js:noInline')
   static DirectSignalingAnswerSignatureInput getDefault() =>
       _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<
-          DirectSignalingAnswerSignatureInput>(create);
+              DirectSignalingAnswerSignatureInput>(
+          DirectSignalingAnswerSignatureInput.$_createMessage);
   static DirectSignalingAnswerSignatureInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2684,7 +2776,7 @@ class DirectSignalingErrorV2 extends $pb.GeneratedMessage {
     DirectSignalingErrorCode? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = DirectSignalingErrorV2._();
     if (code != null) result.code = code;
     if (message != null) result.message = message;
     return result;
@@ -2694,16 +2786,16 @@ class DirectSignalingErrorV2 extends $pb.GeneratedMessage {
 
   factory DirectSignalingErrorV2.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectSignalingErrorV2()..mergeFromBuffer(data, registry);
   factory DirectSignalingErrorV2.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectSignalingErrorV2()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectSignalingErrorV2',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectSignalingErrorV2.$_createMessage)
     ..aE<DirectSignalingErrorCode>(1, _omitFieldNames ? '' : 'code',
         enumValues: DirectSignalingErrorCode.values)
     ..aOS(2, _omitFieldNames ? '' : 'message')
@@ -2721,12 +2813,16 @@ class DirectSignalingErrorV2 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectSignalingErrorV2() / DirectSignalingErrorV2.new instead')
   static DirectSignalingErrorV2 create() => DirectSignalingErrorV2._();
+  static $pb.GeneratedMessage $_createMessage() => DirectSignalingErrorV2._();
   @$core.override
-  DirectSignalingErrorV2 createEmptyInstance() => create();
+  DirectSignalingErrorV2 createEmptyInstance() => DirectSignalingErrorV2._();
   @$core.pragma('dart2js:noInline')
   static DirectSignalingErrorV2 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectSignalingErrorV2>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectSignalingErrorV2>(
+          DirectSignalingErrorV2.$_createMessage);
   static DirectSignalingErrorV2? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2756,7 +2852,7 @@ class DirectSignalingResponseV2 extends $pb.GeneratedMessage {
     DirectSignalingAnswerV2? answer,
     DirectSignalingErrorV2? error,
   }) {
-    final result = create();
+    final result = DirectSignalingResponseV2._();
     if (answer != null) result.answer = answer;
     if (error != null) result.error = error;
     return result;
@@ -2766,10 +2862,10 @@ class DirectSignalingResponseV2 extends $pb.GeneratedMessage {
 
   factory DirectSignalingResponseV2.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectSignalingResponseV2()..mergeFromBuffer(data, registry);
   factory DirectSignalingResponseV2.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectSignalingResponseV2()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, DirectSignalingResponseV2_Payload>
       _DirectSignalingResponseV2_PayloadByTag = {
@@ -2781,12 +2877,12 @@ class DirectSignalingResponseV2 extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'DirectSignalingResponseV2',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectSignalingResponseV2.$_createMessage)
     ..oo(0, [1, 2])
     ..aOM<DirectSignalingAnswerV2>(1, _omitFieldNames ? '' : 'answer',
-        subBuilder: DirectSignalingAnswerV2.create)
+        subBuilder: DirectSignalingAnswerV2.$_createMessage)
     ..aOM<DirectSignalingErrorV2>(2, _omitFieldNames ? '' : 'error',
-        subBuilder: DirectSignalingErrorV2.create)
+        subBuilder: DirectSignalingErrorV2.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2801,12 +2897,18 @@ class DirectSignalingResponseV2 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectSignalingResponseV2() / DirectSignalingResponseV2.new instead')
   static DirectSignalingResponseV2 create() => DirectSignalingResponseV2._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DirectSignalingResponseV2._();
   @$core.override
-  DirectSignalingResponseV2 createEmptyInstance() => create();
+  DirectSignalingResponseV2 createEmptyInstance() =>
+      DirectSignalingResponseV2._();
   @$core.pragma('dart2js:noInline')
   static DirectSignalingResponseV2 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectSignalingResponseV2>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectSignalingResponseV2>(
+          DirectSignalingResponseV2.$_createMessage);
   static DirectSignalingResponseV2? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2848,7 +2950,7 @@ class EndpointDaemonIdentity extends $pb.GeneratedMessage {
     $core.List<$core.int>? devicePublicKey,
     $core.String? deviceFingerprint,
   }) {
-    final result = create();
+    final result = EndpointDaemonIdentity._();
     if (deviceId != null) result.deviceId = deviceId;
     if (devicePublicKey != null) result.devicePublicKey = devicePublicKey;
     if (deviceFingerprint != null) result.deviceFingerprint = deviceFingerprint;
@@ -2859,16 +2961,16 @@ class EndpointDaemonIdentity extends $pb.GeneratedMessage {
 
   factory EndpointDaemonIdentity.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointDaemonIdentity()..mergeFromBuffer(data, registry);
   factory EndpointDaemonIdentity.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointDaemonIdentity()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointDaemonIdentity',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointDaemonIdentity.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'deviceId')
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'devicePublicKey', $pb.PbFieldType.OY)
@@ -2887,12 +2989,16 @@ class EndpointDaemonIdentity extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointDaemonIdentity() / EndpointDaemonIdentity.new instead')
   static EndpointDaemonIdentity create() => EndpointDaemonIdentity._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointDaemonIdentity._();
   @$core.override
-  EndpointDaemonIdentity createEmptyInstance() => create();
+  EndpointDaemonIdentity createEmptyInstance() => EndpointDaemonIdentity._();
   @$core.pragma('dart2js:noInline')
   static EndpointDaemonIdentity getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointDaemonIdentity>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointDaemonIdentity>(
+          EndpointDaemonIdentity.$_createMessage);
   static EndpointDaemonIdentity? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2930,7 +3036,7 @@ class EndpointSelectionPolicy extends $pb.GeneratedMessage {
     $fixnum.Int64? hedgeDelayMillis,
     EndpointRoutePreference? routePreference,
   }) {
-    final result = create();
+    final result = EndpointSelectionPolicy._();
     if (hedgeDelayConfigured != null)
       result.hedgeDelayConfigured = hedgeDelayConfigured;
     if (hedgeDelayMillis != null) result.hedgeDelayMillis = hedgeDelayMillis;
@@ -2942,16 +3048,16 @@ class EndpointSelectionPolicy extends $pb.GeneratedMessage {
 
   factory EndpointSelectionPolicy.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointSelectionPolicy()..mergeFromBuffer(data, registry);
   factory EndpointSelectionPolicy.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointSelectionPolicy()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointSelectionPolicy',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointSelectionPolicy.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'hedgeDelayConfigured')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'hedgeDelayMillis', $pb.PbFieldType.OU6,
@@ -2972,12 +3078,16 @@ class EndpointSelectionPolicy extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointSelectionPolicy() / EndpointSelectionPolicy.new instead')
   static EndpointSelectionPolicy create() => EndpointSelectionPolicy._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointSelectionPolicy._();
   @$core.override
-  EndpointSelectionPolicy createEmptyInstance() => create();
+  EndpointSelectionPolicy createEmptyInstance() => EndpointSelectionPolicy._();
   @$core.pragma('dart2js:noInline')
   static EndpointSelectionPolicy getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointSelectionPolicy>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointSelectionPolicy>(
+          EndpointSelectionPolicy.$_createMessage);
   static EndpointSelectionPolicy? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3015,7 +3125,7 @@ class EndpointCredentialDescriptor extends $pb.GeneratedMessage {
     EndpointCredentialKind? kind,
     $core.bool? exportable,
   }) {
-    final result = create();
+    final result = EndpointCredentialDescriptor._();
     if (descriptorId != null) result.descriptorId = descriptorId;
     if (kind != null) result.kind = kind;
     if (exportable != null) result.exportable = exportable;
@@ -3026,16 +3136,16 @@ class EndpointCredentialDescriptor extends $pb.GeneratedMessage {
 
   factory EndpointCredentialDescriptor.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointCredentialDescriptor()..mergeFromBuffer(data, registry);
   factory EndpointCredentialDescriptor.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointCredentialDescriptor()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointCredentialDescriptor',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointCredentialDescriptor.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'descriptorId')
     ..aE<EndpointCredentialKind>(2, _omitFieldNames ? '' : 'kind',
         enumValues: EndpointCredentialKind.values)
@@ -3055,13 +3165,19 @@ class EndpointCredentialDescriptor extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointCredentialDescriptor() / EndpointCredentialDescriptor.new instead')
   static EndpointCredentialDescriptor create() =>
       EndpointCredentialDescriptor._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EndpointCredentialDescriptor._();
   @$core.override
-  EndpointCredentialDescriptor createEmptyInstance() => create();
+  EndpointCredentialDescriptor createEmptyInstance() =>
+      EndpointCredentialDescriptor._();
   @$core.pragma('dart2js:noInline')
   static EndpointCredentialDescriptor getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointCredentialDescriptor>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointCredentialDescriptor>(
+          EndpointCredentialDescriptor.$_createMessage);
   static EndpointCredentialDescriptor? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3097,7 +3213,7 @@ class LocalUnixRouteConfig extends $pb.GeneratedMessage {
   factory LocalUnixRouteConfig({
     $core.String? socket,
   }) {
-    final result = create();
+    final result = LocalUnixRouteConfig._();
     if (socket != null) result.socket = socket;
     return result;
   }
@@ -3106,16 +3222,16 @@ class LocalUnixRouteConfig extends $pb.GeneratedMessage {
 
   factory LocalUnixRouteConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LocalUnixRouteConfig()..mergeFromBuffer(data, registry);
   factory LocalUnixRouteConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LocalUnixRouteConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LocalUnixRouteConfig',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LocalUnixRouteConfig.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'socket')
     ..hasRequiredFields = false;
 
@@ -3130,12 +3246,16 @@ class LocalUnixRouteConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use LocalUnixRouteConfig() / LocalUnixRouteConfig.new instead')
   static LocalUnixRouteConfig create() => LocalUnixRouteConfig._();
+  static $pb.GeneratedMessage $_createMessage() => LocalUnixRouteConfig._();
   @$core.override
-  LocalUnixRouteConfig createEmptyInstance() => create();
+  LocalUnixRouteConfig createEmptyInstance() => LocalUnixRouteConfig._();
   @$core.pragma('dart2js:noInline')
   static LocalUnixRouteConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LocalUnixRouteConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<LocalUnixRouteConfig>(
+          LocalUnixRouteConfig.$_createMessage);
   static LocalUnixRouteConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3157,7 +3277,7 @@ class DirectWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? advertisedAddresses,
     $core.String? serverName,
   }) {
-    final result = create();
+    final result = DirectWebRTCTCPRouteConfig._();
     if (signalingAddresses != null)
       result.signalingAddresses.addAll(signalingAddresses);
     if (iceTcpAddresses != null) result.iceTcpAddresses.addAll(iceTcpAddresses);
@@ -3171,16 +3291,16 @@ class DirectWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
 
   factory DirectWebRTCTCPRouteConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      DirectWebRTCTCPRouteConfig()..mergeFromBuffer(data, registry);
   factory DirectWebRTCTCPRouteConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      DirectWebRTCTCPRouteConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'DirectWebRTCTCPRouteConfig',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: DirectWebRTCTCPRouteConfig.$_createMessage)
     ..pPS(1, _omitFieldNames ? '' : 'signalingAddresses')
     ..pPS(2, _omitFieldNames ? '' : 'iceTcpAddresses')
     ..pPS(3, _omitFieldNames ? '' : 'advertisedAddresses')
@@ -3200,12 +3320,18 @@ class DirectWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DirectWebRTCTCPRouteConfig() / DirectWebRTCTCPRouteConfig.new instead')
   static DirectWebRTCTCPRouteConfig create() => DirectWebRTCTCPRouteConfig._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      DirectWebRTCTCPRouteConfig._();
   @$core.override
-  DirectWebRTCTCPRouteConfig createEmptyInstance() => create();
+  DirectWebRTCTCPRouteConfig createEmptyInstance() =>
+      DirectWebRTCTCPRouteConfig._();
   @$core.pragma('dart2js:noInline')
   static DirectWebRTCTCPRouteConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DirectWebRTCTCPRouteConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<DirectWebRTCTCPRouteConfig>(
+          DirectWebRTCTCPRouteConfig.$_createMessage);
   static DirectWebRTCTCPRouteConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3241,7 +3367,7 @@ class SSHWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
     $core.String? remoteIceTcpAddress,
     $core.String? sshCredentialRef,
   }) {
-    final result = create();
+    final result = SSHWebRTCTCPRouteConfig._();
     if (host != null) result.host = host;
     if (port != null) result.port = port;
     if (user != null) result.user = user;
@@ -3262,16 +3388,16 @@ class SSHWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
 
   factory SSHWebRTCTCPRouteConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SSHWebRTCTCPRouteConfig()..mergeFromBuffer(data, registry);
   factory SSHWebRTCTCPRouteConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SSHWebRTCTCPRouteConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SSHWebRTCTCPRouteConfig',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SSHWebRTCTCPRouteConfig.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'host')
     ..aI(2, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'user')
@@ -3279,7 +3405,7 @@ class SSHWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
     ..aOS(5, _omitFieldNames ? '' : 'proxyJump')
     ..aOM<EndpointCredentialDescriptor>(
         6, _omitFieldNames ? '' : 'credentialDescriptor',
-        subBuilder: EndpointCredentialDescriptor.create)
+        subBuilder: EndpointCredentialDescriptor.$_createMessage)
     ..aOS(7, _omitFieldNames ? '' : 'remoteSignalingAddress')
     ..aOS(8, _omitFieldNames ? '' : 'remoteIceTcpAddress')
     ..aOS(9, _omitFieldNames ? '' : 'sshCredentialRef')
@@ -3297,12 +3423,16 @@ class SSHWebRTCTCPRouteConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SSHWebRTCTCPRouteConfig() / SSHWebRTCTCPRouteConfig.new instead')
   static SSHWebRTCTCPRouteConfig create() => SSHWebRTCTCPRouteConfig._();
+  static $pb.GeneratedMessage $_createMessage() => SSHWebRTCTCPRouteConfig._();
   @$core.override
-  SSHWebRTCTCPRouteConfig createEmptyInstance() => create();
+  SSHWebRTCTCPRouteConfig createEmptyInstance() => SSHWebRTCTCPRouteConfig._();
   @$core.pragma('dart2js:noInline')
   static SSHWebRTCTCPRouteConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SSHWebRTCTCPRouteConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<SSHWebRTCTCPRouteConfig>(
+          SSHWebRTCTCPRouteConfig.$_createMessage);
   static SSHWebRTCTCPRouteConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3392,7 +3522,7 @@ class ManagedWebRTCRouteConfig extends $pb.GeneratedMessage {
     ManagedWebRTCRelayMode? relayMode,
     ManagedWebRTCRelayTransport? relayTransport,
   }) {
-    final result = create();
+    final result = ManagedWebRTCRouteConfig._();
     if (targetDeviceId != null) result.targetDeviceId = targetDeviceId;
     if (accountProfileRef != null) result.accountProfileRef = accountProfileRef;
     if (relayMode != null) result.relayMode = relayMode;
@@ -3404,16 +3534,16 @@ class ManagedWebRTCRouteConfig extends $pb.GeneratedMessage {
 
   factory ManagedWebRTCRouteConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ManagedWebRTCRouteConfig()..mergeFromBuffer(data, registry);
   factory ManagedWebRTCRouteConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ManagedWebRTCRouteConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ManagedWebRTCRouteConfig',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ManagedWebRTCRouteConfig.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'targetDeviceId')
     ..aOS(2, _omitFieldNames ? '' : 'accountProfileRef')
     ..aE<ManagedWebRTCRelayMode>(3, _omitFieldNames ? '' : 'relayMode',
@@ -3435,12 +3565,17 @@ class ManagedWebRTCRouteConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ManagedWebRTCRouteConfig() / ManagedWebRTCRouteConfig.new instead')
   static ManagedWebRTCRouteConfig create() => ManagedWebRTCRouteConfig._();
+  static $pb.GeneratedMessage $_createMessage() => ManagedWebRTCRouteConfig._();
   @$core.override
-  ManagedWebRTCRouteConfig createEmptyInstance() => create();
+  ManagedWebRTCRouteConfig createEmptyInstance() =>
+      ManagedWebRTCRouteConfig._();
   @$core.pragma('dart2js:noInline')
   static ManagedWebRTCRouteConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ManagedWebRTCRouteConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<ManagedWebRTCRouteConfig>(
+          ManagedWebRTCRouteConfig.$_createMessage);
   static ManagedWebRTCRouteConfig? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3506,7 +3641,7 @@ class EndpointRouteConfigV1 extends $pb.GeneratedMessage {
     SSHWebRTCTCPRouteConfig? sshWebrtcTcp,
     ManagedWebRTCRouteConfig? managedWebrtc,
   }) {
-    final result = create();
+    final result = EndpointRouteConfigV1._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (routeId != null) result.routeId = routeId;
     if (enabled != null) result.enabled = enabled;
@@ -3527,10 +3662,10 @@ class EndpointRouteConfigV1 extends $pb.GeneratedMessage {
 
   factory EndpointRouteConfigV1.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointRouteConfigV1()..mergeFromBuffer(data, registry);
   factory EndpointRouteConfigV1.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointRouteConfigV1()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EndpointRouteConfigV1_Route>
       _EndpointRouteConfigV1_RouteByTag = {
@@ -3544,7 +3679,7 @@ class EndpointRouteConfigV1 extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EndpointRouteConfigV1',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointRouteConfigV1.$_createMessage)
     ..oo(0, [20, 21, 22, 23])
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
@@ -3559,14 +3694,14 @@ class EndpointRouteConfigV1 extends $pb.GeneratedMessage {
         enumValues: EndpointSource.values)
     ..aOS(9, _omitFieldNames ? '' : 'displayName')
     ..aOM<LocalUnixRouteConfig>(20, _omitFieldNames ? '' : 'localUnix',
-        subBuilder: LocalUnixRouteConfig.create)
+        subBuilder: LocalUnixRouteConfig.$_createMessage)
     ..aOM<DirectWebRTCTCPRouteConfig>(
         21, _omitFieldNames ? '' : 'directWebrtcTcp',
-        subBuilder: DirectWebRTCTCPRouteConfig.create)
+        subBuilder: DirectWebRTCTCPRouteConfig.$_createMessage)
     ..aOM<SSHWebRTCTCPRouteConfig>(22, _omitFieldNames ? '' : 'sshWebrtcTcp',
-        subBuilder: SSHWebRTCTCPRouteConfig.create)
+        subBuilder: SSHWebRTCTCPRouteConfig.$_createMessage)
     ..aOM<ManagedWebRTCRouteConfig>(23, _omitFieldNames ? '' : 'managedWebrtc',
-        subBuilder: ManagedWebRTCRouteConfig.create)
+        subBuilder: ManagedWebRTCRouteConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3581,12 +3716,16 @@ class EndpointRouteConfigV1 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointRouteConfigV1() / EndpointRouteConfigV1.new instead')
   static EndpointRouteConfigV1 create() => EndpointRouteConfigV1._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointRouteConfigV1._();
   @$core.override
-  EndpointRouteConfigV1 createEmptyInstance() => create();
+  EndpointRouteConfigV1 createEmptyInstance() => EndpointRouteConfigV1._();
   @$core.pragma('dart2js:noInline')
   static EndpointRouteConfigV1 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointRouteConfigV1>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointRouteConfigV1>(
+          EndpointRouteConfigV1.$_createMessage);
   static EndpointRouteConfigV1? _defaultInstance;
 
   @$pb.TagNumber(20)
@@ -3736,7 +3875,7 @@ class PairingDirectRouteSeed extends $pb.GeneratedMessage {
     $core.String? iceTcpAddress,
     $core.String? serverName,
   }) {
-    final result = create();
+    final result = PairingDirectRouteSeed._();
     if (signalingAddress != null) result.signalingAddress = signalingAddress;
     if (iceTcpAddress != null) result.iceTcpAddress = iceTcpAddress;
     if (serverName != null) result.serverName = serverName;
@@ -3747,16 +3886,16 @@ class PairingDirectRouteSeed extends $pb.GeneratedMessage {
 
   factory PairingDirectRouteSeed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingDirectRouteSeed()..mergeFromBuffer(data, registry);
   factory PairingDirectRouteSeed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingDirectRouteSeed()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingDirectRouteSeed',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingDirectRouteSeed.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'signalingAddress')
     ..aOS(2, _omitFieldNames ? '' : 'iceTcpAddress')
     ..aOS(3, _omitFieldNames ? '' : 'serverName')
@@ -3774,12 +3913,16 @@ class PairingDirectRouteSeed extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PairingDirectRouteSeed() / PairingDirectRouteSeed.new instead')
   static PairingDirectRouteSeed create() => PairingDirectRouteSeed._();
+  static $pb.GeneratedMessage $_createMessage() => PairingDirectRouteSeed._();
   @$core.override
-  PairingDirectRouteSeed createEmptyInstance() => create();
+  PairingDirectRouteSeed createEmptyInstance() => PairingDirectRouteSeed._();
   @$core.pragma('dart2js:noInline')
   static PairingDirectRouteSeed getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingDirectRouteSeed>(create);
+      $pb.GeneratedMessage.$_defaultFor<PairingDirectRouteSeed>(
+          PairingDirectRouteSeed.$_createMessage);
   static PairingDirectRouteSeed? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3820,7 +3963,7 @@ class PairingManagedRouteSeed extends $pb.GeneratedMessage {
     $core.String? serverName,
     $core.List<$core.int>? caCertificateDerSha256,
   }) {
-    final result = create();
+    final result = PairingManagedRouteSeed._();
     if (daemonId != null) result.daemonId = daemonId;
     if (edgeId != null) result.edgeId = edgeId;
     if (publicEndpoint != null) result.publicEndpoint = publicEndpoint;
@@ -3834,16 +3977,16 @@ class PairingManagedRouteSeed extends $pb.GeneratedMessage {
 
   factory PairingManagedRouteSeed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingManagedRouteSeed()..mergeFromBuffer(data, registry);
   factory PairingManagedRouteSeed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingManagedRouteSeed()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingManagedRouteSeed',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingManagedRouteSeed.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'daemonId')
     ..aOS(2, _omitFieldNames ? '' : 'edgeId')
     ..aOS(3, _omitFieldNames ? '' : 'publicEndpoint')
@@ -3864,12 +4007,16 @@ class PairingManagedRouteSeed extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PairingManagedRouteSeed() / PairingManagedRouteSeed.new instead')
   static PairingManagedRouteSeed create() => PairingManagedRouteSeed._();
+  static $pb.GeneratedMessage $_createMessage() => PairingManagedRouteSeed._();
   @$core.override
-  PairingManagedRouteSeed createEmptyInstance() => create();
+  PairingManagedRouteSeed createEmptyInstance() => PairingManagedRouteSeed._();
   @$core.pragma('dart2js:noInline')
   static PairingManagedRouteSeed getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingManagedRouteSeed>(create);
+      $pb.GeneratedMessage.$_defaultFor<PairingManagedRouteSeed>(
+          PairingManagedRouteSeed.$_createMessage);
   static PairingManagedRouteSeed? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3932,7 +4079,7 @@ class PairingSSHRouteSeed extends $pb.GeneratedMessage {
     $core.String? remoteIceTcpAddress,
     EndpointCredentialKind? credentialKind,
   }) {
-    final result = create();
+    final result = PairingSSHRouteSeed._();
     if (host != null) result.host = host;
     if (port != null) result.port = port;
     if (user != null) result.user = user;
@@ -3951,16 +4098,16 @@ class PairingSSHRouteSeed extends $pb.GeneratedMessage {
 
   factory PairingSSHRouteSeed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingSSHRouteSeed()..mergeFromBuffer(data, registry);
   factory PairingSSHRouteSeed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingSSHRouteSeed()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingSSHRouteSeed',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingSSHRouteSeed.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'host')
     ..aI(2, _omitFieldNames ? '' : 'port', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'user')
@@ -3983,12 +4130,16 @@ class PairingSSHRouteSeed extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use PairingSSHRouteSeed() / PairingSSHRouteSeed.new instead')
   static PairingSSHRouteSeed create() => PairingSSHRouteSeed._();
+  static $pb.GeneratedMessage $_createMessage() => PairingSSHRouteSeed._();
   @$core.override
-  PairingSSHRouteSeed createEmptyInstance() => create();
+  PairingSSHRouteSeed createEmptyInstance() => PairingSSHRouteSeed._();
   @$core.pragma('dart2js:noInline')
   static PairingSSHRouteSeed getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingSSHRouteSeed>(create);
+      $pb.GeneratedMessage.$_defaultFor<PairingSSHRouteSeed>(
+          PairingSSHRouteSeed.$_createMessage);
   static PairingSSHRouteSeed? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4075,7 +4226,7 @@ class PairingRouteSeed extends $pb.GeneratedMessage {
     $core.String? displayName,
     $core.int? priority,
   }) {
-    final result = create();
+    final result = PairingRouteSeed._();
     if (directWebrtcTcp != null) result.directWebrtcTcp = directWebrtcTcp;
     if (managedWebrtc != null) result.managedWebrtc = managedWebrtc;
     if (sshWebrtcTcp != null) result.sshWebrtcTcp = sshWebrtcTcp;
@@ -4089,10 +4240,10 @@ class PairingRouteSeed extends $pb.GeneratedMessage {
 
   factory PairingRouteSeed.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingRouteSeed()..mergeFromBuffer(data, registry);
   factory PairingRouteSeed.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingRouteSeed()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, PairingRouteSeed_Route>
       _PairingRouteSeed_RouteByTag = {
@@ -4105,14 +4256,14 @@ class PairingRouteSeed extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'PairingRouteSeed',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingRouteSeed.$_createMessage)
     ..oo(0, [1, 2, 3])
     ..aOM<PairingDirectRouteSeed>(1, _omitFieldNames ? '' : 'directWebrtcTcp',
-        subBuilder: PairingDirectRouteSeed.create)
+        subBuilder: PairingDirectRouteSeed.$_createMessage)
     ..aOM<PairingManagedRouteSeed>(2, _omitFieldNames ? '' : 'managedWebrtc',
-        subBuilder: PairingManagedRouteSeed.create)
+        subBuilder: PairingManagedRouteSeed.$_createMessage)
     ..aOM<PairingSSHRouteSeed>(3, _omitFieldNames ? '' : 'sshWebrtcTcp',
-        subBuilder: PairingSSHRouteSeed.create)
+        subBuilder: PairingSSHRouteSeed.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'routeId')
     ..aOS(5, _omitFieldNames ? '' : 'displayName')
     ..aI(6, _omitFieldNames ? '' : 'priority')
@@ -4129,12 +4280,15 @@ class PairingRouteSeed extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PairingRouteSeed() / PairingRouteSeed.new instead')
   static PairingRouteSeed create() => PairingRouteSeed._();
+  static $pb.GeneratedMessage $_createMessage() => PairingRouteSeed._();
   @$core.override
-  PairingRouteSeed createEmptyInstance() => create();
+  PairingRouteSeed createEmptyInstance() => PairingRouteSeed._();
   @$core.pragma('dart2js:noInline')
-  static PairingRouteSeed getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingRouteSeed>(create);
+  static PairingRouteSeed getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PairingRouteSeed>(
+          PairingRouteSeed.$_createMessage);
   static PairingRouteSeed? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4219,7 +4373,7 @@ class PairingClaimOffer extends $pb.GeneratedMessage {
     $fixnum.Int64? expiresAtUnixNano,
     $core.Iterable<PairingRouteSeed>? routes,
   }) {
-    final result = create();
+    final result = PairingClaimOffer._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (claim != null) result.claim = claim;
     if (deviceId != null) result.deviceId = deviceId;
@@ -4233,16 +4387,16 @@ class PairingClaimOffer extends $pb.GeneratedMessage {
 
   factory PairingClaimOffer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingClaimOffer()..mergeFromBuffer(data, registry);
   factory PairingClaimOffer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingClaimOffer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingClaimOffer',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingClaimOffer.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..a<$core.List<$core.int>>(
@@ -4252,7 +4406,7 @@ class PairingClaimOffer extends $pb.GeneratedMessage {
         4, _omitFieldNames ? '' : 'devicePublicKey', $pb.PbFieldType.OY)
     ..aInt64(5, _omitFieldNames ? '' : 'expiresAtUnixNano')
     ..pPM<PairingRouteSeed>(6, _omitFieldNames ? '' : 'routes',
-        subBuilder: PairingRouteSeed.create)
+        subBuilder: PairingRouteSeed.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -4266,12 +4420,15 @@ class PairingClaimOffer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use PairingClaimOffer() / PairingClaimOffer.new instead')
   static PairingClaimOffer create() => PairingClaimOffer._();
+  static $pb.GeneratedMessage $_createMessage() => PairingClaimOffer._();
   @$core.override
-  PairingClaimOffer createEmptyInstance() => create();
+  PairingClaimOffer createEmptyInstance() => PairingClaimOffer._();
   @$core.pragma('dart2js:noInline')
-  static PairingClaimOffer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingClaimOffer>(create);
+  static PairingClaimOffer getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PairingClaimOffer>(
+          PairingClaimOffer.$_createMessage);
   static PairingClaimOffer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4337,7 +4494,7 @@ class EndpointConfigV1 extends $pb.GeneratedMessage {
     $core.Iterable<EndpointRouteConfigV1>? routes,
     $core.String? platform,
   }) {
-    final result = create();
+    final result = EndpointConfigV1._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (endpointId != null) result.endpointId = endpointId;
     if (label != null) result.label = label;
@@ -4355,16 +4512,16 @@ class EndpointConfigV1 extends $pb.GeneratedMessage {
 
   factory EndpointConfigV1.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointConfigV1()..mergeFromBuffer(data, registry);
   factory EndpointConfigV1.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointConfigV1()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointConfigV1',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointConfigV1.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'endpointId')
@@ -4372,14 +4529,14 @@ class EndpointConfigV1 extends $pb.GeneratedMessage {
     ..aE<EndpointSource>(4, _omitFieldNames ? '' : 'labelSource',
         enumValues: EndpointSource.values)
     ..aOM<EndpointDaemonIdentity>(5, _omitFieldNames ? '' : 'identity',
-        subBuilder: EndpointDaemonIdentity.create)
+        subBuilder: EndpointDaemonIdentity.$_createMessage)
     ..aE<EndpointConnectMode>(6, _omitFieldNames ? '' : 'connectMode',
         enumValues: EndpointConnectMode.values)
     ..aOB(7, _omitFieldNames ? '' : 'enabled')
     ..aOM<EndpointSelectionPolicy>(8, _omitFieldNames ? '' : 'selectionPolicy',
-        subBuilder: EndpointSelectionPolicy.create)
+        subBuilder: EndpointSelectionPolicy.$_createMessage)
     ..pPM<EndpointRouteConfigV1>(9, _omitFieldNames ? '' : 'routes',
-        subBuilder: EndpointRouteConfigV1.create)
+        subBuilder: EndpointRouteConfigV1.$_createMessage)
     ..aOS(10, _omitFieldNames ? '' : 'platform')
     ..hasRequiredFields = false;
 
@@ -4394,12 +4551,15 @@ class EndpointConfigV1 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EndpointConfigV1() / EndpointConfigV1.new instead')
   static EndpointConfigV1 create() => EndpointConfigV1._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointConfigV1._();
   @$core.override
-  EndpointConfigV1 createEmptyInstance() => create();
+  EndpointConfigV1 createEmptyInstance() => EndpointConfigV1._();
   @$core.pragma('dart2js:noInline')
-  static EndpointConfigV1 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointConfigV1>(create);
+  static EndpointConfigV1 getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EndpointConfigV1>(
+          EndpointConfigV1.$_createMessage);
   static EndpointConfigV1? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4499,7 +4659,7 @@ class EndpointRegistryV1 extends $pb.GeneratedMessage {
     $core.String? defaultEndpointId,
     $core.Iterable<EndpointConfigV1>? endpoints,
   }) {
-    final result = create();
+    final result = EndpointRegistryV1._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (defaultEndpointId != null) result.defaultEndpointId = defaultEndpointId;
     if (endpoints != null) result.endpoints.addAll(endpoints);
@@ -4510,21 +4670,21 @@ class EndpointRegistryV1 extends $pb.GeneratedMessage {
 
   factory EndpointRegistryV1.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointRegistryV1()..mergeFromBuffer(data, registry);
   factory EndpointRegistryV1.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointRegistryV1()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointRegistryV1',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointRegistryV1.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'defaultEndpointId')
     ..pPM<EndpointConfigV1>(3, _omitFieldNames ? '' : 'endpoints',
-        subBuilder: EndpointConfigV1.create)
+        subBuilder: EndpointConfigV1.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -4538,12 +4698,15 @@ class EndpointRegistryV1 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use EndpointRegistryV1() / EndpointRegistryV1.new instead')
   static EndpointRegistryV1 create() => EndpointRegistryV1._();
+  static $pb.GeneratedMessage $_createMessage() => EndpointRegistryV1._();
   @$core.override
-  EndpointRegistryV1 createEmptyInstance() => create();
+  EndpointRegistryV1 createEmptyInstance() => EndpointRegistryV1._();
   @$core.pragma('dart2js:noInline')
   static EndpointRegistryV1 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointRegistryV1>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointRegistryV1>(
+          EndpointRegistryV1.$_createMessage);
   static EndpointRegistryV1? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4580,7 +4743,7 @@ class PairingTicketDescriptor extends $pb.GeneratedMessage {
     $fixnum.Int64? issuedAtUnixNano,
     $fixnum.Int64? grantLifetimeSeconds,
   }) {
-    final result = create();
+    final result = PairingTicketDescriptor._();
     if (ticketId != null) result.ticketId = ticketId;
     if (scopeCeiling != null) result.scopeCeiling.addAll(scopeCeiling);
     if (expiresAtUnixNano != null) result.expiresAtUnixNano = expiresAtUnixNano;
@@ -4597,16 +4760,16 @@ class PairingTicketDescriptor extends $pb.GeneratedMessage {
 
   factory PairingTicketDescriptor.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingTicketDescriptor()..mergeFromBuffer(data, registry);
   factory PairingTicketDescriptor.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingTicketDescriptor()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingTicketDescriptor',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingTicketDescriptor.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'ticketId')
     ..pPS(2, _omitFieldNames ? '' : 'scopeCeiling')
     ..aInt64(3, _omitFieldNames ? '' : 'expiresAtUnixNano')
@@ -4632,12 +4795,16 @@ class PairingTicketDescriptor extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PairingTicketDescriptor() / PairingTicketDescriptor.new instead')
   static PairingTicketDescriptor create() => PairingTicketDescriptor._();
+  static $pb.GeneratedMessage $_createMessage() => PairingTicketDescriptor._();
   @$core.override
-  PairingTicketDescriptor createEmptyInstance() => create();
+  PairingTicketDescriptor createEmptyInstance() => PairingTicketDescriptor._();
   @$core.pragma('dart2js:noInline')
   static PairingTicketDescriptor getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingTicketDescriptor>(create);
+      $pb.GeneratedMessage.$_defaultFor<PairingTicketDescriptor>(
+          PairingTicketDescriptor.$_createMessage);
   static PairingTicketDescriptor? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4719,7 +4886,7 @@ class EndpointAuthorizationBootstrap extends $pb.GeneratedMessage {
     PairingTicketDescriptor? pairingTicket,
     $core.List<$core.int>? boundGrant,
   }) {
-    final result = create();
+    final result = EndpointAuthorizationBootstrap._();
     if (pairingTicket != null) result.pairingTicket = pairingTicket;
     if (boundGrant != null) result.boundGrant = boundGrant;
     return result;
@@ -4729,10 +4896,10 @@ class EndpointAuthorizationBootstrap extends $pb.GeneratedMessage {
 
   factory EndpointAuthorizationBootstrap.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointAuthorizationBootstrap()..mergeFromBuffer(data, registry);
   factory EndpointAuthorizationBootstrap.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointAuthorizationBootstrap()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, EndpointAuthorizationBootstrap_Payload>
       _EndpointAuthorizationBootstrap_PayloadByTag = {
@@ -4744,10 +4911,10 @@ class EndpointAuthorizationBootstrap extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EndpointAuthorizationBootstrap',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointAuthorizationBootstrap.$_createMessage)
     ..oo(0, [1, 2])
     ..aOM<PairingTicketDescriptor>(1, _omitFieldNames ? '' : 'pairingTicket',
-        subBuilder: PairingTicketDescriptor.create)
+        subBuilder: PairingTicketDescriptor.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'boundGrant', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
@@ -4765,13 +4932,19 @@ class EndpointAuthorizationBootstrap extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointAuthorizationBootstrap() / EndpointAuthorizationBootstrap.new instead')
   static EndpointAuthorizationBootstrap create() =>
       EndpointAuthorizationBootstrap._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EndpointAuthorizationBootstrap._();
   @$core.override
-  EndpointAuthorizationBootstrap createEmptyInstance() => create();
+  EndpointAuthorizationBootstrap createEmptyInstance() =>
+      EndpointAuthorizationBootstrap._();
   @$core.pragma('dart2js:noInline')
   static EndpointAuthorizationBootstrap getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointAuthorizationBootstrap>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointAuthorizationBootstrap>(
+          EndpointAuthorizationBootstrap.$_createMessage);
   static EndpointAuthorizationBootstrap? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4818,7 +4991,7 @@ class EndpointBootstrapBundleV2 extends $pb.GeneratedMessage {
     $core.List<$core.int>? bundleSignature,
     $core.String? platform,
   }) {
-    final result = create();
+    final result = EndpointBootstrapBundleV2._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (bundleId != null) result.bundleId = bundleId;
     if (identity != null) result.identity = identity;
@@ -4836,27 +5009,27 @@ class EndpointBootstrapBundleV2 extends $pb.GeneratedMessage {
 
   factory EndpointBootstrapBundleV2.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointBootstrapBundleV2()..mergeFromBuffer(data, registry);
   factory EndpointBootstrapBundleV2.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointBootstrapBundleV2()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointBootstrapBundleV2',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointBootstrapBundleV2.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'bundleId')
     ..aOM<EndpointDaemonIdentity>(3, _omitFieldNames ? '' : 'identity',
-        subBuilder: EndpointDaemonIdentity.create)
+        subBuilder: EndpointDaemonIdentity.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'suggestedLabel')
     ..pPM<EndpointRouteConfigV1>(5, _omitFieldNames ? '' : 'routes',
-        subBuilder: EndpointRouteConfigV1.create)
+        subBuilder: EndpointRouteConfigV1.$_createMessage)
     ..aOM<EndpointAuthorizationBootstrap>(
         6, _omitFieldNames ? '' : 'authorization',
-        subBuilder: EndpointAuthorizationBootstrap.create)
+        subBuilder: EndpointAuthorizationBootstrap.$_createMessage)
     ..aInt64(7, _omitFieldNames ? '' : 'issuedAtUnixNano')
     ..aInt64(8, _omitFieldNames ? '' : 'expiresAtUnixNano')
     ..a<$core.List<$core.int>>(
@@ -4876,12 +5049,18 @@ class EndpointBootstrapBundleV2 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointBootstrapBundleV2() / EndpointBootstrapBundleV2.new instead')
   static EndpointBootstrapBundleV2 create() => EndpointBootstrapBundleV2._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EndpointBootstrapBundleV2._();
   @$core.override
-  EndpointBootstrapBundleV2 createEmptyInstance() => create();
+  EndpointBootstrapBundleV2 createEmptyInstance() =>
+      EndpointBootstrapBundleV2._();
   @$core.pragma('dart2js:noInline')
   static EndpointBootstrapBundleV2 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EndpointBootstrapBundleV2>(create);
+      $pb.GeneratedMessage.$_defaultFor<EndpointBootstrapBundleV2>(
+          EndpointBootstrapBundleV2.$_createMessage);
   static EndpointBootstrapBundleV2? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -4984,7 +5163,7 @@ class PairingTicketSignatureInput extends $pb.GeneratedMessage {
     $core.String? issuerDeviceFingerprint,
     PairingTicketDescriptor? ticket,
   }) {
-    final result = create();
+    final result = PairingTicketSignatureInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (issuerDeviceId != null) result.issuerDeviceId = issuerDeviceId;
@@ -4998,22 +5177,22 @@ class PairingTicketSignatureInput extends $pb.GeneratedMessage {
 
   factory PairingTicketSignatureInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      PairingTicketSignatureInput()..mergeFromBuffer(data, registry);
   factory PairingTicketSignatureInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      PairingTicketSignatureInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'PairingTicketSignatureInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: PairingTicketSignatureInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'issuerDeviceId')
     ..aOS(4, _omitFieldNames ? '' : 'issuerDeviceFingerprint')
     ..aOM<PairingTicketDescriptor>(5, _omitFieldNames ? '' : 'ticket',
-        subBuilder: PairingTicketDescriptor.create)
+        subBuilder: PairingTicketDescriptor.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5029,13 +5208,19 @@ class PairingTicketSignatureInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use PairingTicketSignatureInput() / PairingTicketSignatureInput.new instead')
   static PairingTicketSignatureInput create() =>
       PairingTicketSignatureInput._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      PairingTicketSignatureInput._();
   @$core.override
-  PairingTicketSignatureInput createEmptyInstance() => create();
+  PairingTicketSignatureInput createEmptyInstance() =>
+      PairingTicketSignatureInput._();
   @$core.pragma('dart2js:noInline')
   static PairingTicketSignatureInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PairingTicketSignatureInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<PairingTicketSignatureInput>(
+          PairingTicketSignatureInput.$_createMessage);
   static PairingTicketSignatureInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5094,7 +5279,7 @@ class EndpointBootstrapSignatureInput extends $pb.GeneratedMessage {
     $core.int? version,
     EndpointBootstrapBundleV2? bundle,
   }) {
-    final result = create();
+    final result = EndpointBootstrapSignatureInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (bundle != null) result.bundle = bundle;
@@ -5105,20 +5290,20 @@ class EndpointBootstrapSignatureInput extends $pb.GeneratedMessage {
 
   factory EndpointBootstrapSignatureInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EndpointBootstrapSignatureInput()..mergeFromBuffer(data, registry);
   factory EndpointBootstrapSignatureInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EndpointBootstrapSignatureInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EndpointBootstrapSignatureInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EndpointBootstrapSignatureInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOM<EndpointBootstrapBundleV2>(3, _omitFieldNames ? '' : 'bundle',
-        subBuilder: EndpointBootstrapBundleV2.create)
+        subBuilder: EndpointBootstrapBundleV2.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5134,14 +5319,19 @@ class EndpointBootstrapSignatureInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EndpointBootstrapSignatureInput() / EndpointBootstrapSignatureInput.new instead')
   static EndpointBootstrapSignatureInput create() =>
       EndpointBootstrapSignatureInput._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      EndpointBootstrapSignatureInput._();
   @$core.override
-  EndpointBootstrapSignatureInput createEmptyInstance() => create();
+  EndpointBootstrapSignatureInput createEmptyInstance() =>
+      EndpointBootstrapSignatureInput._();
   @$core.pragma('dart2js:noInline')
   static EndpointBootstrapSignatureInput getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<EndpointBootstrapSignatureInput>(
-          create);
+          EndpointBootstrapSignatureInput.$_createMessage);
   static EndpointBootstrapSignatureInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5191,7 +5381,7 @@ class ClientEndpointShareBundleV1 extends $pb.GeneratedMessage {
     $fixnum.Int64? expiresAtUnixNano,
     $core.String? platform,
   }) {
-    final result = create();
+    final result = ClientEndpointShareBundleV1._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (transferId != null) result.transferId = transferId;
     if (identity != null) result.identity = identity;
@@ -5212,31 +5402,31 @@ class ClientEndpointShareBundleV1 extends $pb.GeneratedMessage {
 
   factory ClientEndpointShareBundleV1.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ClientEndpointShareBundleV1()..mergeFromBuffer(data, registry);
   factory ClientEndpointShareBundleV1.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ClientEndpointShareBundleV1()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientEndpointShareBundleV1',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ClientEndpointShareBundleV1.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'transferId')
     ..aOM<EndpointDaemonIdentity>(3, _omitFieldNames ? '' : 'identity',
-        subBuilder: EndpointDaemonIdentity.create)
+        subBuilder: EndpointDaemonIdentity.$_createMessage)
     ..aOS(4, _omitFieldNames ? '' : 'suggestedLabel')
     ..pPM<EndpointRouteConfigV1>(5, _omitFieldNames ? '' : 'routes',
-        subBuilder: EndpointRouteConfigV1.create)
+        subBuilder: EndpointRouteConfigV1.$_createMessage)
     ..aE<EndpointConnectMode>(6, _omitFieldNames ? '' : 'connectMode',
         enumValues: EndpointConnectMode.values)
     ..aOM<EndpointSelectionPolicy>(7, _omitFieldNames ? '' : 'selectionPolicy',
-        subBuilder: EndpointSelectionPolicy.create)
+        subBuilder: EndpointSelectionPolicy.$_createMessage)
     ..pPM<EndpointCredentialDescriptor>(
         8, _omitFieldNames ? '' : 'credentialDescriptors',
-        subBuilder: EndpointCredentialDescriptor.create)
+        subBuilder: EndpointCredentialDescriptor.$_createMessage)
     ..a<$core.List<$core.int>>(
         9, _omitFieldNames ? '' : 'boundGrant', $pb.PbFieldType.OY)
     ..aInt64(10, _omitFieldNames ? '' : 'issuedAtUnixNano')
@@ -5257,13 +5447,19 @@ class ClientEndpointShareBundleV1 extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientEndpointShareBundleV1() / ClientEndpointShareBundleV1.new instead')
   static ClientEndpointShareBundleV1 create() =>
       ClientEndpointShareBundleV1._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ClientEndpointShareBundleV1._();
   @$core.override
-  ClientEndpointShareBundleV1 createEmptyInstance() => create();
+  ClientEndpointShareBundleV1 createEmptyInstance() =>
+      ClientEndpointShareBundleV1._();
   @$core.pragma('dart2js:noInline')
   static ClientEndpointShareBundleV1 getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ClientEndpointShareBundleV1>(create);
+      $pb.GeneratedMessage.$_defaultFor<ClientEndpointShareBundleV1>(
+          ClientEndpointShareBundleV1.$_createMessage);
   static ClientEndpointShareBundleV1? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5380,7 +5576,7 @@ class ShareSessionOffer extends $pb.GeneratedMessage {
     $core.List<$core.int>? oneTimeSessionSecret,
     $fixnum.Int64? expiresAtUnixNano,
   }) {
-    final result = create();
+    final result = ShareSessionOffer._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (transferId != null) result.transferId = transferId;
     if (listenerAddresses != null)
@@ -5397,16 +5593,16 @@ class ShareSessionOffer extends $pb.GeneratedMessage {
 
   factory ShareSessionOffer.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareSessionOffer()..mergeFromBuffer(data, registry);
   factory ShareSessionOffer.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareSessionOffer()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareSessionOffer',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareSessionOffer.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'transferId')
@@ -5428,12 +5624,15 @@ class ShareSessionOffer extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ShareSessionOffer() / ShareSessionOffer.new instead')
   static ShareSessionOffer create() => ShareSessionOffer._();
+  static $pb.GeneratedMessage $_createMessage() => ShareSessionOffer._();
   @$core.override
-  ShareSessionOffer createEmptyInstance() => create();
+  ShareSessionOffer createEmptyInstance() => ShareSessionOffer._();
   @$core.pragma('dart2js:noInline')
-  static ShareSessionOffer getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareSessionOffer>(create);
+  static ShareSessionOffer getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ShareSessionOffer>(
+          ShareSessionOffer.$_createMessage);
   static ShareSessionOffer? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5494,7 +5693,7 @@ class ShareReceiverHello extends $pb.GeneratedMessage {
     $core.List<$core.int>? receiverPublicKey,
     $core.List<$core.int>? receiverNonce,
   }) {
-    final result = create();
+    final result = ShareReceiverHello._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (transferId != null) result.transferId = transferId;
     if (oneTimeSessionSecret != null)
@@ -5508,16 +5707,16 @@ class ShareReceiverHello extends $pb.GeneratedMessage {
 
   factory ShareReceiverHello.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareReceiverHello()..mergeFromBuffer(data, registry);
   factory ShareReceiverHello.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareReceiverHello()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareReceiverHello',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareReceiverHello.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'transferId')
@@ -5540,12 +5739,15 @@ class ShareReceiverHello extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ShareReceiverHello() / ShareReceiverHello.new instead')
   static ShareReceiverHello create() => ShareReceiverHello._();
+  static $pb.GeneratedMessage $_createMessage() => ShareReceiverHello._();
   @$core.override
-  ShareReceiverHello createEmptyInstance() => create();
+  ShareReceiverHello createEmptyInstance() => ShareReceiverHello._();
   @$core.pragma('dart2js:noInline')
   static ShareReceiverHello getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareReceiverHello>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareReceiverHello>(
+          ShareReceiverHello.$_createMessage);
   static ShareReceiverHello? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5603,7 +5805,7 @@ class ShareSenderChallenge extends $pb.GeneratedMessage {
     $core.List<$core.int>? senderNonce,
     $fixnum.Int64? expiresAtUnixNano,
   }) {
-    final result = create();
+    final result = ShareSenderChallenge._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (transferId != null) result.transferId = transferId;
     if (receiverNonce != null) result.receiverNonce = receiverNonce;
@@ -5616,16 +5818,16 @@ class ShareSenderChallenge extends $pb.GeneratedMessage {
 
   factory ShareSenderChallenge.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareSenderChallenge()..mergeFromBuffer(data, registry);
   factory ShareSenderChallenge.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareSenderChallenge()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareSenderChallenge',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareSenderChallenge.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'transferId')
@@ -5647,12 +5849,16 @@ class ShareSenderChallenge extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ShareSenderChallenge() / ShareSenderChallenge.new instead')
   static ShareSenderChallenge create() => ShareSenderChallenge._();
+  static $pb.GeneratedMessage $_createMessage() => ShareSenderChallenge._();
   @$core.override
-  ShareSenderChallenge createEmptyInstance() => create();
+  ShareSenderChallenge createEmptyInstance() => ShareSenderChallenge._();
   @$core.pragma('dart2js:noInline')
   static ShareSenderChallenge getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareSenderChallenge>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareSenderChallenge>(
+          ShareSenderChallenge.$_createMessage);
   static ShareSenderChallenge? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5712,7 +5918,7 @@ class ShareReceiverProofInput extends $pb.GeneratedMessage {
     $core.String? ephemeralCertificateSha256,
     $core.List<$core.int>? oneTimeSessionSecretSha256,
   }) {
-    final result = create();
+    final result = ShareReceiverProofInput._();
     if (protocol != null) result.protocol = protocol;
     if (version != null) result.version = version;
     if (transferId != null) result.transferId = transferId;
@@ -5729,16 +5935,16 @@ class ShareReceiverProofInput extends $pb.GeneratedMessage {
 
   factory ShareReceiverProofInput.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareReceiverProofInput()..mergeFromBuffer(data, registry);
   factory ShareReceiverProofInput.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareReceiverProofInput()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareReceiverProofInput',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareReceiverProofInput.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'protocol')
     ..aI(2, _omitFieldNames ? '' : 'version', fieldType: $pb.PbFieldType.OU3)
     ..aOS(3, _omitFieldNames ? '' : 'transferId')
@@ -5763,12 +5969,16 @@ class ShareReceiverProofInput extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ShareReceiverProofInput() / ShareReceiverProofInput.new instead')
   static ShareReceiverProofInput create() => ShareReceiverProofInput._();
+  static $pb.GeneratedMessage $_createMessage() => ShareReceiverProofInput._();
   @$core.override
-  ShareReceiverProofInput createEmptyInstance() => create();
+  ShareReceiverProofInput createEmptyInstance() => ShareReceiverProofInput._();
   @$core.pragma('dart2js:noInline')
   static ShareReceiverProofInput getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareReceiverProofInput>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareReceiverProofInput>(
+          ShareReceiverProofInput.$_createMessage);
   static ShareReceiverProofInput? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5843,7 +6053,7 @@ class ShareReceiverProof extends $pb.GeneratedMessage {
     $core.String? transferId,
     $core.List<$core.int>? signature,
   }) {
-    final result = create();
+    final result = ShareReceiverProof._();
     if (schemaVersion != null) result.schemaVersion = schemaVersion;
     if (transferId != null) result.transferId = transferId;
     if (signature != null) result.signature = signature;
@@ -5854,16 +6064,16 @@ class ShareReceiverProof extends $pb.GeneratedMessage {
 
   factory ShareReceiverProof.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareReceiverProof()..mergeFromBuffer(data, registry);
   factory ShareReceiverProof.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareReceiverProof()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareReceiverProof',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareReceiverProof.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'schemaVersion',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(2, _omitFieldNames ? '' : 'transferId')
@@ -5882,12 +6092,15 @@ class ShareReceiverProof extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ShareReceiverProof() / ShareReceiverProof.new instead')
   static ShareReceiverProof create() => ShareReceiverProof._();
+  static $pb.GeneratedMessage $_createMessage() => ShareReceiverProof._();
   @$core.override
-  ShareReceiverProof createEmptyInstance() => create();
+  ShareReceiverProof createEmptyInstance() => ShareReceiverProof._();
   @$core.pragma('dart2js:noInline')
   static ShareReceiverProof getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareReceiverProof>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareReceiverProof>(
+          ShareReceiverProof.$_createMessage);
   static ShareReceiverProof? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -5926,7 +6139,7 @@ class ShareSessionClientEnvelope extends $pb.GeneratedMessage {
     ShareReceiverHello? hello,
     ShareReceiverProof? proof,
   }) {
-    final result = create();
+    final result = ShareSessionClientEnvelope._();
     if (hello != null) result.hello = hello;
     if (proof != null) result.proof = proof;
     return result;
@@ -5936,10 +6149,10 @@ class ShareSessionClientEnvelope extends $pb.GeneratedMessage {
 
   factory ShareSessionClientEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareSessionClientEnvelope()..mergeFromBuffer(data, registry);
   factory ShareSessionClientEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareSessionClientEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ShareSessionClientEnvelope_Message>
       _ShareSessionClientEnvelope_MessageByTag = {
@@ -5951,12 +6164,12 @@ class ShareSessionClientEnvelope extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ShareSessionClientEnvelope',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareSessionClientEnvelope.$_createMessage)
     ..oo(0, [1, 2])
     ..aOM<ShareReceiverHello>(1, _omitFieldNames ? '' : 'hello',
-        subBuilder: ShareReceiverHello.create)
+        subBuilder: ShareReceiverHello.$_createMessage)
     ..aOM<ShareReceiverProof>(2, _omitFieldNames ? '' : 'proof',
-        subBuilder: ShareReceiverProof.create)
+        subBuilder: ShareReceiverProof.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5972,12 +6185,18 @@ class ShareSessionClientEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ShareSessionClientEnvelope() / ShareSessionClientEnvelope.new instead')
   static ShareSessionClientEnvelope create() => ShareSessionClientEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ShareSessionClientEnvelope._();
   @$core.override
-  ShareSessionClientEnvelope createEmptyInstance() => create();
+  ShareSessionClientEnvelope createEmptyInstance() =>
+      ShareSessionClientEnvelope._();
   @$core.pragma('dart2js:noInline')
   static ShareSessionClientEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareSessionClientEnvelope>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareSessionClientEnvelope>(
+          ShareSessionClientEnvelope.$_createMessage);
   static ShareSessionClientEnvelope? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -6017,7 +6236,7 @@ class ShareSessionError extends $pb.GeneratedMessage {
     $core.String? code,
     $core.String? message,
   }) {
-    final result = create();
+    final result = ShareSessionError._();
     if (code != null) result.code = code;
     if (message != null) result.message = message;
     return result;
@@ -6027,16 +6246,16 @@ class ShareSessionError extends $pb.GeneratedMessage {
 
   factory ShareSessionError.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareSessionError()..mergeFromBuffer(data, registry);
   factory ShareSessionError.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareSessionError()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ShareSessionError',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareSessionError.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'code')
     ..aOS(2, _omitFieldNames ? '' : 'message')
     ..hasRequiredFields = false;
@@ -6052,12 +6271,15 @@ class ShareSessionError extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ShareSessionError() / ShareSessionError.new instead')
   static ShareSessionError create() => ShareSessionError._();
+  static $pb.GeneratedMessage $_createMessage() => ShareSessionError._();
   @$core.override
-  ShareSessionError createEmptyInstance() => create();
+  ShareSessionError createEmptyInstance() => ShareSessionError._();
   @$core.pragma('dart2js:noInline')
-  static ShareSessionError getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareSessionError>(create);
+  static ShareSessionError getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ShareSessionError>(
+          ShareSessionError.$_createMessage);
   static ShareSessionError? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -6088,7 +6310,7 @@ class ShareSessionServerEnvelope extends $pb.GeneratedMessage {
     ClientEndpointShareBundleV1? bundle,
     ShareSessionError? error,
   }) {
-    final result = create();
+    final result = ShareSessionServerEnvelope._();
     if (challenge != null) result.challenge = challenge;
     if (bundle != null) result.bundle = bundle;
     if (error != null) result.error = error;
@@ -6099,10 +6321,10 @@ class ShareSessionServerEnvelope extends $pb.GeneratedMessage {
 
   factory ShareSessionServerEnvelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ShareSessionServerEnvelope()..mergeFromBuffer(data, registry);
   factory ShareSessionServerEnvelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ShareSessionServerEnvelope()..mergeFromJson(json, registry);
 
   static const $core.Map<$core.int, ShareSessionServerEnvelope_Message>
       _ShareSessionServerEnvelope_MessageByTag = {
@@ -6115,14 +6337,14 @@ class ShareSessionServerEnvelope extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ShareSessionServerEnvelope',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'anytty.remote.auth.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ShareSessionServerEnvelope.$_createMessage)
     ..oo(0, [1, 2, 3])
     ..aOM<ShareSenderChallenge>(1, _omitFieldNames ? '' : 'challenge',
-        subBuilder: ShareSenderChallenge.create)
+        subBuilder: ShareSenderChallenge.$_createMessage)
     ..aOM<ClientEndpointShareBundleV1>(2, _omitFieldNames ? '' : 'bundle',
-        subBuilder: ClientEndpointShareBundleV1.create)
+        subBuilder: ClientEndpointShareBundleV1.$_createMessage)
     ..aOM<ShareSessionError>(3, _omitFieldNames ? '' : 'error',
-        subBuilder: ShareSessionError.create)
+        subBuilder: ShareSessionError.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -6138,12 +6360,18 @@ class ShareSessionServerEnvelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ShareSessionServerEnvelope() / ShareSessionServerEnvelope.new instead')
   static ShareSessionServerEnvelope create() => ShareSessionServerEnvelope._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ShareSessionServerEnvelope._();
   @$core.override
-  ShareSessionServerEnvelope createEmptyInstance() => create();
+  ShareSessionServerEnvelope createEmptyInstance() =>
+      ShareSessionServerEnvelope._();
   @$core.pragma('dart2js:noInline')
   static ShareSessionServerEnvelope getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ShareSessionServerEnvelope>(create);
+      $pb.GeneratedMessage.$_defaultFor<ShareSessionServerEnvelope>(
+          ShareSessionServerEnvelope.$_createMessage);
   static ShareSessionServerEnvelope? _defaultInstance;
 
   @$pb.TagNumber(1)

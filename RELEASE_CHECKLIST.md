@@ -11,8 +11,9 @@ This checklist is for maintainers preparing an AnyTTY public release from `anytt
 
 ## Quality
 
-- [ ] Run `make test`, `make test-clients`, Android validation, and the supported iOS build check.
+- [ ] Run `make test`, `make test-clients`, `make test-release`, Android validation, and the supported iOS build check.
 - [ ] Build the CLI/TUI and verify official Cloud client capability remains compiled in.
+- [ ] Confirm every release archive contains `anytty`, `tui2`, and `tui2-shell` (the default TUI launches `tui2`/`tui2-shell` as siblings); `make test-release` builds and smoke-tests the host archive.
 - [ ] Confirm website claims and download links in `anytty/anytty-site` match the release being prepared.
 - [ ] Confirm README, documentation, issue forms, and security links resolve.
 - [ ] Review `CHANGELOG.md`, supported platforms, known limitations, and upgrade notes.

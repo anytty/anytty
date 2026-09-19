@@ -38,7 +38,7 @@ if [[ ! -f "${client_header}" ]]; then
   exit 1
 fi
 
-cloud_ldflags="-checklinkname=0 -X github.com/anytty/anytty/client/mobileconfig.ControllerAddress=${cloud_controller_address} -X github.com/anytty/anytty/client/mobileconfig.ControllerServerName=${cloud_controller_server_name} -X github.com/anytty/anytty/client/mobileconfig.ControllerCAPEMBase64=${cloud_controller_ca_pem_base64}"
+cloud_ldflags="-checklinkname=0 -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerAddress=${cloud_controller_address} -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerServerName=${cloud_controller_server_name} -X github.com/anytty/anytty/access/engine/mobileconfig.ControllerCAPEMBase64=${cloud_controller_ca_pem_base64}"
 
 build_go_archive() {
   local sdk="$1" target="$2" destination="$3"

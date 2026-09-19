@@ -25,7 +25,7 @@ class BeginClientRouteRequest extends $pb.GeneratedMessage {
   factory BeginClientRouteRequest({
     $0.SignedEnvelope? cloudRouteGrant,
   }) {
-    final result = create();
+    final result = BeginClientRouteRequest._();
     if (cloudRouteGrant != null) result.cloudRouteGrant = cloudRouteGrant;
     return result;
   }
@@ -34,18 +34,18 @@ class BeginClientRouteRequest extends $pb.GeneratedMessage {
 
   factory BeginClientRouteRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      BeginClientRouteRequest()..mergeFromBuffer(data, registry);
   factory BeginClientRouteRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      BeginClientRouteRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'BeginClientRouteRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: BeginClientRouteRequest.$_createMessage)
     ..aOM<$0.SignedEnvelope>(1, _omitFieldNames ? '' : 'cloudRouteGrant',
-        subBuilder: $0.SignedEnvelope.create)
+        subBuilder: $0.SignedEnvelope.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -60,12 +60,16 @@ class BeginClientRouteRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use BeginClientRouteRequest() / BeginClientRouteRequest.new instead')
   static BeginClientRouteRequest create() => BeginClientRouteRequest._();
+  static $pb.GeneratedMessage $_createMessage() => BeginClientRouteRequest._();
   @$core.override
-  BeginClientRouteRequest createEmptyInstance() => create();
+  BeginClientRouteRequest createEmptyInstance() => BeginClientRouteRequest._();
   @$core.pragma('dart2js:noInline')
   static BeginClientRouteRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BeginClientRouteRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<BeginClientRouteRequest>(
+          BeginClientRouteRequest.$_createMessage);
   static BeginClientRouteRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -86,7 +90,7 @@ class ResolveClientRouteRequest extends $pb.GeneratedMessage {
     $core.String? requestId,
     $core.List<$core.int>? clientProof,
   }) {
-    final result = create();
+    final result = ResolveClientRouteRequest._();
     if (challengeId != null) result.challengeId = challengeId;
     if (requestId != null) result.requestId = requestId;
     if (clientProof != null) result.clientProof = clientProof;
@@ -97,16 +101,16 @@ class ResolveClientRouteRequest extends $pb.GeneratedMessage {
 
   factory ResolveClientRouteRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResolveClientRouteRequest()..mergeFromBuffer(data, registry);
   factory ResolveClientRouteRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResolveClientRouteRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResolveClientRouteRequest',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResolveClientRouteRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'challengeId')
     ..aOS(2, _omitFieldNames ? '' : 'requestId')
     ..a<$core.List<$core.int>>(
@@ -125,12 +129,18 @@ class ResolveClientRouteRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ResolveClientRouteRequest() / ResolveClientRouteRequest.new instead')
   static ResolveClientRouteRequest create() => ResolveClientRouteRequest._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ResolveClientRouteRequest._();
   @$core.override
-  ResolveClientRouteRequest createEmptyInstance() => create();
+  ResolveClientRouteRequest createEmptyInstance() =>
+      ResolveClientRouteRequest._();
   @$core.pragma('dart2js:noInline')
   static ResolveClientRouteRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResolveClientRouteRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<ResolveClientRouteRequest>(
+          ResolveClientRouteRequest.$_createMessage);
   static ResolveClientRouteRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -165,7 +175,7 @@ class ResolveClientRouteResponse extends $pb.GeneratedMessage {
   factory ResolveClientRouteResponse({
     $1.EdgeLocator? edgeLocator,
   }) {
-    final result = create();
+    final result = ResolveClientRouteResponse._();
     if (edgeLocator != null) result.edgeLocator = edgeLocator;
     return result;
   }
@@ -174,18 +184,18 @@ class ResolveClientRouteResponse extends $pb.GeneratedMessage {
 
   factory ResolveClientRouteResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResolveClientRouteResponse()..mergeFromBuffer(data, registry);
   factory ResolveClientRouteResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResolveClientRouteResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResolveClientRouteResponse',
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'anytty.cloud.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResolveClientRouteResponse.$_createMessage)
     ..aOM<$1.EdgeLocator>(1, _omitFieldNames ? '' : 'edgeLocator',
-        subBuilder: $1.EdgeLocator.create)
+        subBuilder: $1.EdgeLocator.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -201,12 +211,18 @@ class ResolveClientRouteResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ResolveClientRouteResponse() / ResolveClientRouteResponse.new instead')
   static ResolveClientRouteResponse create() => ResolveClientRouteResponse._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ResolveClientRouteResponse._();
   @$core.override
-  ResolveClientRouteResponse createEmptyInstance() => create();
+  ResolveClientRouteResponse createEmptyInstance() =>
+      ResolveClientRouteResponse._();
   @$core.pragma('dart2js:noInline')
   static ResolveClientRouteResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResolveClientRouteResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<ResolveClientRouteResponse>(
+          ResolveClientRouteResponse.$_createMessage);
   static ResolveClientRouteResponse? _defaultInstance;
 
   @$pb.TagNumber(1)

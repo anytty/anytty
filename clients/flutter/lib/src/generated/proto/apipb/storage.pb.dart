@@ -28,7 +28,7 @@ class StorageKey extends $pb.GeneratedMessage {
     $core.String? ownerId,
     $core.String? key,
   }) {
-    final result = create();
+    final result = StorageKey._();
     if (appId != null) result.appId = appId;
     if (scope != null) result.scope = scope;
     if (ownerId != null) result.ownerId = ownerId;
@@ -40,15 +40,15 @@ class StorageKey extends $pb.GeneratedMessage {
 
   factory StorageKey.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageKey()..mergeFromBuffer(data, registry);
   factory StorageKey.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageKey()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageKey',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageKey.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'appId')
     ..aE<StorageScope>(2, _omitFieldNames ? '' : 'scope',
         enumValues: StorageScope.values)
@@ -66,12 +66,14 @@ class StorageKey extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageKey() / StorageKey.new instead')
   static StorageKey create() => StorageKey._();
+  static $pb.GeneratedMessage $_createMessage() => StorageKey._();
   @$core.override
-  StorageKey createEmptyInstance() => create();
+  StorageKey createEmptyInstance() => StorageKey._();
   @$core.pragma('dart2js:noInline')
   static StorageKey getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageKey>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageKey>(StorageKey.$_createMessage);
   static StorageKey? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -118,7 +120,7 @@ class StorageEntry extends $pb.GeneratedMessage {
     $fixnum.Int64? version,
     $fixnum.Int64? updatedAtUnixNano,
   }) {
-    final result = create();
+    final result = StorageEntry._();
     if (key != null) result.key = key;
     if (value != null) result.value = value;
     if (version != null) result.version = version;
@@ -130,17 +132,17 @@ class StorageEntry extends $pb.GeneratedMessage {
 
   factory StorageEntry.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageEntry()..mergeFromBuffer(data, registry);
   factory StorageEntry.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageEntry()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageEntry',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageEntry.$_createMessage)
     ..aOM<StorageKey>(1, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OY)
     ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU6,
@@ -159,12 +161,15 @@ class StorageEntry extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageEntry() / StorageEntry.new instead')
   static StorageEntry create() => StorageEntry._();
+  static $pb.GeneratedMessage $_createMessage() => StorageEntry._();
   @$core.override
-  StorageEntry createEmptyInstance() => create();
+  StorageEntry createEmptyInstance() => StorageEntry._();
   @$core.pragma('dart2js:noInline')
-  static StorageEntry getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageEntry>(create);
+  static StorageEntry getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StorageEntry>(
+          StorageEntry.$_createMessage);
   static StorageEntry? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -211,7 +216,7 @@ class StorageVersionFence extends $pb.GeneratedMessage {
     $core.bool? checkVersion,
     $fixnum.Int64? expectedVersion,
   }) {
-    final result = create();
+    final result = StorageVersionFence._();
     if (checkVersion != null) result.checkVersion = checkVersion;
     if (expectedVersion != null) result.expectedVersion = expectedVersion;
     return result;
@@ -221,15 +226,15 @@ class StorageVersionFence extends $pb.GeneratedMessage {
 
   factory StorageVersionFence.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageVersionFence()..mergeFromBuffer(data, registry);
   factory StorageVersionFence.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageVersionFence()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageVersionFence',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageVersionFence.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'checkVersion')
     ..a<$fixnum.Int64>(
         2, _omitFieldNames ? '' : 'expectedVersion', $pb.PbFieldType.OU6,
@@ -247,12 +252,16 @@ class StorageVersionFence extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use StorageVersionFence() / StorageVersionFence.new instead')
   static StorageVersionFence create() => StorageVersionFence._();
+  static $pb.GeneratedMessage $_createMessage() => StorageVersionFence._();
   @$core.override
-  StorageVersionFence createEmptyInstance() => create();
+  StorageVersionFence createEmptyInstance() => StorageVersionFence._();
   @$core.pragma('dart2js:noInline')
   static StorageVersionFence getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageVersionFence>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageVersionFence>(
+          StorageVersionFence.$_createMessage);
   static StorageVersionFence? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -278,7 +287,7 @@ class StorageGetCommand extends $pb.GeneratedMessage {
   factory StorageGetCommand({
     StorageKey? key,
   }) {
-    final result = create();
+    final result = StorageGetCommand._();
     if (key != null) result.key = key;
     return result;
   }
@@ -287,17 +296,17 @@ class StorageGetCommand extends $pb.GeneratedMessage {
 
   factory StorageGetCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageGetCommand()..mergeFromBuffer(data, registry);
   factory StorageGetCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageGetCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageGetCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageGetCommand.$_createMessage)
     ..aOM<StorageKey>(2, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -311,12 +320,15 @@ class StorageGetCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageGetCommand() / StorageGetCommand.new instead')
   static StorageGetCommand create() => StorageGetCommand._();
+  static $pb.GeneratedMessage $_createMessage() => StorageGetCommand._();
   @$core.override
-  StorageGetCommand createEmptyInstance() => create();
+  StorageGetCommand createEmptyInstance() => StorageGetCommand._();
   @$core.pragma('dart2js:noInline')
-  static StorageGetCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageGetCommand>(create);
+  static StorageGetCommand getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StorageGetCommand>(
+          StorageGetCommand.$_createMessage);
   static StorageGetCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -337,7 +349,7 @@ class StoragePutCommand extends $pb.GeneratedMessage {
     $core.List<$core.int>? value,
     StorageVersionFence? version,
   }) {
-    final result = create();
+    final result = StoragePutCommand._();
     if (key != null) result.key = key;
     if (value != null) result.value = value;
     if (version != null) result.version = version;
@@ -348,21 +360,21 @@ class StoragePutCommand extends $pb.GeneratedMessage {
 
   factory StoragePutCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StoragePutCommand()..mergeFromBuffer(data, registry);
   factory StoragePutCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StoragePutCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StoragePutCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StoragePutCommand.$_createMessage)
     ..aOM<StorageKey>(2, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..a<$core.List<$core.int>>(
         3, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OY)
     ..aOM<StorageVersionFence>(4, _omitFieldNames ? '' : 'version',
-        subBuilder: StorageVersionFence.create)
+        subBuilder: StorageVersionFence.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -376,12 +388,15 @@ class StoragePutCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoragePutCommand() / StoragePutCommand.new instead')
   static StoragePutCommand create() => StoragePutCommand._();
+  static $pb.GeneratedMessage $_createMessage() => StoragePutCommand._();
   @$core.override
-  StoragePutCommand createEmptyInstance() => create();
+  StoragePutCommand createEmptyInstance() => StoragePutCommand._();
   @$core.pragma('dart2js:noInline')
-  static StoragePutCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StoragePutCommand>(create);
+  static StoragePutCommand getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoragePutCommand>(
+          StoragePutCommand.$_createMessage);
   static StoragePutCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -421,7 +436,7 @@ class StorageDeleteCommand extends $pb.GeneratedMessage {
     StorageKey? key,
     StorageVersionFence? version,
   }) {
-    final result = create();
+    final result = StorageDeleteCommand._();
     if (key != null) result.key = key;
     if (version != null) result.version = version;
     return result;
@@ -431,19 +446,19 @@ class StorageDeleteCommand extends $pb.GeneratedMessage {
 
   factory StorageDeleteCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageDeleteCommand()..mergeFromBuffer(data, registry);
   factory StorageDeleteCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageDeleteCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageDeleteCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageDeleteCommand.$_createMessage)
     ..aOM<StorageKey>(2, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..aOM<StorageVersionFence>(3, _omitFieldNames ? '' : 'version',
-        subBuilder: StorageVersionFence.create)
+        subBuilder: StorageVersionFence.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -457,12 +472,16 @@ class StorageDeleteCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use StorageDeleteCommand() / StorageDeleteCommand.new instead')
   static StorageDeleteCommand create() => StorageDeleteCommand._();
+  static $pb.GeneratedMessage $_createMessage() => StorageDeleteCommand._();
   @$core.override
-  StorageDeleteCommand createEmptyInstance() => create();
+  StorageDeleteCommand createEmptyInstance() => StorageDeleteCommand._();
   @$core.pragma('dart2js:noInline')
   static StorageDeleteCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageDeleteCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageDeleteCommand>(
+          StorageDeleteCommand.$_createMessage);
   static StorageDeleteCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -495,7 +514,7 @@ class StorageListCommand extends $pb.GeneratedMessage {
     $core.String? ownerId,
     $core.String? prefix,
   }) {
-    final result = create();
+    final result = StorageListCommand._();
     if (appId != null) result.appId = appId;
     if (scope != null) result.scope = scope;
     if (ownerId != null) result.ownerId = ownerId;
@@ -507,15 +526,15 @@ class StorageListCommand extends $pb.GeneratedMessage {
 
   factory StorageListCommand.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageListCommand()..mergeFromBuffer(data, registry);
   factory StorageListCommand.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageListCommand()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageListCommand',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageListCommand.$_createMessage)
     ..aOS(2, _omitFieldNames ? '' : 'appId')
     ..aE<StorageScope>(3, _omitFieldNames ? '' : 'scope',
         enumValues: StorageScope.values)
@@ -534,12 +553,15 @@ class StorageListCommand extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageListCommand() / StorageListCommand.new instead')
   static StorageListCommand create() => StorageListCommand._();
+  static $pb.GeneratedMessage $_createMessage() => StorageListCommand._();
   @$core.override
-  StorageListCommand createEmptyInstance() => create();
+  StorageListCommand createEmptyInstance() => StorageListCommand._();
   @$core.pragma('dart2js:noInline')
   static StorageListCommand getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageListCommand>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageListCommand>(
+          StorageListCommand.$_createMessage);
   static StorageListCommand? _defaultInstance;
 
   @$pb.TagNumber(2)
@@ -583,7 +605,7 @@ class StorageGetResult extends $pb.GeneratedMessage {
   factory StorageGetResult({
     StorageEntry? entry,
   }) {
-    final result = create();
+    final result = StorageGetResult._();
     if (entry != null) result.entry = entry;
     return result;
   }
@@ -592,17 +614,17 @@ class StorageGetResult extends $pb.GeneratedMessage {
 
   factory StorageGetResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageGetResult()..mergeFromBuffer(data, registry);
   factory StorageGetResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageGetResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageGetResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageGetResult.$_createMessage)
     ..aOM<StorageEntry>(1, _omitFieldNames ? '' : 'entry',
-        subBuilder: StorageEntry.create)
+        subBuilder: StorageEntry.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -616,12 +638,15 @@ class StorageGetResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageGetResult() / StorageGetResult.new instead')
   static StorageGetResult create() => StorageGetResult._();
+  static $pb.GeneratedMessage $_createMessage() => StorageGetResult._();
   @$core.override
-  StorageGetResult createEmptyInstance() => create();
+  StorageGetResult createEmptyInstance() => StorageGetResult._();
   @$core.pragma('dart2js:noInline')
-  static StorageGetResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageGetResult>(create);
+  static StorageGetResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StorageGetResult>(
+          StorageGetResult.$_createMessage);
   static StorageGetResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -640,7 +665,7 @@ class StoragePutResult extends $pb.GeneratedMessage {
   factory StoragePutResult({
     StorageEntry? entry,
   }) {
-    final result = create();
+    final result = StoragePutResult._();
     if (entry != null) result.entry = entry;
     return result;
   }
@@ -649,17 +674,17 @@ class StoragePutResult extends $pb.GeneratedMessage {
 
   factory StoragePutResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StoragePutResult()..mergeFromBuffer(data, registry);
   factory StoragePutResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StoragePutResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StoragePutResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StoragePutResult.$_createMessage)
     ..aOM<StorageEntry>(1, _omitFieldNames ? '' : 'entry',
-        subBuilder: StorageEntry.create)
+        subBuilder: StorageEntry.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -673,12 +698,15 @@ class StoragePutResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoragePutResult() / StoragePutResult.new instead')
   static StoragePutResult create() => StoragePutResult._();
+  static $pb.GeneratedMessage $_createMessage() => StoragePutResult._();
   @$core.override
-  StoragePutResult createEmptyInstance() => create();
+  StoragePutResult createEmptyInstance() => StoragePutResult._();
   @$core.pragma('dart2js:noInline')
-  static StoragePutResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StoragePutResult>(create);
+  static StoragePutResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoragePutResult>(
+          StoragePutResult.$_createMessage);
   static StoragePutResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -699,7 +727,7 @@ class StorageDeleteResult extends $pb.GeneratedMessage {
     $core.bool? deleted,
     $fixnum.Int64? version,
   }) {
-    final result = create();
+    final result = StorageDeleteResult._();
     if (key != null) result.key = key;
     if (deleted != null) result.deleted = deleted;
     if (version != null) result.version = version;
@@ -710,17 +738,17 @@ class StorageDeleteResult extends $pb.GeneratedMessage {
 
   factory StorageDeleteResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageDeleteResult()..mergeFromBuffer(data, registry);
   factory StorageDeleteResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageDeleteResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageDeleteResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageDeleteResult.$_createMessage)
     ..aOM<StorageKey>(1, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..aOB(2, _omitFieldNames ? '' : 'deleted')
     ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -737,12 +765,16 @@ class StorageDeleteResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use StorageDeleteResult() / StorageDeleteResult.new instead')
   static StorageDeleteResult create() => StorageDeleteResult._();
+  static $pb.GeneratedMessage $_createMessage() => StorageDeleteResult._();
   @$core.override
-  StorageDeleteResult createEmptyInstance() => create();
+  StorageDeleteResult createEmptyInstance() => StorageDeleteResult._();
   @$core.pragma('dart2js:noInline')
   static StorageDeleteResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageDeleteResult>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageDeleteResult>(
+          StorageDeleteResult.$_createMessage);
   static StorageDeleteResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -779,7 +811,7 @@ class StorageListResult extends $pb.GeneratedMessage {
   factory StorageListResult({
     $core.Iterable<StorageEntry>? entries,
   }) {
-    final result = create();
+    final result = StorageListResult._();
     if (entries != null) result.entries.addAll(entries);
     return result;
   }
@@ -788,17 +820,17 @@ class StorageListResult extends $pb.GeneratedMessage {
 
   factory StorageListResult.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageListResult()..mergeFromBuffer(data, registry);
   factory StorageListResult.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageListResult()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageListResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageListResult.$_createMessage)
     ..pPM<StorageEntry>(1, _omitFieldNames ? '' : 'entries',
-        subBuilder: StorageEntry.create)
+        subBuilder: StorageEntry.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -812,12 +844,15 @@ class StorageListResult extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StorageListResult() / StorageListResult.new instead')
   static StorageListResult create() => StorageListResult._();
+  static $pb.GeneratedMessage $_createMessage() => StorageListResult._();
   @$core.override
-  StorageListResult createEmptyInstance() => create();
+  StorageListResult createEmptyInstance() => StorageListResult._();
   @$core.pragma('dart2js:noInline')
-  static StorageListResult getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageListResult>(create);
+  static StorageListResult getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StorageListResult>(
+          StorageListResult.$_createMessage);
   static StorageListResult? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -830,7 +865,7 @@ class StorageChangedEvent extends $pb.GeneratedMessage {
     $fixnum.Int64? version,
     $core.String? operation,
   }) {
-    final result = create();
+    final result = StorageChangedEvent._();
     if (key != null) result.key = key;
     if (version != null) result.version = version;
     if (operation != null) result.operation = operation;
@@ -841,17 +876,17 @@ class StorageChangedEvent extends $pb.GeneratedMessage {
 
   factory StorageChangedEvent.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      StorageChangedEvent()..mergeFromBuffer(data, registry);
   factory StorageChangedEvent.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      StorageChangedEvent()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'StorageChangedEvent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'anytty.api.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: StorageChangedEvent.$_createMessage)
     ..aOM<StorageKey>(1, _omitFieldNames ? '' : 'key',
-        subBuilder: StorageKey.create)
+        subBuilder: StorageKey.$_createMessage)
     ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'version', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(3, _omitFieldNames ? '' : 'operation')
@@ -868,12 +903,16 @@ class StorageChangedEvent extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use StorageChangedEvent() / StorageChangedEvent.new instead')
   static StorageChangedEvent create() => StorageChangedEvent._();
+  static $pb.GeneratedMessage $_createMessage() => StorageChangedEvent._();
   @$core.override
-  StorageChangedEvent createEmptyInstance() => create();
+  StorageChangedEvent createEmptyInstance() => StorageChangedEvent._();
   @$core.pragma('dart2js:noInline')
   static StorageChangedEvent getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StorageChangedEvent>(create);
+      $pb.GeneratedMessage.$_defaultFor<StorageChangedEvent>(
+          StorageChangedEvent.$_createMessage);
   static StorageChangedEvent? _defaultInstance;
 
   @$pb.TagNumber(1)
