@@ -46,7 +46,7 @@ jobs:
           test "$ANYTTY_RELEASE_TAG" = "$RELEASE_TAG"
       - name: Build CLI release archives
         run: scripts/build-release-artifacts.sh "$RELEASE_TAG" "$RUNNER_TEMP/cli"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-release-assets
           path: ${{ runner.temp }}/cli/*
@@ -148,7 +148,7 @@ jobs:
           ANYTTY_ANDROID_EXPECTED_ABIS="armeabi-v7a arm64-v8a x86_64" \
           scripts/verify-android-aab-boundary.sh "$aab"
           cp "$aab" "$RUNNER_TEMP/anytty-$RELEASE_TAG-android-play.aab"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-release-assets
           path: ${{ runner.temp }}/anytty-${{ env.RELEASE_TAG }}-android-*
