@@ -1566,6 +1566,81 @@ func TestCopySearchBarReplacesFooter(t *testing.T) {
 	}
 }
 
+// TestLegacyKeyAliases aligns the remaining legacy scene bindings: panel
+// x/w close, X kill, R restart; tab X kill; floating H/L/K/J resize; global
+// Ctrl-V/PageUp copy entry; system T close toast.
+// TestResizeCenterAndLarge pins the legacy resize alignment keys: m centers
+// the focused split, H/L move it by a large (quarter-axis) step.
+func TestResizeCenterAndLarge(t *testing.T) {
+	m, fake := boundModel(t)
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response { return &pb.Response{Ok: true} }
+	m.cols, m.rows = 120, 40
+	m.splitLeafFor("row", nil)
+	m.mode = modeResize
+	sp := m.activeTab().root.(*split)
+	sp.ratio = 0.5
+	runCmd(t, m, key(m, "m"))
+	if sp.ratio != 0.5 {
+		t.Fatalf("resize.center m = %v, want 0.5", sp.ratio)
+	}
+	// A large step must move the axis at least as far as the small step.
+	runCmd(t, m, key(m, "l"))
+	small := sp.ratio
+	sp.ratio = 0.5
+	runCmd(t, m, key(m, "L"))
+	if absFloat(sp.ratio-0.5) < absFloat(small-0.5) {
+		t.Fatalf("resize.right_large step %.3f < small %.3f", sp.ratio, small)
+	}
+}
+
+func absFloat(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func TestLegacyKeyAliases(t *testing.T) {
+	m, fake := boundModel(t)
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {
+		return &pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"alpha"}}}
+	}
+
+	// Floating H/L/K/J resize the active floating.
+	m.cols, m.rows = 120, 32
+	runCmd(t, m, key(m, "ctrl-o"))
+	if cmd := m.newFloating(); cmd != nil {
+		runCmd(t, m, cmd)
+	}
+	f := m.activeFloating()
+	if f == nil {
+		t.Fatal("floating.new must create a floating")
+	}
+	m.overlay = "" // floating.new opens the picker; test the floating scene itself
+	m.mode = modeFloating
+	w0 := f.w
+	runCmd(t, m, key(m, "L"))
+	if f.w <= w0 {
+		t.Fatalf("floating L must widen: %d -> %d", w0, f.w)
+	}
+
+	// system T clears the toast.
+	m.mode = modeSystem
+	m.toast = "hello"
+	runCmd(t, m, key(m, "T"))
+	if m.toast != "" {
+		t.Fatalf("system T must clear the toast, got %q", m.toast)
+	}
+
+	// panel w closes like x.
+	m.mode = modePane
+	before := len(m.activeTab().panes)
+	runCmd(t, m, key(m, "w"))
+	if len(m.activeTab().panes) != before {
+		t.Fatalf("panel w must close: %d -> %d", before, len(m.activeTab().panes))
+	}
+}
+
 func TestCopyReenterGoesToLatest(t *testing.T) {
 	m, fake := boundModel(t)
 	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {

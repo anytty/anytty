@@ -874,6 +874,7 @@ type model struct {
 	createDrafts                   map[string]createDraft
 	clipboard                      []string
 	clipboardIDs                   []string
+	pasteLatestRef                 string
 	clipSel                        int
 
 	floatings   []*floating
@@ -1761,6 +1762,8 @@ func (m *model) claim() sdk.Keys {
 	base := []string{
 		"ctrl-p", "ctrl-r", "ctrl-o", "ctrl-t", "ctrl-w", "ctrl-f",
 		"ctrl-shift-c", "ctrl-shift-h", "ctrl-shift-v", "ctrl-g",
+		// Legacy global copy.enter also binds Ctrl-V and PageUp.
+		"ctrl-v", "page-up",
 	}
 	for n := 1; n <= 5; n++ {
 		base = append(base, fmt.Sprintf("ctrl-alt-%d", n))
@@ -1831,7 +1834,8 @@ func (m *model) handleLiveKey(key string) app.Cmd {
 		m.openPicker()
 	case "ctrl-g":
 		m.mode = modeSystem
-	case "ctrl-shift-c":
+	case "ctrl-shift-c", "ctrl-v", "page-up":
+		// Legacy global copy.enter binds Ctrl-V and PageUp too.
 		if p := m.focusContentPane(); p != nil {
 			if st := m.copyFor(p); st != nil {
 				return m.resetCopyToLatest(p, st)
@@ -1880,7 +1884,8 @@ func (m *model) handlePaneKey(key string) app.Cmd {
 		m.mode = modeSystem
 	case "ctrl-shift-c":
 		return m.enterCopy()
-	case "x":
+	case "x", "w":
+		// Legacy panel.close binds both x and w.
 		m.closePane(t, p)
 		m.mode = modeLive
 	case "%", "ctrl-d":
@@ -1893,6 +1898,13 @@ func (m *model) handlePaneKey(key string) app.Cmd {
 		return cmd
 	case "k":
 		return m.killPane(p)
+	case "X":
+		// Legacy panel.kill.
+		m.mode = modeLive
+		return m.killPane(p)
+	case "R":
+		// Legacy panel.restart.
+		return m.restartPane(p)
 	case "t":
 		return m.restartPane(p)
 	case "a":
@@ -1973,8 +1985,20 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 		m.resetTabSplits(t)
 	case "space":
 		m.toggleLayout(t)
-	case "m", "x", "y", "0", "shift-left", "shift-right", "shift-up", "shift-down":
-		m.toast = "layout: align/center needs host geometry"
+	case "H":
+		// Legacy resize.left_large (a quarter of the axis).
+		m.resizeFocusedLarge(-1, false)
+	case "L":
+		m.resizeFocusedLarge(1, false)
+	case "K":
+		m.resizeFocusedLarge(-1, true)
+	case "J":
+		m.resizeFocusedLarge(1, true)
+	case "m", "|", "_":
+		// Legacy resize.center: split the axis evenly.
+		m.centerFocused()
+	case "0", "x", "y", "$", "^", "shift-left", "shift-right", "shift-up", "shift-down":
+		m.toast = "layout: align/pan needs host geometry"
 	case "ctrl-left", "alt-h":
 		m.resizeFocused(-2, false)
 	case "ctrl-right", "alt-l":
@@ -2005,6 +2029,9 @@ func (m *model) handleTabKey(key string) app.Cmd {
 		}
 	case "x":
 		m.closeTab(ws.active)
+	case "X":
+		// Legacy tab.kill.
+		return m.killTab(ws.active)
 	case "k":
 		return m.killTab(ws.active)
 	case "r":
@@ -2059,6 +2086,9 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 	case "f":
 		m.footerVisible = !m.footerVisible
 	case "c", "x":
+		m.toast = ""
+	case "T":
+		// Legacy system.close_toast.
 		m.toast = ""
 	case "p", "m", "t":
 		m.mode = modeLive
@@ -2153,6 +2183,18 @@ func (m *model) handleFloatingKey(key string) app.Cmd {
 	case ";":
 		m.resizeFloating(f, 0, -2)
 	case "/":
+		m.resizeFloating(f, 0, 2)
+	case "H":
+		// Legacy floating.narrow.
+		m.resizeFloating(f, -4, 0)
+	case "L":
+		// Legacy floating.wide.
+		m.resizeFloating(f, 4, 0)
+	case "K":
+		// Legacy floating.short.
+		m.resizeFloating(f, 0, -2)
+	case "J":
+		// Legacy floating.tall.
 		m.resizeFloating(f, 0, 2)
 	default:
 		if n, err := strconv.Atoi(key); err == nil && n >= 1 && n <= 9 {
@@ -3042,6 +3084,72 @@ func (m *model) ancestorSplit(t *tab, target *leaf, orient string) (treeNode, bo
 	return best, inA
 }
 
+// resizeFocusedLarge moves the focused split by a quarter of its axis (the
+// legacy resize.left_large/right_large/up_large/down_large).
+func (m *model) resizeFocusedLarge(dir int, vertical bool) {
+	t := m.activeTab()
+	if t == nil {
+		return
+	}
+	avail := 0
+	if p := m.focusPane(); p != nil {
+		if lf := t.leafOf(p); lf != nil {
+			if node, _ := m.ancestorSplit(t, lf, orientOf(vertical)); node != nil {
+				if sp, ok := node.(*split); ok && sp != nil {
+					avail = maxInt(2, axisSize(sp.rect, vertical))
+				}
+			}
+		}
+	}
+	if avail == 0 {
+		return
+	}
+	m.resizeFocused(dir*maxInt(1, avail/4), vertical)
+}
+
+// centerFocused splits the focused axis evenly (the legacy resize.center).
+func (m *model) centerFocused() {
+	t := m.activeTab()
+	p := m.focusPane()
+	if t == nil || p == nil {
+		return
+	}
+	lf := t.leafOf(p)
+	if lf == nil {
+		return
+	}
+	var best *split
+	var walk func(node treeNode)
+	walk = func(node treeNode) {
+		sp, ok := node.(*split)
+		if !ok {
+			return
+		}
+		if m.subtreeHasLeaf(sp.a, lf) || m.subtreeHasLeaf(sp.b, lf) {
+			best = sp
+		}
+		if m.subtreeHasLeaf(sp.a, lf) {
+			walk(sp.a)
+		} else {
+			walk(sp.b)
+		}
+	}
+	if t.root != nil {
+		walk(t.root)
+	}
+	if best == nil || m.subtreeLocked(best) {
+		return
+	}
+	best.ratio = 0.5
+}
+
+func orientOf(vertical bool) string {
+	if vertical {
+		return "col"
+	}
+	return "row"
+}
+
 func (m *model) resetTabSplits(t *tab) {
 	if t == nil {
 		return
@@ -3288,6 +3396,19 @@ func (m *model) pasteSystem() app.Cmd {
 		return nil
 	}
 	return m.emit("clipboard.paste", m.clipboardPasteParams(p), opMsg{op: "paste"})
+}
+
+// pasteLatestClipboard pastes the newest clipboard history entry (the legacy
+// copy-scene `p` = clipboard.paste_latest). It lists the history first so the
+// program learns the newest id, then pastes it when the list response arrives.
+func (m *model) pasteLatestClipboard() app.Cmd {
+	p := m.focusContentPane()
+	if p == nil || p.sourceID == "" {
+		m.toast = "paste: no focused terminal"
+		return nil
+	}
+	m.pasteLatestRef = p.id
+	return m.emit("clipboard.history.list", nil, opMsg{op: "clipboard.latest", ref: p.id})
 }
 
 func (m *model) clipboardPasteParams(p *pane) *pb.MethodParams {
@@ -4147,6 +4268,33 @@ func (m *model) onOp(v opMsg) app.Cmd {
 				m.clipboard = append(m.clipboard, entry.Text)
 			}
 		}
+	case "clipboard.latest":
+		// Legacy copy-scene p: paste the newest history entry, if any.
+		if !v.ok {
+			m.toast = "paste: " + v.err
+			return nil
+		}
+		var newest string
+		for _, row := range v.rows {
+			var entry struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal([]byte(row), &entry) == nil && entry.ID != "" {
+				newest = entry.ID
+				break
+			}
+		}
+		if newest == "" {
+			m.toast = "clipboard history is empty"
+			return nil
+		}
+		p := m.paneByID(v.ref)
+		if p == nil || p.sourceID == "" {
+			return nil
+		}
+		params := m.clipboardPasteParams(p)
+		params.ClipboardId = newest
+		return m.emit("clipboard.paste", params, opMsg{op: "paste"})
 	case "paste":
 		if !v.ok {
 			m.toast = "paste failed: " + v.err

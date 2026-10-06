@@ -231,6 +231,15 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 			st.marked = true
 			st.markRow, st.markCol = st.cursorRow, st.cursorCol
 		}
+	case "H":
+		// Legacy copy-scene H opens clipboard history.
+		return m.openClipboardHistory()
+	case "P":
+		// Legacy copy-scene P pastes the system clipboard.
+		return m.pasteSystem()
+	case "p":
+		// Legacy copy-scene p pastes the newest clipboard history entry.
+		return m.pasteLatestClipboard()
 	}
 	return nil
 }
