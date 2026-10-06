@@ -62,6 +62,7 @@ type copyState struct {
 	forward      bool
 	searchSeq    uint64      // scan generation: stale window responses are dropped
 	searchDirty  bool        // query changed; a debounced scan is pending
+	searchErr    string      // last search error, shown in the search bar
 	matches      []copyMatch // visible matches (viewport rows)
 	matchIdx     int
 	currentMatch []copyMatch // authoritative match, including soft-wrapped rows
@@ -132,7 +133,9 @@ func (m *model) endCopy(p *pane) app.Cmd {
 	}, opMsg{op: "scrollEnd"})
 }
 
-// handleCopyKey is the copy scene input (the old copy shortcut scene).
+// handleCopyKey is the copy scene input (the old copy shortcut scene). Note
+// there is no esc binding here: the legacy copy scene exits with G (newest) or
+// by pressing the copy entry chord again, never esc.
 func (m *model) handleCopyKey(key, char string) app.Cmd {
 	p := m.focusContentPane()
 	st := m.copyFor(p)
@@ -143,7 +146,7 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 		return m.handleCopySearchKey(p, st, key, char)
 	}
 	switch key {
-	case "esc", "ctrl-p":
+	case "ctrl-p":
 		return m.endCopy(p)
 	case "ctrl-shift-c":
 		// Re-entering copy (the old copy.enter while active) refreshes to the
@@ -162,20 +165,34 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 		}
 		m.toast = "nothing to copy: select text before copying"
 	case "/":
+		// The old copy.search_start clears the query only when it is empty and
+		// otherwise re-opens editing with the cursor at the end.
+		if strings.TrimSpace(st.query) == "" {
+			st.query = ""
+			st.searchErr = ""
+			st.matches = nil
+		}
+		st.searchCol = len([]rune(st.query))
 		st.searching = true
-		st.forward = true
-		st.query = ""
+		st.searchDirty = false
 	case "n":
-		return m.runCopySearch(p, st, true, true)
+		if strings.TrimSpace(st.query) != "" {
+			return m.runCopySearch(p, st, true, true)
+		}
 	case "N":
-		return m.runCopySearch(p, st, false, true)
+		if strings.TrimSpace(st.query) != "" {
+			return m.runCopySearch(p, st, false, true)
+		}
 	case "tab":
-		st.searchMode = (st.searchMode + 1) % 3
-		st.matches = nil
-		st.searchDirty = strings.TrimSpace(st.query) != ""
-		m.toast = "search mode: " + copySearchModeName(st.searchMode)
-		if st.searchDirty {
-			return app.Tick(copySearchDebounce)
+		// The old copy.search_mode requires the search bar to be visible.
+		if st.searching || strings.TrimSpace(st.query) != "" || st.searchErr != "" {
+			st.searchMode = (st.searchMode + 1) % 3
+			st.matches = nil
+			st.searchDirty = strings.TrimSpace(st.query) != ""
+			m.toast = "search mode: " + copySearchModeName(st.searchMode)
+			if st.searchDirty {
+				return app.Tick(copySearchDebounce)
+			}
 		}
 	case "page-up":
 		return m.moveCopyCursorRows(p, st, -m.copyPage(st))
@@ -637,8 +654,11 @@ func (m *model) refreshCopyMatches(st *copyState) {
 	}
 }
 
-// runCopySearch delegates navigation to the terminal; typing only refreshes
-// highlights in the visible rows without moving the frozen viewport.
+// runCopySearch delegates navigation to the terminal. Typing only refreshes
+// highlights in the loaded window; n/N and enter move the frozen viewport.
+// Like the old beginCopyModeSearch, a repeat search advances past the current
+// match (forward: one column after its end, backward: its start) instead of
+// restarting from the raw cursor.
 func (m *model) runCopySearch(p *pane, st *copyState, forward, move bool) app.Cmd {
 	if strings.TrimSpace(st.query) == "" {
 		return nil
@@ -651,10 +671,20 @@ func (m *model) runCopySearch(p *pane, st *copyState, forward, move bool) app.Cm
 		}
 		st.searchSeq++
 		cols := maxInt(1, st.cols)
+		start := st.cursorRow*cols + st.cursorCol
+		if len(st.currentMatch) > 0 {
+			if forward {
+				last := st.currentMatch[len(st.currentMatch)-1]
+				start = last.row*cols + last.endCol + 1
+			} else {
+				first := st.currentMatch[0]
+				start = first.row*cols + first.startCol
+			}
+		}
 		return m.emit("terminal.search", &pb.MethodParams{
 			Endpoint: endpointOf(src), Id: src.GetTerminalId(), Query: st.query,
 			SearchMode: copySearchModeName(st.searchMode), Backward: !forward,
-			Sel: &pb.Selection{Start: int32(st.cursorRow*cols + st.cursorCol)},
+			Sel: &pb.Selection{Start: int32(start)},
 		}, opMsg{op: "search", ref: p.id, seq: st.searchSeq})
 	}
 	m.refreshCopyMatches(st)
@@ -669,13 +699,17 @@ func (m *model) applyTerminalSearch(st *copyState, result opMsg) {
 		return
 	}
 	if !result.ok {
+		st.searchErr = result.err
 		m.toast = "search: " + result.err
 		return
 	}
 	if !result.found {
+		st.searchErr = "no match"
 		m.toast = "search: no match for " + st.query
+		m.refreshCopyMatches(st)
 		return
 	}
+	st.searchErr = ""
 	if st.marked {
 		st.markRow += result.offset - st.offset
 	}
@@ -761,15 +795,22 @@ func formatCopySpans(spans []copyMatch) string {
 	return b.String()
 }
 
-// copySearchBar is the one-line "/query" prompt drawn over the pane bottom
-// while the search is being edited, with the non-text search mode appended.
+// copySearchBar is the one-line "/query" prompt over the pane bottom. Like the
+// legacy SearchBarVisible it stays visible while a query is present or the
+// debounced scan/edit is pending, not only while the key is being typed.
 func (m *model) copySearchBar(st *copyState) string {
-	if st == nil || !st.searching {
+	if st == nil {
+		return ""
+	}
+	if !st.searching && strings.TrimSpace(st.query) == "" && st.searchErr == "" {
 		return ""
 	}
 	bar := "/" + st.query
 	if st.searchMode != copySearchText {
 		bar += "  [" + copySearchModeName(st.searchMode) + "]"
+	}
+	if st.searchErr != "" {
+		bar += "  " + st.searchErr
 	}
 	return bar
 }
@@ -814,6 +855,7 @@ func (m *model) handleCopySearchKey(p *pane, st *copyState, key, char string) ap
 	}
 	mutate := func(next []rune, col int) app.Cmd {
 		st.query = string(next)
+		st.searchErr = ""
 		if col < 0 {
 			col = 0
 		}
@@ -832,12 +874,16 @@ func (m *model) handleCopySearchKey(p *pane, st *copyState, key, char string) ap
 	case "esc":
 		st.searching = false
 	case "enter":
+		// The old copy.accept stops editing and runs the search from the current
+		// match (or the cursor when there is none) when a query is present.
 		st.searching = false
 		st.searchDirty = false
 		if strings.TrimSpace(st.query) != "" {
-			return m.runCopySearch(p, st, st.forward, true)
+			st.forward = true
+			return m.runCopySearch(p, st, true, true)
 		}
 	case "tab":
+		// The old copy.search_mode cycles the mode and keeps editing.
 		st.searchMode = (st.searchMode + 1) % 3
 		m.toast = "search mode: " + copySearchModeName(st.searchMode)
 		st.matches = nil
@@ -906,6 +952,7 @@ func (m *model) resetCopyToLatest(p *pane, st *copyState) app.Cmd {
 	st.query = ""
 	st.searching = false
 	st.searchDirty = false
+	st.searchErr = ""
 	st.pendingRows = 0
 	st.searchSeq++
 	st.offset = 0

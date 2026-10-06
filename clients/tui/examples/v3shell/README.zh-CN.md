@@ -70,7 +70,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p` picker、`o` 命令行、`?` help、`q` 退出） |
 | `Ctrl-Shift-C` | COPY 场景（选区与搜索，见下） |
 | `Ctrl-Shift-H` | Clipboard overlay |
-| COPY 场景 | `h/l`/`←/→` 移动列，`j/k`/滚轮移动光标（到边缘才滚视图），`PgUp/PgDn` 步长为视口行数-2，`u/d` 半页，`g` 最老，`G`/`esc` 回 live。`space`/鼠标左键标记，`y` 复制并保留 copy，`enter` 复制并退出；无标记时滚回底部自动退出。`/` 编辑查询，`tab` 循环 text→glob→regex，输入时高亮可见匹配，`Enter`/`n`/`N` 调用 `terminal.search` 导航并环绕。选区使用 ansi:8/ansi:3，复制经 `terminal.copy{sel}` 写 OSC52。`Ctrl-Shift-C` 重进时先释放快照，再读取最新窗口。历史来源与边界见下文。 |
+| COPY 场景 | `h/l`/`←/→` 移动列，`j/k`/滚轮移动光标（到边缘才滚视图），`PgUp/PgDn` 步长为视口行数-2，`u/d` 半页，`g` 最老，`G` 回 live（再按入口键 `Ctrl-Shift-C` 也可退出；**老版 copy 场景没有 `esc` 绑定**，`esc` 不退出）。`space`/鼠标左键标记，`y` 复制并保留 copy，`enter` 复制并退出；无标记时滚回底部自动退出。`/` 编辑查询（带查询时打开会把光标放到末尾并保留原查询），搜索栏在查询存在/编辑/出错时**常驻**，`tab` 仅在搜索栏可见时循环 text→glob→regex，输入时高亮已加载窗口中的匹配，`Enter`/`n`/`N` 调用 `terminal.search` 导航并环绕（`n`/`N`/回车从**当前匹配之后**继续，与老版 `beginCopyModeSearch` 一致）。选区使用 ansi:8/ansi:3，复制经 `terminal.copy{sel}` 写 OSC52。`Ctrl-Shift-C` 重进时先释放快照，再读取最新窗口。历史来源与边界见下文。 |
 | `Ctrl-Shift-V` | 粘贴（见 §4 差异） |
 | `Ctrl-Alt-1..5` | 直跳 tab |
 | `Ctrl-Q` | 退出（宿主确认） |

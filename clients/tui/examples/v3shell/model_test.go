@@ -1462,6 +1462,79 @@ func TestCopySearchInputEditing(t *testing.T) {
 	}
 }
 
+// TestCopySearchInteractionMatchesLegacy pins the copy-search flow the legacy
+// copymode used: esc does not exit the copy scene, the search bar persists
+// after Enter, tab only cycles the mode while the bar is visible, and n/p
+// advance past the current match.
+func TestCopySearchInteractionMatchesLegacy(t *testing.T) {
+	m, fake := boundModel(t)
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {
+		if method == "history.window" {
+			return &pb.Response{Ok: true, Data: &pb.MethodData{
+				Rows: []string{"one two", "two three", "four"}, Offset: 0,
+			}}
+		}
+		if method == "terminal.search" {
+			return &pb.Response{Ok: true, Data: &pb.MethodData{Found: true,
+				Rows: []string{"one two", "two three", "four"}, MatchStart: 4, MatchEnd: 7}}
+		}
+		return &pb.Response{Ok: true}
+	}
+	runCmd(t, m, key(m, "ctrl-shift-c"))
+	st := m.copyFor(m.focusPane())
+	st.cols = 80
+
+	// esc must stay in the copy scene (the legacy scene has no esc binding).
+	p := m.focusPane()
+	m.mode = modeLive
+	runCmd(t, m, key(m, "esc"))
+	if m.copyFor(p) == nil {
+		t.Fatal("esc must not exit the copy scene")
+	}
+
+	// tab while the search bar is hidden must not cycle the mode.
+	mode := st.searchMode
+	runCmd(t, m, key(m, "tab"))
+	if st.searchMode != mode {
+		t.Fatalf("tab with a hidden search bar cycled the mode: %d -> %d", mode, st.searchMode)
+	}
+
+	// / then a query, then Enter: editing stops but the bar persists.
+	runCmd(t, m, key(m, "/"))
+	for _, r := range "two" {
+		runCmd(t, m, m.onKey(string(r), string(r)))
+	}
+	runCmd(t, m, m.onKey("enter", ""))
+	if st.searching {
+		t.Fatal("enter must stop search editing")
+	}
+	if st.query != "two" {
+		t.Fatalf("query cleared by enter: %q", st.query)
+	}
+	if bar := m.copySearchBar(st); bar == "" {
+		t.Fatal("the search bar must stay visible after enter")
+	}
+
+	// tab now cycles the mode (bar visible).
+	mode = st.searchMode
+	runCmd(t, m, key(m, "tab"))
+	if st.searchMode == mode {
+		t.Fatal("tab with a visible search bar must cycle the mode")
+	}
+
+	// n advances past the current match instead of restarting at the cursor.
+	fake.calls = nil
+	runCmd(t, m, key(m, "n"))
+	if fake.last().method != "terminal.search" {
+		t.Fatalf("n must emit terminal.search: %+v", fake.calls)
+	}
+	last := st.currentMatch[len(st.currentMatch)-1]
+	wantStart := int32(last.row*st.cols + last.endCol + 1)
+	if got := fake.last().params.GetSel().GetStart(); got != wantStart {
+		t.Fatalf("n start = %d, want %d (one past the current match)", got, wantStart)
+	}
+}
+
 func TestCopyReenterGoesToLatest(t *testing.T) {
 	m, fake := boundModel(t)
 	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {
