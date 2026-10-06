@@ -333,15 +333,18 @@ func TestResizeModeChangesNearestSplit(t *testing.T) {
 	m.closePane(tab, tab.panes[1])
 	runCmd(t, m, m.splitPane("row"))
 	sp := m.splitEntries(tab)[0].node
-	before := sp.ratio
+	before := sp.splitFirstExtent(sp.rect.w)
 	m.mode = modeResize
+	// The focused pane is the second child; h moves the divider left, so the
+	// first child's extent grows by the bias (2).
 	runCmd(t, m, key(m, "h"))
-	if sp.ratio <= before {
-		t.Fatalf("h must shrink the focused pane: %v -> %v", before, sp.ratio)
+	after := sp.splitFirstExtent(sp.rect.w)
+	if after != before+2 {
+		t.Fatalf("h bias = first extent %d -> %d, want %d", before, after, before+2)
 	}
 	runCmd(t, m, key(m, "r"))
-	if sp.ratio != 0.5 {
-		t.Fatalf("r must reset the ratio: %v", sp.ratio)
+	if sp.bias != 0 || sp.ratio != 0.5 {
+		t.Fatalf("r must reset the split: ratio=%v bias=%d", sp.ratio, sp.bias)
 	}
 	runCmd(t, m, key(m, "space"))
 	if sp.orient != "col" {
@@ -1359,6 +1362,60 @@ func TestCopySessionsArePerPane(t *testing.T) {
 	runCmd(t, m, m.onMouse(&pb.MouseEvent{Action: "press", Node: left.id, X: 20, Y: 10}))
 	if m.focusPane() != left || !m.copyActive() {
 		t.Fatalf("returning to the pane must resume its copy scene")
+	}
+}
+
+// TestCopyFrameTurnsHistoryYellow pins the legacy paneChromeStyle rule: a pane
+// with an open copy/scrollback session draws its frame in the yellow
+// history-border color, focused or not, while the title and action glyphs keep
+// the accent style.
+func TestCopyFrameTurnsHistoryYellow(t *testing.T) {
+	m, fake := boundModel(t)
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response { return &pb.Response{Ok: true} }
+	m.cols, m.rows = 120, 32
+	left := m.focusPane()
+	right := m.splitLeafFor("row", nil)
+	if right == nil {
+		t.Fatal("split failed")
+	}
+	m.focusPaneObject(left)
+	runCmd(t, m, key(m, "ctrl-shift-c"))
+
+	// The focused copy pane's top border is the history color.
+	runs := m.paneRuns(left, true, 80)
+	if runs[0].style != stHistoryBorder {
+		t.Fatalf("copy pane frame = %q, want %q", runs[0].style, stHistoryBorder)
+	}
+	// The title runs on the same row stay accent (only the border recolors).
+	sawAccentTitle := false
+	for _, run := range runs[2:] {
+		if run.style == stAccent {
+			sawAccentTitle = true
+		}
+	}
+	if !sawAccentTitle {
+		t.Fatalf("copy pane title must keep the accent style: %+v", runs)
+	}
+
+	// Focus the sibling: it has no session, so its frame is accent, and the
+	// unfocused copy pane stays yellow.
+	m.mode = modeLive
+	m.focusPaneObject(right)
+	if got := m.paneRuns(right, true, 80)[0].style; got != stAccent {
+		t.Fatalf("non-copy focused frame = %q, want accent", got)
+	}
+	if got := m.paneRuns(left, false, 80)[0].style; got != stHistoryBorder {
+		t.Fatalf("unfocused copy frame = %q, want %q", got, stHistoryBorder)
+	}
+
+	// Ending the copy session restores the normal frame color.
+	m.focusPaneObject(left)
+	runCmd(t, m, key(m, "G"))
+	if m.copyFor(left) != nil {
+		t.Fatal("G must close the left copy session")
+	}
+	if got := m.paneRuns(left, false, 80)[0].style; got == stHistoryBorder {
+		t.Fatalf("closed copy frame stayed history yellow: %q", got)
 	}
 }
 

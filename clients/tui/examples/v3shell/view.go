@@ -63,13 +63,13 @@ func (m *model) layoutNode(node treeNode, r rect, entries *[]layoutEntry) {
 	case *split:
 		n.rect = r
 		if n.orient == "row" {
-			first := clampInt(int(float64(r.w)*n.ratio), 1, maxInt(1, r.w-1))
+			first := n.splitFirstExtent(r.w)
 			m.layoutNode(n.a, rect{r.x, r.y, first, r.h}, entries)
 			*entries = append(*entries, layoutEntry{node: n, r: r, boundary: rect{r.x + first, r.y, 1, r.h}})
 			m.layoutNode(n.b, rect{r.x + first, r.y, r.w - first, r.h}, entries)
 			return
 		}
-		first := clampInt(int(float64(r.h)*n.ratio), 1, maxInt(1, r.h-1))
+		first := n.splitFirstExtent(r.h)
 		m.layoutNode(n.a, rect{r.x, r.y, r.w, first}, entries)
 		*entries = append(*entries, layoutEntry{node: n, r: r, boundary: rect{r.x, r.y + first, r.w, 1}})
 		m.layoutNode(n.b, rect{r.x, r.y + first, r.w, r.h - first}, entries)
@@ -298,6 +298,11 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 	if active {
 		frame = stAccent
 	}
+	// The renderer decides per pane: an open copy session forces the yellow
+	// history-border frame (legacy paneChromeStyle), matching paneRunsRect.
+	if m.copyFor(p) != nil {
+		frame = stHistoryBorder
+	}
 	if dimmed {
 		frame = dimStyle(frame)
 	}
@@ -327,6 +332,13 @@ func (m *model) boundaryNodes(out *[]*sdk.Builder, entry layoutEntry) {
 	node := "divider:" + t.id + ":" + strconv.Itoa(sp.seq)
 	focused := m.focusPane()
 	styleFor := func(p *pane) string {
+		// The shared divider carries the b-side pane's own frame style, so a
+		// copy/scrollback pane keeps the yellow history border here too while a
+		// sibling border stays muted or accent, matching mergeBoxCellStyle's
+		// history-over-accent priority in the legacy renderer.
+		if m.copyFor(p) != nil {
+			return stHistoryBorder
+		}
 		if p == focused {
 			return stAccent
 		}

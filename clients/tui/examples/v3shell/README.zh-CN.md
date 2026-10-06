@@ -62,7 +62,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | 键 | 动作 |
 |---|---|
 | `Ctrl-P` | PANE 场景（`x`/`w` 关闭、`X` kill、`R`/`t` 重启、`Ctrl-D` 左右分、`Ctrl-E` 上下分、`h/l` 焦点、`z` zoom、`k` kill、`q` kill+close、`s` 锁尺寸、`b` 平衡、`a` 取 owner） |
-| `Ctrl-R` | RESIZE 场景（`h/l/k/j` 调整、`H/L/K/J` 大幅（1/4 轴）调整、`space` 切换切分方向、`m`/`|`/`_` 居中、`r`/`=`/`b` 重置/平衡、`s` 锁尺寸；`0/$/^/B`、`shift+方向` 的 align/pan 提示） |
+| `Ctrl-R` | RESIZE 场景（`h/l/k/j` ±2、`H/L/K/J` ±6（对齐老版 bias 步进）、`space` 切换切分方向、`m` 均分轴、`r`/`=`/`b` 重置/平衡、`s` 锁尺寸；`0/$/^/B`/`x`/`y`/`|`/`_`/`shift+方向` 的 align/center/pan 是 per-view 内容布局，需要 host 的 content-offset 能力，暂以提示代替） |
 | `Ctrl-O` | FLOAT 场景（`n` 新建空 panel，panel 内 `↑/↓` 选择 CTA、`enter` 执行；`z`/`m` 折叠只留标题行、`c` 居中、`x` 关闭、`1-9` 召唤、`h/j/k/l` 移动、`,`/`.`/`;`/`/` 与 `H/L/K/J` 缩放、`v` 全部折叠、`=` 最大化、`f` picker、`a` 取 owner） |
 | `Ctrl-T` | TAB 场景（`c` 新建、`n/l/]` 与 `p/h/[` 前后、`1-9` 跳转、`x` 关闭、`X`/`k` kill+关闭、`r` 重命名） |
 | `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名） |
@@ -81,7 +81,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 （终端走 `terminal.scroll`，本地占位 pane 走行窗口）。**回看（COPY）会话按 pane 保存**（对照老版 `CopyModeByView`）：只有当前
 聚焦 pane 的会话拥有输入，点击其它 pane 只是把输入交给它（滚轮/键盘不再被
 回看场景吞掉），原 pane 的回看位置保留，切回时恢复 COPY 场景；滚回底部
-（无选区）自动退出回看。空 pane 与原版一样**不画任何内部提示**。
+（无选区）自动退出回看。空 pane 与原版一样**不画任何内部提示**。**panel 边框在拥有 copy 会话时整体变黄**（老版 `history-border`：warning+bold），标题与动作字形仍保持 accent 色。
 
 ## 3. 实现结构
 

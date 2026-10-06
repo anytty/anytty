@@ -116,6 +116,12 @@ var (
 	// stPickerMatch is main's `picker-match`: the warning foreground in bold,
 	// used to mark query matches in picker rows (no background).
 	stPickerMatch = style(colorWarning, "", "bold")
+	// stHistoryBorder is the legacy `history-border` token: the warning
+	// foreground in bold. The old paneChromeStyle returned it whenever a panel's
+	// content kind was copy-history (checked before Active), so a frozen
+	// scrollback panel's frame stays in the copy warning color regardless of
+	// whether the panel owns focus. Title/action glyphs keep their own accent.
+	stHistoryBorder = style(colorWarning, "", "bold")
 )
 
 // ---------------------------------------------------------------- glyphs

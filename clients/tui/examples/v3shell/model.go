@@ -43,13 +43,34 @@ type leaf struct {
 }
 
 // split is a recursive split node: orient "row" (a | b side by side) or
-// "col" (a above b); ratio is a's share of the split extent.
+// "col" (a above b). ratio is a's share of the split extent (only honored
+// while 0 < ratio < 1); bias is the additive cell bias the resize scene writes
+// on top of the default/ratio first extent, matching the legacy SplitNode
+// Ratio/BiasCells contract. Resizing clears ratio so bias is authoritative.
 type split struct {
 	orient string
 	ratio  float64
+	bias   int
 	a, b   treeNode
 	seq    int
 	rect   rect
+}
+
+// splitFirstExtent ports render.splitFirstExtent: the first child's extent in
+// cells. Precedence is ratio (when 0 < ratio < 1) over the even default half,
+// then the additive bias, clamped to leave one cell for the second child. A
+// demo/golden split (ratio 0.5, bias 0) still yields total/2, so the geometry
+// is byte-identical.
+func (sp *split) splitFirstExtent(total int) int {
+	if total <= 1 {
+		return total
+	}
+	first := total / 2
+	if sp.ratio > 0 && sp.ratio < 1 {
+		first = int(float64(total) * sp.ratio)
+	}
+	first += sp.bias
+	return clampInt(first, 1, total-1)
 }
 
 type treeNode interface{ isTreeNode() }
@@ -1130,6 +1151,14 @@ func (m *model) paneRunsRect(p *pane, active bool, width, height int) []paneRun 
 	if active {
 		frame = stAccent
 	}
+	// Legacy panel_chrome.paneChromeStyle checks the copy-history content kind
+	// BEFORE Active: a pane with an open copy/scrollback session draws its whole
+	// frame in the yellow history-border color, focused or not. The title text
+	// and action glyphs below keep their own accent styling, exactly as the old
+	// renderer separated the border style from paneChromeTitleStyle/actionStyle.
+	if m.copyFor(p) != nil {
+		frame = stHistoryBorder
+	}
 	runs := []paneRun{{"\u250c", frame, "", false}, {"\u2500", frame, "", false}}
 	if width < 4 {
 		return runs
@@ -1986,19 +2015,26 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 	case "space":
 		m.toggleLayout(t)
 	case "H":
-		// Legacy resize.left_large (a quarter of the axis).
-		m.resizeFocusedLarge(-1, false)
+		// Legacy resize.left_large (bias delta 6).
+		m.resizeFocused(-6, false)
 	case "L":
-		m.resizeFocusedLarge(1, false)
+		m.resizeFocused(6, false)
 	case "K":
-		m.resizeFocusedLarge(-1, true)
+		m.resizeFocused(-6, true)
 	case "J":
-		m.resizeFocusedLarge(1, true)
-	case "m", "|", "_":
-		// Legacy resize.center: split the axis evenly.
+		m.resizeFocused(6, true)
+	case "m":
+		// Legacy resize.center: even the split axis (this replica has no
+		// content letterbox, so the meaningful visible result of the tiled
+		// "center" is the even split).
 		m.centerFocused()
-	case "0", "x", "y", "$", "^", "shift-left", "shift-right", "shift-up", "shift-down":
-		m.toast = "layout: align/pan needs host geometry"
+	case "0", "$", "^", "B", "x", "y", "|", "_", "shift-left", "shift-right", "shift-up", "shift-down":
+		// Legacy resize.align_*/center_x/center_y/pan_* are per-view CONTENT
+		// layout (the terminal extent inside a fixed pane viewport). v3shell's
+		// terminal box rect is the PTY winsize, so a real letterbox needs a
+		// component/host content-offset capability that does not exist yet;
+		// keep an explicit notice instead of a silently wrong resize.
+		m.toast = "layout: align/center/pan needs a host content-offset capability"
 	case "ctrl-left", "alt-h":
 		m.resizeFocused(-2, false)
 	case "ctrl-right", "alt-l":
@@ -3084,30 +3120,9 @@ func (m *model) ancestorSplit(t *tab, target *leaf, orient string) (treeNode, bo
 	return best, inA
 }
 
-// resizeFocusedLarge moves the focused split by a quarter of its axis (the
-// legacy resize.left_large/right_large/up_large/down_large).
-func (m *model) resizeFocusedLarge(dir int, vertical bool) {
-	t := m.activeTab()
-	if t == nil {
-		return
-	}
-	avail := 0
-	if p := m.focusPane(); p != nil {
-		if lf := t.leafOf(p); lf != nil {
-			if node, _ := m.ancestorSplit(t, lf, orientOf(vertical)); node != nil {
-				if sp, ok := node.(*split); ok && sp != nil {
-					avail = maxInt(2, axisSize(sp.rect, vertical))
-				}
-			}
-		}
-	}
-	if avail == 0 {
-		return
-	}
-	m.resizeFocused(dir*maxInt(1, avail/4), vertical)
-}
-
-// centerFocused splits the focused axis evenly (the legacy resize.center).
+// centerFocused evens the focused split axis (legacy resize.center for tiled
+// panes without a content letterbox): clear the additive bias so the default
+// half is authoritative.
 func (m *model) centerFocused() {
 	t := m.activeTab()
 	p := m.focusPane()
@@ -3141,13 +3156,7 @@ func (m *model) centerFocused() {
 		return
 	}
 	best.ratio = 0.5
-}
-
-func orientOf(vertical bool) string {
-	if vertical {
-		return "col"
-	}
-	return "row"
+	best.bias = 0
 }
 
 func (m *model) resetTabSplits(t *tab) {
@@ -3163,7 +3172,10 @@ func (m *model) resetTabSplits(t *tab) {
 		if m.subtreeLocked(sp) {
 			return
 		}
+		// panel.balance / resize.layout_reset clear every hint: 0.5 is an even
+		// split and 0 bias reproduces the default geometry exactly.
 		sp.ratio = 0.5
+		sp.bias = 0
 		walk(sp.a)
 		walk(sp.b)
 	}
@@ -3199,15 +3211,17 @@ func (m *model) resizeFocused(delta int, vertical bool) {
 		m.toast = "panel size locked"
 		return
 	}
-	avail := maxInt(2, axisSize(sp.rect, vertical))
-	ext := clampInt(int(float64(avail)*sp.ratio), 1, avail-1)
+	// Legacy resizeSplitNode accumulates an additive BiasCells on the first
+	// child and clears any Ratio hint, so the bias fully determines the new
+	// extent. Moving the divider toward the focused side shrinks it, so the
+	// sign is relative to which child holds the focused pane (resizeBiasDelta),
+	// and the v3shell deltas already encode the divider direction.
 	if inA {
-		ext += delta
+		sp.bias += delta
 	} else {
-		ext -= delta
+		sp.bias -= delta
 	}
-	ext = clampInt(ext, 1, avail-1)
-	sp.ratio = float64(ext) / float64(avail)
+	sp.ratio = 0
 }
 
 func (m *model) subtreeLocked(node treeNode) bool {
@@ -3219,13 +3233,6 @@ func (m *model) subtreeLocked(node treeNode) bool {
 	default:
 		return false
 	}
-}
-
-func axisSize(r rect, vertical bool) int {
-	if vertical {
-		return r.h
-	}
-	return r.w
 }
 
 func (m *model) newTab() {
