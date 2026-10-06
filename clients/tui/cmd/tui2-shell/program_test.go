@@ -115,6 +115,26 @@ func TestProgramRoutesSourcesToPickerAndKeyboard(t *testing.T) {
 	}
 }
 
+func TestProgramKeepsTerminalFocusedWhileHistoryRequestIsPending(t *testing.T) {
+	m := newModel()
+	fake := &fakeEmitter{epoch: 1}
+	p := newProgram(m, fake)
+	p.onHello(&pb.Hello{ViewId: "view:local:1", Epoch: 1, Cols: 80, Rows: 24})
+	p.onSources([]*pb.Source{terminalSource("terminal:local:main", "main", false)})
+
+	if len(fake.emits) != 1 || fake.emits[0].method != "terminal.attach" {
+		t.Fatalf("auto-bind emits = %+v", fake.emits)
+	}
+	p.onWheel(&pb.WheelEvent{Delta: 1, X: 3, Y: 3, Node: m.focusSlot().id})
+	if len(fake.emits) != 2 || fake.emits[1].method != "terminal.scroll" {
+		t.Fatalf("wheel emits = %+v", fake.emits)
+	}
+	box := findBox(fake.root, m.focusSlot().id)
+	if box == nil || !box.GetFocused() {
+		t.Fatalf("pending history must keep terminal focus until response: box=%+v", box)
+	}
+}
+
 func TestProgramClockTickCommitsAfterHello(t *testing.T) {
 	m := newModel()
 	fake := &fakeEmitter{epoch: 1}

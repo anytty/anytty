@@ -1,22 +1,25 @@
-# TUI v2 SDK（三层 API + 一致性验证）
+# TUI v2 SDK（分层 API + 一致性验证）
 
 > 协议唯一真相是 `clients/tui/proto/tui2.proto` + `docs/PROTOCOL.zh-CN.md`；SDK 只是
 > **可选绑定**。任何语言按协议收发帧都能成为布局程序；`tui2-sdk-verify` +
 > `clients/tui/conformance/fixtures.jsonl` 让每个 SDK（含 AI 生成的）自证合规。
 
-## 0. 三层结构与目录
+## 0. 分层结构与目录
 
 | 层 | 职责 | Go | Python | TS/JS |
 |---|---|---|---|---|
 | 1 core | 帧编解码、事件循环、类型化事件、`Emit`/`Commit`、hello/epoch、日志钩子 | `clients/tui/sdk/core`（`sdk` 包兼容再导出） | `tui2sdk.wire` + `tui2sdk.core` | `sdk/ts/src/wire.js` + `src/core.js` |
-| 2 builder | box/row/col/stack/text/terminal/divider + 链式属性 | `clients/tui/sdk/builder`（`sdk` 兼容再导出） | `tui2sdk.builder` | `sdk/ts/src/builder.js` |
-| 3 widgets（可选） | 程序侧 chrome：Card/Frame/TitleBar/TabBar/Footer/StatusBar/Picker/SplitLayout/FloatingLayer/Button/KeyHint/Toast/Toast | `clients/tui/sdk/widgets` | `tui2sdk.widgets` | 暂无（core+builder 已够一致性要求） |
+| 2 builder | box/row/col/stack/text/terminal/divider + 链式属性 | `clients/tui/sdk/builder`（`sdk` 包兼容再导出） | `tui2sdk.builder` | `sdk/ts/src/builder.js` |
+| 3 widgets（可选） | 程序侧组件：布局/chrome（SplitLayout/Card/Frame/TabBar/StatusBar/Picker/Toast/…）、内容（List/VirtualList/Table/TextInput/TextArea/Modal/Menu/RichText/Scrollbar）、交互（Hit/Drag/ClickTracker/Hover/ContextMenu）、表单（Form/校验/Select/Date/Calendar）、图表（Sparkline/BarChart/Heatmap/Meter/Legend）、格式化与主题 | `clients/tui/sdk/widgets` | `tui2sdk.widgets.<module>`（21 个模块，全量） | `sdk/ts/src/widgets`（21 个模块，含 `.d.ts`） |
+| 4 app（可选，仅 Go） | 组件模型：`Model{Init/Update/View}`、`Cmd`、Keymap、Focus、批提交 | `clients/tui/sdk/app` | 暂无 | 暂无 |
+
+组件模型与 widgets 的具体用法见 `clients/tui/docs/SDK-GUIDE.zh-CN.md` §4。
 
 目录：
 
 ```
-clients/tui/sdk/            Go：facade（向后兼容）+ core/ + builder/ + widgets/
-clients/tui/sdk/python/     Python：tui2sdk/{wire,core,builder,widgets,conformance}.py
+clients/tui/sdk/            Go：facade（向后兼容）+ core/ + builder/ + widgets/ + app/ + bench/
+clients/tui/sdk/python/     Python：tui2sdk/{wire,core,builder,conformance}.py + tui2sdk/widgets/
 clients/tui/sdk/ts/         TS/JS：index.js + index.d.ts + src/ + conformance.js + verify.js
 clients/tui/conformance/    fixtures.jsonl + frames.jsonl + runner + 参考程序
 clients/tui/cmd/tui2-sdk-verify/  一致性 CLI
@@ -48,6 +51,18 @@ c.Hello() / c.Epoch() / c.Rev() / c.Pending()
   epoch` 时不触发回调（request_id 作用域 = (epoch, connection)，§0.5）。
 - HELLO 原子重置：`rev=0`、pending 清空、epoch 更新；`Commit` 自动带 epoch+rev。
 - 错误：`ErrNoHello` / `ErrNilRoot`。
+
+`access.call`（透明转发）在 core 层仍是普通 `Emit`：`params.access_command` 放序列化的
+access `CommandEnvelope` 字节（任意命令，按 access proto 生成客户端自行序列化），
+`response.data.access_result` 取回序列化的 `ResultEnvelope`；宿主不做过滤或确认。
+细节与"单写者由程序负责"的约定见 `PROTOCOL.zh-CN.md` §4。
+
+流式资源用 `access.stream.open` + STREAM 帧（Go core：`Emit("access.stream.open", …)`、
+`Client.SendStream(*pb.StreamFrame)`、`Handlers.Stream`）。程序分配 `stream_id`，
+`wire_type` 保留 access 帧语义（file data/ack/finish），宿主原样透传。
+事件订阅用 `access.stream.subscribe`（参数带序列化的 `EventSubscribe` 命令），
+事件同样以 STREAM `kind=data`（`wire_type=事件帧`，payload 为 `EventEnvelope`）推送；
+文件传输与事件订阅共用同一 STREAM 原语与关闭/释放语义。Python/TS 绑定见各自 SDK 目录。
 
 ### Python `tui2sdk`
 
@@ -94,15 +109,23 @@ new Client(process.stdin, process.stdout).run(new My());  // Promise<exitCode>
 
 ## 3. widgets API
 
-Go `clients/tui/sdk/widgets`：`TabBar`、`StatusBar`、`Frame`(+`FrameRow`)、
-`Divider`、`Card`、`Button`、`KeyHint`、`TitleBar`、`Footer`、`Picker`(+`PickerRow`)、
-`SplitLayout`(+`Rect`/`Distribute`)、`FloatingLayer`、`Toast`；样式全部用
+Go `clients/tui/sdk/widgets`（21 个模块，与 Python/TS 对齐）：布局/chrome
+（`SplitLayout`/`FloatingLayer`/`Card`/`Frame`/`Divider`/`BorderBox`/`TabBar`/
+`StatusBar`/`TitleBar`/`Footer`/`Picker`/`Toast`/`Button`/`KeyHint`）、内容
+（`List`/`VirtualList`/`Table`/`TextInput`/`TextArea`/`Modal`/`Menu`/`RichText`/
+`Scrollbar`）、交互（`HitRegion`/`Drag`/`ClickTracker`/`Hover`/`ContextMenu`）、
+表单（`Form`/校验器/`Select`/`Date`/`Calendar`）、图表（`Sparkline`/`BarChart`/
+`Heatmap`/`Meter`/`Legend`）、以及 `format`/`tokens`/`theme`/`border`。样式全部用
 token 名（宿主主题解析），命中/按键由程序在 hit-test 后处理。
 
-Python `tui2sdk.widgets`：`Theme` + `ChromeApp`（组合以上全部原语，含
+Python `tui2sdk.widgets`：与 Go 对齐的模块（`widgets.list.List`、
+`widgets.layout.SplitLayout`、`widgets.theme.Theme`、…）；旧 `ChromeApp` 一族仍在
+`widgets.chrome` 并保留顶层扁平名（兼容 v3ui 示例）。`ChromeApp`（组合以上全部原语，含
 `pane_runs`/`card_nodes`/`header_runs`/`footer_runs`/`overlay_rows`/
 `floating_runs`/`toast_nodes`/`screen`）与模型 `Pane/Leaf/Split/Tab/Floating`。
-参考实现见 `clients/tui/examples/python-shell/v3ui.py`（467 行，主题/场景/演示数据）。
+TS `sdk.widgets.<module>`（`clients/tui/sdk/ts/src/widgets`，21 个模块 + `.d.ts`）。
+
+参考实现见 `clients/tui/examples/python-shell/v3ui.py`（468 行，主题/场景/演示数据）。
 
 ## 4. 一致性验证（任何语言）
 

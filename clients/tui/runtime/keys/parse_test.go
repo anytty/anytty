@@ -77,16 +77,22 @@ func TestParserSpecialKeys(t *testing.T) {
 
 func TestParserMouseAndWheel(t *testing.T) {
 	p := NewParser()
-	events := p.Feed([]byte("\x1b[<0;10;5M\x1b[<32;12;5M\x1b[<0;12;5m\x1b[<64;3;4M\x1b[<65;3;4M"))
-	if len(events) != 5 {
+	events := p.Feed([]byte("\x1b[<0;10;5M\x1b[<32;12;5M\x1b[<35;12;5M\x1b[<3;12;5m\x1b[<0;12;5m\x1b[<64;3;4M\x1b[<65;3;4M"))
+	if len(events) != 7 {
 		t.Fatalf("events = %+v", events)
 	}
-	press, drag, release, wheelUp, wheelDown := events[0], events[1], events[2], events[3], events[4]
+	press, drag, motion, genericRelease, release, wheelUp, wheelDown := events[0], events[1], events[2], events[3], events[4], events[5], events[6]
 	if press.Kind != KindMouse || press.Action != ActionPress || press.Button != ButtonLeft || press.X != 10 || press.Y != 5 {
 		t.Fatalf("press = %+v", press)
 	}
 	if drag.Action != ActionDrag || drag.X != 12 {
 		t.Fatalf("drag = %+v", drag)
+	}
+	if motion.Action != ActionDrag || motion.Button != ButtonNone {
+		t.Fatalf("motion = %+v", motion)
+	}
+	if genericRelease.Action != ActionRelease || genericRelease.Button != ButtonNone {
+		t.Fatalf("generic release = %+v", genericRelease)
 	}
 	if release.Action != ActionRelease || release.Button != ButtonLeft {
 		t.Fatalf("release = %+v", release)
@@ -96,6 +102,21 @@ func TestParserMouseAndWheel(t *testing.T) {
 	}
 	if wheelDown.Kind != KindWheel || wheelDown.Delta != -1 {
 		t.Fatalf("wheel down = %+v", wheelDown)
+	}
+}
+
+// TestParserDropsHorizontalWheel pins the Ghostty bottom-bounce root cause:
+// SGR codes 66/67 are horizontal wheel (left/right), not vertical up/down.
+// Treating 66 as "up" makes a mouse-tracking child scroll its viewport up one
+// line and back on every tilted/trackpad scroll.
+func TestParserDropsHorizontalWheel(t *testing.T) {
+	p := NewParser()
+	events := p.Feed([]byte("\x1b[<66;52;31M\x1b[<67;52;31M\x1b[<70;52;31M\x1b[<65;52;31M"))
+	if len(events) != 1 {
+		t.Fatalf("horizontal wheel must be dropped, events = %+v", events)
+	}
+	if events[0].Kind != KindWheel || events[0].Delta != -1 {
+		t.Fatalf("only the vertical wheel-down must survive: %+v", events[0])
 	}
 }
 

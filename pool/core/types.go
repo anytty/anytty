@@ -217,9 +217,6 @@ var (
 	ErrTerminalOutputUnavailable = errors.New("terminal output consumer unavailable")
 	ErrInvalidServerSize         = errors.New("invalid server size")
 	ErrNilListenerFactory        = errors.New("nil listener factory")
-	ErrInvalidStorageKey         = errors.New("invalid storage key")
-	ErrStorageEntryNotFound      = errors.New("storage entry not found")
-	ErrStorageVersionConflict    = errors.New("storage version conflict")
 )
 
 type TerminalOutputError struct {

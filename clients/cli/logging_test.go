@@ -73,6 +73,23 @@ func TestResolveGridStatePathFallsBackToXDGStateHome(t *testing.T) {
 	}
 }
 
+func TestAccessStartFailureMessageSurfacesOwnerLockAndIsolationHint(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "access.log")
+	content := "time=2026-09-20T02:50:14+08:00 level=ERROR msg=\"access identity/store load failed\"\n" +
+		"access identity/store load: acquire client access owner lock: process file lock is already held\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANYTTY_ACCESS_LOG_FILE", logPath)
+	message := accessStartFailureMessage()
+	if !strings.Contains(message, "process file lock is already held") {
+		t.Fatalf("message lost the access log reason: %q", message)
+	}
+	if !strings.Contains(message, "XDG_STATE_HOME") {
+		t.Fatalf("message lost the isolation hint: %q", message)
+	}
+}
+
 func TestV3PathPolicy(t *testing.T) {
 	runtimeDir := t.TempDir()
 	stateHome := t.TempDir()
@@ -81,7 +98,7 @@ func TestV3PathPolicy(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", stateHome)
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
-	if got := resolveV3Socket(""); got != filepath.Join(runtimeDir, fmt.Sprintf("anytty-v2-wire%d.sock", wire.Version)) {
+	if got := resolveV3Socket(""); got != filepath.Join(runtimeDir, fmt.Sprintf("anytty-v3-wire%d.sock", wire.Version)) {
 		t.Fatalf("expected v3 socket in runtime dir, got %q", got)
 	}
 	explicitSocket := filepath.Join(t.TempDir(), "explicit.sock")

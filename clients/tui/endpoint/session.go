@@ -22,6 +22,17 @@ import (
 type sessionConn interface {
 	list(ctx context.Context) ([]*apipb.TerminalInfo, error)
 	defaults(ctx context.Context) (*apipb.TerminalDefaults, error)
+	// execute runs one application command on this connection (access.call
+	// transparent forwarding). The typed methods above remain the recommended
+	// path for terminal attach/input/resize (single-writer discipline).
+	execute(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error)
+	// openStream opens the framing stream behind one access resource handle
+	// (access.stream.open).
+	openStream(resource *apipb.ResourceHandle) (clientruntime.ResourceStream, error)
+	// events subscribes to the connection event stream; each EventEnvelope
+	// carries its subscription handle so callers can filter (multiple
+	// subscribers are fanned out by the protocol client).
+	events(ctx context.Context) (<-chan *apipb.EventEnvelope, error)
 	create(ctx context.Context, spec *apipb.TerminalCreateSpec) (*apipb.TerminalInfo, error)
 	kill(ctx context.Context, id string) error
 	remove(ctx context.Context, id string) error
@@ -185,17 +196,18 @@ func (s *stream) recv(ctx context.Context) (streamFrame, error) {
 // attachment is one live terminal attachment stream. client is the session
 // that owns it; resource/stream are meaningful for both implementations.
 type attachment struct {
-	client   sessionConn
-	terminal string
-	resource *apipb.ResourceHandle
-	channel  uint16
-	stream   *stream
-	surface  string
-	view     string
-	mode     apipb.AttachmentMode
-	policy   apipb.ResizePolicy
-	size     *apipb.TerminalSize
-	epoch    uint64
+	client    sessionConn
+	terminal  string
+	resource  *apipb.ResourceHandle
+	channel   uint16
+	stream    *stream
+	surface   string
+	view      string
+	mode      apipb.AttachmentMode
+	policy    apipb.ResizePolicy
+	size      *apipb.TerminalSize
+	epoch     uint64
+	ownerView string
 	// stop releases the shared resource stream pump (nil for the raw client).
 	stop func()
 }

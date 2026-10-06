@@ -116,9 +116,8 @@ func familyOfCommand(command *apipb.CommandEnvelope) CommandFamily {
 
 // routeCommand 选择 command 的执行者。
 //
-// Phase 1：所有 family 都交给 terminal provider（pool 仍实现文件/转发/storage/
-// client_access 代理），但分类已经显式化，Phase 2/4 只需替换对应分支为
-// access 本地 handler，不需要改动 session/framing 层。
+// terminal family 走 typed terminal provider（access 重签 attachment token）；
+// 其余族已经在 access 本地终结；未分类 command fail closed。
 func (session *session) routeCommand(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
 	// access-local resource 的 release 必须在本地应答，不能转发给 provider。
 	if release := command.GetReleaseResource(); release != nil {
@@ -139,13 +138,16 @@ func (session *session) routeCommand(ctx context.Context, command *apipb.Command
 		// Phase 2：browser proxy 从 access 主机拨号并本地终结。
 		return session.executeProxy(ctx, command)
 	case FamilyAuth:
-		// Phase 4：client_access.* / cloud.* 由 access 直答，不再走反向 RPC。
+		// Phase 4：client_access.* / cloud.* 由 access 直答；没有 auth service
+		// 时 fail closed，不再回退 provider passthrough。
 		if session.server.cfg.Auth != nil {
 			return session.executeAuth(ctx, command)
 		}
-		return session.executeViaProvider(ctx, command)
+		return nil, errUnsupportedCommand
+	case FamilyTerminal:
+		return session.executeTerminal(ctx, command)
 	default:
-		return session.executeViaProvider(ctx, command)
+		return nil, errUnsupportedCommand
 	}
 }
 

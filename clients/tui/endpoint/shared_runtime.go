@@ -148,8 +148,28 @@ func sharedPlanSnapshot(ctx context.Context, registryPaths []string, cfg Config,
 			return clientruntime.EndpointPlanSnapshot{}, err
 		}
 	}
+	target = resolveAutoLocalSocket(target)
 	environment := sharedRouteEnvironment(ctx, target, routes, cloudAvailable)
 	return clientruntime.EndpointPlanSnapshot{Endpoint: target, Environment: environment, ConfigKey: sharedConfigKey(target, environment)}, nil
+}
+
+// resolveAutoLocalSocket resolves a registry local-unix route with socket
+// "auto" to the default canonical access socket. Every local connection goes
+// through access; the planner must see the concrete socket instead of the
+// sentinel, otherwise it fails with "has no explicit Unix socket".
+func resolveAutoLocalSocket(target clientendpoint.Endpoint) clientendpoint.Endpoint {
+	for id, route := range target.Routes {
+		if route.Kind != clientendpoint.RouteLocalUnix {
+			continue
+		}
+		socket := strings.TrimSpace(route.Socket)
+		if socket != "" && socket != "auto" {
+			continue
+		}
+		route.Socket = DefaultLocalAccessSocket()
+		target.Routes[id] = route
+	}
+	return target
 }
 
 // sharedRegistryEndpoint locates one endpoint across the ordered registry

@@ -3,7 +3,7 @@ package apimapping
 import (
 	"time"
 
-	corev2 "github.com/anytty/anytty/pool/core"
+	accesscontract "github.com/anytty/anytty/access/contract"
 	"github.com/anytty/anytty/proto/access/apipb"
 )
 
@@ -95,43 +95,43 @@ func ValidateFileStorageCommand(command *apipb.CommandEnvelope) error {
 }
 
 // FileListRequestFromProto 映射目录分页请求。
-func FileListRequestFromProto(command *apipb.FileListCommand) corev2.FileListRequest {
-	return corev2.FileListRequest{Path: command.GetPath(), Cursor: command.GetCursor(), Limit: int(command.GetLimit())}
+func FileListRequestFromProto(command *apipb.FileListCommand) accesscontract.FileListRequest {
+	return accesscontract.FileListRequest{Path: command.GetPath(), Cursor: command.GetCursor(), Limit: int(command.GetLimit())}
 }
 
 // FilePathRequestFromProto 映射单路径请求。
-func FilePathRequestFromProto(path string, recursive bool) corev2.FilePathRequest {
-	return corev2.FilePathRequest{Path: path, Recursive: recursive}
+func FilePathRequestFromProto(path string, recursive bool) accesscontract.FilePathRequest {
+	return accesscontract.FilePathRequest{Path: path, Recursive: recursive}
 }
 
 // FilePreviewRequestFromProto 映射有界预览请求。
-func FilePreviewRequestFromProto(command *apipb.FilePreviewCommand) corev2.FilePreviewRequest {
-	return corev2.FilePreviewRequest{Path: command.GetPath(), MaxBytes: command.GetMaxBytes()}
+func FilePreviewRequestFromProto(command *apipb.FilePreviewCommand) accesscontract.FilePreviewRequest {
+	return accesscontract.FilePreviewRequest{Path: command.GetPath(), MaxBytes: command.GetMaxBytes()}
 }
 
 // FileRenameRequestFromProto 映射 rename 请求。
-func FileRenameRequestFromProto(command *apipb.FileRenameCommand) corev2.FileRenameRequest {
-	return corev2.FileRenameRequest{Path: command.GetPath(), NewPath: command.GetNewPath(), Overwrite: command.GetOverwrite()}
+func FileRenameRequestFromProto(command *apipb.FileRenameCommand) accesscontract.FileRenameRequest {
+	return accesscontract.FileRenameRequest{Path: command.GetPath(), NewPath: command.GetNewPath(), Overwrite: command.GetOverwrite()}
 }
 
 // FileCopyRequestFromProto 映射 copy 请求。
-func FileCopyRequestFromProto(command *apipb.FileCopyCommand) corev2.FileCopyMoveRequest {
-	return corev2.FileCopyMoveRequest{Paths: append([]string(nil), command.GetPaths()...), TargetDir: command.GetTargetDirectory(), Overwrite: command.GetOverwrite()}
+func FileCopyRequestFromProto(command *apipb.FileCopyCommand) accesscontract.FileCopyMoveRequest {
+	return accesscontract.FileCopyMoveRequest{Paths: append([]string(nil), command.GetPaths()...), TargetDir: command.GetTargetDirectory(), Overwrite: command.GetOverwrite()}
 }
 
 // FileMoveRequestFromProto 映射 move 请求。
-func FileMoveRequestFromProto(command *apipb.FileMoveCommand) corev2.FileCopyMoveRequest {
-	return corev2.FileCopyMoveRequest{Paths: append([]string(nil), command.GetPaths()...), TargetDir: command.GetTargetDirectory(), Overwrite: command.GetOverwrite()}
+func FileMoveRequestFromProto(command *apipb.FileMoveCommand) accesscontract.FileCopyMoveRequest {
+	return accesscontract.FileCopyMoveRequest{Paths: append([]string(nil), command.GetPaths()...), TargetDir: command.GetTargetDirectory(), Overwrite: command.GetOverwrite()}
 }
 
 // FileDownloadRequestFromProto 映射 download open 请求。
-func FileDownloadRequestFromProto(command *apipb.FileDownloadOpenCommand) corev2.FileDownloadOpenRequest {
-	return corev2.FileDownloadOpenRequest{Path: command.GetPath(), Offset: command.GetOffset(), ExpectedSize: command.GetExpectedSize(), ExpectedModifiedAt: timeFromUnixNano(command.GetExpectedModifiedAtUnixNano())}
+func FileDownloadRequestFromProto(command *apipb.FileDownloadOpenCommand) accesscontract.FileDownloadOpenRequest {
+	return accesscontract.FileDownloadOpenRequest{Path: command.GetPath(), Offset: command.GetOffset(), ExpectedSize: command.GetExpectedSize(), ExpectedModifiedAt: timeFromUnixNano(command.GetExpectedModifiedAtUnixNano())}
 }
 
 // FileUploadRequestFromProto 映射 upload open 请求。
-func FileUploadRequestFromProto(command *apipb.FileUploadOpenCommand) corev2.FileUploadOpenRequest {
-	return corev2.FileUploadOpenRequest{
+func FileUploadRequestFromProto(command *apipb.FileUploadOpenCommand) accesscontract.FileUploadOpenRequest {
+	return accesscontract.FileUploadOpenRequest{
 		Path:                command.GetPath(),
 		Size:                command.GetSize(),
 		Overwrite:           command.GetOverwrite(),
@@ -140,25 +140,25 @@ func FileUploadRequestFromProto(command *apipb.FileUploadOpenCommand) corev2.Fil
 }
 
 // FileTransferCancelRequestFromProto 将 Proto 二选一销毁凭据映射到 core；不解释 opaque token 内容。
-func FileTransferCancelRequestFromProto(command *apipb.FileTransferCancelCommand) corev2.FileTransferCancelRequest {
-	return corev2.FileTransferCancelRequest{
+func FileTransferCancelRequestFromProto(command *apipb.FileTransferCancelCommand) accesscontract.FileTransferCancelRequest {
+	return accesscontract.FileTransferCancelRequest{
 		ResourceToken:     cloneBytes(command.GetTransfer().GetOpaqueToken()),
 		UploadResumeToken: cloneBytes(command.GetUploadResume().GetOpaqueToken()),
 	}
 }
 
 // FileEntryToProto 映射 pool file metadata。
-func FileEntryToProto(entry corev2.FileEntry) *apipb.FileEntry {
+func FileEntryToProto(entry accesscontract.FileEntry) *apipb.FileEntry {
 	return &apipb.FileEntry{Path: entry.Path, Name: entry.Name, Type: fileEntryTypeToProto(entry.Type), Size: entry.Size, Mode: entry.Mode, ModifiedAtUnixNano: unixNanoOrZero(entry.ModifiedAt), LinkTarget: entry.LinkTarget}
 }
 
 // FileStatToProto 包装单个 pool file metadata projection。
-func FileStatToProto(entry corev2.FileEntry) *apipb.FileStatResult {
+func FileStatToProto(entry accesscontract.FileEntry) *apipb.FileStatResult {
 	return &apipb.FileStatResult{Entry: FileEntryToProto(entry)}
 }
 
 // FileListToProto 映射目录窗口。
-func FileListToProto(result corev2.FileListResult) *apipb.FileListResult {
+func FileListToProto(result accesscontract.FileListResult) *apipb.FileListResult {
 	out := &apipb.FileListResult{Path: result.Path, NextCursor: result.NextCursor}
 	for _, entry := range result.Entries {
 		out.Entries = append(out.Entries, FileEntryToProto(entry))
@@ -167,17 +167,17 @@ func FileListToProto(result corev2.FileListResult) *apipb.FileListResult {
 }
 
 // FilePreviewToProto 映射有界预览。
-func FilePreviewToProto(result corev2.FilePreviewResult) *apipb.FilePreviewResult {
+func FilePreviewToProto(result accesscontract.FilePreviewResult) *apipb.FilePreviewResult {
 	return &apipb.FilePreviewResult{Entry: FileEntryToProto(result.Entry), MimeType: result.MIMEType, Content: cloneBytes(result.Content), Truncated: result.Truncated, Sha256: cloneBytes(result.SHA256)}
 }
 
 // FileOperationToProto 映射单项 mutation 结果。
-func FileOperationToProto(result corev2.FileOperationResult) *apipb.FileOperationResult {
+func FileOperationToProto(result accesscontract.FileOperationResult) *apipb.FileOperationResult {
 	return &apipb.FileOperationResult{Path: result.Path, TargetPath: result.TargetPath, Success: result.Success, ErrorCode: result.ErrorCode, ErrorMessage: result.ErrorMessage}
 }
 
 // FileBatchToProto 映射批量 mutation 结果。
-func FileBatchToProto(result corev2.FileBatchResult) *apipb.FileBatchResult {
+func FileBatchToProto(result accesscontract.FileBatchResult) *apipb.FileBatchResult {
 	out := &apipb.FileBatchResult{}
 	for _, item := range result.Results {
 		out.Results = append(out.Results, FileOperationToProto(item))
@@ -186,7 +186,7 @@ func FileBatchToProto(result corev2.FileBatchResult) *apipb.FileBatchResult {
 }
 
 // FileTransferToProto 映射 session-bound transfer；内部 channel 隐藏在 resource token，流控上限通过 Proto 显式返回跨端 consumer。
-func FileTransferToProto(origin *apipb.EndpointSessionStamp, operation *apipb.OperationStamp, transfer corev2.FileTransfer) *apipb.FileTransferOpenResult {
+func FileTransferToProto(origin *apipb.EndpointSessionStamp, operation *apipb.OperationStamp, transfer accesscontract.FileTransfer) *apipb.FileTransferOpenResult {
 	handle := &apipb.FileTransferHandle{Resource: &apipb.ResourceHandle{OpaqueToken: cloneBytes(transfer.OpaqueToken), Kind: apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER, Session: cloneSessionStamp(origin), Generation: 1}, Path: transfer.Path, Offset: transfer.Offset, Size: transfer.Size, ModifiedAtUnixNano: unixNanoOrZero(transfer.ModifiedAt), Operation: cloneOperationStamp(operation), ChunkBytes: uint32(transfer.ChunkBytes), WindowBytes: transfer.WindowBytes}
 	if len(transfer.ResumeToken) > 0 {
 		handle.Resume = &apipb.FileUploadResumeHandle{OpaqueToken: cloneBytes(transfer.ResumeToken)}
@@ -195,49 +195,49 @@ func FileTransferToProto(origin *apipb.EndpointSessionStamp, operation *apipb.Op
 }
 
 // FileTransferCancelToProto 映射 transfer cancellation result。
-func FileTransferCancelToProto(result corev2.FileTransferCancelResult) *apipb.FileTransferCancelResult {
+func FileTransferCancelToProto(result accesscontract.FileTransferCancelResult) *apipb.FileTransferCancelResult {
 	return &apipb.FileTransferCancelResult{Cancelled: result.Cancelled}
 }
 
 // StorageKeyFromProto 映射 opaque storage identity。
-func StorageKeyFromProto(key *apipb.StorageKey) (string, corev2.StorageScope, string, string) {
+func StorageKeyFromProto(key *apipb.StorageKey) (string, accesscontract.StorageScope, string, string) {
 	return key.GetAppId(), storageScopeFromProto(key.GetScope()), key.GetOwnerId(), key.GetKey()
 }
 
 // StoragePutFromProto 映射 storage CAS put。
-func StoragePutFromProto(command *apipb.StoragePutCommand) corev2.StoragePutRequest {
+func StoragePutFromProto(command *apipb.StoragePutCommand) accesscontract.StoragePutRequest {
 	appID, scope, ownerID, key := StorageKeyFromProto(command.GetKey())
-	return corev2.StoragePutRequest{AppID: appID, Scope: scope, OwnerID: ownerID, Key: key, Value: cloneBytes(command.GetValue()), CheckVersion: command.GetVersion().GetCheckVersion(), ExpectedVersion: command.GetVersion().GetExpectedVersion()}
+	return accesscontract.StoragePutRequest{AppID: appID, Scope: scope, OwnerID: ownerID, Key: key, Value: cloneBytes(command.GetValue()), CheckVersion: command.GetVersion().GetCheckVersion(), ExpectedVersion: command.GetVersion().GetExpectedVersion()}
 }
 
 // StorageDeleteFromProto 映射 storage CAS delete。
-func StorageDeleteFromProto(command *apipb.StorageDeleteCommand) corev2.StorageDeleteRequest {
+func StorageDeleteFromProto(command *apipb.StorageDeleteCommand) accesscontract.StorageDeleteRequest {
 	appID, scope, ownerID, key := StorageKeyFromProto(command.GetKey())
-	return corev2.StorageDeleteRequest{AppID: appID, Scope: scope, OwnerID: ownerID, Key: key, CheckVersion: command.GetVersion().GetCheckVersion(), ExpectedVersion: command.GetVersion().GetExpectedVersion()}
+	return accesscontract.StorageDeleteRequest{AppID: appID, Scope: scope, OwnerID: ownerID, Key: key, CheckVersion: command.GetVersion().GetCheckVersion(), ExpectedVersion: command.GetVersion().GetExpectedVersion()}
 }
 
 // StorageEntryToProto 映射 opaque storage entry，不解释 value。
-func StorageEntryToProto(entry corev2.StorageEntry) *apipb.StorageEntry {
+func StorageEntryToProto(entry accesscontract.StorageEntry) *apipb.StorageEntry {
 	return &apipb.StorageEntry{Key: &apipb.StorageKey{AppId: entry.AppID, Scope: storageScopeToProto(entry.Scope), OwnerId: entry.OwnerID, Key: entry.Key}, Value: cloneBytes(entry.Value), Version: entry.Version, UpdatedAtUnixNano: unixNanoOrZero(entry.UpdatedAt)}
 }
 
 // StorageDeleteToProto 映射 delete 结果。
-func StorageDeleteToProto(result corev2.StorageDeleteResult) *apipb.StorageDeleteResult {
+func StorageDeleteToProto(result accesscontract.StorageDeleteResult) *apipb.StorageDeleteResult {
 	return &apipb.StorageDeleteResult{Key: &apipb.StorageKey{AppId: result.AppID, Scope: storageScopeToProto(result.Scope), OwnerId: result.OwnerID, Key: result.Key}, Deleted: result.Deleted, Version: result.Version}
 }
 
 // StorageGetToProto 包装 storage entry projection。
-func StorageGetToProto(entry corev2.StorageEntry) *apipb.StorageGetResult {
+func StorageGetToProto(entry accesscontract.StorageEntry) *apipb.StorageGetResult {
 	return &apipb.StorageGetResult{Entry: StorageEntryToProto(entry)}
 }
 
 // StoragePutToProto 包装 storage entry projection。
-func StoragePutToProto(entry corev2.StorageEntry) *apipb.StoragePutResult {
+func StoragePutToProto(entry accesscontract.StorageEntry) *apipb.StoragePutResult {
 	return &apipb.StoragePutResult{Entry: StorageEntryToProto(entry)}
 }
 
 // StorageListToProto 映射 core storage entry window。
-func StorageListToProto(entries []corev2.StorageEntry) *apipb.StorageListResult {
+func StorageListToProto(entries []accesscontract.StorageEntry) *apipb.StorageListResult {
 	result := &apipb.StorageListResult{Entries: make([]*apipb.StorageEntry, 0, len(entries))}
 	for _, entry := range entries {
 		result.Entries = append(result.Entries, StorageEntryToProto(entry))
@@ -246,7 +246,7 @@ func StorageListToProto(entries []corev2.StorageEntry) *apipb.StorageListResult 
 }
 
 // StorageScopeFromProto 映射公共 storage scope enum。
-func StorageScopeFromProto(scope apipb.StorageScope) corev2.StorageScope {
+func StorageScopeFromProto(scope apipb.StorageScope) accesscontract.StorageScope {
 	return storageScopeFromProto(scope)
 }
 
@@ -318,14 +318,14 @@ func validateStorageVersion(version *apipb.StorageVersionFence) error {
 	}
 	return nil
 }
-func storageScopeFromProto(scope apipb.StorageScope) corev2.StorageScope {
+func storageScopeFromProto(scope apipb.StorageScope) accesscontract.StorageScope {
 	if scope == apipb.StorageScope_STORAGE_SCOPE_PRIVATE {
-		return corev2.StorageScopePrivate
+		return accesscontract.StorageScopePrivate
 	}
-	return corev2.StorageScopePublic
+	return accesscontract.StorageScopePublic
 }
-func storageScopeToProto(scope corev2.StorageScope) apipb.StorageScope {
-	if scope == corev2.StorageScopePrivate {
+func storageScopeToProto(scope accesscontract.StorageScope) apipb.StorageScope {
+	if scope == accesscontract.StorageScopePrivate {
 		return apipb.StorageScope_STORAGE_SCOPE_PRIVATE
 	}
 	return apipb.StorageScope_STORAGE_SCOPE_PUBLIC

@@ -122,6 +122,18 @@ control channel 0 承载 `Hello/Request/Response/Error/Event`。完整序列：
   host 用 kind/socket/address/connect_mode 注册 endpoint 后 attach 已有 终端池 终端。
 - `endpoint.sync{endpoint, kind, socket, address, connect_mode}`：注册 + 后台连接 +
   发布清单；host 立即应答，sources 事件随后到达。
+- `access.call{endpoint, access_command}`：把序列化的 access `CommandEnvelope`
+  经该 endpoint 的 ready 连接**透明转发**，`data.access_result` 为序列化的
+  `ResultEnvelope`；host 不做家族过滤/确认（详见 `PROTOCOL.zh-CN.md` §4）。
+- 内建 `local-access` endpoint：host 启动时若本机默认 access socket
+  （`$XDG_RUNTIME_DIR/anytty-v3-wire7.sock`，用户临时目录兜底）存在，且没有其他
+  endpoint 使用同一 socket，则自动注册一个 daemon endpoint（`kind=local-unix`），
+  作为"registry 未定义任何 local endpoint"时的兜底；正常情况下 registry 的
+  `local`（`socket: auto`）已解析为该 socket，不需要它。
+- **`kind: command` 是显式例外**：宿主在本地 PTY 里跑 argv，不经 access/pool，
+  它表达"在终端里再跑一个终端客户端"（如 ssh）。managed 本地终端一律走 access
+  （registry `local` + `socket: auto` → 默认 canonical socket），不再回退宿主 PTY；
+  `kind: command` 与 `local-access`/`local` 互不影响。
 - `sources` 的 `health`：`ok`（已连接）、`connecting`、`offline`（断线/拨号失败）。
   断线只改 health 并发 `notice`，不把本地终端标成 exited。
 

@@ -19,6 +19,7 @@ import (
 
 type ptyProcessPlatform interface {
 	Kill() error
+	KillHard() error
 	ResourceUsage() (TerminalResourceUsage, bool)
 	ProcessExited() error
 	OutputDrained() error
@@ -146,6 +147,19 @@ func (platform *unixPTYProcessPlatform) Kill() error {
 	// 中文说明：Unix PTY command 由跨平台 PTY owner 建立独立 session；终止必须覆盖整个进程组。
 	if err := syscall.Kill(-platform.process.Pid, syscall.SIGHUP); err != nil {
 		if signalErr := platform.process.Signal(syscall.SIGHUP); signalErr != nil && !errors.Is(signalErr, os.ErrProcessDone) {
+			return errors.Join(err, signalErr)
+		}
+	}
+	return nil
+}
+
+// KillHard 对进程组发送 SIGKILL，用于 SIGHUP 宽限后仍存活的进程。
+func (platform *unixPTYProcessPlatform) KillHard() error {
+	if platform == nil || platform.process == nil {
+		return nil
+	}
+	if err := syscall.Kill(-platform.process.Pid, syscall.SIGKILL); err != nil {
+		if signalErr := platform.process.Kill(); signalErr != nil && !errors.Is(signalErr, os.ErrProcessDone) {
 			return errors.Join(err, signalErr)
 		}
 	}

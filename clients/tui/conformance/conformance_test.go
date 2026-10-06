@@ -106,6 +106,43 @@ func TestFixturesCoverEveryEvent(t *testing.T) {
 	}
 }
 
+// TestFixturesCoverViewDelta pins the PROTOCOL §2.1 coverage: the suite must
+// include a delta apply, a base mismatch, and a rejected first-frame delta.
+func TestFixturesCoverViewDelta(t *testing.T) {
+	fixtures := loadFixtures(t)
+	hasApply, hasMismatch, hasFirst := false, false, false
+	for _, fixture := range fixtures {
+		for _, step := range fixture.Steps {
+			if step.Expect != nil {
+				for _, frame := range step.Expect.Frames {
+					if frame.View == nil || frame.View.Delta == nil {
+						continue
+					}
+					if frame.View.Delta.RevBase != nil && *frame.View.Delta.RevBase > 0 {
+						hasApply = true
+					}
+					if frame.View.Delta.RevBase != nil && *frame.View.Delta.RevBase == 0 {
+						hasFirst = true
+					}
+				}
+			}
+			if step.Send != nil && step.Send.Event != nil &&
+				step.Send.Event.Kind == "view_rejected" && step.Send.Event.Reason == "base_mismatch" {
+				hasMismatch = true
+			}
+		}
+	}
+	if !hasApply {
+		t.Error("no fixture expects a VIEW_DELTA applied against a non-zero rev_base")
+	}
+	if !hasMismatch {
+		t.Error("no fixture sends view_rejected reason=base_mismatch")
+	}
+	if !hasFirst {
+		t.Error("no fixture expects a first-frame VIEW_DELTA with rev_base=0")
+	}
+}
+
 // TestBrokenFixtureFails makes sure validation catches malformed fixtures.
 func TestBrokenFixtureFails(t *testing.T) {
 	cases := []conformance.Fixture{

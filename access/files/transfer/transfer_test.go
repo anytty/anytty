@@ -1,6 +1,7 @@
 package transfer
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -63,4 +64,26 @@ func TestCoalescerMergesWithinWindowAndEmitsCompletion(t *testing.T) {
 	if !emit || progress.State != StateCompleted || progress.RemainingSeconds != 0 {
 		t.Fatalf("completion must always emit: %#v emit=%v", progress, emit)
 	}
+}
+
+// TestCoalescerConcurrentObserveAndFinish 固定并发的 Observe（session goroutine）
+// 与 Finish（下载 goroutine）不能出现数据竞争。
+func TestCoalescerConcurrentObserveAndFinish(t *testing.T) {
+	coalescer := NewCoalescer(time.Millisecond)
+	start := time.Unix(1700000000, 0)
+	var wait sync.WaitGroup
+	wait.Add(2)
+	go func() {
+		defer wait.Done()
+		for index := 1; index <= 500; index++ {
+			coalescer.Observe(int64(index), 500, start.Add(time.Duration(index)*time.Millisecond))
+		}
+	}()
+	go func() {
+		defer wait.Done()
+		for index := 0; index < 500; index++ {
+			coalescer.Finish(500, 500, start.Add(time.Duration(index)*time.Millisecond))
+		}
+	}()
+	wait.Wait()
 }

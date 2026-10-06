@@ -69,6 +69,9 @@ type Event struct {
 	// Routing hints.
 	Node       string
 	HitFocused bool
+	// PTYX and PTYY are the 1-based coordinates in the focused terminal's
+	// content grid. X/Y remain outer TUI coordinates for program events.
+	PTYX, PTYY int
 }
 
 // Mouse actions and buttons used by EncodeMouse (PROTOCOL §6.7).
@@ -97,7 +100,8 @@ var namedKeys = map[string]bool{
 	"ctrl-]": true, "ctrl-^": true, "ctrl-_": true, "ctrl-/": true,
 	"ctrl-?": true,
 	"enter":  true, "tab": true, "shift-tab": true, "backspace": true,
-	"esc": true, "up": true, "down": true, "left": true, "right": true,
+	"space": true,
+	"esc":   true, "up": true, "down": true, "left": true, "right": true,
 	"home": true, "end": true, "insert": true, "delete": true,
 	"page-up": true, "page-down": true,
 	"f1": true, "f2": true, "f3": true, "f4": true, "f5": true, "f6": true,
@@ -139,6 +143,20 @@ func Name(ev Event) string {
 	}
 	if key == "" {
 		return ""
+	}
+	// A plain space is the named "space" key (the recommended profile binds
+	// copy.mark to it); Char still carries " " for text input.
+	if key == " " && !ev.Mods.Ctrl && !ev.Mods.Alt {
+		return "space"
+	}
+	// Shift+arrows are distinct bindings in the v3 recommended profile
+	// (terminal_picker.status_previous/next). Keep the modifier in the name so
+	// a scene can bind it; Shift is not a text modifier for named keys.
+	if ev.Mods.Shift && !ev.Mods.Ctrl && !ev.Mods.Alt {
+		switch strings.ToLower(key) {
+		case "left", "right", "up", "down", "home", "end":
+			return "shift-" + strings.ToLower(key)
+		}
 	}
 	if _, ok := ctrlByte(key); ok {
 		return key
@@ -202,6 +220,8 @@ func EncodeKey(ev Event) ([]byte, bool) {
 		return altPrefix([]byte{b}, ev.Mods), true
 	}
 	switch name {
+	case "space":
+		return altSimple([]byte{' '}, ev.Mods), true
 	case "enter":
 		return altSimple([]byte{'\r'}, ev.Mods), true
 	case "tab":

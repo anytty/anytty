@@ -32,6 +32,9 @@ type Screen struct {
 	CursorX       int
 	CursorY       int
 	CursorVisible bool
+	// CursorShape is the optional steady cursor shape requested by the PTY:
+	// "block", "underline", or "bar".
+	CursorShape string
 }
 
 // Row returns the cells of one row, or nil when the row does not exist.

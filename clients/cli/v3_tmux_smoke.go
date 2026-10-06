@@ -308,7 +308,7 @@ func newV3TmuxHarnessWithSizeAndArgs(ctx context.Context, anyttyBin, tag string,
 			return nil, err
 		}
 	}
-	socketPath := filepath.Join(runtimeDir, "anytty-v2-wire7.sock")
+	socketPath := filepath.Join(runtimeDir, "anytty-v3-wire7.sock")
 	if err := writeV3TmuxEndpointRegistry(configHome, socketPath); err != nil {
 		return nil, err
 	}
@@ -342,7 +342,7 @@ func newV3TmuxHarnessWithSizeAndArgs(ctx context.Context, anyttyBin, tag string,
 	}
 	return &v3TmuxHarness{
 		session: session, artifactDir: baseDir, socketPath: socketPath, poolLog: logPath,
-		anyttyBin: anyttyBin, timelinePath: filepath.Join(baseDir, "timeline.txt"),
+		anyttyBin: anyttyBin, timelinePath: filepath.Join(baseDir, "timeline.txt"), harnessEnv: envPairs,
 	}, nil
 }
 
@@ -375,6 +375,20 @@ func (harness *v3TmuxHarness) close() {
 		return
 	}
 	_ = runTmuxCommand(context.Background(), "kill-session", "-t", harness.session)
+	harness.stopStack()
+}
+
+// stopStack 显式停掉默认入口拉起的 pool+access。TUI host 退出不会停这两个独立
+// 进程组；不清理会让残留进程跨轮累积（PTY/CPU 资源耗尽，拖慢后续测试）。
+func (harness *v3TmuxHarness) stopStack() {
+	if harness == nil || harness.anyttyBin == "" || harness.socketPath == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), v3TmuxQuitTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, harness.anyttyBin, "--socket", harness.socketPath, "pool", "stop", "--json")
+	command.Env = append(os.Environ(), harness.harnessEnv...)
+	_, _ = command.CombinedOutput()
 }
 
 // createTerminal 走 picker 冷启动：等待 picker，Enter 创建并绑定 term-1。

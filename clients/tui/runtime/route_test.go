@@ -53,12 +53,14 @@ func TestRoute(t *testing.T) {
 
 		// Priority 5: mouse (hit focused + terminal mouse tracking).
 		{"focused tracking terminal mouse to pty", InputEvent{Kind: InputMouse, HitFocused: true}, RouteState{Focus: terminalFocus("mouse")}, DestinationPTY},
+		{"history mouse stays with program", InputEvent{Kind: InputMouse, HitFocused: true}, RouteState{Focus: &Focus{ID: "terminal:local:main", IsTerminal: true, MouseTracking: true, HistoryActive: true, Input: []string{"mouse"}}}, DestinationProgram},
 		{"mouse without tracking goes program", InputEvent{Kind: InputMouse, HitFocused: true}, RouteState{Focus: &Focus{ID: "terminal:local:main", IsTerminal: true, Input: []string{"mouse"}}}, DestinationProgram},
 		{"mouse missing focused hit goes program", InputEvent{Kind: InputMouse, HitFocused: false}, RouteState{Focus: terminalFocus("mouse")}, DestinationProgram},
 		{"mouse on focused non-terminal goes program", InputEvent{Kind: InputMouse, HitFocused: true}, RouteState{Focus: componentFocus("mouse")}, DestinationProgram},
 
 		// Priority 5: wheel (focused + tracking + panel declares wheel).
 		{"wheel with all three conditions to pty", InputEvent{Kind: InputWheel}, RouteState{Focus: terminalFocus("wheel")}, DestinationPTY},
+		{"history wheel stays with program", InputEvent{Kind: InputWheel}, RouteState{Focus: &Focus{ID: "terminal:local:main", IsTerminal: true, MouseTracking: true, HistoryActive: true, Input: []string{"wheel"}}}, DestinationProgram},
 		{"wheel without tracking goes program", InputEvent{Kind: InputWheel}, RouteState{Focus: &Focus{ID: "terminal:local:main", IsTerminal: true, Input: []string{"wheel"}}}, DestinationProgram},
 		{"wheel without declaration goes program", InputEvent{Kind: InputWheel}, RouteState{Focus: terminalFocus("key")}, DestinationProgram},
 		{"wheel on non-terminal goes program", InputEvent{Kind: InputWheel}, RouteState{Focus: componentFocus("wheel")}, DestinationProgram},

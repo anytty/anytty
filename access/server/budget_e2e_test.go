@@ -16,6 +16,7 @@ import (
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
+	providerv1 "github.com/anytty/anytty/proto/provider/v1"
 	"github.com/anytty/anytty/shared/transport/memory"
 )
 
@@ -27,28 +28,98 @@ type blockingProvider struct {
 
 var _ terminalprovider.Provider = (*blockingProvider)(nil)
 
-func (provider *blockingProvider) Execute(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+func (*blockingProvider) Info(context.Context) (terminalprovider.Info, error) {
+	return terminalprovider.Info{Kind: "blocking-test"}, nil
+}
+
+func (*blockingProvider) Capabilities() terminalprovider.Capabilities {
+	return terminalprovider.Capabilities{Lifecycle: true}
+}
+
+func (*blockingProvider) Create(context.Context, *providerv1.TerminalCreateSpec) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (provider *blockingProvider) List(ctx context.Context) ([]*providerv1.TerminalInfo, error) {
 	provider.entered.Add(1)
 	select {
 	case <-provider.release:
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	return &apipb.ResultEnvelope{
-		RequestId:     command.GetContext().GetRequestId(),
-		OriginSession: command.GetContext().GetSession(),
-		Result:        &apipb.ResultEnvelope_TerminalList{TerminalList: &apipb.TerminalListResult{}},
-	}, nil
+	return nil, nil
 }
 
-func (*blockingProvider) OpenStream(context.Context, *apipb.ResourceHandle) (terminalprovider.Stream, error) {
+func (*blockingProvider) Get(context.Context, string) (*providerv1.TerminalInfo, error) {
 	return nil, terminalprovider.ErrUnsupported
 }
-func (*blockingProvider) Events(context.Context) (<-chan *apipb.EventEnvelope, error) {
-	closed := make(chan *apipb.EventEnvelope)
-	close(closed)
-	return closed, nil
+
+func (*blockingProvider) Restart(context.Context, string) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
 }
+
+func (*blockingProvider) Kill(context.Context, string) error { return terminalprovider.ErrUnsupported }
+
+func (*blockingProvider) Remove(context.Context, string) error {
+	return terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) SetMetadata(context.Context, string, terminalprovider.MetadataPatch) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) SetTags(context.Context, string, terminalprovider.TagsPatch) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) Attach(context.Context, terminalprovider.AttachRequest) (terminalprovider.Attachment, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) HistoryWindow(context.Context, terminalprovider.HistoryRequest) (*providerv1.HistoryWindowResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) HistoryCopy(context.Context, terminalprovider.HistoryCopyRequest) (*providerv1.HistoryCopyResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) HistorySearch(context.Context, terminalprovider.HistorySearchRequest) (*providerv1.HistorySearchResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) HistoryRelease(context.Context, string, string) error {
+	return terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) HistoryBacklogStatus(context.Context, string) (*providerv1.HistoryBacklogStatusResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) LiveScreen(context.Context, string, uint64) (*providerv1.NativeScreenResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) Subscribe(context.Context, *providerv1.EventSubscribeCommand) (*providerv1.EventSubscriptionResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) Events(context.Context) (<-chan *providerv1.TerminalEvent, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) EventRelease(context.Context, []byte) error {
+	return terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) TerminalDefaults(context.Context) (*providerv1.TerminalDefaults, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+func (*blockingProvider) ListDirectories(context.Context, string, int32) (*providerv1.PathListDirectoriesResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
 func (*blockingProvider) Done() <-chan struct{} {
 	closed := make(chan struct{})
 	close(closed)

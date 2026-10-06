@@ -269,7 +269,9 @@ func normalizeRoots(roots []string) ([]string, error) {
 			return nil, fmt.Errorf("%w: root %q: %v", ErrPathInvalid, root, err)
 		}
 		clean := filepath.Clean(absolute)
-		if resolved, err := filepath.EvalSymlinks(clean); err == nil {
+		// 与 Resolve 使用同一套解析：root 尚不存在时解析最近存在祖先，
+		// 否则 root 与候选路径的比较基准会不一致（例如 macOS 的 /var 链接）。
+		if resolved, err := resolveExistingPrefix(clean); err == nil {
 			clean = resolved
 		}
 		out = append(out, clean)

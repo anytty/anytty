@@ -16,24 +16,35 @@ import (
 )
 
 // errTerminalClosed marks a clean daemon stream close (process exited).
-var errTerminalClosed = errors.New("endpoint: terminal stream closed")
+var (
+	errTerminalClosed = errors.New("endpoint: terminal stream closed")
+	// errAttachmentDetached is local control flow. A detached attachment
+	// must wake the pump without being mistaken for a daemon terminal exit.
+	errAttachmentDetached = errors.New("endpoint: attachment detached")
+)
 
 // RemotePTY is the pty.PTY adapter of one daemon terminal. It satisfies the
 // same interface as a local PTY, so runtime.Terminal, the ANSI parser, the
 // component pipeline, input routing, kill and restart are position
 // transparent (ENDPOINTS.zh-CN.md §3).
 type RemotePTY struct {
-	mgr     *Manager
-	cfg     Config
-	id      string
-	argv    []string
-	surface string
-	view    string
+	mgr                *Manager
+	cfg                Config
+	id                 string
+	argv               []string
+	surface            string
+	view               string
+	fit                bool
+	expectedOwnerEpoch uint64
+	ownerView          string
+	ownerEpoch         uint64
 
 	mu       sync.Mutex
+	resizeMu sync.Mutex
 	cond     *sync.Cond
 	started  bool
 	closed   bool
+	detached bool
 	exited   bool
 	exitCode int
 	readErr  error
@@ -46,6 +57,25 @@ type RemotePTY struct {
 	notify   chan struct{}
 	closeCh  chan struct{}
 	doneCh   chan struct{}
+	// snapshotReset is installed by runtime.Terminal. It clears any partial
+	// ANSI sequence from the previous attachment before the authoritative
+	// snapshot becomes readable.
+	snapshotReset func()
+	// snapshotResetPending is set when seedSnapshot replaces the stream. The
+	// reset is deliberately performed by Read, immediately before returning
+	// the first snapshot bytes. This ordering matters when a pump has already
+	// read old bytes from the previous attachment but has not parsed them yet:
+	// seedSnapshot cannot reset the parser underneath that in-flight read.
+	snapshotResetPending bool
+	snapshotResetDone    bool
+	// readInFlight/readHasData let a reconnect distinguish a blocked Read
+	// (which will receive the snapshot) from a Read that already copied old
+	// bytes. The runtime barrier waits for the latter chunk to be parsed before
+	// resetting the parser.
+	readInFlight    bool
+	readHasData     bool
+	readSnapshot    bool
+	snapshotBarrier func()
 }
 
 // NewRemotePTY builds the unstarted daemon PTY for one attach call. The
@@ -56,18 +86,26 @@ func (m *Manager) NewRemotePTY(cfg pty.Config) *RemotePTY {
 	if id == "" {
 		id = newTerminalID()
 	}
+	view := cfg.ViewID
+	if view == "" {
+		// Hosts pass their HELLO view id explicitly. Keep standalone endpoint
+		// users isolated per attachment when they do not.
+		view = fmt.Sprintf("tui2:%s:%s", cfg.Endpoint, id)
+	}
 	p := &RemotePTY{
-		mgr:     m,
-		cfg:     endpointCfg,
-		id:      id,
-		argv:    append([]string(nil), cfg.Argv...),
-		surface: "tui2-host",
-		view:    fmt.Sprintf("tui2:%s:%s", cfg.Endpoint, id),
-		cols:    cfg.Cols,
-		rows:    cfg.Rows,
-		notify:  make(chan struct{}, 1),
-		closeCh: make(chan struct{}),
-		doneCh:  make(chan struct{}),
+		mgr:                m,
+		cfg:                endpointCfg,
+		id:                 id,
+		argv:               append([]string(nil), cfg.Argv...),
+		surface:            "tui2-host",
+		view:               view,
+		fit:                cfg.Fit,
+		expectedOwnerEpoch: cfg.ExpectedOwnerEpoch,
+		cols:               cfg.Cols,
+		rows:               cfg.Rows,
+		notify:             make(chan struct{}, 1),
+		closeCh:            make(chan struct{}),
+		doneCh:             make(chan struct{}),
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -84,6 +122,61 @@ func (p *RemotePTY) Closed() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.closed
+}
+
+// Detached reports whether this local view has released its daemon
+// attachment while keeping the daemon terminal alive.
+func (p *RemotePTY) Detached() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.detached
+}
+
+// Detach releases only this view's attachment. The reconnect supervisor keeps
+// the RemotePTY registered but will not rebind it until Reattach is called.
+func (p *RemotePTY) Detach() error {
+	p.mu.Lock()
+	if p.closed || p.detached {
+		p.mu.Unlock()
+		return nil
+	}
+	p.detached = true
+	att := p.att
+	p.att = nil
+	p.pending = nil
+	p.mu.Unlock()
+	if att == nil {
+		return nil
+	}
+	if att.stop != nil {
+		att.stop()
+		att.stop = nil
+	}
+	if att.stream != nil {
+		att.stream.close(errAttachmentDetached)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), p.mgr.opts.CallTimeout)
+	defer cancel()
+	return att.client.detach(ctx, att)
+}
+
+// Reattach requests an immediate bind of this view to the same daemon
+// terminal. It is idempotent and does not create or restart the terminal.
+func (p *RemotePTY) Reattach() error {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return pty.ErrClosed
+	}
+	wasDetached := p.detached
+	p.detached = false
+	started := p.started
+	p.mu.Unlock()
+	if !started || !wasDetached {
+		return nil
+	}
+	go p.mgr.rebindNow(p)
+	return nil
 }
 
 // Start connects (or waits for the reconnect loop), attaches the terminal,
@@ -127,19 +220,53 @@ func (p *RemotePTY) Start() error {
 // keeps blocking across reconnects; only exit or Close end the stream.
 func (p *RemotePTY) Read(b []byte) (int, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.readInFlight = true
+	p.readHasData = false
+	p.readSnapshot = false
 	for len(p.buf) == 0 && p.readErr == nil && !p.closed {
 		p.cond.Wait()
 	}
 	if len(p.buf) > 0 {
 		n := copy(b, p.buf)
 		p.buf = p.buf[n:]
+		reset := p.snapshotReset
+		snapshotRead := p.snapshotResetPending && !p.snapshotResetDone
+		p.readHasData = true
+		p.readSnapshot = snapshotRead
+		if !snapshotRead {
+			reset = nil
+		} else {
+			// Mark it before unlocking so a concurrent reader cannot run the
+			// hook twice. Terminal.pump is the only parser writer, and invokes
+			// this hook before it writes the returned bytes to the parser.
+			p.snapshotResetDone = true
+		}
+		p.mu.Unlock()
+		if reset != nil {
+			reset()
+		}
 		return n, nil
 	}
 	if p.closed {
+		p.readInFlight = false
+		p.mu.Unlock()
 		return 0, pty.ErrClosed
 	}
-	return 0, p.readErr
+	err := p.readErr
+	p.readInFlight = false
+	p.mu.Unlock()
+	return 0, err
+}
+
+// ReadDone marks the end of the runtime's parser transaction for the last
+// Read. RemotePTY uses it to let a reconnect reset the parser after an old
+// chunk that was already copied, but before the new snapshot is consumed.
+func (p *RemotePTY) ReadDone() {
+	p.mu.Lock()
+	p.readInFlight = false
+	p.readHasData = false
+	p.readSnapshot = false
+	p.mu.Unlock()
 }
 
 // Write forwards bytes to the daemon terminal as input.
@@ -179,6 +306,8 @@ func (p *RemotePTY) Resize(cols, rows int) error {
 	if att == nil {
 		return fmt.Errorf("endpoint %q: terminal %s is offline", p.cfg.Name, p.id)
 	}
+	p.resizeMu.Lock()
+	defer p.resizeMu.Unlock()
 	take := att.epoch == 0
 	ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
 	defer cancel()
@@ -186,17 +315,86 @@ func (p *RemotePTY) Resize(cols, rows int) error {
 	if err != nil {
 		return fmt.Errorf("endpoint %q: resize %s: %w", p.cfg.Name, p.id, err)
 	}
+	p.mu.Lock()
+	p.ownerView, p.ownerEpoch = att.ownerView, att.epoch
+	p.mu.Unlock()
 	if result.GetResized() {
 		return nil
 	}
 	if control := result.GetResizeControl(); control != nil {
-		if size := control.GetOwnership().GetSize(); size != nil && int(size.GetCols()) == cols && int(size.GetRows()) == rows {
-			return nil
+		ownership := control.GetOwnership()
+		if ownership == nil {
+			return fmt.Errorf("endpoint %q: resize %s denied: %s", p.cfg.Name, p.id, resizeReason(control))
+		}
+		if size := ownership.GetSize(); size != nil {
+			// Followers must expose the daemon's authoritative size. Keeping
+			// the requested local size makes every frame look out of sync and
+			// causes the host to keep trying the same denied resize.
+			p.mu.Lock()
+			p.cols, p.rows = int(size.GetCols()), int(size.GetRows())
+			p.mu.Unlock()
+			if int(size.GetCols()) == cols && int(size.GetRows()) == rows {
+				return nil
+			}
 		}
 		return fmt.Errorf("endpoint %q: resize %s denied: %s (owner view %q epoch %d)",
-			p.cfg.Name, p.id, resizeReason(control), control.GetOwnership().GetOwnerViewId(), control.GetOwnership().GetEpoch())
+			p.cfg.Name, p.id, resizeReason(control), ownership.GetOwnerViewId(), ownership.GetEpoch())
 	}
 	return nil
+}
+
+// claimOwner performs the initial remote resize-owner CAS after attachment.
+// The attach API has no epoch fence, so attachments start as followers and a
+// fit request is applied explicitly here.
+func (p *RemotePTY) claimOwner(ctx context.Context, att *attachment) error {
+	p.resizeMu.Lock()
+	defer p.resizeMu.Unlock()
+	cols, rows := p.window()
+	result, err := att.client.resize(ctx, att, cols, rows, true, p.expectedOwnerEpoch)
+	if err != nil {
+		return fmt.Errorf("endpoint %q: terminal %s: claim resize owner: %w", p.cfg.Name, p.id, err)
+	}
+	if result.GetResized() {
+		return nil
+	}
+	control := result.GetResizeControl()
+	if control != nil {
+		ownership := control.GetOwnership()
+		if ownership != nil {
+			size := ownership.GetSize()
+			if ownership.GetOwnerViewId() == p.view && size != nil && size.GetCols() == uint32(cols) && size.GetRows() == uint32(rows) {
+				return nil
+			}
+			return fmt.Errorf("endpoint %q: terminal %s: resize owner held by view %q epoch %d", p.cfg.Name, p.id, ownership.GetOwnerViewId(), ownership.GetEpoch())
+		}
+	}
+	return fmt.Errorf("endpoint %q: terminal %s: resize owner claim was rejected", p.cfg.Name, p.id)
+}
+
+// RefreshResizeOwner asks the daemon for the current ownership projection
+// without taking ownership or changing the requested size. It keeps every
+// client's owner badge accurate after another client takes the lease.
+func (p *RemotePTY) RefreshResizeOwner() bool {
+	p.resizeMu.Lock()
+	defer p.resizeMu.Unlock()
+	p.mu.Lock()
+	att := p.att
+	cols, rows := p.cols, p.rows
+	closed := p.closed
+	p.mu.Unlock()
+	if closed || att == nil || cols <= 0 || rows <= 0 {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
+	defer cancel()
+	result, err := att.client.resize(ctx, att, cols, rows, false, att.epoch)
+	if err != nil {
+		return false
+	}
+	p.mu.Lock()
+	p.ownerView, p.ownerEpoch = att.ownerView, att.epoch
+	p.mu.Unlock()
+	return result != nil
 }
 
 func resizeReason(control *apipb.ResizeControl) string {
@@ -225,6 +423,17 @@ func (p *RemotePTY) Size() (int, int, error) {
 	return p.cols, p.rows, nil
 }
 
+// ResizeOwner returns the last authoritative daemon owner projection seen by
+// this attachment. A missing attachment means there is no remote snapshot.
+func (p *RemotePTY) ResizeOwner() (string, uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.att == nil {
+		return "", 0
+	}
+	return p.ownerView, p.ownerEpoch
+}
+
 // ExitCode returns the daemon-reported exit status, or -1 while running.
 func (p *RemotePTY) ExitCode() int {
 	p.mu.Lock()
@@ -249,8 +458,19 @@ func (p *RemotePTY) Close() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if att != nil && !p.Exited() {
-		if err := att.client.kill(ctx, p.id); err != nil {
+	killer := sessionConn(nil)
+	if att != nil {
+		killer = att.client
+	} else {
+		p.mgr.mu.Lock()
+		state := p.mgr.endpoints[p.cfg.Name]
+		p.mgr.mu.Unlock()
+		if state != nil {
+			killer = p.mgr.currentClient(state)
+		}
+	}
+	if killer != nil && !p.Exited() {
+		if err := killer.kill(ctx, p.id); err != nil {
 			p.mgr.notifyNotice("warning", fmt.Sprintf("endpoint %s: kill %s: %v", p.cfg.Name, p.id, err))
 		}
 		deadline := time.Now().Add(1500 * time.Millisecond)
@@ -330,9 +550,9 @@ func (p *RemotePTY) window() (int, int) {
 	return cols, rows
 }
 
-// seedSnapshot renders the daemon native screen snapshot and prepends it to
-// the read stream: the snapshot is authoritative after attach or reconnect,
-// and live deltas continue from there.
+// seedSnapshot renders the daemon native screen snapshot and replaces the
+// unread stream with it: the snapshot is authoritative after attach or
+// reconnect, and live deltas continue from that new generation.
 func (p *RemotePTY) seedSnapshot(screen *apipb.NativeScreenResult) {
 	if screen == nil {
 		return
@@ -341,17 +561,62 @@ func (p *RemotePTY) seedSnapshot(screen *apipb.NativeScreenResult) {
 	if len(rendered) == 0 {
 		return
 	}
+	var reset, barrier func()
 	p.mu.Lock()
 	if !p.closed && p.readErr == nil {
-		p.buf = append(rendered, p.buf...)
+		// A native snapshot is an authoritative resynchronization point. Any
+		// bytes still buffered belong to the previous attachment generation
+		// (the stream may have reported sync-lost while the reader had not
+		// drained its queue yet). Replaying them after the fresh snapshot
+		// applies stale screen/input output on top of the current screen and
+		// produces the characteristic one-frame back-and-forth jump at a TUI
+		// scroll boundary.
+		p.buf = append(p.buf[:0], rendered...)
+		p.snapshotResetPending = true
+		p.snapshotResetDone = false
+		if p.readInFlight {
+			if p.readHasData && !p.readSnapshot {
+				barrier = p.snapshotBarrier
+			}
+		} else {
+			// No parser transaction is active, so reset immediately. A blocked
+			// Read will reset itself immediately before returning the snapshot.
+			reset = p.snapshotReset
+		}
 	}
 	p.cond.Broadcast()
+	p.mu.Unlock()
+	if barrier != nil {
+		barrier()
+	} else if reset != nil {
+		reset()
+	}
+}
+
+// SetSnapshotReset installs the parser reset hook used on reconnect. It is a
+// small optional interface so RemotePTY remains usable by endpoint callers
+// that do not embed the tui runtime.
+func (p *RemotePTY) SetSnapshotReset(reset func()) {
+	p.mu.Lock()
+	p.snapshotReset = reset
+	p.mu.Unlock()
+}
+
+// SetSnapshotBarrier installs the runtime hook used when seedSnapshot races a
+// Read that already copied bytes from the previous attachment. The hook must
+// wait for that parser transaction to finish before resetting state.
+func (p *RemotePTY) SetSnapshotBarrier(barrier func()) {
+	p.mu.Lock()
+	p.snapshotBarrier = barrier
 	p.mu.Unlock()
 }
 
 func (p *RemotePTY) setPending(att *attachment) {
 	p.mu.Lock()
 	p.pending = att
+	if att != nil {
+		p.ownerView, p.ownerEpoch = att.ownerView, att.epoch
+	}
 	// Input/resize follow the newest live attachment immediately: the stream
 	// was already started by the manager, and keeping the stale attachment
 	// here would route the first keystrokes after a reconnect into a dead
@@ -401,7 +666,32 @@ func (p *RemotePTY) run() {
 			}
 		}
 		err := p.pump(att)
-		if errors.Is(err, errTerminalClosed) || errors.Is(err, io.EOF) {
+		if errors.Is(err, errTerminalClosed) {
+			p.finish()
+			return
+		}
+		if errors.Is(err, errAttachmentDetached) {
+			select {
+			case <-p.notify:
+			case <-p.closeCh:
+				return
+			}
+			continue
+		}
+		if errors.Is(err, io.EOF) {
+			// A raw test/session implementation may still report a clean EOF
+			// for detach. Check the state before treating it as process exit.
+			p.mu.Lock()
+			detached := p.detached
+			p.mu.Unlock()
+			if detached {
+				select {
+				case <-p.notify:
+				case <-p.closeCh:
+					return
+				}
+				continue
+			}
 			p.finish()
 			return
 		}

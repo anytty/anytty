@@ -22,7 +22,7 @@ DEV_ROOT="${ANYTTY_DEV_ROOT:-$HOME/.local/share/anytty-dev}"
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config/anytty-dev}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state/anytty-dev}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-$XDG_STATE_HOME/run}"
-export ANYTTY_DEV_SOCKET="${ANYTTY_DEV_SOCKET:-$XDG_RUNTIME_DIR/anytty-v2-wire7-dev.sock}"
+export ANYTTY_DEV_SOCKET="${ANYTTY_DEV_SOCKET:-$XDG_RUNTIME_DIR/anytty-v3-wire7-dev.sock}"
 # 既有 hs 终端池默认占用 0.0.0.0:41120；dev 终端池只绑 loopback 的独立端口。
 export ANYTTY_DIRECT_SIGNALING_LISTEN="${ANYTTY_DIRECT_SIGNALING_LISTEN:-127.0.0.1:44120}"
 export ANYTTY_DIRECT_ICE_TCP_LISTEN="${ANYTTY_DIRECT_ICE_TCP_LISTEN:-127.0.0.1:44121}"

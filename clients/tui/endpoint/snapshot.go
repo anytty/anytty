@@ -18,6 +18,11 @@ func renderScreenSnapshot(screen *apipb.NativeScreenResult) []byte {
 		return nil
 	}
 	var b strings.Builder
+	// NativeScreen does not carry DEC synchronized-output state. Always end a
+	// previous attachment's batch before painting the authoritative snapshot;
+	// otherwise a reconnect that happened mid-redraw can leave the local parser
+	// suppressing wakeups until a future child redraw happens to send 2026l.
+	b.WriteString("\x1b[?2026l")
 	b.WriteString("\x1b[0m")
 	b.WriteString("\x1b[2J")
 	writeSnapshotModes(&b, screen.GetModes())
@@ -27,11 +32,35 @@ func renderScreenSnapshot(screen *apipb.NativeScreenResult) []byte {
 			continue
 		}
 		b.WriteString(fmt.Sprintf("\x1b[%d;1H\x1b[0m", row.GetRowIndex()+1))
+		used := 0
 		for _, cell := range row.GetRow().GetCells() {
 			writeCell(&b, cell)
+			width := int(cell.GetWidth())
+			if width <= 0 {
+				width = 1
+			}
+			used += width
+		}
+		if tail := row.GetRow().GetTailFill(); tail != nil {
+			cols := int(screen.GetSize().GetCols())
+			if remaining := cols - used; remaining > 0 {
+				b.WriteString(sgrForStyle(tail))
+				b.WriteString(strings.Repeat(" ", remaining))
+			}
 		}
 	}
+	// Do not let the last row's display-only background leak into subsequent
+	// live PTY bytes after the snapshot seed.
+	b.WriteString("\x1b[0m")
 	if cursor := screen.GetCursor(); cursor != nil {
+		switch cursor.GetShape() {
+		case apipb.CursorShape_CURSOR_SHAPE_BAR:
+			b.WriteString("\x1b[6 q")
+		case apipb.CursorShape_CURSOR_SHAPE_UNDERLINE:
+			b.WriteString("\x1b[4 q")
+		default:
+			b.WriteString("\x1b[2 q")
+		}
 		b.WriteString(fmt.Sprintf("\x1b[%d;%dH", cursor.GetRow()+1, cursor.GetCol()+1))
 		if cursor.GetVisible() {
 			b.WriteString("\x1b[?25h")
@@ -107,11 +136,11 @@ func writeCell(b *strings.Builder, cell *apipb.ScreenCell) {
 	if width <= 0 {
 		width = 1
 	}
+	b.WriteString(sgrForStyle(cell.GetStyle()))
 	if cell.GetContent() == "" {
 		b.WriteString(strings.Repeat(" ", width))
 		return
 	}
-	b.WriteString(sgrForStyle(cell.GetStyle()))
 	b.WriteString(cell.GetContent())
 }
 

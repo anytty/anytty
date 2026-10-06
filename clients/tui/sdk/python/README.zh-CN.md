@@ -2,7 +2,12 @@
 
 三层：`tui2sdk.wire`（protobuf/帧）、`tui2sdk.core`（Client/App：事件循环、
 类型化事件、Emit/Commit）、`tui2sdk.builder`（盒子链式声明 + 文本度量）、
-`tui2sdk.widgets`（程序侧 chrome：card/tab 条/footer/picker/浮窗/分屏树/toast）。
+`tui2sdk.widgets`（与 Go `sdk/widgets` 对齐的 21 个模块：布局/chrome
+（layout/basics/chrome）、内容（list/table/input/modal/richtext/scrollbar）、
+交互（mouse/hover/contextmenu）、表单（form/validate/select/datepicker）、
+图表（chart/progress）、format、tokens/theme/border；
+按模块命名空间使用，如 `tui2sdk.widgets.list.List`。旧 `ChromeApp` 一族在
+`tui2sdk.widgets.chrome`，顶层扁平名保持兼容）。
 
 ```python
 import sys
@@ -17,7 +22,7 @@ class Demo(App):
 Client(sys.stdin.buffer, sys.stdout.buffer).run(Demo())
 ```
 
-一致性（与官方 Go/TS 同一套 fixtures，10/10）：
+一致性（与官方 Go/TS 同一套 fixtures，14/14）：
 
 ```bash
 go run ./clients/tui/cmd/tui2-sdk-verify --cmd "python3 clients/tui/sdk/python/conformance.py"

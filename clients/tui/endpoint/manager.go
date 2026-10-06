@@ -15,6 +15,7 @@ import (
 	"github.com/anytty/anytty/proto/access/apipb"
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
+	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	gproto "google.golang.org/protobuf/proto"
 )
 
@@ -85,15 +86,17 @@ func (o Options) withDefaults() Options {
 
 // Status is one daemon terminal projection for the host sources snapshot.
 type Status struct {
-	Endpoint string
-	ID       string
-	Name     string
-	Exited   bool
-	ExitCode int
-	Attached bool
-	Health   string
-	Cols     int
-	Rows     int
+	Endpoint     string
+	ID           string
+	Name         string
+	Exited       bool
+	ExitCode     int
+	Attached     bool
+	Health       string
+	Cols         int
+	Rows         int
+	Tags         map[string]string
+	LastOutputAt time.Time
 }
 
 // Manager owns every configured endpoint: one connection supervisor per
@@ -102,11 +105,13 @@ type Status struct {
 type Manager struct {
 	opts Options
 
-	mu        sync.Mutex
-	endpoints map[string]*endpointState
-	closed    bool
-	onChange  func()
-	onNotice  func(level, message string)
+	mu          sync.Mutex
+	endpoints   map[string]*endpointState
+	closed      bool
+	onChange    func()
+	onNotice    func(level, message string)
+	listeners   map[uint64]managerListener
+	listenerSeq uint64
 
 	baseCtx context.Context
 	cancel  context.CancelFunc
@@ -122,8 +127,36 @@ func NewManager(opts Options) *Manager {
 		endpoints: map[string]*endpointState{},
 		onChange:  opts.OnChange,
 		onNotice:  opts.OnNotice,
+		listeners: map[uint64]managerListener{},
 		baseCtx:   ctx,
 		cancel:    cancel,
+	}
+}
+
+type managerListener struct {
+	onChange func()
+	onNotice func(level, message string)
+}
+
+// Subscribe adds per-view callbacks without replacing the manager's legacy
+// SetOnChange/SetOnNotice callbacks. This lets multiple Host views share one
+// endpoint inventory and each receive repaint/notice notifications.
+func (m *Manager) Subscribe(onChange func(), onNotice func(level, message string)) func() {
+	if onChange == nil && onNotice == nil {
+		return func() {}
+	}
+	m.mu.Lock()
+	m.listenerSeq++
+	id := m.listenerSeq
+	m.listeners[id] = managerListener{onChange: onChange, onNotice: onNotice}
+	m.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.mu.Lock()
+			delete(m.listeners, id)
+			m.mu.Unlock()
+		})
 	}
 }
 
@@ -144,25 +177,47 @@ func (m *Manager) SetOnNotice(fn func(level, message string)) {
 func (m *Manager) notifyChange() {
 	m.mu.Lock()
 	fn := m.onChange
+	listeners := make([]func(), 0, len(m.listeners))
+	for _, listener := range m.listeners {
+		if listener.onChange != nil {
+			listeners = append(listeners, listener.onChange)
+		}
+	}
 	m.mu.Unlock()
 	if fn != nil {
 		fn()
+	}
+	for _, listener := range listeners {
+		listener()
 	}
 }
 
 func (m *Manager) notifyNotice(level, message string) {
 	m.mu.Lock()
 	fn := m.onNotice
+	listeners := make([]func(string, string), 0, len(m.listeners))
+	for _, listener := range m.listeners {
+		if listener.onNotice != nil {
+			listeners = append(listeners, listener.onNotice)
+		}
+	}
 	m.mu.Unlock()
 	if fn != nil {
 		fn(level, message)
 	}
+	for _, listener := range listeners {
+		listener(level, message)
+	}
 }
 
 type endpointState struct {
-	cfg         Config
-	health      string
-	lastErr     string
+	cfg     Config
+	health  string
+	lastErr string
+	// lastNotice dedupes repeated identical offline warnings: the supervisor
+	// flips offline -> connecting -> offline on every backoff, and a user who
+	// left a paired device unused should see one warning, not one per retry.
+	lastNotice  string
 	client      sessionConn
 	terminals   map[string]*apipb.TerminalInfo
 	attachments map[string]*RemotePTY
@@ -204,6 +259,23 @@ func (m *Manager) Register(cfg Config) error {
 }
 
 // Config returns the registered configuration of an endpoint.
+// HasSocket reports whether any registered endpoint uses the socket path.
+// Callers use it to avoid registering a second endpoint for one connection.
+func (m *Manager) HasSocket(socket string) bool {
+	socket = strings.TrimSpace(socket)
+	if socket == "" {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, state := range m.endpoints {
+		if strings.TrimSpace(state.cfg.Socket) == socket {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Manager) Config(name string) (Config, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -212,6 +284,21 @@ func (m *Manager) Config(name string) (Config, bool) {
 		return Config{}, false
 	}
 	return state.cfg, true
+}
+
+// Configs returns the registered endpoint configurations in stable name
+// order. The returned values are copies and may be shown by a connections UI.
+func (m *Manager) Configs() []Config {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	configs := make([]Config, 0, len(m.endpoints))
+	for _, state := range m.endpoints {
+		if state != nil {
+			configs = append(configs, state.cfg)
+		}
+	}
+	sort.Slice(configs, func(i, j int) bool { return configs[i].Name < configs[j].Name })
+	return configs
 }
 
 // Kind reports the registered kind of an endpoint.
@@ -233,6 +320,34 @@ func (m *Manager) Health(name string) string {
 	return HealthUnknown
 }
 
+// Label returns the display label of an endpoint (empty when unregistered or
+// the registry carries no label).
+func (m *Manager) Label(name string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if state, ok := m.endpoints[name]; ok {
+		return strings.TrimSpace(state.cfg.Label)
+	}
+	return ""
+}
+
+// unixNanoToTime converts a Unix-nanosecond timestamp; zero stays the zero
+// value so a never-active terminal renders no activity label.
+func unixNanoToTime(nanos int64) time.Time {
+	if nanos == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, nanos)
+}
+
+// lastOutputMillis returns the Unix-millis activity timestamp (0 when never).
+func lastOutputMillis(at time.Time) int64 {
+	if at.IsZero() {
+		return 0
+	}
+	return at.UnixMilli()
+}
+
 // Snapshot returns every known daemon terminal across all endpoints. The host
 // merges it with its locally attached terminals into the sources snapshot.
 func (m *Manager) Snapshot() []Status {
@@ -245,18 +360,20 @@ func (m *Manager) Snapshot() []Status {
 		}
 		for id, info := range state.terminals {
 			status := Status{
-				Endpoint: name,
-				ID:       id,
-				Name:     info.GetName(),
-				Exited:   info.GetState() == apipb.TerminalState_TERMINAL_STATE_EXITED,
-				Health:   state.health,
-				Cols:     int(info.GetSize().GetCols()),
-				Rows:     int(info.GetSize().GetRows()),
+				Endpoint:     name,
+				ID:           id,
+				Name:         info.GetName(),
+				Exited:       info.GetState() == apipb.TerminalState_TERMINAL_STATE_EXITED,
+				Health:       state.health,
+				Cols:         int(info.GetSize().GetCols()),
+				Rows:         int(info.GetSize().GetRows()),
+				Tags:         info.GetTags(),
+				LastOutputAt: unixNanoToTime(info.GetLastOutputAtUnixNano()),
 			}
 			if exitCode := info.GetExitCode(); info.ExitCode != nil {
 				status.ExitCode = int(exitCode)
 			}
-			if p, ok := state.attachments[id]; ok && p != nil && !p.Closed() {
+			if p, ok := state.attachments[id]; ok && p != nil && !p.Closed() && !p.Detached() {
 				status.Attached = true
 			}
 			out = append(out, status)
@@ -393,15 +510,27 @@ func (m *Manager) setHealth(state *endpointState, health, detail string) {
 		state.lastErr = detail
 	}
 	name := state.cfg.Name
+	offlineNotice := ""
+	if health == HealthOffline {
+		offlineNotice = fmt.Sprintf("endpoint %s offline", name)
+		if detail != "" {
+			offlineNotice += ": " + detail
+		}
+		if state.lastNotice == offlineNotice {
+			offlineNotice = ""
+		} else {
+			state.lastNotice = offlineNotice
+		}
+	} else if health == HealthOK {
+		state.lastNotice = ""
+	}
 	m.mu.Unlock()
 	m.notifyChange()
 	switch health {
 	case HealthOffline:
-		message := fmt.Sprintf("endpoint %s offline", name)
-		if detail != "" {
-			message += ": " + detail
+		if offlineNotice != "" {
+			m.notifyNotice("warning", offlineNotice)
 		}
-		m.notifyNotice("warning", message)
 	case HealthOK:
 		if previous == HealthOffline || previous == HealthConnecting {
 			m.notifyNotice("info", fmt.Sprintf("endpoint %s connected", name))
@@ -488,7 +617,7 @@ func (m *Manager) rebindAll(ctx context.Context, state *endpointState) {
 // and hands it to the PTY pump.
 func (m *Manager) rebindOne(ctx context.Context, state *endpointState, p *RemotePTY) {
 	conn := m.currentClient(state)
-	if conn == nil || p.Closed() {
+	if conn == nil || p.Closed() || p.Detached() {
 		return
 	}
 	att, err := m.openAttachment(ctx, conn, state, p)
@@ -531,6 +660,12 @@ func (m *Manager) openAttachment(ctx context.Context, conn sessionConn, state *e
 	if err := conn.startStream(ctx, att, m.opts.CallTimeout); err != nil {
 		_ = conn.detach(context.Background(), att)
 		return nil, err
+	}
+	if p.fit {
+		if err := p.claimOwner(ctx, att); err != nil {
+			_ = conn.detach(context.Background(), att)
+			return nil, err
+		}
 	}
 	return att, nil
 }
@@ -647,6 +782,102 @@ func (m *Manager) Create(ctx context.Context, name string, spec *apipb.TerminalC
 	m.mu.Unlock()
 	m.changed()
 	return info, nil
+}
+
+// Execute forwards one application command through the endpoint's ready
+// connection (access.call). The host is a transparent forwarder: family
+// policy and confirmation are intentionally absent, so the manager only
+// guarantees routing to a live connection and a readable error when the
+// endpoint is not a daemon backend.
+func (m *Manager) Execute(ctx context.Context, name string, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	m.mu.Lock()
+	state := m.endpoints[name]
+	m.mu.Unlock()
+	if state == nil {
+		return nil, fmt.Errorf("endpoint %q is not registered", name)
+	}
+	if state.cfg.KindName() != KindDaemon {
+		return nil, fmt.Errorf("endpoint %q is not a daemon endpoint", name)
+	}
+	if err := state.cfg.UnsupportedModeError(); err != nil {
+		return nil, err
+	}
+	waitCtx, waitCancel := context.WithTimeout(ctx, m.opts.DialTimeout+m.opts.CallTimeout)
+	conn, err := m.waitClient(waitCtx, state)
+	waitCancel()
+	if err != nil {
+		return nil, err
+	}
+	callCtx, cancel := context.WithTimeout(ctx, m.opts.CallTimeout)
+	defer cancel()
+	return conn.execute(callCtx, command)
+}
+
+// Reconnect forces the current endpoint connection to close. Its supervisor
+// immediately enters the normal reconnect/backoff path and preserves terminal
+// ids and attachments.
+func (m *Manager) Reconnect(name string) error {
+	m.mu.Lock()
+	state := m.endpoints[name]
+	if state == nil {
+		m.mu.Unlock()
+		return fmt.Errorf("endpoint %q is not registered", name)
+	}
+	conn := state.client
+	m.mu.Unlock()
+	if conn == nil {
+		return nil
+	}
+	return conn.close()
+}
+
+// OpenStream opens the framing stream behind one access resource handle on
+// the endpoint's ready connection (access.stream.open).
+func (m *Manager) OpenStream(ctx context.Context, name string, resource *apipb.ResourceHandle) (clientruntime.ResourceStream, error) {
+	m.mu.Lock()
+	state := m.endpoints[name]
+	m.mu.Unlock()
+	if state == nil {
+		return nil, fmt.Errorf("endpoint %q is not registered", name)
+	}
+	if state.cfg.KindName() != KindDaemon {
+		return nil, fmt.Errorf("endpoint %q is not a daemon endpoint", name)
+	}
+	if err := state.cfg.UnsupportedModeError(); err != nil {
+		return nil, err
+	}
+	waitCtx, waitCancel := context.WithTimeout(ctx, m.opts.DialTimeout+m.opts.CallTimeout)
+	conn, err := m.waitClient(waitCtx, state)
+	waitCancel()
+	if err != nil {
+		return nil, err
+	}
+	return conn.openStream(resource)
+}
+
+// SubscribeEvents opens a connection event subscription on the endpoint's
+// ready connection (access.stream.subscribe). The returned channel closes
+// when the connection ends; callers must tolerate reconnect by resubscribing.
+func (m *Manager) SubscribeEvents(ctx context.Context, name string) (<-chan *apipb.EventEnvelope, error) {
+	m.mu.Lock()
+	state := m.endpoints[name]
+	m.mu.Unlock()
+	if state == nil {
+		return nil, fmt.Errorf("endpoint %q is not registered", name)
+	}
+	if state.cfg.KindName() != KindDaemon {
+		return nil, fmt.Errorf("endpoint %q is not a daemon endpoint", name)
+	}
+	if err := state.cfg.UnsupportedModeError(); err != nil {
+		return nil, err
+	}
+	waitCtx, waitCancel := context.WithTimeout(ctx, m.opts.DialTimeout+m.opts.CallTimeout)
+	conn, err := m.waitClient(waitCtx, state)
+	waitCancel()
+	if err != nil {
+		return nil, err
+	}
+	return conn.events(ctx)
 }
 
 // Kill terminates a daemon terminal (idempotent for exited terminals).
@@ -804,15 +1035,20 @@ func (m *Manager) Sources() []*pb.Source {
 			exitCode = 0
 		}
 		out = append(out, &pb.Source{
-			Id:         "terminal:" + status.Endpoint + ":" + status.ID,
-			Kind:       "terminal",
-			Title:      title,
-			Endpoint:   status.Endpoint,
-			TerminalId: status.ID,
-			Attached:   status.Attached,
-			Exited:     status.Exited,
-			ExitCode:   int32(exitCode),
-			Health:     status.Health,
+			Id:            "terminal:" + status.Endpoint + ":" + status.ID,
+			Kind:          "terminal",
+			Title:         title,
+			Endpoint:      status.Endpoint,
+			TerminalId:    status.ID,
+			Attached:      status.Attached,
+			Exited:        status.Exited,
+			ExitCode:      int32(exitCode),
+			Health:        status.Health,
+			Cols:          int32(status.Cols),
+			Rows:          int32(status.Rows),
+			Tags:          status.Tags,
+			EndpointLabel: m.Label(status.Endpoint),
+			LastOutputMs:  lastOutputMillis(status.LastOutputAt),
 		})
 	}
 	m.mu.Lock()

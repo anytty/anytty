@@ -13,7 +13,7 @@ func resolveV3Socket(path string) string {
 	if path != "" {
 		return path
 	}
-	return runtimepath.SocketPath(fmt.Sprintf("anytty-v2-wire%d.sock", wire.Version))
+	return runtimepath.SocketPath(fmt.Sprintf("anytty-v3-wire%d.sock", wire.Version))
 }
 
 func loadV3ConnectionRegistry() (endpointdomain.Registry, error) {

@@ -3,6 +3,7 @@ package render
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Token is the opaque style value carried by a rendered line. There are two
@@ -293,22 +294,26 @@ func (t Token) RawSGR() (string, bool) {
 // ("fg:#RRGGBB;bg:#RRGGBB;bold;dim;reverse"). The host translates it to SGR
 // verbatim; no palette, theme or configuration is involved.
 type Style struct {
-	FG        string
-	BG        string
-	Bold      bool
-	Dim       bool
-	Italic    bool
-	Underline bool
-	Reverse   bool
+	FG            string
+	BG            string
+	Bold          bool
+	Dim           bool
+	Italic        bool
+	Underline     bool
+	Blink         bool
+	Reverse       bool
+	Strikethrough bool
 }
 
 // styleAttributes maps the accepted attribute spellings to their Style flag.
 var styleAttributes = map[string]func(*Style){
-	"bold":      func(s *Style) { s.Bold = true },
-	"dim":       func(s *Style) { s.Dim = true },
-	"italic":    func(s *Style) { s.Italic = true },
-	"underline": func(s *Style) { s.Underline = true },
-	"reverse":   func(s *Style) { s.Reverse = true },
+	"bold":          func(s *Style) { s.Bold = true },
+	"dim":           func(s *Style) { s.Dim = true },
+	"italic":        func(s *Style) { s.Italic = true },
+	"underline":     func(s *Style) { s.Underline = true },
+	"blink":         func(s *Style) { s.Blink = true },
+	"reverse":       func(s *Style) { s.Reverse = true },
+	"strikethrough": func(s *Style) { s.Strikethrough = true },
 }
 
 // ParseStyle parses an explicit style string. ok is false when the value is
@@ -343,11 +348,11 @@ func ParseStyle(value string) (Style, bool) {
 		}
 		switch {
 		case strings.HasPrefix(segment, "fg:"):
-			if color, ok := normalizeHexColor(strings.TrimPrefix(segment, "fg:")); ok {
+			if color, ok := normalizeStyleColor(strings.TrimPrefix(segment, "fg:")); ok {
 				style.FG = color
 			}
 		case strings.HasPrefix(segment, "bg:"):
-			if color, ok := normalizeHexColor(strings.TrimPrefix(segment, "bg:")); ok {
+			if color, ok := normalizeStyleColor(strings.TrimPrefix(segment, "bg:")); ok {
 				style.BG = color
 			}
 		}
@@ -373,7 +378,9 @@ func (s Style) String() string {
 		{"dim", s.Dim},
 		{"italic", s.Italic},
 		{"underline", s.Underline},
+		{"blink", s.Blink},
 		{"reverse", s.Reverse},
+		{"strikethrough", s.Strikethrough},
 	} {
 		if attr.set {
 			parts = append(parts, attr.name)
@@ -398,19 +405,96 @@ func (s Style) SGR() string {
 	if s.Underline {
 		params = append(params, "4")
 	}
+	if s.Blink {
+		params = append(params, "5")
+	}
 	if s.Reverse {
 		params = append(params, "7")
 	}
-	if r, g, b, ok := parseHexColor(s.FG); ok {
-		params = append(params, "38", "2", r, g, b)
+	if s.Strikethrough {
+		params = append(params, "9")
 	}
-	if r, g, b, ok := parseHexColor(s.BG); ok {
-		params = append(params, "48", "2", r, g, b)
+	if code, ok := styleColorSGR(s.FG, true); ok {
+		params = append(params, code...)
+	}
+	if code, ok := styleColorSGR(s.BG, false); ok {
+		params = append(params, code...)
 	}
 	if len(params) == 0 {
 		return ""
 	}
 	return "\x1b[" + strings.Join(params, ";") + "m"
+}
+
+// normalizeStyleColor canonicalizes one explicit-style color: hex colors to
+// lowercase "#rrggbb", terminal palette colors ("ansi:0".."ansi:15") to their
+// palette spelling and indexed colors ("idx:0".."idx:255") likewise. The old
+// renderer used the same ansi:N/idx:N spellings (copy selection highlight
+// uses ansi:8 on ansi:3).
+func normalizeStyleColor(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if color, ok := normalizeHexColor(value); ok {
+		return color, true
+	}
+	if index, ok := ansiPaletteIndex(value, "ansi:"); ok {
+		return "ansi:" + strconv.Itoa(index), true
+	}
+	if index, ok := ansiPaletteIndex(value, "idx:"); ok {
+		return "idx:" + strconv.Itoa(index), true
+	}
+	return "", false
+}
+
+// ansiPaletteIndex parses "<prefix>N" with N in the range the old renderer
+// accepted (ansi: 0..15, idx: 0..255).
+func ansiPaletteIndex(value, prefix string) (int, bool) {
+	if !strings.HasPrefix(value, prefix) {
+		return 0, false
+	}
+	index, err := strconv.Atoi(strings.TrimPrefix(value, prefix))
+	if err != nil || index < 0 {
+		return 0, false
+	}
+	if prefix == "ansi:" && index > 15 {
+		return 0, false
+	}
+	if prefix == "idx:" && index > 255 {
+		return 0, false
+	}
+	return index, true
+}
+
+// styleColorSGR translates one stored color to SGR parameters: hex to true
+// color, ansi:N to the 30/90 (fg) or 40/100 (bg) palette codes, idx:N to the
+// 256-color 38;5;N / 48;5;N form (the old ansiPaletteColorCode mapping).
+func styleColorSGR(value string, foreground bool) ([]string, bool) {
+	if r, g, b, ok := parseHexColor(value); ok {
+		prefix := "38"
+		if !foreground {
+			prefix = "48"
+		}
+		return []string{prefix, "2", r, g, b}, true
+	}
+	if index, ok := ansiPaletteIndex(value, "ansi:"); ok {
+		switch {
+		case foreground && index < 8:
+			return []string{strconv.Itoa(30 + index)}, true
+		case foreground:
+			return []string{strconv.Itoa(90 + index - 8)}, true
+		case index < 8:
+			return []string{strconv.Itoa(40 + index)}, true
+		default:
+			return []string{strconv.Itoa(100 + index - 8)}, true
+		}
+	}
+	if index, ok := ansiPaletteIndex(value, "idx:"); ok {
+		prefix := "38"
+		if !foreground {
+			prefix = "48"
+		}
+		return []string{prefix, "5", strconv.Itoa(index)}, true
+	}
+	return nil, false
 }
 
 // normalizeHexColor rewrites a color to canonical lowercase "#rrggbb".
@@ -567,7 +651,21 @@ func hexByte(pair string) int {
 // VisibleText strips characters that cannot live in a single cell: newlines
 // and other C0 controls become spaces so a text run never breaks a row.
 func VisibleText(value string) string {
+	for i := 0; i < len(value); {
+		r, size := utf8.DecodeRuneInString(value[i:])
+		if r == utf8.RuneError && size == 1 {
+			goto sanitize
+		}
+		if r == '\n' || r == '\r' || r == '\t' || (r < 0x20) || (r >= 0x7F && r < 0xA0) {
+			goto sanitize
+		}
+		i += size
+	}
+	return value
+
+sanitize:
 	var b strings.Builder
+	b.Grow(len(value))
 	for _, r := range value {
 		if r == '\n' || r == '\r' || r == '\t' || (r < 0x20) || (r >= 0x7F && r < 0xA0) {
 			b.WriteByte(' ')

@@ -11,8 +11,13 @@ import (
 type Request struct {
 	Epoch     uint64
 	RequestID uint64
-	Method    Method
-	Params    *pb.MethodParams
+	// OwnerID is the host-assigned view id for resize-owner CAS. It is
+	// transport metadata, not a wire field; Sessions fill it before invoking
+	// the shared terminal handler so multiple views can safely attach through
+	// one handler.
+	OwnerID string
+	Method  Method
+	Params  *pb.MethodParams
 }
 
 // Outcome is a completed method execution.

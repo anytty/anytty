@@ -232,7 +232,12 @@ func openProtocolLog(path string) (*protocolLog, error) {
 }
 
 func (l *protocolLog) close() {
-	if l == nil || l.f == nil {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.f == nil {
 		return
 	}
 	_ = l.f.Close()
@@ -240,12 +245,15 @@ func (l *protocolLog) close() {
 }
 
 func (l *protocolLog) write(record frameRecord) {
-	if l == nil || l.f == nil {
+	if l == nil {
 		return
 	}
 	record.TS = time.Now().Format(time.RFC3339Nano)
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.f == nil {
+		return
+	}
 	_ = l.enc.Encode(record)
 }
 

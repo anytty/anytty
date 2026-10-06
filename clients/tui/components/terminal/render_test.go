@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/anytty/anytty/clients/tui/render"
@@ -56,6 +57,16 @@ func TestRenderUnfocusedGolden(t *testing.T) {
 	}
 	if got := lineAt(t, lines, 0, 3); got.Text != "└──────────┘" || got.Style != render.TokenBorder {
 		t.Fatalf("bottom = %+v", got)
+	}
+}
+
+func TestRenderDimmedPanelUsesMutedStyles(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{Dimmed: true, Inset: 0, InsetSet: true})
+	component.SetScreen(ScreenFromText([]string{"hello"}, render.TokenDefault))
+	lines := component.Render(5, 1)
+	if len(lines) != 1 || lines[0].Style != render.TokenMuted {
+		t.Fatalf("dimmed default line = %+v, want muted style", lines)
 	}
 }
 
@@ -296,5 +307,85 @@ func TestRenderUnknownChromeKeysAreIgnored(t *testing.T) {
 
 	if got, want := withJunk.Render(12, 3), plain.Render(12, 3); !reflect.DeepEqual(got, want) {
 		t.Fatalf("unknown chrome keys changed the render:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+func TestRenderCopyOverlay(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Title: "main",
+		Inset: 1,
+		Chrome: map[string]string{
+			PropCopySelection:      "0,1,3",
+			PropCopyMatch:          "1,0,1",
+			PropCopyCursor:         "0,2",
+			PropCopyStyleSelection: "fg:ansi:8;bg:ansi:3",
+			PropCopyStyleMatch:     "fg:#fde68a;underline",
+			PropCopyStyleCursor:    "reverse",
+		},
+	})
+	component.SetScreen(ScreenFromText([]string{"abcd", "ef"}, render.TokenDefault))
+
+	lines := component.Render(12, 4)
+	// Selection paints "bcd" (cols 1..3) with the program style, and the
+	// cursor cell (0,2) repaints "c" on top.
+	if got := lineAt(t, lines, 2, 1); got.Text != "bcd" || got.Style != render.Token("fg:ansi:8;bg:ansi:3") {
+		t.Fatalf("selection run = %+v", got)
+	}
+	if got := lineAt(t, lines, 3, 1); got.Text != "c" || got.Style != render.Token("reverse") {
+		t.Fatalf("cursor cell = %+v", got)
+	}
+	// Match paints "ef" on row 1 (cols 0..1) with its own style; the overlay
+	// is emitted after the content, so the last run at that cell wins.
+	var match render.Line
+	for _, line := range lines {
+		if line.X == 1 && line.Y == 2 {
+			match = line
+		}
+	}
+	if match.Text != "ef" || match.Style != render.Token("fg:#fde68a;underline") {
+		t.Fatalf("match run = %+v", match)
+	}
+	// No copy props: the content keeps its own style.
+	plain := New(nil, nil)
+	plain.SetProps(Props{Title: "main", Inset: 1})
+	plain.SetScreen(ScreenFromText([]string{"abcd"}, render.TokenDefault))
+	for _, line := range plain.Render(12, 3) {
+		if line.Text == "abcd" && line.Style != render.TokenDefault {
+			t.Fatalf("plain content restyled: %+v", line)
+		}
+	}
+}
+
+func TestRenderCopySelectionFillsRowTail(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Title: "main",
+		Inset: 1,
+		Chrome: map[string]string{
+			PropCopySelection:      "0,1,9",
+			PropCopyStyleSelection: "fg:ansi:8;bg:ansi:3",
+		},
+	})
+	component.SetScreen(ScreenFromText([]string{"abcd"}, render.TokenDefault))
+
+	lines := component.Render(12, 3)
+	// Text cells carry the selection style, then the blank tail up to column
+	// 9 is filled with the same background (the old renderer's selection fill).
+	var tail render.Line
+	for _, line := range lines {
+		if line.Y == 1 && line.X == 5 {
+			tail = line
+		}
+	}
+	if strings.TrimSpace(tail.Text) != "" || len(tail.Text) != 6 || tail.Style != render.Token("fg:ansi:8;bg:ansi:3") {
+		t.Fatalf("selection tail fill = %+v, want 6 styled spaces at x=5", tail)
+	}
+	delete(component.props.Chrome, PropCopySelection)
+	plain := component.Render(12, 3)
+	for _, line := range plain {
+		if strings.TrimSpace(line.Text) == "" && len(line.Text) > 1 && line.Y == 1 && line.X == 5 {
+			t.Fatalf("fill painted without a selection: %+v", line)
+		}
 	}
 }

@@ -56,6 +56,10 @@ type Cursor struct {
 // Node is one box of the view tree. The box rect is pure geometry: the
 // kernel never draws borders or insets. Chrome (borders, titles, badges,
 // colors) belongs to the content or the host component.
+//
+// A Node is immutable once solved: Layout/LayoutCached only read the exported
+// fields, and the host treats reused subtrees as read-only. The unexported
+// cache field below is the only mutable state (written by LayoutCached).
 type Node struct {
 	ID      string
 	Size    Size
@@ -70,6 +74,43 @@ type Node struct {
 	Input    []string
 	Focused  bool
 	Children []Node
+
+	// solved is the cached layout of this subtree (see Solved). It is
+	// written by LayoutCached after a successful solve and is immutable
+	// afterwards. It is a pointer so an unsolved Node stays small (the host
+	// builds millions of them) and only solved nodes carry a frame.
+	solved *Solved
+}
+
+// Solved is a cached solved layout of one subtree: the absolute viewport
+// rect the subtree was solved at plus the resulting frame.
+//
+// Frames store absolute coordinates, so a Solved is only reusable at the
+// identical Rect; LayoutCached gates on Rect equality and solves normally
+// when the rect moved or resized. The stored Frame is immutable: callers
+// must never mutate its index, Lines, hits or OverlayFrames.
+type Solved struct {
+	Rect  Rect
+	Frame Frame
+}
+
+// Cached returns the solved layout recorded by SetCached, or nil when the
+// subtree has no cached frame. The returned value is read-only.
+func (n *Node) Cached() *Solved {
+	if n == nil {
+		return nil
+	}
+	return n.solved
+}
+
+// SetCached records a solved layout for this subtree, replacing any previous
+// value. The passed Solved becomes owned by the node; the caller must not
+// mutate it afterwards. A nil value clears the cache.
+func (n *Node) SetCached(s *Solved) {
+	if n == nil {
+		return
+	}
+	n.solved = s
 }
 
 // IsVisible reports the effective visibility (default true).
@@ -112,21 +153,74 @@ func (n *Node) ContentLines() []string {
 	return strings.Split(n.Content.Text, "\n")
 }
 
+// forEachContentLine calls fn for every effective content line, mirroring
+// ContentLines exactly but without allocating the split result. fn returns
+// false to stop iterating.
+func forEachContentLine(n *Node, fn func(i int, line string) bool) {
+	if n.Content == nil {
+		return
+	}
+	if len(n.Content.Lines) > 0 {
+		for i, line := range n.Content.Lines {
+			if !fn(i, line) {
+				return
+			}
+		}
+		return
+	}
+	text := n.Content.Text
+	if text == "" {
+		return
+	}
+	for i := 0; ; i++ {
+		j := strings.IndexByte(text, '\n')
+		if j < 0 {
+			fn(i, text)
+			return
+		}
+		if !fn(i, text[:j]) {
+			return
+		}
+		text = text[j+1:]
+	}
+}
+
 // IntrinsicSize returns the content-derived box size. (0, 0) means "no
 // intrinsic size", so the axis stretches. Chrome is not part of the node:
 // components declare their own inset and draw their own borders.
 func (n *Node) IntrinsicSize() (int, int) {
-	lines := n.ContentLines()
-	if len(lines) == 0 {
+	if n.Content == nil {
 		return 0, 0
 	}
-	width := 0
-	for _, line := range lines {
-		if w := DisplayWidth(line); w > width {
-			width = w
+	if len(n.Content.Lines) > 0 {
+		width := 0
+		for _, line := range n.Content.Lines {
+			if w := DisplayWidth(line); w > width {
+				width = w
+			}
 		}
+		return width, len(n.Content.Lines)
 	}
-	return width, len(lines)
+	text := n.Content.Text
+	if text == "" {
+		return 0, 0
+	}
+	width, lineWidth, lines := 0, 0, 1
+	for _, r := range text {
+		if r == '\n' {
+			if lineWidth > width {
+				width = lineWidth
+			}
+			lineWidth = 0
+			lines++
+			continue
+		}
+		lineWidth += RuneWidth(r)
+	}
+	if lineWidth > width {
+		width = lineWidth
+	}
+	return width, lines
 }
 
 // AcceptsInput reports whether the box declares the given input kind

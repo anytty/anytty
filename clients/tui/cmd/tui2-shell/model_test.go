@@ -470,21 +470,37 @@ func TestWheelAndScrollLifecycle(t *testing.T) {
 	testHello(m)
 	mustBind(t, m, "terminal:local:main")
 	slot := m.focusSlot()
+	if reqs := m.wheel(slot.id, -1); len(reqs) != 0 {
+		t.Fatalf("down wheel at live bottom = %+v, want no request", reqs)
+	}
 
 	reqs := m.wheel(slot.id, 1)
 	if len(reqs) != 1 || reqs[0].Method != "terminal.scroll" {
 		t.Fatalf("wheel requests = %+v", reqs)
 	}
-	if reqs[0].Params.GetDelta() != 3 {
-		t.Fatalf("scroll delta = %d, want 3", reqs[0].Params.GetDelta())
+	if reqs[0].Params.GetDelta() != 1 {
+		t.Fatalf("scroll delta = %d, want 1", reqs[0].Params.GetDelta())
 	}
-	reqs[0].After(&pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"x"}}})
+	if m.mode != modeNormal || !slot.scrollPending {
+		t.Fatalf("mode while scroll request is pending = %v pending=%v, want NORMAL/true", m.mode, slot.scrollPending)
+	}
+	reqs[0].After(&pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"x"}, Offset: 3}})
 	if slot.scrollOffset != 3 || m.mode != modeScroll {
 		t.Fatalf("offset=%d mode=%v", slot.scrollOffset, m.mode)
 	}
+	// Mouse wheel down must use the same signed delta as page-down and move
+	// toward live history instead of being dropped at the first reversal.
+	reqs = m.wheel(slot.id, -1)
+	if len(reqs) != 1 || reqs[0].Params.GetDelta() != -1 {
+		t.Fatalf("wheel-down requests = %+v, want delta -1", reqs)
+	}
+	reqs[0].After(&pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"y"}, Offset: 2}})
+	if slot.scrollOffset != 2 || m.mode != modeScroll {
+		t.Fatalf("after wheel-down offset=%d mode=%v, want 2/SCROLL", slot.scrollOffset, m.mode)
+	}
 
 	reqs = m.key(keyPress("page-down"))
-	if len(reqs) != 1 || reqs[0].Params.GetDelta() != -10 {
+	if len(reqs) != 1 || reqs[0].Params.GetDelta() != -24 {
 		t.Fatalf("page-down requests = %+v", reqs)
 	}
 	reqs[0].After(&pb.Response{Ok: true})
@@ -494,13 +510,58 @@ func TestWheelAndScrollLifecycle(t *testing.T) {
 
 	// Scrolling again then esc returns to live through scrollEnd.
 	reqs = m.key(keyPress("page-up"))
+	if len(reqs) != 1 || reqs[0].Params.GetDelta() != 24 {
+		t.Fatalf("page-up requests = %+v", reqs)
+	}
 	reqs[0].After(&pb.Response{Ok: true})
+	reqs = m.key(keyPress("up"))
+	if len(reqs) != 1 || reqs[0].Params.GetDelta() != 1 {
+		t.Fatalf("up requests = %+v", reqs)
+	}
 	reqs = m.key(keyPress("esc"))
 	if len(reqs) != 1 || reqs[0].Method != "terminal.scrollEnd" {
 		t.Fatalf("scroll esc requests = %+v", reqs)
 	}
 	if slot.scrollOffset != 0 || m.mode != modeNormal {
 		t.Fatalf("after scrollEnd offset=%d mode=%v", slot.scrollOffset, m.mode)
+	}
+}
+
+func TestLateScrollResponseCannotReverseWheelDirection(t *testing.T) {
+	m := newModel()
+	testHello(m)
+	mustBind(t, m, "terminal:local:main")
+	slot := m.focusSlot()
+
+	// A remote provider can finish the first request after the user has
+	// already reversed direction. The newer response must remain authoritative.
+	older := m.wheel(slot.id, 1)
+	newer := m.wheel(slot.id, -1)
+	if len(older) != 1 || len(newer) != 1 {
+		t.Fatalf("wheel requests = %d/%d, want one each", len(older), len(newer))
+	}
+	newer[0].After(&pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"live"}, Offset: 0}})
+	if slot.scrollOffset != 0 || m.mode != modeNormal {
+		t.Fatalf("newer response offset=%d mode=%v, want 0/NORMAL", slot.scrollOffset, m.mode)
+	}
+	older[0].After(&pb.Response{Ok: true, Data: &pb.MethodData{Rows: []string{"old"}, Offset: 1}})
+	if slot.scrollOffset != 0 || m.mode != modeNormal {
+		t.Fatalf("late response offset=%d mode=%v, want 0/NORMAL", slot.scrollOffset, m.mode)
+	}
+}
+
+func TestScrollPageRowsUsesFocusedPanelHeight(t *testing.T) {
+	m := newModel()
+	testHello(m)
+	tab := m.activeTab()
+	tab.flow = "col"
+	tab.slots = []*slot{{id: "top", ratio: 1}, {id: "bottom", ratio: 1}}
+	if got := m.scrollPageRows(); got != 9 {
+		t.Fatalf("top panel page rows = %d, want 9", got)
+	}
+	tab.focus = 1
+	if got := m.scrollPageRows(); got != 10 {
+		t.Fatalf("bottom panel page rows = %d, want 10", got)
 	}
 }
 

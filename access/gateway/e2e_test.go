@@ -58,8 +58,8 @@ func startTestDaemon(t *testing.T) *testDaemon {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	providerSocket := filepath.Join(dir, "anytty-v2-wire7.sock.provider")
-	accessSocket := filepath.Join(dir, "anytty-v2-wire7.sock")
+	providerSocket := filepath.Join(dir, "anytty-v3-wire7.sock.provider")
+	accessSocket := filepath.Join(dir, "anytty-v3-wire7.sock")
 	server := core.NewServer(
 		core.WithSocketPath(providerSocket),
 		core.WithHistoryDisabled(),

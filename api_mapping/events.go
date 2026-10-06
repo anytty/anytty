@@ -37,17 +37,14 @@ func ValidateEventSubscribeCommand(command *apipb.CommandEnvelope) error {
 }
 
 // EventFilterFromProto 映射为 core event broker filter。
+// storage 变更由 access 本地终结并按 storage filter 直接过滤（access/server），
+// 因而这里只投影 pool broker 的 terminal 维度。
 func EventFilterFromProto(command *apipb.EventSubscribeCommand) corev2.EventFilter {
-	filter := corev2.EventFilter{TerminalID: command.GetTerminal().GetTerminalId(), StorageAppID: command.GetStorageAppId(), StorageOwnerID: command.GetStorageOwnerId(), StorageKeyPrefix: command.GetStorageKeyPrefix()}
-	if command.GetStorageScope() != apipb.StorageScope_STORAGE_SCOPE_UNSPECIFIED {
-		filter.StorageScope = StorageScopeFromProto(command.GetStorageScope())
-	}
+	filter := corev2.EventFilter{TerminalID: command.GetTerminal().GetTerminalId()}
 	for _, eventType := range command.GetTypes() {
 		switch eventType {
 		case apipb.ApplicationEventType_APPLICATION_EVENT_TYPE_TERMINAL_LIFECYCLE:
 			filter.Types = append(filter.Types, corev2.EventTerminalCreated, corev2.EventTerminalExited, corev2.EventTerminalMetadataChanged, corev2.EventTerminalRemoved, corev2.EventTerminalChanged)
-		case apipb.ApplicationEventType_APPLICATION_EVENT_TYPE_STORAGE_CHANGED:
-			filter.Types = append(filter.Types, corev2.EventStorageChanged)
 		}
 	}
 	return filter
@@ -59,11 +56,10 @@ func EventSubscriptionToProto(session *apipb.EndpointSessionStamp, token []byte)
 }
 
 // EncodeEventEnvelope 把 core-native event 转为公共 Proto event frame payload。
+// storage 变更帧由 access/server 本地直接编码，不经过 pool event。
 func EncodeEventEnvelope(endpointID string, session *apipb.EndpointSessionStamp, subscriptionToken []byte, event corev2.Event) ([]byte, error) {
 	envelope := &apipb.EventEnvelope{EventId: fmt.Sprintf("%s-%d", event.Type, event.Timestamp.UnixNano()), TimestampUnixNano: event.Timestamp.UnixNano(), ApiVersion: &apipb.ApiVersion{Major: 1}, OriginSession: cloneSessionStamp(session), Subscription: &apipb.ResourceHandle{OpaqueToken: cloneBytes(subscriptionToken), Kind: apipb.ResourceKind_RESOURCE_KIND_SUBSCRIPTION, Session: cloneSessionStamp(session), Generation: 1}}
 	switch {
-	case event.Storage != nil:
-		envelope.Event = &apipb.EventEnvelope_StorageChanged{StorageChanged: &apipb.StorageChangedEvent{Key: &apipb.StorageKey{AppId: event.Storage.AppID, Scope: storageScopeToProto(event.Storage.Scope), OwnerId: event.Storage.OwnerID, Key: event.Storage.Key}, Version: event.Storage.Version, Operation: event.Storage.Op}}
 	case event.Terminal != nil:
 		attachmentCount := 0
 		if event.Attachment != nil {

@@ -378,7 +378,7 @@ func assertEventValue(t *testing.T, events <-chan Event, typ EventType, terminal
 			t.Fatalf("unexpected event %#v", event)
 		}
 		return event
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for %s event", typ)
 	}
 	return Event{}

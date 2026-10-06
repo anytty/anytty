@@ -33,10 +33,12 @@ func stopPoolProcess(pid int) error {
 	return process.Signal(syscall.SIGTERM)
 }
 
-func startDetachedPool(socketPath, logPath, configPath string) error {
+// startDetachedPool 启动 pool 子进程并返回其 PID。PID 让调用方在失败回滚时
+// 只停自己启动的进程，不会误停并发启动方赢得的 pool。
+func startDetachedPool(socketPath, logPath, configPath string) (int, error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	args := []string{"--socket", socketPath, "--log-file", logPath}
 	if configPath != "" {
@@ -46,20 +48,24 @@ func startDetachedPool(socketPath, logPath, configPath string) error {
 	command := exec.Command(executable, args...)
 	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer devNull.Close()
 	output, err := openPrivatePoolLog(logPath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer output.Close()
 	command.Stdin, command.Stdout, command.Stderr = devNull, output, output
 	configureDetachedCommand(command)
 	if err := command.Start(); err != nil {
-		return err
+		return 0, err
 	}
-	return command.Process.Release()
+	pid := command.Process.Pid
+	if err := command.Process.Release(); err != nil {
+		return 0, err
+	}
+	return pid, nil
 }
 
 // startDetachedAccess 启动 access 子进程并返回其 PID；日志写入 accessLogPath。

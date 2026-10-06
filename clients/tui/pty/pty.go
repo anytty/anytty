@@ -23,6 +23,13 @@ type Config struct {
 	Rows     int
 	Endpoint string
 	ID       string
+	// ViewID identifies the client view for remote resize ownership. Local
+	// PTYs ignore it; endpoint-backed PTYs use it as the attachment view id.
+	ViewID string
+	// Fit requests the initial attachment to become the resize owner. The
+	// request is fenced by ExpectedOwnerEpoch when it is non-zero.
+	Fit                bool
+	ExpectedOwnerEpoch uint64
 }
 
 // DefaultCols and DefaultRows are the fallback window size.
@@ -63,6 +70,13 @@ type PTY interface {
 	// report 128+signal). It is -1 while the status is still unknown.
 	ExitCode() int
 	Close() error
+}
+
+// ResizeOwner is optionally implemented by remote PTYs whose resize lease is
+// arbitrated by a daemon. Hosts use it to publish the authoritative owner
+// instead of the local attachment's optimistic state.
+type ResizeOwner interface {
+	ResizeOwner() (viewID string, epoch uint64)
 }
 
 // New returns the platform PTY implementation for cfg. It never fails here;

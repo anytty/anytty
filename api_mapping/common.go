@@ -1,5 +1,9 @@
 // Package apimapping 提供 core domain 与公共 Proto API 之间的无状态确定性映射。
 // 它不建立连接、不处理 framing，也不拥有授权、session 或应用状态。
+//
+// 所有权边界：file/storage DTO 归 access（access/contract）；terminal/history
+// DTO 仍归 pool（pool/core）。terminal/history 真值在 pool，因此对 pool/core 的
+// 依赖是有意设计，不是遗留耦合。
 package apimapping
 
 import (

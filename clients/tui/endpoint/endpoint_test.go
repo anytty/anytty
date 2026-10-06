@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -308,18 +309,22 @@ func TestRenderScreenSnapshotFeedsParser(t *testing.T) {
 				{Content: "ok", Width: 2, Style: &apipb.CellStyle{Underline: true}},
 			}}},
 		},
-		Cursor: &apipb.TerminalCursor{Row: 1, Col: 2, Visible: true},
+		Cursor: &apipb.TerminalCursor{Row: 1, Col: 2, Visible: true, Shape: apipb.CursorShape_CURSOR_SHAPE_BAR},
 		Modes:  &apipb.TerminalModes{BracketedPaste: true, MouseSgr: true, AlternateScreen: true, AutoWrap: true},
 	}
 	rendered := renderScreenSnapshot(screen)
-	for _, want := range []string{"\x1b[?1049h", "\x1b[?1006h", "\x1b[?2004h", "38;5;5", "38;2;255;0;0", "\x1b[2;3H", "\x1b[?25h"} {
+	for _, want := range []string{"\x1b[?1049h", "\x1b[?1006h", "\x1b[?2004h", "38;5;5", "38;2;255;0;0", "\x1b[6 q", "\x1b[2;3H", "\x1b[?25h"} {
 		if !strings.Contains(string(rendered), want) {
 			t.Fatalf("snapshot output missing %q: %q", want, rendered)
 		}
 	}
 	parser := ansi.New(10, 3)
+	parser.Write([]byte("\x1b[?2026h"))
 	parser.Write(rendered)
 	snapshot := parser.Screen()
+	if parser.Modes().SynchronizedOutput {
+		t.Fatal("snapshot must close a synchronized-output batch from the old attachment")
+	}
 	if got := strings.TrimRight(snapshot.Text(0), " "); got != "hixy" {
 		t.Fatalf("parser row 0 = %q, want %q", got, "hixy")
 	}
@@ -328,5 +333,179 @@ func TestRenderScreenSnapshotFeedsParser(t *testing.T) {
 	}
 	if modes := parser.Modes(); !modes.BracketPaste || !modes.MouseSGR || !modes.AltScreen {
 		t.Fatalf("parser modes = %+v", modes)
+	}
+	if got := snapshot.CursorShape; got != "bar" {
+		t.Fatalf("snapshot cursor shape = %q, want bar", got)
+	}
+}
+
+func TestRenderScreenSnapshotPreservesBlankBackgroundRows(t *testing.T) {
+	gray := &apipb.CellStyle{Background: "idx:236"}
+	screen := &apipb.NativeScreenResult{
+		Size:        &apipb.TerminalSize{Cols: 6, Rows: 3},
+		FullReplace: true,
+		Cursor:      &apipb.TerminalCursor{Row: 1, Col: 0, Visible: true},
+		RowReplacements: []*apipb.ScreenRowReplace{
+			{RowIndex: 0, Row: &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Width: 6, Style: gray}}}},
+			{RowIndex: 1, Row: &apipb.ScreenRow{Cells: []*apipb.ScreenCell{
+				{Content: "x", Width: 1, Style: gray},
+				{Width: 5, Style: gray},
+			}}},
+			{RowIndex: 2, Row: &apipb.ScreenRow{TailFill: gray}},
+		},
+	}
+	parser := ansi.New(6, 3)
+	parser.Write(renderScreenSnapshot(screen))
+	snapshot := parser.Screen()
+	for _, cell := range []struct{ x, y int }{{0, 0}, {5, 0}, {1, 1}, {5, 1}, {0, 2}, {5, 2}} {
+		got := snapshot.CellAt(cell.x, cell.y)
+		if string(got.Style) != "ansi:48;5;236" {
+			t.Fatalf("blank cell (%d,%d) style = %q, want gray background", cell.x, cell.y, got.Style)
+		}
+	}
+	if got := strings.TrimRight(snapshot.Text(1), " "); got != "x" {
+		t.Fatalf("blank background changed logical text: %q", got)
+	}
+	parser.Write([]byte("z"))
+	snapshot = parser.Screen()
+	if got := snapshot.CellAt(0, 0).Style; got != "ansi:48;5;236" {
+		t.Fatalf("snapshot reset changed existing row style: %q", got)
+	}
+	if got := snapshot.CellAt(0, 2).Style; got != "ansi:48;5;236" {
+		t.Fatalf("snapshot reset changed tail-fill row style: %q", got)
+	}
+	if got := snapshot.CellAt(0, 1).Text; got != "z" {
+		t.Fatalf("post-snapshot PTY text = %q, want z", got)
+	}
+}
+
+func TestRemotePTYSeedSnapshotDropsStaleBufferedOutput(t *testing.T) {
+	// A reconnect snapshot is the new stream generation's synchronization
+	// point. Bytes left by the old attachment must not be replayed after it.
+	p := &RemotePTY{buf: []byte("stale-old-attachment")}
+	p.cond = sync.NewCond(&p.mu)
+	reset := false
+	p.SetSnapshotReset(func() { reset = true })
+	p.seedSnapshot(&apipb.NativeScreenResult{
+		Size:        &apipb.TerminalSize{Cols: 5, Rows: 1},
+		FullReplace: true,
+		RowReplacements: []*apipb.ScreenRowReplace{{
+			RowIndex: 0,
+			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
+		}},
+	})
+	got := make([]byte, 256)
+	n, err := p.Read(got)
+	if err != nil {
+		t.Fatalf("read seeded snapshot: %v", err)
+	}
+	got = got[:n]
+	if bytes.Contains(got, []byte("stale-old-attachment")) {
+		t.Fatalf("reconnect snapshot replayed stale bytes: %q", got)
+	}
+	if !bytes.Contains(got, []byte("fresh")) {
+		t.Fatalf("reconnect snapshot omitted fresh screen: %q", got)
+	}
+	if !reset {
+		t.Fatal("reconnect snapshot did not reset the previous parser generation")
+	}
+}
+
+func TestRemotePTYSnapshotResetWaitsUntilSnapshotRead(t *testing.T) {
+	// The pump can have an old chunk in hand when a reconnect publishes the
+	// snapshot. Resetting from seedSnapshot would let that old chunk land in a
+	// freshly reset parser. The reset hook must run on the first snapshot Read,
+	// after the pump has returned from the old Read.
+	p := &RemotePTY{buf: []byte("old-output")}
+	p.cond = sync.NewCond(&p.mu)
+	reset := false
+	p.SetSnapshotReset(func() { reset = true })
+	buf := make([]byte, 64)
+	n, err := p.Read(buf)
+	if err != nil || string(buf[:n]) != "old-output" {
+		t.Fatalf("read old output = %q, err=%v", buf[:n], err)
+	}
+	if reset {
+		t.Fatal("snapshot reset ran before the authoritative snapshot was read")
+	}
+	p.seedSnapshot(&apipb.NativeScreenResult{
+		Size:        &apipb.TerminalSize{Cols: 5, Rows: 1},
+		FullReplace: true,
+		RowReplacements: []*apipb.ScreenRowReplace{{
+			RowIndex: 0,
+			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
+		}},
+	})
+	n, err = p.Read(buf)
+	if err != nil || n == 0 {
+		t.Fatalf("read fresh snapshot = %q, err=%v", buf[:n], err)
+	}
+	if !reset {
+		t.Fatal("snapshot reset did not run before fresh bytes were returned")
+	}
+}
+
+func TestRemotePTYSeedSnapshotWaitsForInFlightReadBarrier(t *testing.T) {
+	// Exercise the narrower race where Read has copied old bytes but the
+	// runtime has not committed that chunk to its parser yet. A reconnect must
+	// wait for that parser transaction before running the reset hook.
+	p := &RemotePTY{buf: []byte("old-output")}
+	p.cond = sync.NewCond(&p.mu)
+	readReturned := make(chan struct{})
+	allowReadDone := make(chan struct{})
+	readDone := make(chan struct{})
+	buf := make([]byte, 64)
+	go func() {
+		n, err := p.Read(buf)
+		if err != nil || string(buf[:n]) != "old-output" {
+			t.Errorf("read old output = %q, err=%v", buf[:n], err)
+		}
+		close(readReturned)
+		<-allowReadDone
+		p.ReadDone()
+		close(readDone)
+	}()
+	select {
+	case <-readReturned:
+	case <-time.After(time.Second):
+		t.Fatal("old read did not return")
+	}
+	barrierStarted := make(chan struct{})
+	barrierRelease := make(chan struct{})
+	barrierFinished := make(chan struct{})
+	p.SetSnapshotBarrier(func() {
+		close(barrierStarted)
+		<-barrierRelease
+		close(barrierFinished)
+	})
+	go p.seedSnapshot(&apipb.NativeScreenResult{
+		Size:        &apipb.TerminalSize{Cols: 5, Rows: 1},
+		FullReplace: true,
+		RowReplacements: []*apipb.ScreenRowReplace{{
+			RowIndex: 0,
+			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
+		}},
+	})
+	select {
+	case <-barrierStarted:
+	case <-time.After(time.Second):
+		t.Fatal("snapshot did not observe the in-flight old read")
+	}
+	select {
+	case <-barrierFinished:
+		t.Fatal("snapshot barrier finished before parser transaction release")
+	default:
+	}
+	close(allowReadDone)
+	select {
+	case <-readDone:
+	case <-time.After(time.Second):
+		t.Fatal("old read transaction did not finish")
+	}
+	close(barrierRelease)
+	select {
+	case <-barrierFinished:
+	case <-time.After(time.Second):
+		t.Fatal("snapshot barrier did not finish")
 	}
 }

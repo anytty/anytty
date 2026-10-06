@@ -154,14 +154,23 @@ func TestCardCentersAndBorders(t *testing.T) {
 
 func TestDividerBuildsGutterRun(t *testing.T) {
 	vertical := Divider{ID: "divider:0", Vertical: true, Length: 4, Style: "fg:#aabbcc", Input: []string{"mouse"}}.Build().Build()
-	if vertical.GetId() != "divider:0" || boxText(vertical) != "││││" {
-		t.Fatalf("vertical divider = %+v text %q", vertical, boxText(vertical))
+	if vertical.GetId() != "divider:0" || vertical.GetFlow() != "col" {
+		t.Fatalf("vertical divider = %+v", vertical)
+	}
+	if children := vertical.GetChildren(); len(children) != 4 {
+		t.Fatalf("vertical divider rows = %d, want 4", len(children))
+	} else {
+		for i, row := range children {
+			if row.GetContent().GetText() != "│" || row.GetSize().GetWidth() != 1 || row.GetStyle() != "fg:#aabbcc" {
+				t.Fatalf("vertical divider row %d = %q/%d/%q", i, row.GetContent().GetText(), row.GetSize().GetWidth(), row.GetStyle())
+			}
+		}
 	}
 	if vertical.GetSize().GetWidth() != 1 || vertical.GetSize().GetHeight() != 4 {
 		t.Fatalf("vertical divider size = %+v", vertical.GetSize())
 	}
-	if vertical.GetStyle() != "fg:#aabbcc" || vertical.GetInput()[0] != "mouse" {
-		t.Fatalf("vertical divider style/input = %q %v", vertical.GetStyle(), vertical.GetInput())
+	if vertical.GetInput()[0] != "mouse" {
+		t.Fatalf("vertical divider input = %v", vertical.GetInput())
 	}
 	horizontal := Divider{Length: 3}.Build().Build()
 	if boxText(horizontal) != "───" || horizontal.GetSize().GetHeight() != 1 {
@@ -270,4 +279,22 @@ func contains(text, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestVerticalDividerBuildsOneGlyphPerRow(t *testing.T) {
+	box := Divider{ID: "sep", Vertical: true, Length: 4, Input: []string{"mouse"}}.Build().Build()
+	if box.GetFlow() != "col" || box.GetId() != "sep" || box.GetSize().GetHeight() != 4 {
+		t.Fatalf("vertical divider = flow %q id %q height %d", box.GetFlow(), box.GetId(), box.GetSize().GetHeight())
+	}
+	if got := len(box.GetChildren()); got != 4 {
+		t.Fatalf("rows = %d, want 4", got)
+	}
+	for i, row := range box.GetChildren() {
+		if row.GetContent().GetText() != "│" || row.GetSize().GetWidth() != 1 {
+			t.Fatalf("row %d = %q/%d, want │/1", i, row.GetContent().GetText(), row.GetSize().GetWidth())
+		}
+	}
+	if len(box.GetInput()) != 1 || box.GetInput()[0] != "mouse" {
+		t.Fatalf("divider input = %v, want mouse on the container", box.GetInput())
+	}
 }

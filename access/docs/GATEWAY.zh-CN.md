@@ -48,7 +48,7 @@ pool，`<canonical>.provider`）。pool 不认识远程会话、不持有身份/
 
 | listener | 归属 | 默认 | 说明 |
 |---|---|---|---|
-| canonical unix | `access/server` | `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock` | 客户端入口；`0600`；本地免鉴权 |
+| canonical unix | `access/server` | `$XDG_RUNTIME_DIR/anytty-v3-wire7.sock` | 客户端入口；`0600`；本地免鉴权 |
 | provider unix | `pool/provider` | `<canonical>.provider` | provider 协议（[channel:2][type:1]），只有 access 连 |
 | pairing unix | `access/runtime` | `<canonical>.pair` | remoteauth v2 PairingExchange |
 | Direct signaling/ICE-TCP | `access/direct` | `--route` 显式配置 | 网络入口只由 access 打开 |
@@ -141,17 +141,23 @@ anytty-access --socket /tmp/anytty.sock \
 | family 路由表 | `access/server/router_internal_test.go` |
 | pool 无网络监听 | `TestPoolHasNoTCPListeners` |
 | Direct/SSH/Cloud remoteauth→access Core | `access/engine/adapter/{direct,ssh}/integration_test.go`、`clients/cli/cloud_edge_e2e_test.go` |
+| Cloud 终端 + 文件往返（真实 Pion DataChannel） | `access/cloud/session_e2e_test.go` |
 | 生命周期双进程 + 独立日志 | `clients/cli/pool_lifecycle_test.go` |
 | CLI/tmux smoke | `clients/cli` tmux 系列 |
 | 文件传输吞吐基准 | `access/files.BenchmarkFileDownloadStreaming` |
 
 ## 7. 已知缺口
 
-- pool 的 API Layer PlatformController 已收窄为 history/live/event；
-  file/storage/auth/browser capability 在 admission 直接拒绝（terminal-only），
-  access 侧不受影响。api_mapping 的 DTO helper 保留给 access/clients。
-- tmux/zellij provider 只有接口占位。
-- 旧 `tui/`、deadcode 清理未做。
+- pool 是纯终端 provider（PTY + history/live/event + path）；file/storage/auth/
+  browser 的类型与实现都在 access（`access/contract`、`access/files`、
+  `access/storage`、browser proxy），pool 不再持有这些能力的 DTO 或事件。
+- api_mapping 仍在 access 侧做 apipb↔DTO 投影：file/storage DTO 来自
+  `access/contract`，terminal/history DTO 来自 `pool/core`（终端真值在 pool，
+  这是设计而非疏漏）。
+- provider 契约已 typed 化（`access/provider/terminal`，providerv1 DTO +
+  `Capabilities`）；legacy passthrough（`Execute`/`OpenStream`/`EnvelopeEvents`）
+  仍供尚未切换的 `access/server` 消费方使用，迁移完成后删除。
+- tmux/zellij provider 只有 typed 接口占位（Capabilities 全 false）。
 
 ## 8. codegen
 

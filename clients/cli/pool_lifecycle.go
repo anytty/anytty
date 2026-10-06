@@ -290,7 +290,8 @@ func newPoolStartCommand(socket, logFile, configPath *string) *cobra.Command {
 			if status.State == "stale" {
 				removePoolRecord(socketPath)
 			}
-			if err := startDetachedPool(socketPath, resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath)); err != nil {
+			startedPID, err := startDetachedPool(socketPath, resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath))
+			if err != nil {
 				return classifyCLIError(err)
 			}
 			deadline := time.Now().Add(5 * time.Second)
@@ -306,11 +307,9 @@ func newPoolStartCommand(socket, logFile, configPath *string) *cobra.Command {
 			if !poolReady {
 				return &cliError{code: 6, message: "terminal pool did not become ready"}
 			}
-			// pool 先起，access 后起；access 失败必须回滚 pool，避免半栈。
+			// pool 先起，access 后起；access 失败必须回滚本次启动的 pool，避免半栈。
 			if err := startManagedAccess(socketPath); err != nil {
-				if status.PID > 0 {
-					_ = stopPoolProcess(status.PID)
-				}
+				rollbackStartedPool(socketPath, *logFile, *configPath, startedPID)
 				return classifyCLIError(err)
 			}
 			status, _, err = poolStatus(socketPath, *logFile, *configPath)
@@ -403,7 +402,7 @@ func newPoolRestartCommand(socket, logFile, configPath *string) *cobra.Command {
 					return err
 				}
 			}
-			if err := startDetachedPool(socketPath, resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath)); err != nil {
+			if _, err := startDetachedPool(socketPath, resolveV3LogFilePath(*logFile), strings.TrimSpace(*configPath)); err != nil {
 				return classifyCLIError(err)
 			}
 			deadline := time.Now().Add(5 * time.Second)
@@ -612,5 +611,5 @@ func startManagedAccess(socketPath string) error {
 	}
 	record, _, _ := readPoolRuntimeRecordForSocket(socketPath)
 	_ = stopManagedAccess(record)
-	return &cliError{code: 6, message: "access did not become ready"}
+	return &cliError{code: 6, message: accessStartFailureMessage()}
 }

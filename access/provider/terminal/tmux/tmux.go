@@ -9,7 +9,7 @@ import (
 	"context"
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
-	"github.com/anytty/anytty/proto/access/apipb"
+	providerv1 "github.com/anytty/anytty/proto/provider/v1"
 )
 
 // Provider 是未经实现的 tmux terminal provider。
@@ -22,18 +22,113 @@ func Unsupported() Provider {
 	return Provider{}
 }
 
-// Execute 永远返回 terminal.ErrUnsupported。
-func (Provider) Execute(context.Context, *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+// Info 返回 tmux provider 身份；Capabilities 全为 false。
+func (Provider) Info(context.Context) (terminalprovider.Info, error) {
+	return terminalprovider.Info{Kind: "tmux"}, nil
+}
+
+// Capabilities 声明 tmux 占位实现不支持任何能力。
+func (Provider) Capabilities() terminalprovider.Capabilities {
+	return terminalprovider.Capabilities{}
+}
+
+// Create 永远返回 terminal.ErrUnsupported。
+func (Provider) Create(context.Context, *providerv1.TerminalCreateSpec) (*providerv1.TerminalInfo, error) {
 	return nil, terminalprovider.ErrUnsupported
 }
 
-// OpenStream 永远返回 terminal.ErrUnsupported。
-func (Provider) OpenStream(context.Context, *apipb.ResourceHandle) (terminalprovider.Stream, error) {
+// List 永远返回 terminal.ErrUnsupported。
+func (Provider) List(context.Context) ([]*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// Get 永远返回 terminal.ErrUnsupported。
+func (Provider) Get(context.Context, string) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// Restart 永远返回 terminal.ErrUnsupported。
+func (Provider) Restart(context.Context, string) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// Kill 永远返回 terminal.ErrUnsupported。
+func (Provider) Kill(context.Context, string) error {
+	return terminalprovider.ErrUnsupported
+}
+
+// Remove 永远返回 terminal.ErrUnsupported。
+func (Provider) Remove(context.Context, string) error {
+	return terminalprovider.ErrUnsupported
+}
+
+// SetMetadata 永远返回 terminal.ErrUnsupported。
+func (Provider) SetMetadata(context.Context, string, terminalprovider.MetadataPatch) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// SetTags 永远返回 terminal.ErrUnsupported。
+func (Provider) SetTags(context.Context, string, terminalprovider.TagsPatch) (*providerv1.TerminalInfo, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// Attach 永远返回 terminal.ErrUnsupported。
+func (Provider) Attach(context.Context, terminalprovider.AttachRequest) (terminalprovider.Attachment, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// HistoryWindow 永远返回 terminal.ErrUnsupported。
+func (Provider) HistoryWindow(context.Context, terminalprovider.HistoryRequest) (*providerv1.HistoryWindowResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// HistoryCopy 永远返回 terminal.ErrUnsupported。
+func (Provider) HistoryCopy(context.Context, terminalprovider.HistoryCopyRequest) (*providerv1.HistoryCopyResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// HistorySearch 永远返回 terminal.ErrUnsupported。
+func (Provider) HistorySearch(context.Context, terminalprovider.HistorySearchRequest) (*providerv1.HistorySearchResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// HistoryRelease 永远返回 terminal.ErrUnsupported。
+func (Provider) HistoryRelease(context.Context, string, string) error {
+	return terminalprovider.ErrUnsupported
+}
+
+// HistoryBacklogStatus 永远返回 terminal.ErrUnsupported。
+func (Provider) HistoryBacklogStatus(context.Context, string) (*providerv1.HistoryBacklogStatusResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// LiveScreen 永远返回 terminal.ErrUnsupported。
+func (Provider) LiveScreen(context.Context, string, uint64) (*providerv1.NativeScreenResult, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// Subscribe 永远返回 terminal.ErrUnsupported。
+func (Provider) Subscribe(context.Context, *providerv1.EventSubscribeCommand) (*providerv1.EventSubscriptionResult, error) {
 	return nil, terminalprovider.ErrUnsupported
 }
 
 // Events 永远返回 terminal.ErrUnsupported。
-func (Provider) Events(context.Context) (<-chan *apipb.EventEnvelope, error) {
+func (Provider) Events(context.Context) (<-chan *providerv1.TerminalEvent, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// EventRelease 永远返回 terminal.ErrUnsupported。
+func (Provider) EventRelease(context.Context, []byte) error {
+	return terminalprovider.ErrUnsupported
+}
+
+// TerminalDefaults 永远返回 terminal.ErrUnsupported。
+func (Provider) TerminalDefaults(context.Context) (*providerv1.TerminalDefaults, error) {
+	return nil, terminalprovider.ErrUnsupported
+}
+
+// ListDirectories 永远返回 terminal.ErrUnsupported。
+func (Provider) ListDirectories(context.Context, string, int32) (*providerv1.PathListDirectoriesResult, error) {
 	return nil, terminalprovider.ErrUnsupported
 }
 

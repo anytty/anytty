@@ -109,6 +109,7 @@ func (ptyProcessFactory) Spawn(ctx context.Context, spec ProcessSpec) (TerminalP
 		outputCancel: make(chan struct{}),
 		waitCh:       make(chan ProcessExit, 1),
 		readDone:     make(chan struct{}),
+		exited:       make(chan struct{}),
 	}
 	go process.readLoop()
 	go process.waitLoop()
@@ -116,18 +117,20 @@ func (ptyProcessFactory) Spawn(ctx context.Context, spec ProcessSpec) (TerminalP
 }
 
 type ptyProcess struct {
-	mu            sync.Mutex
-	terminal      crosspty.Pty
-	cmd           *crosspty.Cmd
-	platform      ptyProcessPlatform
-	outputCh      chan []byte
-	outputCancel  chan struct{}
-	waitCh        chan ProcessExit
-	readDone      chan struct{}
-	closeOnce     sync.Once
-	outputOnce    sync.Once
-	waitOnce      sync.Once
-	killRequested atomic.Bool
+	mu                 sync.Mutex
+	terminal           crosspty.Pty
+	cmd                *crosspty.Cmd
+	platform           ptyProcessPlatform
+	outputCh           chan []byte
+	outputCancel       chan struct{}
+	waitCh             chan ProcessExit
+	readDone           chan struct{}
+	exited             chan struct{}
+	closeOnce          sync.Once
+	outputOnce         sync.Once
+	waitOnce           sync.Once
+	killEscalationOnce sync.Once
+	killRequested      atomic.Bool
 }
 
 const ptyReadBufferBytes = 64 * 1024
@@ -174,6 +177,11 @@ func (process *ptyProcess) ResourceUsage() (TerminalResourceUsage, bool) {
 	return platform.ResourceUsage()
 }
 
+// terminalKillEscalationGrace 是 SIGHUP 与 SIGKILL 之间的宽限期。SIGHUP 是
+// 约定的终止信号，但子进程可能忽略/阻塞它（macOS 实测出现过），宽限后必须
+// 用 SIGKILL 兜底，否则 kill 会永远不生效、terminal 卡在 running。
+const terminalKillEscalationGrace = time.Second
+
 func (process *ptyProcess) Kill() error {
 	process.mu.Lock()
 	platform := process.platform
@@ -182,7 +190,30 @@ func (process *ptyProcess) Kill() error {
 	if platform == nil {
 		return nil
 	}
-	return platform.Kill()
+	err := platform.Kill()
+	process.armKillEscalation(platform)
+	return err
+}
+
+// armKillEscalation 保证 Kill 最终一定生效：宽限期内进程已退出则直接返回，
+// 否则升级为进程组 SIGKILL。每个进程只武装一次。platform 在 Kill 时捕获，
+// 因为 Close 会立刻清空 process.platform（restart 的旧 generation 正走这条路）。
+func (process *ptyProcess) armKillEscalation(platform ptyProcessPlatform) {
+	process.killEscalationOnce.Do(func() {
+		go func() {
+			select {
+			case <-process.exited:
+				return
+			case <-time.After(terminalKillEscalationGrace):
+			}
+			select {
+			case <-process.exited:
+				return
+			default:
+			}
+			_ = platform.KillHard()
+		}()
+	})
 }
 
 func (process *ptyProcess) Wait() <-chan ProcessExit {
@@ -237,6 +268,7 @@ func (process *ptyProcess) readLoop() {
 func (process *ptyProcess) waitLoop() {
 	process.waitOnce.Do(func() {
 		err := process.cmd.Wait()
+		close(process.exited)
 		process.mu.Lock()
 		platform := process.platform
 		process.mu.Unlock()

@@ -10,7 +10,6 @@ import (
 
 func lineFrame(text string) kernel.Frame {
 	return kernel.Frame{
-		Rects: map[string]kernel.Rect{},
 		Lines: []kernel.Line{{Text: text}},
 	}
 }

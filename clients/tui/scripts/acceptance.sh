@@ -25,6 +25,8 @@
 #   legacy.py pixel replica: golden screen diffs, picker/prompt, scroll, badge
 #   v3ui.py legacy v3 replica: golden chrome rows, pane focus/click, split +
 #        collapse hint, footer scenes, ctrl-shift-v key delivery, tab create
+#   v3shell (Go) legacy v3 replica: same goldens + modal PANE, zoom, hint
+#        collapse, real-PTY create/split/close/quit
 #   §13.5 Ctrl-Q deny stays usable, allow exits clean, no leftovers
 #   ENDPOINTS: real isolated dev daemon over local-unix (list/attach/input/
 #        resize/kill/restart), command+daemon coexistence, offline notice and
@@ -33,7 +35,7 @@
 #        the alt screen, diagnostics in the log file, route pruning/offline
 #        notice/local degradation, TUI2_ROUTES opt-in, startup failure logging
 #
-# Usage: bash clients/tui/scripts/acceptance.sh   (requires go; tmux optional)
+# Usage: bash clients/tui/scripts/acceptance.sh   (requires go + bash >= 4; tmux optional)
 #
 # SIGHUP environment: the isolated daemons kill terminals with SIGHUP. A
 # `nohup`/SIGHUP-ignoring parent leaks SIG_IGN into the daemon's interactive
@@ -51,6 +53,10 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=libdriver.sh
 source "$ROOT/clients/tui/scripts/libdriver.sh"
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  echo "SKIP  tui2 acceptance requires bash >= 4 (use /opt/homebrew/bin/bash or bash 5)"
+  exit 0
+fi
 GO="${GO:-go}"
 SOCK="tui2-acc-$$"
 SESSION="tui2acc"
@@ -126,6 +132,10 @@ if ! (cd "$ROOT" && "$GO" build -o "$WORK/tui2" ./clients/tui/cmd/tui2); then
 fi
 if ! (cd "$ROOT" && "$GO" build -o "$WORK/tui2-shell" ./clients/tui/cmd/tui2-shell); then
   bad "go build ./clients/tui/cmd/tui2-shell"
+  exit 1
+fi
+if ! (cd "$ROOT" && "$GO" build -o "$WORK/tui2-v3shell" ./clients/tui/examples/v3shell); then
+  bad "go build ./clients/tui/examples/v3shell"
   exit 1
 fi
 
@@ -1031,6 +1041,164 @@ send C-q
 must 5 "v3: Ctrl-Q opens the host confirmation" 'Quit tui2\?'
 send Enter
 must 8 "v3: quitting restores the terminal" 'V3EXIT:0'
+
+# ============ v3shell (Go): the same v3 replica on the Go SDK =============
+# Runs the standalone Go replica against the same goldens: chrome rows,
+# modal PANE footer, collapse hint, real zoom, CSI-u paste, header create and
+# a real-PTY create/split/close/quit pass.
+echo
+echo "== v3 shell (Go replica): legacy v3 chrome + real panes =="
+tm kill-session -t "$SESSION" 2>/dev/null || true
+SESSION="tui2v3go"
+tm new-session -d -s "$SESSION" -x "$COLS" -y 32 \
+  "bash -c '\"$WORK/tui2\" -shell \"$WORK/tui2-v3shell -demo\"; echo V3GOEXIT:\$?; exec bash'"
+sleep 0.9
+
+v3go_line_match() { # v3go_line_match <line> <desc>
+  local n="$1" desc="$2" got="$WORK/v3go-line-$1.txt" golden deadline=$((SECONDS + 6))
+  golden=$(sed -n "${n}p" "$ROOT/clients/tui/examples/v3shell/testdata/golden/demo_live_120x32.txt")
+  while :; do
+    cap | sed -e 's/[[:space:]]*$//' | sed -n "${n}p" >"$got"
+    if [ "$(cat "$got")" = "$golden" ]; then ok "$desc"; return; fi
+    ((SECONDS >= deadline)) && break
+    sleep 0.3
+  done
+  bad "$desc"
+}
+v3go_line_match 1 "v3go: header chip row matches the golden"
+v3go_line_match 2 "v3go: window frame + title + action group match the golden"
+v3go_line_match 32 "v3go: bottom status bar matches the golden"
+
+send C-p
+must 3 "v3go: PANE footer group shows the v3 recommended keys" 'CTRL\+D.*VSPLIT'
+
+# Original card geometry: sibling cards touch (no separator column/row).
+send '%'
+v3go_adjacent=0
+deadline=$((SECONDS + 6))
+while ((SECONDS < deadline)); do
+  if cap | sed -n 2p | grep -q '┐┌' && [ "$(cap | grep -c '│││' || true)" -eq 0 ]; then v3go_adjacent=1; break; fi
+  sleep 0.3
+done
+if [ "$v3go_adjacent" -eq 1 ]; then ok "v3go: split cards are adjacent (no separator column)"; else bad "v3go: split cards are adjacent (no separator column)"; fi
+
+# z is the old panel.toggle_zoom: the zoomed card fills the body.
+send h
+send z
+v3go_zoom=0
+deadline=$((SECONDS + 6))
+while ((SECONDS < deadline)); do
+  if cap | grep -q 'anytty-surface@hs' && ! cap | grep -q 'opencode@hs'; then v3go_zoom=1; break; fi
+  sleep 0.3
+done
+if [ "$v3go_zoom" -eq 1 ]; then ok "v3go: z zooms the focused card (other leaf hidden)"; else bad "v3go: z zooms the focused card (other leaf hidden)"; fi
+send z
+must 5 "v3go: second z unzooms" 'opencode@hs'
+send Escape
+sleep 0.3
+must 3 "v3go: Esc returns to the live footer" '󰌌 CTRL'
+
+# ⇧V: the enhanced-keyboard name must reach the Go program.
+send_bytes $'\x1b[118;6u'
+must 5 "v3go: ctrl-shift-v (CSI-u) reaches the program" 'paste requested'
+send Escape
+sleep 0.2
+
+# Header create button adds a tab.
+mclick 53 1
+must 5 "v3go: header create button adds a tab (T3)" 'T3'
+send C-q
+must 5 "v3go: Ctrl-Q opens the host confirmation" 'Quit tui2\?'
+send Enter
+must 8 "v3go: quitting restores the terminal" 'V3GOEXIT:0'
+
+# Real PTYs: cold-start picker creates a terminal, typing works, a split
+# keeps its own pane and closing it returns to the single card.
+echo "== v3 shell (Go replica): real terminal, split and close =="
+tm kill-session -t "$SESSION" 2>/dev/null || true
+SESSION="tui2v3gopty"
+tm new-session -d -s "$SESSION" -x "$COLS" -y 32 \
+  "bash -c '\"$WORK/tui2\" -shell \"$WORK/tui2-v3shell\"; echo V3GOPTYEXIT:\$?; exec bash'"
+sleep 0.9
+must 5 "v3go pty: cold start opens the terminal picker" 'Terminal Picker'
+must 5 "v3go pty: picker partitions by endpoint (local tab)" '▸ ● local'
+must 5 "v3go pty: cold start picker offers + New terminal" '\+ New terminal'
+send Enter
+must 6 "v3go pty: enter creates and binds a terminal" 'term-1@local'
+sendl 'echo V3GO-OK'
+send Enter
+must 6 "v3go pty: bound terminal accepts input" 'V3GO-OK'
+send C-p
+send '%'
+must 5 "v3go pty: Ctrl-P % splits and creates a second terminal" 'term-2@local'
+# Copy mode is modal; clicking the other pane must end it and take input
+# (a slow/scrollback pane must never swallow input for its siblings).
+send C-p
+send h
+sleep 0.4
+for i in 1 2 3; do wheelup 20 10; sleep 0.05; done
+must 3 "v3go pty: wheel enters the copy scene (COPY badge)" 'COPY'
+mclick 100 10
+must 3 "v3go pty: clicking another pane leaves copy mode" '󰌌 CTRL'
+sendl 'echo COPY-EXIT-OK'
+send Enter
+must 5 "v3go pty: typing after the click reaches the other pane" 'COPY-EXIT-OK'
+# The session is per pane: returning to the scrolled pane resumes copy, and
+# scrolling back to the bottom closes it automatically (old AtFrozenBottom).
+mclick 20 10
+must 3 "v3go pty: clicking back resumes the copy scene (COPY badge)" 'COPY'
+for i in $(seq 1 40); do mouse 65 20 10 M; sleep 0.03; done
+sleep 0.5
+must 3 "v3go pty: scrolling back to the bottom leaves copy mode" '󰌌 CTRL'
+# Copy scene end to end: search a known string, select it, copy through the
+# host (OSC52) and leave with G.
+send C-p
+send h
+sleep 0.4
+sendl "printf 'COPY''ME\\n'"
+send Enter
+sleep 0.8
+send_bytes $'\x1b[99;6u'
+must 3 "v3go pty: ctrl-shift-c enters the copy scene (COPY badge)" 'COPY'
+send /
+sleep 0.2
+sendl "COPYME"
+sleep 0.2
+send Enter
+sleep 0.8
+send Space
+sleep 0.2
+send End
+sleep 0.2
+if capraw | grep -q '43m'; then ok "v3go pty: selection is highlighted (old ansi 8/3 colors)"; else bad "v3go pty: selection is highlighted (old ansi 8/3 colors)"; fi
+send y
+v3go_copied=0
+deadline=$((SECONDS + 6))
+while ((SECONDS < deadline)); do
+  if driver_osc52 "$SESSION" 2>/dev/null | grep -q 'COPYME'; then v3go_copied=1; break; fi
+  sleep 0.3
+done
+if [ "$v3go_copied" -eq 1 ]; then ok "v3go pty: y copies the selection to the clipboard (OSC52)"; else bad "v3go pty: y copies the selection to the clipboard (OSC52)"; fi
+send G
+sleep 0.4
+must 3 "v3go pty: G leaves the copy scene" '󰌌 CTRL'
+mclick 100 10
+sleep 0.4
+send C-p
+sleep 0.3
+send x
+sleep 0.6
+v3go_closed=0
+deadline=$((SECONDS + 6))
+while ((SECONDS < deadline)); do
+  if ! cap | grep -q 'term-2@local'; then v3go_closed=1; break; fi
+  sleep 0.3
+done
+if [ "$v3go_closed" -eq 1 ]; then ok "v3go pty: x closes the focused split card"; else bad "v3go pty: x closes the focused split card"; fi
+send C-q
+must 5 "v3go pty: Ctrl-Q opens the host confirmation" 'Quit tui2\?'
+send Enter
+must 8 "v3go pty: quitting restores the terminal" 'V3GOPTYEXIT:0'
 
 # ============ v3ui.py real panes/floats: split layout, PTY sizes, floats
 # Runs the same replica without --demo so every pane is a real PTY. Verifies
@@ -2240,10 +2408,11 @@ fi
 # must never print shared-layer logs (anytty connect / network attempt /
 # trace_id= / webrtc) over the alt screen: the standard logger goes to the log
 # file (default $XDG_STATE_HOME/anytty/tui2.log, or TUI2_LOG_FILE/-log-file),
-# host diagnostics go to file + notice. By default only local-unix (plus a
-# credential-backed ssh route) is dialed: direct/cloud endpoints stay listed
-# offline with a single readable notice, and a mixed endpoint degrades to
-# local-unix. Opting in via TUI2_ROUTES dials them, still logging to file only.
+# host diagnostics go to file + notice. By default every enabled, credentialed
+# route kind races (local, ssh, direct, cloud): direct/cloud endpoints dial,
+# stay listed offline when the dial fails, and a mixed endpoint degrades to its
+# live local route. Narrowing with TUI2_ROUTES suppresses the excluded kinds,
+# still logging to file only.
 echo
 echo "== log takeover + route policy (old registry with webrtc/cloud) =="
 POLICY_LOG_MARKER='trace_id=|anytty (connect|cloud|network)|webrtc selected'
@@ -2313,6 +2482,12 @@ else
   else
     bad "policy: default log file records startup and offline diagnostics"
     sed -n '1,4p' "$POLICY_DEFAULT_LOG" 2>/dev/null
+  fi
+  if grep -Eq 'webrtc selected|selected_pair|anytty connect' "$POLICY_DEFAULT_LOG"; then
+    ok "policy: default policy races configured webrtc routes"
+  else
+    bad "policy: default policy did not attempt the configured webrtc route"
+    sed -n '1,6p' "$POLICY_DEFAULT_LOG" 2>/dev/null
   fi
   # Attach through the degraded local route and prove input works.
   mix_row=$(cap | grep -n "$MIX_TERM" | head -1 | cut -d: -f1)

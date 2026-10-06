@@ -2,7 +2,44 @@
 
 > 规则：本文只记**状态、验收方式与队列**；协议/架构以 `PROTOCOL.zh-CN.md`、
 > `ARCHITECTURE.zh-CN.md`、`SCENARIOS.zh-CN.md` 为准，正文不在本文重复。
-> 最近更新：2026-09-18（M33 测试驱动去 tmux 强依赖：`scripts/libdriver.sh`
+> 最近更新：2026-09-26（M35 运行时收口：多 view owner lease/CAS、宿主输出有界队列、
+> HELLO 方法表断言、ephemeral quit 清算；另修复 macOS 长 unix socket 测试路径与
+> dev protocol log 在异步输出关闭时的竞态。）
+> 2026-09-22（M34 老 v3 TUI 的独立 Go 复刻程序
+> `clients/tui/examples/v3shell`：与已验证的 Python 参考（`v3ui.py` +
+> `tui2sdk.widgets.chrome`）共用同一批 v3 golden（9 项像素校验 + 交互单测），
+> modal 场景接管全部按键、live 只接管全局 chord；真实 zoom/分屏树/浮窗/picker/
+> 回看/复制/退出，`TUI2_SHELL` 可切换；按原版修正分屏几何（相邻 card 边框
+> 相接、无独立分隔条）、去掉空 pane 提示、picker 按机器（endpoint）分区
+> （tabs + 每 machine 行）；回看改为**按 pane 保存 copy 会话**（对齐老版
+> `CopyModeByView`：只有激活 pane 拥有输入、切走保留回看位置、滚回底部自动
+> 退出）；acceptance 新增 31 项（chrome 逐行 golden、PANE footer、相邻边框、
+> zoom、CSI-u、tab 新建、picker 分区、真实 PTY 建终端/分屏/关闭/退出、回看
+> 跨 pane 隔离/恢复/自动退出、选区高亮配色、选区复制 OSC52、搜索/`G`），脚本
+> `v3shell.sh run|demo|check|test`（test 30 项）。
+> 宿主历史方法现由 terminal 对象封装 provider 冻结 token、分页、逻辑行折行、
+> 搜索、复制与释放；不再将 4096 行 parser 缓存当作持久历史深度。
+> 每 terminal FIFO 异步执行，`TestTerminalHistoryDoesNotBlockSiblingOrView`
+> 验证慢历史请求不阻塞另一 terminal 或 VIEW；`CompleteForEpoch` 隔离旧应答。
+> 真实 pool/access E2E 覆盖 attach 前 6200 多行、text/glob/regex 搜索和宽字符跨行复制。
+> `Session.HandleResult` 移出锁本身只解决锁竞争，不能证明 create/restart 等操作
+> 已从协议读循环异步分离。shell 回看/copy 状态按 pane 保存
+> （`CopyModeByView` 语义：只有激活 pane 拥有输入、切走保留位置、滚回底部
+> 自动退出）。**copy 能力下沉宿主**：`runtime.Terminal.CopyWindow`
+> （char/line/block 选区文本提取）、`terminal.copy{sel}`（可见窗口线性坐标）、
+> `history.window`/`terminal.scroll` 应答带实际 `MethodData.offset`、
+> terminal 组件新增 copy 覆盖层 props（光标/选区/匹配/当前匹配 + 显式样式，
+> 显式样式串支持 `fg:ansi:N`/`idx:N`），程序侧实现 copy 场景
+> （标记流选区 + 行尾补底色、`y`/`enter` 复制 OSC52、text/glob/regex 搜索
+> （`tab` 循环、边输入边高亮、`n/N` 环绕、输入光标编辑）、`space`/鼠标左键
+> 标记、`h/l` 列移动 + `j/k`/滚轮按老 `ScrollCursor` 语义移动光标（到边缘才滚
+> 视图，标记随内容不漂移）、`PgUp/PgDn/u/d/g/G` 导航、滚回 live 且无标记时
+> 自动退出、`Ctrl-Shift-C` 回最新）。
+> 剩余边界：同 source 多 pane 共享宿主历史视口；跨视口选区锚点和本地 command
+> PTY 的完整冻结语义尚未等同原版。验收范围见 README，不作全量 parity 声明。
+> 规格与差异见 `V3_PARITY.zh-CN.md` §6 与
+> `clients/tui/examples/v3shell/README.zh-CN.md`。）
+> M33 测试驱动去 tmux 强依赖：`scripts/libdriver.sh`
 > 统一原语（spawn/send_keys/capture/capture_raw/cursor/OSC52/resize/kill），
 > 默认 tmux、自动回退新 `cmd/tui2-harness`（clients/tui/pty + render/ansi，
 > 固定 cols/rows、SGR 原始抓屏、OSC52 解码、进程组 kill）；smoke/acceptance
@@ -177,6 +214,8 @@
 | M31 SDK 三层 + 一致性套件（core/builder/widgets；Go/Python/TS 三绑定；`tui2-sdk-verify` + fixtures；`docs/SDK.zh-CN.md`） | 已完成 | `go test -count=1 -race ./clients/tui/...`（三语言 conformance 测试）+ `go run ./clients/tui/cmd/tui2-sdk-verify` 与 `--cmd` Python/TS（各 10/10）；详见 §2.18 |
 | M32 TUI 开发体验（M1 acceptance SIGHUP 环境根因修复；M2 `-dev` 热重载/帧日志/报错可见；M3 三语言起点模板 + TUTORIAL） | 已完成 | `gofmt -l tui2` 空 + `go build ./...` + `go vet ./clients/tui/...` + `go test -count=1 -race ./clients/tui/...`（`dev_test.go` 帧日志/方向/时间戳、watcher、stderr、崩溃 notice、reload notice）+ `bash clients/tui/scripts/smoke.sh`（10/10）+ `bash clients/tui/scripts/acceptance.sh`（374/374，新增 39 项：三模板 SDK 加载/关键 chrome/建终端/退出 + dev 帧日志双向解码/终端无日志/热重载/崩溃可见 + 默认帧日志；nohup 与前台各一次）+ `python3 clients/tui/examples/python-shell/parity_test.py`（31/31）+ `python3 clients/tui/examples/python-shell/v3_parity_test.py`（12/12）；教程见 `TUTORIAL.zh-CN.md` |
 | M33 测试驱动去 tmux 强依赖（共享驱动层 `scripts/libdriver.sh`：spawn/send_keys/capture/capture_raw/cursor/OSC52/resize/kill；tmux 首选、无 tmux 自动回退内置 Go/PTY `cmd/tui2-harness`；`TUI2_TEST_DRIVER=tmux\|pty` 强制；smoke/acceptance 同断言双驱动 + pty 能力 SKIP 说明；新增 `scripts/driver-parity.sh` 与 harness 单测） | 已完成（本轮） | `go build ./...` + `go vet ./...` + `go test -count=1 -race ./clients/tui/...`（`testing/harness` 键映射/SGR 抓屏/OSC52 分片/真实 PTY 往返/进程组管理）+ `bash clients/tui/scripts/smoke.sh`（10/10，tmux 与 pty）+ `bash clients/tui/scripts/acceptance.sh`（tmux 374/374；无 tmux 见 §2.20 对比）+ `bash clients/tui/scripts/driver-parity.sh`（无 tmux PATH 冒烟、关键类别 13/13、resize/OSC52、一致性抽样）+ `sdk-verify` 三语言 + parity 31/31 + v3 parity 12/12；驱动选择见 `TUTORIAL.zh-CN.md` §5.1 |
+| M34 老 v3 TUI 的独立 Go 复刻（`clients/tui/examples/v3shell`：与 Python 参考共用同一批 v3 golden；modal 场景接管全部按键、live 只接管全局 chord；真实 zoom/递归切分树/浮窗/picker/回看/复制/退出；`TUI2_SHELL` 可切换） | 已完成（本轮） | `gofmt -l` 空 + `go build ./...` + `go vet ./clients/tui/...` + `go test -count=1 ./clients/tui/examples/v3shell/`（9 项 golden：demo/split/float/left1right2/1.txt/footer 文本/footer 颜色/card 动作 + 交互行为）+ `bash clients/tui/scripts/acceptance.sh`（新增 22 项：chrome 逐行 golden、PANE footer、折叠提示、zoom、CSI-u、tab 新建、真实 PTY 建终端/分屏/关闭/退出）+ `python3 clients/tui/examples/python-shell/v3_parity_test.py`（12/12）；规格/差异见 `V3_PARITY.zh-CN.md` §6 与 `examples/v3shell/README.zh-CN.md` |
+| M35 运行时收口（多 view owner lease/CAS、宿主输出有界队列、HELLO 方法表断言、ephemeral quit 清算） | 已完成（本轮） | `go test -count=1 ./clients/tui/runtime ./clients/tui/cmd/tui2`；owner/共享 handler 见 `runtime/terminal_test.go`，队列见 `runtime/outbound_test.go`，方法表见 `runtime/method_registry_test.go`，清算见 `cmd/tui2/host_test.go`；两进程基准见 `runtime/e2e_bench_test.go` |
 
 ### 2.1 M14 新增（外观与配置，内核语义不变）
 
@@ -800,6 +839,55 @@
   `acceptance.sh` tmux 374/374 / pty 373 PASS + 1 SKIP、`sdk-verify` 三语言
   各 10/10、parity 31/31、v3 parity 12/12。
 
+### 2.21 M34 老 v3 TUI 的独立 Go 复刻（`examples/v3shell`）
+
+- **目标**：master（`main`）分支老 v3 TUI（`tui/app` + `tui/render`，默认推荐配置
+  `coralline-candy`）的 1:1 复刻，落在当前分支的 tui2 架构上，作为**独立 Go
+  布局程序**（不改 `tui2-shell`）：`go build -o tui2-v3shell
+  ./clients/tui/examples/v3shell`，`TUI2_SHELL=/path/tui2-v3shell anytty`
+  或 `tui2 -shell /path/tui2-v3shell`。
+- **实现（M1）**：`theme.go` 逐字移植 recommended yaml 的色板/字形/场景表与
+  footer 颜色解析链（yaml 覆盖 → `footerActionKeyStyle` 启发式）；`model.go`
+  移植已验证的 Python 参考（`tui2sdk.widgets.chrome`）状态机——递归切分树
+  `Leaf|Split(orient, ratio)`、每 leaf 完整 card、1 格可拖拽分隔条只写回本
+  Split、floating（新建/折叠/拖拽/z 序/召唤）、picker/prompt/help/clipboard、
+  回看与复制；`view.go` 全部显式 `pos` + 显式样式；`raster.go` 离线光栅化器。
+- **老语义（M2）**：输入按老 UI 的 modal 模型——PANE/RESIZE/TAB/WORKSPACE/
+  SYSTEM/FLOATING 与所有 overlay 用 `keys.all` 接管全部按键，live 且聚焦终端
+  时只接管全局 chord（其余进 PTY）；`z` 是真实的 `panel.toggle_zoom`（占满
+  body、图标变 `↙`）；分屏几何按原版（相邻 card 边框相接，无独立分隔条；
+  a/b rect 紧贴，拖拽命中区 = 相接边框 1 格）；空 pane 不画提示、无 pane 折叠；
+  picker 按机器（endpoint）分区（tabs + 每 machine 行 + `+ New terminal`）；
+  **回看 copy 会话按 pane 保存**（对齐 `CopyModeByView`/`ActiveViewOwnsCopyInput`：
+  只有聚焦 pane 的会话拥有输入，点击其它 pane 即交还输入且保留原回看位置，
+  滚回底部且无选区时自动 `scrollEnd`；滚轮下在非 copy 态不动作）；
+  `panel.take_owner` 走 `terminal.attach{fit:true}`；tab/workspace 本地重命名。
+- **验证（M3）**：`go test ./clients/tui/examples/v3shell/` 与 Python 侧同一批
+  golden 逐字符对比（demo 120x32/181x56、demo_tab2、split row/col、float 折叠、
+  left1right2、1.txt 行 oracle、footer 8 场景文本、footer 每键颜色 7/9/5/4 色、
+  card 动作按钮），另有 claim/分屏树/拖拽/zoom/折叠/浮窗/工作区/prompt/回看/
+  复制/重启/kill/picker 绑定的行为单测；acceptance 新增 24 项（chrome golden、
+  PANE footer、相邻边框（无分隔条）、zoom、CSI-u、tab 新建、picker endpoint
+  分区、真实 PTY 建终端/分屏/关闭/退出、回看点击隔离）；一键脚本
+  `bash clients/tui/scripts/v3shell.sh run|demo|check|test`
+  （check = 构建 + go test + selftest/footer 与 golden 逐行 diff；test = tmux
+  黑盒 24 项，无 tmux 自动 SKIP；run/demo 支持 `--isolated`，非隔离下先确保
+  本地 pool+access 启动，避免 registry `local` 端点走拨号预算导致点击后长时间
+  才出现终端）。
+- **隔离（M4）**：宿主 `runtime.Session.HandleResult` 原先**持会话锁**执行
+  handler，慢 handler（离线 endpoint 的 `terminal.create` 3s+5s 拨号预算、
+  `terminal.restart` 2s 等待）会冻结所有 pane 的输入与视图处理；现改为锁外执行
+  handler、回锁后再登记 inflight/发响应（epoch 变化则丢弃过期完成），命令仍由
+  单读 goroutine 串行。回归测试
+  `TestSlowHandlerDoesNotFreezeSession`（旧代码下 Input 被卡住）。
+- **差异**：overlay 仍简化（无完整 endpoint toolbar/fuzzy/tags 交互）、
+  workspace/tab 不持久化、copy 选择 UI 未完全复刻（回看 + 复制可见区）。
+  host 已提供 `terminal.rename/detach/reconnect`、持久
+  `clipboard.history.list/delete`、`clipboard.paste` 以及
+  `endpoint.list/test/reconnect`；快捷键锁和连接列表已接入这些方法。
+  插件运行时仍属于独立的 host/plugin 边界，TUI2 不伪造插件加载能力；逐条见
+  `clients/tui/examples/v3shell/README.zh-CN.md` §4。
+
 ## 3. 本轮新增：如何运行（精确命令）
 
 ```sh
@@ -908,29 +996,48 @@ PANE 下 `%`/`"` 分屏、`x` 关槽（只解绑）、`Tab` 切槽、`1..9` 切 
 默认外观（主题/图标）即老版推荐配置；`icons`/`endpoints`/推荐键位见
 `RECOMMENDED_CONFIG.zh-CN.md` 与 `CUSTOMIZE.zh-CN.md` §2.2/§3.1。
 
-## 4. 下一步队列（优先级从上到下）
+## 4. 本轮收口与剩余项
 
-1. **多客户端（§6 租约/CAS）**：同机第二 view 的 `fit:false` 跟随、TTL 15s 接管、
-   `owner conflict`；当前 `cmd/tui2` 只起一个 view，需要宿主支持多连接才有黑盒入口。
-2. **背压/基准（§13.9/§13.10）**：`throttled|oversize|view_rejected` 的落盘断言与
-   10k 行/s + Ctrl-Q p99 延迟；已有 runtime 单测覆盖错误码，缺端到端。
-3. **注册表一致性（§13.8）**：`HELLO.methods` 与 PROTOCOL §4 表逐项扫描的自动断言。
-4. **`terminal.create{ephemeral:true}` 清算路径**：`cleanup_owned:true` 的端到端用例
-   （当前 `:quit` 固定 cleanup=false 的解绑式语义）。
-5. **连接层 G1 桥接（`CLIENT_SHARING.zh-CN.md` §5）**：给 `clients/tui/endpoint` 加
-   `sessionConn` 小接口，把 manager/remotepty 从裸帧 client 迁到共享
-   `protocoladapter.ApplicationClient` + `ResourceStream`，随后 direct/cloud 由
-   共享 dialer 实拨（不再需要 WebRTC/云依赖进 tui2）；不阻塞 P0 ssh 隧道用法。
-6. **v1 清单收口（M13）**：上面 4 条完成后，第 1 节全勾。
-   （M15 遗留项已由 M16 清空：terminal 边框颜色经 `content.props` 随 shell 主题变化；
-   协议有程序 → 组件属性通道；`proto.Border` 已删除并 `reserved`。）
+下面几项已经落地，保留在这里作为验收索引，避免实施状态继续落后于代码：
+
+1. **多客户端租约/CAS：已完成运行时闭环。** `Request.OwnerID` 从会话 view 传到共享
+   `TerminalHandler`，owner 带 TTL（默认 15s），宿主每 5s 心跳续约；过期后第二 view 可
+   用 `expected_owner_epoch` 接管，活跃 owner 仍返回 `owner conflict`。覆盖测试见
+   `runtime/terminal_test.go` 的共享 handler 用例；共享 `endpoint.Manager` 也有按 view
+   fan-out 的通知订阅。当前
+   `cmd/tui2` 仍是一进程一 view；多 view 入口由 embedding 方通过 `Options.ViewID` 与
+   `Options.Handler` 组合提供。
+2. **背压：已完成宿主侧有界输出队列。** `Session` 的生产配置为 256；控制/可靠输入帧
+   保证顺序，notice/sources/stream data 按 key 合并或丢弃。慢 writer、10k notice 和
+   两进程 key→frame 路径分别由 `runtime/outbound_test.go`、`runtime/e2e_bench_test.go`
+   覆盖；基准命令是
+   `ANYTTY_E2E_BENCH=1 go test ./clients/tui/runtime -run '^$' -bench 'TwoProcess|InProcess'`。
+3. **方法注册表一致性：已完成。** `runtime/method_registry_test.go` 扫描本协议 §4 表，
+   并检查 HELLO 示例不会漏列方法。
+4. **ephemeral 清算：已完成宿主路径。** `terminal.create{ephemeral:true}` 被单独追踪，
+   `system.quit{cleanup_owned:true}` 只清理这些创建项；普通 attach 仍保留退出即解绑的
+   语义。覆盖测试见 `cmd/tui2/host_test.go`。
+5. **连接层 G1：已完成。** `endpoint/session.go` 的 `sessionConn` 是唯一拨号 seam，
+   `shared_session.go` 用共享 `ApplicationClient`/`ResourceStream` 承载命令与 PTY 流，
+   manager/remotepty 不再维护第二套裸帧生产连接；最终约束见 `CLIENT_SHARING.zh-CN.md`。
+6. **Surface 重构设计稿：保持归档。** 当前生产 TUI 采用声明式盒子树 + 宿主组件渲染，
+   `docs/design/TUI_SURFACE_REFACTOR.zh-CN.md` 描述的独立本地 Surface socket 并未被半接入；
+   若以后需要第三方自绘插件，应按该文档另起 P0 协议与宿主接线，不能把它误认为当前
+   `tui2` 已提供的能力。
+
+剩余工作只包括产品入口层的多 view 编排和真实终端黑盒环境下的 p99 记录；它们不再是
+runtime、连接、协议或资源清算的框架缺口。M13 的清单可以在补齐该入口后正式关闭。
 
 ## 5. 已知坑（踩过或必须显式处理）
 
 - **事件 id 只属于投递给程序的 key/paste**：PTY 直通的输入不离手、无 id；`input.forward`
   过期回 `RESPONSE{ok:false,error:"event expired"}`；历史随 epoch reset 清空。
-- **OnOutput 必须接线**：`TerminalHandler.OnOutput` → `Session.MarkOutput`（`cmd/tui2` 已接），
-  否则程序输出不会触发重绘。宿主帧循环用 16ms tick + `FrameBytes` diff，无变化不写字节。
+- **OnOutput 必须接线**：`TerminalHandler` 的 `SubscribeOutput` → `Session.MarkOutput`
+  （`cmd/tui2` 已接；共享 handler 会按 view fan-out），否则程序输出不会触发重绘。
+  宿主帧循环是**事件驱动**的：`Session.OnView`（接受的
+  VIEW/VIEW_DELTA）、OnOutput、endpoint OnChange、notice、quit 都会 `signalWake`
+  立即重绘，配合 `FrameBytes` diff 无变化不写字节；不再用 16ms ticker 轮询。lone
+  `Esc`/`Alt` 用一次性超时定时器（仅在缓冲 1-2 字节时 arm），不引入轮询。
 - **鼠标/滚轮条件要实时探测**：路由时重探 mouse tracking；宿主负责命中测试与隐式捕获
   （非终端且声明 `input:["mouse"]` 的盒子），终端类盒子拖拽一律走 PTY。
 - **Esc 歧义**：裸 Esc 在 parser 缓冲，超时（50ms）后由 host `Flush` 提交，否则序列前缀会被吞。

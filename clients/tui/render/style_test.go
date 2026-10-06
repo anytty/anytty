@@ -71,6 +71,10 @@ func TestParseStyleRoundTrip(t *testing.T) {
 		{"fg:#AABBCC", "fg:#aabbcc", true},
 		{"fg:#aabbcc;bg:#010203;bold;reverse", "fg:#aabbcc;bg:#010203;bold;reverse", true},
 		{"unknown:whatever", "", true},
+		{"fg:ansi:8;bg:ansi:3", "fg:ansi:8;bg:ansi:3", true},
+		{"fg:idx:200", "fg:idx:200", true},
+		{"fg:ansi:99", "", true},
+		{"bg:idx:300", "", true},
 	}
 	for _, tt := range tests {
 		style, ok := ParseStyle(tt.in)
@@ -79,6 +83,27 @@ func TestParseStyleRoundTrip(t *testing.T) {
 		}
 		if got := style.String(); got != tt.want {
 			t.Fatalf("ParseStyle(%q).String() = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestStylePaletteColorsSGR(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"fg:ansi:8", "\x1b[90m"},
+		{"fg:ansi:3", "\x1b[33m"},
+		{"bg:ansi:3", "\x1b[43m"},
+		{"bg:ansi:12", "\x1b[104m"},
+		{"fg:idx:200", "\x1b[38;5;200m"},
+		{"bg:idx:42", "\x1b[48;5;42m"},
+		{"fg:#aabbcc;bg:ansi:3;bold", "\x1b[1;38;2;170;187;204;43m"},
+	}
+	for _, tt := range tests {
+		style, _ := ParseStyle(tt.in)
+		if got := style.SGR(); got != tt.want {
+			t.Fatalf("ParseStyle(%q).SGR() = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }

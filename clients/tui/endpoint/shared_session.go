@@ -213,6 +213,24 @@ func (c *sharedClient) defaults(ctx context.Context) (*apipb.TerminalDefaults, e
 	return result.GetDefaults(), nil
 }
 
+// execute forwards one application command through the ready session. It goes
+// through ApplicationSession.Execute (not ApplicationClient.ExecuteApplication)
+// so the request context/operation stamps are bound to this generation; access
+// rejects unstamped envelopes with "context: is required".
+func (c *sharedClient) execute(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
+	return c.app.ApplicationSession.Execute(ctx, command)
+}
+
+// openStream opens the framing stream behind one access resource handle.
+func (c *sharedClient) openStream(resource *apipb.ResourceHandle) (clientruntime.ResourceStream, error) {
+	return c.app.OpenResourceStream(resource)
+}
+
+// events subscribes to the connection event stream.
+func (c *sharedClient) events(ctx context.Context) (<-chan *apipb.EventEnvelope, error) {
+	return c.app.ApplicationEvents(ctx)
+}
+
 func (c *sharedClient) create(ctx context.Context, spec *apipb.TerminalCreateSpec) (*apipb.TerminalInfo, error) {
 	result, err := c.app.TerminalCreate(ctx, &apipb.TerminalCreateCommand{Terminal: spec})
 	if err != nil {
@@ -245,9 +263,11 @@ func (c *sharedClient) liveScreen(ctx context.Context, id string, observed uint6
 // then calls startStream (snapshot is truth, live deltas never replay).
 func (c *sharedClient) openAttachment(ctx context.Context, id, surface, view string, cols, rows int) (*attachment, error) {
 	result, err := c.app.ExecuteTerminal(ctx, &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalAttach{TerminalAttach: &apipb.TerminalAttachCommand{
-		Terminal:     c.terminalRef(id),
-		Mode:         apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR,
-		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_OWNER,
+		Terminal: c.terminalRef(id),
+		Mode:     apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR,
+		// Initial ownership is applied by RemotePTY.claimOwner with the TUI
+		// request's epoch fence. The attach API itself cannot carry that CAS.
+		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_FOLLOWER,
 		SurfaceId:    surface,
 		ViewId:       view,
 	}}})
@@ -274,6 +294,7 @@ func (c *sharedClient) openAttachment(ctx context.Context, id, surface, view str
 	}
 	if control := attach.GetResizeControl(); control.GetOwnership() != nil {
 		att.epoch = control.GetOwnership().GetEpoch()
+		att.ownerView = control.GetOwnership().GetOwnerViewId()
 	}
 	return att, nil
 }
@@ -350,6 +371,7 @@ func (c *sharedClient) resize(ctx context.Context, att *attachment, cols, rows i
 		return nil, err
 	}
 	if control := result.GetResizeControl(); control.GetOwnership() != nil {
+		att.ownerView = control.GetOwnership().GetOwnerViewId()
 		if epoch := control.GetOwnership().GetEpoch(); epoch > att.epoch {
 			att.epoch = epoch
 		}

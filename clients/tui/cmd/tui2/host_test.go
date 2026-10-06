@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/anytty/anytty/clients/tui/pty"
 	"github.com/anytty/anytty/clients/tui/render"
 	"github.com/anytty/anytty/clients/tui/runtime"
+	"github.com/anytty/anytty/clients/tui/runtime/keys"
 	"github.com/anytty/anytty/clients/tui/sdk"
 
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
@@ -20,6 +23,36 @@ import (
 type logCollector struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
+}
+
+func TestFrameFlushDelayUsesFixedBurstBudget(t *testing.T) {
+	now := time.Unix(100, 0)
+	if got := frameFlushDelay(time.Time{}, now); got != 0 {
+		t.Fatalf("idle frame delay = %s, want immediate", got)
+	}
+	last := now.Add(-3 * time.Millisecond)
+	if got, want := frameFlushDelay(last, now), 5*time.Millisecond; got != want {
+		t.Fatalf("burst frame delay = %s, want %s", got, want)
+	}
+	if got := frameFlushDelay(now.Add(-frameCoalesceWindow), now); got != 0 {
+		t.Fatalf("expired frame delay = %s, want immediate", got)
+	}
+}
+
+func TestInteractionRecentHasBoundedUrgencyWindow(t *testing.T) {
+	now := time.Unix(100, 0)
+	h := &Host{}
+	if h.interactionRecent(now) {
+		t.Fatal("unset interaction must not be urgent")
+	}
+	h.lastInteraction.Store(now.Add(-interactionUrgencyWindow + time.Nanosecond).UnixNano())
+	if !h.interactionRecent(now) {
+		t.Fatal("recent interaction should be urgent")
+	}
+	h.lastInteraction.Store(now.Add(-interactionUrgencyWindow - time.Nanosecond).UnixNano())
+	if h.interactionRecent(now) {
+		t.Fatal("expired interaction should use the coalesced path")
+	}
 }
 
 func (c *logCollector) logf(format string, args ...any) {
@@ -159,6 +192,41 @@ func (p *fakePTY) size() [2]int {
 	return [2]int{p.cols, p.rows}
 }
 
+func TestCleanupOwnedTerminalsOnlyRemovesEphemeralCreates(t *testing.T) {
+	proc := newFakePTY()
+	host := NewHost(Options{
+		Cols:   80,
+		Rows:   24,
+		NewPTY: func(pty.Config) pty.PTY { return proc },
+	})
+	defer host.endpoints.Close()
+	ephemeral := true
+	outcome, pending := host.gate.create(runtime.Request{
+		Epoch:  1,
+		Method: runtime.Method{Name: "terminal.create"},
+		Params: &pb.MethodParams{Endpoint: "local", Ephemeral: &ephemeral},
+	})
+	if pending || !outcome.OK {
+		t.Fatalf("ephemeral create = %+v pending=%v", outcome, pending)
+	}
+	host.cleanupOwnedTerminals()
+	host.mu.Lock()
+	remaining := len(host.tracked)
+	host.mu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("owned terminals remaining after cleanup = %d", remaining)
+	}
+	if _, ok := host.handler.Terminal("term-1"); ok {
+		t.Fatal("ephemeral terminal remained in the handler after cleanup")
+	}
+	proc.mu.Lock()
+	closed := proc.closed
+	proc.mu.Unlock()
+	if !closed {
+		t.Fatal("ephemeral PTY was not closed")
+	}
+}
+
 // fakeProcess is the injectable layout program process; the test drives it
 // through an sdk.Client on the other end of the pipes.
 type fakeProcess struct {
@@ -171,6 +239,41 @@ type fakeProcess struct {
 func (p *fakeProcess) Stdin() io.Writer  { return p.stdin }
 func (p *fakeProcess) Stdout() io.Reader { return p.stdout }
 func (p *fakeProcess) Stop()             { p.once.Do(func() { close(p.stopped) }) }
+
+type stoppablePipeProcess struct {
+	stdin  *io.PipeWriter
+	stdout *io.PipeReader
+	once   sync.Once
+}
+
+func (p *stoppablePipeProcess) Stdin() io.Writer  { return p.stdin }
+func (p *stoppablePipeProcess) Stdout() io.Reader { return p.stdout }
+func (p *stoppablePipeProcess) Stop() {
+	p.once.Do(func() {
+		_ = p.stdin.Close()
+		_ = p.stdout.Close()
+	})
+}
+
+func TestStopProgramReleasesBlockedOutputWriter(t *testing.T) {
+	programReader, programWriter := io.Pipe()
+	proc := &stoppablePipeProcess{stdin: programWriter, stdout: programReader}
+	session := runtime.NewSession(runtime.Options{OutputQueue: 1}, bytes.NewReader(nil), programWriter)
+	if err := session.SendHello(); err != nil {
+		t.Fatal(err)
+	}
+	host := &Host{proc: proc, session: session}
+	done := make(chan struct{})
+	go func() {
+		host.stopProgram()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stopProgram waited on a blocked session writer")
+	}
+}
 
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
@@ -305,6 +408,307 @@ func TestHostFrameRoundTrip(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(out.String()), []byte(render.ExitScreen())) {
 		t.Fatal("exit must restore the terminal")
+	}
+}
+
+// TestHostRawWheelReplay follows the real host boundary rather than calling
+// Session.Input directly: raw SGR bytes pass through the host parser and
+// pointer preparation, the focused program receives the wheel and asks the
+// host to scroll, then a child that enables mouse tracking must still leave
+// later wheels with the history reducer while that viewport is frozen.
+func TestHostRawWheelReplay(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+	input := newMemPipe()
+	hostOut := &syncBuffer{}
+
+	var stateMu sync.Mutex
+	var sourceID, terminalID string
+	var ptyBox *fakePTY
+	var term *runtime.Terminal
+	deltas := make(chan int, 8)
+	var client *sdk.Client
+	state := func() (string, *fakePTY) {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return sourceID, ptyBox
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				data := resp.GetData()
+				stateMu.Lock()
+				terminalID = data.GetId()
+				sourceID = "terminal:" + data.GetEndpoint() + ":" + data.GetId()
+				stateMu.Unlock()
+				tree := sdk.Row(sdk.Terminal(sourceID).ID("term").Width(78).Height(18).
+					Input("key", "wheel").Focused(true))
+				if err := client.Commit(tree.Build(), sdk.Keys{}); err != nil {
+					t.Errorf("commit: %v", err)
+				}
+			})
+		},
+		Wheel: func(w *pb.WheelEvent) {
+			deltas <- int(w.GetDelta())
+			_, _ = client.Emit("terminal.scroll", &pb.MethodParams{
+				Endpoint: "local", Id: terminalID, Delta: w.GetDelta(), Rows: 16,
+			}, nil)
+		},
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"}, In: input, Out: hostOut,
+		NewProcess: func([]string) (process, error) { return proc, nil },
+		NewPTY: func(pty.Config) pty.PTY {
+			box := newFakePTY()
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 80, Rows: 20, Tick: 5 * time.Millisecond,
+	})
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		select {
+		case <-done:
+		default:
+			proc.Stop()
+			host.stopProgram()
+		}
+	}()
+
+	waitFor(t, "layout hello", func() bool { return client.Hello() != nil })
+	waitFor(t, "terminal view", func() bool {
+		id, box := state()
+		return id != "" && box != nil && client.Rev() >= 1
+	})
+	id, box := state()
+	term, ok := host.handler.TerminalBySource(id)
+	if !ok {
+		t.Fatalf("terminal %q not found", id)
+	}
+
+	// Seed enough local scrollback for terminal.scroll(+1) to pin a history
+	// viewport. The child is initially not tracking mouse input.
+	var seed strings.Builder
+	for i := 0; i < 32; i++ {
+		seed.WriteString("line-")
+		seed.WriteString(fmt.Sprint(i))
+		seed.WriteString("\r\n")
+	}
+	box.emit(seed.String())
+	if _, err := input.Write([]byte("\x1b[<64;4;4M")); err != nil {
+		t.Fatalf("write first wheel: %v", err)
+	}
+	select {
+	case got := <-deltas:
+		if got != 1 {
+			t.Fatalf("first wheel delta = %d, want +1", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("program did not receive first wheel")
+	}
+	waitFor(t, "history viewport", func() bool { return term.HistoryActive() && term.Offset() > 0 })
+
+	// Codex-like children can leave DEC tracking enabled while the host is in
+	// copy/history mode. The second, downward wheel must remain a program
+	// event, and must never inject ESC[<65 into the child PTY.
+	box.emit("\x1b[?1000h\x1b[?1006h")
+	waitFor(t, "mouse tracking enabled", func() bool { return term.Modes().MouseTracking() })
+	if _, err := input.Write([]byte("\x1b[<65;4;4M")); err != nil {
+		t.Fatalf("write second wheel: %v", err)
+	}
+	select {
+	case got := <-deltas:
+		if got != -1 {
+			t.Fatalf("second wheel delta = %d, want -1", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("history did not receive second wheel")
+	}
+	waitFor(t, "live bottom after downward wheel", func() bool { return !term.HistoryActive() && term.Offset() == 0 })
+	// Once live is restored, tracking belongs to the child again. A downward
+	// wheel must be available to Codex/other mouse-aware terminal programs.
+	if _, err := input.Write([]byte("\x1b[<65;4;4M")); err != nil {
+		t.Fatalf("write bottom wheel: %v", err)
+	}
+	waitFor(t, "live tracking wheel reaches PTY", func() bool {
+		got := box.written()
+		return bytes.Contains([]byte(got), []byte("\x1b[<65")) || bytes.Contains([]byte(got), []byte("\x1b[M"))
+	})
+	if got := box.written(); !bytes.Contains([]byte(got), []byte("\x1b[<65")) && !bytes.Contains([]byte(got), []byte("\x1b[M")) {
+		t.Fatalf("live tracking wheel did not reach PTY: %q", got)
+	}
+
+	// Quit the host cleanly so the test also exercises the same input pump's
+	// lifecycle instead of leaving the fake program goroutine behind.
+	_, _ = input.Write([]byte{0x11})
+	waitFor(t, "quit confirmation", func() bool { return bytes.Contains([]byte(hostOut.String()), []byte("Quit tui2?")) })
+	_, _ = input.Write([]byte{'\r'})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("host run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("host did not stop")
+	}
+}
+
+// TestHostCodexLikePersistentTUIPassthroughTrace runs a terminal child that
+// enables DEC mouse tracking and records the raw wheel bytes written to its
+// PTY. It deliberately has a persistent history capability as a remote
+// terminal would, but the child still owns the wheel gesture while live.
+// This is the boundary that must remain transparent for Codex/OpenCode-like
+// TUIs; the layout program must not receive a synthetic history event here.
+func TestHostCodexLikePersistentTUIPassthroughTrace(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+	input := newMemPipe()
+	hostOut := &syncBuffer{}
+
+	var stateMu sync.Mutex
+	var sourceID string
+	var ptyBox *traceHistoryPTY
+	wheelEvents := make(chan int, 8)
+	var client *sdk.Client
+	state := func() (string, *traceHistoryPTY) {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return sourceID, ptyBox
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				data := resp.GetData()
+				stateMu.Lock()
+				sourceID = "terminal:" + data.GetEndpoint() + ":" + data.GetId()
+				stateMu.Unlock()
+				tree := sdk.Row(sdk.Terminal(sourceID).ID("term").Width(78).Height(18).
+					Input("key", "wheel").Focused(true))
+				if err := client.Commit(tree.Build(), sdk.Keys{}); err != nil {
+					t.Errorf("commit: %v", err)
+				}
+			})
+		},
+		Wheel: func(w *pb.WheelEvent) { wheelEvents <- int(w.GetDelta()) },
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"}, In: input, Out: hostOut,
+		NewProcess: func([]string) (process, error) { return proc, nil },
+		NewPTY: func(pty.Config) pty.PTY {
+			box := &traceHistoryPTY{fakePTY: newFakePTY(), backend: newTraceHistoryBackend()}
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 80, Rows: 20, Tick: 5 * time.Millisecond,
+	})
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		select {
+		case <-done:
+		default:
+			proc.Stop()
+			host.stopProgram()
+		}
+	}()
+
+	waitFor(t, "layout hello", func() bool { return client.Hello() != nil })
+	waitFor(t, "persistent terminal view", func() bool {
+		id, box := state()
+		return id != "" && box != nil && client.Rev() >= 1
+	})
+	_, box := state()
+	box.emit("\x1b[?1000h\x1b[?1006h")
+	waitFor(t, "mouse tracking enabled", func() bool {
+		term, ok := host.handler.TerminalBySource(sourceID)
+		return ok && term.Modes().MouseTracking()
+	})
+
+	var trace []string
+	for _, tc := range []struct {
+		name  string
+		seq   string
+		delta int
+	}{
+		{name: "up", seq: "\x1b[<64;4;4M", delta: 1},
+		{name: "down", seq: "\x1b[<65;4;4M", delta: -1},
+	} {
+		before := box.written()
+		if _, err := input.Write([]byte(tc.seq)); err != nil {
+			t.Fatalf("write %s wheel: %v", tc.name, err)
+		}
+		select {
+		case got := <-wheelEvents:
+			trace = append(trace, fmt.Sprintf("%s -> layout program delta=%d", tc.name, got))
+			t.Fatalf("Codex-like TUI wheel was diverted to layout: trace=%s", strings.Join(trace, " | "))
+		case <-time.After(100 * time.Millisecond):
+		}
+		waitFor(t, tc.name+" wheel reaches child PTY", func() bool { return len(box.written()) > len(before) })
+		trace = append(trace, fmt.Sprintf("%s -> child PTY bytes=%q", tc.name, box.written()[len(before):]))
+	}
+	t.Logf("Codex-like passthrough trace: %s", strings.Join(trace, " | "))
+
+	_, _ = input.Write([]byte{0x11})
+	waitFor(t, "quit confirmation", func() bool { return bytes.Contains([]byte(hostOut.String()), []byte("Quit tui2?")) })
+	_, _ = input.Write([]byte{'\r'})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("host run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("host did not stop")
+	}
+}
+
+func TestHostTerminalPointerUsesContentCoordinatesAndKeepsDrag(t *testing.T) {
+	session := runtime.NewSession(runtime.Options{ViewID: "v", Cols: 80, Rows: 24}, bytes.NewReader(nil), io.Discard)
+	if err := session.SetSources([]*pb.Source{{Id: "terminal:local:main", Kind: "terminal", Attached: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.HandleView(&pb.View{
+		Epoch: 1,
+		Rev:   1,
+		Root: &pb.Box{Id: "root", Children: []*pb.Box{{
+			Id: "term", Focused: true, Input: []string{"mouse", "wheel"},
+			Content: &pb.Content{Self: "terminal:local:main"},
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	host := &Host{}
+	press := keys.Event{Kind: keys.KindMouse, Action: keys.ActionPress, Button: keys.ButtonLeft, X: 2, Y: 2}
+	host.preparePointer(session, &press)
+	if !press.HitFocused || press.PTYX != 1 || press.PTYY != 1 {
+		t.Fatalf("press = %+v, want first content cell", press)
+	}
+	release := keys.Event{Kind: keys.KindMouse, Action: keys.ActionRelease, Button: keys.ButtonLeft, X: 100, Y: 40}
+	host.preparePointer(session, &release)
+	if !release.HitFocused || release.PTYX != 78 || release.PTYY != 22 {
+		t.Fatalf("release = %+v, want clamped terminal cell", release)
 	}
 }
 
@@ -480,6 +884,85 @@ func TestSnapshotSourcesStableOrder(t *testing.T) {
 	}
 }
 
+func TestAttachedSourceTitlePreservesDaemonName(t *testing.T) {
+	const sourceID = "terminal:hs:autopush-id"
+	if got := attachedSourceTitle(sourceID,
+		map[string]string{sourceID: "autopush"},
+		map[string]string{sourceID: "MIX-TERM"},
+		"terminal-id",
+	); got != "autopush" {
+		t.Fatalf("daemon title = %q, want autopush", got)
+	}
+	if got := attachedSourceTitle(sourceID, nil,
+		map[string]string{sourceID: "autopush"},
+		"terminal-id",
+	); got != "autopush" {
+		t.Fatalf("previous title = %q, want autopush", got)
+	}
+	if got := attachedSourceTitle(sourceID, nil, nil, "terminal-id"); got != "terminal-id" {
+		t.Fatalf("fallback title = %q, want terminal-id", got)
+	}
+}
+
+func TestTrackedSourceTitlePrefersExplicitRename(t *testing.T) {
+	term := &runtime.Terminal{}
+	tracked := &trackedTerminal{term: term, title: "renamed"}
+	if got := trackedSourceTitle("terminal:local:id", tracked, nil, map[string]string{"terminal:local:id": "old"}); got != "renamed" {
+		t.Fatalf("tracked title = %q, want renamed", got)
+	}
+}
+
+func TestHostClipboardPasteAndDetachLifecycle(t *testing.T) {
+	var proc *fakePTY
+	host := NewHost(Options{
+		Shell:                []string{"fake-shell"},
+		In:                   newMemPipe(),
+		Out:                  &syncBuffer{},
+		ClipboardHistoryPath: filepath.Join(t.TempDir(), "clipboard.json"),
+		ClipboardRead:        func() (string, error) { return "one\ntwo", nil },
+		NewProcess: func([]string) (process, error) {
+			return &fakeProcess{stdin: newMemPipe(), stdout: newMemPipe(), stopped: make(chan struct{})}, nil
+		},
+		NewPTY: func(pty.Config) pty.PTY {
+			proc = newFakePTY()
+			return proc
+		},
+	})
+	defer host.handler.Close()
+	params := &pb.MethodParams{Endpoint: "local", Id: "clip-test"}
+	if outcome, pending := host.gate.Handle(runtime.Request{Method: runtime.Method{Name: "terminal.attach"}, Params: params}); !outcome.OK || pending {
+		t.Fatalf("attach = %+v pending=%v", outcome, pending)
+	}
+	outcome, pending := host.gate.Handle(runtime.Request{Method: runtime.Method{Name: "clipboard.paste"}, Params: params})
+	if !outcome.OK || pending {
+		t.Fatalf("paste = %+v pending=%v", outcome, pending)
+	}
+	proc.mu.Lock()
+	got := proc.input.String()
+	proc.mu.Unlock()
+	if got != "one\rtwo" {
+		t.Fatalf("pasted bytes = %q, want CR-normalized text", got)
+	}
+	outcome, pending = host.gate.Handle(runtime.Request{Method: runtime.Method{Name: "terminal.detach"}, Params: params})
+	if !outcome.OK || pending {
+		t.Fatalf("detach = %+v pending=%v", outcome, pending)
+	}
+	if _, ok := host.handler.TerminalBySource(runtime.SourceID("local", "clip-test")); ok {
+		t.Fatal("detached terminal still accepts input")
+	}
+	term, ok := host.handler.TerminalAt("local", "clip-test")
+	if !ok || term.Exited() {
+		t.Fatal("detach must preserve the live terminal for reconnect")
+	}
+	outcome, pending = host.gate.Handle(runtime.Request{Method: runtime.Method{Name: "terminal.reconnect"}, Params: params})
+	if !outcome.OK || pending {
+		t.Fatalf("reconnect = %+v pending=%v", outcome, pending)
+	}
+	if _, ok := host.handler.TerminalBySource(runtime.SourceID("local", "clip-test")); !ok {
+		t.Fatal("reconnected terminal was not routable")
+	}
+}
+
 func TestHostEscDeniesProgramQuit(t *testing.T) {
 	programIn := newMemPipe()
 	programOut := newMemPipe()
@@ -519,7 +1002,7 @@ func TestHostEscDeniesProgramQuit(t *testing.T) {
 	go func() { done <- host.Run() }()
 
 	waitFor(t, "confirmation overlay", func() bool {
-		return bytes.Contains([]byte(out.String()), []byte("Layout program requests quit?"))
+		return bytes.Contains([]byte(out.String()), []byte("Quit tui2?"))
 	})
 	if _, err := input.Write([]byte{0x1b}); err != nil {
 		t.Fatalf("write esc: %v", err)

@@ -36,11 +36,30 @@ const (
 	// other non-negative integer pins the inset; invalid values fall back to
 	// the default.
 	PropInset = "chrome.inset"
+	// PropDimmed asks the component to render an unfocused panel with a gray
+	// dim layer while preserving terminal text and geometry.
+	PropDimmed = "chrome.dim"
+
+	// Copy-mode overlay props (program-declared). The copy scene is a program
+	// state machine over the terminal text; the host paints its state:
+	//   copy.cursor = "row,col"                     (viewport cell)
+	//   copy.sel    = "row,c1,c2;row,c1,c2;..."     (inclusive columns)
+	//   copy.match  = "row,c1,c2;..."               (search matches)
+	//   copy.style.cursor / copy.style.sel / copy.style.match are explicit
+	//   styles; absent styles fall back to the built-in tokens.
+	PropCopyCursor         = "copy.cursor"
+	PropCopySelection      = "copy.sel"
+	PropCopyMatch          = "copy.match"
+	PropCopyMatchCurrent   = "copy.match_current"
+	PropCopyStyleCursor    = "copy.style.cursor"
+	PropCopyStyleSelection = "copy.style.sel"
+	PropCopyStyleMatch     = "copy.style.match"
+	PropCopyStyleMatchCur  = "copy.style.match_cur"
 )
 
 // Props are the declarative inputs the host pushes from the view: title,
-// focus, lifecycle badge, scroll badge, chrome inset and the program-declared
-// chrome styles.
+// focus, lifecycle badge, scroll badge, chrome inset, inactive-panel dim state
+// and the program-declared chrome styles.
 type Props struct {
 	Title        string
 	Focused      bool
@@ -56,6 +75,7 @@ type Props struct {
 	// component interprets the keys it knows (PropBorder, PropTitle,
 	// PropBorderFocus, PropBorderDead, PropBadge) and ignores the rest.
 	Chrome map[string]string
+	Dimmed bool
 }
 
 // Inset reports the chrome inset the component draws at the given box size:
@@ -90,6 +110,12 @@ func InsetFromProps(chrome map[string]string) (int, bool) {
 		return 0, false
 	}
 	return inset, true
+}
+
+// DimmedFromProps parses the optional inactive-panel marker.
+func DimmedFromProps(chrome map[string]string) bool {
+	value := strings.ToLower(strings.TrimSpace(chrome[PropDimmed]))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
 func (p Props) withDefaults() Props {

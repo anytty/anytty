@@ -47,6 +47,17 @@ func TestEncodeWheelGolden(t *testing.T) {
 	}
 }
 
+func TestEncodeTerminalMouseLegacy(t *testing.T) {
+	got, ok := EncodeTerminalMouse(Event{Kind: KindMouse, Action: ActionPress, Button: ButtonLeft, X: 4, Y: 7}, false)
+	if !ok || string(got) != "\x1b[M\x20\x24\x27" {
+		t.Fatalf("legacy press = %q ok=%v", got, ok)
+	}
+	got, ok = EncodeTerminalMouse(Event{Kind: KindWheel, Delta: -1, X: 4, Y: 7}, false)
+	if !ok || string(got) != "\x1b[M\x61\x24\x27" {
+		t.Fatalf("legacy wheel = %q ok=%v", got, ok)
+	}
+}
+
 func TestEncodeMouseRejects(t *testing.T) {
 	for _, ev := range []Event{
 		{Kind: KindWheel, Delta: 0},

@@ -10,18 +10,63 @@
 
 const { App, Client } = require('./src/core');
 const builder = require('./src/builder');
+const wire = require('./src/wire');
 
 const CLAIM = ['ctrl-p', '?'];
+
+// ProbeFeatureInvalidFirstFrame is a non-standard HELLO feature that arms the
+// reference program's test-only probe: on a restart epoch's first commit it
+// deliberately violates PROTOCOL §2.1 by writing a VIEW_DELTA with rev_base=0
+// instead of a full VIEW, so the host can reject it (reason base_mismatch) and
+// the program can prove it resyncs with a full snapshot. A compliant SDK never
+// sends this frame (it drops its baseline on HELLO), so the probe writes raw
+// bytes around the SDK; it exists only so the fixtures can exercise the
+// host-side rejection deterministically.
+const PROBE_INVALID_FIRST = 'conformance.invalid_first_frame_delta';
 
 class RefProgram extends App {
   constructor() {
     super();
     this.lines = [];
     this.pane = false;
+    // lastRoot is the tree of the last commit, handed back to commitDelta as
+    // the diff baseline. It exercises the VIEW_DELTA path when the host
+    // advertised features["view_delta"].
+    this.lastRoot = null;
+    // probeInvalidFirst is armed by PROBE_INVALID_FIRST and consumed by the
+    // next commit (the test-only invalid-first-frame probe).
+    this.probeInvalidFirst = false;
   }
 
   commit() {
-    this.client.commit(builder.text(this.lines.join('\n')).build(), CLAIM, false);
+    // One child box per line: the runner flattens the tree to text, so the
+    // rendered content is identical to a single text box, but an append is
+    // now a small insert patch instead of a set carrying the whole log. That
+    // lets the VIEW_DELTA path produce a delta smaller than the full VIEW
+    // deterministically (PROTOCOL §2.1).
+    const root = builder.col(...this.lines.map((line) => builder.text(line))).build();
+    if (this.probeInvalidFirst) {
+      this.probeInvalidFirst = false;
+      if (this.writeInvalidFirstDelta(root)) {
+        this.lastRoot = root;
+        return;
+      }
+    }
+    this.client.commitDelta(this.lastRoot, root, CLAIM, false);
+    this.lastRoot = root;
+  }
+
+  // writeInvalidFirstDelta is the test-only probe (PROBE_INVALID_FIRST): it
+  // writes a raw VIEW_DELTA with rev=1, rev_base=0 as the first frame of a
+  // new epoch, deliberately violating PROTOCOL §2.1 so the host rejects it.
+  // It bypasses the SDK, which correctly refuses to send such a frame.
+  writeInvalidFirstDelta(root) {
+    if (!this.lastRoot) return false;
+    const patches = wire.diffView(this.lastRoot, root);
+    if (!patches) return false;
+    const payload = wire.encodeViewDelta(this.client.epoch, 1, 0, CLAIM, false, patches);
+    this.client.streamOut.write(wire.frame(wire.VIEW_DELTA, payload));
+    return true;
   }
 
   callbackLine(response) {
@@ -39,6 +84,7 @@ class RefProgram extends App {
 
   onHello(hello) {
     this.pane = false;
+    this.probeInvalidFirst = Boolean((hello.features || {})[PROBE_INVALID_FIRST]);
     this.lines = [`hello view=${hello.view_id || ''} epoch=${hello.epoch || 0} cols=${hello.cols || 0} ` +
       `rows=${hello.rows || 0} schema=${hello.schema || 0}`];
     if ((hello.components || []).length) this.lines.push(`components=${hello.components.join(',')}`);
@@ -106,6 +152,15 @@ class RefProgram extends App {
 
   onViewRejected(event) {
     this.lines.push(`view-rejected epoch=${event.epoch || 0} rev=${event.rev || 0} reason=${event.reason || ''}`);
+    // PROTOCOL §2.1: after a rejection the next frame must be a full VIEW.
+    this.lastRoot = null;
+    this.commit();
+  }
+
+  onStream(frame) {
+    const payload = frame.payload || Buffer.alloc(0);
+    this.lines.push(`stream id=${frame.stream_id || 0} kind=${frame.kind || ''} ` +
+      `wire_type=${frame.wire_type || 0} payload=${payload.toString('hex')}`);
     this.commit();
   }
 

@@ -18,6 +18,7 @@ var getProcessMemoryInfo = windows.NewLazySystemDLL("kernel32.dll").NewProc("K32
 
 type ptyProcessPlatform interface {
 	Kill() error
+	KillHard() error
 	ResourceUsage() (TerminalResourceUsage, bool)
 	ProcessExited() error
 	OutputDrained() error
@@ -123,6 +124,11 @@ func (platform *windowsPTYProcessPlatform) Kill() error {
 		return err
 	}
 	return nil
+}
+
+// KillHard 与 Kill 相同：Windows 终止语义本来就覆盖整个 Job Object。
+func (platform *windowsPTYProcessPlatform) KillHard() error {
+	return platform.Kill()
 }
 
 func (platform *windowsPTYProcessPlatform) ResourceUsage() (TerminalResourceUsage, bool) {

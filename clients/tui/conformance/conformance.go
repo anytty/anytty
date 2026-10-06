@@ -25,6 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	gproto "google.golang.org/protobuf/proto"
+
 	wire "github.com/anytty/anytty/proto/ui"
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
@@ -158,12 +160,22 @@ type ExpectResult struct {
 }
 
 // ExpectView matches a VIEW frame; Text is the flattened content lines.
+// Delta, when set, requires the frame to be a VIEW_DELTA and asserts its
+// rev_base and patch count (PROTOCOL §2.1); the runner applies the patches to
+// the last VIEW it decoded and matches epoch/rev/claim/text as usual.
 type ExpectView struct {
-	Epoch *uint64  `json:"epoch,omitempty"`
-	Rev   *uint64  `json:"rev,omitempty"`
-	Claim []string `json:"claim,omitempty"`
-	All   *bool    `json:"all,omitempty"`
-	Text  []string `json:"text,omitempty"`
+	Epoch *uint64      `json:"epoch,omitempty"`
+	Rev   *uint64      `json:"rev,omitempty"`
+	Claim []string     `json:"claim,omitempty"`
+	All   *bool        `json:"all,omitempty"`
+	Text  []string     `json:"text,omitempty"`
+	Delta *ExpectDelta `json:"delta,omitempty"`
+}
+
+// ExpectDelta matches the VIEW_DELTA-specific fields of a delta frame.
+type ExpectDelta struct {
+	RevBase *uint64 `json:"rev_base,omitempty"`
+	Patches *int    `json:"patches,omitempty"`
 }
 
 // LoadFixtures reads a JSON Lines fixture file.
@@ -402,6 +414,17 @@ type session struct {
 	binds    map[string]uint64
 	results  int
 	finished bool
+
+	// lastRoot is the program's view tree as the host cache would hold it,
+	// updated by every VIEW and by every applied VIEW_DELTA. lastEpoch and
+	// lastClaim/lastAll are the keys in force, so a delta with no keys
+	// inherits them (PROTOCOL §2.1). A delta is only applied when its epoch
+	// matches lastEpoch: a new epoch resets the host cache (PROTOCOL §0.5).
+	haveView  bool
+	lastRoot  *pb.Box
+	lastEpoch uint64
+	lastClaim []string
+	lastAll   bool
 }
 
 func (s *session) send(step *SendStep) error {
@@ -435,7 +458,13 @@ func (s *session) readFrame() (*outFrame, error) {
 	}
 	switch t {
 	case wire.TypeView:
-		view, err := decodeView(payload)
+		view, err := s.decodeFullView(payload)
+		if err != nil {
+			return nil, err
+		}
+		return &outFrame{view: view}, nil
+	case wire.TypeViewDelta:
+		view, err := s.decodeDelta(payload)
 		if err != nil {
 			return nil, err
 		}
@@ -481,6 +510,10 @@ type outView struct {
 	Claim []string
 	All   bool
 	Text  string
+	// RevBase and Patches are set for a VIEW_DELTA (PROTOCOL §2.1).
+	RevBase uint64
+	Patches int
+	IsDelta bool
 }
 
 type outResult struct {
@@ -490,7 +523,9 @@ type outResult struct {
 	Params    map[string]any
 }
 
-func decodeView(payload []byte) (*outView, error) {
+// decodeFullView decodes a VIEW frame, records it as the session's host-side
+// baseline and returns its flattened view.
+func (s *session) decodeFullView(payload []byte) (*outView, error) {
 	message, err := wire.UnmarshalPayload(wire.TypeView, payload)
 	if err != nil {
 		return nil, err
@@ -502,12 +537,233 @@ func decodeView(payload []byte) (*outView, error) {
 		Claim: append([]string(nil), view.GetKeys().GetClaim()...),
 		All:   view.GetKeys().GetAll(),
 	}
-	if root := view.GetRoot(); root != nil {
-		var lines []string
-		flattenBox(root, &lines)
-		out.Text = strings.Join(lines, "\n")
-	}
+	root := view.GetRoot()
+	out.Text = flattenText(root)
+	s.haveView = true
+	s.lastRoot = root
+	s.lastEpoch = view.GetEpoch()
+	s.lastClaim = out.Claim
+	s.lastAll = out.All
 	return out, nil
+}
+
+// decodeDelta decodes a VIEW_DELTA frame and, when its epoch matches the
+// session's cached host view, applies its patches so the runner can match the
+// resulting tree exactly like a full VIEW. A delta whose epoch does not match
+// the cache (a first-frame-invalid case the fixture expects the host to
+// reject, or a delta sent before any full VIEW) is decoded but not applied:
+// its Text stays empty so a fixture must assert only the delta fields, never a
+// tree the host never cached.
+func (s *session) decodeDelta(payload []byte) (*outView, error) {
+	message, err := wire.UnmarshalPayload(wire.TypeViewDelta, payload)
+	if err != nil {
+		return nil, err
+	}
+	delta := message.(*pb.ViewDelta)
+	out := &outView{
+		Epoch:   delta.GetEpoch(),
+		Rev:     delta.GetRev(),
+		RevBase: delta.GetRevBase(),
+		Patches: len(delta.GetPatches()),
+		IsDelta: true,
+	}
+	if keys := delta.GetKeys(); keys != nil {
+		out.Claim = append([]string(nil), keys.GetClaim()...)
+		out.All = keys.GetAll()
+	} else {
+		out.Claim = append([]string(nil), s.lastClaim...)
+		out.All = s.lastAll
+	}
+	if !s.haveView || s.lastEpoch != delta.GetEpoch() {
+		return out, nil
+	}
+	root, err := applyPatches(s.lastRoot, delta.GetPatches())
+	if err != nil {
+		return nil, fmt.Errorf("VIEW_DELTA apply: %w", err)
+	}
+	out.Text = flattenText(root)
+	s.lastRoot = root
+	s.lastClaim = out.Claim
+	s.lastAll = out.All
+	return out, nil
+}
+
+// flattenText renders one box tree's content lines (the runner compares text,
+// not shape).
+func flattenText(root *pb.Box) string {
+	if root == nil {
+		return ""
+	}
+	var lines []string
+	flattenBox(root, &lines)
+	return strings.Join(lines, "\n")
+}
+
+// applyPatches applies VIEW_DELTA patches in order to base, honoring the
+// PROTOCOL §2.1 ops: set (non-children fields), replace, insert, remove and
+// move. It returns a new tree; the input is not modified.
+func applyPatches(base *pb.Box, patches []*pb.Patch) (*pb.Box, error) {
+	root := cloneBox(base)
+	if root == nil {
+		root = &pb.Box{}
+	}
+	for _, patch := range patches {
+		if patch == nil {
+			continue
+		}
+		target, index, err := resolveParent(root, patch.GetPath())
+		if err != nil {
+			return nil, err
+		}
+		switch patch.GetOp() {
+		case "set":
+			box := target
+			if index >= 0 {
+				if index >= len(box.GetChildren()) {
+					return nil, fmt.Errorf("set path index %d out of range", index)
+				}
+				box = box.GetChildren()[index]
+			}
+			mergeBox(box, patch.GetBox())
+		case "replace":
+			if index < 0 {
+				root = cloneBox(patch.GetBox())
+				continue
+			}
+			if index >= len(target.GetChildren()) {
+				return nil, fmt.Errorf("replace path index %d out of range", index)
+			}
+			target.Children[index] = cloneBox(patch.GetBox())
+		case "insert":
+			at := int(patch.GetIndex())
+			if at < 0 || at > len(target.GetChildren()) {
+				return nil, fmt.Errorf("insert index %d out of range", at)
+			}
+			children := append(target.GetChildren(), nil)
+			copy(children[at+1:], children[at:])
+			children[at] = cloneBox(patch.GetBox())
+			target.Children = children
+		case "remove":
+			if index < 0 {
+				return nil, fmt.Errorf("remove root is not allowed")
+			}
+			if index >= len(target.GetChildren()) {
+				return nil, fmt.Errorf("remove path index %d out of range", index)
+			}
+			children := target.GetChildren()
+			target.Children = append(children[:index], children[index+1:]...)
+		case "move":
+			from, to := int(patch.GetFrom()), int(patch.GetTo())
+			children := target.GetChildren()
+			if from < 0 || from >= len(children) || to < 0 || to >= len(children) {
+				return nil, fmt.Errorf("move %d->%d out of range", from, to)
+			}
+			box := children[from]
+			children = append(children[:from], children[from+1:]...)
+			children = append(children, nil)
+			copy(children[to+1:], children[to:])
+			children[to] = box
+			target.Children = children
+		default:
+			return nil, fmt.Errorf("unknown patch op %q", patch.GetOp())
+		}
+	}
+	return root, nil
+}
+
+// resolveParent walks path to the box the patch addresses. It returns the box
+// at path and -1 when path is empty, or the parent box and the final child
+// index when path is non-empty.
+func resolveParent(root *pb.Box, path []uint32) (*pb.Box, int, error) {
+	if len(path) == 0 {
+		return root, -1, nil
+	}
+	box := root
+	for i, step := range path {
+		if i == len(path)-1 {
+			return box, int(step), nil
+		}
+		children := box.GetChildren()
+		if int(step) >= len(children) {
+			return nil, 0, fmt.Errorf("path step %d out of range", step)
+		}
+		box = children[step]
+	}
+	return box, -1, nil
+}
+
+// cloneBox deep-copies one box subtree so applying patches never mutates the
+// session's cached tree.
+func cloneBox(box *pb.Box) *pb.Box {
+	if box == nil {
+		return nil
+	}
+	out := gproto.Clone(box).(*pb.Box)
+	return out
+}
+
+// mergeBox merges a set patch's box into target's non-children fields
+// (PROTOCOL §2.1: a set never touches children).
+func mergeBox(target, set *pb.Box) {
+	if set == nil {
+		return
+	}
+	if set.GetId() != "" {
+		target.Id = set.GetId()
+	}
+	if set.GetFlow() != "" {
+		target.Flow = set.GetFlow()
+	}
+	if set.GetStyle() != "" {
+		target.Style = set.GetStyle()
+	}
+	if set.GetFocused() {
+		target.Focused = true
+	}
+	if set.GetSize() != nil {
+		target.Size = set.GetSize()
+	}
+	if set.GetPos() != nil {
+		target.Pos = set.GetPos()
+	}
+	if set.GetCursor() != nil {
+		target.Cursor = set.GetCursor()
+	}
+	if set.GetVisible() != target.GetVisible() {
+		visible := set.GetVisible()
+		target.Visible = &visible
+	}
+	if len(set.GetInput()) > 0 {
+		target.Input = append([]string(nil), set.GetInput()...)
+	}
+	if set.GetContent() != nil {
+		mergeContent(target, set.GetContent())
+	}
+}
+
+// mergeContent merges a set patch's content field into box's content.
+func mergeContent(box *pb.Box, set *pb.Content) {
+	if box.Content == nil {
+		box.Content = gproto.Clone(set).(*pb.Content)
+		return
+	}
+	if set.GetText() != "" {
+		box.Content.Text = set.GetText()
+	}
+	if set.GetSelf() != "" {
+		box.Content.Self = set.GetSelf()
+	}
+	if len(set.GetLines()) > 0 {
+		box.Content.Lines = append([]string(nil), set.GetLines()...)
+	}
+	if len(set.GetProps()) > 0 {
+		if box.Content.Props == nil {
+			box.Content.Props = map[string]string{}
+		}
+		for key, value := range set.GetProps() {
+			box.Content.Props[key] = value
+		}
+	}
 }
 
 func flattenBox(box *pb.Box, lines *[]string) {
@@ -582,22 +838,39 @@ func matchResult(want *ExpectResult, got *outResult, binds map[string]uint64, in
 }
 
 func matchView(want *ExpectView, got *outView) error {
+	label := "VIEW"
+	if got.IsDelta {
+		label = "VIEW_DELTA"
+	}
+	if want.Delta != nil {
+		if !got.IsDelta {
+			return fmt.Errorf("want VIEW_DELTA, got a full VIEW frame")
+		}
+		if want.Delta.RevBase != nil && *want.Delta.RevBase != got.RevBase {
+			return fmt.Errorf("VIEW_DELTA rev_base %d, want %d", got.RevBase, *want.Delta.RevBase)
+		}
+		if want.Delta.Patches != nil && *want.Delta.Patches != got.Patches {
+			return fmt.Errorf("VIEW_DELTA patches %d, want %d", got.Patches, *want.Delta.Patches)
+		}
+	} else if got.IsDelta {
+		return fmt.Errorf("want a full VIEW, got a VIEW_DELTA frame")
+	}
 	if want.Epoch != nil && *want.Epoch != got.Epoch {
-		return fmt.Errorf("VIEW epoch %d, want %d", got.Epoch, *want.Epoch)
+		return fmt.Errorf("%s epoch %d, want %d", label, got.Epoch, *want.Epoch)
 	}
 	if want.Rev != nil && *want.Rev != got.Rev {
-		return fmt.Errorf("VIEW rev %d, want %d", got.Rev, *want.Rev)
+		return fmt.Errorf("%s rev %d, want %d", label, got.Rev, *want.Rev)
 	}
 	if want.Claim != nil && !equalStrings(want.Claim, got.Claim) {
-		return fmt.Errorf("VIEW claim %v, want %v", got.Claim, want.Claim)
+		return fmt.Errorf("%s claim %v, want %v", label, got.Claim, want.Claim)
 	}
 	if want.All != nil && *want.All != got.All {
-		return fmt.Errorf("VIEW all=%v, want %v", got.All, *want.All)
+		return fmt.Errorf("%s all=%v, want %v", label, got.All, *want.All)
 	}
 	if want.Text != nil {
 		wantText := strings.Join(want.Text, "\n")
 		if got.Text != wantText {
-			return fmt.Errorf("VIEW text:\n  got  %q\n  want %q", got.Text, wantText)
+			return fmt.Errorf("%s text:\n  got  %q\n  want %q", label, got.Text, wantText)
 		}
 	}
 	return nil

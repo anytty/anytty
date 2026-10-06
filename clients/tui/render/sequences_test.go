@@ -29,6 +29,12 @@ func TestScreenSequences(t *testing.T) {
 	}
 }
 
+func TestSynchronizedOutputSequences(t *testing.T) {
+	if BeginSynchronizedOutput != "\x1b[?2026h" || EndSynchronizedOutput != "\x1b[?2026l" {
+		t.Fatalf("synchronized output sequences = %q / %q", BeginSynchronizedOutput, EndSynchronizedOutput)
+	}
+}
+
 func TestEnableDisableMouse(t *testing.T) {
 	if got := EnableMouse(1000, 1002, 1006); got != "\x1b[?1000h\x1b[?1002h\x1b[?1006h" {
 		t.Fatalf("EnableMouse = %q", got)

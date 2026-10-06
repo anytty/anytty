@@ -55,7 +55,11 @@ go run ./clients/tui/cmd/tui2-sdk-verify --cmd "node clients/tui/sdk/ts/conforma
    data_id=<data.id> rows=<len(data.rows)> err=<error>`；随后通用
    `on_response` 追加 `resp id=<id> epoch=<n> ok=<0/1> err=<error>`，
    `Commit` 一次（顺序固定：先 cb 后 resp）。
-5. **退出**：stdin EOF -> exit 0。
+5. **STREAM**（access 流，见 PROTOCOL §4）：宿主 STREAM 帧追加
+   `stream id=<stream_id> kind=<kind> wire_type=<n> payload=<payload hex>`
+   并 `Commit`；程序→宿主 STREAM 由各 SDK 的
+   `SendStream`/`send_stream`/`sendStream` 发送，本套件只校验入站方向。
+6. **退出**：stdin EOF -> exit 0。
 
 ## 3. fixtures 格式（JSON Lines）
 

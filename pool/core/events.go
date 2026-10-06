@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 )
@@ -19,7 +18,6 @@ const (
 	EventTerminalRemoved         EventType = "terminal.removed"
 	EventTerminalChanged         EventType = "terminal.changed"
 	EventTerminalLiveInvalidated EventType = "terminal.live.invalidated"
-	EventStorageChanged          EventType = "storage.changed"
 )
 
 type Event struct {
@@ -27,7 +25,6 @@ type Event struct {
 	TerminalID string
 	Terminal   *TerminalInfo
 	Attachment *TerminalAttachmentProjection
-	Storage    *StorageChanged
 	Live       *LiveScreenInvalidated
 	// 中文说明：true 表示该事件承载 terminal lifecycle 变化，而不是普通 live 输出刷新。
 	LifecycleKnown bool
@@ -46,12 +43,8 @@ type TerminalAttachmentProjection struct {
 }
 
 type EventFilter struct {
-	TerminalID       string
-	Types            []EventType
-	StorageAppID     string
-	StorageScope     StorageScope
-	StorageOwnerID   string
-	StorageKeyPrefix string
+	TerminalID string
+	Types      []EventType
 }
 
 type eventBroker struct {
@@ -254,9 +247,6 @@ func eventMatchesFilter(event Event, filter EventFilter) bool {
 	if filter.TerminalID != "" && filter.TerminalID != event.TerminalID {
 		return false
 	}
-	if event.Type == EventStorageChanged && !storageEventMatchesFilter(event.Storage, filter) {
-		return false
-	}
 	if len(filter.Types) == 0 {
 		return true
 	}
@@ -268,33 +258,10 @@ func eventMatchesFilter(event Event, filter EventFilter) bool {
 	return false
 }
 
-func storageEventMatchesFilter(storage *StorageChanged, filter EventFilter) bool {
-	if storage == nil {
-		return filter.StorageAppID == "" && filter.StorageScope == "" && filter.StorageOwnerID == "" && filter.StorageKeyPrefix == ""
-	}
-	if filter.StorageAppID != "" && filter.StorageAppID != storage.AppID {
-		return false
-	}
-	if filter.StorageScope != "" && filter.StorageScope != storage.Scope {
-		return false
-	}
-	if filter.StorageOwnerID != "" && filter.StorageOwnerID != storage.OwnerID {
-		return false
-	}
-	if filter.StorageKeyPrefix != "" && !strings.HasPrefix(storage.Key, filter.StorageKeyPrefix) {
-		return false
-	}
-	return true
-}
-
 func cloneEvent(event Event) Event {
 	if event.Terminal != nil {
 		terminal := event.Terminal.Clone()
 		event.Terminal = &terminal
-	}
-	if event.Storage != nil {
-		storage := *event.Storage
-		event.Storage = &storage
 	}
 	if event.Attachment != nil {
 		attachment := *event.Attachment

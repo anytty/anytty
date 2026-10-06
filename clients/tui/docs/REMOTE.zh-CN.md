@@ -47,7 +47,7 @@ runtime/connector 拥有。旧 TUI 的“远程”对布局程序同样是透明
 
 - **远端 终端池 的 wire 没有 TCP listener**：core-v2 只在 unix socket 上监听
   `shared/transport/unix`（`core/server.go` + `shared/runtimepath`，默认
-  `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`）。`pool --route HOST:PORT` 起的是
+  `$XDG_RUNTIME_DIR/anytty-v3-wire7.sock`）。`pool --route HOST:PORT` 起的是
   WebRTC signaling/ICE-TCP，不是 wire 端口，协议与鉴权完全不同。
 - **P0 就是老 `local-unix` + ssh**：ssh 端口转发把远端 unix socket 变成本地
   socket/TCP 端口，v2 现有 local-unix dialer 零改动即可用；旧 TUI 的
@@ -130,30 +130,33 @@ grep -E 'anytty (connect|network attempt|webrtc|cloud)' ~/.local/state/anytty/tu
 TUI2_LOG_FILE=/tmp/tui2-a.log tui2 -shell tui2-shell
 ```
 
-**路由策略**：默认只拨 tui2 支持的传输，避免老 registry 的
-webrtc/cloud route 造成刷屏与 4 秒阻塞：
+**路由策略**：默认"配置了就竞速"——端点里每条 **enabled** 的 route 都进入
+planner，谁先连上谁赢（attempt group 按 `local-unix` > `ssh-webrtc-tcp` >
+`direct-webrtc-tcp` > `managed-webrtc` 的顺序做 hedge stagger；显式 `priority`
+的 route 仍按 priority 分组）。凭据/平台/Cloud 前置不满足的 route 会被 planner
+剪掉并给出可读诊断，但不会阻止其它 route 竞速：
 
-| route kind | 默认 | 开关 | 行为 |
+| route kind | 默认 | 收窄方式 | 行为 |
 |---|---|---|---|
-| `local-unix`（含 `tcp` 桥、`command`） | ✅ 总是 | — | 正常连接 |
-| `ssh-webrtc-tcp` | ⚠️ 共享 store 里有可用凭据时 | 默认在策略内 | 无凭据则不进 planner，端点 offline |
-| `direct-webrtc-tcp` | ❌ | `TUI2_ROUTES=…,direct-webrtc-tcp`（别名 `direct`/`webrtc`） | opt-in 后由共享 direct adapter 拨号，诊断只进日志文件 |
-| `managed-webrtc`（Cloud） | ❌ | `TUI2_ROUTES=…,managed-webrtc`（别名 `cloud`；需 Cloud 客户端/凭据可用） | 同上 |
+| `local-unix`（含 `tcp` 桥、`command`） | ✅ 竞速 | 由 registry route `enabled` 控制 | 正常连接 |
+| `ssh-webrtc-tcp` | ✅ 竞速（共享 store 里有可用凭据时才进 planner） | 同上 + `TUI2_ROUTES` | 无凭据则剪掉，端点可走其它 route |
+| `direct-webrtc-tcp` | ✅ 竞速（由共享 direct adapter 拨号） | 同上 + `TUI2_ROUTES` | 诊断进日志文件 |
+| `managed-webrtc`（Cloud） | ✅ 竞速（需 Cloud 客户端/凭据可用） | 同上 + `TUI2_ROUTES` | 诊断进日志文件 |
 
-- `--routes` 优先级高于 `TUI2_ROUTES`；值逗号分隔，`all` 开启全部，
-  未知值启动即报错。例：`TUI2_ROUTES=local-unix,ssh,cloud tui2`。
-- 老 registry 多 route 端点的投影降级顺序：`local-unix` > `ssh-webrtc-tcp`
-  > `direct-webrtc-tcp` > `managed-webrtc`；能降级到 unix/tcp/ssh 的端点
-  直接可用，只有 webrtc/cloud 的端点保持 `endpoint · offline` 并给一行
-  可读 notice（planner 的 no-eligible-route / 缺凭据错误）。
-- 默认策略下 webrtc/cloud 端点**不发起任何拨号**，因此没有
-  `webrtc selected_pair` 噪音，也不占用 dial timeout；开启后失败诊断全部
-  在日志文件里，终端只看到 TUI notice。
+- 想排除某些传输（例如只允许本机/ssh）：显式收窄，`--routes` 优先级高于
+  `TUI2_ROUTES`，逗号分隔，`all`/`default` 表示全竞速，未知值启动即报错。
+  例：`TUI2_ROUTES=local-unix,ssh tui2` 只走本机与 ssh。
+- 老 registry 多 route 端点的投影顺序：`local-unix` > `ssh-webrtc-tcp`
+  > `direct-webrtc-tcp` > `managed-webrtc`；全部 route 都不可用时端点保持
+  `endpoint · offline` 并给一行可读 notice（planner 的 no-eligible-route /
+  缺凭据错误）。
+- 由于默认会拨 webrtc/cloud，**配对过的远端设备会在启动后主动发起连接尝试**；
+  失败的详细诊断只进日志文件，终端只看到去重后的 notice（同一失败只提示一次）。
 
 ## 4. 手动复测命令（照抄连自己的服务器）
 
-假设远端 终端池 用默认 socket（`$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`，
-通常是 `/run/user/1000/anytty-v2-wire7.sock`），本地 `tui2.json` 路径见
+假设远端 终端池 用默认 socket（`$XDG_RUNTIME_DIR/anytty-v3-wire7.sock`，
+通常是 `/run/user/1000/anytty-v3-wire7.sock`），本地 `tui2.json` 路径见
 `$ANYTTY_TUI2_CONFIG` 或 `~/.config/anytty/tui2.json`。
 
 ### 4.0 CLI 配对/新增 → TUI 连接（主路径，照抄）
@@ -163,7 +166,7 @@ TUI host 启动时读取共享 registry（`~/.config/anytty/endpoints.yaml`）�
 
 ```bash
 # 1) 建隧道（本机 终端池 直接跳过这步）：
-ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v2-wire7.sock user@server &
+ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v3-wire7.sock user@server &
 
 # 2) CLI 写 registry（local-unix 例；direct/ssh 用 `endpoint add direct/ssh`，
 #    pair 流程用 `anytty pair create|import`）：
@@ -198,7 +201,7 @@ TUI2_ENDPOINTS=~/.config/anytty/endpoints.yaml bash clients/tui/scripts/run.sh
 
 ```bash
 # 本地终端：把远端 终端池 socket 拉到本机 /tmp/anytty-remote.sock
-ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v2-wire7.sock user@server
+ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v3-wire7.sock user@server
 
 # 另开一个终端：写配置并跑 TUI
 cat >/tmp/tui2-remote.json <<'JSON'
@@ -218,7 +221,7 @@ resize/kill 全通。
 ### 4.2 P0-B：ssh 把远端 socket 暴露成本地 TCP 端口（新 `tcp` 模式）
 
 ```bash
-ssh -N -L 127.0.0.1:17777:/run/user/1000/anytty-v2-wire7.sock user@server
+ssh -N -L 127.0.0.1:17777:/run/user/1000/anytty-v3-wire7.sock user@server
 
 cat >/tmp/tui2-tcp.json <<'JSON'
 {
@@ -268,7 +271,6 @@ python3 -c 'import socket;s=socket.socket();s.settimeout(1);s.connect(("127.0.0.
    `client/adapter/ssh` 处理。
 4. **cloud enrollment（`anytty cloud enroll/enable/edge`）与 ticket/identity
    管理**：独立于 terminal attach 的目标，未纳入本轮。
-5. **WebRTC/Cloud 默认不拨号（策略，不是缺口）**：`direct-webrtc-tcp` /
-   `managed-webrtc` 只有 `TUI2_ROUTES`/`-routes` 显式开启才进入 planner；
-   默认策略只拨 `local-unix` 与凭据可用的 `ssh-webrtc-tcp`，老 registry 的
-   webrtc/cloud 端点保持 offline + 一行 notice（见 §3.1）。
+5. **默认全竞速（2026-09 起）**：所有 enabled route kind 都进 planner 竞速，
+   谁先连上谁赢；想排除某些传输用 `TUI2_ROUTES`/`-routes` 显式收窄（见 §3.1）。
+   历史行为（默认只拨 `local-unix` + 凭据 ssh、webrtc/cloud 需 opt-in）已废弃。

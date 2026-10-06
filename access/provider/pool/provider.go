@@ -1,5 +1,5 @@
 // Package pool hosts two pool-facing adapters: the provider protocol
-// TerminalProvider (apipb ↔ providerv1, see terminal.go/events.go) and a
+// TerminalProvider (typed providerv1 facade, see typed.go) and a
 // byte-transparent SessionProvider used by the access relay. In Phase 4+ the
 // relay target is the canonical access socket because remote peers speak the
 // access wire; route selection stays in the composition root.

@@ -57,6 +57,8 @@ func TestRoundTrip(t *testing.T) {
 		Data:      &pb.MethodData{Endpoint: "local", Id: "terminal:local:main"},
 	}
 
+	stream := &pb.StreamFrame{StreamId: 7, Kind: "data", WireType: 9, Offset: 3, Payload: []byte{1, 2, 3}}
+
 	tests := []struct {
 		name string
 		from Role
@@ -69,6 +71,8 @@ func TestRoundTrip(t *testing.T) {
 		{"event", RoleHost, RoleProgram, TypeEvent, event},
 		{"result", RoleProgram, RoleHost, TypeResult, result},
 		{"response", RoleHost, RoleProgram, TypeResponse, response},
+		{"stream program to host", RoleProgram, RoleHost, TypeStream, stream},
+		{"stream host to program", RoleHost, RoleProgram, TypeStream, stream},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -298,5 +302,64 @@ func TestDefaultLimitApplied(t *testing.T) {
 	frame := frameBytes(TypeResult, big)
 	if _, _, err := DecodeFrame(frame, RoleHost, 0); !IsKind(err, KindOversize) {
 		t.Fatalf("err = %v, want KindOversize", err)
+	}
+}
+
+func TestViewDeltaRoundTrip(t *testing.T) {
+	delta := &pb.ViewDelta{
+		Epoch:   3,
+		Rev:     8,
+		RevBase: 7,
+		Keys:    &pb.Keys{Claim: []string{"ctrl-p"}, All: false},
+		Patches: []*pb.Patch{
+			{Op: "set", Path: []uint32{}, Box: &pb.Box{Size: &pb.Size{Height: 30}}},
+			{Op: "replace", Path: []uint32{0, 2}, Box: &pb.Box{Id: "row"}},
+			{Op: "insert", Path: []uint32{0}, Index: 1, Box: &pb.Box{Id: "new"}},
+			{Op: "remove", Path: []uint32{0, 3}},
+			{Op: "move", Path: []uint32{0}, From: 3, To: 1},
+		},
+	}
+	frame, err := Marshal(TypeViewDelta, delta, 0)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	typ, payload, err := DecodeFrame(frame, RoleHost, 0)
+	if err != nil {
+		t.Fatalf("DecodeFrame: %v", err)
+	}
+	if typ != TypeViewDelta {
+		t.Fatalf("type = %v, want VIEW_DELTA", typ)
+	}
+	got, err := UnmarshalPayload(typ, payload)
+	if err != nil {
+		t.Fatalf("UnmarshalPayload: %v", err)
+	}
+	round, ok := got.(*pb.ViewDelta)
+	if !ok {
+		t.Fatalf("payload type = %T", got)
+	}
+	if !gproto.Equal(delta, round) {
+		t.Fatalf("round trip mismatch:\n got %v\nwant %v", round, delta)
+	}
+}
+
+func TestViewDeltaDirection(t *testing.T) {
+	delta := &pb.ViewDelta{Epoch: 1, Rev: 2, RevBase: 1}
+	if _, err := Marshal(TypeViewDelta, delta, 0); err != nil {
+		t.Fatalf("program Marshal: %v", err)
+	}
+	host := NewEncoder(io.Discard, RoleHost, 0)
+	if err := host.Encode(TypeViewDelta, delta); !IsKind(err, KindDirection) {
+		t.Fatalf("host Encode err = %v, want KindDirection", err)
+	}
+	frame, err := Marshal(TypeViewDelta, delta, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := DecodeFrame(frame, RoleProgram, 0); !IsKind(err, KindDirection) {
+		t.Fatalf("program DecodeFrame err = %v, want KindDirection", err)
+	}
+	if _, _, err := DecodeFrame(frame, RoleHost, 0); err != nil {
+		t.Fatalf("host DecodeFrame: %v", err)
 	}
 }

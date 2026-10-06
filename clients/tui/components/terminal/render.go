@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/anytty/anytty/clients/tui/render"
@@ -60,6 +61,7 @@ func (c *Component) Render(width, height int) []render.Line {
 			lines = append(lines, render.Line{X: width - 1, Y: y, Text: "│", Style: border})
 		}
 	}
+	lines = append(lines, copyOverlayLines(screen, inset, props, contentW, contentH)...)
 	if bordered {
 		lines = append(lines, render.Line{
 			X:     0,
@@ -68,7 +70,180 @@ func (c *Component) Render(width, height int) []render.Line {
 			Style: border,
 		})
 	}
+	if props.Dimmed {
+		for index := range lines {
+			lines[index].Style = dimToken(lines[index].Style)
+		}
+	}
 	return lines
+}
+
+func dimToken(token render.Token) render.Token {
+	if raw, ok := token.RawSGR(); ok {
+		if raw == "" {
+			return render.Token("ansi:2")
+		}
+		return render.Token("ansi:" + raw + ";2")
+	}
+	if style, ok := render.ParseStyle(string(token)); ok {
+		style.Dim = true
+		return render.Token(style.String())
+	}
+	// Host semantic tokens do not expose their color here. Muted is the
+	// stable gray fallback and keeps the inactive panel legible.
+	return render.TokenMuted
+}
+
+// copySpan is one inclusive display-cell range on one viewport row.
+type copySpan struct {
+	row      int
+	startCol int
+	endCol   int
+}
+
+// parseCopySpans parses "row,c1,c2;row,c1,c2;..." (inclusive columns),
+// bounded so a hostile program cannot force unbounded work.
+func parseCopySpans(value string) []copySpan {
+	const maxSpans = 1024
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	out := make([]copySpan, 0, 8)
+	for _, part := range strings.Split(value, ";") {
+		if len(out) >= maxSpans {
+			break
+		}
+		fields := strings.Split(part, ",")
+		if len(fields) != 3 {
+			continue
+		}
+		row, err1 := strconv.Atoi(strings.TrimSpace(fields[0]))
+		start, err2 := strconv.Atoi(strings.TrimSpace(fields[1]))
+		end, err3 := strconv.Atoi(strings.TrimSpace(fields[2]))
+		if err1 != nil || err2 != nil || err3 != nil || row < 0 || start < 0 || end < start {
+			continue
+		}
+		out = append(out, copySpan{row: row, startCol: start, endCol: end})
+	}
+	return out
+}
+
+// copyOverlayLines paints the program-declared copy cursor, selection spans
+// and search matches over the rendered content. Every span is one row of
+// inclusive display-cell columns; cells are re-emitted with the highlight
+// style so the character survives while its attributes change.
+func copyOverlayLines(screen Screen, inset int, props Props, contentW, contentH int) []render.Line {
+	if contentW <= 0 || contentH <= 0 {
+		return nil
+	}
+	selectionStyle := chromeStyle(props, PropCopyStyleSelection, render.TokenSelection)
+	matchStyle := chromeStyle(props, PropCopyStyleMatch, render.TokenAccent)
+	matchCurrentStyle := chromeStyle(props, PropCopyStyleMatchCur, render.TokenWarning)
+	cursorStyle := chromeStyle(props, PropCopyStyleCursor, render.Token("reverse"))
+
+	var lines []render.Line
+	paint := func(spans []copySpan, style render.Token, fillTail bool) {
+		for _, span := range spans {
+			if span.row < 0 || span.row >= contentH {
+				continue
+			}
+			cells := screen.Line(span.row)
+			col := 0
+			runText := ""
+			runStart := -1
+			flush := func() {
+				if runStart >= 0 && runText != "" {
+					lines = append(lines, render.Line{X: inset + runStart, Y: inset + span.row, Text: runText, Style: style})
+				}
+				runText = ""
+				runStart = -1
+			}
+			for _, cell := range cells {
+				cellWidth := cell.Width
+				if cellWidth <= 0 {
+					cellWidth = render.DisplayWidth(cell.Text)
+				}
+				if cellWidth <= 0 {
+					continue
+				}
+				cellStart, cellEnd := col, col+cellWidth
+				col = cellEnd
+				if cellStart >= contentW || cellStart > span.endCol {
+					flush()
+					break
+				}
+				if cellEnd <= span.startCol {
+					flush()
+					continue
+				}
+				if runStart < 0 {
+					runStart = cellStart
+				}
+				runText += cell.Text
+			}
+			flush()
+			if !fillTail {
+				continue
+			}
+			// The old renderer paints the selection background over the blank
+			// tail up to the selection column (empty rows included); the copy
+			// text itself is unaffected.
+			fillFrom := col
+			if fillFrom < span.startCol {
+				fillFrom = span.startCol
+			}
+			fillTo := span.endCol
+			if fillTo > contentW-1 {
+				fillTo = contentW - 1
+			}
+			if fillTo >= fillFrom && fillFrom < contentW {
+				lines = append(lines, render.Line{
+					X: inset + fillFrom, Y: inset + span.row,
+					Text: strings.Repeat(" ", fillTo-fillFrom+1), Style: style,
+				})
+			}
+		}
+	}
+
+	// Paint order follows the old style resolution: plain matches, then the
+	// current match, then the selection, with the cursor on top.
+	paint(parseCopySpans(props.Chrome[PropCopyMatch]), matchStyle, false)
+	paint(parseCopySpans(props.Chrome[PropCopyMatchCurrent]), matchCurrentStyle, false)
+	paint(parseCopySpans(props.Chrome[PropCopySelection]), selectionStyle, true)
+
+	if cursor := strings.TrimSpace(props.Chrome[PropCopyCursor]); cursor != "" {
+		fields := strings.Split(cursor, ",")
+		if len(fields) == 2 {
+			row, err1 := strconv.Atoi(strings.TrimSpace(fields[0]))
+			col, err2 := strconv.Atoi(strings.TrimSpace(fields[1]))
+			if err1 == nil && err2 == nil && row >= 0 && row < contentH {
+				if cell, ok := cellAtColumn(screen.Line(row), col); ok {
+					lines = append(lines, render.Line{X: inset + col, Y: inset + row, Text: cell.Text, Style: cursorStyle})
+				}
+			}
+		}
+	}
+	return lines
+}
+
+// cellAtColumn finds the cell covering one display column.
+func cellAtColumn(cells []Cell, target int) (Cell, bool) {
+	col := 0
+	for _, cell := range cells {
+		width := cell.Width
+		if width <= 0 {
+			width = render.DisplayWidth(cell.Text)
+		}
+		if width <= 0 {
+			continue
+		}
+		if target >= col && target < col+width {
+			return cell, true
+		}
+		col += width
+	}
+	return Cell{}, false
 }
 
 // borderToken follows the v1 precedence (exited wins over focused, focused

@@ -155,8 +155,16 @@ func TestViewSplitAndEmptyPlaceholder(t *testing.T) {
 	if len(divider.GetInput()) != 1 || divider.GetInput()[0] != "mouse" {
 		t.Fatalf("divider input = %v", divider.GetInput())
 	}
-	if divider.GetStyle() != m.style("muted") || !contains(contentText(divider), "│") {
-		t.Fatalf("gutter = style %q text %q, want self-drawn muted bars", divider.GetStyle(), contentText(divider))
+	// A vertical divider is one glyph per row (a single text run would only
+	// render its first line): every row carries the muted style and a bar.
+	dividerRows := boxChildren(divider)
+	if len(dividerRows) != int(divider.GetSize().GetHeight()) {
+		t.Fatalf("gutter rows = %d, want height %d", len(dividerRows), divider.GetSize().GetHeight())
+	}
+	for i, row := range dividerRows {
+		if row.GetStyle() != m.style("muted") || !contains(contentText(row), "│") {
+			t.Fatalf("gutter row %d = style %q text %q, want self-drawn muted bars", i, row.GetStyle(), contentText(row))
+		}
 	}
 	empty := findBox(box, m.activeTab().slots[1].id)
 	if empty == nil || len(boxChildren(empty)) == 0 {

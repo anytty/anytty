@@ -57,22 +57,85 @@ type Line struct {
 	Style string
 }
 
+// rectEntry is the solved absolute rect of one id-bearing node.
+type rectNode struct {
+	// id/rect describe one node's absolute rect; ref is set instead when this
+	// item is a whole referenced index (a reused cached subtree or a Pos
+	// overlay), so solve order is preserved exactly with one ordered list.
+	id   string
+	rect Rect
+	ref  *rectIndex
+}
+
+type rectIndex struct {
+	items []rectNode
+	count int
+}
+
+// rect returns the last rect recorded for id, walking the index in solve
+// order. Ids are unique in a well-formed view (PROTOCOL §2); when they are
+// not, the last entry in solve order wins, matching the flat-map behavior this
+// index replaced (a plain Layout and a LayoutCached produce the same order).
+func (x *rectIndex) rect(id string) (Rect, bool) {
+	var out Rect
+	found := false
+	if x == nil {
+		return out, false
+	}
+	for i := range x.items {
+		it := &x.items[i]
+		if it.ref != nil {
+			if r, ok := it.ref.rect(id); ok {
+				out, found = r, true
+			}
+			continue
+		}
+		if it.id == id {
+			out, found = it.rect, true
+		}
+	}
+	return out, found
+}
+
+// iterate calls fn for every reachable entry until fn returns false, in solve
+// order (own entries and referenced indexes interleaved as they were solved).
+func (x *rectIndex) iterate(fn func(id string, r Rect) bool) bool {
+	if x == nil {
+		return true
+	}
+	for i := range x.items {
+		it := &x.items[i]
+		if it.ref != nil {
+			if !it.ref.iterate(fn) {
+				return false
+			}
+			continue
+		}
+		if !fn(it.id, it.rect) {
+			return false
+		}
+	}
+	return true
+}
+
 // Frame is the solved layout of one subtree.
 //
-// Rects holds every node with a non-empty id, including nodes inside Pos
-// subtrees (absolute coordinates). Lines holds the regular-flow text runs of
-// this frame only; Pos subtree output lives in OverlayFrames, in compositing
-// order (later frames draw on top). Cursor fields describe the last cursor
-// in z order for this frame.
+// The rect surface (every node with a non-empty id, including nodes inside Pos
+// subtrees at absolute coordinates) lives in a tree-shaped index: a reused
+// subtree's index is linked by pointer, never copied. Use Rect, RectCount and
+// RectsIterate to read it. Lines holds the regular-flow text runs of this frame
+// only; Pos subtree output lives in OverlayFrames, in compositing order (later
+// frames draw on top). Cursor fields describe the last cursor in z order for
+// this frame.
 type Frame struct {
-	Rects         map[string]Rect
 	Lines         []Line
 	OverlayFrames []Frame
 	CursorRect    Rect
 	HasCursor     bool
 	CursorShape   string
 
-	hits []hit
+	index *rectIndex
+	hits  []hit
 }
 
 type hit struct {
@@ -80,10 +143,33 @@ type hit struct {
 	rect Rect
 }
 
-// Rect looks up the absolute rect of a node by id.
+// Rect looks up the absolute rect of a node by id. It walks the tree-shaped
+// rect index; an index shared by a spliced subtree is followed, so the lookup
+// sees reused rects too.
 func (f Frame) Rect(id string) (Rect, bool) {
-	r, ok := f.Rects[id]
-	return r, ok
+	if f.index == nil {
+		return Rect{}, false
+	}
+	return f.index.rect(id)
+}
+
+// RectCount returns the number of id-bearing nodes reachable in this frame's
+// rect surface (own nodes plus every spliced subtree). It is O(1).
+func (f Frame) RectCount() int {
+	if f.index == nil {
+		return 0
+	}
+	return f.index.count
+}
+
+// RectsIterate calls fn for every id-bearing node in this frame's rect surface,
+// including nodes inside spliced subtrees and Pos overlays. fn returns false to
+// stop.
+func (f Frame) RectsIterate(fn func(id string, r Rect) bool) {
+	if f.index == nil {
+		return
+	}
+	f.index.iterate(fn)
 }
 
 // Hit returns the id of the topmost, smallest-area visible node containing

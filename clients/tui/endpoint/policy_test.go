@@ -2,11 +2,14 @@ package endpoint
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
+	"github.com/anytty/anytty/proto/access/wire"
 )
 
 // TestParseRouteKindsNamesAndAliases pins the operator-facing switch:
@@ -54,11 +57,11 @@ func TestResolveRouteKindsFlagEnvDefault(t *testing.T) {
 	}
 }
 
-// TestSharedRouteEnvironmentPrunesOptInWebRTC is the M2 route-pruning
-// contract: the default policy only ever offers local-unix (plus a
-// credential-backed ssh), so a direct/cloud route in an old registry is not
-// attempted; explicitly opting in adds direct to the plan.
-func TestSharedRouteEnvironmentPrunesOptInWebRTC(t *testing.T) {
+// TestSharedRouteEnvironmentRacesConfiguredKinds pins the default policy:
+// every configured, enabled kind races (direct included) and the first ready
+// one wins; narrowing is an explicit -routes/TUI2_ROUTES choice, while
+// credential and cloud gates still prune kinds that cannot connect.
+func TestSharedRouteEnvironmentRacesConfiguredKinds(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	target := clientendpoint.Endpoint{
 		ID: "old", Label: "old", Enabled: true, ConnectMode: clientendpoint.ConnectAuto,
@@ -79,19 +82,35 @@ func TestSharedRouteEnvironmentPrunesOptInWebRTC(t *testing.T) {
 			},
 		},
 	}
-	environment := sharedRouteEnvironment(context.Background(), target, nil, true)
-	if !reflect.DeepEqual(environment.SupportedRouteKinds, []clientendpoint.RouteKind{clientendpoint.RouteLocalUnix}) {
-		t.Fatalf("default supported kinds = %v; want local-unix only (direct/cloud pruned)", environment.SupportedRouteKinds)
-	}
 
-	environment = sharedRouteEnvironment(context.Background(), target, []clientendpoint.RouteKind{
-		clientendpoint.RouteLocalUnix, clientendpoint.RouteDirectWebRTCTCP,
-	}, true)
-	if !routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteDirectWebRTCTCP) {
-		t.Fatalf("opt-in supported kinds = %v; want direct-webrtc-tcp enabled", environment.SupportedRouteKinds)
+	// Default: local and direct are offered; ssh and managed stay pruned because
+	// no credential/cloud account is available.
+	environment := sharedRouteEnvironment(context.Background(), target, nil, true)
+	if !routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteLocalUnix) ||
+		!routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteDirectWebRTCTCP) {
+		t.Fatalf("default supported kinds = %v; want local-unix and direct-webrtc-tcp to race", environment.SupportedRouteKinds)
+	}
+	if routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteSSHWebRTCTCP) {
+		t.Fatalf("ssh must stay pruned without a credential: %v", environment.SupportedRouteKinds)
 	}
 	if routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteManagedWebRTC) {
 		t.Fatalf("managed-webrtc must stay pruned without a Cloud credential: %v", environment.SupportedRouteKinds)
+	}
+
+	// Explicit narrowing wins: only the named kinds are offered.
+	environment = sharedRouteEnvironment(context.Background(), target, []clientendpoint.RouteKind{
+		clientendpoint.RouteLocalUnix,
+	}, true)
+	if !reflect.DeepEqual(environment.SupportedRouteKinds, []clientendpoint.RouteKind{clientendpoint.RouteLocalUnix}) {
+		t.Fatalf("narrowed supported kinds = %v; want local-unix only", environment.SupportedRouteKinds)
+	}
+
+	// Managed needs Cloud availability even when requested.
+	environment = sharedRouteEnvironment(context.Background(), target, []clientendpoint.RouteKind{
+		clientendpoint.RouteLocalUnix, clientendpoint.RouteManagedWebRTC,
+	}, false)
+	if routeKindEnabled(environment.SupportedRouteKinds, clientendpoint.RouteManagedWebRTC) {
+		t.Fatalf("managed-webrtc must stay pruned without a Cloud client: %v", environment.SupportedRouteKinds)
 	}
 }
 
@@ -120,5 +139,45 @@ func TestConfigFromSharedEndpointDegradesToLocal(t *testing.T) {
 	}
 	if cfg.ConnectMode != ConnectLocalUnix || cfg.Socket != "/tmp/old.sock" {
 		t.Fatalf("degraded config = %+v; want local-unix /tmp/old.sock", cfg)
+	}
+}
+
+// TestConfigFromSharedEndpointResolvesAutoLocalSocket pins the "all local
+// connections go through access" rule: socket "auto" projects to the default
+// canonical access socket instead of degrading to the host PTY fallback.
+func TestConfigFromSharedEndpointResolvesAutoLocalSocket(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	target := clientendpoint.Endpoint{
+		ID: "local", Label: "local", Enabled: true, ConnectMode: clientendpoint.ConnectAuto,
+		Routes: map[clientendpoint.RouteID]clientendpoint.AccessRoute{
+			"local": {
+				ID: "local", Kind: clientendpoint.RouteLocalUnix, Enabled: true,
+				Source: clientendpoint.SourceLocal, PolicySource: clientendpoint.SourceLocal, Socket: "auto",
+			},
+		},
+	}
+	cfg, ok := configFromSharedEndpoint(target)
+	if !ok {
+		t.Fatal("auto local-unix must project to the default access socket")
+	}
+	want := filepath.Join(runtimeDir, fmt.Sprintf("anytty-v3-wire%d.sock", wire.Version))
+	if cfg.ConnectMode != ConnectLocalUnix || cfg.Socket != want {
+		t.Fatalf("auto local config = %+v, want local-unix %s", cfg, want)
+	}
+}
+
+// TestDefaultRouteKindsRacesAllTransports pins the out-of-the-box policy: a
+// configured route of any kind enters the race; the order decides the hedge
+// stagger (local first, cloud last).
+func TestDefaultRouteKindsRacesAllTransports(t *testing.T) {
+	want := []clientendpoint.RouteKind{
+		clientendpoint.RouteLocalUnix,
+		clientendpoint.RouteSSHWebRTCTCP,
+		clientendpoint.RouteDirectWebRTCTCP,
+		clientendpoint.RouteManagedWebRTC,
+	}
+	if got := DefaultRouteKinds(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("DefaultRouteKinds() = %v, want all transports %v", got, want)
 	}
 }

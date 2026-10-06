@@ -211,7 +211,7 @@ endpoint（`󰌷 label`），回车/单击即创建并绑定 `terminal:<name>:<i
 {
   "endpoints": [
     { "name": "dev", "kind": "daemon", "label": "dev-daemon",
-      "socket": "/run/user/1000/anytty-v2-wire7-dev.sock" },
+      "socket": "/run/user/1000/anytty-v3-wire7-dev.sock" },
     { "name": "prod", "kind": "daemon", "label": "prod",
       "socket": "/tmp/anytty-prod.sock", "argv": ["tmux", "new", "-A", "-s", "main"] }
   ]
@@ -248,8 +248,8 @@ endpoint（`󰌷 label`），回车/单击即创建并绑定 `terminal:<name>:<i
 }
 ```
 
-配合 `ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v2-wire7.sock user@host`
-（或 `ssh -N -L 127.0.0.1:17777:/run/user/1000/anytty-v2-wire7.sock user@host`）。
+配合 `ssh -N -L /tmp/anytty-remote.sock:/run/user/1000/anytty-v3-wire7.sock user@host`
+（或 `ssh -N -L 127.0.0.1:17777:/run/user/1000/anytty-v3-wire7.sock user@host`）。
 
 配置解析失败不崩：footer 显示一行 `config error: …`，程序用默认值继续运行。
 `tui2-shell --print-default-config` 打印示例 JSON。

@@ -14,6 +14,8 @@ const VIEW = 2;
 const EVENT = 3;
 const RESULT = 4;
 const RESPONSE = 5;
+const STREAM = 6;
+const VIEW_DELTA = 7;
 
 const WIRE_VARINT = 0;
 const WIRE_64BIT = 1;
@@ -156,8 +158,24 @@ function uint(fields, field) {
   return value === undefined ? 0 : Number(value);
 }
 
+function uints(fields, field) {
+  return fields.filter(([number]) => number === field).map(([, , value]) => Number(value));
+}
+
 function bool(fields, field) {
   return uint(fields, field) !== 0;
+}
+
+// stringMap decodes a proto3 map<string,string> (repeated entry messages with
+// key=1/value=2); later duplicates win.
+function stringMap(fields, field) {
+  const out = {};
+  for (const [number, wire, value] of fields) {
+    if (number !== field || wire !== WIRE_LEN) continue;
+    const entry = parseFields(value);
+    out[string(entry, 1)] = string(entry, 2);
+  }
+  return out;
 }
 
 function parseLimits(data) {
@@ -200,6 +218,9 @@ function parseSource(data) {
     exit_code: toInt32(uint(fields, 8)), health: string(fields, 9),
     resize_owner: string(fields, 10), owner_epoch: uint(fields, 11),
     last_seen_ms: toInt64(uint(fields, 12)),
+    cols: toInt32(uint(fields, 13)), rows: toInt32(uint(fields, 14)),
+    tags: stringMap(fields, 15), endpoint_label: string(fields, 16),
+    last_output_ms: toInt64(uint(fields, 17)),
   };
 }
 
@@ -244,10 +265,22 @@ function decodeResponse(data) {
       response.data = {
         rows: strings(inner, 1), text: string(inner, 2),
         endpoint: string(inner, 3), id: string(inner, 4),
+        access_result: first(inner, 5) || Buffer.alloc(0),
+        offset: uint(inner, 6), found: !!uint(inner, 7), wrapped: !!uint(inner, 8),
+        match_start: uint(inner, 9), match_end: uint(inner, 10),
       };
     }
   }
   return response;
+}
+
+function decodeStream(data) {
+  const fields = parseFields(data);
+  return {
+    stream_id: uint(fields, 1), kind: string(fields, 2),
+    payload: first(fields, 3) || Buffer.alloc(0), offset: uint(fields, 4),
+    error: string(fields, 5), wire_type: uint(fields, 6),
+  };
 }
 
 // ---------------------------------------------------------------- box trees
@@ -298,6 +331,218 @@ function encodeView(epoch, rev, claim, allKeys, root) {
     fieldVarint(1, epoch), fieldVarint(2, rev), fieldMsg(3, keys), fieldMsg(4, encodeBox(root))]);
 }
 
+// -------------------------------------------------------------- view deltas
+
+// Patch ops (PROTOCOL §2.1); the wire carries them as strings.
+const OP_SET = 'set';
+const OP_REPLACE = 'replace';
+const OP_INSERT = 'insert';
+const OP_REMOVE = 'remove';
+
+// Box fields a set patch may carry; children are deliberately excluded (a set
+// never touches them, PROTOCOL §2.1).
+const BOX_FIELDS = ['size', 'pos', 'flow', 'visible', 'cursor', 'content', 'input', 'focused', 'style'];
+
+function encodePatch(patch) {
+  let out = fieldString(1, patch.op);
+  for (const step of patch.path || []) out = Buffer.concat([out, fieldVarint(2, step)]);
+  if (patch.index !== undefined && patch.index !== null) out = Buffer.concat([out, fieldVarint(3, patch.index)]);
+  if (patch.from !== undefined && patch.from !== null) out = Buffer.concat([out, fieldVarint(4, patch.from)]);
+  if (patch.to !== undefined && patch.to !== null) out = Buffer.concat([out, fieldVarint(5, patch.to)]);
+  if (patch.box) out = Buffer.concat([out, fieldMsg(6, encodeBox(patch.box))]);
+  return out;
+}
+
+// encodeViewDelta encodes a VIEW_DELTA payload (frame type 7, PROTOCOL §2.1).
+// claim === undefined/null and allKeys === undefined/null mean "keep the
+// previous keys".
+function encodeViewDelta(epoch, rev, revBase, claim, allKeys, patches) {
+  let out = Buffer.concat([fieldVarint(1, epoch), fieldVarint(2, rev), fieldVarint(3, revBase)]);
+  if (claim !== undefined && claim !== null || allKeys !== undefined && allKeys !== null) {
+    let keys = Buffer.alloc(0);
+    for (const key of claim || []) keys = Buffer.concat([keys, fieldString(1, key)]);
+    keys = Buffer.concat([keys, fieldBool(2, allKeys)]);
+    out = Buffer.concat([out, fieldMsg(4, keys)]);
+  }
+  for (const patch of patches) out = Buffer.concat([out, fieldMsg(5, encodePatch(patch))]);
+  return out;
+}
+
+function decodePatch(data) {
+  const fields = parseFields(data);
+  const box = first(fields, 6);
+  return {
+    op: string(fields, 1), path: uints(fields, 2), index: uint(fields, 3),
+    from: uint(fields, 4), to: uint(fields, 5), box: box ? decodeBox(box) : null,
+  };
+}
+
+function decodeViewDelta(data) {
+  const fields = parseFields(data);
+  const delta = { epoch: uint(fields, 1), rev: uint(fields, 2), rev_base: uint(fields, 3), keys: null, patches: [] };
+  for (const [field, wireType, value] of fields) {
+    if (field === 4 && wireType === WIRE_LEN) {
+      const inner = parseFields(value);
+      delta.keys = { claim: strings(inner, 1), all: bool(inner, 2) };
+    } else if (field === 5 && wireType === WIRE_LEN) {
+      delta.patches.push(decodePatch(value));
+    }
+  }
+  return delta;
+}
+
+function decodeBox(data) {
+  const fields = parseFields(data);
+  const box = {
+    id: string(fields, 1), flow: string(fields, 4),
+    visible: first(fields, 5) === undefined ? null : bool(fields, 5),
+    focused: bool(fields, 10), style: string(fields, 12),
+    input: strings(fields, 9), children: [],
+  };
+  const size = first(fields, 2);
+  if (size) {
+    const inner = parseFields(size);
+    box.size = [toInt32(uint(inner, 1)), toInt32(uint(inner, 2)), toInt32(uint(inner, 3))];
+  }
+  const pos = first(fields, 3);
+  if (pos) {
+    const inner = parseFields(pos);
+    box.pos = [toInt32(uint(inner, 1)), toInt32(uint(inner, 2))];
+  }
+  const cursor = first(fields, 7);
+  if (cursor) {
+    const inner = parseFields(cursor);
+    box.cursor = {
+      row: toInt32(uint(inner, 1)), col: toInt32(uint(inner, 2)), shape: string(inner, 3),
+      visible: first(inner, 4) === undefined ? null : bool(inner, 4),
+    };
+  }
+  const content = first(fields, 8);
+  if (content) {
+    const inner = parseFields(content);
+    const decoded = { text: string(inner, 1), lines: strings(inner, 2), self: string(inner, 3) };
+    const props = {};
+    for (const [number, wireType, value] of inner) {
+      if (number === 4 && wireType === WIRE_LEN) Object.assign(props, parseMapStringString(value));
+    }
+    if (Object.keys(props).length) decoded.props = props;
+    box.content = decoded;
+  }
+  for (const [number, wireType, value] of fields) {
+    if (number === 11 && wireType === WIRE_LEN) box.children.push(decodeBox(value));
+  }
+  return box;
+}
+
+function parseMapStringString(entry) {
+  const fields = parseFields(entry);
+  return { [string(fields, 1)]: string(fields, 2) };
+}
+
+// ------------------------------------------------------------------- diff
+
+// diffView computes the VIEW_DELTA patches turning the base box tree into
+// nextRoot, or null when no patch form can express the change (the caller
+// falls back to a full VIEW). A node whose fields can be merged gets one set
+// (changed fields only, never children); child-list differences become
+// insert/remove around a deeply-equal common prefix and suffix; a child that
+// cannot be patched in place is replaced whole.
+function diffView(base, nextRoot) {
+  const patches = [];
+  const changed = diffNode(base, nextRoot, [], patches);
+  if (changed === null || !changed) return null;
+  return patches;
+}
+
+function diffNode(base, next, path, patches) {
+  for (const key of BOX_FIELDS) {
+    const baseValue = base[key];
+    const nextValue = next[key];
+    if (jsonEqual(baseValue, nextValue)) continue;
+    if (!mergeRepresentable(baseValue, nextValue)) return null;
+  }
+  let changed = false;
+  for (const key of BOX_FIELDS) {
+    const baseValue = base[key];
+    const nextValue = next[key];
+    if (jsonEqual(baseValue, nextValue)) continue;
+    patches.push({ op: OP_SET, path: path.slice(), box: { [key]: nextValue } });
+    changed = true;
+  }
+  const baseChildren = base.children || [];
+  const nextChildren = next.children || [];
+  if (baseChildren.length === nextChildren.length) {
+    for (let index = 0; index < baseChildren.length; index += 1) {
+      const childPatches = [];
+      const childChanged = diffNode(baseChildren[index], nextChildren[index], path.concat(index), childPatches);
+      if (childChanged === null) {
+        patches.push({ op: OP_REPLACE, path: path.concat(index), box: nextChildren[index] });
+        changed = true;
+      } else if (childChanged) {
+        patches.push(...childPatches);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  const prefix = commonPrefix(baseChildren, nextChildren);
+  const suffix = commonSuffix(baseChildren, nextChildren, prefix);
+  for (let i = prefix; i < baseChildren.length - suffix; i += 1) {
+    patches.push({ op: OP_REMOVE, path: path.concat(prefix) });
+    changed = true;
+  }
+  for (let i = prefix; i < nextChildren.length - suffix; i += 1) {
+    patches.push({ op: OP_INSERT, path: path.slice(), index: i, box: nextChildren[i] });
+    changed = true;
+  }
+  return changed;
+}
+
+function commonPrefix(a, b) {
+  const limit = Math.min(a.length, b.length);
+  let index = 0;
+  while (index < limit && jsonEqual(a[index], b[index])) index += 1;
+  return index;
+}
+
+function commonSuffix(a, b, start) {
+  const limit = Math.min(a.length, b.length) - start;
+  let index = 0;
+  while (index < limit && jsonEqual(a[a.length - 1 - index], b[b.length - 1 - index])) index += 1;
+  return index;
+}
+
+function jsonEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// mergeRepresentable reports whether a set patch can turn baseValue into
+// nextValue under the host's proto3 merge (PROTOCOL §2.1). A non-zero scalar
+// cannot be cleared (zero fields are omitted); a repeated field only merges
+// from empty.
+function mergeRepresentable(baseValue, nextValue) {
+  if (baseValue === nextValue) return true;
+  if (typeof baseValue === 'string') return nextValue !== '';
+  if (typeof baseValue === 'boolean') return Boolean(nextValue);
+  if (Array.isArray(baseValue)) {
+    if (!Array.isArray(nextValue) || baseValue.length !== nextValue.length) return false;
+    // size/pos tuples: no non-zero component may be cleared.
+    return baseValue.every((item, index) => item === 0 || nextValue[index] !== 0);
+  }
+  if (baseValue && typeof baseValue === 'object') {
+    if (!nextValue || typeof nextValue !== 'object') return false;
+    if (baseValue.text && !nextValue.text) return false;
+    if (baseValue.self && !nextValue.self) return false;
+    if ((baseValue.lines || []).length &&
+        JSON.stringify(baseValue.lines) !== JSON.stringify(nextValue.lines)) return false;
+    for (const key of Object.keys(baseValue.props || {})) {
+      if (!(key in (nextValue.props || {}))) return false;
+    }
+    return true;
+  }
+  return true;
+}
+
 // ------------------------------------------------------------------- result
 
 function encodeResult(requestId, epoch, method, params) {
@@ -325,8 +570,22 @@ function encodeResult(requestId, epoch, method, params) {
   encoded = Buffer.concat([encoded, fieldString(18, p.socket)]);
   encoded = Buffer.concat([encoded, fieldString(19, p.connect_mode)]);
   encoded = Buffer.concat([encoded, fieldString(20, p.address)]);
+  encoded = Buffer.concat([encoded, fieldBytes(28, p.access_command)]);
+  if (p.stream_id !== undefined && p.stream_id !== null) {
+    encoded = Buffer.concat([encoded, fieldVarint(29, p.stream_id)]);
+  }
+  encoded = Buffer.concat([encoded, fieldBytes(30, p.access_resource)]);
+  encoded = Buffer.concat([encoded, fieldString(31, p.query), fieldString(32, p.search_mode), fieldVarint(33, p.backward), fieldString(35, p.clipboard_id)]);
   return Buffer.concat([
     fieldVarint(1, requestId), fieldVarint(2, epoch), fieldString(3, method), fieldMsg(4, encoded)]);
+}
+
+// ------------------------------------------------------------------- stream
+
+function encodeStream(frame) {
+  return Buffer.concat([
+    fieldVarint(1, frame.stream_id), fieldString(2, frame.kind), fieldBytes(3, frame.payload),
+    fieldVarint(4, frame.offset), fieldString(5, frame.error), fieldVarint(6, frame.wire_type)]);
 }
 
 // -------------------------------------------------------------------- frame
@@ -399,9 +658,12 @@ class FrameReader {
 }
 
 module.exports = {
-  HELLO, VIEW, EVENT, RESULT, RESPONSE, MAX_MESSAGE_BYTES, WireError,
+  HELLO, VIEW, EVENT, RESULT, RESPONSE, STREAM, VIEW_DELTA, MAX_MESSAGE_BYTES, WireError,
+  OP_SET, OP_REPLACE, OP_INSERT, OP_REMOVE,
   uvarint, fieldVarint, fieldBool, fieldBytes, fieldString, fieldMsg,
   fieldMapStringString, fieldMapStringBool, parseFields, readUvarint,
-  toInt32, toInt64, decodeHello, decodeEvent, decodeResponse,
-  encodeBox, encodeCursor, encodeView, encodeResult, frame, FrameReader,
+  toInt32, toInt64, decodeHello, decodeEvent, decodeResponse, decodeStream,
+  decodeViewDelta, decodePatch, decodeBox, diffView,
+  encodeBox, encodeCursor, encodeView, encodeViewDelta, encodePatch,
+  encodeResult, encodeStream, frame, FrameReader,
 };

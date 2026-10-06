@@ -67,6 +67,28 @@
 | terminal pool（`anytty pool run`） | 终端 provider：PTY/进程/history/live/snapshot；只监听内部 owner-only socket；无身份、无账本、无文件、无网络出口 |
 | 客户端（TUI/CLI/Flutter/Web） | access wire 不变；本地与远程都连 access |
 
+### 1.3 包树与所有权（能力边界）
+
+- `access/` 同时承载两端，靠子包区分：
+  - **服务端（客户端入口与能力 owner）**：`access/server`（协议服务器 + 家族路由）、
+    `access/files`、`access/proxy`、`access/storage`、`access/runtime`、
+    `access/remote`、`access/cloud`、`access/direct`、`access/gateway`、
+    `access/sessions`、`access/contract`
+  - **客户端引擎（Flutter/CLI/TUI 共用）**：`access/engine/{adapter,binding,
+    endpoint,runtime}`；它不依赖任何服务端子包
+  - **共享主机工具**：`access/localstate`（CLI 与 access 共用路径策略）
+- **DTO 所有权**：auth/remote/file/storage → `access/contract`（access 能力）；
+  terminal/history → `pool/core`（终端真值在 pool）。`api_mapping` 提供验证器与
+  apipb↔DTO 投影；terminal family 的运行时投影在 `access/server/terminalmap`
+  （消费方持有，见 §5）。
+- **依赖方向不变量**：`pool/**` 不 import 任何 `access/**`；`access/engine` 不
+  import 服务端子包；TUI 不 import `pool/core`。`access/provider/*` 不依赖
+  `apipb`/`api_mapping`（typed providerv1 契约）。
+- **显式例外**：TUI endpoint 的 `kind: command` 由宿主在本地 PTY 里跑 argv
+  （例如 ssh 客户端），不经 access/pool；它表达"终端里再跑一个终端客户端"，
+  不是 access 管理的终端。默认本地入口（registry `local`，socket auto）已经
+  一律解析为本地 access。语义见 `clients/tui/docs/ENDPOINTS.zh-CN.md` §2.1。
+
 ## 2. 拓扑
 
 ```
@@ -92,7 +114,7 @@
 
 | socket | 归属 | 说明 |
 |---|---|---|
-| `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock` | **access** | 客户端入口；owner-only；本地连接免鉴权（信任边界=0600） |
+| `$XDG_RUNTIME_DIR/anytty-v3-wire7.sock` | **access** | 客户端入口；owner-only；本地连接免鉴权（信任边界=0600） |
 | `<client sock>.provider` | pool | 终端 provider 协议；只有 access 会连 |
 | `<client sock>.pair` | access | 本地 PairingExchange |
 | `<client sock>.direct` | access | Direct listener 记录 |
@@ -128,37 +150,55 @@ access 绑定客户端 socket）。日志分开：`anytty.log`、`anytty-access.
 | events | 合并 terminal 事件（provider）与 storage 事件（access 本地） |
 | path.defaults | provider（shell/cwd 属于终端主机） |
 
-错误映射：access/provider 适配器输出 apipb typed envelope；provider 错误码
+错误映射：provider 适配器返回 typed Go error；`access/server` 把 provider 错误码
 （400/403/404/409/412/429/503/500）映射为既有 `ApiErrorCode`，不新增客户端可见
 错误码。
 
 ## 5. Terminal provider 接口
 
+契约在 `access/provider/terminal`：只运输 `proto/provider/v1` DTO。apipb ↔
+providerv1 投影由消费方持有的 `access/server/terminalmap` 承担；`access/server`
+是唯一消费方，负责命令分发、access-issued token 重签与事件订阅投影。
+
 ```go
-// access/provider/terminal
+// access/provider/terminal（节选）
 type Provider interface {
-    Create(ctx context.Context, spec TerminalSpec) (TerminalRef, error)
-    List(ctx context.Context) ([]TerminalInfo, error)
-    Get(ctx context.Context, id string) (TerminalInfo, error)
-    Kill(ctx context.Context, id string) error
-    Attach(ctx context.Context, request AttachRequest) (Attachment, error) // 含双向 frame 流
-    Detach(ctx context.Context, attachment AttachmentRef) error
-    Input(ctx context.Context, attachment AttachmentRef, data []byte) error
-    Resize(ctx context.Context, attachment AttachmentRef, size Size) error
-    History(ctx context.Context, id string, window HistoryWindow) (HistoryResult, error)
-    LiveScreen(ctx context.Context, id string, revision uint64) (Snapshot, error)
-    WatchEvents(ctx context.Context, filter EventFilter) (<-chan TerminalEvent, error)
-    PathDefaults(ctx context.Context) (Defaults, error)
+    Info(ctx context.Context) (Info, error) // Kind/Version/EndpointID
+    Capabilities() Capabilities
+
+    Create(ctx, *providerv1.TerminalCreateSpec) (*providerv1.TerminalInfo, error)
+    List(ctx) ([]*providerv1.TerminalInfo, error)
+    Get/Restart(ctx, terminalID) (*providerv1.TerminalInfo, error)
+    Kill/Remove(ctx, terminalID) error
+    SetMetadata(ctx, terminalID, MetadataPatch) (*providerv1.TerminalInfo, error)
+    SetTags(ctx, terminalID, TagsPatch) (*providerv1.TerminalInfo, error)
+    Attach(ctx, AttachRequest) (Attachment, error) // Attachment.Stream() 为纯 PTY Duplex
+    HistoryWindow/HistoryCopy/HistorySearch/HistoryRelease
+    HistoryBacklogStatus(ctx, terminalID) (*providerv1.HistoryBacklogStatusResult, error)
+    LiveScreen(ctx, terminalID, observedRevision) (*providerv1.NativeScreenResult, error)
+    Subscribe(ctx, *providerv1.EventSubscribeCommand) (*providerv1.EventSubscriptionResult, error)
+    EventRelease(ctx, token []byte) error
+    Events(ctx) (<-chan *providerv1.TerminalEvent, error)
+    TerminalDefaults(ctx) (*providerv1.TerminalDefaults, error)
+    ListDirectories(ctx, path, limit int32) (*providerv1.PathListDirectoriesResult, error)
+    Close() error; Done() <-chan struct{}; Err() error
 }
 ```
 
-- **pool provider（本期）**：access 用现成客户端引擎
-  （`access/engine/adapter/protocol` + `clientruntime.ApplicationSession`）连
-  `<sock>.provider`，把 provider 方法逐条映射；attach 流用 `OpenResourceStream` 桥接。
-- **tmux provider（后置）**：实现同一接口（translate 到 tmux control mode/pane 流）；
-  本期只落接口与错误占位，不实现。
-- 连接策略：默认每个客户端会话复用一个 provider 会话；断线按现有 client engine
-  重连策略；provider 不可用时返回 typed unavailable，不影响 auth/文件/转发。
+- typed 错误：`ErrNotFound` / `ErrConflict` / `ErrUnavailable`；PTY 流结束以
+  `StreamClosedError`（含退出码）/`StreamSyncLostError` 报告。pool adapter 把
+  provider wire code 投影到这三个哨兵，其余错误保留原始 code。
+- **pool provider（本期）**：`access/provider/pool` 直接调用 `pool/provider.Client`
+  的 typed 方法（不经过 apipb 往返）；`Attachment.Stream()` 在 `WaitReady` 或首次
+  读写时内部完成 bootstrap/ready，对调用方只暴露 PTY 双向字节。
+- **tmux provider（后置）**：`Info.Kind="tmux"`、Capabilities 全为 false，所有
+  typed 方法返回 `ErrUnsupported`；翻译层未实现。
+- **消费方**：`access/server` 的 `executeTerminal` 走 typed facade：
+  apipb command → `terminalmap` → typed 调用 → `terminalmap` → apipb result；
+  attachment token 由 access 重签（provider token 不出 access），事件 relay 消费
+  typed `Events` 并按会话订阅投影成既有 `EventEnvelope`。
+- 连接策略：每个客户端会话复用一个 provider 会话；provider 不可用时返回 typed
+  unavailable，不影响 auth/文件/转发。
 
 ## 6. 服务迁移
 

@@ -9,15 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestEventFilterPreservesUnspecifiedStorageScope(t *testing.T) {
-	filter := EventFilterFromProto(&apipb.EventSubscribeCommand{Types: []apipb.ApplicationEventType{
-		apipb.ApplicationEventType_APPLICATION_EVENT_TYPE_TERMINAL_LIFECYCLE,
-	}})
-	if filter.StorageScope != "" || filter.StorageAppID != "" || filter.StorageOwnerID != "" || filter.StorageKeyPrefix != "" {
-		t.Fatalf("terminal lifecycle filter gained storage constraints: %#v", filter)
-	}
-}
-
 func TestEncodeEventEnvelopePreservesAttachmentCountAndResizeOwner(t *testing.T) {
 	encoded, err := EncodeEventEnvelope("west", &apipb.EndpointSessionStamp{EndpointId: "west", RouteId: "local", Generation: 3}, []byte("subscription"), corev2.Event{
 		Type:      corev2.EventTerminalMetadataChanged,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	accesscontract "github.com/anytty/anytty/access/contract"
+	"github.com/anytty/anytty/access/engine/adapter/e2etest"
 	protocoladapter "github.com/anytty/anytty/access/engine/adapter/protocol"
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
@@ -35,9 +36,9 @@ const cloudE2ETimeout = 10 * time.Second
 // TestCloudManagedSessionTerminalOverRealPionDataChannel 覆盖 Cloud managed
 // WebRTC 的完整真实路径：mock AgentGateway 传递真实 Pion client peer offer，
 // runtime 用 remote.SessionAcceptor + 真实 access server(answerer) 应答，
-// client 侧完成 DTLS binding 的 ClientHandshake、protocol Hello v7 与
-// terminal create/list/attach/input/output。文件传输未覆盖（Direct/SSH 已覆盖），
-// 这里保持有界并只验证 Cloud 路径的 session 语义。
+// client 侧完成 DTLS binding 的 ClientHandshake、protocol Hello v7、
+// terminal create/list/attach/input/output，以及同一 DataChannel 上的
+// file upload/download 往返（窗口/ack 流程与 Direct/SSH 共用 e2etest 驱动）。
 func TestCloudManagedSessionTerminalOverRealPionDataChannel(t *testing.T) {
 	api := daemonLoopbackWebRTCAPI()
 	runtime, _ := daemonRuntimeFixture(t, webrtc.Answerer{PeerConnections: api.NewPeerConnection})
@@ -201,6 +202,20 @@ func TestCloudManagedSessionTerminalOverRealPionDataChannel(t *testing.T) {
 	if output := waitForCloudPTYOutput(t, ctx, stream, "CLOUD-E2E-OK"); output == "" {
 		t.Fatal("Cloud PTY output did not reach the client")
 	}
+
+	// Same Cloud DataChannel also carries file transfer: upload then download
+	// over the access-local file service. Slightly larger than the 1 MiB window
+	// so the window/ack flow (not just a single chunk) runs over Cloud.
+	content := make([]byte, 1<<20+12345)
+	for index := range content {
+		content[index] = byte(index * 31)
+	}
+	remotePath := filepath.Join(t.TempDir(), "cloud-session.bin")
+	e2etest.UploadFile(t, ctx, application, remotePath, content)
+	if stored, err := os.ReadFile(remotePath); err != nil || !bytes.Equal(stored, content) {
+		t.Fatalf("Cloud uploaded file mismatch: bytes=%d err=%v", len(stored), err)
+	}
+	e2etest.DownloadFile(t, ctx, application, remotePath, content)
 
 	if err := application.TerminalDetach(ctx, &apipb.TerminalDetachCommand{Attachment: attachment.GetResource()}); err != nil {
 		t.Fatalf("Cloud terminal detach: %v", err)

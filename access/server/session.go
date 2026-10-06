@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +11,10 @@ import (
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
+	"github.com/anytty/anytty/internal/providerproto"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
+	providerv1 "github.com/anytty/anytty/proto/provider/v1"
 	"github.com/anytty/anytty/shared/transport"
 	"google.golang.org/protobuf/proto"
 )
@@ -65,28 +65,42 @@ type session struct {
 	localMu            sync.Mutex
 	localSubscriptions map[string]*localSubscription
 
+	subscriptionsMu sync.Mutex
+	subscriptions   map[string]*eventSubscription
+
 	eventsMu      sync.Mutex
 	eventProvider terminalprovider.Provider
 	eventCancel   context.CancelFunc
 	eventWG       sync.WaitGroup
 }
 
-// streamBinding 把一个 access-issued channel/token 映射到 provider resource
+// streamBinding 把一个 access-issued channel/token 映射到 provider attachment
 // 或 access-local resource（文件传输、browser proxy）。
-// attachment 只有 bootstrap 后才打开 provider stream；file/browser 在资源发布后立即桥接。
+// attachment 由 provider Attach 返回的 typed Attachment 承载；客户端 bootstrap
+// 后通过 Attachment.Stream 建立 PTY 双向流。
 type streamBinding struct {
-	clientChannel    uint16
-	kind             apipb.ResourceKind
-	accessToken      []byte
-	providerToken    []byte
-	providerChannel  uint16
-	providerResource *apipb.ResourceHandle
-	localID          string
-	local            localResource
+	clientChannel uint16
+	kind          apipb.ResourceKind
+	accessToken   []byte
+	attachment    terminalprovider.Attachment
+	localID       string
+	local         localResource
 
 	mu         sync.Mutex
 	generation uint64
-	stream     terminalprovider.Stream
+	duplex     terminalprovider.Duplex
+}
+
+// eventSubscription 是 access 会话上的一个 provider event 订阅投影。
+// terminalEvents=false 表示只订阅 access-local 事件（storage），没有 provider token。
+type eventSubscription struct {
+	token          []byte
+	session        *apipb.EndpointSessionStamp
+	endpointID     string
+	terminalID     string
+	types          []providerv1.TerminalEventType
+	terminalEvents bool
+	synthetic      bool
 }
 
 // localResource 是 access-local stream 的 session 侧契约：
@@ -280,151 +294,6 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 	return session.sendFrame(0, wire.TypeResponse, response)
 }
 
-// executeViaProvider 把一个 application command 交给 terminal provider：
-//  1. 把 access-issued stream token 还原成 provider token；
-//  2. 交给 provider 执行；
-//  3. 对成功的 stream resource 发布结果分配 access channel/token 并桥接。
-func (session *session) executeViaProvider(ctx context.Context, command *apipb.CommandEnvelope) (*apipb.ResultEnvelope, error) {
-	retired := session.rewriteRequestTokens(command)
-	provider, err := session.ensureProvider(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result, err := provider.Execute(ctx, command)
-	if err != nil {
-		return nil, err
-	}
-	if result.GetError() != nil {
-		return result, nil
-	}
-	session.retireBindings(retired)
-	if err := session.publishResult(result); err != nil {
-		return nil, err
-	}
-	session.registerLocalRoutes(command, result)
-	return result, nil
-}
-
-// rewriteRequestTokens 把命令中引用的 access token 还原成 provider token，
-// 并返回需要在成功执行后释放的 access stream binding。
-func (session *session) rewriteRequestTokens(command *apipb.CommandEnvelope) []*streamBinding {
-	if command == nil {
-		return nil
-	}
-	type tokenRef struct {
-		resource *apipb.ResourceHandle
-		retire   bool
-	}
-	var resources []tokenRef
-	switch value := command.GetCommand().(type) {
-	case *apipb.CommandEnvelope_TerminalDetach:
-		resources = append(resources, tokenRef{value.TerminalDetach.GetAttachment(), true})
-	case *apipb.CommandEnvelope_TerminalInput:
-		resources = append(resources, tokenRef{value.TerminalInput.GetAttachment(), false})
-	case *apipb.CommandEnvelope_TerminalResize:
-		resources = append(resources, tokenRef{value.TerminalResize.GetAttachment(), false})
-	case *apipb.CommandEnvelope_TerminalResizeLock:
-		resources = append(resources, tokenRef{value.TerminalResizeLock.GetAttachment(), false})
-	case *apipb.CommandEnvelope_ReleaseResource:
-		resources = append(resources, tokenRef{value.ReleaseResource.GetResource(), true})
-	case *apipb.CommandEnvelope_FileTransferCancel:
-		resources = append(resources, tokenRef{value.FileTransferCancel.GetTransfer(), true})
-	}
-	retired := make([]*streamBinding, 0, len(resources))
-	for _, ref := range resources {
-		if ref.resource == nil || len(ref.resource.GetOpaqueToken()) == 0 {
-			continue
-		}
-		session.streamsMu.Lock()
-		binding := session.tokens[string(ref.resource.GetOpaqueToken())]
-		session.streamsMu.Unlock()
-		if binding == nil || binding.local != nil {
-			// 本地资源不进入 provider 路径；ReleaseResource 已在 routeCommand 本地应答。
-			continue
-		}
-		ref.resource.OpaqueToken = append([]byte(nil), binding.providerToken...)
-		if ref.retire {
-			retired = append(retired, binding)
-		}
-	}
-	return retired
-}
-
-// publishResult 处理 provider 成功结果：为 stream resource 分配 access channel/token，
-// 启动桥接；非 stream resource（history token、event subscription）原样透传。
-func (session *session) publishResult(result *apipb.ResultEnvelope) error {
-	resource, eager := streamResourceFromResult(result)
-	if resource == nil {
-		return nil
-	}
-	binding, err := session.registerStreamResource(resource)
-	if err != nil {
-		return err
-	}
-	if !eager {
-		return nil
-	}
-	ctx := session.lifetimeContext()
-	stream, err := session.providerForBinding().OpenStream(ctx, binding.providerResource)
-	if err != nil {
-		session.retireBinding(binding)
-		return err
-	}
-	binding.mu.Lock()
-	binding.stream = stream
-	binding.mu.Unlock()
-	go session.forwardProviderFrames(binding)
-	return nil
-}
-
-func streamResourceFromResult(result *apipb.ResultEnvelope) (*apipb.ResourceHandle, bool) {
-	switch value := result.GetResult().(type) {
-	case *apipb.ResultEnvelope_TerminalAttach:
-		return value.TerminalAttach.GetAttachment().GetResource(), false
-	case *apipb.ResultEnvelope_FileTransferOpen:
-		return value.FileTransferOpen.GetTransfer().GetResource(), true
-	case *apipb.ResultEnvelope_BrowserProxyOpen:
-		return value.BrowserProxyOpen.GetResource(), true
-	default:
-		return nil, false
-	}
-}
-
-func (session *session) registerStreamResource(resource *apipb.ResourceHandle) (*streamBinding, error) {
-	providerToken := resource.GetOpaqueToken()
-	if len(providerToken) < 2 {
-		return nil, fmt.Errorf("access/server: %s resource token is malformed", resource.GetKind())
-	}
-	providerChannel := binary.BigEndian.Uint16(providerToken[:2])
-	if providerChannel == 0 {
-		return nil, fmt.Errorf("access/server: %s resource channel is missing", resource.GetKind())
-	}
-	token := make([]byte, accessTokenBytes)
-	if _, err := rand.Read(token); err != nil {
-		return nil, fmt.Errorf("access/server: allocate resource token: %w", err)
-	}
-	session.streamsMu.Lock()
-	clientChannel, err := session.allocateChannelLocked()
-	if err != nil {
-		session.streamsMu.Unlock()
-		return nil, err
-	}
-	binary.BigEndian.PutUint16(token[:2], clientChannel)
-	binding := &streamBinding{
-		clientChannel:    clientChannel,
-		kind:             resource.GetKind(),
-		accessToken:      token,
-		providerToken:    append([]byte(nil), providerToken...),
-		providerChannel:  providerChannel,
-		providerResource: proto.Clone(resource).(*apipb.ResourceHandle),
-	}
-	session.channels[clientChannel] = binding
-	session.tokens[string(token)] = binding
-	session.streamsMu.Unlock()
-	resource.OpaqueToken = token
-	return binding, nil
-}
-
 func (session *session) allocateChannelLocked() (uint16, error) {
 	if session.nextChannel >= maxProtocolChannelID {
 		return 0, fmt.Errorf("access/server: stream channel IDs are exhausted")
@@ -517,12 +386,6 @@ func (session *session) handleStreamFrame(ctx context.Context, channel uint16, t
 	switch binding.kind {
 	case apipb.ResourceKind_RESOURCE_KIND_TERMINAL_ATTACHMENT:
 		return session.handleAttachmentFrame(binding, typ, payload)
-	case apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER, apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY:
-		stream := binding.currentStream()
-		if stream == nil {
-			return fmt.Errorf("stream channel %d is not ready", channel)
-		}
-		return stream.Send(ctx, typ, payload)
 	default:
 		return fmt.Errorf("unsupported stream resource kind %s", binding.kind)
 	}
@@ -547,38 +410,39 @@ func (session *session) handleAttachmentFrame(binding *streamBinding, typ uint8,
 	}
 }
 
-// startAttachmentStream 在客户端 bootstrap 后打开 provider stream：
-// 等待 provider ready 后回写 TypeStreamReady，再开始转发 PTY 输出。
+// startAttachmentStream 在客户端 bootstrap 后打开 provider attachment 的 PTY
+// 流：等待 provider bootstrap/ready 后回写 TypeStreamReady，再开始转发输出。
 func (session *session) startAttachmentStream(binding *streamBinding) {
 	binding.mu.Lock()
 	binding.generation++
 	generation := binding.generation
 	binding.mu.Unlock()
 
-	provider, err := session.ensureProvider(session.lifetimeContext())
-	if err != nil {
-		_ = session.sendStreamError(binding.clientChannel, protocolErrorUnavailable, err.Error())
+	attachment := binding.attachment
+	if attachment == nil {
+		_ = session.sendStreamError(binding.clientChannel, protocolErrorUnavailable, "terminal attachment is not bound")
 		return
 	}
 	go func() {
-		stream, err := provider.OpenStream(session.lifetimeContext(), binding.providerResource)
-		binding.mu.Lock()
-		if err != nil || binding.generation != generation || binding.stream != nil {
-			binding.mu.Unlock()
-			if stream != nil {
-				_ = stream.Close()
-			}
-			if err != nil {
+		duplex := attachment.Stream()
+		if err := duplex.WaitReady(session.lifetimeContext()); err != nil {
+			if session.lifetimeContext().Err() == nil {
 				_ = session.sendStreamError(binding.clientChannel, protocolErrorUnavailable, err.Error())
 			}
 			return
 		}
-		binding.stream = stream
+		binding.mu.Lock()
+		if binding.generation != generation || binding.duplex != nil {
+			binding.mu.Unlock()
+			_ = duplex.Close()
+			return
+		}
+		binding.duplex = duplex
 		binding.mu.Unlock()
 		if err := session.sendFrame(binding.clientChannel, wire.TypeStreamReady, nil); err != nil {
 			return
 		}
-		session.forwardProviderFrames(binding)
+		session.forwardProviderFrames(binding, duplex)
 	}()
 }
 
@@ -587,31 +451,38 @@ func (session *session) startAttachmentStream(binding *streamBinding) {
 func (session *session) stopAttachmentStream(binding *streamBinding) {
 	binding.mu.Lock()
 	binding.generation++
-	stream := binding.stream
-	binding.stream = nil
+	duplex := binding.duplex
+	binding.duplex = nil
 	binding.mu.Unlock()
-	if stream != nil {
-		_ = stream.Close()
+	if duplex != nil {
+		_ = duplex.Close()
 	}
 }
 
-// forwardProviderFrames 把 provider stream 的 frame 原样转发到客户端 channel。
-func (session *session) forwardProviderFrames(binding *streamBinding) {
-	stream := binding.currentStream()
-	if stream == nil {
-		return
-	}
+// forwardProviderFrames 把 provider PTY 流投影为客户端 stream frame：
+// 输出原样转发；provider 缺口/关闭投影为 sync-lost/closed 帧。
+func (session *session) forwardProviderFrames(binding *streamBinding, duplex terminalprovider.Duplex) {
 	ctx := session.lifetimeContext()
 	for {
-		typ, payload, err := stream.Receive(ctx)
+		payload, err := duplex.Receive(ctx)
 		if err != nil {
+			var syncLost *terminalprovider.StreamSyncLostError
+			if errors.As(err, &syncLost) {
+				// legacy parity：转发 sync-lost 后立即以 closed(-1) 结束桥接，
+				// 不再转发 provider 随后的 closed（客户端语义与旧路径一致）。
+				_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(syncLost.DroppedBytes))
+				session.notifyStreamFailure(binding)
+				return
+			}
+			var closed *terminalprovider.StreamClosedError
+			if errors.As(err, &closed) {
+				_ = session.sendFrame(binding.clientChannel, wire.TypeClosed, wire.EncodeClosedPayload(closed.ExitCode))
+				return
+			}
 			session.notifyStreamFailure(binding)
 			return
 		}
-		if err := session.sendFrame(binding.clientChannel, typ, payload); err != nil {
-			return
-		}
-		if streamFrameTerminal(binding.kind, typ) {
+		if err := session.sendFrame(binding.clientChannel, wire.TypePTYOutput, payload); err != nil {
 			return
 		}
 	}
@@ -627,28 +498,6 @@ func (session *session) notifyStreamFailure(binding *streamBinding) {
 	_ = session.sendFrame(binding.clientChannel, wire.TypeClosed, payload)
 }
 
-func streamFrameTerminal(kind apipb.ResourceKind, typ uint8) bool {
-	switch kind {
-	case apipb.ResourceKind_RESOURCE_KIND_TERMINAL_ATTACHMENT:
-		return typ == wire.TypeClosed || typ == wire.TypeSyncLost
-	case apipb.ResourceKind_RESOURCE_KIND_FILE_TRANSFER:
-		return typ == wire.TypeFileFinish || typ == wire.TypeFileResult || typ == wire.TypeClosed || typ == wire.TypeSyncLost
-	case apipb.ResourceKind_RESOURCE_KIND_BROWSER_PROXY:
-		return typ == wire.TypeBrowserClosed || typ == wire.TypeClosed || typ == wire.TypeSyncLost
-	default:
-		return true
-	}
-}
-
-func (binding *streamBinding) currentStream() terminalprovider.Stream {
-	if binding == nil {
-		return nil
-	}
-	binding.mu.Lock()
-	defer binding.mu.Unlock()
-	return binding.stream
-}
-
 // ensureProvider 返回当前可用的 provider；连接缺失或已终止时按需重连。
 func (session *session) ensureProvider(ctx context.Context) (terminalprovider.Provider, error) {
 	session.providerMu.Lock()
@@ -656,11 +505,12 @@ func (session *session) ensureProvider(ctx context.Context) (terminalprovider.Pr
 	if session.provider != nil {
 		select {
 		case <-session.provider.Done():
-			// provider 连接终止时，旧 session 发布的 attachment/file resource
-			// 已经失效；先释放 bridge，避免客户端继续拿到 stale token。
+			// provider 连接终止时，旧 session 发布的 attachment/file resource 与
+			// provider event 订阅已经失效；先释放 bridge，避免客户端继续拿到 stale token。
 			_ = session.provider.Close()
 			session.provider = nil
 			session.releaseAllStreams()
+			session.releaseProviderSubscriptions()
 		default:
 			return session.provider, nil
 		}
@@ -674,14 +524,9 @@ func (session *session) ensureProvider(ctx context.Context) (terminalprovider.Pr
 	return provider, nil
 }
 
-func (session *session) providerForBinding() terminalprovider.Provider {
-	session.providerMu.Lock()
-	defer session.providerMu.Unlock()
-	return session.provider
-}
-
-// startEventRelay 把 provider application event 原样转发成 channel-0 event frame。
-// 每个 provider 连接最多一个 relay；provider 更换时旧 relay 随 ctx 结束。
+// startEventRelay 把 typed provider terminal event 投影为 apipb event envelope
+// 并转发成 channel-0 event frame。每个 provider 连接最多一个 relay；provider
+// 更换时旧 relay 随 ctx 结束。
 func (session *session) startEventRelay(provider terminalprovider.Provider) {
 	session.eventsMu.Lock()
 	if session.eventProvider == provider {
@@ -711,13 +556,7 @@ func (session *session) startEventRelay(provider terminalprovider.Provider) {
 				if !ok {
 					return
 				}
-				payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(event)
-				if err != nil {
-					continue
-				}
-				if err := session.sendFrame(0, wire.TypeEvent, payload); err != nil {
-					return
-				}
+				session.dispatchProviderEvent(event)
 			}
 		}
 	}()
@@ -766,17 +605,11 @@ func (session *session) retireBinding(binding *streamBinding) {
 	}
 	binding.mu.Lock()
 	binding.generation++
-	stream := binding.stream
-	binding.stream = nil
+	duplex := binding.duplex
+	binding.duplex = nil
 	binding.mu.Unlock()
-	if stream != nil {
-		_ = stream.Close()
-	}
-}
-
-func (session *session) retireBindings(bindings []*streamBinding) {
-	for _, binding := range bindings {
-		session.retireBinding(binding)
+	if duplex != nil {
+		_ = duplex.Close()
 	}
 }
 
@@ -799,11 +632,11 @@ func (session *session) releaseAllStreams() {
 		}
 		binding.mu.Lock()
 		binding.generation++
-		stream := binding.stream
-		binding.stream = nil
+		duplex := binding.duplex
+		binding.duplex = nil
 		binding.mu.Unlock()
-		if stream != nil {
-			_ = stream.Close()
+		if duplex != nil {
+			_ = duplex.Close()
 		}
 	}
 }
@@ -898,9 +731,18 @@ func providerErrorResult(command *apipb.CommandEnvelope, err error) *apipb.Resul
 		return result
 	}
 	apiError := &apipb.ApiError{Code: apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, Message: "terminal provider is unavailable", Retryable: true}
+	var codedErr *terminalprovider.CodedError
 	switch {
+	case errors.As(err, &codedErr):
+		apiError = apiErrorFromCodedError(codedErr)
 	case errors.Is(err, errUnsupportedCommand):
 		apiError = &apipb.ApiError{Code: apipb.ApiErrorCode_API_ERROR_CODE_INVALID_REQUEST, Message: err.Error()}
+	case errors.Is(err, terminalprovider.ErrNotFound):
+		apiError = &apipb.ApiError{Code: apipb.ApiErrorCode_API_ERROR_CODE_NOT_FOUND, Message: err.Error()}
+	case errors.Is(err, terminalprovider.ErrConflict):
+		apiError = &apipb.ApiError{Code: apipb.ApiErrorCode_API_ERROR_CODE_CONFLICT, Message: err.Error()}
+	case errors.Is(err, terminalprovider.ErrUnavailable):
+		apiError = &apipb.ApiError{Code: apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE, Message: err.Error(), Retryable: true}
 	case errors.Is(err, terminalprovider.ErrUnsupported):
 		apiError.Message = "terminal provider capability is unsupported"
 	case errors.Is(err, context.Canceled):
@@ -914,6 +756,33 @@ func providerErrorResult(command *apipb.CommandEnvelope, err error) *apipb.Resul
 	}
 	result.Result = &apipb.ResultEnvelope_Error{Error: apiError}
 	return result
+}
+
+// apiErrorFromCodedError 复刻 legacy passthrough 的 wire code 映射：
+// 客户端可见 ApiErrorCode 不变，只换运输路径。
+func apiErrorFromCodedError(codedErr *terminalprovider.CodedError) *apipb.ApiError {
+	apiError := &apipb.ApiError{Message: codedErr.Message}
+	switch codedErr.Code {
+	case providerproto.ErrorBadRequest:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_INVALID_REQUEST
+	case providerproto.ErrorForbidden:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_FORBIDDEN
+	case providerproto.ErrorNotFound:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_NOT_FOUND
+	case providerproto.ErrorConflict:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_CONFLICT
+	case providerproto.ErrorStaleResource:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_STALE_RESOURCE
+	case providerproto.ErrorExhausted:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_RESOURCE_EXHAUSTED
+		apiError.Retryable = true
+	case providerproto.ErrorUnavailable:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_UNAVAILABLE
+		apiError.Retryable = true
+	default:
+		apiError.Code = apipb.ApiErrorCode_API_ERROR_CODE_INTERNAL
+	}
+	return apiError
 }
 
 // routeError 是 access-local handler 返回的 typed command 错误。

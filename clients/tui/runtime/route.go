@@ -14,8 +14,11 @@ package runtime
 //	     paste -> focused terminal declaring "paste" writes PTY, else program;
 //	     mouse -> only a hit on the focused terminal with mouse tracking on
 //	              is written to the PTY, else program;
-//	     wheel -> only focused + terminal mouse tracking + the focused panel
-//	              declaring "wheel" writes PTY, else program.
+//	     wheel -> an active/frozen history viewport stays with the program's
+//	              history reducer; otherwise focused terminal mouse tracking
+//	              + the focused panel declaring "wheel" writes PTY, else
+//	              program. A persistent terminal is still transparent while
+//	              it is live, so Codex/OpenCode retain their own wheel handling.
 //	6. Everything else goes to the program; nothing may be silently dropped.
 
 // Destination is where one input event ends up.
@@ -69,12 +72,20 @@ const (
 )
 
 // Focus describes the focused content source of the last accepted view.
-// Input lists the box's declared input kinds; IsTerminal and MouseTracking
-// come from the host component/source registry, never from the program.
+// Input lists the box's declared input kinds; IsTerminal, MouseTracking and
+// history state come from the host component/source registry, never from the
+// program.
 type Focus struct {
-	ID            string
+	ID string
+	// NodeID is the focused box id in the committed view. Hosts use it to
+	// translate outer mouse coordinates into terminal content coordinates.
+	NodeID        string
 	IsTerminal    bool
 	MouseTracking bool
+	// HistoryActive means the host has a frozen copy/history viewport for this
+	// terminal. While it is active, wheel input belongs to the TUI history
+	// reducer even if the child program still has DEC mouse tracking enabled.
+	HistoryActive bool
 	Input         []string
 }
 
@@ -159,11 +170,14 @@ func Route(ev InputEvent, st RouteState) Destination {
 				return DestinationPTY
 			}
 		case InputMouse:
-			if st.Focus.IsTerminal && st.Focus.MouseTracking && ev.HitFocused {
+			if st.Focus.IsTerminal && !st.Focus.HistoryActive && st.Focus.MouseTracking && ev.HitFocused {
 				return DestinationPTY
 			}
 		case InputWheel:
-			if st.Focus.IsTerminal && st.Focus.MouseTracking && st.Focus.Accepts(InputWheel) {
+			if st.Focus.IsTerminal && st.Focus.HistoryActive {
+				return DestinationProgram
+			}
+			if st.Focus.IsTerminal && !st.Focus.HistoryActive && st.Focus.MouseTracking && st.Focus.Accepts(InputWheel) {
 				return DestinationPTY
 			}
 		}

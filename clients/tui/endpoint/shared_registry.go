@@ -7,7 +7,17 @@ import (
 	"strings"
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
+	"github.com/anytty/anytty/proto/access/wire"
+	"github.com/anytty/anytty/shared/runtimepath"
 )
+
+// DefaultLocalAccessSocket mirrors the CLI canonical socket default. Every
+// local connection goes through access (the pool stays a terminal-only
+// provider), so a registry local-unix route with socket "auto" resolves here
+// instead of degrading to the host PTY path.
+func DefaultLocalAccessSocket() string {
+	return runtimepath.SocketPath(fmt.Sprintf("anytty-v3-wire%d.sock", wire.Version))
+}
 
 // The shared Endpoint registry (client/endpoint) is the single connection
 // source of truth for CLI, TUI and every native client. tui2 reads it
@@ -210,6 +220,11 @@ func configFromSharedEndpoint(shared clientendpoint.Endpoint) (Config, bool) {
 	if route, ok := selectRoute(clientendpoint.RouteLocalUnix); ok {
 		socket := strings.TrimSpace(route.Socket)
 		if socket == "" || socket == "auto" {
+			// All local connections go through access: "auto" is the running
+			// canonical socket, not a request for the host PTY fallback.
+			socket = DefaultLocalAccessSocket()
+		}
+		if socket == "" {
 			return Config{}, false
 		}
 		cfg.ConnectMode = ConnectLocalUnix

@@ -116,6 +116,22 @@ func TestCursorPositioning(t *testing.T) {
 	}
 }
 
+func TestCursorShape(t *testing.T) {
+	p := New(8, 2)
+	p.Write([]byte("\x1b[6 q"))
+	if got := p.Screen().CursorShape; got != "bar" {
+		t.Fatalf("bar cursor shape = %q, want bar", got)
+	}
+	p.Write([]byte("\x1b[4 q"))
+	if got := p.Screen().CursorShape; got != "underline" {
+		t.Fatalf("underline cursor shape = %q, want underline", got)
+	}
+	p.Write([]byte("\x1b[2 q"))
+	if got := p.Screen().CursorShape; got != "block" {
+		t.Fatalf("block cursor shape = %q, want block", got)
+	}
+}
+
 func TestCursorMovementLetters(t *testing.T) {
 	p := New(8, 4)
 	feed(p, "\x1b[3;4H\x1b[2A") // up 2 -> row 0
@@ -195,6 +211,32 @@ func TestEraseDisplayModes(t *testing.T) {
 		if got := rowText(s, y); got != "" {
 			t.Fatalf("row %d after J2 = %q, want blank", y, got)
 		}
+	}
+}
+
+func TestEraseAndScrollPreserveActiveBackground(t *testing.T) {
+	p := New(6, 3)
+	feed(p, "\x1b[48;5;236mabcdef\x1b[2;1H\x1b[0K")
+	s := p.Screen()
+	if got := string(styleAt(t, s, 0, 1)); got != "ansi:48;5;236" {
+		t.Fatalf("EL blank style = %q, want active background", got)
+	}
+	if got := string(styleAt(t, s, 5, 1)); got != "ansi:48;5;236" {
+		t.Fatalf("EL tail style = %q, want active background", got)
+	}
+
+	feed(p, "\x1b[3;1H\x1b[2S")
+	s = p.Screen()
+	for _, y := range []int{1, 2} {
+		if got := string(styleAt(t, s, 0, y)); got != "ansi:48;5;236" {
+			t.Fatalf("scroll blank row %d style = %q, want active background", y, got)
+		}
+	}
+
+	feed(p, "\x1b[0m\x1b[2J")
+	s = p.Screen()
+	if got := styleAt(t, s, 0, 0); got != "" {
+		t.Fatalf("reset erase style = %q, want unstyled blank", got)
 	}
 }
 
@@ -298,9 +340,14 @@ func TestModesToggle(t *testing.T) {
 	if !m.MouseTracking() {
 		t.Fatal("MouseTracking must be true")
 	}
+	feed(p, "\x1b[?2026h")
+	if !p.Modes().SynchronizedOutput {
+		t.Fatal("?2026h must mark synchronized output")
+	}
 	feed(p, "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?2004l\x1b[?25h")
+	feed(p, "\x1b[?2026l")
 	m = p.Modes()
-	if m.MouseCell || m.MouseDrag || m.MouseAny || m.MouseSGR || m.BracketPaste || !m.CursorVisible {
+	if m.MouseCell || m.MouseDrag || m.MouseAny || m.MouseSGR || m.BracketPaste || m.SynchronizedOutput || !m.CursorVisible {
 		t.Fatalf("modes after disable = %+v", m)
 	}
 	if m.MouseTracking() {

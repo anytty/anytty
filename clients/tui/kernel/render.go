@@ -4,28 +4,40 @@ package kernel
 // content area is the full box rect: the kernel draws no chrome and applies
 // no inset (chrome belongs to the content or the host component). Lines
 // carry the opaque node style and never contain ANSI escape bytes.
-func renderOwn(f *Frame, n *Node, rect Rect) {
+func renderOwn(b *frameBuilder, n *Node, rect Rect) {
 	if rect.Width > 0 {
-		lines := n.ContentLines()
-		for i, line := range lines {
+		forEachContentLine(n, func(i int, line string) bool {
 			if i >= rect.Height {
-				break
+				return false
 			}
 			text := Truncate(line, rect.Width)
 			if text == "" {
-				continue
+				return true
 			}
-			f.Lines = append(f.Lines, Line{X: rect.X, Y: rect.Y + i, Text: text, Style: n.Style})
-		}
+			b.lines = append(b.lines, Line{X: rect.X, Y: rect.Y + i, Text: text, Style: n.Style})
+			return true
+		})
 	}
 	if n.CursorVisible() && !rect.Empty() {
-		f.HasCursor = true
-		f.CursorRect = Rect{
-			X:      rect.X + n.Cursor.Col,
-			Y:      rect.Y + n.Cursor.Row,
+		row := n.Cursor.Row
+		if row < 0 {
+			row = 0
+		} else if row >= rect.Height {
+			row = rect.Height - 1
+		}
+		col := n.Cursor.Col
+		if col < 0 {
+			col = 0
+		} else if col >= rect.Width {
+			col = rect.Width - 1
+		}
+		b.hasCursor = true
+		b.cursorRect = Rect{
+			X:      rect.X + col,
+			Y:      rect.Y + row,
 			Width:  1,
 			Height: 1,
 		}
-		f.CursorShape = n.Cursor.Shape
+		b.cursorShape = n.Cursor.Shape
 	}
 }

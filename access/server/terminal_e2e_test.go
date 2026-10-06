@@ -78,10 +78,34 @@ func TestTerminalRoutingThroughAccessReachesDaemonPTY(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	subscription, events, err := application.EventSubscribe(ctx, &apipb.EventSubscribeCommand{
+		Types: []apipb.ApplicationEventType{apipb.ApplicationEventType_APPLICATION_EVENT_TYPE_TERMINAL_LIFECYCLE},
+	})
+	if err != nil {
+		t.Fatalf("terminal event subscribe through access: %v", err)
+	}
 	if _, err := application.TerminalCreate(ctx, &apipb.TerminalCreateCommand{Terminal: &apipb.TerminalCreateSpec{
 		TerminalId: "term-e2e", Command: []string{"/bin/cat"}, Size: &apipb.TerminalSize{Cols: 20, Rows: 5},
 	}}); err != nil {
 		t.Fatalf("terminal create through access: %v", err)
+	}
+	select {
+	case event := <-events:
+		lifecycle := event.GetTerminalLifecycle()
+		if lifecycle == nil || lifecycle.GetTerminal().GetRef().GetTerminalId() != "term-e2e" {
+			t.Fatalf("terminal lifecycle event = %#v", event)
+		}
+		if !strings.HasPrefix(event.GetEventId(), "terminal.") {
+			t.Fatalf("terminal event id = %q", event.GetEventId())
+		}
+		if string(event.GetSubscription().GetOpaqueToken()) != string(subscription.GetSubscription().GetOpaqueToken()) {
+			t.Fatalf("terminal event subscription token = %q, want %q", event.GetSubscription().GetOpaqueToken(), subscription.GetSubscription().GetOpaqueToken())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for terminal lifecycle event through access")
+	}
+	if err := application.ReleaseResource(ctx, &apipb.ReleaseResourceCommand{Resource: subscription.GetSubscription()}); err != nil {
+		t.Fatalf("release terminal event subscription: %v", err)
 	}
 	list, err := application.TerminalList(ctx, &apipb.TerminalListCommand{})
 	if err != nil {

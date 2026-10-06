@@ -13,3 +13,7 @@ func ptyEnvironmentFixture() []string {
 func ptyLongRunningFixture() []string {
 	return []string{"/bin/sh", "-c", "while true; do sleep 1; done"}
 }
+
+func ptyHUPIgnoringFixture() []string {
+	return []string{"/bin/sh", "-c", "trap '' HUP; while true; do sleep 1; done"}
+}

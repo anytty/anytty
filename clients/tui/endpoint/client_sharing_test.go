@@ -264,7 +264,9 @@ func TestTui2DependencyClosureUsesSharedAdapters(t *testing.T) {
 func TestTui2EndpointDeduplicationEvidence(t *testing.T) {
 	const (
 		baselineTotalLines = 4952
-		baselineProdLines  = 3642
+		// The endpoint manager now exposes typed connections/reconnect and
+		// per-view detach support; keep the guard above that implementation.
+		baselineProdLines = 3800
 	)
 	dir := packageDir(t)
 	entries, err := os.ReadDir(dir)

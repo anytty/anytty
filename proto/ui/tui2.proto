@@ -123,6 +123,16 @@ message Source {
   string resize_owner = 10;
   uint64 owner_epoch = 11;
   int64 last_seen_ms = 12;
+  int32 cols = 13;
+  int32 rows = 14;
+  map<string, string> tags = 15;
+  // endpoint_label is the human-readable machine name for the endpoint this
+  // source belongs to; the picker tab shows it instead of the raw endpoint id.
+  string endpoint_label = 16;
+  // last_output_ms is the Unix-millis timestamp of the terminal's most recent
+  // non-empty PTY output; the picker renders it as a coarse activity label.
+  int64 last_output_ms = 17;
+  map<string, string> tags = 18;
 }
 
 message SourcesEvent {
@@ -243,6 +253,63 @@ message MethodParams {
   string credential_dir = 25;
   string credential_ref = 26;
   string cloud_gateway_address = 27;
+  // Generic access forwarding (access.call, append-only): the serialized
+  // access CommandEnvelope the host executes on the selected endpoint's
+  // ready connection. The host is a transparent forwarder; the bytes stay
+  // opaque to the program protocol (no access proto import here).
+  bytes access_command = 28;
+  // access.stream.open (append-only): program-allocated stream id plus the
+  // serialized access ResourceHandle the stream carries.
+  uint64 stream_id = 29;
+  bytes access_resource = 30;
+  // terminal.search: terminal-owned history search (append-only).
+  string query = 31;
+  string search_mode = 32; // text (default), glob, regex
+  bool backward = 33;
+  // clipboard.paste/history.delete identify a persisted clipboard entry.
+  string clipboard_id = 35;
+}
+
+// StreamFrame is the bidirectional access stream payload (frame type STREAM).
+// stream_id is allocated by the program and reused only after close. kind is
+// append-only:
+//   both directions: "data" (payload + wire_type), "close"
+//   program -> host: "cancel"
+//   host -> program: "error" (error text)
+// wire_type carries the access wire frame type byte so SDK helpers can keep
+// access semantics (file data/ack/finish, event envelopes) without the host
+// interpreting them. offset is reserved for host-side progress hints.
+message StreamFrame {
+  uint64 stream_id = 1;
+  string kind = 2;
+  bytes payload = 3;
+  uint64 offset = 4;
+  string error = 5;
+  uint32 wire_type = 6;
+}
+
+// ViewDelta is the program -> host incremental view frame (frame type
+// VIEW_DELTA, PROTOCOL §2.1). Sent only when the host advertised
+// features["view_delta"]. Patches are applied in order to the host's cached
+// rev_base view; keys is optional and follows VIEW's atomic claim rule.
+message ViewDelta {
+  uint64 epoch = 1;
+  uint64 rev = 2;
+  uint64 rev_base = 3;
+  Keys keys = 4;
+  repeated Patch patches = 5;
+}
+
+// Patch is one tree edit addressed by a child-index path from the root
+// (empty path = root). op is append-only: "set" (non-children fields only),
+// "replace", "insert" (uses index), "remove", "move" (uses from/to).
+message Patch {
+  string op = 1;
+  repeated uint32 path = 2;
+  uint32 index = 3;
+  uint32 from = 4;
+  uint32 to = 5;
+  Box box = 6;
 }
 
 // Result is the program -> host method call (PROTOCOL §4).
@@ -259,6 +326,19 @@ message MethodData {
   string text = 2;
   string endpoint = 3;
   string id = 4;
+  // Generic access forwarding result (access.call): the serialized access
+  // ResultEnvelope returned by the endpoint connection.
+  bytes access_result = 5;
+  // Clamped view offset (append-only): terminal.scroll/history.window report
+  // the scrollback offset the host actually applied, so the program's copy
+  // view stays in sync with the rendered window.
+  int32 offset = 6;
+  // terminal.search: match coordinates in the returned viewport, using
+  // row*terminal_cols+col. End is exclusive, unlike legacy Selection.end.
+  bool found = 7;
+  bool wrapped = 8;
+  int32 match_start = 9;
+  int32 match_end = 10;
 }
 
 // Response is the host -> program reply, exactly one per Result.

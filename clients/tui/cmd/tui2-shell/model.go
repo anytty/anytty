@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/anytty/anytty/clients/tui/sdk/widgets"
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
 
@@ -149,7 +150,16 @@ type slot struct {
 	ratio        int
 	sourceID     string
 	scrollOffset int
-	pending      string
+	// scrollSeq identifies the latest in-flight scroll request for this slot.
+	// Wheel input can outrun a remote history provider; a late response from
+	// an older direction must never put the viewport back where it was.
+	scrollSeq uint64
+	// scrollPending keeps the terminal visually focused while the first
+	// history request is in flight. The host's HistoryRoutingActive callback
+	// still sends reverse wheels to this reducer, so pending does not let a
+	// child consume a gesture that belongs to history.
+	scrollPending bool
+	pending       string
 }
 
 // tab is one flat split group. flow is "row" (panes side by side) or "col"
@@ -477,6 +487,8 @@ func (m *model) sourcesEvent(items []*pb.Source) []request {
 			if s.sourceID != "" && !present[s.sourceID] {
 				s.sourceID = ""
 				s.scrollOffset = 0
+				s.scrollSeq++
+				s.scrollPending = false
 			}
 		}
 	}
@@ -523,6 +535,8 @@ func (m *model) bind(slotID, sourceID string) {
 	}
 	t.slots[i].sourceID = sourceID
 	t.slots[i].scrollOffset = 0
+	t.slots[i].scrollSeq++
+	t.slots[i].scrollPending = false
 	m.mode = modeNormal
 }
 
@@ -573,9 +587,9 @@ func (m *model) keyNormal(ev keyEvent) []request {
 	}
 	switch ev.Key {
 	case "page-up":
-		return m.scrollFocused(10)
+		return m.scrollFocused(m.scrollPageRows())
 	case "page-down":
-		return m.scrollFocused(-10)
+		return m.scrollFocused(-m.scrollPageRows())
 	}
 	return nil
 }
@@ -612,9 +626,9 @@ func (m *model) keyPane(ev keyEvent) []request {
 		t := m.activeTab()
 		t.focus = (t.focus + 1) % len(t.slots)
 	case "page-up":
-		return m.scrollFocused(10)
+		return m.scrollFocused(m.scrollPageRows())
 	case "page-down":
-		return m.scrollFocused(-10)
+		return m.scrollFocused(-m.scrollPageRows())
 	default:
 		if len(ev.Key) == 1 && ev.Key[0] >= '1' && ev.Key[0] <= '9' {
 			m.selectTab(int(ev.Key[0] - '1'))
@@ -631,10 +645,14 @@ func (m *model) keyScroll(ev keyEvent) []request {
 	switch ev.Key {
 	case "esc":
 		return m.scrollEnd()
-	case "page-up", "up":
-		return m.scrollFocused(10)
-	case "page-down", "down":
-		return m.scrollFocused(-10)
+	case "page-up":
+		return m.scrollFocused(m.scrollPageRows())
+	case "page-down":
+		return m.scrollFocused(-m.scrollPageRows())
+	case "up":
+		return m.scrollFocused(1)
+	case "down":
+		return m.scrollFocused(-1)
 	}
 	return nil
 }
@@ -976,8 +994,42 @@ func (m *model) scrollFocused(delta int) []request {
 	return m.scrollSlot(m.focusSlot(), delta)
 }
 
+// scrollPageRows matches the legacy copy-mode page size: the focused panel's
+// terminal content height minus two context rows. A fixed delta makes a short
+// split panel feel too large and a full-height panel feel too slow.
+func (m *model) scrollPageRows() int {
+	t := m.activeTab()
+	_, bodyHeight := m.bodySize()
+	panelHeight := bodyHeight
+	if t.flow == "col" && len(t.slots) > 0 {
+		ratios := make([]int, len(t.slots))
+		for i, s := range t.slots {
+			ratios[i] = s.ratio
+		}
+		sizes := widgets.Distribute(bodyHeight-(len(t.slots)-1)*m.gap, ratios)
+		panelHeight = sizes[clampIndex(t.focus, len(sizes))]
+	}
+	contentHeight := panelHeight
+	if contentHeight >= 3 {
+		contentHeight -= 2 // terminal's default one-cell chrome inset
+	}
+	page := contentHeight - 2
+	if page <= 0 {
+		return 8 // legacy fallback for very small viewports
+	}
+	return page
+}
+
 func (m *model) scrollSlot(slot *slot, delta int) []request {
 	if delta == 0 {
+		return nil
+	}
+	// Match the legacy TUI's copy-mode boundary: a downward wheel at the
+	// live bottom is a no-op. Sending terminal.scroll(-1) here asks a
+	// persistent provider for another "latest" window even though the child
+	// TUI is already live; the resulting async repaint can race the child's
+	// own redraw and make the viewport appear to jump up and down.
+	if delta < 0 && m.mode == modeNormal && slot.scrollOffset == 0 && !slot.scrollPending {
 		return nil
 	}
 	endpoint, id, ok := parseSourceID(slot.sourceID)
@@ -985,21 +1037,54 @@ func (m *model) scrollSlot(slot *slot, delta int) []request {
 		return nil
 	}
 	slotID := slot.id
+	slot.scrollSeq++
+	seq := slot.scrollSeq
+	// Keep the terminal focused until the host confirms a non-zero history
+	// offset. Persistent history is asynchronous; changing mode before that
+	// response makes a live TUI visibly disappear during the request window.
+	slot.scrollPending = true
 	req := request{
 		Method: "terminal.scroll",
 		Params: &pb.MethodParams{Endpoint: endpoint, Id: id, Delta: int32(delta)},
 		After: func(resp *pb.Response) {
 			if !resp.GetOk() {
+				// A newer wheel event superseded this request. The host still
+				// completes the old request, but it must not surface cancellation
+				// as a visible scroll error or move the model backwards.
+				if resp.GetError() == "context canceled" || resp.GetError() == "context deadline exceeded" {
+					if t, i := m.findSlot(slotID); t != nil && t.slots[i].scrollSeq == seq {
+						t.slots[i].scrollPending = false
+						if t.slots[i].scrollOffset == 0 {
+							m.mode = modeNormal
+						}
+					}
+					return
+				}
+				if t, i := m.findSlot(slotID); t != nil && t.slots[i].scrollSeq == seq {
+					t.slots[i].scrollPending = false
+					if t.slots[i].scrollOffset == 0 {
+						m.mode = modeNormal
+					}
+				}
 				m.status = "scroll failed: " + resp.GetError()
 				return
 			}
 			t, i := m.findSlot(slotID)
-			if t == nil {
+			if t == nil || t.slots[i].scrollSeq != seq {
 				return
 			}
-			t.slots[i].scrollOffset += delta
-			if t.slots[i].scrollOffset < 0 {
-				t.slots[i].scrollOffset = 0
+			t.slots[i].scrollPending = false
+			// The terminal owns clamping and provider paging. Use its returned
+			// offset when present instead of accumulating the requested delta;
+			// the latter drifts at the oldest boundary and after a direction
+			// reversal.
+			if data := resp.GetData(); data != nil {
+				t.slots[i].scrollOffset = max(0, int(data.GetOffset()))
+			} else {
+				t.slots[i].scrollOffset += delta
+				if t.slots[i].scrollOffset < 0 {
+					t.slots[i].scrollOffset = 0
+				}
 			}
 			m.mode = modeScroll
 			if t.slots[i].scrollOffset == 0 {
@@ -1012,6 +1097,8 @@ func (m *model) scrollSlot(slot *slot, delta int) []request {
 
 func (m *model) scrollEnd() []request {
 	slot := m.focusSlot()
+	slot.scrollSeq++
+	slot.scrollPending = false
 	slot.scrollOffset = 0
 	m.mode = modeNormal
 	endpoint, id, ok := parseSourceID(slot.sourceID)
@@ -1128,6 +1215,8 @@ func (m *model) closeSlotAt(t *tab, index int) []request {
 	} else {
 		slot.sourceID = ""
 		slot.scrollOffset = 0
+		slot.scrollSeq++
+		slot.scrollPending = false
 	}
 	return reqs
 }
@@ -1161,7 +1250,10 @@ func (m *model) wheel(node string, delta int) []request {
 	if slot.sourceID == "" {
 		return nil
 	}
-	return m.scrollSlot(slot, delta*3)
+	// The host parser normalizes one wheel report to +/-1. The legacy TUI
+	// consumed one visual row per report, so preserve that cadence here; a
+	// layout or device that reports a larger delta still keeps its magnitude.
+	return m.scrollSlot(slot, delta)
 }
 
 // mouse handles clicks on the tab bar, sidebar rows, slots and dividers plus

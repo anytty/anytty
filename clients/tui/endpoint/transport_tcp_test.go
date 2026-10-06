@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -77,7 +78,7 @@ func startUnixTCPBridge(t *testing.T, unixPath string) string {
 // listener from the shared package sits behind a TCP bridge, and frames of
 // every size (small, exact packet limit, fragmented) cross both ways.
 func TestTCPFramingMatchesSharedUnixTransport(t *testing.T) {
-	listener, err := unixtransport.NewListener(t.TempDir() + "/shared.sock")
+	listener, err := unixtransport.NewListener(filepath.Join(shortSocketTempDir(t), "shared.sock"))
 	if err != nil {
 		t.Fatalf("shared unix listener: %v", err)
 	}

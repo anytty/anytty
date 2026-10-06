@@ -30,6 +30,10 @@ type InputSink interface {
 	BracketPaste(sourceID string) bool
 }
 
+type mouseEncodingSink interface {
+	MouseSGR(sourceID string) bool
+}
+
 // SetInputSink installs the PTY input sink (PROTOCOL §6.5 priority 5).
 func (s *Session) SetInputSink(sink InputSink) {
 	s.mu.Lock()
@@ -101,7 +105,19 @@ func (s *Session) Input(ev keys.Event) (Destination, error) {
 			}
 			return dst, nil
 		}
-		data, ok := keys.Encode(ev)
+		encodedEvent := ev
+		if ev.PTYX > 0 && ev.PTYY > 0 {
+			encodedEvent.X = ev.PTYX
+			encodedEvent.Y = ev.PTYY
+		}
+		data, ok := keys.Encode(encodedEvent)
+		if ev.Kind == keys.KindMouse || ev.Kind == keys.KindWheel {
+			sgr := true
+			if modes, supportsModes := s.inputSink.(mouseEncodingSink); supportsModes {
+				sgr = modes.MouseSGR(s.focus.ID)
+			}
+			data, ok = keys.EncodeTerminalMouse(encodedEvent, sgr)
+		}
 		if !ok {
 			return dst, errors.New("runtime: unencodable " + ev.Kind.String() + " event")
 		}

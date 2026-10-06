@@ -33,6 +33,15 @@
 # The tm adapter below accepts the subset of tmux invocations the scripts use,
 # so both drivers run the exact same assertions.
 
+# bash 3.2 (macOS /bin/bash) cannot parse `coproc`, which makes sourcing this
+# file execute the pty branch body inline. Fail with a readable requirement
+# instead of a cryptic "unbound variable"/"bad file descriptor".
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  printf 'SKIP  libdriver needs bash >= 4 (coproc); run with a bash 4/5 (e.g. /opt/homebrew/bin/bash)\n'
+  driver_init() { return 3; }
+  return 3 2>/dev/null || exit 0
+fi
+
 : "${TUI2_TEST_DRIVER:=auto}"
 DRIVER=""
 HARNESS_BIN=""

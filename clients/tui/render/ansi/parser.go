@@ -13,7 +13,10 @@ import (
 const maxSequence = 8192
 
 // maxScrollback caps the number of scrolled-off lines retained per parser.
-const maxScrollback = 1024
+// The copy/history view can only page back this far (the host keeps the
+// terminal history in memory); 4096 lines matches the old TUI's practical
+// scrollback depth while staying bounded per attached terminal.
+const maxScrollback = 4096
 
 // Modes is the mode-bit snapshot the host routing layer tracks (PROTOCOL
 // §6.5, §6.8). The parser mirrors what the program asked for; the host
@@ -33,6 +36,11 @@ type Modes struct {
 	MouseSGR bool
 	// BracketPaste is mode 2004 (paste is wrapped in ESC[200~..ESC[201~).
 	BracketPaste bool
+	// SynchronizedOutput tracks DEC private mode 2026. The runtime uses this
+	// bit to coalesce notifications and the host uses it as a commit barrier;
+	// screen snapshots may update internally, but an intermediate clear/draw
+	// state is not published until the application closes the batch.
+	SynchronizedOutput bool
 }
 
 // MouseTracking reports whether any mouse reporting mode is enabled.
@@ -48,6 +56,7 @@ type Parser struct {
 
 	x, y        int
 	pendingWrap bool
+	cursorShape string
 
 	savedX, savedY       int
 	altSavedX, altSavedY int
@@ -104,7 +113,7 @@ func (p *Parser) Write(data []byte) {
 func (p *Parser) Screen() Screen {
 	visible := p.modes.CursorVisible
 	if p.cols == 0 || p.rows == 0 {
-		return Screen{CursorVisible: visible}
+		return Screen{CursorVisible: visible, CursorShape: p.cursorShape}
 	}
 	grid := p.grid()
 	lines := make([][]Cell, p.rows)
@@ -118,6 +127,7 @@ func (p *Parser) Screen() Screen {
 		CursorX:       p.x,
 		CursorY:       p.y,
 		CursorVisible: visible,
+		CursorShape:   p.cursorShape,
 	}
 }
 
@@ -146,6 +156,7 @@ func (p *Parser) Reset() {
 	p.clear(p.main)
 	p.clear(p.alt)
 	p.x, p.y = 0, 0
+	p.cursorShape = ""
 	p.savedX, p.savedY = 0, 0
 	p.altSavedX, p.altSavedY = 0, 0
 	p.pendingWrap = false
@@ -339,9 +350,26 @@ func (p *Parser) dispatchCSI(prefix byte, final byte, params [][]int) {
 		p.saveCursor()
 	case 'u':
 		p.restoreCursor()
+	case 'q':
+		p.setCursorShape(paramAt(params, 0, 0))
 	case 'r':
 		// Scroll regions are simplified to the full screen.
 		p.pendingWrap = false
+	}
+}
+
+// setCursorShape handles DECSCUSR (CSI Ps q). The parser keeps the steady
+// shape only; blink is controlled by the terminal emulator's cursor settings.
+func (p *Parser) setCursorShape(mode int) {
+	switch mode {
+	case 3, 4:
+		p.cursorShape = "underline"
+	case 5, 6:
+		p.cursorShape = "bar"
+	case 0, 1, 2:
+		p.cursorShape = "block"
+	default:
+		// Unknown DECSCUSR values leave the previous shape intact.
 	}
 }
 
@@ -365,6 +393,8 @@ func (p *Parser) setPrivateModes(params [][]int, on bool) {
 			p.modes.MouseSGR = on
 		case 2004:
 			p.modes.BracketPaste = on
+		case 2026:
+			p.modes.SynchronizedOutput = on
 		}
 	}
 }
@@ -514,7 +544,7 @@ func (p *Parser) scrollUp(n int) {
 	}
 	copy(grid, grid[n*p.cols:])
 	for i := (p.rows - n) * p.cols; i < p.rows*p.cols; i++ {
-		grid[i] = Cell{}
+		grid[i] = p.blankCell()
 	}
 }
 
@@ -528,7 +558,7 @@ func (p *Parser) scrollDown(n int) {
 	grid := p.grid()
 	copy(grid[n*p.cols:], grid[:(p.rows-n)*p.cols])
 	for i := 0; i < n*p.cols; i++ {
-		grid[i] = Cell{}
+		grid[i] = p.blankCell()
 	}
 }
 
@@ -632,12 +662,22 @@ func (p *Parser) eraseCell(x, y int) {
 	grid := p.grid()
 	index := y*p.cols + x
 	if grid[index].Continuation && x > 0 {
-		grid[index-1] = Cell{}
+		grid[index-1] = p.blankCell()
 	}
 	if grid[index].Width > 1 && x+1 < p.cols {
-		grid[index+1] = Cell{}
+		grid[index+1] = p.blankCell()
 	}
-	grid[index] = Cell{}
+	grid[index] = p.blankCell()
+}
+
+// blankCell is the terminal's erase cell. Erasing clears content and
+// attributes, but the active background continues to paint the cell. This is
+// what makes full-width colored prompt/input regions survive EL, ED and scroll.
+func (p *Parser) blankCell() Cell {
+	if p.style.bg == "" {
+		return Cell{}
+	}
+	return Cell{Style: render.ANSIToken(p.style.bg)}
 }
 
 func (p *Parser) clear(grid []Cell) {
@@ -692,6 +732,7 @@ func parseParams(data []byte) [][]int {
 		parts := strings.Split(group, ":")
 		nums := make([]int, 0, len(parts))
 		for _, part := range parts {
+			part = strings.TrimSpace(part)
 			if part == "" {
 				nums = append(nums, -1)
 				continue

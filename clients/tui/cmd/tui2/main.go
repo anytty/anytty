@@ -11,12 +11,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
 	"github.com/anytty/anytty/clients/tui/endpoint"
+	"github.com/anytty/anytty/clients/tui/runtime"
 )
 
 // version is the host version reported by -version.
@@ -26,13 +29,17 @@ func main() {
 	shellPath := flag.String("shell", "", "layout program to launch: a path or a command with arguments (e.g. \"python3 tui2/examples/python-shell/shell.py\"); default: look for tui2-shell in PATH or next to this binary")
 	endpointsPath := flag.String("endpoints", "", "explicit CLI-owned endpoints.yaml path list to read (os path separator); read-only, explicit files win by endpoint name over $TUI2_ENDPOINTS and the default registry")
 	logFilePath := flag.String("log-file", "", "host and shared-client log file (default: $TUI2_LOG_FILE or $XDG_STATE_HOME/anytty/tui2.log); diagnostics never go to the terminal")
-	routesValue := flag.String("routes", "", "comma-separated shared route kinds to enable: local-unix,ssh-webrtc-tcp,direct-webrtc-tcp,managed-webrtc or all (default: local-unix + credential-backed ssh; also $TUI2_ROUTES)")
+	routesValue := flag.String("routes", "", "comma-separated shared route kinds to race, narrowing the default: local-unix,ssh-webrtc-tcp,direct-webrtc-tcp,managed-webrtc or all (default: all configured kinds race, best connection wins; also $TUI2_ROUTES)")
 	devFlag := flag.Bool("dev", false, "development mode: write the decoded frame log (default $XDG_STATE_HOME/anytty/tui2-dev.log), capture layout program stderr and surface crashes/view_rejected/protocol errors as notices")
 	protocolLog := flag.String("protocol-log", "", "decode host<->program frames into readable JSON lines at <file> (one timestamped record per frame per direction); implies -dev logging")
 	watchPaths := stringListFlag{}
 	flag.Var(&watchPaths, "watch", "file or directory to poll for changes (repeatable, comma-separated); a change restarts the layout program keeping the last good frame")
 	reloadOnSave := flag.Bool("reload-on-save", false, "watch the -shell program file/directory arguments and restart the layout program on every save")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	maxMessageBytes := flag.Int("max-message-bytes", envInt("TUI2_MAX_MESSAGE_BYTES", 0), "HELLO/frame max message bytes (default 1048576; env TUI2_MAX_MESSAGE_BYTES)")
+	maxInflightRequests := flag.Int("max-inflight-requests", envInt("TUI2_MAX_INFLIGHT_REQUESTS", 0), "HELLO max in-flight requests (default 64; env TUI2_MAX_INFLIGHT_REQUESTS)")
+	dialTimeout := flag.Duration("dial-timeout", envDuration("TUI2_DIAL_TIMEOUT", 0), "endpoint dial timeout (default 3s; env TUI2_DIAL_TIMEOUT)")
+	callTimeout := flag.Duration("call-timeout", envDuration("TUI2_CALL_TIMEOUT", 0), "endpoint call timeout (default 5s; env TUI2_CALL_TIMEOUT)")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println("tui2", version)
@@ -61,12 +68,19 @@ func main() {
 		Watch:        watchPaths,
 		ReloadOnSave: *reloadOnSave,
 	}
-	code := run(*shellPath, *endpointsPath, routes, devCfg)
+	limits := runtime.DefaultLimits()
+	if *maxMessageBytes > 0 {
+		limits.MaxMessageBytes = uint32(*maxMessageBytes)
+	}
+	if *maxInflightRequests > 0 {
+		limits.MaxInflightRequests = uint32(*maxInflightRequests)
+	}
+	code := run(*shellPath, *endpointsPath, routes, devCfg, limits, *dialTimeout, *callTimeout)
 	closeLogging()
 	os.Exit(code)
 }
 
-func run(shellPath string, endpointsPath string, routes []clientendpoint.RouteKind, devCfg devConfig) int {
+func run(shellPath string, endpointsPath string, routes []clientendpoint.RouteKind, devCfg devConfig, limits runtime.Limits, dialTimeout, callTimeout time.Duration) int {
 	// Validate the layout program before taking over the terminal, so a bad
 	// -shell command fails with a clear error even in a pipe and with no
 	// screen damage.
@@ -105,7 +119,12 @@ func run(shellPath string, endpointsPath string, routes []clientendpoint.RouteKi
 		explicit = strings.TrimSpace(os.Getenv(endpoint.RegistryEnvVar))
 	}
 	registryPaths := endpoint.RegistryPaths(explicit)
-	host := NewHost(Options{Shell: argv, In: os.Stdin, Out: os.Stdout, Cols: cols, Rows: rows, LoadSharedRegistry: true, RegistryPaths: registryPaths, Routes: routes, Dev: dev})
+	host := NewHost(Options{
+		Shell: argv, In: os.Stdin, Out: os.Stdout, Cols: cols, Rows: rows,
+		ViewID:             fmt.Sprintf("view:local:%d", os.Getpid()),
+		LoadSharedRegistry: true, RegistryPaths: registryPaths, Routes: routes, Dev: dev,
+		Limits: limits, DialTimeout: dialTimeout, CallTimeout: callTimeout,
+	})
 
 	stopResize := watchResize(host, os.Stdin)
 	defer stopResize()
@@ -240,4 +259,30 @@ func splitCommand(s string) ([]string, error) {
 		argv = append(argv, current.String())
 	}
 	return argv, nil
+}
+
+// envInt reads an integer environment default for a flag (0 when unset/invalid).
+func envInt(name string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+// envDuration reads a duration environment default for a flag (0 when unset/invalid).
+func envDuration(name string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

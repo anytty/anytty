@@ -8,10 +8,21 @@ import pb "github.com/anytty/anytty/proto/ui/protobuf"
 // program actually declared.
 type Builder struct {
 	node pb.Box
+	// raw, when set by Raw, is returned by Build as-is instead of a copy, so a
+	// prebuilt (e.g. memoized) subtree keeps its pointer identity when composed
+	// into a parent tree. A raw builder is terminal: do not chain setters on it.
+	raw *pb.Box
 }
 
 // Box starts an empty box: no size, no content, no input, visible.
 func Box() *Builder { return &Builder{} }
+
+// Raw wraps an already-built box so it can be composed into a builder tree
+// without being copied. Build returns the exact pointer, which is what lets a
+// memoized subtree (sdk/app.Memo) short-circuit the SDK's pointer diff. The
+// box is shared by reference: treat it as immutable and do not chain setters
+// on a Raw builder.
+func Raw(b *pb.Box) *Builder { return &Builder{raw: b} }
 
 // Col starts a container that stacks its children vertically (the default
 // flow).
@@ -145,6 +156,9 @@ func (b *Builder) Child(children ...*Builder) *Builder {
 
 // Build returns the protocol node. Every call returns a fresh copy.
 func (b *Builder) Build() *pb.Box {
+	if b.raw != nil {
+		return b.raw
+	}
 	out := &pb.Box{
 		Id:      b.node.Id,
 		Flow:    b.node.Flow,

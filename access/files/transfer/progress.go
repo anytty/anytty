@@ -1,6 +1,9 @@
 package transfer
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // State 是结构化进度事件的状态字段。
 type State string
@@ -24,7 +27,9 @@ type Progress struct {
 
 // Coalescer 按时间窗合并进度更新，避免每个 chunk 都推一帧。
 // 它不做 IO；调用方把 Observe 返回 true 的结果编码成可选进度事件。
+// Observe（session goroutine）与 Finish（下载 goroutine）会并发调用，必须加锁。
 type Coalescer struct {
+	mu        sync.Mutex
 	interval  time.Duration
 	lastEmit  time.Time
 	lastBytes int64
@@ -46,6 +51,8 @@ func (coalescer *Coalescer) Observe(transferred int64, total int64, now time.Tim
 	if coalescer == nil {
 		return Progress{Transferred: transferred, Total: total, State: StateActive}, true
 	}
+	coalescer.mu.Lock()
+	defer coalescer.mu.Unlock()
 	if now.IsZero() {
 		now = time.Now()
 	}
@@ -66,11 +73,13 @@ func (coalescer *Coalescer) Observe(transferred int64, total int64, now time.Tim
 
 // Finish 生成终态进度（总是发送）。
 func (coalescer *Coalescer) Finish(transferred int64, total int64, now time.Time) Progress {
-	if now.IsZero() {
-		now = time.Now()
-	}
 	if coalescer == nil {
 		return Progress{Transferred: transferred, Total: total, State: StateCompleted}
+	}
+	coalescer.mu.Lock()
+	defer coalescer.mu.Unlock()
+	if now.IsZero() {
+		now = time.Now()
 	}
 	progress := coalescer.snapshotLocked(transferred, total, now, true)
 	coalescer.lastEmit = now

@@ -18,6 +18,10 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=libdriver.sh
 source "$ROOT/clients/tui/scripts/libdriver.sh"
+if [ "${BASH_VERSINFO[0]:-0}" -lt 4 ]; then
+  echo "SKIP  tui2 driver parity requires bash >= 4 (use /opt/homebrew/bin/bash or bash 5)"
+  exit 0
+fi
 GO="${GO:-go}"
 SOCK="tui2-parity-$$"
 WORK="$(mktemp -d)"

@@ -19,7 +19,7 @@ import (
 	"time"
 
 	accesscontract "github.com/anytty/anytty/access/contract"
-	"github.com/anytty/anytty/access/engine/adapter/internal/e2etest"
+	"github.com/anytty/anytty/access/engine/adapter/e2etest"
 	peeradapter "github.com/anytty/anytty/access/engine/adapter/peer"
 	pionadapter "github.com/anytty/anytty/access/engine/adapter/webrtc/pion"
 	"github.com/anytty/anytty/access/engine/endpoint"

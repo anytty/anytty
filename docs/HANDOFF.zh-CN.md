@@ -12,7 +12,7 @@
 客户端（TUI/CLI/Flutter/Web）
    │  access wire（Hello v7 + application protocol，不变）
    ▼
-access（canonical $XDG_RUNTIME_DIR/anytty-v2-wire7.sock）
+access（canonical $XDG_RUNTIME_DIR/anytty-v3-wire7.sock）
    │  auth/files/proxy/store 本地终结；terminal 路由 provider
    ▼
 pool（<canonical>.provider，owner-only unix）
@@ -64,7 +64,7 @@ pool（<canonical>.provider，owner-only unix）
 
 | socket | 归属 | 说明 |
 |---|---|---|
-| `<canonical>`（默认 `$XDG_RUNTIME_DIR/anytty-v2-wire7.sock`） | access | 客户端入口；owner-only；本地免鉴权 |
+| `<canonical>`（默认 `$XDG_RUNTIME_DIR/anytty-v3-wire7.sock`） | access | 客户端入口；owner-only；本地免鉴权 |
 | `<canonical>.provider` | pool | terminal provider，只有 access 连 |
 | `<canonical>.pair` | access | remoteauth v2 PairingExchange |
 | `<canonical>.direct` | access | Direct listener 记录 |
@@ -135,6 +135,21 @@ go run ./cmd/anytty --socket /tmp/anytty.sock access run --route 0.0.0.0:41120
 # 或沿用独立二进制（--socket 现在是 canonical base）
 go run ./cmd/anytty --socket /tmp/anytty.sock pool run   # 实际绑定 /tmp/anytty.sock.provider
 go run ./access/cmd/anytty-access --socket /tmp/anytty.sock --route 0.0.0.0:41120
+```
+
+macOS 注意：`t.TempDir()` 默认在 `/var/folders/...`，长测试名会让裸 `net.Listen("unix")`
+超过 104 字节 sun_path 上限（`bind: invalid argument`）。本机跑 Go 测试请加
+`TMPDIR=/tmp`（生产代码经 `shared/transport/unix` 自带短路径映射，不受影响）。
+
+与旧单进程 daemon 并存（不能停旧进程时）：旧 daemon 持有 access store 的 owner
+lock，新实例必须用独立 state；config/runtime 可共用（registry 的 local route
+`socket: auto` 会解析到新的 v3 socket）：
+
+```bash
+export XDG_STATE_HOME=$HOME/.local/state/anytty-v3
+anytty pool start          # pool+access 起在 anytty-v3-wire7.sock
+anytty ls                  # 新栈（空）
+anytty --socket <旧 v2 socket> ls   # 旧 daemon 的终端仍可访问
 ```
 
 ## 6. 硬约束（别踩）
@@ -254,6 +269,106 @@ go run ./access/cmd/anytty-access --socket /tmp/anytty.sock --route 0.0.0.0:4112
   dev 工具引用只在历史说明中出现；`workflow.json` 标记为历史迁移日志。
 - 后续：无（T1–T5 全部完成）。
 
+**Cloud e2e 补全（T5 后）**
+
+- `access/cloud/session_e2e_test.go` 在同一真实 Pion DataChannel 上，除
+  terminal attach/PTY 外新增 1MiB+ 文件 upload/download 往返（access 本地
+  file 服务、窗口/ack 流程与服务端落盘校验）。
+- 文件传输驱动从 `access/engine/adapter/internal/e2etest` 移到
+  `access/engine/adapter/e2etest`，direct/ssh/cloud 三处 e2e 共用，避免语义漂移。
+- `access/files/path.go` 的 root 归一化改用 `resolveExistingPrefix`（root 尚不
+  存在时也解析已存在前缀），修复 macOS `/var` 链接导致的比较基准不一致。
+
+**稳定性修复（macOS 全量门禁，T5 后）**
+
+- auto-start 的 access 现在走 managed 启动（`startCoreV2Access`）：PID/身份写回 pool
+  record。此前 auto-start 拉起的 access 对 `pool stop/status`、`access stop` 不可见，
+  停栈会留下孤儿进程（tmux 冒烟跨轮累积的根因）。
+- `pool/core` 的 Unix kill 增加兜底：SIGHUP 宽限 1s 后仍存活则对进程组 SIGKILL
+  （platform `KillHard`）。修复子进程忽略 SIGHUP（macOS 偶发）时 terminal 永久
+  停在 running、`kill` 不生效的问题；`trap '' HUP` 回归测试在
+  `pool/core/pty_process_escalation_unix_test.go`。
+- CLI tmux 冒烟 harness `close()` 显式 `pool stop`（默认入口退出不会停独立进程组）。
+- 进程退出等待 1s/2s → 5s（配合 1s escalation，宽限后仍能等到事件）。
+- 默认 canonical socket 更名 `anytty-v2-wire7.sock` → `anytty-v3-wire7.sock`
+  （`clients/cli/v3_paths.go`、`pool/core/server.go`）：v3 = access+pool 代际，
+  保留 wire7 隔离。旧单进程 daemon 仍占 v2 名，新默认不会再被它顶住；
+  旧栈用 `--socket <旧路径>` 仍可管理。
+- 与旧 daemon 并存（不要求停旧进程）：access 的 DeviceIdentity/AccessStore 有
+  进程级 owner lock（`<state>/remote-v2/access`），同 state 下新旧不能同时持有。
+  新实例用独立 `XDG_STATE_HOME` 即可与旧 daemon 并行：
+  `XDG_STATE_HOME=$HOME/.local/state/anytty-v3 anytty pool start`。
+- auto-start 修复：endpoint 命令（`ls`/`terminal`/`file`）的 Start 回调此前只起
+  pool 不起 access，从零或半栈（access 停）时会留下没有 canonical 入口的半栈，
+  报 `route race was canceled`；现统一走 `startV3LocalStackForConfig`（pool 已在
+  则只补 access，本次新起的 pool 在 access 失败时回滚）。
+- access 启动失败会带 access 日志尾行；`process file lock is already held` 会附
+  XDG_STATE_HOME 隔离提示。`pool start` 的 access 失败回滚会等待 pool 退出。
+- 新增 `access.call`（TUI 程序协议，append-only）：布局程序把**任意**序列化 access
+  `CommandEnvelope` 交给宿主，宿主只选 endpoint 的 ready 连接**透明转发**并回
+  `ResultEnvelope`（`MethodParams.access_command`(28) / `MethodData.access_result`(5)）。
+  宿主不做家族白名单、不做确认（program 用生成客户端自行序列化；attach/resize/input
+  的单写者纪律由程序负责，类型化方法仍是推荐路径）；首版没有程序协议流通道
+  （download/upload open 等流式资源留待 stream 阶段）。转发经
+  `ApplicationSession.Execute` 绑定本 generation 的 request context/operation stamp
+  （裸 `ExecuteApplication` 会被 access 以 `context: is required` 拒绝）。
+  本地一律走 access：registry 里 local-unix route 的 `socket: auto` 现在解析为
+  默认 canonical socket（`endpoint.DefaultLocalAccessSocket()`），`local` 因此是
+  daemon endpoint，不再回退宿主 PTY；`local-access` 仅作为"registry 没有 local
+  endpoint"时的兜底自动注册。
+- `access.stream.open` + STREAM 帧（append-only，双向）：程序分配 `stream_id`，
+  用 `access.call` 打开资源（文件传输的 `ResourceHandle`）后绑定双向流；
+  `wire_type` 原样保留 access 帧语义（file data/ack/finish），宿主透明透传；
+  程序→宿主每流 4MiB 有界队列，溢出以 error 关闭该流不阻塞会话。
+- `access.stream.subscribe`：执行 access `EventSubscribe` 命令并把订阅绑定到
+  `stream_id`；宿主消费连接的 event 通道并按 `EventEnvelope.subscription` 过滤，
+  以 STREAM `kind=data`、`wire_type=事件帧` 推送；关闭时释放订阅。
+- SDK：Go `SendStream`/`Handlers.Stream`；Python `send_stream`/`on_stream`；
+  TS `sendStream`/`onStream`；conformance fixtures 11/11（新增 stream/inbound-data）。
+  真实 e2e：1MiB+ 文件下载 sha256 通过（`ok bytes=1060921`）；事件订阅收到
+  `terminal created`（`state=TERMINAL_STATE_RUNNING`）。
+  改动：`proto/ui/tui2.proto` + regen（`tui2.pb.go` 幂等）、
+  `clients/tui/runtime/methods.go`、`clients/tui/endpoint`（sessionConn.execute +
+  `Manager.Execute`）、`clients/tui/cmd/tui2/access_proxy.go`、测试与
+  PROTOCOL/SDK 文档。
+- race 门禁发现并修复既有数据竞争：`access/files/transfer.Coalescer` 的
+  `Observe`（session goroutine）与 `Finish`（下载 goroutine）并发读写无锁，
+  现加 mutex；回归测试 `TestCoalescerConcurrentObserveAndFinish`。
+- 已知 flaky（非本轮引入，基线可复现）：`access/engine/adapter/direct`
+  的 `TestDirectICETCPFullSessionTerminalAndFileRoundTrip`（attach 输出等待，
+  基线 2/20 失败）、`access/gateway` 的
+  `TestGatewayRestartKeepsDaemonAndTerminal`（attach 后首个输出 frame EOF，
+  基线 1/10）、`clients/tui/endpoint` 的 `TestSharedStackLocalUnixLifecycle`
+  （offline 窗口短于轮询间隔）。
+- 边界收口（架构审查 ①③④）：file/storage DTO 从 `pool/core` 迁到
+  `access/contract`（`api_mapping` 只保留 terminal/history 对 `pool/core` 的依赖，
+  属设计）；`pool/core` 删除 `file_domain.go`/`storage_types.go`、storage 事件与
+  三个 dead storage error（pool 归一为纯终端 provider）；文档补 `access/` 包树
+  所有权（服务端 vs 客户端引擎）与 `kind: command` 显式例外。
+- 边界收口（架构审查 ②）：CLI 不再直接调用 `pool/core` 低层 history 文件 API。
+  `pool/core.HistoryMaintenance` 拥有 history store 语义（文件规则、清理范围、
+  编码/保留策略）；CLI 只解析主机布局目录。离线维护要求 pool 已停止
+  （CLI 以 pool runtime record 锁保证）。
+- terminal provider 从 wire passthrough 升级为 typed domain contract
+  （`access/provider/terminal`）：新增 `Info`/`Capabilities` 与
+  `ErrNotFound`/`ErrConflict`/`ErrUnavailable` typed 错误，并新增直接运输
+  `providerv1` DTO 的 typed facade（Create/List/Get/Restart/Kill/Remove/
+  SetMetadata/SetTags/Attach/HistoryWindow/HistoryCopy/HistorySearch/
+  HistoryRelease/HistoryBacklogStatus/LiveScreen/Subscribe/EventRelease/
+  Events/TerminalDefaults/ListDirectories）。pool adapter 直接调用
+  `pool/provider.Client` typed 方法（无 apipb 往返），`Attachment.Stream()`
+  在 `WaitReady` 或首次读写时内部完成 bootstrap/ready、只暴露 PTY 字节；
+  PTY 终止以 `StreamClosedError`（含退出码）/`StreamSyncLostError` 报告。typed
+  路径由 `access/provider/pool/typed_test.go` 与 `access/server` e2e 覆盖。
+- terminal provider 增量 3（消费方切换）完成：`access/server` 的 terminal
+  family 走 typed facade（`access/server/terminal.go`），apipb ↔ providerv1
+  投影移到消费方持有的 `access/server/terminalmap`；attachment token 由 access
+  重签（provider token 不出 access），附件 bootstrap/转发走 typed `Duplex`；
+  provider event relay 改用 typed `Events` + `Subscribe`，按会话订阅投影回既有
+  `EventEnvelope`（event id/type/payload 不变）。legacy passthrough
+  （`Execute`/`OpenStream`/`EnvelopeEvents`）与 `access/provider/*` 的 apipb
+  依赖已删除；`pool/provider` wire 未改。
+
 **codegen（已恢复）**
 
 - `internal/appcodegen` + `scripts/generate_application_api.go` 从
@@ -270,7 +385,8 @@ go run ./access/cmd/anytty-access --socket /tmp/anytty.sock --route 0.0.0.0:4112
 2. **tmux provider**：只有接口与 `ErrUnsupported` 占位，未实现翻译层。
 3. **客户端压缩/结构化进度可选字段**：协议与 access 已支持；Flutter/旧客户端
    尚未全部启用（wire 兼容，启用即可）。
-4. **api_mapping 的 corev2-typed 映射面保留**：验证器与 access/provider 适配器
-   在用；部分 mapping helper 仅测试与未来 API 使用，未删除。
+4. **api_mapping 的 corev2-typed 映射面保留**：验证器与 access/server 在用；
+   `access/provider/*` 已不再依赖 `api_mapping`/`apipb`（terminal 投影在
+   `access/server/terminalmap`）。部分 mapping helper 仅测试与未来 API 使用，未删除。
 5. **deadcode 之外的动态可达面**：Flutter cgo 绑定与反射路径不在静态扫描内，
    相关 engine binding 符号按“Flutter 可达”保留。

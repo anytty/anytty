@@ -12,8 +12,18 @@ import (
 // rendered at its own origin (relative coordinates). Lines outside the rect
 // are clipped; the rect is opaque, so blank cells cover whatever is beneath.
 type Placement struct {
-	Rect  kernel.Rect
-	Lines []render.Line
+	Rect kernel.Rect
+	// ContentRect is the terminal's drawable area after component chrome. It
+	// lets the framebuffer keep a scroll update inside one panel instead of
+	// treating the whole viewport as a single scroll region.
+	ContentRect kernel.Rect
+	Lines       []render.Line
+	// DisableScrollOptimization prevents the framebuffer diff from turning a
+	// coincidental row translation into a physical terminal scroll. Live PTY
+	// programs (Codex/OpenCode) redraw their own full-screen viewport and can
+	// legitimately produce rows that look shifted; only a host-owned frozen
+	// history viewport has a reliable scroll boundary.
+	DisableScrollOptimization bool
 	// Props are the program-declared component properties/styles of the box
 	// that produced this placement (content.props), passed through unchanged
 	// to the component factory. The compositor never interprets them.
@@ -26,6 +36,14 @@ type Placement struct {
 	CursorX       int
 	CursorY       int
 	CursorVisible bool
+	// CursorShape is the optional hardware cursor shape requested by the
+	// component or PTY ("bar", "underline", or "block").
+	CursorShape string
+	// SynchronizedOutput is true while the PTY application has an open DEC
+	// 2026 redraw batch. The host must keep the previous committed frame until
+	// the matching ?2026l has been parsed; sampling the parser during the batch
+	// exposes the application's clear/half-painted intermediate screen.
+	SynchronizedOutput bool
 }
 
 // Compositor merges the solved program frame (regular flow plus its `pos`
@@ -43,7 +61,9 @@ type Placement struct {
 // through the render default palette for host-internal chrome; program
 // styles are explicit and need no palette.
 type Compositor struct {
-	cols, rows int
+	cols, rows       int
+	scratch          []*render.Frame
+	nextScratchIndex int
 }
 
 // NewCompositor returns a compositor for a cols×rows viewport.
@@ -70,19 +90,36 @@ func (c *Compositor) Size() (cols, rows int) { return c.cols, c.rows }
 // component layer: the subtree is blitted opaquely, so the global layer would
 // otherwise be erased by the component's own overlay bounds.
 func (c *Compositor) Compose(program kernel.Frame, placements []Placement, notice, core *kernel.Frame) *render.Frame {
-	frame := render.NewFrame(c.cols, c.rows)
+	return c.ComposeInto(nil, program, placements, notice, core)
+}
+
+// ComposeInto renders into dst when it has the compositor's dimensions,
+// reusing its cell storage. A nil or differently sized dst is allocated.
+// Callers that retain the returned frame must provide a separate destination
+// on the next call; Session.FrameBytes manages that double buffering itself.
+func (c *Compositor) ComposeInto(dst *render.Frame, program kernel.Frame, placements []Placement, notice, core *kernel.Frame) *render.Frame {
+	c.nextScratchIndex = 0
+	if dst == nil {
+		dst = render.NewFrame(c.cols, c.rows)
+	} else {
+		dst.Reset(c.cols, c.rows)
+	}
+	frame := dst
 	blitKernel(frame, program.Lines)
-	top := make([]Placement, 0, len(placements))
+	var top []Placement
+	if len(program.OverlayFrames) > 0 {
+		top = make([]Placement, 0, len(placements))
+	}
 	for _, placement := range placements {
 		if placementInOverlays(program.OverlayFrames, placement.Rect) {
 			top = append(top, placement)
 			continue
 		}
-		blitPlacement(frame, placement)
+		c.blitPlacement(frame, placement)
 	}
 	groups, _ := assignOverlayPlacements(program.OverlayFrames, top)
 	for i := range program.OverlayFrames {
-		blitOverlayFrame(frame, &program.OverlayFrames[i], groups[i])
+		c.blitOverlayFrame(frame, &program.OverlayFrames[i], groups[i])
 	}
 	if notice != nil {
 		blitKernelFrame(frame, notice)
@@ -90,8 +127,9 @@ func (c *Compositor) Compose(program kernel.Frame, placements []Placement, notic
 	if core != nil {
 		blitKernelFrame(frame, core)
 	}
-	if x, y, ok := resolveCursor(program, placements, core); ok {
+	if x, y, ok, shape := resolveCursor(program, placements, core); ok {
 		frame.SetCursor(x, y)
+		frame.SetCursorShape(shape)
 	}
 	return frame
 }
@@ -153,7 +191,7 @@ func rectWithin(outer kernel.Rect, inner kernel.Rect) bool {
 // blitOverlayFrame draws one program `pos` subtree opaquely and interleaves
 // the component placements that belong to its nodes: the frame's own lines,
 // then its components, then nested overlays (which own their placements).
-func blitOverlayFrame(frame *render.Frame, k *kernel.Frame, placements []Placement) {
+func (c *Compositor) blitOverlayFrame(frame *render.Frame, k *kernel.Frame, placements []Placement) {
 	if k == nil {
 		return
 	}
@@ -161,10 +199,10 @@ func blitOverlayFrame(frame *render.Frame, k *kernel.Frame, placements []Placeme
 	blitKernel(frame, k.Lines)
 	groups, remaining := assignOverlayPlacements(k.OverlayFrames, placements)
 	for _, placement := range remaining {
-		blitPlacement(frame, placement)
+		c.blitPlacement(frame, placement)
 	}
 	for i := range k.OverlayFrames {
-		blitOverlayFrame(frame, &k.OverlayFrames[i], groups[i])
+		c.blitOverlayFrame(frame, &k.OverlayFrames[i], groups[i])
 	}
 }
 
@@ -173,13 +211,13 @@ func blitOverlayFrame(frame *render.Frame, k *kernel.Frame, placements []Placeme
 func overlayBounds(k *kernel.Frame) kernel.Rect {
 	var bounds kernel.Rect
 	first := true
-	for _, rect := range k.Rects {
+	k.RectsIterate(func(_ string, rect kernel.Rect) bool {
 		if rect.Empty() {
-			continue
+			return true
 		}
 		if first {
 			bounds, first = rect, false
-			continue
+			return true
 		}
 		right := max(bounds.X+bounds.Width, rect.X+rect.Width)
 		bottom := max(bounds.Y+bounds.Height, rect.Y+rect.Height)
@@ -187,7 +225,8 @@ func overlayBounds(k *kernel.Frame) kernel.Rect {
 		bounds.Y = min(bounds.Y, rect.Y)
 		bounds.Width = right - bounds.X
 		bounds.Height = bottom - bounds.Y
-	}
+		return true
+	})
 	return bounds
 }
 
@@ -222,12 +261,18 @@ func blitKernel(frame *render.Frame, lines []kernel.Line) {
 // blitPlacement clips component lines to their placement rect by rendering
 // them into a rect-sized scratch frame. The scratch frame starts blank, so
 // the blit also makes the component opaque over the layers beneath.
-func blitPlacement(frame *render.Frame, placement Placement) {
+func (c *Compositor) blitPlacement(frame *render.Frame, placement Placement) {
 	rect := placement.Rect
 	if rect.Empty() {
 		return
 	}
-	scratch := render.NewFrame(rect.Width, rect.Height)
+	index := c.nextScratchIndex
+	c.nextScratchIndex++
+	if index >= len(c.scratch) {
+		c.scratch = append(c.scratch, render.NewFrame(rect.Width, rect.Height))
+	}
+	scratch := c.scratch[index]
+	scratch.Reset(rect.Width, rect.Height)
 	scratch.SetTheme(frame.Theme())
 	scratch.Blit(placement.Lines...)
 	frame.BlitFrame(scratch, rect.X, rect.Y)
@@ -235,21 +280,21 @@ func blitPlacement(frame *render.Frame, placement Placement) {
 
 // resolveCursor applies the cursor priority. The boolean is false when the
 // hardware cursor stays hidden.
-func resolveCursor(program kernel.Frame, placements []Placement, core *kernel.Frame) (int, int, bool) {
+func resolveCursor(program kernel.Frame, placements []Placement, core *kernel.Frame) (int, int, bool, string) {
 	if core != nil {
 		if core.HasCursor {
-			return core.CursorRect.X, core.CursorRect.Y, true
+			return core.CursorRect.X, core.CursorRect.Y, true, core.CursorShape
 		}
-		return 0, 0, false
+		return 0, 0, false, ""
 	}
 	if program.HasCursor {
-		return program.CursorRect.X, program.CursorRect.Y, true
+		return program.CursorRect.X, program.CursorRect.Y, true, program.CursorShape
 	}
 	for i := range placements {
 		placement := &placements[i]
 		if placement.Focused && placement.CursorVisible {
-			return placement.Rect.X + placement.CursorX, placement.Rect.Y + placement.CursorY, true
+			return placement.Rect.X + placement.CursorX, placement.Rect.Y + placement.CursorY, true, placement.CursorShape
 		}
 	}
-	return 0, 0, false
+	return 0, 0, false, ""
 }

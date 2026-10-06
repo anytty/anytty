@@ -113,41 +113,75 @@ func connectLocalApplicationClientWithName(ctx context.Context, path, logFile, c
 	return client, nil
 }
 
-func startCoreV2Pool(path string, logFile string) error {
+func startCoreV2Pool(path string, logFile string) (int, error) {
 	return startCoreV2PoolWithConfig(path, logFile, "")
 }
 
 // startV3LocalStackForConfig 先起 pool（terminal provider），再起 access
 // （canonical 客户端入口）。Phase 3 后两者缺一不可，auto-start 必须成对。
+// pool 已在运行时只补 access（例如 access 被单独停掉的半栈），并且本次调用如果
+// 真的新起了 pool，access 失败必须回滚，不能留下半栈。
 func startV3LocalStackForConfig(path string, logFile string, configPath string) error {
-	if err := startCoreV2PoolForConfig(path, logFile, configPath); err != nil {
-		return err
+	status, _, statusErr := poolStatus(path, logFile, configPath)
+	poolStarted := statusErr != nil || status.PID <= 0 ||
+		(status.State != "running" && status.State != "starting")
+	var startedPID int
+	if poolStarted {
+		pid, err := startCoreV2PoolForConfig(path, logFile, configPath)
+		if err != nil {
+			return err
+		}
+		startedPID = pid
 	}
 	if err := startV3Access(path, logFile); err != nil {
+		if poolStarted {
+			rollbackStartedPool(path, logFile, configPath, startedPID)
+		}
 		return err
 	}
 	return nil
 }
 
+// rollbackStartedPool 只回滚 startedPID 对应的 pool：并发 auto-start 时输掉
+// record 竞争的一方不能停掉赢家。记录身份不复验通过才移除。
+func rollbackStartedPool(socketPath, logFile, configPath string, startedPID int) {
+	if startedPID <= 0 {
+		return
+	}
+	_, record, err := poolStatus(socketPath, logFile, configPath)
+	if err != nil || record.PID != startedPID {
+		return
+	}
+	_ = stopPoolProcess(startedPID)
+	deadline := time.Now().Add(5 * time.Second)
+	for poolRecordProcessMatches(record) && time.Now().Before(deadline) {
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !poolRecordProcessMatches(record) {
+		removePoolRecord(socketPath)
+	}
+}
+
 // startCoreV2Access 启动 access 子进程；它总是写自己的日志文件。
 // 必须先等 pool provider 就绪，避免 auto-start 后首批终端命令 dial 失败。
+// 走 managed 路径把 access PID/身份写回 pool record：否则 auto-start 拉起的
+// access 对 pool stop/status/access stop 不可见，停栈时会留下孤儿进程。
 func startCoreV2Access(path string, logFile string) error {
 	_ = logFile
 	if err := waitForProviderSocket(path, 5*time.Second); err != nil {
 		return fmt.Errorf("pool provider did not become ready: %w", err)
 	}
-	_, err := startDetachedAccess(path, accessLogPath())
-	return err
+	return startManagedAccess(path)
 }
 
-func startCoreV2PoolWithConfig(path string, logFile string, configPath string) error {
+func startCoreV2PoolWithConfig(path string, logFile string, configPath string) (int, error) {
 	cmd, err := buildStartCoreV2PoolCommandWithConfig(path, logFile, configPath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer devNull.Close()
 	cmd.Stdin = devNull
@@ -155,7 +189,7 @@ func startCoreV2PoolWithConfig(path string, logFile string, configPath string) e
 	if strings.TrimSpace(logFile) != "" {
 		output, err = openPrivatePoolLog(logFile)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		defer output.Close()
 	}
@@ -163,17 +197,21 @@ func startCoreV2PoolWithConfig(path string, logFile string, configPath string) e
 	cmd.Stderr = output
 	configureDetachedCommand(cmd)
 	if err := cmd.Start(); err != nil {
-		return err
+		return 0, err
 	}
-	return cmd.Process.Release()
+	pid := cmd.Process.Pid
+	if err := cmd.Process.Release(); err != nil {
+		return 0, err
+	}
+	return pid, nil
 }
 
-func startCoreV2PoolForConfig(path string, logFile string, configPath string) error {
+func startCoreV2PoolForConfig(path string, logFile string, configPath string) (int, error) {
 	if strings.TrimSpace(configPath) == "" {
 		return startV3Pool(path, logFile)
 	}
 	if startV3PoolWithConfig == nil {
-		return fmt.Errorf("core-v2 pool config starter is nil")
+		return 0, fmt.Errorf("core-v2 pool config starter is nil")
 	}
 	// 中文说明：显式 --config 入口触发 auto-start 时，必须启动同一
 	// config 的 pool；普通 v3 auto-start 仍走可替换的 startV3Pool。

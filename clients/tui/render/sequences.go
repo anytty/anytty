@@ -16,6 +16,18 @@ const (
 	HideCursor = "\x1b[?25l"
 	// ShowCursor shows the hardware cursor.
 	ShowCursor = "\x1b[?25h"
+	// CursorShapeBlock selects a steady block cursor (DECSCUSR 2).
+	CursorShapeBlock = "\x1b[2 q"
+	// CursorShapeUnderline selects a steady underline cursor (DECSCUSR 4).
+	CursorShapeUnderline = "\x1b[4 q"
+	// CursorShapeBar selects a steady bar cursor (DECSCUSR 6).
+	CursorShapeBar = "\x1b[6 q"
+	// ScrollUp scrolls the active scroll region up by one row.
+	ScrollUp = "\x1b[S"
+	// ScrollDown scrolls the active scroll region down by one row.
+	ScrollDown = "\x1b[T"
+	// ResetScrollRegion restores the full-screen scroll region.
+	ResetScrollRegion = "\x1b[r"
 	// EnableMouseCell reports cell-motion mouse events (mode 1000).
 	EnableMouseCell = "\x1b[?1000h"
 	// DisableMouseCell disables mode 1000.
@@ -34,6 +46,12 @@ const (
 	DisableBracketPaste = "\x1b[?2004l"
 	// ResetSGR resets every SGR attribute.
 	ResetSGR = "\x1b[0m"
+	// BeginSynchronizedOutput asks a terminal emulator to keep a redraw
+	// atomic until EndSynchronizedOutput. The host uses it around live PTY
+	// redraws and physical scroll-region diffs, where an intermediate viewport
+	// is visible.
+	BeginSynchronizedOutput = "\x1b[?2026h"
+	EndSynchronizedOutput   = "\x1b[?2026l"
 )
 
 // EnterScreen returns the sequence that enters the alternate screen and
@@ -92,4 +110,32 @@ func CursorPosition(x, y int) string {
 		y = 0
 	}
 	return "\x1b[" + strconv.Itoa(y+1) + ";" + strconv.Itoa(x+1) + "H"
+}
+
+// ScrollRegion returns the CSI sequence selecting the inclusive zero-based
+// row range for a terminal scroll operation.
+func ScrollRegion(start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end < start {
+		end = start
+	}
+	return "\x1b[" + strconv.Itoa(start+1) + ";" + strconv.Itoa(end+1) + "r"
+}
+
+// ScrollUpN and ScrollDownN select the active region and move it by more than
+// one row. The parameterless CSI forms remain the compact one-row fast path.
+func ScrollUpN(rows int) string {
+	if rows <= 1 {
+		return ScrollUp
+	}
+	return "\x1b[" + strconv.Itoa(rows) + "S"
+}
+
+func ScrollDownN(rows int) string {
+	if rows <= 1 {
+		return ScrollDown
+	}
+	return "\x1b[" + strconv.Itoa(rows) + "T"
 }

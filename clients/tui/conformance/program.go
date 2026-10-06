@@ -1,13 +1,25 @@
 package conformance
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/anytty/anytty/clients/tui/sdk"
+	wire "github.com/anytty/anytty/proto/ui"
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
+
+// ProbeFeatureInvalidFirstFrame is a non-standard HELLO feature that arms the
+// reference program's test-only probe: on a restart epoch's first commit it
+// deliberately violates PROTOCOL §2.1 by writing a VIEW_DELTA with rev_base=0
+// instead of a full VIEW, so the host can reject it (reason base_mismatch) and
+// the program can prove it resyncs with a full snapshot. A compliant SDK never
+// sends this frame (it drops its baseline on HELLO), so the probe writes raw
+// bytes around the SDK; it exists only so the fixtures can exercise the
+// host-side rejection deterministically.
+const ProbeFeatureInvalidFirstFrame = "conformance.invalid_first_frame_delta"
 
 // RefProgram is the reference conformance program every SDK must be able to
 // express (README.zh-CN.md). It drives the typed handlers of an SDK and
@@ -16,8 +28,18 @@ import (
 // candidate's internals.
 type RefProgram struct {
 	client *sdk.Client
+	out    io.Writer
 	lines  []string
 	pane   bool
+	// lastRoot is the view tree of the last commit, handed back to
+	// CommitDelta as the diff baseline so the program exercises the
+	// VIEW_DELTA path (PROTOCOL §2.1) whenever the host advertised
+	// features["view_delta"]. It is cleared on view_rejected, where the
+	// protocol requires a full resync.
+	lastRoot *pb.Box
+	// probeInvalidFirst is set from HELLO and consumed by the first commit of
+	// a restart epoch, firing the test-only invalid-first-frame probe.
+	probeInvalidFirst bool
 }
 
 // NewRefFactory builds the in-process factory for the official Go SDK.
@@ -29,6 +51,7 @@ func NewRefFactory() InProcessFactory {
 
 // Run starts the program on one connection and blocks until EOF.
 func (p *RefProgram) Run(in io.Reader, out io.Writer) error {
+	p.out = out
 	p.client = sdk.New(in, out, sdk.Handlers{
 		Hello:        p.onHello,
 		Key:          p.onKey,
@@ -41,12 +64,18 @@ func (p *RefProgram) Run(in io.Reader, out io.Writer) error {
 		Component:    p.onComponent,
 		ViewRejected: p.onViewRejected,
 		Response:     p.onResponse,
+		Stream:       p.onStream,
 	})
 	return p.client.Loop()
 }
 
 func (p *RefProgram) onHello(hello *pb.Hello) {
 	p.pane = false
+	// A new epoch's first frame must be a full VIEW (PROTOCOL §2.1), and a
+	// compliant SDK always sends one because it drops its baseline on HELLO.
+	// The optional conformance probe arms a deliberate violation so the
+	// host-side rejection path stays covered (see ProbeFeatureInvalidFirstFrame).
+	p.probeInvalidFirst = hello.GetFeatures()[ProbeFeatureInvalidFirstFrame]
 	p.lines = []string{fmt.Sprintf("hello view=%s epoch=%d cols=%d rows=%d schema=%d",
 		hello.GetViewId(), hello.GetEpoch(), hello.GetCols(), hello.GetRows(), hello.GetSchema())}
 	if len(hello.GetComponents()) > 0 {
@@ -125,12 +154,22 @@ func (p *RefProgram) onComponent(event *pb.ComponentEvent) {
 
 func (p *RefProgram) onViewRejected(epoch, rev uint64, reason string) {
 	p.lines = append(p.lines, fmt.Sprintf("view-rejected epoch=%d rev=%d reason=%s", epoch, rev, reason))
+	// PROTOCOL §2.1: after a rejection the program must resync with the next
+	// frame as a full VIEW, so the stale baseline is dropped before the
+	// commit.
+	p.lastRoot = nil
 	p.commit()
 }
 
 func (p *RefProgram) onResponse(response *pb.Response) {
 	p.lines = append(p.lines, fmt.Sprintf("resp id=%d epoch=%d ok=%d err=%s",
 		response.GetRequestId(), response.GetEpoch(), boolInt(response.GetOk()), response.GetError()))
+	p.commit()
+}
+
+func (p *RefProgram) onStream(frame *pb.StreamFrame) {
+	p.lines = append(p.lines, fmt.Sprintf("stream id=%d kind=%s wire_type=%d payload=%s",
+		frame.GetStreamId(), frame.GetKind(), frame.GetWireType(), hex.EncodeToString(frame.GetPayload())))
 	p.commit()
 }
 
@@ -155,10 +194,59 @@ func (p *RefProgram) callbackLine(resp *pb.Response) {
 }
 
 func (p *RefProgram) commit() {
-	root := sdk.Text(strings.Join(p.lines, "\n")).Build()
-	if err := p.client.Commit(root, sdk.Keys{Claim: []string{"ctrl-p", "?"}}); err != nil {
-		p.lines = append(p.lines, "commit-error "+err.Error())
+	// One child box per line: the runner flattens the tree to text, so the
+	// rendered content is identical to the old single text box, but an append
+	// is now a small insert patch instead of a set carrying the whole log.
+	// That is what lets the reference program emit a VIEW_DELTA smaller than
+	// the full VIEW deterministically (PROTOCOL §2.1).
+	children := make([]*sdk.Builder, 0, len(p.lines))
+	for _, line := range p.lines {
+		children = append(children, sdk.Text(line))
 	}
+	root := sdk.Col(children...).Build()
+	keys := sdk.Keys{Claim: []string{"ctrl-p", "?"}}
+	if p.probeInvalidFirst {
+		p.probeInvalidFirst = false
+		if p.writeInvalidFirstDelta(root, keys) {
+			p.lastRoot = root
+			return
+		}
+	}
+	if _, err := p.client.CommitDelta(p.lastRoot, root, keys); err != nil {
+		p.lines = append(p.lines, "commit-error "+err.Error())
+		return
+	}
+	p.lastRoot = root
+}
+
+// writeInvalidFirstDelta is the test-only probe armed by
+// ProbeFeatureInvalidFirstFrame: it writes a raw VIEW_DELTA with rev=1,
+// rev_base=0 as the first frame of a new epoch, deliberately violating
+// PROTOCOL §2.1 so the host rejects it (reason base_mismatch). It bypasses the
+// SDK, which correctly refuses to send such a frame, and reports whether it
+// wrote anything. The patch replaces the root, which is always expressible;
+// the host rejects the frame on rev_base before it would apply anything. The
+// SDK's own rev stays 0, so the program's next valid frame is a full VIEW at
+// rev=1.
+func (p *RefProgram) writeInvalidFirstDelta(root *pb.Box, keys sdk.Keys) bool {
+	if p.lastRoot == nil || p.out == nil {
+		return false
+	}
+	delta := &pb.ViewDelta{
+		Epoch:   p.client.Epoch(),
+		Rev:     1,
+		RevBase: 0,
+		Keys:    &pb.Keys{Claim: keys.Claim, All: keys.All},
+		Patches: []*pb.Patch{{Op: "replace", Path: nil, Box: root}},
+	}
+	frame, err := wire.Marshal(wire.TypeViewDelta, delta, 0)
+	if err != nil {
+		return false
+	}
+	if _, err := p.out.Write(frame); err != nil {
+		return false
+	}
+	return true
 }
 
 func boolInt(value bool) int {

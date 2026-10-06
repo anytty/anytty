@@ -120,14 +120,32 @@ func TestGrantRevokeClosesProviderSession(t *testing.T) {
 func TestTmuxProviderReturnsUnsupported(t *testing.T) {
 	t.Parallel()
 	provider := tmux.Unsupported()
-	if _, err := provider.Execute(context.Background(), &apipb.CommandEnvelope{}); err != terminalprovider.ErrUnsupported {
-		t.Fatalf("tmux execute error = %v, want ErrUnsupported", err)
+	if info, err := provider.Info(context.Background()); err != nil || info.Kind != "tmux" {
+		t.Fatalf("tmux info = %#v err=%v", info, err)
 	}
-	if _, err := provider.OpenStream(context.Background(), &apipb.ResourceHandle{}); err != terminalprovider.ErrUnsupported {
-		t.Fatalf("tmux open stream error = %v, want ErrUnsupported", err)
+	if capabilities := provider.Capabilities(); capabilities != (terminalprovider.Capabilities{}) {
+		t.Fatalf("tmux capabilities = %#v, want zero value", capabilities)
+	}
+	if _, err := provider.Create(context.Background(), nil); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux create error = %v, want ErrUnsupported", err)
+	}
+	if _, err := provider.Attach(context.Background(), terminalprovider.AttachRequest{}); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux attach error = %v, want ErrUnsupported", err)
+	}
+	if _, err := provider.HistoryWindow(context.Background(), terminalprovider.HistoryRequest{}); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux history window error = %v, want ErrUnsupported", err)
+	}
+	if _, err := provider.HistoryBacklogStatus(context.Background(), "term"); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux history backlog error = %v, want ErrUnsupported", err)
+	}
+	if err := provider.EventRelease(context.Background(), nil); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux event release error = %v, want ErrUnsupported", err)
 	}
 	if _, err := provider.Events(context.Background()); err != terminalprovider.ErrUnsupported {
 		t.Fatalf("tmux events error = %v, want ErrUnsupported", err)
+	}
+	if _, err := provider.ListDirectories(context.Background(), "/", 0); err != terminalprovider.ErrUnsupported {
+		t.Fatalf("tmux list directories error = %v, want ErrUnsupported", err)
 	}
 }
 

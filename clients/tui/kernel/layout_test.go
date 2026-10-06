@@ -22,8 +22,8 @@ func TestLayoutViewportSafety(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Layout(tt.root, tt.width, tt.height)
-			if len(f.Rects) != 0 {
-				t.Fatalf("Rects = %v, want empty", f.Rects)
+			if f.RectCount() != 0 {
+				t.Fatalf("Rects = %v, want empty", f.rectsForTest())
 			}
 			if len(f.Lines) != 0 {
 				t.Fatalf("Lines = %v, want empty", f.Lines)
@@ -186,8 +186,8 @@ func TestLayoutFlow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Layout(tt.root, tt.width, tt.height)
-			if !reflect.DeepEqual(f.Rects, tt.want) {
-				t.Fatalf("Rects =\n%v\nwant\n%v", f.Rects, tt.want)
+			if !reflect.DeepEqual(f.rectsForTest(), tt.want) {
+				t.Fatalf("Rects =\n%v\nwant\n%v", f.rectsForTest(), tt.want)
 			}
 		})
 	}
@@ -290,8 +290,8 @@ func TestLayoutFlex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Layout(tt.root, tt.width, tt.height)
-			if !reflect.DeepEqual(f.Rects, tt.want) {
-				t.Fatalf("Rects =\n%v\nwant\n%v", f.Rects, tt.want)
+			if !reflect.DeepEqual(f.rectsForTest(), tt.want) {
+				t.Fatalf("Rects =\n%v\nwant\n%v", f.rectsForTest(), tt.want)
 			}
 		})
 	}
@@ -310,8 +310,8 @@ func TestLayoutStack(t *testing.T) {
 		"b":    {0, 0, 8, 4},
 		"c":    {0, 0, 3, 2},
 	}
-	if !reflect.DeepEqual(f.Rects, want) {
-		t.Fatalf("Rects =\n%v\nwant\n%v", f.Rects, want)
+	if !reflect.DeepEqual(f.rectsForTest(), want) {
+		t.Fatalf("Rects =\n%v\nwant\n%v", f.rectsForTest(), want)
 	}
 }
 
@@ -326,17 +326,17 @@ func TestLayoutPosition(t *testing.T) {
 		},
 	}}
 	f := Layout(root, 10, 4)
-	if got, want := f.Rects["a"], (Rect{0, 0, 10, 4}); got != want {
+	if got, want := f.rectsForTest()["a"], (Rect{0, 0, 10, 4}); got != want {
 		t.Fatalf("a rect = %v, want %v (pos must not consume flow space)", got, want)
 	}
-	if got, want := f.Rects["p"], (Rect{2, 1, 3, 2}); got != want {
+	if got, want := f.rectsForTest()["p"], (Rect{2, 1, 3, 2}); got != want {
 		t.Fatalf("p rect = %v, want %v", got, want)
 	}
 	if len(f.OverlayFrames) != 1 {
 		t.Fatalf("OverlayFrames = %d, want 1", len(f.OverlayFrames))
 	}
 	overlay := f.OverlayFrames[0]
-	if got, want := overlay.Rects["p"], (Rect{2, 1, 3, 2}); got != want {
+	if got, want := overlay.rectsForTest()["p"], (Rect{2, 1, 3, 2}); got != want {
 		t.Fatalf("overlay p rect = %v, want %v", got, want)
 	}
 	for _, line := range f.Lines {
@@ -357,7 +357,7 @@ func TestLayoutPositionRelativeToParentRect(t *testing.T) {
 		{ID: "p", Pos: &Pos{X: 1, Y: 1}, Size: Size{Width: 2, Height: 2}},
 	}}
 	f := Layout(root, 10, 4)
-	if got, want := f.Rects["p"], (Rect{1, 1, 2, 2}); got != want {
+	if got, want := f.rectsForTest()["p"], (Rect{1, 1, 2, 2}); got != want {
 		t.Fatalf("p rect = %v, want %v (parent rect origin, no border inset)", got, want)
 	}
 }
@@ -372,11 +372,11 @@ func TestLayoutOverlayZOrder(t *testing.T) {
 	if len(f.OverlayFrames) != 2 {
 		t.Fatalf("OverlayFrames = %d, want 2", len(f.OverlayFrames))
 	}
-	if _, ok := f.OverlayFrames[0].Rects["p1"]; !ok {
-		t.Fatalf("first overlay frame missing p1: %v", f.OverlayFrames[0].Rects)
+	if _, ok := f.OverlayFrames[0].Rect("p1"); !ok {
+		t.Fatalf("first overlay frame missing p1: %v", f.OverlayFrames[0].rectsForTest())
 	}
-	if _, ok := f.OverlayFrames[1].Rects["p2"]; !ok {
-		t.Fatalf("second overlay frame missing p2: %v", f.OverlayFrames[1].Rects)
+	if _, ok := f.OverlayFrames[1].Rect("p2"); !ok {
+		t.Fatalf("second overlay frame missing p2: %v", f.OverlayFrames[1].rectsForTest())
 	}
 	if got := f.Hit(1, 1); got != "p2" {
 		t.Fatalf("Hit(1,1) = %q, want p2 (later overlay on top)", got)
@@ -398,7 +398,7 @@ func TestLayoutNestedOverlayLiftedToRoot(t *testing.T) {
 	if len(f.OverlayFrames) != 1 {
 		t.Fatalf("OverlayFrames = %d, want 1 (nested pos lifted)", len(f.OverlayFrames))
 	}
-	if got, want := f.Rects["p"], (Rect{1, 1, 2, 2}); got != want {
+	if got, want := f.rectsForTest()["p"], (Rect{1, 1, 2, 2}); got != want {
 		t.Fatalf("root Rects[p] = %v, want %v", got, want)
 	}
 	for _, line := range f.Lines {
@@ -422,12 +422,12 @@ func TestLayoutVisibleFalse(t *testing.T) {
 	}}
 	f := Layout(root, 10, 6)
 	if _, ok := f.Rect("b"); ok {
-		t.Fatalf("invisible node b must not have a rect: %v", f.Rects)
+		t.Fatalf("invisible node b must not have a rect: %v", f.rectsForTest())
 	}
-	if got, want := f.Rects["a"], (Rect{0, 0, 2, 1}); got != want {
+	if got, want := f.rectsForTest()["a"], (Rect{0, 0, 2, 1}); got != want {
 		t.Fatalf("a rect = %v, want %v", got, want)
 	}
-	if got, want := f.Rects["c"], (Rect{0, 1, 10, 5}); got != want {
+	if got, want := f.rectsForTest()["c"], (Rect{0, 1, 10, 5}); got != want {
 		t.Fatalf("c rect = %v, want %v (siblings must close the gap)", got, want)
 	}
 	for _, line := range f.Lines {
@@ -446,7 +446,7 @@ func TestLayoutInvisiblePosSkipped(t *testing.T) {
 		t.Fatalf("OverlayFrames = %d, want 0", len(f.OverlayFrames))
 	}
 	if _, ok := f.Rect("p"); ok {
-		t.Fatalf("invisible pos node must not have a rect: %v", f.Rects)
+		t.Fatalf("invisible pos node must not have a rect: %v", f.rectsForTest())
 	}
 }
 
@@ -468,13 +468,13 @@ func TestLayoutZeroAndNegativeSafety(t *testing.T) {
 				}
 			}()
 			f := Layout(root, size[0], size[1])
-			for id, rect := range f.Rects {
+			for id, rect := range f.rectsForTest() {
 				if rect.Width < 0 || rect.Height < 0 {
 					t.Fatalf("negative rect for %q: %v", id, rect)
 				}
 			}
 			for _, overlay := range f.OverlayFrames {
-				for id, rect := range overlay.Rects {
+				for id, rect := range overlay.rectsForTest() {
 					if rect.Width < 0 || rect.Height < 0 {
 						t.Fatalf("negative overlay rect for %q: %v", id, rect)
 					}

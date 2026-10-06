@@ -35,4 +35,12 @@
 // Frames never contain ANSI escape bytes: text lines carry an opaque style
 // string (explicit style or host-internal token) that the host renderer
 // resolves to SGR.
+//
+// Layout solves a tree from scratch. LayoutCached is the incremental variant:
+// it offers each node the frame it was last solved at (Solved, stored on the
+// node) and splices that frame when the node still sits at the identical
+// absolute rect. It is intended for a host that re-solves a structurally
+// shared tree and can hand kernel nodes across revisions; the frame it returns
+// is always identical to Layout's. A Node is read-only once solved, and a
+// cached Frame is never mutated, so a spliced subtree can be shared.
 package kernel

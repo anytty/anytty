@@ -38,7 +38,7 @@ export XDG_STATE_HOME="$work_dir/state"
 export XDG_CONFIG_HOME="$work_dir/config"
 export XDG_RUNTIME_DIR="$work_dir/run"
 mkdir -p "$XDG_STATE_HOME" "$XDG_CONFIG_HOME" "$XDG_RUNTIME_DIR"
-socket="$XDG_RUNTIME_DIR/anytty-v2-wire7.sock"
+socket="$XDG_RUNTIME_DIR/anytty-v3-wire7.sock"
 log_file="$XDG_STATE_HOME/anytty/anytty.log"
 
 "$package_dir/anytty" --socket "$socket" --log-file "$log_file" pool start

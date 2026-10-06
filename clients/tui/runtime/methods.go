@@ -14,6 +14,8 @@ const (
 	DataRows
 	// DataText answers a text blob.
 	DataText
+	// DataBytes answers an opaque payload (access.call's serialized result).
+	DataBytes
 )
 
 // Method is one row of the PROTOCOL §4 authoritative method registry. The
@@ -30,6 +32,9 @@ var methodRegistry = []Method{
 	{Name: "terminal.attach", Data: DataNone},
 	{Name: "terminal.create", Data: DataCreate},
 	{Name: "terminal.restart", Data: DataNone},
+	{Name: "terminal.rename", Data: DataNone},
+	{Name: "terminal.detach", Data: DataNone},
+	{Name: "terminal.reconnect", Data: DataNone},
 	{Name: "terminal.kill", Confirm: true, Data: DataNone},
 	{Name: "terminal.remove", Confirm: true, Data: DataNone},
 	{Name: "terminal.scroll", Data: DataRows},
@@ -37,12 +42,30 @@ var methodRegistry = []Method{
 	{Name: "terminal.copy", Data: DataNone},
 	{Name: "history.window", Data: DataRows},
 	{Name: "clipboard.read", Confirm: true, Data: DataText},
+	{Name: "clipboard.history.list", Data: DataRows},
+	{Name: "clipboard.history.delete", Confirm: true, Data: DataNone},
+	{Name: "clipboard.paste", Data: DataNone},
 	{Name: "input.forward", Data: DataNone},
 	{Name: "system.quit", Confirm: true, Data: DataNone},
 	// endpoint.sync registers one configured endpoint with the host and asks
 	// it to connect in the background (ENDPOINTS.zh-CN.md §3). It is
 	// append-only after system.quit so v1 programs keep their registry order.
 	{Name: "endpoint.sync", Data: DataNone},
+	{Name: "endpoint.list", Data: DataRows},
+	{Name: "endpoint.test", Data: DataNone},
+	{Name: "endpoint.reconnect", Data: DataNone},
+	// access.call forwards one opaque access CommandEnvelope through the
+	// endpoint's ready connection (PROTOCOL §4 access.call). The host is a
+	// transparent forwarder; the payload stays opaque here.
+	{Name: "access.call", Data: DataBytes},
+	// access.stream.open binds a program-allocated stream id to one access
+	// ResourceHandle; STREAM frames then carry the data (PROTOCOL §4).
+	{Name: "access.stream.open", Data: DataNone},
+	// access.stream.subscribe executes one access EventSubscribe command and
+	// forwards matching EventEnvelopes as STREAM data frames (PROTOCOL §4).
+	{Name: "access.stream.subscribe", Data: DataNone},
+	{Name: "terminal.history.window", Data: DataRows},
+	{Name: "terminal.search", Data: DataRows},
 }
 
 // Methods returns a copy of the §4 registry.
@@ -74,7 +97,36 @@ func LookupMethod(name string) (Method, bool) {
 // return means the params are acceptable.
 func validateParams(m Method, p *pb.MethodParams) string {
 	switch m.Name {
-	case "clipboard.read", "system.quit":
+	case "clipboard.read", "clipboard.history.list", "endpoint.list", "system.quit":
+		return ""
+	case "clipboard.history.delete":
+		if p.GetClipboardId() == "" {
+			return "missing params.clipboard_id"
+		}
+		return ""
+	case "clipboard.paste":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
+		if p.GetId() == "" {
+			return "missing params.id"
+		}
+		return ""
+	case "terminal.rename":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
+		if p.GetId() == "" {
+			return "missing params.id"
+		}
+		if p.GetTitle() == "" {
+			return "missing params.title"
+		}
+		return ""
+	case "endpoint.test", "endpoint.reconnect":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
 		return ""
 	case "terminal.create":
 		if p.GetEndpoint() == "" {
@@ -84,6 +136,36 @@ func validateParams(m Method, p *pb.MethodParams) string {
 	case "endpoint.sync":
 		if p.GetEndpoint() == "" {
 			return "missing params.endpoint"
+		}
+		return ""
+	case "access.call":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
+		if len(p.GetAccessCommand()) == 0 {
+			return "missing params.access_command"
+		}
+		return ""
+	case "access.stream.open":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
+		if p.GetStreamId() == 0 {
+			return "missing params.stream_id"
+		}
+		if len(p.GetAccessResource()) == 0 {
+			return "missing params.access_resource"
+		}
+		return ""
+	case "access.stream.subscribe":
+		if p.GetEndpoint() == "" {
+			return "missing params.endpoint"
+		}
+		if p.GetStreamId() == 0 {
+			return "missing params.stream_id"
+		}
+		if len(p.GetAccessCommand()) == 0 {
+			return "missing params.access_command"
 		}
 		return ""
 	case "input.forward":

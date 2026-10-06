@@ -94,20 +94,8 @@ func (session *session) executeStorage(ctx context.Context, command *apipb.Comma
 	}
 }
 
-// registerLocalRoutes 在 provider 成功执行 command 后接管 access-local 资源：
-// event subscription 需要同时观察 access-local storage 变更；release 需要退订。
-func (session *session) registerLocalRoutes(command *apipb.CommandEnvelope, result *apipb.ResultEnvelope) {
-	if command == nil || result == nil {
-		return
-	}
-	if command.GetEventSubscribe() != nil {
-		session.registerStorageSubscription(command, result)
-	}
-	if release := command.GetReleaseResource(); release != nil {
-		session.releaseLocalSubscription(release.GetResource())
-	}
-}
-
+// registerStorageSubscription 在 event.subscribe 结果发布后接管 storage 变更：
+// storage-only 订阅由 access 本地广播，token 释放时取消 watcher。
 func (session *session) registerStorageSubscription(command *apipb.CommandEnvelope, result *apipb.ResultEnvelope) {
 	subscription := result.GetEventSubscription().GetSubscription()
 	if subscription == nil || len(subscription.GetOpaqueToken()) == 0 {

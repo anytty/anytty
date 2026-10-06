@@ -719,6 +719,11 @@ type Source struct {
 	ResizeOwner   string                 `protobuf:"bytes,10,opt,name=resize_owner,json=resizeOwner,proto3" json:"resize_owner,omitempty"`
 	OwnerEpoch    uint64                 `protobuf:"varint,11,opt,name=owner_epoch,json=ownerEpoch,proto3" json:"owner_epoch,omitempty"`
 	LastSeenMs    int64                  `protobuf:"varint,12,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
+	Cols          int32                  `protobuf:"varint,13,opt,name=cols,proto3" json:"cols,omitempty"`
+	Rows          int32                  `protobuf:"varint,14,opt,name=rows,proto3" json:"rows,omitempty"`
+	Tags          map[string]string      `protobuf:"bytes,15,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	EndpointLabel string                 `protobuf:"bytes,16,opt,name=endpoint_label,json=endpointLabel,proto3" json:"endpoint_label,omitempty"`
+	LastOutputMs  int64                  `protobuf:"varint,17,opt,name=last_output_ms,json=lastOutputMs,proto3" json:"last_output_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -833,6 +838,41 @@ func (x *Source) GetOwnerEpoch() uint64 {
 func (x *Source) GetLastSeenMs() int64 {
 	if x != nil {
 		return x.LastSeenMs
+	}
+	return 0
+}
+
+func (x *Source) GetCols() int32 {
+	if x != nil {
+		return x.Cols
+	}
+	return 0
+}
+
+func (x *Source) GetRows() int32 {
+	if x != nil {
+		return x.Rows
+	}
+	return 0
+}
+
+func (x *Source) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *Source) GetEndpointLabel() string {
+	if x != nil {
+		return x.EndpointLabel
+	}
+	return ""
+}
+
+func (x *Source) GetLastOutputMs() int64 {
+	if x != nil {
+		return x.LastOutputMs
 	}
 	return 0
 }
@@ -1644,6 +1684,14 @@ type MethodParams struct {
 	CredentialDir       string                 `protobuf:"bytes,25,opt,name=credential_dir,json=credentialDir,proto3" json:"credential_dir,omitempty"`
 	CredentialRef       string                 `protobuf:"bytes,26,opt,name=credential_ref,json=credentialRef,proto3" json:"credential_ref,omitempty"`
 	CloudGatewayAddress string                 `protobuf:"bytes,27,opt,name=cloud_gateway_address,json=cloudGatewayAddress,proto3" json:"cloud_gateway_address,omitempty"`
+	AccessCommand       []byte                 `protobuf:"bytes,28,opt,name=access_command,json=accessCommand,proto3" json:"access_command,omitempty"`
+	StreamId            uint64                 `protobuf:"varint,29,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	AccessResource      []byte                 `protobuf:"bytes,30,opt,name=access_resource,json=accessResource,proto3" json:"access_resource,omitempty"`
+	Query               string                 `protobuf:"bytes,31,opt,name=query,proto3" json:"query,omitempty"`
+	SearchMode          string                 `protobuf:"bytes,32,opt,name=search_mode,json=searchMode,proto3" json:"search_mode,omitempty"`
+	Backward            bool                   `protobuf:"varint,33,opt,name=backward,proto3" json:"backward,omitempty"`
+	Tags                map[string]string      `protobuf:"bytes,34,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ClipboardId         string                 `protobuf:"bytes,35,opt,name=clipboard_id,json=clipboardId,proto3" json:"clipboard_id,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1867,6 +1915,62 @@ func (x *MethodParams) GetCloudGatewayAddress() string {
 	return ""
 }
 
+func (x *MethodParams) GetAccessCommand() []byte {
+	if x != nil {
+		return x.AccessCommand
+	}
+	return nil
+}
+
+func (x *MethodParams) GetStreamId() uint64 {
+	if x != nil {
+		return x.StreamId
+	}
+	return 0
+}
+
+func (x *MethodParams) GetAccessResource() []byte {
+	if x != nil {
+		return x.AccessResource
+	}
+	return nil
+}
+
+func (x *MethodParams) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *MethodParams) GetSearchMode() string {
+	if x != nil {
+		return x.SearchMode
+	}
+	return ""
+}
+
+func (x *MethodParams) GetBackward() bool {
+	if x != nil {
+		return x.Backward
+	}
+	return false
+}
+
+func (x *MethodParams) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *MethodParams) GetClipboardId() string {
+	if x != nil {
+		return x.ClipboardId
+	}
+	return ""
+}
+
 type Result struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     uint64                 `protobuf:"varint,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -1941,6 +2045,12 @@ type MethodData struct {
 	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
 	Endpoint      string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	Id            string                 `protobuf:"bytes,4,opt,name=id,proto3" json:"id,omitempty"`
+	AccessResult  []byte                 `protobuf:"bytes,5,opt,name=access_result,json=accessResult,proto3" json:"access_result,omitempty"`
+	Offset        int32                  `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
+	Found         bool                   `protobuf:"varint,7,opt,name=found,proto3" json:"found,omitempty"`
+	Wrapped       bool                   `protobuf:"varint,8,opt,name=wrapped,proto3" json:"wrapped,omitempty"`
+	MatchStart    int32                  `protobuf:"varint,9,opt,name=match_start,json=matchStart,proto3" json:"match_start,omitempty"`
+	MatchEnd      int32                  `protobuf:"varint,10,opt,name=match_end,json=matchEnd,proto3" json:"match_end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2001,6 +2111,48 @@ func (x *MethodData) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *MethodData) GetAccessResult() []byte {
+	if x != nil {
+		return x.AccessResult
+	}
+	return nil
+}
+
+func (x *MethodData) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *MethodData) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *MethodData) GetWrapped() bool {
+	if x != nil {
+		return x.Wrapped
+	}
+	return false
+}
+
+func (x *MethodData) GetMatchStart() int32 {
+	if x != nil {
+		return x.MatchStart
+	}
+	return 0
+}
+
+func (x *MethodData) GetMatchEnd() int32 {
+	if x != nil {
+		return x.MatchEnd
+	}
+	return 0
 }
 
 type Response struct {
@@ -2079,6 +2231,250 @@ func (x *Response) GetError() string {
 	return ""
 }
 
+type StreamFrame struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StreamId      uint64                 `protobuf:"varint,1,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	Kind          string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	Payload       []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
+	Offset        uint64                 `protobuf:"varint,4,opt,name=offset,proto3" json:"offset,omitempty"`
+	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	WireType      uint32                 `protobuf:"varint,6,opt,name=wire_type,json=wireType,proto3" json:"wire_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamFrame) Reset() {
+	*x = StreamFrame{}
+	mi := &file_tui2_proto_tui2_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamFrame) ProtoMessage() {}
+
+func (x *StreamFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_tui2_proto_tui2_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamFrame.ProtoReflect.Descriptor instead.
+func (*StreamFrame) Descriptor() ([]byte, []int) {
+	return file_tui2_proto_tui2_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *StreamFrame) GetStreamId() uint64 {
+	if x != nil {
+		return x.StreamId
+	}
+	return 0
+}
+
+func (x *StreamFrame) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *StreamFrame) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *StreamFrame) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *StreamFrame) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *StreamFrame) GetWireType() uint32 {
+	if x != nil {
+		return x.WireType
+	}
+	return 0
+}
+
+type ViewDelta struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Epoch         uint64                 `protobuf:"varint,1,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Rev           uint64                 `protobuf:"varint,2,opt,name=rev,proto3" json:"rev,omitempty"`
+	RevBase       uint64                 `protobuf:"varint,3,opt,name=rev_base,json=revBase,proto3" json:"rev_base,omitempty"`
+	Keys          *Keys                  `protobuf:"bytes,4,opt,name=keys,proto3" json:"keys,omitempty"`
+	Patches       []*Patch               `protobuf:"bytes,5,rep,name=patches,proto3" json:"patches,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ViewDelta) Reset() {
+	*x = ViewDelta{}
+	mi := &file_tui2_proto_tui2_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ViewDelta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ViewDelta) ProtoMessage() {}
+
+func (x *ViewDelta) ProtoReflect() protoreflect.Message {
+	mi := &file_tui2_proto_tui2_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ViewDelta.ProtoReflect.Descriptor instead.
+func (*ViewDelta) Descriptor() ([]byte, []int) {
+	return file_tui2_proto_tui2_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ViewDelta) GetEpoch() uint64 {
+	if x != nil {
+		return x.Epoch
+	}
+	return 0
+}
+
+func (x *ViewDelta) GetRev() uint64 {
+	if x != nil {
+		return x.Rev
+	}
+	return 0
+}
+
+func (x *ViewDelta) GetRevBase() uint64 {
+	if x != nil {
+		return x.RevBase
+	}
+	return 0
+}
+
+func (x *ViewDelta) GetKeys() *Keys {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+func (x *ViewDelta) GetPatches() []*Patch {
+	if x != nil {
+		return x.Patches
+	}
+	return nil
+}
+
+type Patch struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Op            string                 `protobuf:"bytes,1,opt,name=op,proto3" json:"op,omitempty"`
+	Path          []uint32               `protobuf:"varint,2,rep,packed,name=path,proto3" json:"path,omitempty"`
+	Index         uint32                 `protobuf:"varint,3,opt,name=index,proto3" json:"index,omitempty"`
+	From          uint32                 `protobuf:"varint,4,opt,name=from,proto3" json:"from,omitempty"`
+	To            uint32                 `protobuf:"varint,5,opt,name=to,proto3" json:"to,omitempty"`
+	Box           *Box                   `protobuf:"bytes,6,opt,name=box,proto3" json:"box,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Patch) Reset() {
+	*x = Patch{}
+	mi := &file_tui2_proto_tui2_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Patch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Patch) ProtoMessage() {}
+
+func (x *Patch) ProtoReflect() protoreflect.Message {
+	mi := &file_tui2_proto_tui2_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Patch.ProtoReflect.Descriptor instead.
+func (*Patch) Descriptor() ([]byte, []int) {
+	return file_tui2_proto_tui2_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *Patch) GetOp() string {
+	if x != nil {
+		return x.Op
+	}
+	return ""
+}
+
+func (x *Patch) GetPath() []uint32 {
+	if x != nil {
+		return x.Path
+	}
+	return nil
+}
+
+func (x *Patch) GetIndex() uint32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *Patch) GetFrom() uint32 {
+	if x != nil {
+		return x.From
+	}
+	return 0
+}
+
+func (x *Patch) GetTo() uint32 {
+	if x != nil {
+		return x.To
+	}
+	return 0
+}
+
+func (x *Patch) GetBox() *Box {
+	if x != nil {
+		return x.Box
+	}
+	return nil
+}
+
 var File_tui2_proto_tui2_proto protoreflect.FileDescriptor
 
 const file_tui2_proto_tui2_proto_rawDesc = "" +
@@ -2152,7 +2548,7 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\x05epoch\x18\x01 \x01(\x04R\x05epoch\x12\x10\n" +
 	"\x03rev\x18\x02 \x01(\x04R\x03rev\x12(\n" +
 	"\x04keys\x18\x03 \x01(\v2\x14.anytty.tui2.v1.KeysR\x04keys\x12'\n" +
-	"\x04root\x18\x04 \x01(\v2\x13.anytty.tui2.v1.BoxR\x04root\"\xce\x02\n" +
+	"\x04root\x18\x04 \x01(\v2\x13.anytty.tui2.v1.BoxR\x04root\"\xb2\x04\n" +
 	"\x06Source\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x14\n" +
@@ -2169,7 +2565,15 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\vowner_epoch\x18\v \x01(\x04R\n" +
 	"ownerEpoch\x12 \n" +
 	"\flast_seen_ms\x18\f \x01(\x03R\n" +
-	"lastSeenMs\"<\n" +
+	"lastSeenMs\x12\x12\n" +
+	"\x04cols\x18\r \x01(\x05R\x04cols\x12\x12\n" +
+	"\x04rows\x18\x0e \x01(\x05R\x04rows\x124\n" +
+	"\x04tags\x18\x0f \x03(\v2 .anytty.tui2.v1.Source.TagsEntryR\x04tags\x12%\n" +
+	"\x0eendpoint_label\x18\x10 \x01(\tR\rendpointLabel\x12$\n" +
+	"\x0elast_output_ms\x18\x11 \x01(\x03R\flastOutputMs\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"<\n" +
 	"\fSourcesEvent\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.anytty.tui2.v1.SourceR\x05items\"@\n" +
 	"\bKeyEvent\x12\x0e\n" +
@@ -2221,7 +2625,8 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\tSelection\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\x05R\x05start\x12\x10\n" +
-	"\x03end\x18\x03 \x01(\x05R\x03end\"\x86\b\n" +
+	"\x03end\x18\x03 \x01(\x05R\x03end\"\xde\n" +
+	"\n" +
 	"\fMethodParams\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x15\n" +
@@ -2250,8 +2655,20 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\x12daemon_fingerprint\x18\x18 \x01(\tR\x11daemonFingerprint\x12%\n" +
 	"\x0ecredential_dir\x18\x19 \x01(\tR\rcredentialDir\x12%\n" +
 	"\x0ecredential_ref\x18\x1a \x01(\tR\rcredentialRef\x122\n" +
-	"\x15cloud_gateway_address\x18\x1b \x01(\tR\x13cloudGatewayAddress\x1a6\n" +
+	"\x15cloud_gateway_address\x18\x1b \x01(\tR\x13cloudGatewayAddress\x12%\n" +
+	"\x0eaccess_command\x18\x1c \x01(\fR\raccessCommand\x12\x1b\n" +
+	"\tstream_id\x18\x1d \x01(\x04R\bstreamId\x12'\n" +
+	"\x0faccess_resource\x18\x1e \x01(\fR\x0eaccessResource\x12\x14\n" +
+	"\x05query\x18\x1f \x01(\tR\x05query\x12\x1f\n" +
+	"\vsearch_mode\x18  \x01(\tR\n" +
+	"searchMode\x12\x1a\n" +
+	"\bbackward\x18! \x01(\bR\bbackward\x12:\n" +
+	"\x04tags\x18\" \x03(\v2&.anytty.tui2.v1.MethodParams.TagsEntryR\x04tags\x12!\n" +
+	"\fclipboard_id\x18# \x01(\tR\vclipboardId\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a7\n" +
+	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x06\n" +
 	"\x04_fitB\x17\n" +
@@ -2264,20 +2681,48 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"request_id\x18\x01 \x01(\x04R\trequestId\x12\x14\n" +
 	"\x05epoch\x18\x02 \x01(\x04R\x05epoch\x12\x16\n" +
 	"\x06method\x18\x03 \x01(\tR\x06method\x124\n" +
-	"\x06params\x18\x04 \x01(\v2\x1c.anytty.tui2.v1.MethodParamsR\x06params\"`\n" +
+	"\x06params\x18\x04 \x01(\v2\x1c.anytty.tui2.v1.MethodParamsR\x06params\"\x8b\x02\n" +
 	"\n" +
 	"MethodData\x12\x12\n" +
 	"\x04rows\x18\x01 \x03(\tR\x04rows\x12\x12\n" +
 	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1a\n" +
 	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x0e\n" +
-	"\x02id\x18\x04 \x01(\tR\x02id\"\x95\x01\n" +
+	"\x02id\x18\x04 \x01(\tR\x02id\x12#\n" +
+	"\raccess_result\x18\x05 \x01(\fR\faccessResult\x12\x16\n" +
+	"\x06offset\x18\x06 \x01(\x05R\x06offset\x12\x14\n" +
+	"\x05found\x18\a \x01(\bR\x05found\x12\x18\n" +
+	"\awrapped\x18\b \x01(\bR\awrapped\x12\x1f\n" +
+	"\vmatch_start\x18\t \x01(\x05R\n" +
+	"matchStart\x12\x1b\n" +
+	"\tmatch_end\x18\n" +
+	" \x01(\x05R\bmatchEnd\"\x95\x01\n" +
 	"\bResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x04R\trequestId\x12\x14\n" +
 	"\x05epoch\x18\x02 \x01(\x04R\x05epoch\x12\x0e\n" +
 	"\x02ok\x18\x03 \x01(\bR\x02ok\x12.\n" +
 	"\x04data\x18\x04 \x01(\v2\x1a.anytty.tui2.v1.MethodDataR\x04data\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05errorB1Z/github.com/anytty/anytty/tui2/protobuf;protobufb\x06proto3"
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xa3\x01\n" +
+	"\vStreamFrame\x12\x1b\n" +
+	"\tstream_id\x18\x01 \x01(\x04R\bstreamId\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +
+	"\apayload\x18\x03 \x01(\fR\apayload\x12\x16\n" +
+	"\x06offset\x18\x04 \x01(\x04R\x06offset\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1b\n" +
+	"\twire_type\x18\x06 \x01(\rR\bwireType\"\xa9\x01\n" +
+	"\tViewDelta\x12\x14\n" +
+	"\x05epoch\x18\x01 \x01(\x04R\x05epoch\x12\x10\n" +
+	"\x03rev\x18\x02 \x01(\x04R\x03rev\x12\x19\n" +
+	"\brev_base\x18\x03 \x01(\x04R\arevBase\x12(\n" +
+	"\x04keys\x18\x04 \x01(\v2\x14.anytty.tui2.v1.KeysR\x04keys\x12/\n" +
+	"\apatches\x18\x05 \x03(\v2\x15.anytty.tui2.v1.PatchR\apatches\"\x8c\x01\n" +
+	"\x05Patch\x12\x0e\n" +
+	"\x02op\x18\x01 \x01(\tR\x02op\x12\x12\n" +
+	"\x04path\x18\x02 \x03(\rR\x04path\x12\x14\n" +
+	"\x05index\x18\x03 \x01(\rR\x05index\x12\x12\n" +
+	"\x04from\x18\x04 \x01(\rR\x04from\x12\x0e\n" +
+	"\x02to\x18\x05 \x01(\rR\x02to\x12%\n" +
+	"\x03box\x18\x06 \x01(\v2\x13.anytty.tui2.v1.BoxR\x03boxB1Z/github.com/anytty/anytty/tui2/protobuf;protobufb\x06proto3"
 
 var (
 	file_tui2_proto_tui2_proto_rawDescOnce sync.Once
@@ -2291,7 +2736,7 @@ func file_tui2_proto_tui2_proto_rawDescGZIP() []byte {
 	return file_tui2_proto_tui2_proto_rawDescData
 }
 
-var file_tui2_proto_tui2_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_tui2_proto_tui2_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_tui2_proto_tui2_proto_goTypes = []any{
 	(*Limits)(nil),            // 0: anytty.tui2.v1.Limits
 	(*Hello)(nil),             // 1: anytty.tui2.v1.Hello
@@ -2318,14 +2763,19 @@ var file_tui2_proto_tui2_proto_goTypes = []any{
 	(*Result)(nil),            // 22: anytty.tui2.v1.Result
 	(*MethodData)(nil),        // 23: anytty.tui2.v1.MethodData
 	(*Response)(nil),          // 24: anytty.tui2.v1.Response
-	nil,                       // 25: anytty.tui2.v1.Hello.FeaturesEntry
-	nil,                       // 26: anytty.tui2.v1.Content.PropsEntry
-	nil,                       // 27: anytty.tui2.v1.MethodParams.EnvEntry
+	(*StreamFrame)(nil),       // 25: anytty.tui2.v1.StreamFrame
+	(*ViewDelta)(nil),         // 26: anytty.tui2.v1.ViewDelta
+	(*Patch)(nil),             // 27: anytty.tui2.v1.Patch
+	nil,                       // 28: anytty.tui2.v1.Hello.FeaturesEntry
+	nil,                       // 29: anytty.tui2.v1.Content.PropsEntry
+	nil,                       // 30: anytty.tui2.v1.Source.TagsEntry
+	nil,                       // 31: anytty.tui2.v1.MethodParams.EnvEntry
+	nil,                       // 32: anytty.tui2.v1.MethodParams.TagsEntry
 }
 var file_tui2_proto_tui2_proto_depIdxs = []int32{
-	25, // 0: anytty.tui2.v1.Hello.features:type_name -> anytty.tui2.v1.Hello.FeaturesEntry
+	28, // 0: anytty.tui2.v1.Hello.features:type_name -> anytty.tui2.v1.Hello.FeaturesEntry
 	0,  // 1: anytty.tui2.v1.Hello.limits:type_name -> anytty.tui2.v1.Limits
-	26, // 2: anytty.tui2.v1.Content.props:type_name -> anytty.tui2.v1.Content.PropsEntry
+	29, // 2: anytty.tui2.v1.Content.props:type_name -> anytty.tui2.v1.Content.PropsEntry
 	3,  // 3: anytty.tui2.v1.Box.size:type_name -> anytty.tui2.v1.Size
 	4,  // 4: anytty.tui2.v1.Box.pos:type_name -> anytty.tui2.v1.Pos
 	6,  // 5: anytty.tui2.v1.Box.cursor:type_name -> anytty.tui2.v1.Cursor
@@ -2333,25 +2783,30 @@ var file_tui2_proto_tui2_proto_depIdxs = []int32{
 	7,  // 7: anytty.tui2.v1.Box.children:type_name -> anytty.tui2.v1.Box
 	2,  // 8: anytty.tui2.v1.View.keys:type_name -> anytty.tui2.v1.Keys
 	7,  // 9: anytty.tui2.v1.View.root:type_name -> anytty.tui2.v1.Box
-	9,  // 10: anytty.tui2.v1.SourcesEvent.items:type_name -> anytty.tui2.v1.Source
-	11, // 11: anytty.tui2.v1.Event.key:type_name -> anytty.tui2.v1.KeyEvent
-	12, // 12: anytty.tui2.v1.Event.paste:type_name -> anytty.tui2.v1.PasteEvent
-	13, // 13: anytty.tui2.v1.Event.mouse:type_name -> anytty.tui2.v1.MouseEvent
-	14, // 14: anytty.tui2.v1.Event.wheel:type_name -> anytty.tui2.v1.WheelEvent
-	15, // 15: anytty.tui2.v1.Event.resize:type_name -> anytty.tui2.v1.ResizeEvent
-	10, // 16: anytty.tui2.v1.Event.sources:type_name -> anytty.tui2.v1.SourcesEvent
-	16, // 17: anytty.tui2.v1.Event.notice:type_name -> anytty.tui2.v1.NoticeEvent
-	17, // 18: anytty.tui2.v1.Event.component:type_name -> anytty.tui2.v1.ComponentEvent
-	18, // 19: anytty.tui2.v1.Event.view_rejected:type_name -> anytty.tui2.v1.ViewRejectedEvent
-	27, // 20: anytty.tui2.v1.MethodParams.env:type_name -> anytty.tui2.v1.MethodParams.EnvEntry
-	20, // 21: anytty.tui2.v1.MethodParams.sel:type_name -> anytty.tui2.v1.Selection
-	21, // 22: anytty.tui2.v1.Result.params:type_name -> anytty.tui2.v1.MethodParams
-	23, // 23: anytty.tui2.v1.Response.data:type_name -> anytty.tui2.v1.MethodData
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	30, // 10: anytty.tui2.v1.Source.tags:type_name -> anytty.tui2.v1.Source.TagsEntry
+	9,  // 11: anytty.tui2.v1.SourcesEvent.items:type_name -> anytty.tui2.v1.Source
+	11, // 12: anytty.tui2.v1.Event.key:type_name -> anytty.tui2.v1.KeyEvent
+	12, // 13: anytty.tui2.v1.Event.paste:type_name -> anytty.tui2.v1.PasteEvent
+	13, // 14: anytty.tui2.v1.Event.mouse:type_name -> anytty.tui2.v1.MouseEvent
+	14, // 15: anytty.tui2.v1.Event.wheel:type_name -> anytty.tui2.v1.WheelEvent
+	15, // 16: anytty.tui2.v1.Event.resize:type_name -> anytty.tui2.v1.ResizeEvent
+	10, // 17: anytty.tui2.v1.Event.sources:type_name -> anytty.tui2.v1.SourcesEvent
+	16, // 18: anytty.tui2.v1.Event.notice:type_name -> anytty.tui2.v1.NoticeEvent
+	17, // 19: anytty.tui2.v1.Event.component:type_name -> anytty.tui2.v1.ComponentEvent
+	18, // 20: anytty.tui2.v1.Event.view_rejected:type_name -> anytty.tui2.v1.ViewRejectedEvent
+	31, // 21: anytty.tui2.v1.MethodParams.env:type_name -> anytty.tui2.v1.MethodParams.EnvEntry
+	20, // 22: anytty.tui2.v1.MethodParams.sel:type_name -> anytty.tui2.v1.Selection
+	32, // 23: anytty.tui2.v1.MethodParams.tags:type_name -> anytty.tui2.v1.MethodParams.TagsEntry
+	21, // 24: anytty.tui2.v1.Result.params:type_name -> anytty.tui2.v1.MethodParams
+	23, // 25: anytty.tui2.v1.Response.data:type_name -> anytty.tui2.v1.MethodData
+	2,  // 26: anytty.tui2.v1.ViewDelta.keys:type_name -> anytty.tui2.v1.Keys
+	27, // 27: anytty.tui2.v1.ViewDelta.patches:type_name -> anytty.tui2.v1.Patch
+	7,  // 28: anytty.tui2.v1.Patch.box:type_name -> anytty.tui2.v1.Box
+	29, // [29:29] is the sub-list for method output_type
+	29, // [29:29] is the sub-list for method input_type
+	29, // [29:29] is the sub-list for extension type_name
+	29, // [29:29] is the sub-list for extension extendee
+	0,  // [0:29] is the sub-list for field type_name
 }
 
 func init() { file_tui2_proto_tui2_proto_init() }
@@ -2379,7 +2834,7 @@ func file_tui2_proto_tui2_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tui2_proto_tui2_proto_rawDesc), len(file_tui2_proto_tui2_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

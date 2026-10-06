@@ -6,7 +6,7 @@ Target: ``clients/tui/examples/python-shell/1.txt``, the real capture of the old
 recommended profile (``tui/docs/tui-v3.recommended.yaml``).
 
 The chrome itself (card/tab bar/footer/picker/floating/split tree) is the
-generic program-side toolkit in ``clients/tui/sdk/python/tui2sdk/widgets.py``; this
+generic program-side toolkit in ``clients/tui/sdk/python/tui2sdk/widgets/``; this
 file is only the v3 policy: the coralline-candy theme, the shortcut scenes,
 the demo state and the CLI modes. Modes:
 

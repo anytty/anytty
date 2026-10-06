@@ -24,6 +24,8 @@
 | 3 | EVENT | 宿主→程序 | sources/key/paste/mouse/wheel/resize/notice/component/view_rejected |
 | 4 | RESULT | 程序→宿主 | `request_id`+`epoch`+method+params |
 | 5 | RESPONSE | 宿主→程序 | `request_id`+`epoch`+`ok`+`data?`/`error?` |
+| 6 | STREAM | 双向 | `StreamFrame`：access 流的 data/close/cancel/error（§4） |
+| 7 | VIEW_DELTA | 程序→宿主 | `epoch`+`rev`+`rev_base`+`keys?`+`patches[]`（增量补丁，§2.1；需 `view_delta` 协商） |
 
 - claim 是 VIEW 的字段，与视图同帧原子生效（§6.5）；不存在独立 KEYS 帧。
 - 解析边界（顺序写死）：先校验长度（0 或超过 `max_message_bytes` → 直接拒帧）→ 再分配缓冲区 →
@@ -38,12 +40,16 @@
     `max_inflight_requests` 饱和时回 `RESPONSE{ok:false,error:"throttled"}`（不排队，§4）。
 - 仅解码失败才断开程序，交由重启策略接管。
 - 背压（宿主实现要求，不暴露新原语）：对 paste 与输出做每帧合并；`max_inflight_requests` 限制在途请求；
-  输入解析与组件渲染设预算隔离，互不阻塞。
+  输入解析与组件渲染设预算隔离，互不阻塞。宿主到程序的写侧使用**每会话有界队列**：
+  HELLO/RESPONSE 以及 key/paste/resize 等控制与可靠输入帧等待队列空间，`notice`、`sources`、
+  `stream:data` 只保留同类最新值，慢程序不能把宿主帧循环拖成无界内存队列。生产 `tui2`
+  默认队列容量为 256；队列关闭时未发出的瞬态帧可丢弃，控制帧仍按会话关闭语义返回错误。
 - 版本：`HELLO.schema` 决定语义版本；加可选字段不升版本，改/删语义必须升版本并写迁移。
 - 调试：`anytty tui2 decode < log.bin` 把帧流解成可读 JSON；`ANYTTY_TUI2_LOG=1` 时宿主把双向帧
   解码为逐行 JSON 写入调试日志（仅调试用，不参与协议，也不是线格式）。
 - 性能：全量快照 `rev` 单调；`rev` 作用域 = (`epoch`,`view`)，宿主按此丢弃过期帧（§0.5）。
-  树很大时可后续加 delta（`rev_base`+补丁），但 v1 不做——先保证正确与可调试。
+  树大时用增量补丁（`rev_base`+patches，§2.1）：宿主在 HELLO 广告 `features["view_delta"]=true`，
+  程序据此改用 VIEW_DELTA；不支持该 feature 的宿主上程序始终发全量 VIEW（向后兼容）。
 
 ## 0.5 会话、view 身份与 epoch（重启后状态如何对齐）
 
@@ -65,9 +71,11 @@
 {"type":"hello","schema":1,"view_id":"view:client-a:1","epoch":3,"cols":120,"rows":32,
  "components":["terminal"],
  "events":["key","paste","mouse","wheel","resize","sources","notice","component","view_rejected"],
- "methods":["terminal.attach","terminal.create","terminal.restart","terminal.kill","terminal.remove",
-            "terminal.scroll","terminal.scrollEnd","terminal.copy","history.window","clipboard.read",
-            "input.forward","system.quit","endpoint.sync"],
+ "methods":["terminal.attach","terminal.create","terminal.restart","terminal.rename","terminal.detach","terminal.reconnect",
+            "terminal.kill","terminal.remove","terminal.scroll","terminal.scrollEnd","terminal.copy","history.window",
+            "clipboard.read","clipboard.history.list","clipboard.history.delete","clipboard.paste","input.forward",
+            "system.quit","endpoint.sync","endpoint.list","endpoint.test","endpoint.reconnect","access.call",
+            "access.stream.open","access.stream.subscribe","terminal.history.window","terminal.search"],
  "features":{"component":true,"state.save":false,"state.load":false},
  "limits":{"max_nodes":4096,"max_message_bytes":1048576,"max_paste_bytes":65536,
            "max_inflight_requests":64,"owner_lease_ttl_ms":15000}}
@@ -122,6 +130,48 @@
   边框/标题/角标由**内容负责**（程序用文本行或 widget 自绘）或由**组件自绘**；组件通过自己的
   inset 声明"要占多少 chrome"，宿主只按 inset 算 PTY 尺寸与光标（§5 terminal、§9.6）。
 
+### 2.1 增量视图：view_delta（程序→宿主，需协商）
+
+宿主在 HELLO 设置 `features["view_delta"]=true` 表示支持；程序只有在看到该 feature 时才可发
+VIEW_DELTA（帧类型 7），否则只能发全量 VIEW（§2）。同一 (`epoch`,`view`) 上两种帧共用同一个
+`rev` 空间，可以混发。补丁寻址用**子节点索引路径**（`path` = 从 root 出发的 `children[i]`
+下标序列，空 path = root）。
+
+```json
+{"type":"view_delta","epoch":3,"rev":8,"rev_base":7,
+ "keys":{"claim":["ctrl-p"],"all":false},
+ "patches":[{"op":"set","path":[],"box":{"size":{"height":30}}},
+            {"op":"replace","path":[0,2],"box":{ ...整棵子树... }},
+            {"op":"insert","path":[0],"index":1,"box":{ ... }},
+            {"op":"remove","path":[0,3]},
+            {"op":"move","path":[0],"from":3,"to":1}]}
+```
+
+- **应用规则（写死）**：宿主把补丁按顺序应用到缓存的 `rev_base` 版本上，得到 `rev` 版本；成功后
+  与全量 VIEW 完全等价的原子替换（重算 layout/focus/hit，claim 同帧生效）。`keys` 省略 = 沿用
+  上一帧。
+- **op 语义**：
+  - `set`：只更新目标盒子**非 children** 的字段（`box.children` 忽略）；未给出的字段保持原值；
+    用 `visible=false` 表达隐藏（不清子节点）。protobuf 语义下**重复字段（`input`）是替换而非追加**：
+    补丁带 `input` 就整体替换该盒子的 input 列表，不带则保持原值。
+  - `replace`：用 `box` 整棵替换 `path` 处的子树（children 以 `box` 为准）。
+  - `insert`：在 `path` 的 `children` 的 `index` 处插入 `box`（`index` 允许等于子节点数 = 追加）。
+  - `remove`：删除 `path` 处节点（root 不可 remove）。
+  - `move`：把 `path` 的 `children[from]` 移到 `children[to]`（同父重排；`to` 为移动后的下标）。
+- **校验与失败**：`epoch` 不符或 `rev` 非单调按 §0.5 静默丢弃（与全量 VIEW 一致，不回应）；
+  其余失败——路径越界/`rev_base != 宿主当前 rev`/应用后节点数超 `max_nodes`/帧超
+  `max_message_bytes`/首帧无基线——一律拒绝并回
+  `view_rejected{epoch,rev,reason}`（reason 取 `base_mismatch`/`path_invalid`/`max_nodes`/
+  `oversize`）；同一 (`epoch`,`rev`) 只回一次。程序收到 `view_rejected` 后应丢弃本地基线、
+  用**下一帧全量 VIEW** 重新同步。
+- **回退**：程序可在任意一帧选择发全量 VIEW（`rev` 继续单调）；宿主对全量帧的处理与 §2 完全一致。
+  建议 SDK 在补丁字节数不小于全量、或 diff 无法表达时自动回退全量。
+- **epoch**：新 epoch 的 HELLO 已重置缓存（§0.5），所以新 epoch 的**第一帧必须是全量 VIEW**
+  （`rev=1`），不得发 VIEW_DELTA。
+- **测试**：宿主对补丁的应用/拒绝/原子性由 `clients/tui/runtime/view_delta_test.go` 单测覆盖；
+  一致性 fixtures 覆盖三语言 SDK 的 diff/回退与收到 `view_rejected` 后的重同步
+  （`clients/tui/conformance/fixtures.jsonl` 的 `view_delta/*`）。
+
 ## 3. 事件：events（宿主→程序）
 
 | type | 负载 | 说明 |
@@ -154,20 +204,56 @@
 | `terminal.attach` | `endpoint`,`id`,`fit?:true`,`expected_owner_epoch?` | 免 | 无 | 绑定到**该连接（view）**；`fit:true`（默认）成为 resize owner；若当前存在**活跃** owner，必须带 `expected_owner_epoch` 做 CAS，缺失/不匹配回 `RESPONSE{ok:false,error:"owner conflict"}`；`fit:false` 只跟随 |
 | `terminal.create` | `endpoint`,`argv?[]`,`cwd?`,`env?{}`,`title?`,`ephemeral?:false` | 免 | `{endpoint,id}` | 宿主分配 `id`，并在应答前直接完成 attach+fit，程序可立即绑定；`argv`/`cwd` 缺省用宿主全局默认（登录 shell），程序参数覆盖默认 |
 | `terminal.restart` | `endpoint`,`id` | 免 | 无 | 重启同一 terminal id，不新建 |
+| `terminal.rename` | `endpoint`,`id`,`title` | 免 | 无 | 更新 terminal metadata；不改变 terminal id |
+| `terminal.detach` | `endpoint`,`id` | 免 | 无 | 解除当前 view 的 attachment；不 kill、不 remove |
+| `terminal.reconnect` | `endpoint`,`id` | 免 | 无 | 重新绑定同一 terminal；不创建新 id、不重启进程 |
 | `terminal.kill` | `endpoint`,`id` | 宿主确认 | 无 | 终止进程 |
 | `terminal.remove` | `endpoint`,`id` | 宿主确认 | 无 | 删除记录 |
 | `terminal.scroll` | `endpoint`,`id`,`delta` | 免 | 历史窗口行 | 取数：`data.rows`（回看窗口）+ 游标信息 |
 | `terminal.scrollEnd` | `endpoint`,`id` | 免 | 无 | 回到 live（动作） |
-| `terminal.copy` | `endpoint`,`id`,`sel?:{mode:"char\|line\|block",start,end}` | 免 | 无 | 写入**该连接（view）**的剪贴板/OSC52；`sel` 缺省 = 可见区（v1 只实现缺省） |
+| `terminal.copy` | `endpoint`,`id`,`sel?:{mode:"char\|line\|block",start,end}` | 免 | 无 | 写入**该连接（view）**的剪贴板/OSC52；`sel` 缺省 = 可见区；带 `sel` 时 `start`/`end` 是**当前可见窗口**内的线性 cell 下标（`row*cols+col`，均含端点，`cols` = 终端列数）：`char` = 从 start 到 end 的阅读顺序流、`line` = 整行、`block` = 矩形 |
 | `history.window` | `endpoint`,`id`,`offset`,`rows` | 免 | 行 | 取数：`data.rows` |
+| `terminal.history.window` | 同 `history.window` | 免 | 行 | 内建 terminal 历史方法；保留 `history.window` 别名 |
+| `terminal.search` | `endpoint`,`id`,`query`,`search_mode?:"text\|glob\|regex"`,`backward?:false`,`sel?.start` | 免 | 窗口与匹配 | 在 terminal 冻结历史中搜索并移动视口；`sel.start` 为当前光标的线性 cell 下标。返回 `found`,`wrapped`,`rows`,`offset`,`match_start`,`match_end`；匹配 end 为 exclusive |
 | `clipboard.read` | — | 宿主确认 | text | 取数：`data.text` |
+| `clipboard.history.list` | — | 免 | rows | 返回 host 持久化历史；每行是 `{id,text,created_at_ms}` JSON |
+| `clipboard.history.delete` | `clipboard_id` | 宿主确认 | 无 | 删除一条 host 持久化历史 |
+| `clipboard.paste` | `endpoint`,`id`,`clipboard_id?` | 免 | 无 | host 读取系统剪贴板或指定历史 entry，按终端 bracket paste 规则编码后写入 PTY；程序不能提供原始 bytes |
 | `input.forward` | `event_id`,`source` | 免 | 无 | 只允许退回一个已收到的**完整原始** key/paste 块；文本不许程序自带字节（§6.6/§6.8） |
 | `system.quit` | `cleanup_owned?:false` | 宿主确认 | 无 | `cleanup_owned:true` = 清算本程序创建的 ephemeral 终端；这是唯一的程序侧清算入口（另有用户确认路径），崩溃/重启不清算（§5） |
 | `endpoint.sync` | `endpoint`,`kind?`,`socket?`,`address?`,`connect_mode?` | 免 | 无 | 注册一个配置 endpoint（M23/M27 append-only）：`kind=daemon` 时宿主后台连接并随后用 `sources` 发布终端池终端清单；`kind=command` 无需注册。语义见 `ENDPOINTS.zh-CN.md` §2.3 |
+| `endpoint.list` | — | 免 | rows | 返回已注册连接的 `{name,label,kind,health}` JSON |
+| `endpoint.test` | `endpoint` | 免 | 无 | 检查 endpoint 是否已注册 |
+| `endpoint.reconnect` | `endpoint` | 免 | 无 | 关闭当前连接并进入既有 supervisor 重连流程 |
+| `access.call` | `endpoint`,`access_command`(bytes) | 免 | bytes | **透明转发**（append-only）：`access_command` 是序列化的 access `CommandEnvelope`（任意命令，程序按 proto 自行序列化），宿主只选择该 endpoint 的 ready 连接转发，`data.access_result` 为序列化的 `ResultEnvelope`。宿主不做家族过滤/确认；attach/resize/input 的**单写者纪律由程序负责**，类型化方法仍是推荐路径 |
+| `access.stream.open` | `endpoint`,`stream_id`(u64),`access_resource`(bytes) | 免 | 无 | 把程序分配的 `stream_id` 绑定到一个 access 资源（`access.call` 打开结果里的 `ResourceHandle` 序列化字节，如文件传输句柄）。绑定成功后用 **STREAM 帧**双向传数据；关闭/取消时宿主释放资源。`stream_id` 在关闭前不可复用 |
+| `access.stream.subscribe` | `endpoint`,`stream_id`(u64),`access_command`(bytes) | 免 | 无 | 执行一条 access `EventSubscribe` 命令并把该订阅绑定到 `stream_id`：匹配的 `EventEnvelope` 以 STREAM `kind=data`、`wire_type=事件帧` 推送（`EventEnvelope.subscription` 用于宿主按订阅过滤）。关闭/取消时释放订阅 |
+
+**STREAM 帧（append-only，双向）**：`{stream_id, kind, payload, offset, wire_type, error}`。
+
+- `kind`：`data`（payload + `wire_type`）、`close`、`cancel`（程序→宿主）、`error`（宿主→程序）。事件订阅的推送也用 `kind=data`，`wire_type` 是 access 事件帧类型，payload 是序列化的 `EventEnvelope`。
+- `wire_type` 是 access wire 的帧类型字节（如 file data/ack/finish、PTY 输出、事件），宿主**原样透传**，不解释语义；SDK helper 负责编解码。
+- 背压：宿主→程序直接写管道（慢则反压 access 流）；程序→宿主每条流有 4MiB 有界队列，溢出以 `error` 关闭该流，不阻塞会话循环。
 
 `MethodParams` 在 §4 参数之外新增 append-only 字段：`kind`(17)、`socket`(18)、
 `connect_mode`(19)、`address`(20)，由 `terminal.create`/`terminal.attach`/`endpoint.sync`
 携带 endpoint 连接元数据（`ENDPOINTS.zh-CN.md` §2.3；远程 tcp 见 `REMOTE.zh-CN.md`）。
+`access.call` 另加 `access_command`(28, bytes)；应答用 `MethodData.access_result`(5, bytes)。
+两者对程序协议都是不透明字节，宿主不把它解释成 UI。
+`MethodData.offset`(6, int32) 是 `terminal.scroll`/`history.window` 应答里的**实际生效回看偏移**
+（宿主会对越界值做钳制），供程序让回看/复制的坐标与渲染窗口保持同步。
+`terminal.search` 追加 `MethodParams.query`(31)、`search_mode`(32)、`backward`(33)，
+剪贴板方法追加 `MethodParams.clipboard_id`(35)；历史列表复用 `MethodData.rows`，每行是 JSON entry。
+以及 `MethodData.found`(7)、`wrapped`(8)、`match_start`(9)、`match_end`(10)。
+匹配坐标为返回窗口的 `row*cols+col`；复制参数 `sel.end` 仍为 inclusive，需减一转换。
+
+持久历史方法由内建 terminal 对象管理：首次读取可见窗口冻结 provider token；
+`history.window` 的请求 offset 相对当前视口底部，响应 offset 是距冻结尾部的实际
+视觉行数；`rows=0,offset=0` 同时发布当前视口。scroll/search 更新该视口，
+scrollEnd 释放 token 并回 live。provider 逻辑行在宿主按列宽折行，选区映射回逻辑列。
+无 provider 的 command PTY 使用本地 parser 缓存。每个 terminal 的历史请求按到达
+顺序进入上限 64 的 FIFO，异步等待最长 30 秒；不同 terminal 独立，完成结果按 epoch
+校验。当前隔离单位是 terminal source，同一 source 的多个 pane 共享历史视口。
 
 规则：
 
@@ -186,8 +272,17 @@
 ```json
 {"id":"terminal:local:main","kind":"terminal","title":"main",
  "endpoint":"local","terminal_id":"main","attached":true,"exited":false,"exit_code":0,
- "health":"ok","resize_owner":"view:client-a:1","owner_epoch":7,"last_seen_ms":123456}
+ "health":"ok","resize_owner":"view:client-a:1","owner_epoch":7,"last_seen_ms":123456,
+ "cols":211,"rows":58,"tags":{"tag1":"backend"},
+ "endpoint_label":"RedmiBook.local","last_output_ms":1737000000000}
 ```
+
+`Source` 追加 `cols`(13)、`rows`(14)、`tags`(15, map<string,string>)、
+`endpoint_label`(16) 与 `last_output_ms`(17)：daemon 端点带上 terminal 的网格尺寸、
+公开标签、endpoint 机器名和最近一次非空输出时间，供程序在 picker 里显示尺寸/活跃度、
+用 label 做 endpoint tab、并按 tag 过滤；command 端点可省略。宿主转发 `sources` 时
+必须原样保留这些字段（`cloneSource` 曾遗漏，导致 picker 尺寸/活跃度显示为 `-`）。
+`MethodParams.tags`(34, map<string,string>) 用于 `terminal.create` 表单提交公开标签。
 
 多客户端规则（位置透明、尺寸唯一）：
 
@@ -198,6 +293,9 @@
   ① owner 每次成功 resize 即续约；② 宿主每 5s 对活跃 owner 心跳续约。超时或断线后其他客户端可 CAS 接管
   （`expected_owner_epoch` 匹配 `owner_epoch` 才成功）。
 - `owner_epoch` 随 owner 变更递增；`sources` 只在 `owner_epoch` 变化时推送 owner 字段（避免通知风暴）。
+- 宿主实现会在自己的会话循环中每 5s 续约本 view 持有的 owner；这是租约心跳，不改变
+  resize 的 CAS 语义。共享 `TerminalHandler` 时，owner 取请求携带的 `HELLO.view_id`，因此
+  多个 view 可以安全共用终端清单。
 - 同一客户端内，一个终端同时只出现在一个 slot；跨客户端可多视图（各自 view，内容按各自 revision 推送）。
 - 内容源的权威状态（attached/exited/health/owner）永远来自宿主；程序按 source id 幂等对账（§4）。
 
@@ -346,7 +444,11 @@ Ctrl-F 既是我们声明的全局键，也可能是终端里 vim/emacs 的键�
 
 ### 9.3 三个小语义
 
-- `terminal.copy` 缺省"可见区" = 发起时该 view 的当前屏幕内容（live 或回看窗口，按当时可见）。
+- 回看窗口在第一次 `terminal.scroll`（离开 live）时**冻结**：之后到达的终端输出不会移动该窗口，
+  `offset` 随输出增长而变大；`ScrollEnd` 解冻回 live。
+- `terminal.copy` 缺省"可见区" = 发起时该 view 的当前屏幕内容（live 或回看窗口，按当时可见）；
+  带 `sel` 的坐标只对**当时可见窗口**有效（宿主按当前 offset 解析，坐标钳制在窗口内；
+  宽字符整簇包含，不劈开 grapheme）。
 - `terminal.remove` 对**运行中**终端一律拒绝：`RESPONSE{ok:false,error:"still running; use terminal.kill"}`。
 - `input.forward` 的 `event_id` 有效期：宿主保留每个 view 最近 64 个输入事件；过期 → `RESPONSE{ok:false,error:"event expired"}`。
 
@@ -373,4 +475,3 @@ v1 盒子**没有 `scroll` 字段**：回看 = 程序发起取数（`terminal.sc
   （`accent` `border_focus`…），但那是宿主实现细节，程序不需要也不应依赖。程序不产生转义字节。
 - **样式继承**已删除：`box.style` 为空就是宿主默认样式；没有 border 可继承。
 - **根盒子**：始终等于视口 rect，自身 `size` 被忽略。
-

@@ -41,16 +41,17 @@ func newHistoryDeleteCommand(socket, logFile, configPath *string) *cobra.Command
 				return fmt.Errorf("history deletion requires the terminal pool to be stopped: %w", err)
 			}
 			defer release()
+			maintenance := corev2.NewHistoryMaintenance(resolveV3HistoryStorageDir())
 			var removed int
 			if all {
-				removed, err = corev2.DeleteAllHistory(resolveV3HistoryStorageDir())
+				removed, err = maintenance.DeleteAll()
 				if err == nil {
 					var obsoleteRemoved int
-					obsoleteRemoved, err = corev2.DeleteObsoleteCompactHistory(resolveV3ObsoleteCompactHistoryDir())
+					obsoleteRemoved, err = maintenance.DeleteObsolete(resolveV3ObsoleteCompactHistoryDir())
 					removed += obsoleteRemoved
 				}
 			} else {
-				removed, err = corev2.DeleteTerminalHistory(resolveV3HistoryStorageDir(), strings.TrimSpace(args[0]))
+				removed, err = maintenance.DeleteTerminal(strings.TrimSpace(args[0]))
 			}
 			if err != nil {
 				return err
@@ -84,10 +85,11 @@ func newHistoryPruneCommand(socket, logFile, configPath *string) *cobra.Command 
 				Compression:         cfg.History.Compression,
 				CompressionLevel:    cfg.History.CompressionLevel,
 			}
-			if _, err := corev2.DeleteObsoleteCompactHistory(resolveV3ObsoleteCompactHistoryDir()); err != nil {
+			maintenance := corev2.NewHistoryMaintenance(resolveV3HistoryStorageDir())
+			if _, err := maintenance.DeleteObsolete(resolveV3ObsoleteCompactHistoryDir()); err != nil {
 				return err
 			}
-			if err := corev2.PrepareHistoryStorage(resolveV3HistoryStorageDir(), storage); err != nil {
+			if err := maintenance.Prepare(storage); err != nil {
 				return err
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "history retention applied")

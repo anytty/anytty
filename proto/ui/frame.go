@@ -24,11 +24,18 @@ const (
 	TypeResult Type = 4
 	// TypeResponse is sent host -> program (exactly one per Result).
 	TypeResponse Type = 5
+	// TypeStream is bidirectional: one access stream frame (PROTOCOL §4
+	// access.stream.open / StreamFrame).
+	TypeStream Type = 6
+	// TypeViewDelta is sent program -> host: one incremental view patch
+	// (PROTOCOL §2.1, ViewDelta). Only used when HELLO advertises
+	// features["view_delta"].
+	TypeViewDelta Type = 7
 )
 
 // Valid reports whether t is a known frame type.
 func (t Type) Valid() bool {
-	return t >= TypeHello && t <= TypeResponse
+	return t >= TypeHello && t <= TypeViewDelta
 }
 
 func (t Type) String() string {
@@ -43,6 +50,10 @@ func (t Type) String() string {
 		return "RESULT"
 	case TypeResponse:
 		return "RESPONSE"
+	case TypeStream:
+		return "STREAM"
+	case TypeViewDelta:
+		return "VIEW_DELTA"
 	default:
 		return "UNKNOWN"
 	}
@@ -66,9 +77,9 @@ func (r Role) CanSend(t Type) bool {
 		return false
 	}
 	if r == RoleHost {
-		return t == TypeHello || t == TypeEvent || t == TypeResponse
+		return t == TypeHello || t == TypeEvent || t == TypeResponse || t == TypeStream
 	}
-	return t == TypeView || t == TypeResult
+	return t == TypeView || t == TypeResult || t == TypeStream || t == TypeViewDelta
 }
 
 // CanReceive reports whether frames of type t may be received by this
@@ -78,9 +89,9 @@ func (r Role) CanReceive(t Type) bool {
 		return false
 	}
 	if r == RoleHost {
-		return t == TypeView || t == TypeResult
+		return t == TypeView || t == TypeResult || t == TypeStream || t == TypeViewDelta
 	}
-	return t == TypeHello || t == TypeEvent || t == TypeResponse
+	return t == TypeHello || t == TypeEvent || t == TypeResponse || t == TypeStream
 }
 
 // DefaultMaxMessageBytes is the default single-frame limit when none is
@@ -98,7 +109,7 @@ const (
 	KindOversize
 	// KindTruncated: the stream ended in the middle of a frame.
 	KindTruncated
-	// KindUnknownType: the type byte is not one of 1..5.
+	// KindUnknownType: the type byte is not one of 1..7.
 	KindUnknownType
 	// KindDirection: the type is valid but illegal for this endpoint.
 	KindDirection
@@ -161,6 +172,10 @@ func NewPayload(t Type) gproto.Message {
 		return &pb.Result{}
 	case TypeResponse:
 		return &pb.Response{}
+	case TypeStream:
+		return &pb.StreamFrame{}
+	case TypeViewDelta:
+		return &pb.ViewDelta{}
 	default:
 		return nil
 	}

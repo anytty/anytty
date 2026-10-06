@@ -200,7 +200,7 @@ func TestInputWheelPassesWithMouseTracking(t *testing.T) {
 	h := NewTerminalHandler(TerminalOptions{
 		Cols:    80,
 		Rows:    6,
-		Command: []string{"sh", "-c", "printf '\\033[?1000h'; cat -v"},
+		Command: []string{"sh", "-c", "printf '\\033[?1000h\\033[?1006h'; cat -v"},
 	})
 	defer h.Close()
 	hh := newHarness(t, Options{ViewID: "v", Cols: 80, Rows: 24, EventSink: rec})
@@ -214,12 +214,89 @@ func TestInputWheelPassesWithMouseTracking(t *testing.T) {
 	hh.sendView(view(1, 1, nil, false, focusBox("term", "terminal:local:main", "key", "wheel")))
 	waitFor(t, "mouse tracking enabled", func() bool { return term.Modes().MouseTracking() })
 
-	if dst, err := hh.s.Input(keys.Event{Kind: keys.KindWheel, Delta: -1, X: 3, Y: 2}); err != nil || dst != DestinationPTY {
+	if dst, err := hh.s.Input(keys.Event{Kind: keys.KindWheel, Delta: 1, X: 3, Y: 2}); err != nil || dst != DestinationPTY {
 		t.Fatalf("wheel with tracking = %v err=%v, want pty", dst, err)
 	}
-	waitFor(t, "SGR wheel echo", func() bool { return screenContains(term, "<65") })
+	waitFor(t, "SGR wheel echo", func() bool { return screenContains(term, "<64") })
 	if rec.wheelCount() != 0 {
 		t.Fatal("wheel must not go to the program when passthrough conditions hold")
+	}
+	// The host keeps outer coordinates for program events but supplies the
+	// translated PTY coordinates for terminal passthrough.
+	if dst, err := hh.s.Input(keys.Event{Kind: keys.KindWheel, Delta: 1, X: 80, Y: 20, PTYX: 3, PTYY: 2}); err != nil || dst != DestinationPTY {
+		t.Fatalf("translated wheel = %v err=%v, want pty", dst, err)
+	}
+	waitFor(t, "translated SGR wheel echo", func() bool { return screenContains(term, "<64;3;2") })
+}
+
+// TestRawWheelReplayHistoryWinsOverMouseTracking exercises the complete
+// terminal input boundary: outer SGR bytes are parsed into wheel deltas, the
+// session refreshes both PTY capabilities and host history state, and a
+// frozen history viewport keeps the event in the program path. This is the
+// state Codex reaches after the first upward wheel event; sending subsequent
+// wheels to the PTY would make an unconsumed SGR sequence appear as ESC text.
+func TestRawWheelReplayHistoryWinsOverMouseTracking(t *testing.T) {
+	rec := &eventRecorder{}
+	h := NewTerminalHandler(TerminalOptions{
+		Cols:    80,
+		Rows:    6,
+		Command: []string{"sh", "-c", "printf '\\033[?1000h\\033[?1006h'; cat -v"},
+	})
+	defer h.Close()
+	hh := newHarness(t, Options{
+		ViewID:    "v-raw-wheel",
+		Cols:      80,
+		Rows:      24,
+		EventSink: rec,
+		InputSink: h,
+		MouseTracking: func(id string) bool {
+			term, ok := h.TerminalBySource(id)
+			return ok && term.Modes().MouseTracking()
+		},
+		HistoryActive: func(id string) bool {
+			term, ok := h.TerminalBySource(id)
+			return ok && term.HistoryActive()
+		},
+	})
+	term := attachTerminal(t, h, "main")
+	hh.s.SetSources([]*pb.Source{termSource("terminal:local:main")})
+	hh.sendView(view(1, 1, nil, false, focusBox("term", "terminal:local:main", "key", "wheel")))
+	hh.drain()
+	waitFor(t, "mouse tracking enabled", func() bool { return term.Modes().MouseTracking() })
+
+	// Make the host-owned copy viewport active, just as the shell's first
+	// terminal.scroll RESULT does after the initial upward wheel.
+	if _, err := term.Write([]byte("one\r\ntwo\r\nthree\r\nfour\r\n")); err != nil {
+		t.Fatalf("seed terminal output: %v", err)
+	}
+	term.Scroll(1, 2)
+	if !term.HistoryActive() || term.Offset() == 0 {
+		t.Fatalf("history state = active:%v offset:%d, want frozen offset", term.HistoryActive(), term.Offset())
+	}
+
+	parser := keys.NewParser()
+	for _, tc := range []struct {
+		name  string
+		seq   string
+		delta int
+	}{
+		{name: "up while frozen", seq: "\x1b[<64;3;2M", delta: 1},
+		{name: "down while frozen", seq: "\x1b[<65;3;2M", delta: -1},
+	} {
+		events := parser.Feed([]byte(tc.seq))
+		if len(events) != 1 || events[0].Kind != keys.KindWheel || events[0].Delta != tc.delta {
+			t.Fatalf("%s parsed events = %+v, want one wheel delta %d", tc.name, events, tc.delta)
+		}
+		dst, err := hh.s.Input(events[0])
+		if err != nil || dst != DestinationProgram {
+			t.Fatalf("%s destination = %v err=%v, want program", tc.name, dst, err)
+		}
+	}
+	if got := rec.wheelCount(); got != 2 {
+		t.Fatalf("history wheel events = %d, want 2", got)
+	}
+	if screenContains(term, "<64") || screenContains(term, "<65") {
+		t.Fatal("history wheels leaked SGR bytes into the PTY")
 	}
 }
 

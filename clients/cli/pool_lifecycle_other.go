@@ -11,8 +11,8 @@ func poolProcessIdentity(int) (string, error) {
 	return "", fmt.Errorf("terminal pool lifecycle is unsupported")
 }
 func stopPoolProcess(int) error { return fmt.Errorf("terminal pool lifecycle is unsupported") }
-func startDetachedPool(string, string, string) error {
-	return fmt.Errorf("terminal pool lifecycle is unsupported")
+func startDetachedPool(string, string, string) (int, error) {
+	return 0, fmt.Errorf("terminal pool lifecycle is unsupported")
 }
 func startDetachedAccess(string, string) (int, error) {
 	return 0, fmt.Errorf("terminal pool lifecycle is unsupported")

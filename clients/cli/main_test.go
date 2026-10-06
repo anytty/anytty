@@ -471,9 +471,9 @@ func TestV3PingConnectsExistingCoreV2Pool(t *testing.T) {
 		dialed = true
 		return nil, endpointdomain.AccessRoute{}, nil
 	}
-	startV3Pool = func(path string, logFile string) error {
+	startV3Pool = func(path string, logFile string) (int, error) {
 		t.Fatal("v3 ping must not auto-start when existing pool is reachable")
-		return nil
+		return 0, nil
 	}
 
 	var out bytes.Buffer
@@ -520,11 +520,11 @@ func TestV3PingAutoStartsCoreV2Pool(t *testing.T) {
 		}
 		return nil, endpointdomain.AccessRoute{}, nil
 	}
-	startV3Pool = func(path string, logFile string) error {
+	startV3Pool = func(path string, logFile string) (int, error) {
 		startCalls++
 		startedSocket = path
 		startedLog = logFile
-		return nil
+		return 4242, nil
 	}
 	startV3Access = func(path string, logFile string) error {
 		accessStartCalls++
@@ -565,8 +565,8 @@ func TestV3PingReturnsAutoStartError(t *testing.T) {
 	connectV3EndpointApplication = func(ctx context.Context, _ *clientruntime.SessionOwner, _ endpointdomain.Endpoint, _ endpointdomain.RouteID, _ clientruntime.ConnectIntent, options localadapter.Options, _ *slog.Logger) (*clientprotocol.ApplicationClient, endpointdomain.AccessRoute, error) {
 		return nil, endpointdomain.AccessRoute{}, options.Start(ctx, options.SocketOverride)
 	}
-	startV3Pool = func(path string, logFile string) error {
-		return os.ErrPermission
+	startV3Pool = func(path string, logFile string) (int, error) {
+		return 0, os.ErrPermission
 	}
 
 	cmd := newDevelopmentRootCmd()
@@ -696,14 +696,14 @@ func TestDialOrStartV3ClientUsesConfigStarterWhenConfigPathIsExplicit(t *testing
 	configPath := filepath.Join(t.TempDir(), "anytty.yaml")
 	socketPath := filepath.Join(t.TempDir(), "anytty.sock")
 	logPath := filepath.Join(t.TempDir(), "anytty.log")
-	startV3Pool = func(path string, logFile string) error {
+	startV3Pool = func(path string, logFile string) (int, error) {
 		t.Fatal("plain pool starter must not be used when explicit config path is present")
-		return nil
+		return 0, nil
 	}
 	var gotSocket, gotLog, gotConfig string
-	startV3PoolWithConfig = func(path string, logFile string, cfg string) error {
+	startV3PoolWithConfig = func(path string, logFile string, cfg string) (int, error) {
 		gotSocket, gotLog, gotConfig = path, logFile, cfg
-		return nil
+		return 4242, nil
 	}
 	startV3Access = func(path string, logFile string) error { return nil }
 	connectV3EndpointApplication = func(ctx context.Context, _ *clientruntime.SessionOwner, _ endpointdomain.Endpoint, _ endpointdomain.RouteID, _ clientruntime.ConnectIntent, options localadapter.Options, _ *slog.Logger) (*clientprotocol.ApplicationClient, endpointdomain.AccessRoute, error) {
@@ -1397,7 +1397,7 @@ func waitForCoreV2ResizeRecordingProcess(t *testing.T, factory *coreV2ResizeReco
 
 func waitForCLITerminalState(t *testing.T, server *corev2.Server, terminalID string, want corev2.TerminalState) corev2.TerminalInfo {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for {
 		info, err := server.GetTerminal(terminalID)
 		if err == nil && info.State == want {

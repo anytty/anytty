@@ -9,10 +9,9 @@ import (
 )
 
 // RoutesEnvVar names the comma-separated shared route kinds the TUI host is
-// allowed to dial. The -routes host flag wins over it. Direct and managed
-// WebRTC routes are opt-in: an old registry carrying them never blocks the
-// picker with a signaling/ICE/Cloud dial unless the operator asks for it
-// (see tui2/docs/REMOTE.zh-CN.md §3.1).
+// allowed to dial. The -routes host flag wins over it. Leaving it unset lets
+// every route kind race; setting it narrows the policy (see
+// tui2/docs/REMOTE.zh-CN.md §3.1).
 const RoutesEnvVar = "TUI2_ROUTES"
 
 // routeKindAliases maps operator-facing names to shared route kinds. "tcp"
@@ -33,13 +32,19 @@ var routeKindAliases = map[string]clientendpoint.RouteKind{
 	"managed-webrtc":    clientendpoint.RouteManagedWebRTC,
 }
 
-// DefaultRouteKinds is the out-of-the-box dial policy: local-unix (covering
-// command endpoints and the tcp bridge) plus ssh-webrtc-tcp. The ssh kind is
-// additionally credential-gated per endpoint in sharedRouteEnvironment, so an
-// unpaired ssh route is listed as offline instead of dialed. Direct and
-// managed WebRTC stay off until explicitly opted in.
+// DefaultRouteKinds is the out-of-the-box dial policy: every transport kind a
+// route can be configured with races for the connection, and the first one that
+// becomes ready wins (the planner staggers attempts by kind order: local, ssh,
+// direct, cloud). A route still only participates when the registry enables it,
+// its credentials exist and the kind is available on this platform; narrowing
+// the race is an explicit opt-out via -routes / TUI2_ROUTES.
 func DefaultRouteKinds() []clientendpoint.RouteKind {
-	return []clientendpoint.RouteKind{clientendpoint.RouteLocalUnix, clientendpoint.RouteSSHWebRTCTCP}
+	return []clientendpoint.RouteKind{
+		clientendpoint.RouteLocalUnix,
+		clientendpoint.RouteSSHWebRTCTCP,
+		clientendpoint.RouteDirectWebRTCTCP,
+		clientendpoint.RouteManagedWebRTC,
+	}
 }
 
 // ResolveRouteKinds returns the effective enabled route kinds: the explicit
@@ -74,10 +79,6 @@ func ParseRouteKinds(value string) ([]clientendpoint.RouteKind, error) {
 		if name == "all" || name == "default" {
 			for _, kind := range DefaultRouteKinds() {
 				add(kind)
-			}
-			if name == "all" {
-				add(clientendpoint.RouteDirectWebRTCTCP)
-				add(clientendpoint.RouteManagedWebRTC)
 			}
 			continue
 		}

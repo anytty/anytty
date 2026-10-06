@@ -21,6 +21,36 @@ func TestFrameFullRepaint(t *testing.T) {
 	}
 }
 
+func TestFrameResetClearsForReuse(t *testing.T) {
+	f := NewFrame(4, 1)
+	f.BlitLine(Line{X: 0, Y: 0, Text: "text"})
+	f.SetCursor(2, 0)
+	storage := &f.cells[0]
+	f.Reset(4, 1)
+	if &f.cells[0] != storage {
+		t.Fatal("same-size reset should reuse cell storage")
+	}
+	if got := f.CellAt(0, 0); !got.Blank() {
+		t.Fatalf("reset cell = %+v, want blank", got)
+	}
+	if _, _, visible := f.Cursor(); visible {
+		t.Fatal("reset should hide the cursor")
+	}
+}
+
+func TestFrameSetCursorClipsToViewport(t *testing.T) {
+	f := NewFrame(4, 3)
+	f.SetCursor(99, -5)
+	if x, y, visible := f.Cursor(); !visible || x != 3 || y != 0 {
+		t.Fatalf("clipped cursor = (%d,%d,%v), want (3,0,true)", x, y, visible)
+	}
+	empty := NewFrame(0, 0)
+	empty.SetCursor(0, 0)
+	if _, _, visible := empty.Cursor(); visible {
+		t.Fatal("empty framebuffer must not expose a cursor")
+	}
+}
+
 func TestFrameRowStyles(t *testing.T) {
 	f := NewFrame(3, 1)
 	f.Blit(
@@ -87,6 +117,184 @@ func TestFrameDiffCursorOnly(t *testing.T) {
 	hidden.BlitLine(Line{X: 0, Y: 0, Text: "ab"})
 	if got := string(hidden.Bytes(prev)); got != HideCursor {
 		t.Fatalf("hide cursor diff = %q, want %q", got, HideCursor)
+	}
+}
+
+func TestFrameDiffCursorShape(t *testing.T) {
+	prev := NewFrame(2, 1)
+	prev.SetCursor(0, 0)
+	curr := NewFrame(2, 1)
+	curr.SetCursor(0, 0)
+	curr.SetCursorShape("bar")
+	got := string(curr.Bytes(prev))
+	want := CursorShapeBar + CursorPosition(0, 0) + ShowCursor
+	if got != want {
+		t.Fatalf("cursor shape diff = %q, want %q", got, want)
+	}
+}
+
+func TestFrameDiffUsesScrollRegionForShift(t *testing.T) {
+	prev := NewFrame(4, 4)
+	prev.BlitLine(Line{Y: 0, Text: "one"})
+	prev.BlitLine(Line{Y: 1, Text: "two"})
+	prev.BlitLine(Line{Y: 2, Text: "three"})
+	prev.BlitLine(Line{Y: 3, Text: "four"})
+	curr := NewFrame(4, 4)
+	curr.BlitLine(Line{Y: 0, Text: "two"})
+	curr.BlitLine(Line{Y: 1, Text: "three"})
+	curr.BlitLine(Line{Y: 2, Text: "four"})
+	curr.BlitLine(Line{Y: 3, Text: "five"})
+	got := string(curr.Bytes(prev))
+	for _, want := range []string{ScrollRegion(0, 3), CursorPosition(0, 3), ScrollUp, ResetScrollRegion, "five"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("scroll diff %q missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "one") || strings.Contains(got, "two") || strings.Contains(got, "three") {
+		t.Fatalf("scroll diff rewrote old rows: %q", got)
+	}
+}
+
+func TestFrameDiffUsesScrollRegionForReverseShift(t *testing.T) {
+	prev := NewFrame(3, 4)
+	prev.BlitLine(Line{Y: 0, Text: "one"})
+	prev.BlitLine(Line{Y: 1, Text: "two"})
+	prev.BlitLine(Line{Y: 2, Text: "three"})
+	prev.BlitLine(Line{Y: 3, Text: "four"})
+	curr := NewFrame(3, 4)
+	curr.BlitLine(Line{Y: 0, Text: "zero"})
+	curr.BlitLine(Line{Y: 1, Text: "one"})
+	curr.BlitLine(Line{Y: 2, Text: "two"})
+	curr.BlitLine(Line{Y: 3, Text: "three"})
+	got := string(curr.Bytes(prev))
+	for _, want := range []string{ScrollRegion(0, 3), CursorPosition(0, 0), ScrollDown, ResetScrollRegion, "zer"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("reverse scroll diff %q missing %q", got, want)
+		}
+	}
+}
+
+func TestFrameDiffUsesParameterizedScrollRegionForPageShift(t *testing.T) {
+	prev := NewFrame(4, 6)
+	for y, text := range []string{"zero", "one", "two", "three", "four", "five"} {
+		prev.BlitLine(Line{Y: y, Text: text})
+	}
+	curr := NewFrame(4, 6)
+	for y, text := range []string{"two", "three", "four", "five", "six", "seven"} {
+		curr.BlitLine(Line{Y: y, Text: text})
+	}
+	got := string(curr.BytesWithSynchronizedScrollRegions(prev, []ScrollRect{{X: 0, Y: 0, Width: 4, Height: 6}}))
+	for _, want := range []string{ScrollRegion(0, 5), ScrollUpN(2), ResetScrollRegion, "seve"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("page scroll diff %q missing %q", got, want)
+		}
+	}
+}
+
+func TestFrameDiffSynchronizesPhysicalScroll(t *testing.T) {
+	prev := NewFrame(4, 4)
+	prev.BlitLine(Line{Y: 0, Text: "one"})
+	prev.BlitLine(Line{Y: 1, Text: "two"})
+	prev.BlitLine(Line{Y: 2, Text: "three"})
+	prev.BlitLine(Line{Y: 3, Text: "four"})
+	curr := NewFrame(4, 4)
+	curr.BlitLine(Line{Y: 0, Text: "two"})
+	curr.BlitLine(Line{Y: 1, Text: "three"})
+	curr.BlitLine(Line{Y: 2, Text: "four"})
+	curr.BlitLine(Line{Y: 3, Text: "five"})
+	got := string(curr.BytesWithSynchronizedScroll(prev))
+	begin := strings.Index(got, BeginSynchronizedOutput)
+	end := strings.Index(got, EndSynchronizedOutput)
+	if begin < 0 || end <= begin {
+		t.Fatalf("synchronized scroll = %q", got)
+	}
+	if plain := string(curr.Bytes(prev)); strings.Contains(plain, BeginSynchronizedOutput) {
+		t.Fatalf("plain scroll unexpectedly synchronized: %q", plain)
+	}
+}
+
+func TestFrameDiffScrollsOnlyPanelContentRect(t *testing.T) {
+	prev := NewFrame(12, 5)
+	for y, text := range []string{"abcd", "efgh", "ijkl"} {
+		prev.BlitLine(Line{X: 2, Y: y + 1, Text: text})
+	}
+	prev.BlitLine(Line{X: 0, Y: 0, Text: "header"})
+	prev.BlitLine(Line{X: 8, Y: 1, Text: "side"})
+
+	curr := NewFrame(12, 5)
+	for y, text := range []string{"efgh", "ijkl", "mnop"} {
+		curr.BlitLine(Line{X: 2, Y: y + 1, Text: text})
+	}
+	curr.BlitLine(Line{X: 0, Y: 0, Text: "header"})
+	curr.BlitLine(Line{X: 8, Y: 1, Text: "side"})
+
+	got := string(curr.BytesWithSynchronizedScrollRegions(prev, []ScrollRect{{X: 2, Y: 1, Width: 4, Height: 3}}))
+	if !strings.Contains(got, BeginSynchronizedOutput) || !strings.Contains(got, EndSynchronizedOutput) {
+		t.Fatalf("panel scroll = %q, want synchronized update", got)
+	}
+	if strings.Contains(got, ScrollRegion(1, 3)) {
+		t.Fatalf("partial panel must not set a full-width scroll region: %q", got)
+	}
+	if strings.Contains(got, "header") || strings.Contains(got, "side") {
+		t.Fatalf("panel scroll rewrote unchanged sibling content: %q", got)
+	}
+	for _, want := range []string{"efgh", "ijkl", "mnop"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("panel scroll = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestFrameDiffDoesNotTreatRepeatedRowsAsPanelScroll(t *testing.T) {
+	// A full-screen child often leaves several identical muted rows around
+	// its content. When one row changes at the bottom, matching the repeated
+	// overlap must not make the host emit a real CSI scroll: that would move
+	// the child viewport and then repaint it, producing a visible jump.
+	prev := NewFrame(4, 4)
+	for y := 0; y < 4; y++ {
+		prev.BlitLine(Line{Y: y, Text: "    ", Style: TokenMuted})
+	}
+	curr := NewFrame(4, 4)
+	for y := 0; y < 3; y++ {
+		curr.BlitLine(Line{Y: y, Text: "    ", Style: TokenMuted})
+	}
+	curr.BlitLine(Line{Y: 3, Text: "new!", Style: TokenMuted})
+
+	got := string(curr.BytesWithSynchronizedScrollRegions(prev, []ScrollRect{{X: 0, Y: 0, Width: 4, Height: 4}}))
+	if strings.Contains(got, ScrollRegion(0, 3)) || strings.Contains(got, ScrollUp) || strings.Contains(got, ScrollDown) {
+		t.Fatalf("repeated rows were mistaken for a panel scroll: %q", got)
+	}
+	if !strings.Contains(got, "new!") {
+		t.Fatalf("ordinary row diff omitted changed row: %q", got)
+	}
+}
+
+func TestFrameDiffScrollsPanelByPageWithoutRepaintingSiblings(t *testing.T) {
+	prev := NewFrame(12, 7)
+	for y, text := range []string{"zero", "one", "two", "three", "four"} {
+		prev.BlitLine(Line{X: 2, Y: y + 1, Text: text})
+	}
+	prev.BlitLine(Line{X: 0, Y: 0, Text: "header"})
+	prev.BlitLine(Line{X: 8, Y: 2, Text: "side"})
+
+	curr := NewFrame(12, 7)
+	for y, text := range []string{"two", "three", "four", "five", "six"} {
+		curr.BlitLine(Line{X: 2, Y: y + 1, Text: text})
+	}
+	curr.BlitLine(Line{X: 0, Y: 0, Text: "header"})
+	curr.BlitLine(Line{X: 8, Y: 2, Text: "side"})
+
+	got := string(curr.BytesWithSynchronizedScrollRegions(prev, []ScrollRect{{X: 2, Y: 1, Width: 5, Height: 5}}))
+	if strings.Contains(got, ScrollRegion(1, 5)) {
+		t.Fatalf("partial page scroll must not set a full-width scroll region: %q", got)
+	}
+	if strings.Contains(got, "header") || strings.Contains(got, "side") {
+		t.Fatalf("page scroll rewrote unchanged sibling content: %q", got)
+	}
+	for _, want := range []string{"two", "three", "four", "five", "six"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("page scroll = %q, missing %q", got, want)
+		}
 	}
 }
 

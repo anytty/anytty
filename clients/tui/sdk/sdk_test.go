@@ -114,6 +114,56 @@ func decodeView(t *testing.T, payload []byte) *pb.View {
 	return m.(*pb.View)
 }
 
+// TestSupportsAndCommitDeltaRoundTrip covers the public delta surface on the
+// sdk package alias: the HELLO feature accessor and one VIEW_DELTA frame.
+func TestSupportsAndCommitDeltaRoundTrip(t *testing.T) {
+	client, enc, dec := pipePair(t, Handlers{})
+	if err := enc.Encode(wire.TypeHello, &pb.Hello{
+		Schema: 1, ViewId: "v", Epoch: 1, Cols: 80, Rows: 24,
+		Features: map[string]bool{"view_delta": true},
+	}); err != nil {
+		t.Fatalf("hello: %v", err)
+	}
+	waitFor(t, "hello applied", func() bool { return client.Epoch() == 1 })
+	if !client.Supports("view_delta") {
+		t.Fatal("Supports(view_delta) = false, want true")
+	}
+	if client.Supports("state.save") {
+		t.Fatal("Supports(state.save) = true, want false for an absent feature")
+	}
+
+	base := Row(Text("a"), Text("b")).Build()
+	if err := client.Commit(base, Keys{}); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if typ, _ := readFrame(t, dec); typ != wire.TypeView {
+		t.Fatalf("first frame = %v, want VIEW", typ)
+	}
+	if !client.HasBase() {
+		t.Fatal("HasBase = false after Commit")
+	}
+
+	next := Row(Text("a"), Text("B")).Build()
+	sent, err := client.CommitDelta(base, next, Keys{})
+	if err != nil {
+		t.Fatalf("commit delta: %v", err)
+	}
+	if !sent {
+		t.Fatal("one-text delta fell back to a full VIEW")
+	}
+	typ, payload := readFrame(t, dec)
+	if typ != wire.TypeViewDelta {
+		t.Fatalf("second frame = %v, want VIEW_DELTA", typ)
+	}
+	m, err := wire.UnmarshalPayload(wire.TypeViewDelta, payload)
+	if err != nil {
+		t.Fatalf("decode delta: %v", err)
+	}
+	if delta := m.(*pb.ViewDelta); delta.GetRevBase() != 1 || delta.GetRev() != 2 {
+		t.Fatalf("delta rev/base = %d/%d, want 2/1", delta.GetRev(), delta.GetRevBase())
+	}
+}
+
 func TestCommitRoundTrip(t *testing.T) {
 	client, enc, dec := pipePair(t, Handlers{})
 	if err := enc.Encode(wire.TypeHello, helloMsg(3)); err != nil {

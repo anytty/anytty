@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -124,6 +125,33 @@ func TestResolverCaseSensitivityFollowsConfig(t *testing.T) {
 	}
 	if _, err := sensitive.Resolve(lowercase); !errors.Is(err, ErrPathOutsideRoots) {
 		t.Fatalf("case-sensitive resolve err = %v, want ErrPathOutsideRoots", err)
+	}
+}
+
+// TestResolverResolvesSymlinkedMissingRootPrefix 固定 root 尚不存在（只存在带符号
+// 链接的祖先）时的比较基准：root 与候选路径都必须解析同一前缀，否则 macOS 上
+// 候选路径经 /var 链接解析后会被误判为逃逸。
+func TestResolverResolvesSymlinkedMissingRootPrefix(t *testing.T) {
+	base := t.TempDir()
+	realDir := filepath.Join(base, "real")
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(realDir, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	root := filepath.Join(link, "missing-root")
+	resolver, err := NewResolver(ResolverConfig{Roots: []string{root}, CaseInsensitive: boolPtr(false)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := resolver.Resolve(filepath.Join(root, "file.txt"))
+	if err != nil {
+		t.Fatalf("resolve under symlinked missing root: %v", err)
+	}
+	if !strings.HasSuffix(got, filepath.Join("real", "missing-root", "file.txt")) {
+		t.Fatalf("resolved = %q, want suffix %q", got, filepath.Join("real", "missing-root", "file.txt"))
 	}
 }
 

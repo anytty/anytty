@@ -1,77 +1,203 @@
 package kernel
 
+import "strings"
+
 // Layout solves root into a viewport of width x height and returns the root
 // frame. The root box always fills the viewport; its own Size is ignored.
 // Non-positive viewports and nil roots produce an empty frame.
 func Layout(root *Node, width, height int) Frame {
-	empty := Frame{Rects: map[string]Rect{}}
 	if root == nil || width <= 0 || height <= 0 || !root.IsVisible() {
-		return empty
+		return Frame{}
 	}
-	return solve(root, Rect{X: 0, Y: 0, Width: width, Height: height})
+	hints := countHints(root)
+	b := frameBuilder{
+		index: &rectIndex{items: make([]rectNode, 0, hints.ids)},
+		lines: make([]Line, 0, hints.lines),
+		hits:  make([]hit, 0, hints.ids),
+	}
+	solve(root, Rect{X: 0, Y: 0, Width: width, Height: height}, &b, 0)
+	return b.frame()
+}
+
+// frameBuilder accumulates the solved layout of one frame while it is walked.
+// Regular-flow descendants all write into the same builder, so no per-node map
+// or slice is allocated and nothing is merged upward; each Pos subtree gets
+// its own builder because it becomes its own OverlayFrame.
+//
+// A cache-aware builder (cached) instead gives every child its own builder so
+// the child's frame can be recorded on the node for the next call; a child
+// whose Solved matches its rect is spliced instead of solved.
+type frameBuilder struct {
+	// cached selects the cache-aware solver (see LayoutCached).
+	cached bool
+
+	index       *rectIndex
+	lines       []Line
+	hits        []hit
+	overlays    []Frame
+	cursorRect  Rect
+	hasCursor   bool
+	cursorShape string
+
+	// plans is a per-depth scratch stack of flow plans. A container at depth d
+	// keeps its slice alive while its children recurse into depth d+1, and the
+	// slot is reused by the next sibling at depth d, so assignFlow allocates
+	// only on the first (deepest) encounter.
+	plans [][]flowPlan
+}
+
+func (b *frameBuilder) frame() Frame {
+	if b.index == nil {
+		b.index = &rectIndex{}
+	}
+	return Frame{
+		index:         b.index,
+		Lines:         b.lines,
+		OverlayFrames: b.overlays,
+		CursorRect:    b.cursorRect,
+		HasCursor:     b.hasCursor,
+		CursorShape:   b.cursorShape,
+		hits:          b.hits,
+	}
+}
+
+func (b *frameBuilder) adoptCursor(src *frameBuilder) {
+	if !src.hasCursor {
+		return
+	}
+	b.hasCursor = true
+	b.cursorRect = src.cursorRect
+	b.cursorShape = src.cursorShape
+}
+
+// flowPlan is the resolved placement of one visible regular-flow child. It is
+// reused across siblings at the same tree depth.
+type flowPlan struct {
+	node     *Node
+	rect     Rect
+	fixed    int
+	base     int
+	flex     int
+	flexible bool
+	cross    int
 }
 
 // solve places one visible node at rect, then lays out its regular-flow
-// children and collects Pos subtrees as overlay frames.
-func solve(n *Node, rect Rect) Frame {
+// children and collects Pos subtrees as overlay frames. Regular-flow children
+// share b; a Pos child builds its own frameBuilder and is merged into b.
+//
+// A cache-aware builder (b.cached) solves every child into its own builder so
+// the child's frame can be recorded, and splices a child whose Solved matches
+// the child's absolute rect instead of walking it. A plain builder shares one
+// builder across the regular flow, which allocates less.
+func solve(n *Node, rect Rect, b *frameBuilder, depth int) {
 	rect = normalizeRect(rect)
-	f := Frame{Rects: map[string]Rect{}}
 	if n.ID != "" {
-		f.Rects[n.ID] = rect
+		b.index.items = append(b.index.items, rectNode{id: n.ID, rect: rect})
+		b.index.count++
 		if !rect.Empty() {
-			f.hits = append(f.hits, hit{id: n.ID, rect: rect})
+			b.hits = append(b.hits, hit{id: n.ID, rect: rect})
 		}
 	}
-	renderOwn(&f, n, rect)
+	renderOwn(b, n, rect)
 
-	placements := assignFlow(n, rect)
+	if len(n.Children) == 0 {
+		return
+	}
+	if depth == len(b.plans) {
+		b.plans = append(b.plans, nil)
+	}
+	if cap(b.plans[depth]) < len(n.Children) {
+		b.plans[depth] = make([]flowPlan, 0, len(n.Children))
+	}
+	plans := assignFlow(n, rect, b.plans[depth][:0])
+	b.plans[depth] = plans
+
+	pi := 0
 	for i := range n.Children {
 		child := &n.Children[i]
 		if !child.IsVisible() {
 			continue
 		}
 		if child.Pos != nil {
-			overlay := solve(child, posRect(child, rect))
-			f.mergeRects(overlay.Rects)
-			f.OverlayFrames = append(f.OverlayFrames, overlay)
-			f.adoptCursor(overlay)
+			pr := normalizeRect(posRect(child, rect))
+			f, cur := solveOverlay(child, pr, b.cached)
+			// A Pos subtree becomes its own overlay frame: only its rects are
+			// lifted into the parent, its lines and hits stay in the overlay.
+			if f.index != nil {
+				b.index.items = append(b.index.items, rectNode{ref: f.index})
+				b.index.count += f.index.count
+			}
+			b.overlays = append(b.overlays, f)
+			b.adoptCursor(&cur)
 			continue
 		}
-		childRect, ok := placements[i]
-		if !ok {
-			continue
-		}
-		flow := solve(child, childRect)
-		f.Lines = append(f.Lines, flow.Lines...)
-		f.hits = append(f.hits, flow.hits...)
-		f.mergeRects(flow.Rects)
-		f.adoptCursor(flow)
-		f.OverlayFrames = append(f.OverlayFrames, flow.OverlayFrames...)
+		plan := plans[pi]
+		pi++
+		solveChild(child, plan.rect, b, depth+1)
 	}
-	return f
 }
 
-// assignFlow resolves the rect of every visible regular-flow child, keyed by
-// child index in n.Children. The parent content area is the full parent rect
-// (the kernel has no border inset).
-func assignFlow(n *Node, rect Rect) map[int]Rect {
-	flow := n.EffectiveFlow()
-	type plan struct {
-		index    int
-		node     *Node
-		fixed    int
-		base     int
-		flex     int
-		flexible bool
-		cross    int
+// solveOverlay produces the frame of one Pos child at its absolute rect. With
+// a cache-aware builder it reuses the child's Solved frame when the rect is
+// unchanged, otherwise it solves the subtree into its own builder and records
+// the frame on the child. It returns the frame and a carrier holding the
+// cursor the parent adopts.
+func solveOverlay(n *Node, pr Rect, cached bool) (Frame, frameBuilder) {
+	if cached {
+		if s := n.Cached(); s != nil && s.Rect == pr {
+			cur := frameBuilder{
+				hasCursor:   s.Frame.HasCursor,
+				cursorRect:  s.Frame.CursorRect,
+				cursorShape: s.Frame.CursorShape,
+			}
+			return s.Frame, cur
+		}
 	}
-	plans := make([]plan, 0, len(n.Children))
+	var ob frameBuilder
+	ob.cached = cached
+	ob.index = &rectIndex{}
+	solve(n, pr, &ob, 0)
+	f := ob.frame()
+	if cached {
+		n.SetCached(&Solved{Rect: pr, Frame: f})
+	}
+	return f, ob
+}
+
+// solveChild solves one regular-flow child of a builder. A cache-aware builder
+// splices a child whose Solved matches its absolute rect; otherwise it solves
+// the child into its own builder so its frame can be recorded. A plain builder
+// recurses with the shared builder.
+func solveChild(n *Node, rect Rect, b *frameBuilder, depth int) {
+	if !b.cached {
+		solve(n, rect, b, depth)
+		return
+	}
+	pr := normalizeRect(rect)
+	if s := n.Cached(); s != nil && s.Rect == pr {
+		b.addFrame(s.Frame)
+		return
+	}
+	own := frameBuilder{cached: true, index: &rectIndex{}}
+	solve(n, pr, &own, 0)
+	f := own.frame()
+	n.SetCached(&Solved{Rect: pr, Frame: f})
+	b.addFrame(f)
+}
+
+// assignFlow resolves the rect of every visible regular-flow child, appending
+// one plan per child to plans (indexed by child index in n.Children). Pos and
+// invisible children get no plan. The parent content area is the full parent
+// rect (the kernel has no border inset).
+func assignFlow(n *Node, rect Rect, plans []flowPlan) []flowPlan {
+	flow := n.EffectiveFlow()
 	for i := range n.Children {
 		child := &n.Children[i]
 		if !child.IsVisible() || child.Pos != nil {
 			continue
 		}
-		p := plan{index: i, node: child}
+		p := flowPlan{node: child}
 		if flow == FlowStack {
 			plans = append(plans, p)
 			continue
@@ -110,34 +236,36 @@ func assignFlow(n *Node, rect Rect) map[int]Rect {
 		}
 		plans = append(plans, p)
 	}
+	if len(plans) == 0 {
+		return plans
+	}
 
 	mainTotal := rect.Height
 	if flow == FlowRow {
 		mainTotal = rect.Width
 	}
 	if flow == FlowStack {
-		out := make(map[int]Rect, len(plans))
-		for _, p := range plans {
+		for i := range plans {
 			width, height := rect.Width, rect.Height
-			if p.node.Size.Width > 0 {
-				width = p.node.Size.Width
+			if plans[i].node.Size.Width > 0 {
+				width = plans[i].node.Size.Width
 			}
-			if p.node.Size.Height > 0 {
-				height = p.node.Size.Height
+			if plans[i].node.Size.Height > 0 {
+				height = plans[i].node.Size.Height
 			}
-			out[p.index] = Rect{X: rect.X, Y: rect.Y, Width: width, Height: height}
+			plans[i].rect = Rect{X: rect.X, Y: rect.Y, Width: width, Height: height}
 		}
-		return out
+		return plans
 	}
 
 	used := 0
 	flexSum := 0
-	for _, p := range plans {
-		if p.flexible {
-			used += p.base
-			flexSum += p.flex
+	for i := range plans {
+		if plans[i].flexible {
+			used += plans[i].base
+			flexSum += plans[i].flex
 		} else {
-			used += p.fixed
+			used += plans[i].fixed
 		}
 	}
 	remaining := max(0, mainTotal-used)
@@ -183,24 +311,63 @@ func assignFlow(n *Node, rect Rect) map[int]Rect {
 	if row {
 		mainPos = rect.X
 	}
-	out := make(map[int]Rect, len(plans))
-	for _, p := range plans {
+	for i := range plans {
+		p := &plans[i]
 		size := p.fixed
 		if p.flexible {
 			size = p.base
 		}
 		size = max(0, size)
 		cross := max(0, p.cross)
-		var r Rect
 		if row {
-			r = Rect{X: mainPos, Y: rect.Y, Width: size, Height: cross}
+			p.rect = Rect{X: mainPos, Y: rect.Y, Width: size, Height: cross}
 		} else {
-			r = Rect{X: rect.X, Y: mainPos, Width: cross, Height: size}
+			p.rect = Rect{X: rect.X, Y: mainPos, Width: cross, Height: size}
 		}
-		out[p.index] = r
 		mainPos += size
 	}
-	return out
+	return plans
+}
+
+// layoutHints bounds the allocations for one solved frame: ids counts nodes
+// that can contribute a hit (every reachable id-bearing node, spliced subtrees
+// included), ownIDs counts nodes this builder will solve itself (a cached
+// subtree contributes none: it is linked by pointer), lines counts the content
+// lines that can be rendered. Invisible subtrees contribute nothing.
+type layoutHints struct {
+	ids    int
+	ownIDs int
+	// refs is the number of spliced indexes a cached solve will append: one
+	// per cached subtree stop (and per Pos overlay), so it presizes the owned
+	// items slice together with ownIDs.
+	refs  int
+	lines int
+}
+
+func countHints(n *Node) layoutHints {
+	if !n.IsVisible() {
+		return layoutHints{}
+	}
+	h := layoutHints{}
+	if n.ID != "" {
+		h.ids++
+		h.ownIDs++
+	}
+	if n.Content != nil {
+		switch {
+		case len(n.Content.Lines) > 0:
+			h.lines += len(n.Content.Lines)
+		case n.Content.Text != "":
+			h.lines += strings.Count(n.Content.Text, "\n") + 1
+		}
+	}
+	for i := range n.Children {
+		ch := countHints(&n.Children[i])
+		h.ids += ch.ids
+		h.ownIDs += ch.ownIDs
+		h.lines += ch.lines
+	}
+	return h
 }
 
 // posRect places a Pos subtree inside the parent rect (the parent content
@@ -231,19 +398,4 @@ func normalizeRect(r Rect) Rect {
 		r.Height = 0
 	}
 	return r
-}
-
-func (f *Frame) mergeRects(rects map[string]Rect) {
-	for id, r := range rects {
-		f.Rects[id] = r
-	}
-}
-
-func (f *Frame) adoptCursor(src Frame) {
-	if !src.HasCursor {
-		return
-	}
-	f.HasCursor = true
-	f.CursorRect = src.CursorRect
-	f.CursorShape = src.CursorShape
 }

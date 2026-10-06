@@ -169,6 +169,12 @@ TUI 约 12 万行（含测试）。非测试分布：`tui/app` 约 19.6k、`tui/
 
 - **P0**：TUI 内引入 `Surface` 接口 + 本地 IPC 传输 + 背压器；用回显 Surface 压测，不接真实插件。
 - **P1**：接一个自绘 demo（例如 herdr 侧栏），验证延迟、隔离、降级。
+  实现：`clients/tui/examples/herdr/`（Go SDK 自绘 demo）。验证中发现并修复了
+  “慢/离线 endpoint 的 access 调用会持会话锁冻结渲染”的隔离问题（`access.call`/
+  `access.stream.*` 改为后台执行 + `Session.Complete`，见
+  `clients/tui/cmd/tui2/access_async_test.go`）；`terminal.create/restart/attach` 仍走
+  宿主类型化路径，对已注册但离线的 daemon endpoint 会等拨号预算（默认 3s+5s）才回错误，
+  期间不刷新——已记录为后续隔离改造项（见 `clients/tui/examples/herdr/README.zh-CN.md`）。
 - **P2**：加入 slot/contribution + typed result + 覆盖/回退；把声明式渲染改造成宿主渲染的 Surface（控制面协议不变）。
 - **P3**：把内建逐个迁成 slot 默认 Surface（terminal picker、new-terminal、navigator 等）；terminal picker 借新渲染层强化。
 

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/proto/access/wirepb"
@@ -603,4 +604,17 @@ func channelFromResource(resource *apipb.ResourceHandle) uint16 {
 		return 0
 	}
 	return binary.BigEndian.Uint16(token[:2])
+}
+
+// openStream is unused by the raw test client; access.stream.open is covered
+// by the production shared session and the host e2e.
+func (c *client) openStream(resource *apipb.ResourceHandle) (clientruntime.ResourceStream, error) {
+	_ = resource
+	return nil, fmt.Errorf("endpoint %q: openStream is not supported by the raw test client", c.cfg.Name)
+}
+
+// events is unused by the raw test client; access.stream.subscribe is covered
+// by the host e2e.
+func (c *client) events(context.Context) (<-chan *apipb.EventEnvelope, error) {
+	return nil, fmt.Errorf("endpoint %q: events are not supported by the raw test client", c.cfg.Name)
 }

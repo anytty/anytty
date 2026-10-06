@@ -22,6 +22,9 @@ func TestName(t *testing.T) {
 		{"ctrl shift from char", Event{Kind: KindKey, Char: "C", Mods: Mods{Ctrl: true, Shift: true}}, "ctrl-shift-c"},
 		{"ctrl alt digit", Event{Kind: KindKey, Key: "3", Mods: Mods{Ctrl: true, Alt: true}}, "ctrl-alt-3"},
 		{"ctrl alt shift letter keeps base", Event{Kind: KindKey, Key: "x", Mods: Mods{Ctrl: true, Alt: true, Shift: true}}, "ctrl-x"},
+		{"shift left", Event{Kind: KindKey, Key: "left", Mods: Mods{Shift: true}}, "shift-left"},
+		{"shift right", Event{Kind: KindKey, Key: "right", Mods: Mods{Shift: true}}, "shift-right"},
+		{"shift up", Event{Kind: KindKey, Key: "up", Mods: Mods{Shift: true}}, "shift-up"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,5 +99,19 @@ func TestEncodeKeyRejects(t *testing.T) {
 		if got, ok := EncodeKey(ev); ok {
 			t.Fatalf("EncodeKey(%+v) = %q, want not encodable", ev, got)
 		}
+	}
+}
+
+func TestSpaceIsANamedKey(t *testing.T) {
+	ev := charEvent(" ", Mods{})
+	if got := Name(ev); got != "space" {
+		t.Fatalf("Name(space) = %q, want space", got)
+	}
+	if ev.Char != " " {
+		t.Fatalf("space Char = %q, want %q", ev.Char, " ")
+	}
+	encoded, ok := EncodeKey(ev)
+	if !ok || string(encoded) != " " {
+		t.Fatalf("EncodeKey(space) = %q ok=%v, want a space byte", encoded, ok)
 	}
 }

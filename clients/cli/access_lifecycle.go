@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,50 @@ func accessLogPath() string {
 		return explicit
 	}
 	return accessrun.DefaultLogFile()
+}
+
+// accessStartFailureMessage 汇总 access 启动失败的可见原因（日志尾行），
+// 并对 access store 被其他实例占用的情况给出状态隔离提示。
+func accessStartFailureMessage() string {
+	message := "access did not become ready"
+	tail := tailLogLine(accessLogPath())
+	if tail == "" {
+		return message
+	}
+	message += ": " + tail
+	if strings.Contains(tail, "process file lock is already held") {
+		message += "; another anytty instance owns the access store (for example an older daemon): " +
+			"stop it, or run this instance with XDG_STATE_HOME set to a separate state directory"
+	}
+	return message
+}
+
+// tailLogLine 读取文件最后一行（最多回看 64KiB），失败时返回空串。
+func tailLogLine(path string) string {
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	const maxTailBytes = 64 << 10
+	info, err := file.Stat()
+	if err != nil {
+		return ""
+	}
+	if size := info.Size(); size > maxTailBytes {
+		if _, err := file.Seek(size-maxTailBytes, io.SeekStart); err != nil {
+			return ""
+		}
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxTailBytes))
+	if err != nil {
+		return ""
+	}
+	trimmed := strings.TrimRight(string(data), "\r\n")
+	if index := strings.LastIndexByte(trimmed, '\n'); index >= 0 {
+		trimmed = trimmed[index+1:]
+	}
+	return strings.TrimSpace(trimmed)
 }
 
 // patchPoolRecordAccess 把 access 子进程身份写入 pool runtime record，

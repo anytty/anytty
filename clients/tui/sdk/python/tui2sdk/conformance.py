@@ -12,10 +12,20 @@ internals.
 
 import sys
 
-from . import builder
+from . import builder, wire
 from .core import App, Client
 
 CLAIM = ["ctrl-p", "?"]
+
+# ProbeFeatureInvalidFirstFrame is a non-standard HELLO feature that arms the
+# reference program's test-only probe: on a restart epoch's first commit it
+# deliberately violates PROTOCOL §2.1 by writing a VIEW_DELTA with rev_base=0
+# instead of a full VIEW, so the host can reject it (reason base_mismatch) and
+# the program can prove it resyncs with a full snapshot. A compliant SDK never
+# sends this frame (it drops its baseline on HELLO), so the probe writes raw
+# bytes around the SDK; it exists only so the fixtures can exercise the
+# host-side rejection deterministically.
+PROBE_INVALID_FIRST = "conformance.invalid_first_frame_delta"
 
 
 class RefProgram(App):
@@ -24,12 +34,44 @@ class RefProgram(App):
     def __init__(self):
         self.lines = []
         self.pane = False
+        # last_root is the tree of the last commit, handed back to
+        # commit_delta as the diff baseline. It exercises the VIEW_DELTA path
+        # when the host advertised features["view_delta"].
+        self.last_root = None
+        # probe_invalid_first is armed by PROBE_INVALID_FIRST and consumed by
+        # the next commit (the test-only invalid-first-frame probe).
+        self.probe_invalid_first = False
 
     # ----------------------------------------------------------- helpers
 
     def commit(self):
-        root = builder.text("\n".join(self.lines)).build()
-        self.client.commit(root, CLAIM, False)
+        # One child box per line: the runner flattens the tree to text, so the
+        # rendered content is identical to a single text box, but an append is
+        # now a small insert patch instead of a set carrying the whole log.
+        # That lets the VIEW_DELTA path produce a delta smaller than the full
+        # VIEW deterministically (PROTOCOL §2.1).
+        root = builder.col(*[builder.text(line) for line in self.lines]).build()
+        if self.probe_invalid_first:
+            self.probe_invalid_first = False
+            if self._write_invalid_first_delta(root):
+                self.last_root = root
+                return
+        self.client.commit_delta(self.last_root, root, CLAIM, False)
+        self.last_root = root
+
+    def _write_invalid_first_delta(self, root):
+        """Test-only probe (PROBE_INVALID_FIRST): write a raw VIEW_DELTA with
+        rev=1, rev_base=0 as the first frame of a new epoch, deliberately
+        violating PROTOCOL §2.1 so the host rejects it. It bypasses the SDK,
+        which correctly refuses to send such a frame."""
+        if not self.last_root:
+            return False
+        patches = wire.diff_view(self.last_root, root)
+        if not patches:
+            return False
+        payload = wire.encode_view_delta(self.client.epoch, 1, 0, CLAIM, False, patches)
+        self.client._write(wire.VIEW_DELTA, payload)
+        return True
 
     def _emit_read(self):
         def callback(response):
@@ -50,6 +92,7 @@ class RefProgram(App):
 
     def on_hello(self, hello):
         self.pane = False
+        self.probe_invalid_first = bool((hello.get("features") or {}).get(PROBE_INVALID_FIRST))
         self.lines = [
             "hello view=%s epoch=%d cols=%d rows=%d schema=%d"
             % (hello.get("view_id", ""), hello.get("epoch", 0),
@@ -125,6 +168,15 @@ class RefProgram(App):
     def on_view_rejected(self, event):
         self.lines.append("view-rejected epoch=%d rev=%d reason=%s"
                           % (event.get("epoch", 0), event.get("rev", 0), event.get("reason", "")))
+        # PROTOCOL §2.1: after a rejection the next frame must be a full VIEW.
+        self.last_root = None
+        self.commit()
+
+    def on_stream(self, frame):
+        payload = frame.get("payload") or b""
+        self.lines.append("stream id=%d kind=%s wire_type=%d payload=%s"
+                          % (frame.get("stream_id", 0), frame.get("kind", ""),
+                             frame.get("wire_type", 0), payload.hex()))
         self.commit()
 
     def on_response(self, response):

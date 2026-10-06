@@ -125,7 +125,7 @@ panel：`Ctrl-D` split-right、`Ctrl-E` split-down、`x` close、`q` kill+close�
 | `Ctrl-D` split_right | `pane.split_h` | `%` | **可改**；见下 |
 | `Ctrl-E` split_down | `pane.split_v` | `"` | **可改**；默认 `Ctrl-E` 在 v2 是 restart |
 | `r` panel.reconnect | `terminal.restart` | `ctrl-e` | 老 panel restart 是 `t`；`r` 是 reconnect |
-| `Ctrl-R/O/G`、`Ctrl-Shift-C/H/V` | — | — | **v2 无对应能力**（resize 模式/floating/system 菜单/clipboard 历史） |
+| `Ctrl-R/O/G`、`Ctrl-Shift-C/H/V` | `menu.resize` / `menu.floating` / `menu.system` / `copy.enter` / `menu.clipboard_history` / `clipboard.paste_system` | `ctrl-r` / `ctrl-o` / `ctrl-g` / `ctrl-shift-c` / `ctrl-shift-h` / `ctrl-shift-v` | ✅ 已接入；clipboard history/paste 由 host 方法提供，插件菜单仍不属于 TUI2 host |
 | `1...9` / `tab 场景 n/p` | 数字直切 tab | `1..9` | v2 无 next/prev action |
 | pane `h/l` focus、`z` zoom | — | `Tab` 循环 | 无 zoom 概念 |
 
@@ -217,7 +217,7 @@ v2（`tui2.json` `endpoints`，两种 kind）：
       "argv": ["ssh", "dev-box", "anytty", "attach", "--socket", "/run/anytty.sock"],
       "cwd": "", "env": {} },
     { "name": "dev", "kind": "daemon", "label": "dev-daemon",
-      "socket": "/run/user/1000/anytty-v2-wire7-dev.sock" }
+      "socket": "/run/user/1000/anytty-v3-wire7-dev.sock" }
   ]
 }
 ```

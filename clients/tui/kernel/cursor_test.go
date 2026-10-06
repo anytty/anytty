@@ -34,6 +34,27 @@ func TestCursorAtRectOrigin(t *testing.T) {
 	}
 }
 
+func TestCursorClampedToRect(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		cur  *Cursor
+		want Rect
+	}{
+		{name: "bottom right", cur: &Cursor{Row: 99, Col: 99}, want: Rect{3, 2, 1, 1}},
+		{name: "top left", cur: &Cursor{Row: -4, Col: -4}, want: Rect{0, 0, 1, 1}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Layout(&Node{Cursor: tt.cur}, 4, 3)
+			if !f.HasCursor {
+				t.Fatal("HasCursor = false, want true")
+			}
+			if got := f.CursorRect; got != tt.want {
+				t.Fatalf("CursorRect = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCursorVisibility(t *testing.T) {
 	tests := []struct {
 		name   string

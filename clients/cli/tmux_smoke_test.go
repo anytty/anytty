@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -50,6 +51,11 @@ func TestV3TmuxSmokeCreatesTerminalAndExits(t *testing.T) {
 	}
 	if !strings.Contains(string(plain), "tui2-smoke-ok") {
 		t.Fatalf("plain capture lost terminal output:\n%s", plain)
+	}
+	// auto-start 拉起的栈必须被 harness.close 停干净：access 还在时会留着
+	// canonical socket，pool stop/status 也看不到它（回归护栏）。
+	if _, err := os.Stat(result.SocketPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("auto-started stack left canonical socket behind: %v", err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,7 +50,7 @@ type fakeDaemon struct {
 
 func newFakeDaemon(t *testing.T) *fakeDaemon {
 	t.Helper()
-	dir := t.TempDir()
+	dir := shortSocketTempDir(t)
 	socket := filepath.Join(dir, "fake-daemon.sock")
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
@@ -74,7 +75,7 @@ func newTCPFakeDaemon(t *testing.T) *fakeDaemon {
 // dials. It is the harness for the real shared connection stack.
 func newFramedFakeDaemon(t *testing.T) *fakeDaemon {
 	t.Helper()
-	dir := t.TempDir()
+	dir := shortSocketTempDir(t)
 	socket := filepath.Join(dir, "framed-daemon.sock")
 	listener, err := unixtransport.NewListener(socket)
 	if err != nil {
@@ -108,6 +109,23 @@ func newFramedFakeDaemon(t *testing.T) *fakeDaemon {
 		}
 	}()
 	return d
+}
+
+// shortSocketTempDir avoids macOS's small AF_UNIX pathname limit. Go's
+// t.TempDir includes the full test name, which can exceed that limit before
+// the daemon socket itself is appended.
+func shortSocketTempDir(t *testing.T) string {
+	t.Helper()
+	base := os.TempDir()
+	if info, err := os.Stat("/tmp"); err == nil && info.IsDir() {
+		base = "/tmp"
+	}
+	dir, err := os.MkdirTemp(base, "anytty-")
+	if err != nil {
+		t.Fatalf("make short temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }
 
 func newFakeDaemonListener(t *testing.T, socket, address string, framed bool, ln net.Listener) *fakeDaemon {

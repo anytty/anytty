@@ -12,7 +12,6 @@ import (
 
 func cellFrame(x, y int, text string) kernel.Frame {
 	return kernel.Frame{
-		Rects: map[string]kernel.Rect{},
 		Lines: []kernel.Line{{X: x, Y: y, Text: text}},
 	}
 }
@@ -203,6 +202,7 @@ func TestCompositorCursorPriority(t *testing.T) {
 		CursorVisible: true,
 		CursorX:       1,
 		CursorY:       0,
+		CursorShape:   "bar",
 	}
 	core := cellFrame(0, 0, "core")
 	core.HasCursor = true
@@ -222,6 +222,9 @@ func TestCompositorCursorPriority(t *testing.T) {
 	frame = comp.Compose(noCursor, []Placement{placement}, nil, nil)
 	if x, y, visible := frame.Cursor(); !visible || x != 5 || y != 1 {
 		t.Fatalf("terminal cursor = (%d,%d,%v), want (5,1,true)", x, y, visible)
+	}
+	if got := frame.CursorShape(); got != "bar" {
+		t.Fatalf("terminal cursor shape = %q, want bar", got)
 	}
 
 	coreNoCursor := cellFrame(0, 0, "core")
@@ -257,6 +260,25 @@ func TestSessionFrameBytesAreNotDuplicated(t *testing.T) {
 	}
 }
 
+func TestSessionFrameBytesReusesDoubleBuffer(t *testing.T) {
+	h := newHarness(t, Options{ViewID: "v", Cols: 24, Rows: 4})
+	h.sendView(view(1, 1, nil, false, textBox("body", "hello")))
+	h.s.FrameBytes(nil, nil)
+	first := h.s.lastFrame
+	h.s.FrameBytes(nil, nil)
+	second := h.s.lastFrame
+	if first == nil || second == nil || first == second {
+		t.Fatal("successive frames should use two buffers")
+	}
+	if h.s.frameBuffer != first {
+		t.Fatal("previous frame should become the reusable buffer")
+	}
+	h.s.FrameBytes(nil, nil)
+	if h.s.lastFrame != first {
+		t.Fatal("third frame should reuse the first buffer")
+	}
+}
+
 func TestSessionFrameBytesTrackCursorOnlyChanges(t *testing.T) {
 	h := newHarness(t, Options{ViewID: "v", Cols: 24, Rows: 4})
 	h.sendView(view(1, 1, nil, false, textBox("body", "hello")))
@@ -282,6 +304,97 @@ func TestSessionFrameBytesTrackCursorOnlyChanges(t *testing.T) {
 	}
 	if bytes := h.s.FrameBytes([]Placement{placement}, nil); bytes != nil {
 		t.Fatalf("stable hidden cursor emitted again: %q", bytes)
+	}
+}
+
+func TestSessionFrameBytesSynchronizesComponentScroll(t *testing.T) {
+	h := newHarness(t, Options{ViewID: "v", Cols: 8, Rows: 4})
+	h.sendView(view(1, 1, nil, false, textBox("body", "")))
+	placement := Placement{
+		Rect: kernel.Rect{Width: 8, Height: 4},
+		Lines: []render.Line{
+			{Y: 0, Text: "one"}, {Y: 1, Text: "two"},
+			{Y: 2, Text: "three"}, {Y: 3, Text: "four"},
+		},
+	}
+	if bytes := h.s.FrameBytes([]Placement{placement}, nil); len(bytes) == 0 {
+		t.Fatal("initial component frame must emit bytes")
+	}
+	placement.Lines = []render.Line{
+		{Y: 0, Text: "two"}, {Y: 1, Text: "three"},
+		{Y: 2, Text: "four"}, {Y: 3, Text: "five"},
+	}
+	got := string(h.s.FrameBytes([]Placement{placement}, nil))
+	begin, end := strings.Index(got, render.BeginSynchronizedOutput), strings.Index(got, render.EndSynchronizedOutput)
+	if begin < 0 || end <= begin {
+		t.Fatalf("component scroll frame = %q, want synchronized physical scroll", got)
+	}
+}
+
+func TestSessionFrameBytesDoesNotPhysicallyScrollLiveTerminal(t *testing.T) {
+	h := newHarness(t, Options{ViewID: "v", Cols: 4, Rows: 4})
+	h.sendView(view(1, 1, nil, false, textBox("body", "")))
+	placement := Placement{
+		Rect:        kernel.Rect{Width: 4, Height: 4},
+		ContentRect: kernel.Rect{Width: 4, Height: 4},
+		Lines: []render.Line{
+			{Y: 0, Text: "row0", Style: render.TokenMuted},
+			{Y: 1, Text: "row1", Style: render.TokenMuted},
+			{Y: 2, Text: "row2", Style: render.TokenMuted},
+			{Y: 3, Text: "row3", Style: render.TokenMuted},
+		},
+		DisableScrollOptimization: true,
+	}
+	if bytes := h.s.FrameBytes([]Placement{placement}, nil); len(bytes) == 0 {
+		t.Fatal("initial live terminal frame must emit bytes")
+	} else {
+		initial := string(bytes)
+		begin, end := strings.Index(initial, render.BeginSynchronizedOutput), strings.Index(initial, render.EndSynchronizedOutput)
+		if begin < 0 || end <= begin {
+			t.Fatalf("initial live terminal redraw was not emitted atomically: %q", initial)
+		}
+	}
+	placement.Lines = []render.Line{
+		{Y: 0, Text: "row1", Style: render.TokenMuted},
+		{Y: 1, Text: "row2", Style: render.TokenMuted},
+		{Y: 2, Text: "row3", Style: render.TokenMuted},
+		{Y: 3, Text: "new!", Style: render.TokenMuted},
+	}
+	got := string(h.s.FrameBytes([]Placement{placement}, nil))
+	if strings.Contains(got, render.ScrollRegion(0, 3)) || strings.Contains(got, render.ScrollUp) || strings.Contains(got, render.ScrollDown) {
+		t.Fatalf("live terminal redraw used physical scroll: %q", got)
+	}
+	begin, end := strings.Index(got, render.BeginSynchronizedOutput), strings.Index(got, render.EndSynchronizedOutput)
+	if begin < 0 || end <= begin {
+		t.Fatalf("live terminal redraw was not emitted atomically: %q", got)
+	}
+	if !strings.Contains(got, "new!") {
+		t.Fatalf("live terminal redraw omitted changed row: %q", got)
+	}
+}
+
+func TestSessionFrameBytesKeepsPanelScrollLocal(t *testing.T) {
+	h := newHarness(t, Options{ViewID: "v", Cols: 12, Rows: 5})
+	h.sendView(view(1, 1, nil, false, textBox("body", "")))
+	placement := Placement{
+		Rect:        kernel.Rect{X: 1, Y: 1, Width: 8, Height: 3},
+		ContentRect: kernel.Rect{X: 2, Y: 1, Width: 4, Height: 3},
+		Lines: []render.Line{
+			{X: 1, Y: 0, Text: "abcd"}, {X: 1, Y: 1, Text: "efgh"}, {X: 1, Y: 2, Text: "ijkl"},
+		},
+	}
+	if bytes := h.s.FrameBytes([]Placement{placement}, nil); len(bytes) == 0 {
+		t.Fatal("initial component frame must emit bytes")
+	}
+	placement.Lines = []render.Line{
+		{X: 1, Y: 0, Text: "efgh"}, {X: 1, Y: 1, Text: "ijkl"}, {X: 1, Y: 2, Text: "mnop"},
+	}
+	got := string(h.s.FrameBytes([]Placement{placement}, nil))
+	if strings.Contains(got, render.ScrollRegion(1, 3)) {
+		t.Fatalf("partial panel unexpectedly used full-width scroll region: %q", got)
+	}
+	if !strings.Contains(got, "mnop") {
+		t.Fatalf("partial panel update omitted exposed row: %q", got)
 	}
 }
 

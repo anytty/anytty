@@ -30,6 +30,70 @@ func EncodeMouse(ev Event) ([]byte, bool) {
 	return sgrSequence(button, ev.X, ev.Y, final), true
 }
 
+// EncodeTerminalMouse encodes a terminal pointer event using the protocol the
+// child requested: SGR 1006 when sgr is true, legacy X10 otherwise. The host
+// itself always parses outer input as SGR, but a PTY may deliberately disable
+// 1006 while keeping cell/drag tracking enabled.
+func EncodeTerminalMouse(ev Event, sgr bool) ([]byte, bool) {
+	if sgr {
+		return Encode(ev)
+	}
+	if ev.Kind == KindMouse {
+		return encodeLegacyMouse(ev)
+	}
+	if ev.Kind == KindWheel {
+		return encodeLegacyWheel(ev)
+	}
+	return nil, false
+}
+
+func encodeLegacyMouse(ev Event) ([]byte, bool) {
+	base, ok := sgrBaseButton(ev.Button)
+	if !ok {
+		return nil, false
+	}
+	code := base
+	switch ev.Action {
+	case ActionPress:
+	case ActionDrag:
+		code += sgrDragOffset
+	case ActionRelease:
+		code = sgrReleaseBase
+	default:
+		return nil, false
+	}
+	code += mouseModifier(ev.Mods)
+	return x10Sequence(code, ev.X, ev.Y), true
+}
+
+func encodeLegacyWheel(ev Event) ([]byte, bool) {
+	if ev.Delta == 0 {
+		return nil, false
+	}
+	code := sgrWheelUp
+	if ev.Delta < 0 {
+		code = sgrWheelDown
+	}
+	code += mouseModifier(ev.Mods)
+	return x10Sequence(code, ev.X, ev.Y), true
+}
+
+func x10Sequence(code, x, y int) []byte {
+	if x < 1 {
+		x = 1
+	}
+	if y < 1 {
+		y = 1
+	}
+	if x > 223 {
+		x = 223
+	}
+	if y > 223 {
+		y = 223
+	}
+	return []byte{'\x1b', '[', 'M', byte(code + 32), byte(x + 32), byte(y + 32)}
+}
+
 // EncodeWheel encodes one wheel notch as an SGR 1006 sequence: positive
 // Delta is wheel-up (64), negative is wheel-down (65).
 func EncodeWheel(ev Event) ([]byte, bool) {

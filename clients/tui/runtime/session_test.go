@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	gproto "google.golang.org/protobuf/proto"
 
@@ -14,6 +15,7 @@ import (
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 
 	"github.com/anytty/anytty/clients/tui/kernel"
+	"github.com/anytty/anytty/clients/tui/runtime/keys"
 )
 
 type harness struct {
@@ -238,6 +240,52 @@ type pendingHandler struct {
 	calls int
 }
 
+type earlyCompletionHandler struct {
+	session *Session
+	err     error
+}
+
+func (h *earlyCompletionHandler) Handle(req Request) (Outcome, bool) {
+	h.err = h.session.CompleteForEpoch(req.Epoch, req.RequestID, &pb.MethodData{Text: "early"}, "")
+	return Outcome{}, true
+}
+
+func TestCompletionBeforePendingReturn(t *testing.T) {
+	handler := &earlyCompletionHandler{}
+	h := newHarness(t, Options{Handler: handler})
+	handler.session = h.s
+	h.sendResult(&pb.Result{Epoch: 1, RequestId: 1, Method: "history.window", Params: &pb.MethodParams{Endpoint: "local", Id: "t"}})
+	if handler.err != nil {
+		t.Fatal(handler.err)
+	}
+	messages := h.drain()
+	if len(messages) != 1 || !messages[0].(*pb.Response).GetOk() || h.s.Pending() != 0 {
+		t.Fatalf("early completion = %v pending=%d", messages, h.s.Pending())
+	}
+}
+
+func TestCompletionCannotAnswerReusedRequestInNewEpoch(t *testing.T) {
+	h := newHarness(t, Options{Handler: &pendingHandler{}})
+	h.sendResult(&pb.Result{Epoch: 1, RequestId: 7, Method: "history.window", Params: &pb.MethodParams{Endpoint: "local", Id: "t"}})
+	if err := h.s.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	h.drain()
+	h.sendResult(&pb.Result{Epoch: 2, RequestId: 7, Method: "history.window", Params: &pb.MethodParams{Endpoint: "local", Id: "t"}})
+	if err := h.s.CompleteForEpoch(1, 7, nil, ""); err == nil {
+		t.Fatal("old worker answered reused request")
+	}
+	if h.s.Pending() != 1 || len(h.drain()) != 0 {
+		t.Fatal("old completion changed new epoch")
+	}
+	if err := h.s.CompleteForEpoch(2, 7, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if messages := h.drain(); len(messages) != 1 || messages[0].(*pb.Response).GetEpoch() != 2 {
+		t.Fatalf("new epoch completion = %v", messages)
+	}
+}
+
 func (p *pendingHandler) Handle(Request) (Outcome, bool) {
 	p.calls++
 	return Outcome{}, true
@@ -393,6 +441,10 @@ func TestResetClearsSessionState(t *testing.T) {
 func TestSetSourcesFullSnapshot(t *testing.T) {
 	h := newHarness(t, Options{ViewID: "v", Cols: 80, Rows: 24})
 	want := termSource("terminal:local:main")
+	want.Cols, want.Rows = 211, 58
+	want.Tags = map[string]string{"tag1": "backend"}
+	want.EndpointLabel = "RedmiBook.local"
+	want.LastOutputMs = 123456789
 	ownerless := &pb.Source{Id: "terminal:local:two", Kind: "terminal", Endpoint: "local", TerminalId: "two"}
 	if err := h.s.SetSources([]*pb.Source{want, ownerless}); err != nil {
 		t.Fatalf("SetSources: %v", err)
@@ -642,9 +694,10 @@ func TestHelloRegistry(t *testing.T) {
 		t.Fatalf("hello viewport = %dx%d", hello.GetCols(), hello.GetRows())
 	}
 	wantMethods := []string{
-		"terminal.attach", "terminal.create", "terminal.restart", "terminal.kill", "terminal.remove",
+		"terminal.attach", "terminal.create", "terminal.restart", "terminal.rename", "terminal.detach", "terminal.reconnect", "terminal.kill", "terminal.remove",
 		"terminal.scroll", "terminal.scrollEnd", "terminal.copy", "history.window",
-		"clipboard.read", "input.forward", "system.quit", "endpoint.sync",
+		"clipboard.read", "clipboard.history.list", "clipboard.history.delete", "clipboard.paste", "input.forward", "system.quit", "endpoint.sync", "endpoint.list", "endpoint.test", "endpoint.reconnect", "access.call", "access.stream.open", "access.stream.subscribe",
+		"terminal.history.window", "terminal.search",
 	}
 	if strings.Join(hello.Methods, ",") != strings.Join(wantMethods, ",") {
 		t.Fatalf("hello.methods = %v", hello.Methods)
@@ -660,7 +713,8 @@ func TestHelloRegistry(t *testing.T) {
 			t.Fatalf("hello.events missing %q: %v", name, hello.Events)
 		}
 	}
-	if !hello.GetFeatures()["component"] || hello.GetFeatures()["state.save"] || hello.GetFeatures()["state.load"] {
+	if !hello.GetFeatures()["component"] || !hello.GetFeatures()["view_delta"] ||
+		hello.GetFeatures()["state.save"] || hello.GetFeatures()["state.load"] {
 		t.Fatalf("hello.features = %v", hello.GetFeatures())
 	}
 	if hello.GetLimits().GetMaxInflightRequests() != 64 || hello.GetLimits().GetMaxMessageBytes() != 1<<20 {
@@ -688,6 +742,9 @@ func TestMethodRegistry(t *testing.T) {
 		{"terminal.attach", false, DataNone},
 		{"terminal.create", false, DataCreate},
 		{"terminal.restart", false, DataNone},
+		{"terminal.rename", false, DataNone},
+		{"terminal.detach", false, DataNone},
+		{"terminal.reconnect", false, DataNone},
 		{"terminal.kill", true, DataNone},
 		{"terminal.remove", true, DataNone},
 		{"terminal.scroll", false, DataRows},
@@ -695,9 +752,20 @@ func TestMethodRegistry(t *testing.T) {
 		{"terminal.copy", false, DataNone},
 		{"history.window", false, DataRows},
 		{"clipboard.read", true, DataText},
+		{"clipboard.history.list", false, DataRows},
+		{"clipboard.history.delete", true, DataNone},
+		{"clipboard.paste", false, DataNone},
 		{"input.forward", false, DataNone},
 		{"system.quit", true, DataNone},
 		{"endpoint.sync", false, DataNone},
+		{"endpoint.list", false, DataRows},
+		{"endpoint.test", false, DataNone},
+		{"endpoint.reconnect", false, DataNone},
+		{"access.call", false, DataBytes},
+		{"access.stream.open", false, DataNone},
+		{"access.stream.subscribe", false, DataNone},
+		{"terminal.history.window", false, DataRows},
+		{"terminal.search", false, DataRows},
 	}
 	got := Methods()
 	if len(got) != len(want) {
@@ -741,5 +809,67 @@ func TestViewContentPropsPassThrough(t *testing.T) {
 	}
 	if h.s.BoxProps("") != nil {
 		t.Fatal("BoxProps with an empty id must be nil")
+	}
+}
+
+// blockingHandler is a handler whose execution blocks until released; it
+// models a slow endpoint dial / daemon restart.
+type blockingHandler struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (h *blockingHandler) Handle(req Request) (Outcome, bool) {
+	h.entered <- struct{}{}
+	<-h.release
+	return Outcome{OK: true}, false
+}
+
+// TestSlowHandlerDoesNotFreezeSession pins the isolation contract: while a
+// handler (terminal.create/restart on a slow endpoint) is running, input
+// routing and other session work must keep going. Before the fix the handler
+// ran under the session lock and a single slow call froze every pane.
+func TestSlowHandlerDoesNotFreezeSession(t *testing.T) {
+	handler := &blockingHandler{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	h := newHarness(t, Options{ViewID: "v", Cols: 80, Rows: 24, Handler: handler})
+
+	resultDone := make(chan error, 1)
+	go func() {
+		resultDone <- h.s.HandleResult(&pb.Result{
+			RequestId: 1,
+			Epoch:     1,
+			Method:    "terminal.restart",
+			Params:    &pb.MethodParams{Endpoint: "local", Id: "main"},
+		})
+	}()
+	select {
+	case <-handler.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler never entered")
+	}
+
+	inputDone := make(chan struct{})
+	go func() {
+		_, _ = h.s.Input(keys.Event{Kind: keys.KindKey, Key: "ctrl-p"})
+		close(inputDone)
+	}()
+	select {
+	case <-inputDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Input blocked behind a slow handler")
+	}
+
+	close(handler.release)
+	if err := <-resultDone; err != nil {
+		t.Fatalf("HandleResult: %v", err)
+	}
+	var resp *pb.Response
+	for _, msg := range h.drain() {
+		if response, ok := msg.(*pb.Response); ok {
+			resp = response
+		}
+	}
+	if resp == nil || !resp.GetOk() || resp.GetRequestId() != 1 {
+		t.Fatalf("response = %#v", resp)
 	}
 }

@@ -131,6 +131,7 @@ func newPoolCommandGroup(use string, socket *string, logFile *string, configPath
 			MaxSamples: runtimeConfig.ResourceSampling.MaxSamples,
 		}
 		historyDir := resolveV3HistoryStorageDir()
+		historyMaintenance := corev2.NewHistoryMaintenance(historyDir)
 		releaseRecord, err := acquirePoolRuntimeRecord(socketPath, logPath, *configPath)
 		if err != nil {
 			return err
@@ -138,14 +139,14 @@ func newPoolCommandGroup(use string, socket *string, logFile *string, configPath
 		defer releaseRecord()
 		historyEnabled := !envBool("ANYTTY_HISTORY_DISABLE")
 		if historyEnabled {
-			removed, err := corev2.DeleteObsoleteCompactHistory(resolveV3ObsoleteCompactHistoryDir())
+			removed, err := historyMaintenance.DeleteObsolete(resolveV3ObsoleteCompactHistoryDir())
 			if err != nil {
 				return fmt.Errorf("discard obsolete compact history: %w", err)
 			}
 			if removed > 0 {
 				logger.Info("discarded obsolete compact history", "files", removed)
 			}
-			if err := corev2.PrepareHistoryStorage(historyDir, historyStorage); err != nil {
+			if err := historyMaintenance.Prepare(historyStorage); err != nil {
 				return fmt.Errorf("prepare history storage: %w", err)
 			}
 		}

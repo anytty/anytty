@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	clientendpoint "github.com/anytty/anytty/access/engine/endpoint"
@@ -26,13 +29,43 @@ import (
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
 
-// viewID is the connection identifier of the single local view
-// (PROTOCOL §0.5: one client connection = one view).
+// viewID is the deterministic fallback used by embedded/test hosts. The
+// command entry point supplies a process-unique ViewID so separate clients
+// cannot be mistaken for the same resize owner.
 const viewID = "view:local:1"
+
+// wheelDebugEnabled is the TUI2_DEBUG_WHEEL escape hatch: when set, the host
+// logs one line per routed wheel (destination, focus capabilities), per raw
+// input chunk that carries an escape sequence, and per terminal history
+// operation. It is off in production and costs a single env lookup per wheel.
+var wheelDebugEnabled = sync.OnceValue(func() bool {
+	value := strings.TrimSpace(os.Getenv("TUI2_DEBUG_WHEEL"))
+	return value == "1" || strings.EqualFold(value, "true")
+})
+
+// chunkHasEsc reports whether a raw input chunk carries an ESC byte, i.e. it
+// may hold a mouse report or another control sequence worth logging.
+func chunkHasEsc(chunk []byte) bool {
+	for _, b := range chunk {
+		if b == 0x1b {
+			return true
+		}
+	}
+	return false
+}
 
 // escTimeout is how long a lone Esc waits for the rest of a sequence before
 // being delivered as the Esc key.
 const escTimeout = 50 * time.Millisecond
+
+// frameCoalesceWindow bounds the time spent merging a burst of wakeups into
+// one render. The first frame after an idle period is still immediate; only
+// events that arrive during the previous frame's short budget are merged.
+const frameCoalesceWindow = 8 * time.Millisecond
+
+// interactionUrgencyWindow keeps PTY output caused by a recent user event on
+// the immediate path. Background output still uses frame coalescing.
+const interactionUrgencyWindow = 150 * time.Millisecond
 
 // restartDelay is the backoff before the layout program is started again
 // after a crash or a clean exit (SCENARIOS §3).
@@ -46,17 +79,27 @@ const immediateExitWindow = time.Second
 // Options configures a Host. In/Out and the process/PTY factories are
 // injectable so tests can run without a real TTY or a real child process.
 type Options struct {
-	Shell       []string
-	In          io.Reader
-	Out         io.Writer
-	NewProcess  func(argv []string) (process, error)
-	NewPTY      func(pty.Config) pty.PTY
-	Cols, Rows  int
+	Shell []string
+	// ViewID identifies this layout connection for resize-owner leases. The
+	// default keeps the historic single local view; callers embedding Host can
+	// supply distinct ids and share a TerminalHandler for multiple views.
+	ViewID     string
+	In         io.Reader
+	Out        io.Writer
+	NewProcess func(argv []string) (process, error)
+	NewPTY     func(pty.Config) pty.PTY
+	Cols, Rows int
+	// Tick is accepted for compatibility but unused: the frame loop is
+	// event-driven, with a short bounded window for merging burst wakeups.
 	Tick        time.Duration
 	RestartWait time.Duration
 	// Endpoints is the daemon endpoint manager (ENDPOINTS.zh-CN.md §2). Nil
 	// creates a private manager owned and closed by this host.
 	Endpoints *endpoint.Manager
+	// Handler optionally supplies a shared terminal handler. This is useful for
+	// multiple Host views over one terminal inventory; ownership is taken from
+	// the Request.OwnerID metadata rather than a process-global owner string.
+	Handler *runtime.TerminalHandler
 	// LoadSharedRegistry loads every CLI-paired endpoint from the shared
 	// endpoints.yaml registries at startup (M2). main.go enables it; tests
 	// keep it off so they stay deterministic.
@@ -70,6 +113,13 @@ type Options struct {
 	// default: local-unix plus credential-gated ssh). main.go resolves the
 	// -routes flag / TUI2_ROUTES; tests keep it off so they stay hermetic.
 	Routes []clientendpoint.RouteKind
+	// Limits overrides the HELLO limits (message size, paste size, in-flight
+	// requests). Zero keeps runtime.DefaultLimits.
+	Limits runtime.Limits
+	// DialTimeout/CallTimeout override the endpoint manager timeouts. Zero
+	// keeps the endpoint package defaults.
+	DialTimeout time.Duration
+	CallTimeout time.Duration
 	// Logf receives host diagnostics (layout program crashes, input errors
 	// and endpoint notices). Defaults to the standard logger, which main.go
 	// has already redirected to the TUI log file, so these lines can never
@@ -78,12 +128,21 @@ type Options struct {
 	// Dev is the -dev instrumentation (frame log, stderr capture, hot
 	// reload). Nil keeps the production behavior; non-nil is additive.
 	Dev *devMode
+	// ClipboardHistoryPath and ClipboardHistoryMaxItems configure the host
+	// owned persistent clipboard store. Empty path selects the XDG state path.
+	ClipboardHistoryPath     string
+	ClipboardHistoryMaxItems int
+	// ClipboardRead supplies the system clipboard for clipboard.read/paste.
+	// Nil uses the platform clipboard command (pbpaste/wl-paste/xclip).
+	ClipboardRead func() (string, error)
 }
 
 // trackedTerminal is one locally known terminal the host publishes as a
 // content source.
 type trackedTerminal struct {
-	term *runtime.Terminal
+	term      *runtime.Terminal
+	ephemeral bool
+	title     string
 }
 
 // pendingConfirm is a destructive action waiting for the user: either a
@@ -101,27 +160,57 @@ type Host struct {
 	opts    Options
 	handler *runtime.TerminalHandler
 	gate    *gateHandler
-	tick    time.Duration
+	// outputUnsub scopes PTY repaint notifications to this view when several
+	// hosts share one TerminalHandler.
+	outputUnsub func()
 
-	mu          sync.Mutex
-	session     *runtime.Session
-	proc        process
-	started     time.Time
-	cols, rows  int
-	epoch       uint64
-	outMu       sync.Mutex
-	tracked     map[string]*trackedTerminal
-	sources     []*pb.Source
-	sizes       map[string][2]int
+	mu         sync.Mutex
+	session    *runtime.Session
+	proc       process
+	started    time.Time
+	cols, rows int
+	epoch      uint64
+	outMu      sync.Mutex
+	tracked    map[string]*trackedTerminal
+	sources    []*pb.Source
+	sizes      map[string][2]int
+	// pendingSize coalesces per-terminal resize requests: while a resize is in
+	// flight the newest requested size is kept and applied when it returns, so
+	// a drag burst never queues one blocking round-trip per frame.
+	pendingSize map[string][2]int
+	resizing    map[string]bool
 	confirm     *pendingConfirm
 	quitting    bool
 	sourcesSent bool
+	ownerMu     sync.Mutex
+	ownerBusy   bool
+	// terminalMouseDown keeps PTY drag/release events routed to the focused
+	// terminal after the pointer leaves its panel.
+	terminalMouseDown bool
 
 	confirmCh chan struct{}
+	// wake is the background repaint signal: PTY output, endpoint changes and
+	// notices wake the frame loop without polling. Buffered(1) so a burst
+	// coalesces into one wake; urgentWake is reserved for interactive commits.
+	wake       chan struct{}
+	urgentWake chan struct{}
+	wakeOnce   sync.Once
+	// lastInteraction is read by PTY output callbacks, which run outside the
+	// frame loop. UnixNano keeps the callback lock-free and bounded.
+	lastInteraction atomic.Int64
 
-	components map[string]*terminal.Component
+	components    map[string]*terminal.Component
+	accessStreams map[uint64]*accessStreamBridge
+	accessEvents  map[uint64]*accessEventBridge
+	// accessPending reserves stream ids whose open/subscribe is in flight on
+	// a background goroutine, so the session loop never blocks on endpoint I/O
+	// and a second open cannot race the same id.
+	accessPending map[uint64]bool
+	clipboard     *clipboardHistory
+	clipboardRead func() (string, error)
 
 	endpoints     *endpoint.Manager
+	endpointUnsub func()
 	registryPaths []string
 	ownsEndpoints bool
 	logf          func(format string, args ...any)
@@ -131,14 +220,14 @@ type Host struct {
 
 // NewHost wires the session, the PTY handler and the confirmation gate.
 func NewHost(opts Options) *Host {
+	if strings.TrimSpace(opts.ViewID) == "" {
+		opts.ViewID = viewID
+	}
 	if opts.Cols <= 0 {
 		opts.Cols = 80
 	}
 	if opts.Rows <= 0 {
 		opts.Rows = 24
-	}
-	if opts.Tick <= 0 {
-		opts.Tick = 16 * time.Millisecond
 	}
 	if opts.RestartWait <= 0 {
 		opts.RestartWait = restartDelay
@@ -158,35 +247,56 @@ func NewHost(opts Options) *Host {
 	if opts.Logf == nil {
 		opts.Logf = log.Printf
 	}
+	clipboardPath := opts.ClipboardHistoryPath
+	if strings.TrimSpace(clipboardPath) == "" {
+		clipboardPath = defaultClipboardHistoryPath()
+	}
+	clipboardRead := opts.ClipboardRead
+	if clipboardRead == nil {
+		clipboardRead = readSystemClipboard
+	}
 	ownsEndpoints := false
 	registryPaths := append([]string(nil), opts.RegistryPaths...)
 	if len(registryPaths) == 0 {
 		registryPaths = endpoint.RegistryPathsFromEnv()
 	}
 	if opts.Endpoints == nil {
-		opts.Endpoints = endpoint.NewManager(endpoint.Options{RegistryPaths: registryPaths, Routes: opts.Routes})
+		opts.Endpoints = endpoint.NewManager(endpoint.Options{
+			RegistryPaths: registryPaths, Routes: opts.Routes,
+			DialTimeout: opts.DialTimeout, CallTimeout: opts.CallTimeout,
+		})
 		ownsEndpoints = true
 	}
 	h := &Host{
 		opts:          opts,
 		cols:          opts.Cols,
 		rows:          opts.Rows,
-		tick:          opts.Tick,
 		tracked:       map[string]*trackedTerminal{},
 		sizes:         map[string][2]int{},
+		pendingSize:   map[string][2]int{},
+		resizing:      map[string]bool{},
 		components:    map[string]*terminal.Component{},
+		accessStreams: map[uint64]*accessStreamBridge{},
+		accessEvents:  map[uint64]*accessEventBridge{},
 		confirmCh:     make(chan struct{}, 1),
+		wake:          make(chan struct{}, 1),
+		urgentWake:    make(chan struct{}, 1),
 		endpoints:     opts.Endpoints,
 		registryPaths: registryPaths,
 		ownsEndpoints: ownsEndpoints,
 		logf:          opts.Logf,
+		clipboard:     newClipboardHistory(clipboardPath, opts.ClipboardHistoryMaxItems),
+		clipboardRead: clipboardRead,
 	}
 	if h.opts.Dev != nil {
 		h.opts.Dev.onNotice = h.queueNotice
 	}
-	opts.Endpoints.SetOnNotice(h.queueNotice)
+	// Endpoint health/inventory changes must repaint immediately (the picker
+	// lists them), so drive the frame loop from the change event.
+	h.endpointUnsub = opts.Endpoints.Subscribe(func() { h.signalWake() }, h.queueNotice)
 	if ownsEndpoints && opts.LoadSharedRegistry {
 		h.registerSharedEndpoints()
+		h.registerLocalAccessEndpoint()
 	}
 	opts.NewPTY = func(cfg pty.Config) pty.PTY {
 		if cfg.Endpoint != "" {
@@ -196,15 +306,26 @@ func NewHost(opts Options) *Host {
 		}
 		return localPTY(cfg)
 	}
-	h.handler = runtime.NewTerminalHandler(runtime.TerminalOptions{
-		Cols:      opts.Cols,
-		Rows:      opts.Rows,
-		OwnerID:   viewID,
-		NewPTY:    opts.NewPTY,
-		Clipboard: h.writeClipboard,
-		OnOutput: func(string) {
-			h.withSession(func(s *runtime.Session) { s.MarkOutput() })
-		},
+	h.handler = opts.Handler
+	if h.handler == nil {
+		h.handler = runtime.NewTerminalHandler(runtime.TerminalOptions{
+			Cols:          opts.Cols,
+			Rows:          opts.Rows,
+			OwnerID:       opts.ViewID,
+			OwnerLeaseTTL: 15 * time.Second,
+			NewPTY:        opts.NewPTY,
+			Clipboard:     h.writeClipboardAndRemember,
+		})
+	}
+	// Subscribe even for a private handler. This makes the callback correct
+	// when a caller supplies the same handler to multiple Host views.
+	h.outputUnsub = h.handler.SubscribeOutput(func(string) {
+		h.withSession(func(s *runtime.Session) { s.MarkOutput() })
+		if h.interactionRecent(time.Now()) {
+			h.signalWakeImmediate()
+		} else {
+			h.signalWake()
+		}
 	})
 	h.gate = &gateHandler{host: h, inner: h.handler}
 	return h
@@ -227,9 +348,42 @@ func (h *Host) size() (int, int) {
 	return h.cols, h.rows
 }
 
+// signalWake asks the frame loop to repaint now. It never blocks: a burst
+// coalesces into one pending wake, so a program commit or PTY output burst
+// costs at most one extra frame.
+func (h *Host) signalWake() {
+	select {
+	case h.wake <- struct{}{}:
+	default:
+	}
+}
+
+// signalWakeImmediate bypasses the background frame budget for a committed
+// interactive view or PTY output caused by a recent user event.
+func (h *Host) signalWakeImmediate() {
+	select {
+	case h.urgentWake <- struct{}{}:
+	default:
+	}
+}
+
+func (h *Host) interactionRecent(now time.Time) bool {
+	stamp := h.lastInteraction.Load()
+	if stamp == 0 {
+		return false
+	}
+	return now.Sub(time.Unix(0, stamp)) <= interactionUrgencyWindow
+}
+
 // Run owns the terminal until quit or a fatal error: alt screen, raw frame
 // loop, program supervision and confirmation overlay.
 func (h *Host) Run() error {
+	if h.outputUnsub != nil {
+		defer h.outputUnsub()
+	}
+	if h.endpointUnsub != nil {
+		defer h.endpointUnsub()
+	}
 	if err := h.writeOut(render.EnterScreen()); err != nil {
 		return err
 	}
@@ -252,18 +406,113 @@ func (h *Host) Run() error {
 	sessionDone := make(chan sessionEnd, 4)
 	h.serve(sessionDone)
 
-	ticker := time.NewTicker(h.tick)
-	defer ticker.Stop()
+	// A buffered incomplete Esc/Alt sequence needs a one-shot deadline; arm a
+	// timer only while bytes are pending and stop it otherwise, so the loop
+	// stays event-driven (no polling ticker).
+	escTimer := time.NewTimer(escTimeout)
+	if !escTimer.Stop() {
+		<-escTimer.C
+	}
+	armEsc := func() {
+		if !escTimer.Stop() {
+			select {
+			case <-escTimer.C:
+			default:
+			}
+		}
+		if parser.Pending() > 0 {
+			// A 1-2 byte lone Esc/Alt is resolved by the timeout; longer
+			// incomplete CSI/OSC sequences wait for more input, so do not
+			// re-arm and risk a poll loop.
+			if parser.Pending() <= 2 {
+				escTimer.Reset(escTimeout)
+			}
+		}
+	}
+	ownerTicker := time.NewTicker(5 * time.Second)
+	defer ownerTicker.Stop()
+
+	// Keep the newest session state and spend at most one short budget per
+	// burst. This gives PTY output and VIEW commits a bounded cadence without
+	// waiting for terminal synchronization packets or replaying every
+	// intermediate scroll position.
+	var frameTimer *time.Timer
+	var frameC <-chan time.Time
+	pendingFrame := false
+	lastFlush := time.Time{}
+	stopFrameTimer := func() {
+		if frameTimer == nil {
+			frameC = nil
+			return
+		}
+		if !frameTimer.Stop() {
+			select {
+			case <-frameTimer.C:
+			default:
+			}
+		}
+		frameTimer = nil
+		frameC = nil
+	}
+	defer stopFrameTimer()
+	armFrameTimer := func(now time.Time) {
+		if !pendingFrame || frameC != nil {
+			return
+		}
+		delay := frameFlushDelay(lastFlush, now)
+		if delay <= 0 {
+			return
+		}
+		frameTimer = time.NewTimer(delay)
+		frameC = frameTimer.C
+	}
+	flushPending := func(now time.Time) {
+		if !pendingFrame {
+			return
+		}
+		if h.anyTerminalSynchronizedOutput() {
+			// Keep pendingFrame and the timer state intact. The terminal pump
+			// emits a wake after ?2026l, which is the only safe commit point for
+			// a full-screen child's redraw.
+			return
+		}
+		stopFrameTimer()
+		h.publishSources()
+		h.flushNotices()
+		if !h.flush() {
+			return
+		}
+		pendingFrame = false
+		lastFlush = now
+	}
 
 	for {
+		flushNow := false
+		renderEvent := true
 		select {
 		case chunk, ok := <-inputCh:
 			if !ok {
+				flushPending(time.Now())
 				return nil
 			}
-			for _, ev := range parser.Feed(chunk) {
-				h.handleInput(ev)
+			if wheelDebugEnabled() && chunkHasEsc(chunk) {
+				h.logf("tui2 input raw=%q", chunk)
 			}
+			renderEvent = false
+			for _, ev := range parser.Feed(chunk) {
+				renderEvent = h.handleInput(ev) || renderEvent
+			}
+			armEsc()
+		case <-escTimer.C:
+			renderEvent = false
+			for _, ev := range parser.Flush(escTimeout) {
+				renderEvent = h.handleInput(ev) || renderEvent
+			}
+			// A longer incomplete sequence may still be buffered; keep the
+			// deadline armed instead of stalling until the next input.
+			armEsc()
+		case <-ownerTicker.C:
+			go h.renewOwners()
 		case end := <-sessionDone:
 			if end.session != h.currentSession() {
 				// A deliberate restart (hot reload) closes the old pipes;
@@ -280,18 +529,78 @@ func (h *Host) Run() error {
 		case path := <-h.reloadChannel():
 			h.reloadProgram(path)
 			h.serve(sessionDone)
-		case <-ticker.C:
-			for _, ev := range parser.Flush(escTimeout) {
-				h.handleInput(ev)
-			}
+		case <-h.urgentWake:
+			flushNow = true
+		case <-h.wake:
+		case <-frameC:
+			// The timer is a fixed deadline from the previous flush, so a
+			// continuous burst cannot keep extending it indefinitely.
+			frameTimer = nil
+			frameC = nil
 		}
-		h.publishSources()
-		h.flushNotices()
-		h.flush()
+		if !renderEvent {
+			// A PTY passthrough event does not change the host layout. The child
+			// will wake the frame loop after its output is parsed; rendering here
+			// would sample a possible DEC 2026 clear/partial redraw.
+			continue
+		}
+		pendingFrame = true
+		now := time.Now()
+		if flushNow || frameFlushDelay(lastFlush, now) == 0 {
+			flushPending(now)
+		} else {
+			armFrameTimer(now)
+		}
 		if h.isQuitting() {
 			return nil
 		}
 	}
+}
+
+// frameFlushDelay returns how long a pending frame should wait before it can
+// be rendered. A zero lastFlush means the host was idle and should paint
+// immediately; otherwise a burst shares the fixed frame budget.
+func frameFlushDelay(lastFlush, now time.Time) time.Duration {
+	if lastFlush.IsZero() {
+		return 0
+	}
+	if elapsed := now.Sub(lastFlush); elapsed < frameCoalesceWindow {
+		return frameCoalesceWindow - elapsed
+	}
+	return 0
+}
+
+// renewOwners is the protocol's owner heartbeat. It is deliberately a
+// low-frequency timer rather than part of the render loop: a quiet terminal
+// still keeps its lease, while a dead host stops renewing and another view can
+// take over after the TTL.
+func (h *Host) renewOwners() {
+	h.ownerMu.Lock()
+	if h.ownerBusy {
+		h.ownerMu.Unlock()
+		return
+	}
+	h.ownerBusy = true
+	h.ownerMu.Unlock()
+	defer func() {
+		h.ownerMu.Lock()
+		h.ownerBusy = false
+		h.ownerMu.Unlock()
+	}()
+	h.mu.Lock()
+	terms := make([]*runtime.Terminal, 0, len(h.tracked))
+	for _, tracked := range h.tracked {
+		if tracked != nil && tracked.term != nil {
+			terms = append(terms, tracked.term)
+		}
+	}
+	h.mu.Unlock()
+	for _, term := range terms {
+		if !term.RefreshResizeOwner() {
+			term.RenewOwner(h.opts.ViewID)
+		}
+	}
+	h.signalWake()
 }
 
 // sessionEnd pairs a finished Serve with the exact session that produced it,
@@ -350,16 +659,24 @@ func (h *Host) startProgram() error {
 		programIn = h.opts.Dev.tapWrite(programIn)
 	}
 	session := runtime.NewSession(runtime.Options{
-		ViewID:     viewID,
-		Epoch:      epoch,
-		Cols:       cols,
-		Rows:       rows,
-		Components: []string{"terminal"},
-		Handler:    h.gate,
-		InputSink:  h.handler,
+		ViewID:      h.opts.ViewID,
+		Epoch:       epoch,
+		Cols:        cols,
+		Rows:        rows,
+		Components:  []string{"terminal"},
+		Limits:      h.opts.Limits,
+		Handler:     h.gate,
+		OnStream:    h.handleAccessStreamFrame,
+		OnView:      h.signalWakeImmediate,
+		OutputQueue: 256,
+		InputSink:   h.handler,
 		MouseTracking: func(id string) bool {
 			term, ok := h.handler.TerminalBySource(id)
 			return ok && term.Modes().MouseTracking()
+		},
+		HistoryActive: func(id string) bool {
+			term, ok := h.handler.TerminalBySource(id)
+			return ok && term.HistoryRoutingActive()
 		},
 	}, programOut, programIn)
 
@@ -392,10 +709,17 @@ func (h *Host) uptime() time.Duration {
 func (h *Host) stopProgram() {
 	h.mu.Lock()
 	proc := h.proc
+	session := h.session
 	h.proc = nil
 	h.mu.Unlock()
 	if proc != nil {
+		// Close the child pipes first. The bounded session writer may be blocked
+		// in a kernel pipe write when a layout program stops reading; stopping
+		// the process releases that write so Session.Close can join the worker.
 		proc.Stop()
+	}
+	if session != nil {
+		session.Close()
 	}
 }
 
@@ -421,6 +745,7 @@ func (h *Host) restartProgram(cause error) { h.restartProgramMode(cause, false) 
 
 func (h *Host) restartProgramMode(cause error, reload bool) {
 	uptime := h.uptime()
+	h.closeAllAccessStreams()
 	h.stopProgram()
 	var stderrTail []string
 	if h.opts.Dev != nil {
@@ -481,12 +806,14 @@ func (h *Host) pumpInput(ch chan<- []byte) {
 
 // handleInput routes one normalized event: core overlay first, then the
 // §6.5 table through the session, with implicit drag capture for non-terminal
-// boxes (PROTOCOL §6.7).
-func (h *Host) handleInput(ev keys.Event) {
+// boxes (PROTOCOL §6.7). It returns whether the host layout may need a frame;
+// pure PTY passthrough is deliberately render-free.
+func (h *Host) handleInput(ev keys.Event) bool {
 	session := h.currentSession()
 	if session == nil {
-		return
+		return false
 	}
+	h.lastInteraction.Store(time.Now().UnixNano())
 	if session.CoreOverlayOpen() {
 		if ev.Kind == keys.KindKey {
 			switch keys.Name(ev) {
@@ -496,7 +823,7 @@ func (h *Host) handleInput(ev keys.Event) {
 				h.confirmNo()
 			}
 		}
-		return
+		return true
 	}
 	if ev.Kind == keys.KindMouse || ev.Kind == keys.KindWheel {
 		h.preparePointer(session, &ev)
@@ -506,12 +833,27 @@ func (h *Host) handleInput(ev keys.Event) {
 		h.logf("tui2: input: %v", err)
 		h.queueNotice("warning", fmt.Sprintf("input: %v", err))
 	}
+	if ev.Kind == keys.KindWheel && wheelDebugEnabled() {
+		focusID := ""
+		isTerm, track, hist, inputs := false, false, false, ""
+		if focus := session.Focus(); focus != nil {
+			focusID = focus.ID
+			isTerm = focus.IsTerminal
+			track = focus.MouseTracking
+			hist = focus.HistoryActive
+			inputs = strings.Join(focus.Input, ",")
+		}
+		h.logf("tui2 wheel node=%q delta=%d hit=%v dst=%s focus=%q term=%v track=%v history=%v input=[%s]",
+			ev.Node, ev.Delta, ev.HitFocused, dst, focusID, isTerm, track, hist, inputs)
+	}
 	if dst == runtime.DestinationHost && ev.Kind == keys.KindKey && keys.Name(ev) == runtime.KeyCtrlQ {
 		h.askHostQuit()
 	}
 	if ev.Kind == keys.KindMouse && ev.Action == keys.ActionRelease {
 		session.ReleaseCapture()
+		h.terminalMouseDown = false
 	}
+	return err != nil || dst != runtime.DestinationPTY
 }
 
 func (h *Host) route(ev keys.Event) (runtime.Destination, error) {
@@ -534,13 +876,69 @@ func (h *Host) preparePointer(session *runtime.Session, ev *keys.Event) {
 	}
 	hit := frame.Hit(ev.X-1, ev.Y-1)
 	ev.Node = hit
-	if ev.Kind == keys.KindWheel {
-		return
+	focus := session.Focus()
+	focusedNode := ""
+	if focus != nil {
+		focusedNode = focus.NodeID
 	}
-	ev.HitFocused = hit != "" && hit == focusedBoxID(session, hit)
-	if ev.Action == keys.ActionPress && hit != "" && isCaptureBox(session, hit) {
+	ev.HitFocused = hit != "" && hit == focusedNode
+	if ev.Kind == keys.KindMouse && ev.Action == keys.ActionPress && ev.HitFocused && focus != nil && focus.IsTerminal {
+		h.terminalMouseDown = true
+	}
+	if ev.Kind == keys.KindMouse && h.terminalMouseDown && focus != nil && focus.IsTerminal && (ev.Action == keys.ActionDrag || ev.Action == keys.ActionRelease) {
+		// A terminal owns its mouse gesture once the press was accepted. Keep
+		// sending the clamped content coordinate when the pointer leaves the
+		// panel, then clear the gesture on release.
+		ev.HitFocused = true
+	}
+	if focus != nil && focus.IsTerminal && (ev.Kind == keys.KindMouse || ev.Kind == keys.KindWheel) {
+		if x, y, ok := h.terminalPointerPosition(session, frame, focus, ev.X, ev.Y); ok {
+			ev.PTYX, ev.PTYY = x, y
+		}
+	}
+	if ev.Kind != keys.KindWheel && ev.Action == keys.ActionPress && hit != "" && isCaptureBox(session, hit) {
 		session.Capture(hit)
 	}
+}
+
+// terminalPointerPosition translates outer 1-based TUI coordinates to the
+// focused terminal's 1-based PTY content grid. The component's declared
+// chrome inset is the source of truth; coordinates are clamped because a
+// captured drag may leave the panel.
+func (h *Host) terminalPointerPosition(session *runtime.Session, frame kernel.Frame, focus *runtime.Focus, x, y int) (int, int, bool) {
+	if focus == nil || focus.NodeID == "" || !focus.IsTerminal {
+		return 0, 0, false
+	}
+	rect, ok := frame.Rect(focus.NodeID)
+	if !ok || rect.Empty() {
+		return 0, 0, false
+	}
+	inset := terminal.DefaultInset
+	if declared, ok := terminal.InsetFromProps(session.BoxProps(focus.NodeID)); ok {
+		inset = declared
+	}
+	if rect.Width < 2*inset+1 || rect.Height < 2*inset+1 {
+		inset = 0
+	}
+	width, height := rect.Width-2*inset, rect.Height-2*inset
+	if width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	localX := x - (rect.X + inset)
+	localY := y - (rect.Y + inset)
+	if localX < 1 {
+		localX = 1
+	}
+	if localY < 1 {
+		localY = 1
+	}
+	if localX > width {
+		localX = width
+	}
+	if localY > height {
+		localY = height
+	}
+	return localX, localY, true
 }
 
 func focusedBoxID(session *runtime.Session, hit string) string {
@@ -651,6 +1049,7 @@ func (h *Host) placement(session *runtime.Session, sourceID string, term *runtim
 		Exited:       term.Exited(),
 		Chrome:       session.BoxProps(box.GetId()),
 	}
+	props.Dimmed = terminal.DimmedFromProps(props.Chrome)
 	// 中文说明：card 风格 pane 自己画框，程序用 chrome.inset=0 关掉组件边框，
 	// PTY 尺寸随之等于完整内容矩形（不再固定减 2）。
 	if inset, ok := terminal.InsetFromProps(box.GetContent().GetProps()); ok {
@@ -661,10 +1060,9 @@ func (h *Host) placement(session *runtime.Session, sourceID string, term *runtim
 		props.ExitCode = int(source.GetExitCode())
 	}
 	component.SetProps(props)
-	if offset > 0 {
-		component.SetScreen(terminal.ScreenFromText(term.VisibleLines(), render.TokenDefault))
-	} else {
-		component.SetScreen(term.Screen())
+	component.SetScreen(term.VisibleScreen())
+	if box.GetFocused() {
+		term.RenewOwner(h.opts.ViewID)
 	}
 	inset := component.Inset(rect.Width, rect.Height)
 	h.resizePTY(term, rect, inset)
@@ -683,22 +1081,112 @@ func (h *Host) resizePTY(term *runtime.Terminal, rect kernel.Rect, inset int) {
 	if last, ok := h.sizes[sourceID]; ok && last == [2]int{cols, rows} {
 		return
 	}
-	if err := term.Resize(cols, rows); err != nil {
-		return
-	}
-	h.sizes[sourceID] = [2]int{cols, rows}
+	h.applyResize(term, sourceID, cols, rows)
 }
 
-func (h *Host) flush() {
-	session := h.currentSession()
-	if session == nil {
+// applyResize dispatches the PTY size change off the frame loop and coalesces
+// bursts per terminal (latest-only): a drag generates one resize per frame, but
+// only one blocking round-trip runs at a time and the last requested size wins.
+// This mirrors main's queued resize coalescing and keeps drag interactive.
+func (h *Host) applyResize(term *runtime.Terminal, sourceID string, cols, rows int) {
+	size := [2]int{cols, rows}
+	h.mu.Lock()
+	if h.sizes == nil {
+		h.sizes = map[string][2]int{}
+	}
+	if h.pendingSize == nil {
+		h.pendingSize = map[string][2]int{}
+	}
+	if h.resizing == nil {
+		h.resizing = map[string]bool{}
+	}
+	if h.resizing[sourceID] {
+		h.pendingSize[sourceID] = size
+		h.mu.Unlock()
 		return
 	}
-	if data := session.FrameBytes(h.placements(), nil); len(data) > 0 {
+	h.resizing[sourceID] = true
+	h.sizes[sourceID] = size
+	h.mu.Unlock()
+	go func() {
+		if err := term.Resize(cols, rows); err != nil {
+			h.logf("tui2: resize %s to %dx%d: %v", sourceID, cols, rows, err)
+		}
+		for {
+			h.mu.Lock()
+			next, ok := h.pendingSize[sourceID]
+			if !ok {
+				delete(h.resizing, sourceID)
+				h.mu.Unlock()
+				return
+			}
+			delete(h.pendingSize, sourceID)
+			h.sizes[sourceID] = next
+			h.mu.Unlock()
+			if err := term.Resize(next[0], next[1]); err != nil {
+				h.logf("tui2: resize %s to %dx%d: %v", sourceID, next[0], next[1], err)
+			}
+		}
+	}()
+}
+
+func (h *Host) flush() bool {
+	session := h.currentSession()
+	if session == nil {
+		return false
+	}
+	placements := h.placements()
+	for _, placement := range placements {
+		if placement.SynchronizedOutput {
+			// DEC 2026 is a transaction boundary owned by the child TUI. Keep
+			// the last committed host frame until the parser sees ?2026l;
+			// input and unrelated wakeups must not publish the clear/half-frame.
+			return false
+		}
+	}
+	if data := session.FrameBytes(placements, nil); len(data) > 0 {
 		if err := h.writeOutBytes(data); err != nil {
 			h.quit()
 		}
 	}
+	return true
+}
+
+// anyTerminalSynchronizedOutput reports whether a visible PTY child has an
+// open DEC 2026 redraw transaction. It walks the current view directly so the
+// guard does not call placements (which also performs resize bookkeeping).
+func (h *Host) anyTerminalSynchronizedOutput() bool {
+	session := h.currentSession()
+	if session == nil || h.handler == nil {
+		return false
+	}
+	view := session.View()
+	if view == nil {
+		return false
+	}
+	var walk func(*pb.Box) bool
+	walk = func(box *pb.Box) bool {
+		if box == nil {
+			return false
+		}
+		if sourceID := box.GetContent().GetSelf(); sourceID != "" {
+			if term, ok := h.handler.TerminalBySource(sourceID); ok {
+				// A child that exits while a malformed/incomplete batch is open
+				// must still publish its last parsed screen; otherwise the sync
+				// guard would hold the panel forever after the pump reports exit.
+				if !term.Exited() && term.Modes().SynchronizedOutput {
+					return true
+				}
+			}
+		}
+		for _, child := range box.GetChildren() {
+			if walk(child) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(view.GetRoot())
 }
 
 // writeOut serializes one control-sequence write with the frame loop.
@@ -725,6 +1213,18 @@ func (h *Host) writeClipboard(text string) error {
 	return h.writeOut(sequence)
 }
 
+func (h *Host) writeClipboardAndRemember(text string) error {
+	if err := h.writeClipboard(text); err != nil {
+		return err
+	}
+	if h.clipboard != nil {
+		if _, err := h.clipboard.Add(text); err != nil {
+			h.logf("tui2: persist clipboard history: %v", err)
+		}
+	}
+	return nil
+}
+
 // publishSources keeps the program's sources snapshot in sync with the
 // locally tracked terminals (exit state, owner epoch).
 func (h *Host) publishSources() {
@@ -743,29 +1243,84 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 	h.mu.Lock()
 	items := make([]*pb.Source, 0, len(h.tracked))
 	tracked := make(map[string]bool, len(h.tracked))
+	previousTitles := make(map[string]string, len(h.sources))
+	for _, source := range h.sources {
+		if source != nil {
+			previousTitles[source.GetId()] = source.GetTitle()
+		}
+	}
+	// Daemon inventory carries tags/size for pool terminals; merge it into the
+	// locally attached source so the picker can filter by tag.
+	daemonTags := map[string]map[string]string{}
+	daemonTitles := map[string]string{}
+	endpointLabels := map[string]string{}
+	daemonSize := map[string][2]int{}
+	daemonLastOutput := map[string]int64{}
+	for _, source := range h.endpoints.Sources() {
+		if title := strings.TrimSpace(source.GetTitle()); title != "" {
+			daemonTitles[source.GetId()] = title
+		}
+		if len(source.GetTags()) > 0 {
+			daemonTags[source.GetId()] = source.GetTags()
+		}
+		if source.GetEndpointLabel() != "" {
+			endpointLabels[source.GetEndpoint()] = source.GetEndpointLabel()
+		}
+		if source.GetCols() > 0 && source.GetRows() > 0 {
+			daemonSize[source.GetId()] = [2]int{int(source.GetCols()), int(source.GetRows())}
+		}
+		if source.GetLastOutputMs() > 0 {
+			daemonLastOutput[source.GetId()] = source.GetLastOutputMs()
+		}
+	}
 	for sourceID, trackedTerm := range h.tracked {
 		endpointName, id := splitSourceID(sourceID)
-		owner, epoch := trackedTerm.term.Owner()
+		owner, epoch := trackedTerm.term.ResizeOwner()
 		exitCode := trackedTerm.term.ExitCode()
 		if exitCode < 0 {
 			exitCode = 0
+		}
+		cols, rows, _ := trackedTerm.term.Size()
+		// Prefer the daemon inventory grid when the local attachment still
+		// reports the pre-attach default (the daemon is the resize authority).
+		if size, ok := daemonSize[sourceID]; ok {
+			if cols <= 0 || rows <= 0 {
+				cols, rows = size[0], size[1]
+			}
+		}
+		lastOutput := trackedTerm.term.LastOutput()
+		lastOutputMs := int64(0)
+		if !lastOutput.IsZero() {
+			lastOutputMs = lastOutput.UnixMilli()
+		}
+		if lastOutputMs == 0 {
+			lastOutputMs = daemonLastOutput[sourceID]
 		}
 		health := "ok"
 		if kind, ok := h.endpoints.Kind(endpointName); ok && kind == endpoint.KindDaemon {
 			health = h.endpoints.Health(endpointName)
 		}
+		endpointLabel := h.endpoints.Label(endpointName)
+		if endpointLabel == "" {
+			endpointLabel = endpointLabels[endpointName]
+		}
 		items = append(items, &pb.Source{
-			Id:          sourceID,
-			Kind:        "terminal",
-			Title:       trackedTerm.term.ID(),
-			Endpoint:    endpointName,
-			TerminalId:  id,
-			Attached:    true,
-			Exited:      trackedTerm.term.Exited(),
-			ExitCode:    int32(exitCode),
-			Health:      health,
-			ResizeOwner: owner,
-			OwnerEpoch:  epoch,
+			Id:            sourceID,
+			Kind:          "terminal",
+			Title:         trackedSourceTitle(sourceID, trackedTerm, daemonTitles, previousTitles),
+			Endpoint:      endpointName,
+			TerminalId:    id,
+			Attached:      true,
+			Exited:        trackedTerm.term.Exited(),
+			ExitCode:      int32(exitCode),
+			Health:        health,
+			ResizeOwner:   owner,
+			OwnerEpoch:    epoch,
+			Cols:          int32(cols),
+			Rows:          int32(rows),
+			Tags:          daemonTags[sourceID],
+			EndpointLabel: endpointLabel,
+			LastOutputMs:  lastOutputMs,
 		})
 		tracked[sourceID] = true
 	}
@@ -784,8 +1339,11 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		for i, item := range items {
 			old := h.sources[i]
 			if old.GetId() != item.GetId() || old.GetExited() != item.GetExited() ||
-				old.GetExitCode() != item.GetExitCode() || old.GetOwnerEpoch() != item.GetOwnerEpoch() ||
-				old.GetHealth() != item.GetHealth() || old.GetAttached() != item.GetAttached() {
+				old.GetTitle() != item.GetTitle() ||
+				old.GetExitCode() != item.GetExitCode() || old.GetResizeOwner() != item.GetResizeOwner() || old.GetOwnerEpoch() != item.GetOwnerEpoch() ||
+				old.GetHealth() != item.GetHealth() || old.GetAttached() != item.GetAttached() ||
+				old.GetCols() != item.GetCols() || old.GetRows() != item.GetRows() ||
+				old.GetEndpointLabel() != item.GetEndpointLabel() || old.GetLastOutputMs() != item.GetLastOutputMs() {
 				changed = true
 				break
 			}
@@ -798,10 +1356,50 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 	return items, changed
 }
 
+// attachedSourceTitle keeps the daemon's user-facing terminal name when a
+// local attachment is projected into the host source list. The previous
+// title covers a short inventory gap during reconnect; the runtime terminal
+// id is only a last-resort fallback for sources with no name metadata.
+func attachedSourceTitle(sourceID string, daemonTitles, previousTitles map[string]string, fallback string) string {
+	if title := strings.TrimSpace(daemonTitles[sourceID]); title != "" {
+		return title
+	}
+	if title := strings.TrimSpace(previousTitles[sourceID]); title != "" {
+		return title
+	}
+	return fallback
+}
+
 func (h *Host) trackSource(sourceID string, term *runtime.Terminal) {
+	h.trackSourceWithOptions(sourceID, term, false, "")
+}
+
+func (h *Host) trackSourceWithOptions(sourceID string, term *runtime.Terminal, ephemeral bool, title string) {
 	h.mu.Lock()
-	h.tracked[sourceID] = &trackedTerminal{term: term}
+	if strings.TrimSpace(title) == "" {
+		if previous := h.tracked[sourceID]; previous != nil {
+			title = previous.title
+		}
+	}
+	h.tracked[sourceID] = &trackedTerminal{term: term, ephemeral: ephemeral, title: strings.TrimSpace(title)}
 	h.mu.Unlock()
+}
+
+func trackedSourceFallback(tracked *trackedTerminal) string {
+	if tracked != nil && strings.TrimSpace(tracked.title) != "" {
+		return tracked.title
+	}
+	if tracked != nil && tracked.term != nil {
+		return tracked.term.ID()
+	}
+	return "terminal"
+}
+
+func trackedSourceTitle(sourceID string, tracked *trackedTerminal, daemonTitles, previousTitles map[string]string) string {
+	if tracked != nil && strings.TrimSpace(tracked.title) != "" {
+		return tracked.title
+	}
+	return attachedSourceTitle(sourceID, daemonTitles, previousTitles, trackedSourceFallback(tracked))
 }
 
 func (h *Host) sourceByID(id string) *pb.Source {
@@ -874,10 +1472,11 @@ func (h *Host) openPendingConfirm() {
 	if confirm == nil {
 		return
 	}
+	// Both the reserved Ctrl-Q shortcut and a program-issued system.quit ask
+	// the same question, so the user sees one dialog for "quit" regardless of
+	// who initiated it.
 	message := "Quit tui2?"
-	if confirm.programQuit {
-		message = "Layout program requests quit?"
-	} else if confirm.req.Method.Name != "" {
+	if !confirm.programQuit && confirm.req.Method.Name != "" {
 		message = "Allow " + confirm.req.Method.Name + "?"
 	}
 	h.withSession(func(s *runtime.Session) { s.OpenCoreOverlay(confirmFrame(cols, rows, message)) })
@@ -933,6 +1532,9 @@ func (h *Host) confirmYes() {
 	case confirm.hostQuit:
 		h.quit()
 	case confirm.programQuit:
+		if confirm.cleanupOwned {
+			h.cleanupOwnedTerminals()
+		}
 		h.withSession(func(s *runtime.Session) { _ = s.Complete(confirm.req.RequestID, nil, "") })
 		h.quit()
 	default:
@@ -963,6 +1565,9 @@ func (h *Host) quit() {
 	h.mu.Lock()
 	h.quitting = true
 	h.mu.Unlock()
+	// Wake the frame loop so a quit set from another goroutine is observed
+	// without waiting for input.
+	h.signalWake()
 }
 
 func (h *Host) isQuitting() bool {
@@ -995,6 +1600,8 @@ func (h *Host) queueNotice(level, message string) {
 		h.notices = append(h.notices, [2]string{level, message})
 	}
 	h.noticeMu.Unlock()
+	// Flush the notice on the next frame rather than waiting for input.
+	h.signalWake()
 }
 
 func (h *Host) flushNotices() {
@@ -1057,6 +1664,22 @@ func (h *Host) isDaemonEndpoint(name string) bool {
 // removal additionally deletes the terminal on the daemon and drops the local
 // source tracking entry.
 func (h *Host) handleConfirmed(req runtime.Request) (runtime.Outcome, bool) {
+	if req.Method.Name == "clipboard.read" {
+		text, err := h.clipboardRead()
+		if err != nil {
+			return runtime.Outcome{Error: err.Error()}, false
+		}
+		if h.clipboard != nil {
+			_, _ = h.clipboard.Add(text)
+		}
+		return runtime.Outcome{OK: true, Data: &pb.MethodData{Text: text}}, false
+	}
+	if req.Method.Name == "clipboard.history.delete" {
+		if err := h.clipboard.Delete(req.Params.GetClipboardId()); err != nil {
+			return runtime.Outcome{Error: err.Error()}, false
+		}
+		return runtime.Outcome{OK: true}, false
+	}
 	outcome, pending := h.handler.Handle(req)
 	if !outcome.OK || pending {
 		return outcome, pending
@@ -1072,17 +1695,98 @@ func (h *Host) handleConfirmed(req runtime.Request) (runtime.Outcome, bool) {
 	return outcome, pending
 }
 
+// cleanupOwnedTerminals implements system.quit{cleanup_owned:true}. Only
+// terminals explicitly created as ephemeral by this layout program are
+// touched; ordinary attached terminals keep the historical detach semantics.
+// Cleanup is best-effort and bounded because it runs on the final quit path.
+func (h *Host) cleanupOwnedTerminals() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	h.mu.Lock()
+	owned := make([]struct {
+		source string
+		term   *runtime.Terminal
+	}, 0)
+	for sourceID, tracked := range h.tracked {
+		if tracked != nil && tracked.ephemeral && tracked.term != nil {
+			owned = append(owned, struct {
+				source string
+				term   *runtime.Terminal
+			}{source: sourceID, term: tracked.term})
+		}
+	}
+	h.mu.Unlock()
+	for _, item := range owned {
+		endpointName, id := splitSourceID(item.source)
+		if kind, ok := h.endpoints.Kind(endpointName); ok && kind == endpoint.KindDaemon {
+			_ = h.endpoints.Kill(ctx, endpointName, id)
+			_ = h.endpoints.Remove(ctx, endpointName, id)
+		} else {
+			_ = item.term.Close()
+			for !item.term.Exited() && ctx.Err() == nil {
+				time.Sleep(5 * time.Millisecond)
+			}
+			_, _ = h.handler.Handle(runtime.Request{Method: runtime.Method{Name: "terminal.remove"}, Params: &pb.MethodParams{Endpoint: endpointName, Id: id}})
+		}
+		h.mu.Lock()
+		delete(h.tracked, item.source)
+		h.mu.Unlock()
+	}
+}
+
 // gateHandler is the authorization point before the real TerminalHandler:
 // terminal.create and terminal.restart get real implementations, destructive
 // methods go through the core overlay, and everything else is delegated.
 type gateHandler struct {
 	host  *Host
 	inner *runtime.TerminalHandler
+	seqMu sync.Mutex
 	seq   int
+}
+
+// nextSeq allocates a local terminal id; it is safe because local create runs
+// on the session loop while daemon work runs on background workers.
+func (g *gateHandler) nextSeq() int {
+	g.seqMu.Lock()
+	defer g.seqMu.Unlock()
+	g.seq++
+	return g.seq
 }
 
 func (g *gateHandler) Handle(req runtime.Request) (runtime.Outcome, bool) {
 	switch req.Method.Name {
+	case "history.window", "terminal.history.window", "terminal.search", "terminal.scroll", "terminal.scrollEnd", "terminal.copy":
+		return g.terminalHistory(req)
+	case "terminal.rename":
+		if g.host.isDaemonEndpoint(req.Params.GetEndpoint()) {
+			return g.asyncDaemon(req, g.renameDaemon)
+		}
+		return g.renameLocal(req)
+	case "terminal.detach":
+		if g.host.isDaemonEndpoint(req.Params.GetEndpoint()) {
+			return g.asyncDaemon(req, g.detachTerminal)
+		}
+		return g.detachTerminal(req)
+	case "terminal.reconnect":
+		return g.reconnectTerminal(req)
+	case "clipboard.history.list":
+		return runtime.Outcome{OK: true, Data: &pb.MethodData{Rows: g.host.clipboard.Rows()}}, false
+	case "clipboard.paste":
+		return g.pasteClipboard(req)
+	case "endpoint.list":
+		return g.listEndpoints()
+	case "endpoint.test":
+		if g.host.endpoints.Health(req.Params.GetEndpoint()) == endpoint.HealthUnknown {
+			return runtime.Outcome{Error: "endpoint not registered"}, false
+		}
+		return runtime.Outcome{OK: true}, false
+	case "endpoint.reconnect":
+		return g.asyncDaemon(req, func(req runtime.Request) (runtime.Outcome, bool) {
+			if err := g.host.endpoints.Reconnect(req.Params.GetEndpoint()); err != nil {
+				return runtime.Outcome{Error: err.Error()}, false
+			}
+			return runtime.Outcome{OK: true}, false
+		})
 	case "endpoint.sync":
 		if err := g.host.registerEndpoint(req.Params); err != nil {
 			return runtime.Outcome{Error: err.Error()}, false
@@ -1093,21 +1797,30 @@ func (g *gateHandler) Handle(req runtime.Request) (runtime.Outcome, bool) {
 			return runtime.Outcome{Error: err.Error()}, false
 		}
 		if g.host.isDaemonEndpoint(req.Params.GetEndpoint()) {
-			return g.createDaemon(req)
+			return g.asyncDaemon(req, g.createDaemon)
 		}
 		return g.create(req)
 	case "terminal.restart":
 		if g.host.isDaemonEndpoint(req.Params.GetEndpoint()) {
-			return g.restartDaemon(req)
+			return g.asyncDaemon(req, g.restartDaemon)
 		}
 		return g.restart(req)
+	case "access.call":
+		return g.accessCall(req)
+	case "access.stream.open":
+		return g.openAccessStream(req)
+	case "access.stream.subscribe":
+		return g.openAccessSubscription(req)
 	case "terminal.attach":
 		if err := g.host.registerEndpoint(req.Params); err != nil {
 			return runtime.Outcome{Error: err.Error()}, false
 		}
+		if g.host.isDaemonEndpoint(req.Params.GetEndpoint()) {
+			return g.asyncDaemon(req, g.attachDaemon)
+		}
 		outcome, pending := g.inner.Handle(req)
 		if outcome.OK && !pending {
-			g.track(req.Params.GetEndpoint(), req.Params.GetId())
+			g.track(req.Params.GetEndpoint(), req.Params.GetId(), false, req.Params.GetTitle())
 		}
 		return outcome, pending
 	case "system.quit":
@@ -1126,13 +1839,149 @@ func (g *gateHandler) Handle(req runtime.Request) (runtime.Outcome, bool) {
 	}
 }
 
+func (g *gateHandler) renameLocal(req runtime.Request) (runtime.Outcome, bool) {
+	endpointName, id := req.Params.GetEndpoint(), req.Params.GetId()
+	if _, ok := g.inner.TerminalBySource(runtime.SourceID(endpointName, id)); !ok {
+		return runtime.Outcome{Error: runtime.ErrNoTerminal.Error()}, false
+	}
+	sourceID := runtime.SourceID(endpointName, id)
+	g.host.mu.Lock()
+	tracked := g.host.tracked[sourceID]
+	if tracked == nil {
+		g.host.mu.Unlock()
+		return runtime.Outcome{Error: runtime.ErrNoTerminal.Error()}, false
+	}
+	tracked.title = strings.TrimSpace(req.Params.GetTitle())
+	g.host.mu.Unlock()
+	g.host.publishSources()
+	return runtime.Outcome{OK: true}, false
+}
+
+func (g *gateHandler) renameDaemon(req runtime.Request) (runtime.Outcome, bool) {
+	endpointName, id := req.Params.GetEndpoint(), req.Params.GetId()
+	command := &apipb.CommandEnvelope{Command: &apipb.CommandEnvelope_TerminalSetMetadata{
+		TerminalSetMetadata: &apipb.TerminalSetMetadataCommand{
+			Terminal: &apipb.TerminalRef{EndpointId: endpointName, TerminalId: id},
+			Name:     strings.TrimSpace(req.Params.GetTitle()),
+		},
+	}}
+	if _, err := g.host.endpoints.Execute(context.Background(), endpointName, command); err != nil {
+		return runtime.Outcome{Error: err.Error()}, false
+	}
+	g.host.mu.Lock()
+	if tracked := g.host.tracked[runtime.SourceID(endpointName, id)]; tracked != nil {
+		tracked.title = strings.TrimSpace(req.Params.GetTitle())
+	}
+	g.host.mu.Unlock()
+	g.host.publishSources()
+	return runtime.Outcome{OK: true}, false
+}
+
+func (g *gateHandler) detachTerminal(req runtime.Request) (runtime.Outcome, bool) {
+	endpointName, id := req.Params.GetEndpoint(), req.Params.GetId()
+	if err := g.inner.Detach(endpointName, id); err != nil {
+		return runtime.Outcome{Error: err.Error()}, false
+	}
+	g.host.mu.Lock()
+	delete(g.host.tracked, runtime.SourceID(endpointName, id))
+	g.host.mu.Unlock()
+	g.host.publishSources()
+	return runtime.Outcome{OK: true}, false
+}
+
+func (g *gateHandler) reconnectTerminal(req runtime.Request) (runtime.Outcome, bool) {
+	endpointName, id := req.Params.GetEndpoint(), req.Params.GetId()
+	if err := g.inner.Reconnect(endpointName, id); err != nil {
+		return runtime.Outcome{Error: err.Error()}, false
+	}
+	g.track(endpointName, id, false, "")
+	g.host.publishSources()
+	return runtime.Outcome{OK: true}, false
+}
+
+func (g *gateHandler) pasteClipboard(req runtime.Request) (runtime.Outcome, bool) {
+	text := ""
+	if id := strings.TrimSpace(req.Params.GetClipboardId()); id != "" {
+		entry, ok := g.host.clipboard.Get(id)
+		if !ok {
+			return runtime.Outcome{Error: "clipboard entry not found"}, false
+		}
+		text = entry.Text
+	} else {
+		var err error
+		text, err = g.host.clipboardRead()
+		if err != nil {
+			return runtime.Outcome{Error: err.Error()}, false
+		}
+		if g.host.clipboard != nil {
+			_, _ = g.host.clipboard.Add(text)
+		}
+	}
+	sourceID := runtime.SourceID(req.Params.GetEndpoint(), req.Params.GetId())
+	bracket := g.inner.BracketPaste(sourceID)
+	limits := g.host.opts.Limits
+	if limits.MaxPasteBytes == 0 {
+		limits = runtime.DefaultLimits()
+	}
+	for _, chunk := range keys.ChunkPaste(text, int(limits.MaxPasteBytes), bracket, nil) {
+		if err := g.inner.WriteInput(sourceID, chunk.Bytes); err != nil {
+			return runtime.Outcome{Error: err.Error()}, false
+		}
+	}
+	return runtime.Outcome{OK: true}, false
+}
+
+func (g *gateHandler) listEndpoints() (runtime.Outcome, bool) {
+	rows := make([]string, 0)
+	for _, cfg := range g.host.endpoints.Configs() {
+		row, _ := json.Marshal(map[string]string{
+			"name": cfg.Name, "label": g.host.endpoints.Label(cfg.Name),
+			"kind": cfg.KindName(), "health": g.host.endpoints.Health(cfg.Name),
+		})
+		rows = append(rows, string(row))
+	}
+	return runtime.Outcome{OK: true, Data: &pb.MethodData{Rows: rows}}, false
+}
+
+// asyncDaemon runs a daemon create/restart/attach off the protocol reader: the
+// dial, create and attach are network round trips to a remote endpoint, so
+// running them inline would stall the frame loop and every other pane while a
+// slow or offline endpoint times out (the same reason access.call is async).
+// The request is registered in flight and answered by a background worker,
+// fenced by the request's epoch.
+func (g *gateHandler) asyncDaemon(req runtime.Request, work func(runtime.Request) (runtime.Outcome, bool)) (runtime.Outcome, bool) {
+	session := g.host.currentSession()
+	if session == nil {
+		return runtime.Outcome{Error: "no active session"}, false
+	}
+	go func() {
+		outcome, pending := work(req)
+		if pending {
+			// Daemon work is self-contained; a worker that reports pending has
+			// nothing to complete, so treat it as accepted.
+			outcome = runtime.Outcome{OK: true}
+		}
+		g.completeAsyncEpoch(session, req.Epoch, req.RequestID, outcome)
+	}()
+	return runtime.Outcome{}, true
+}
+
+// attachDaemon attaches an existing daemon terminal (network round trip).
+func (g *gateHandler) attachDaemon(req runtime.Request) (runtime.Outcome, bool) {
+	outcome, pending := g.inner.Handle(req)
+	if outcome.OK && !pending {
+		g.track(req.Params.GetEndpoint(), req.Params.GetId(), false, req.Params.GetTitle())
+	}
+	return outcome, pending
+}
+
 func (g *gateHandler) create(req runtime.Request) (runtime.Outcome, bool) {
-	g.seq++
+	seq := g.nextSeq()
 	endpoint := req.Params.GetEndpoint()
 	if endpoint == "" {
 		endpoint = "local"
 	}
-	id := "term-" + strconv.Itoa(g.seq)
+	id := "term-" + strconv.Itoa(seq)
 	params := &pb.MethodParams{
 		Endpoint: endpoint,
 		Id:       id,
@@ -1144,13 +1993,14 @@ func (g *gateHandler) create(req runtime.Request) (runtime.Outcome, bool) {
 	outcome, pending := g.inner.Handle(runtime.Request{
 		Epoch:     req.Epoch,
 		RequestID: req.RequestID,
+		OwnerID:   req.OwnerID,
 		Method:    runtime.Method{Name: "terminal.attach"},
 		Params:    params,
 	})
 	if !outcome.OK || pending {
 		return outcome, pending
 	}
-	g.track(endpoint, id)
+	g.track(endpoint, id, req.Params.GetEphemeral(), req.Params.GetTitle())
 	return runtime.Outcome{
 		OK:   true,
 		Data: &pb.MethodData{Endpoint: endpoint, Id: id},
@@ -1169,6 +2019,7 @@ func (g *gateHandler) createDaemon(req runtime.Request) (runtime.Outcome, bool) 
 		Command:    append([]string(nil), req.Params.GetArgv()...),
 		Cwd:        req.Params.GetCwd(),
 		Env:        envSlice(req.Params.GetEnv()),
+		Tags:       req.Params.GetTags(),
 		Size:       &apipb.TerminalSize{Cols: uint32(cols), Rows: uint32(rows)},
 	}
 	info, err := g.host.endpoints.Create(context.Background(), endpointName, spec)
@@ -1198,13 +2049,14 @@ func (g *gateHandler) createDaemon(req runtime.Request) (runtime.Outcome, bool) 
 	outcome, pending := g.inner.Handle(runtime.Request{
 		Epoch:     req.Epoch,
 		RequestID: req.RequestID,
+		OwnerID:   req.OwnerID,
 		Method:    runtime.Method{Name: "terminal.attach"},
 		Params:    params,
 	})
 	if !outcome.OK || pending {
 		return outcome, pending
 	}
-	g.track(endpointName, id)
+	g.track(endpointName, id, req.Params.GetEphemeral(), req.Params.GetTitle())
 	return runtime.Outcome{
 		OK:   true,
 		Data: &pb.MethodData{Endpoint: endpointName, Id: id},
@@ -1216,7 +2068,7 @@ func (g *gateHandler) createDaemon(req runtime.Request) (runtime.Outcome, bool) 
 func (g *gateHandler) restartDaemon(req runtime.Request) (runtime.Outcome, bool) {
 	endpointName := req.Params.GetEndpoint()
 	id := req.Params.GetId()
-	term, ok := g.inner.Terminal(id)
+	term, ok := g.inner.TerminalAt(endpointName, id)
 	if !ok {
 		return runtime.Outcome{Error: "no such terminal"}, false
 	}
@@ -1236,6 +2088,7 @@ func (g *gateHandler) restartDaemon(req runtime.Request) (runtime.Outcome, bool)
 	outcome, pending := g.inner.Handle(runtime.Request{
 		Epoch:     req.Epoch,
 		RequestID: req.RequestID,
+		OwnerID:   req.OwnerID,
 		Method:    runtime.Method{Name: "terminal.attach"},
 		Params: &pb.MethodParams{
 			Endpoint: endpointName, Id: id, Argv: argv,
@@ -1245,7 +2098,7 @@ func (g *gateHandler) restartDaemon(req runtime.Request) (runtime.Outcome, bool)
 	if !outcome.OK || pending {
 		return outcome, pending
 	}
-	g.track(endpointName, id)
+	g.track(endpointName, id, false, req.Params.GetTitle())
 	return runtime.Outcome{OK: true}, false
 }
 
@@ -1271,7 +2124,7 @@ func envSlice(env map[string]string) []string {
 func (g *gateHandler) restart(req runtime.Request) (runtime.Outcome, bool) {
 	endpoint := req.Params.GetEndpoint()
 	id := req.Params.GetId()
-	term, ok := g.inner.Terminal(id)
+	term, ok := g.inner.TerminalAt(endpoint, id)
 	if !ok {
 		return runtime.Outcome{Error: "no such terminal"}, false
 	}
@@ -1288,26 +2141,27 @@ func (g *gateHandler) restart(req runtime.Request) (runtime.Outcome, bool) {
 	outcome, pending := g.inner.Handle(runtime.Request{
 		Epoch:     req.Epoch,
 		RequestID: req.RequestID,
+		OwnerID:   req.OwnerID,
 		Method:    runtime.Method{Name: "terminal.attach"},
 		Params:    &pb.MethodParams{Endpoint: endpoint, Id: id, Argv: argv},
 	})
 	if !outcome.OK || pending {
 		return outcome, pending
 	}
-	g.track(endpoint, id)
+	g.track(endpoint, id, false, req.Params.GetTitle())
 	return runtime.Outcome{OK: true}, false
 }
 
-func (g *gateHandler) track(endpoint, id string) {
+func (g *gateHandler) track(endpoint, id string, ephemeral bool, title string) {
 	if id == "" {
 		return
 	}
 	if endpoint == "" {
 		endpoint = "local"
 	}
-	term, ok := g.inner.Terminal(id)
+	term, ok := g.inner.TerminalAt(endpoint, id)
 	if !ok {
 		return
 	}
-	g.host.trackSource(runtime.SourceID(endpoint, id), term)
+	g.host.trackSourceWithOptions(runtime.SourceID(endpoint, id), term, ephemeral, title)
 }

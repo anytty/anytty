@@ -3,7 +3,8 @@
 > 目标样式：`clients/tui/examples/python-shell/1.txt`（用户实际使用的界面抓屏）。
 > 绘制真相：git HEAD 的 `tui/app` + `tui/render`（surface framework），样式/图标/键位来自
 > `tui/docs/tui-v3.recommended.yaml`（profile `coralline-candy`）。
-> 实现：`clients/tui/examples/python-shell/v3ui.py`（纯 stdlib，只依赖 `pb.py` 的 v2 线协议）。
+> 实现：`clients/tui/examples/python-shell/v3ui.py`（纯 stdlib，只依赖 `pb.py` 的 v2 线协议）；
+> 独立 Go 复刻：`clients/tui/examples/v3shell`（tui2 SDK，同一批 golden，见 §6）。
 > 验证：`clients/tui/examples/python-shell/v3_parity_test.py` + `golden/v3_*.txt`。
 
 ## 0. 样本测量
@@ -264,6 +265,41 @@ python3 clients/tui/examples/python-shell/v3_parity_test.py --only footer_colors
 # 抓屏黑盒（acceptance.sh 内）：chrome 逐行 diff golden + 真实 PTY 分屏树/浮窗/颜色
 bash clients/tui/scripts/acceptance.sh
 ```
+
+**Go 复刻程序（独立二进制）**：`clients/tui/examples/v3shell` 用 tui2 SDK
+实现同一套状态机与像素，并按原版修正两处近似：**分屏没有独立分隔条**
+（相邻 card 边框相接，拖拽命中区 = 相接边框 1 格；`layout` 的 a/b rect 紧贴）与
+**空 pane 不画 `┃ Click to collapse` 提示**；terminal picker **按机器（endpoint）
+分区**（endpoint tabs + 每 machine 终端行，`←/→`/点击切 tab，`+ New terminal`
+在当前 tab 的 endpoint 上创建）。Go 侧 screen golden 在
+`clients/tui/examples/v3shell/testdata/golden/`（几何由公式断言钉住），
+`1.txt`/footer 文本/footer 颜色仍与本文 golden 逐字符一致；
+`go test ./clients/tui/examples/v3shell/` + 一键脚本
+`bash clients/tui/scripts/v3shell.sh run|demo|check|test`（test 为 tmux 黑盒
+30 项，含 copy 选区/OSC52）；真实宿主用法
+`go build -o /tmp/tui2-v3shell ./clients/tui/examples/v3shell &&
+/tmp/tui2 -shell /tmp/tui2-v3shell`（或 `TUI2_SHELL=/tmp/tui2-v3shell anytty`），
+操作/差异清单见 `clients/tui/examples/v3shell/README.zh-CN.md`。
+
+panel 生命周期与 picker 已补齐：新 tab、分屏和浮窗先创建空 panel，panel 显示
+`No terminal connected` 以及 Attach/Create/Manager/Close 动作，`↑/↓` 选择、`enter`
+执行（与鼠标点击共用同一动作），聚焦 panel 才显示 CTA 高亮；选择 Create 后才
+调用 `terminal.create`，Attach 只绑定已有 terminal，关闭空 panel 不会创建或 kill
+terminal。picker 按 endpoint 分区，默认 Running，`Shift+←/→` 循环
+Running→Exited→All，`Ctrl-T` 打开标签复选列表，overlay 高度上限 24；
+尺寸与标签由 `Source.cols/rows/tags` 提供。
+picker 搜索为大小写不敏感子序列匹配（对齐 main 的
+`TerminalPickerQueryMatchIndexes`），并额外支持中文的拼音全拼与首字母
+（`suoping`/`sp` 命中「锁屏」），命中字符高亮。
+picker 的 `+ New terminal` 先打开 Create Terminal 表单（name/command/server/workdir/tags），
+`Tab` 切换字段、`Enter` 提交、`Esc` 取消，提交后才发 `terminal.create`。
+
+历史能力已下沉内建 terminal 对象：provider 冻结 token、游标分页、逻辑行折行、
+text/glob/regex 搜索、选区复制和释放。shell 的 `Enter/n/N` 发 `terminal.search`，
+不再按 2048 行自行扫描。真实 pool/access 测试覆盖 attach 前 6200 多行及宽字符
+折行复制；每 terminal FIFO 的异步隔离另有宿主回归。仍需区分 shell 每 pane 的
+交互会话与宿主每 source 的历史视口：同 source 多 pane 独立回看、跨视口选区
+锚点尚未完成，因此本轮不是原版全量 parity 验收。
 
 手动复测分屏树（真终端，120×40）：
 

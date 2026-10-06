@@ -389,24 +389,31 @@ type Divider struct {
 	Input    []string
 }
 
-// Build returns the divider box.
+// Build returns the divider box. A horizontal divider is one text run; a
+// vertical divider is a column with one glyph per row, because a single text
+// box only renders its first content line (a repeated run would clip to one
+// cell).
 func (d Divider) Build() *sdk.Builder {
-	glyph, width, height := "─", d.Length, 1
-	if d.Vertical {
-		glyph, width, height = "│", 1, d.Length
-	}
-	if width <= 0 {
-		width = 1
-	}
-	if height <= 0 {
-		height = 1
-	}
 	style := d.Style
 	if style == "" {
 		style = DefaultSepStyle
 	}
-	box := sdk.Text(strings.Repeat(glyph, maxInt(1, d.Length))).
-		ID(d.ID).Width(width).Height(height).Style(style)
+	if d.Vertical {
+		rows := maxInt(1, d.Length)
+		col := sdk.Col().ID(d.ID).Width(1).Height(rows)
+		for i := 0; i < rows; i++ {
+			col.Child(sdk.Text("│").Width(1).Height(1).Style(style))
+		}
+		if len(d.Input) > 0 {
+			col.Input(d.Input...)
+		}
+		return col
+	}
+	width := d.Length
+	if width <= 0 {
+		width = 1
+	}
+	box := sdk.Text(strings.Repeat("─", width)).ID(d.ID).Width(width).Height(1).Style(style)
 	if len(d.Input) > 0 {
 		box.Input(d.Input...)
 	}

@@ -2,12 +2,12 @@
  * TUI v2 SDK for Node.js/TypeScript.
  *
  * The runtime is plain modern JavaScript (no build step); these declarations
- * give TypeScript consumers the full typed surface. `ChromeApp`-style
- * widgets are intentionally Python/Go-only for now: the TS layer is core +
- * builder, which is all the conformance suite requires.
+ * give TypeScript consumers the full typed surface: the core client, the
+ * builder and the widget toolkit. Widgets are exposed as the `widgets`
+ * namespace object with one module per key, e.g. `sdk.widgets.list.List`.
  */
 
-export type FrameType = 1 | 2 | 3 | 4 | 5;
+export type FrameType = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface Hello {
   schema: number;
@@ -39,13 +39,25 @@ export interface ViewRejectedEvent { kind: 'view_rejected'; epoch: number; rev: 
 export type TuiEvent = KeyEvent | PasteEvent | MouseEvent | WheelEvent | ResizeEvent |
   SourcesEvent | NoticeEvent | ComponentEvent | ViewRejectedEvent;
 
-export interface MethodData { rows: string[]; text: string; endpoint: string; id: string }
+export interface MethodData { rows: string[]; text: string; endpoint: string; id: string; access_result: Uint8Array; offset: number; found: boolean; wrapped: boolean; match_start: number; match_end: number }
 export interface Response {
   request_id: number;
   epoch: number;
   ok: boolean;
   data: Partial<MethodData>;
   error: string;
+}
+
+/** One bidirectional access stream frame (PROTOCOL §4 access.stream.open).
+ * kind: data/close/cancel program -> host, data/close/error host -> program;
+ * wire_type stays opaque (access wire frame type byte). */
+export interface StreamFrame {
+  stream_id: number;
+  kind: string;
+  payload?: Uint8Array;
+  offset?: number;
+  error?: string;
+  wire_type?: number;
 }
 
 /** A view-tree node: protocol keys, all optional (PROTOCOL §2). */
@@ -63,9 +75,30 @@ export interface Box {
   style?: string;
 }
 
+/** One VIEW_DELTA tree edit (PROTOCOL §2.1). op: set/replace/insert/remove/
+ * move; path is a child-index path from the root (empty = root). */
+export interface Patch {
+  op: 'set' | 'replace' | 'insert' | 'remove' | 'move' | string;
+  path?: number[];
+  index?: number;
+  from?: number;
+  to?: number;
+  box?: Box;
+}
+
+/** A decoded VIEW_DELTA payload; keys is null when the frame omitted them. */
+export interface ViewDelta {
+  epoch: number;
+  rev: number;
+  rev_base: number;
+  keys: { claim: string[]; all: boolean } | null;
+  patches: Patch[];
+}
+
 export declare class App {
   client: Client | null;
   emit(method: string, params?: Record<string, unknown>, onResponse?: (response: Response) => void): number;
+  sendStream(frame: StreamFrame): void;
   log(level: string, message: string): void;
   onHello(hello: Hello): void;
   onEvent(event: TuiEvent): void;
@@ -79,6 +112,7 @@ export declare class App {
   onComponent(event: ComponentEvent): void;
   onViewRejected(event: ViewRejectedEvent): void;
   onResponse(response: Response): void;
+  onStream(frame: StreamFrame): void;
 }
 
 export declare class Client {
@@ -88,9 +122,17 @@ export declare class Client {
   epoch: number;
   rev: number;
   requestId: number;
+  base: Box | null;
+  baseRev: number;
+  features: Record<string, boolean>;
   run(app: App): Promise<number>;
   emit(method: string, params?: Record<string, unknown>, onResponse?: (response: Response) => void): number;
   commit(root: Box, claim?: string[], allKeys?: boolean): number;
+  supports(feature: string): boolean;
+  hasBase(): boolean;
+  dropBase(): void;
+  commitDelta(base: Box | null | undefined, nextRoot: Box, claim?: string[], allKeys?: boolean): boolean;
+  sendStream(frame: StreamFrame): void;
   log(level: string, message: string): void;
 }
 
@@ -134,15 +176,33 @@ export declare const VIEW: 2;
 export declare const EVENT: 3;
 export declare const RESULT: 4;
 export declare const RESPONSE: 5;
+export declare const STREAM: 6;
+export declare const VIEW_DELTA: 7;
+export declare const OP_SET: 'set';
+export declare const OP_REPLACE: 'replace';
+export declare const OP_INSERT: 'insert';
+export declare const OP_REMOVE: 'remove';
 export declare const MAX_MESSAGE_BYTES: number;
 export declare class WireError extends Error {}
 export declare function decodeHello(data: Uint8Array): Hello;
 export declare function decodeEvent(data: Uint8Array): TuiEvent;
 export declare function decodeResponse(data: Uint8Array): Response;
+export declare function decodeStream(data: Uint8Array): StreamFrame;
+export declare function decodeViewDelta(data: Uint8Array): ViewDelta;
+export declare function decodePatch(data: Uint8Array): Patch;
+export declare function decodeBox(data: Uint8Array): Box;
+export declare function diffView(base: Box | null, nextRoot: Box): Patch[] | null;
 export declare function encodeView(epoch: number, rev: number, claim: string[], allKeys: boolean, root: Box): Buffer;
+export declare function encodeViewDelta(epoch: number, rev: number, revBase: number,
+  claim: string[] | null | undefined, allKeys: boolean | null | undefined, patches: Patch[]): Buffer;
+export declare function encodePatch(patch: Patch): Buffer;
 export declare function encodeResult(requestId: number, epoch: number, method: string, params?: Record<string, unknown>): Buffer;
+export declare function encodeStream(frame: StreamFrame): Buffer;
 export declare function frame(frameType: FrameType, payload: Uint8Array): Buffer;
 export declare class FrameReader {
   constructor(stream: NodeJS.ReadableStream);
   next(): Promise<{ type: FrameType; payload: Buffer } | null>;
 }
+
+/** The widget toolkit, one namespace per module (e.g. `widgets.list.List`). */
+export * as widgets from './src/widgets';

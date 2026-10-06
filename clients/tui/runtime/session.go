@@ -12,6 +12,7 @@ import (
 	"github.com/anytty/anytty/clients/tui/kernel"
 	"github.com/anytty/anytty/clients/tui/render"
 	"github.com/anytty/anytty/clients/tui/runtime/keys"
+	gproto "google.golang.org/protobuf/proto"
 )
 
 // Options configures a Session.
@@ -33,12 +34,30 @@ type Options struct {
 	// MouseTracking reports whether a terminal source has mouse tracking on
 	// (routing input §6.5). Nil means never.
 	MouseTracking func(sourceID string) bool
+	// HistoryActive reports whether a terminal source is currently showing a
+	// frozen host-owned history/copy viewport. Nil means never. This is kept
+	// separate from MouseTracking because a child may leave DEC tracking on
+	// while the TUI owns the current scroll gesture.
+	HistoryActive func(sourceID string) bool
 	// InputSink receives host-encoded bytes for DestinationPTY inputs and
 	// serves the terminal bracket-paste mode; nil means PTY input fails.
 	InputSink InputSink
 	// EventSink overrides host -> program event delivery; nil writes EVENT
 	// frames through the session encoder.
 	EventSink EventSink
+	// OnStream handles program -> host STREAM frames (access stream data,
+	// ack, close, cancel). Nil rejects them as a direction error.
+	OnStream func(*pb.StreamFrame) error
+	// OnView is called after an accepted VIEW/VIEW_DELTA is committed. Hosts
+	// use it to wake their frame loop immediately instead of waiting for the
+	// next tick; it must not block (a buffered signal is enough).
+	OnView func()
+	// OutputQueue enables a bounded asynchronous host -> program writer. A
+	// value of zero preserves the synchronous writer used by small in-memory
+	// tests. Production hosts set this so a slow layout program cannot hold
+	// the frame loop in an io.Writer call; control frames still wait for space,
+	// while notices/sources/stream data coalesce or drop when saturated.
+	OutputQueue int
 }
 
 // Limits mirrors hello.limits (PROTOCOL §1). It is a plain value type so it
@@ -87,22 +106,26 @@ type rejectedKey struct {
 type Session struct {
 	mu sync.Mutex
 
-	viewID       string
-	schema       uint32
-	epoch        uint64
-	limits       Limits
-	cols, rows   int
-	components   []string
-	handler      Handler
-	mouseTracker func(string) bool
-	inputSink    InputSink
-	eventSink    EventSink
-	history      *keys.History
-	eventSeq     uint64
-	screenRev    uint64
+	viewID        string
+	schema        uint32
+	epoch         uint64
+	limits        Limits
+	cols, rows    int
+	components    []string
+	handler       Handler
+	mouseTracker  func(string) bool
+	historyActive func(string) bool
+	inputSink     InputSink
+	eventSink     EventSink
+	onStream      func(*pb.StreamFrame) error
+	onView        func()
+	history       *keys.History
+	eventSeq      uint64
+	screenRev     uint64
 
 	dec *wire.Decoder
 	enc *wire.Encoder
+	out *outboundWriter
 
 	rev       uint64
 	view      *pb.View
@@ -113,12 +136,40 @@ type Session struct {
 	keysAll   bool
 	focus     *Focus
 
+	// nodes maps each program box pointer of the current view to the kernel
+	// node built from it. Unchanged (copy-on-write shared) subtrees keep the
+	// same *pb.Box pointer across a VIEW_DELTA, so this map is the reuse
+	// anchor: a cache hit reuses the exact *kernel.Node instead of rebuilding
+	// the subtree. The solved rect/frame for a node live in the node's own
+	// kernel cache (kernel.Node.Cached); this map only carries the pointer, so
+	// it adds no frame storage.
+	//
+	// The map is persistent across delta commits: a delta inserts only the new
+	// boxes it creates and deletes only the pointers it detached (staleSet), so
+	// both building and bookkeeping are O(changed). It is built lazily: a full
+	// VIEW shares no pointers with anything, so it neither reads nor writes the
+	// map (and pays nothing for it); the next VIEW_DELTA indexes the cached
+	// tree once, then every delta maintains it in place. A hard cap
+	// (nodeMapCapFactor x box count) falls back to a full indexNodes rebuild if
+	// the map ever grows past the live tree (see enforceNodeMapCap).
+	nodes map[*pb.Box]*kernel.Node
+
+	// boxCount is the number of boxes in the committed view tree, maintained
+	// incrementally by a delta (insert/replace add the patch box's count,
+	// remove subtracts the dropped subtree's count) so HandleViewDelta's
+	// max_nodes check needs no O(tree) walk. It is -1 when unknown (before the
+	// first view, or after a full VIEW / Reset), in which case the check falls
+	// back to countBoxes and refreshes the counter. See patchEffect.focusDirty
+	// for how focus is kept O(changed) alongside it.
+	boxCount int
+
 	sources []*pb.Source
 
 	coreOverlay *kernel.Frame
 	captureNode string
 	compositor  *Compositor
 	lastFrame   *render.Frame
+	frameBuffer *render.Frame
 
 	inflight map[uint64]inflightRequest
 	answered map[uint64]bool
@@ -146,26 +197,34 @@ func NewSession(opts Options, r io.Reader, w io.Writer) *Session {
 	if handler == nil {
 		handler = &StubHandler{}
 	}
-	return &Session{
-		viewID:       opts.ViewID,
-		schema:       schema,
-		epoch:        epoch,
-		limits:       limits,
-		cols:         opts.Cols,
-		rows:         opts.Rows,
-		components:   append([]string(nil), opts.Components...),
-		handler:      handler,
-		mouseTracker: opts.MouseTracking,
-		inputSink:    opts.InputSink,
-		eventSink:    opts.EventSink,
-		history:      keys.NewHistory(keys.DefaultLimit),
-		compositor:   NewCompositor(opts.Cols, opts.Rows),
-		dec:          wire.NewDecoder(r, wire.RoleHost, limits.MaxMessageBytes),
-		enc:          wire.NewEncoder(w, wire.RoleHost, limits.MaxMessageBytes),
-		inflight:     map[uint64]inflightRequest{},
-		answered:     map[uint64]bool{},
-		rejected:     map[rejectedKey]bool{},
+	s := &Session{
+		viewID:        opts.ViewID,
+		schema:        schema,
+		epoch:         epoch,
+		limits:        limits,
+		cols:          opts.Cols,
+		rows:          opts.Rows,
+		components:    append([]string(nil), opts.Components...),
+		handler:       handler,
+		mouseTracker:  opts.MouseTracking,
+		historyActive: opts.HistoryActive,
+		inputSink:     opts.InputSink,
+		eventSink:     opts.EventSink,
+		onStream:      opts.OnStream,
+		onView:        opts.OnView,
+		history:       keys.NewHistory(keys.DefaultLimit),
+		compositor:    NewCompositor(opts.Cols, opts.Rows),
+		dec:           wire.NewDecoder(r, wire.RoleHost, limits.MaxMessageBytes),
+		enc:           wire.NewEncoder(w, wire.RoleHost, limits.MaxMessageBytes),
+		inflight:      map[uint64]inflightRequest{},
+		answered:      map[uint64]bool{},
+		rejected:      map[rejectedKey]bool{},
+		boxCount:      -1,
 	}
+	if opts.OutputQueue > 0 {
+		s.out = newOutboundWriter(w, limits.MaxMessageBytes, opts.OutputQueue)
+	}
+	return s
 }
 
 // SetTheme is gone: the runtime holds no palette. Programs send explicit
@@ -197,7 +256,7 @@ func (s *Session) Hello() *pb.Hello {
 func (s *Session) SendHello() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.enc.Encode(wire.TypeHello, s.helloLocked())
+	return s.writeLocked(wire.TypeHello, s.helloLocked(), outputControl, "hello")
 }
 
 // ReadFrame reads one program frame envelope. Oversize frames are returned
@@ -220,10 +279,50 @@ func (s *Session) HandleFrame(t wire.Type, payload []byte) error {
 	switch t {
 	case wire.TypeView:
 		return s.HandleView(m.(*pb.View))
+	case wire.TypeViewDelta:
+		return s.HandleViewDelta(m.(*pb.ViewDelta))
 	case wire.TypeResult:
 		return s.HandleResult(m.(*pb.Result))
+	case wire.TypeStream:
+		if s.onStream == nil {
+			return &wire.Error{Kind: wire.KindDirection, Type: t}
+		}
+		return s.onStream(m.(*pb.StreamFrame))
 	default:
 		return &wire.Error{Kind: wire.KindDirection, Type: t}
+	}
+}
+
+// SendStream writes one STREAM frame to the program (host -> program). It is
+// safe to call from any goroutine; slow programs backpressure the caller
+// through the pipe instead of dropping frames.
+func (s *Session) SendStream(frame *pb.StreamFrame) error {
+	if frame == nil {
+		return errors.New("runtime: nil stream frame")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.enc == nil {
+		return errors.New("runtime: session is closed")
+	}
+	class := outputCoalescible
+	key := "stream:data"
+	if frame.GetKind() != "data" {
+		class = outputControl
+		key = "stream:control"
+	}
+	return s.writeLocked(wire.TypeStream, frame, class, key)
+}
+
+// Close stops the optional asynchronous writer. It is idempotent and should
+// be called by a host before closing the layout program pipes.
+func (s *Session) Close() {
+	s.mu.Lock()
+	out := s.out
+	s.out = nil
+	s.mu.Unlock()
+	if out != nil {
+		out.close()
 	}
 }
 
@@ -255,13 +354,14 @@ func (s *Session) Serve() error {
 
 // HandleOversize answers a frame that the size limit rejected before its
 // payload could be decoded. The rev/request_id inside the payload are
-// unknown, so VIEW is answered with view_rejected{rev:0} (deduplicated per
-// epoch) and RESULT with RESPONSE{request_id:0, error:"oversize"}.
+// unknown, so VIEW and VIEW_DELTA are answered with view_rejected{rev:0}
+// (deduplicated per epoch) and RESULT with RESPONSE{request_id:0,
+// error:"oversize"}.
 func (s *Session) HandleOversize(t wire.Type) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch t {
-	case wire.TypeView:
+	case wire.TypeView, wire.TypeViewDelta:
 		return s.rejectViewLocked(0, "oversize")
 	case wire.TypeResult:
 		return s.sendResponseLocked(s.epoch, 0, false, nil, "oversize")
@@ -279,36 +379,88 @@ func (s *Session) HandleView(v *pb.View) error {
 		return errors.New("runtime: nil view")
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if v.Epoch != s.epoch {
+		s.mu.Unlock()
 		return nil
 	}
 	if v.Rev <= s.rev {
+		s.mu.Unlock()
 		return nil
 	}
 	if max := s.limits.MaxNodes; max > 0 && uint32(countBoxes(v.Root)) > max {
-		return s.rejectViewLocked(v.Rev, "max_nodes")
+		err := s.rejectViewLocked(v.Rev, "max_nodes")
+		s.mu.Unlock()
+		return err
 	}
-	root := toNode(v.Root)
-	s.rev = v.Rev
-	s.view = v
+	s.commitViewLocked(v.Rev, v, v.Root, v.Keys, true, false, staleSet{}, false, -1)
+	onView := s.onView
+	s.mu.Unlock()
+	if onView != nil {
+		onView()
+	}
+	return nil
+}
+
+// commitViewLocked atomically installs one accepted revision: rev/view cache,
+// the solved layout, focus, drag capture and the claim. applyKeys reports
+// whether the frame carried a keys decision: a full VIEW always does (a nil
+// Keys resets the claim), while VIEW_DELTA with keys omitted keeps the
+// previous claim (§2.1). incremental reports whether the new tree may share
+// subtrees with the previous one (VIEW_DELTA) and can therefore reuse the
+// node cache; a full VIEW always builds fresh.
+//
+// stale carries the pointers an incremental commit detached (for cache
+// pruning); focusDirty reports whether a patch could have changed the focused
+// node (when false the committed focus is reused as-is); boxCount is the
+// already-known box count of the new tree, or -1 to signal "unknown, derive
+// it".
+func (s *Session) commitViewLocked(rev uint64, view *pb.View, rootBox *pb.Box, keys *pb.Keys, applyKeys, incremental bool, stale staleSet, focusDirty bool, boxCount int) {
+	root, reused, inexactPrune := s.buildNodeTree(rootBox, incremental, stale)
+	s.rev = rev
+	s.view = view
 	s.root = root
-	s.frame = kernel.Layout(root, s.cols, s.rows)
-	s.haveFrame = true
-	if v.Keys != nil {
-		s.claim = append([]string(nil), v.Keys.Claim...)
-		s.keysAll = v.Keys.All
+	if reused {
+		s.frame = kernel.LayoutCached(root, s.cols, s.rows)
 	} else {
-		s.claim = nil
-		s.keysAll = false
+		s.frame = kernel.Layout(root, s.cols, s.rows)
 	}
-	s.focus = s.focusLocked(root)
+	s.haveFrame = true
+	if incremental && !focusDirty {
+		// No patch could have changed which node is focused or its Input, and
+		// Focus{ID, Input} is a value, so the previous focus is still exact.
+	} else {
+		s.focus = s.focusLocked(root)
+	}
+	if applyKeys {
+		if keys != nil {
+			s.claim = append([]string(nil), keys.Claim...)
+			s.keysAll = keys.All
+		} else {
+			s.claim = nil
+			s.keysAll = false
+		}
+	}
+	switch {
+	case boxCount >= 0:
+		s.boxCount = boxCount
+	case incremental:
+		// The count was not pre-computed (non-growing delta with an unknown
+		// base count): derive it once from the committed tree.
+		s.boxCount = countBoxes(rootBox)
+	default:
+		s.boxCount = -1
+	}
 	if s.captureNode != "" {
 		if _, ok := s.frame.Rect(s.captureNode); !ok {
 			s.captureNode = ""
 		}
 	}
-	return nil
+	if inexactPrune {
+		// s.view/s.root now point at the committed tree, so this reindexes the
+		// new tree (the pre-commit attempt would have re-indexed the old one).
+		s.indexNodes()
+	}
+	s.enforceNodeMapCap()
 }
 
 // HandleResult processes one RESULT: stale epochs are answered "epoch
@@ -316,42 +468,74 @@ func (s *Session) HandleView(v *pb.View) error {
 // calls over max_inflight_requests are answered "throttled" (never queued),
 // and every accepted call gets exactly one RESPONSE carrying its epoch and
 // request_id.
+// HandleResult executes one program RESULT (PROTOCOL §4). Validation and the
+// response bookkeeping run under the session lock, but the handler itself is
+// called without it: a slow handler (an endpoint dial, a daemon restart)
+// must never freeze input routing or view handling for the other panes.
+// Program calls are serialized by the single frame reader, so handler
+// execution stays sequential.
 func (s *Session) HandleResult(r *pb.Result) error {
 	if r == nil {
 		return errors.New("runtime: nil result")
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if r.Epoch != s.epoch {
-		return s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "epoch reset")
+		err := s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "epoch reset")
+		s.mu.Unlock()
+		return err
 	}
 	if s.answered[r.RequestId] {
-		return s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "duplicate request_id")
+		err := s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "duplicate request_id")
+		s.mu.Unlock()
+		return err
 	}
 	method, ok := LookupMethod(r.Method)
 	if !ok {
-		return s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "unknown method: "+r.Method)
+		err := s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "unknown method: "+r.Method)
+		s.mu.Unlock()
+		return err
 	}
 	if msg := validateParams(method, r.Params); msg != "" {
-		return s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, msg)
+		err := s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, msg)
+		s.mu.Unlock()
+		return err
 	}
 	if max := s.limits.MaxInflightRequests; max > 0 && uint32(len(s.inflight)) >= max {
-		return s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "throttled")
+		err := s.sendResponseLocked(r.Epoch, r.RequestId, false, nil, "throttled")
+		s.mu.Unlock()
+		return err
 	}
 	s.answered[r.RequestId] = true
 	if method.Name == "input.forward" {
-		return s.forwardLocked(r)
+		err := s.forwardLocked(r)
+		s.mu.Unlock()
+		return err
 	}
-	outcome, pending := s.handler.Handle(Request{
+	handler := s.handler
+	// Reserve before invoking an asynchronous handler. Its worker may finish
+	// before Handle returns pending=true.
+	s.inflight[r.RequestId] = inflightRequest{epoch: r.Epoch}
+	s.mu.Unlock()
+
+	outcome, pending := handler.Handle(Request{
 		Epoch:     r.Epoch,
 		RequestID: r.RequestId,
+		OwnerID:   s.viewID,
 		Method:    method,
 		Params:    r.Params,
 	})
-	if pending {
-		s.inflight[r.RequestId] = inflightRequest{epoch: r.Epoch}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if r.Epoch != s.epoch {
+		// The epoch advanced while the handler ran: Reset already answered
+		// every in-flight call of the old epoch, so drop this completion.
 		return nil
 	}
+	if pending {
+		return nil
+	}
+	delete(s.inflight, r.RequestId)
 	if !outcome.OK && outcome.Error == "" {
 		outcome.Error = "rejected"
 	}
@@ -362,11 +546,20 @@ func (s *Session) HandleResult(r *pb.Result) error {
 // returned pending=true. It is an error to complete a request that is not in
 // flight in the current epoch.
 func (s *Session) Complete(requestID uint64, data *pb.MethodData, errMsg string) error {
+	return s.CompleteForEpoch(0, requestID, data, errMsg)
+}
+
+// CompleteForEpoch fences a worker's completion against program restarts.
+// Unlike request IDs, epochs are never reused by a Session.
+func (s *Session) CompleteForEpoch(epoch, requestID uint64, data *pb.MethodData, errMsg string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	req, ok := s.inflight[requestID]
 	if !ok {
 		return fmt.Errorf("runtime: request %d is not in flight", requestID)
+	}
+	if epoch != 0 && req.epoch != epoch {
+		return fmt.Errorf("runtime: request %d belongs to epoch %d", requestID, req.epoch)
 	}
 	delete(s.inflight, requestID)
 	if req.epoch != s.epoch {
@@ -402,6 +595,8 @@ func (s *Session) Reset() error {
 	s.rev = 0
 	s.view = nil
 	s.root = nil
+	s.nodes = nil
+	s.boxCount = -1
 	s.frame = kernel.Frame{}
 	s.haveFrame = false
 	s.claim = nil
@@ -410,6 +605,7 @@ func (s *Session) Reset() error {
 	s.captureNode = ""
 	s.coreOverlay = nil
 	s.lastFrame = nil
+	s.frameBuffer = nil
 	return nil
 }
 
@@ -505,10 +701,11 @@ func (s *Session) Resize(cols, rows int) {
 		s.compositor.SetSize(s.cols, s.rows)
 	}
 	if s.root != nil {
-		s.frame = kernel.Layout(s.root, s.cols, s.rows)
+		s.frame = kernel.LayoutCached(s.root, s.cols, s.rows)
 		s.haveFrame = true
 	}
 	s.lastFrame = nil
+	s.frameBuffer = nil
 	_ = s.sendEventLocked(&pb.Event{Event: &pb.Event_Resize{Resize: &pb.ResizeEvent{
 		Cols: uint32(s.cols),
 		Rows: uint32(s.rows),
@@ -529,9 +726,39 @@ func (s *Session) ComposeFrame(placements []Placement, notice *kernel.Frame) *re
 func (s *Session) FrameBytes(placements []Placement, notice *kernel.Frame) []byte {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	frame := s.composeFrameLocked(placements, notice)
+	frame := s.composeFrameIntoLocked(s.frameBuffer, placements, notice)
 	prev := s.lastFrame
 	s.lastFrame = frame
+	if prev != nil {
+		s.frameBuffer = prev
+	} else {
+		s.frameBuffer = nil
+	}
+	if len(placements) > 0 {
+		// Component panes can represent a history viewport. Preserve the old
+		// TUI's panel-local scroll path: a split panel must not force every
+		// full-width row (and its sibling panels) through the diff writer.
+		regions := make([]render.ScrollRect, 0, len(placements))
+		allowPhysicalScroll := true
+		for _, placement := range placements {
+			if placement.DisableScrollOptimization {
+				allowPhysicalScroll = false
+				continue
+			}
+			r := placement.ContentRect
+			if r.Empty() {
+				continue
+			}
+			regions = append(regions, render.ScrollRect{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height})
+		}
+		if !allowPhysicalScroll {
+			// A live PTY owns its own viewport and commonly redraws several
+			// rows per output event. Keep the host diff atomic so the terminal
+			// never presents the half-written viewport between row updates.
+			return frame.BytesWithoutPhysicalScrollSynchronized(prev)
+		}
+		return frame.BytesWithSynchronizedScrollRegions(prev, regions)
+	}
 	return frame.Bytes(prev)
 }
 
@@ -540,6 +767,13 @@ func (s *Session) composeFrameLocked(placements []Placement, notice *kernel.Fram
 		s.compositor = NewCompositor(s.cols, s.rows)
 	}
 	return s.compositor.Compose(s.frame, placements, notice, s.coreOverlay)
+}
+
+func (s *Session) composeFrameIntoLocked(dst *render.Frame, placements []Placement, notice *kernel.Frame) *render.Frame {
+	if s.compositor == nil {
+		s.compositor = NewCompositor(s.cols, s.rows)
+	}
+	return s.compositor.ComposeInto(dst, s.frame, placements, notice, s.coreOverlay)
 }
 
 // Claim returns the claim of the last accepted view.
@@ -571,20 +805,28 @@ func (s *Session) Route(ev InputEvent) Destination {
 	})
 }
 
-// refreshFocusLocked refreshes the mouse-tracking bit of the cached focus,
-// because the program can toggle DEC mouse modes after the view was solved.
-// The focus is replaced with a copy, never mutated, so pointers handed out
-// by Focus() stay race-free.
+// refreshFocusLocked refreshes the terminal capability bits of the cached
+// focus, because the program can toggle DEC mouse modes and the host can
+// enter/leave history after the view was solved. The focus is replaced with a
+// copy, never mutated, so pointers handed out by Focus() stay race-free.
 func (s *Session) refreshFocusLocked() {
-	if s.mouseTracker == nil || s.focus == nil {
+	if s.focus == nil {
 		return
 	}
-	tracked := s.mouseTracker(s.focus.ID)
-	if tracked == s.focus.MouseTracking {
+	tracked := s.focus.MouseTracking
+	if s.mouseTracker != nil {
+		tracked = s.mouseTracker(s.focus.ID)
+	}
+	historyActive := s.focus.HistoryActive
+	if s.historyActive != nil {
+		historyActive = s.historyActive(s.focus.ID)
+	}
+	if tracked == s.focus.MouseTracking && historyActive == s.focus.HistoryActive {
 		return
 	}
 	focus := *s.focus
 	focus.MouseTracking = tracked
+	focus.HistoryActive = historyActive
 	s.focus = &focus
 }
 
@@ -646,6 +888,7 @@ func (s *Session) helloLocked() *pb.Hello {
 		Methods:    MethodNames(),
 		Features: map[string]bool{
 			"component":  true,
+			"view_delta": true,
 			"state.save": false,
 			"state.load": false,
 		},
@@ -657,7 +900,8 @@ func (s *Session) sendEventLocked(ev *pb.Event) error {
 	if s.eventSink != nil {
 		return s.eventSink.SendEvent(ev)
 	}
-	return s.enc.Encode(wire.TypeEvent, ev)
+	class, key := eventOutputClass(ev)
+	return s.writeLocked(wire.TypeEvent, ev, class, key)
 }
 
 func (s *Session) sendResponseLocked(epoch, requestID uint64, ok bool, data *pb.MethodData, errMsg string) error {
@@ -666,13 +910,33 @@ func (s *Session) sendResponseLocked(epoch, requestID uint64, ok bool, data *pb.
 	} else if errMsg == "" {
 		errMsg = "rejected"
 	}
-	return s.enc.Encode(wire.TypeResponse, &pb.Response{
+	return s.writeLocked(wire.TypeResponse, &pb.Response{
 		RequestId: requestID,
 		Epoch:     epoch,
 		Ok:        ok,
 		Data:      data,
 		Error:     errMsg,
-	})
+	}, outputControl, "response")
+}
+
+func (s *Session) writeLocked(t wire.Type, m gproto.Message, class outputClass, key string) error {
+	if s.out != nil {
+		return s.out.enqueue(t, m, class, key)
+	}
+	return s.enc.Encode(t, m)
+}
+
+func eventOutputClass(ev *pb.Event) (outputClass, string) {
+	switch ev.GetEvent().(type) {
+	case *pb.Event_Notice:
+		return outputCoalescible, "notice"
+	case *pb.Event_Sources:
+		return outputCoalescible, "sources"
+	case *pb.Event_Key, *pb.Event_Paste, *pb.Event_Resize, *pb.Event_Mouse, *pb.Event_Wheel:
+		return outputReliable, "input"
+	default:
+		return outputControl, "control"
+	}
 }
 
 func (s *Session) rejectViewLocked(rev uint64, reason string) error {
@@ -711,12 +975,15 @@ func (s *Session) focusLocked(root *kernel.Node) *Focus {
 	if found == nil {
 		return nil
 	}
-	f := &Focus{ID: found.Content.Self, Input: append([]string(nil), found.Input...)}
+	f := &Focus{ID: found.Content.Self, NodeID: found.ID, Input: append([]string(nil), found.Input...)}
 	if src := s.sourceLocked(f.ID); src != nil {
 		f.IsTerminal = src.GetKind() == "terminal"
 	}
 	if s.mouseTracker != nil {
 		f.MouseTracking = s.mouseTracker(f.ID)
+	}
+	if s.historyActive != nil {
+		f.HistoryActive = s.historyActive(f.ID)
 	}
 	return f
 }
@@ -735,18 +1002,23 @@ func cloneSource(src *pb.Source) *pb.Source {
 		return nil
 	}
 	return &pb.Source{
-		Id:          src.GetId(),
-		Kind:        src.GetKind(),
-		Title:       src.GetTitle(),
-		Endpoint:    src.GetEndpoint(),
-		TerminalId:  src.GetTerminalId(),
-		Attached:    src.GetAttached(),
-		Exited:      src.GetExited(),
-		ExitCode:    src.GetExitCode(),
-		Health:      src.GetHealth(),
-		ResizeOwner: src.GetResizeOwner(),
-		OwnerEpoch:  src.GetOwnerEpoch(),
-		LastSeenMs:  src.GetLastSeenMs(),
+		Id:            src.GetId(),
+		Kind:          src.GetKind(),
+		Title:         src.GetTitle(),
+		Endpoint:      src.GetEndpoint(),
+		TerminalId:    src.GetTerminalId(),
+		Attached:      src.GetAttached(),
+		Exited:        src.GetExited(),
+		ExitCode:      src.GetExitCode(),
+		Health:        src.GetHealth(),
+		ResizeOwner:   src.GetResizeOwner(),
+		OwnerEpoch:    src.GetOwnerEpoch(),
+		LastSeenMs:    src.GetLastSeenMs(),
+		Cols:          src.GetCols(),
+		Rows:          src.GetRows(),
+		Tags:          src.GetTags(),
+		EndpointLabel: src.GetEndpointLabel(),
+		LastOutputMs:  src.GetLastOutputMs(),
 	}
 }
 
@@ -788,60 +1060,4 @@ func cloneProps(props map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
-}
-
-func toNode(b *pb.Box) *kernel.Node {
-	if b == nil {
-		return nil
-	}
-	n := &kernel.Node{
-		ID:      b.GetId(),
-		Flow:    kernel.Flow(b.GetFlow()),
-		Style:   b.GetStyle(),
-		Input:   append([]string(nil), b.Input...),
-		Focused: b.GetFocused(),
-	}
-	if b.Size != nil {
-		n.Size = kernel.Size{
-			Width:  int(b.Size.GetWidth()),
-			Height: int(b.Size.GetHeight()),
-			Flex:   int(b.Size.GetFlex()),
-		}
-	}
-	if b.Pos != nil {
-		n.Pos = &kernel.Pos{X: int(b.Pos.GetX()), Y: int(b.Pos.GetY())}
-	}
-	if b.Visible != nil {
-		v := b.GetVisible()
-		n.Visible = &v
-	}
-	if b.Content != nil {
-		n.Content = &kernel.Content{
-			Text:  b.Content.GetText(),
-			Lines: append([]string(nil), b.Content.Lines...),
-			Self:  b.Content.GetSelf(),
-			Props: cloneProps(b.Content.GetProps()),
-		}
-	}
-	if b.Cursor != nil {
-		c := &kernel.Cursor{
-			Row:   int(b.Cursor.GetRow()),
-			Col:   int(b.Cursor.GetCol()),
-			Shape: b.Cursor.GetShape(),
-		}
-		if b.Cursor.Visible != nil {
-			v := b.Cursor.GetVisible()
-			c.Visible = &v
-		}
-		n.Cursor = c
-	}
-	if len(b.Children) > 0 {
-		n.Children = make([]kernel.Node, len(b.Children))
-		for i, child := range b.Children {
-			if c := toNode(child); c != nil {
-				n.Children[i] = *c
-			}
-		}
-	}
-	return n
 }

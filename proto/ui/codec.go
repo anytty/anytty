@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 
 	gproto "google.golang.org/protobuf/proto"
 )
@@ -38,15 +39,83 @@ func Marshal(t Type, m gproto.Message, maxMessageBytes uint32) ([]byte, error) {
 	return frame, nil
 }
 
+// MarshalAppend appends one frame (u32 length | u8 type | payload) to dst and
+// returns the extended slice, so a caller can encode into a reusable buffer.
+// A nil message is treated as the empty message of type t. The error kinds
+// are the same as Marshal: KindUnknownType, KindPayload and KindOversize. On
+// error the returned slice has dst's original length and contents.
+func MarshalAppend(dst []byte, t Type, m gproto.Message, maxMessageBytes uint32) ([]byte, error) {
+	if !t.Valid() {
+		return dst, &Error{Kind: KindUnknownType, Type: t}
+	}
+	limit := maxMessageBytes
+	if limit == 0 {
+		limit = DefaultMaxMessageBytes
+	}
+	start := len(dst)
+	dst = append(dst, 0, 0, 0, 0, byte(t))
+	if m != nil {
+		var err error
+		dst, err = gproto.MarshalOptions{}.MarshalAppend(dst, m)
+		if err != nil {
+			return dst[:start], &Error{Kind: KindPayload, Type: t, Err: err}
+		}
+	}
+	total := uint64(len(dst)-start-5) + 1
+	if total > uint64(limit) {
+		return dst[:start], &Error{Kind: KindOversize, Type: t, Limit: limit}
+	}
+	binary.BigEndian.PutUint32(dst[start:start+4], uint32(total))
+	return dst, nil
+}
+
+// frameDecoderPool reuses the Decoder envelope of DecodeFrame so the
+// in-memory helper allocates only the reader and the payload.
+var frameDecoderPool = sync.Pool{New: func() any { return &Decoder{} }}
+
 // DecodeFrame decodes one in-memory frame with the parsing order fixed by
 // PROTOCOL §0. It returns the raw payload; use UnmarshalPayload to get the
 // typed message.
 func DecodeFrame(frame []byte, role Role, maxMessageBytes uint32) (Type, []byte, error) {
-	return NewDecoder(bytes.NewReader(frame), role, maxMessageBytes).Decode()
+	if maxMessageBytes == 0 {
+		maxMessageBytes = DefaultMaxMessageBytes
+	}
+	d := frameDecoderPool.Get().(*Decoder)
+	d.r = bytes.NewReader(frame)
+	d.role = role
+	d.max = maxMessageBytes
+	d.reuse, d.buf = false, nil
+	t, payload, err := d.Decode()
+	d.r = nil
+	frameDecoderPool.Put(d)
+	return t, payload, err
+}
+
+// encodeScratchPool reuses frame buffers between Encodes: Encode marshals
+// into its own pooled scratch buffer and writes it with a single Write, so
+// the steady-state hot path adds no per-frame allocation. Buffers larger
+// than scratchRetainLimit are not retained, so one oversized frame cannot
+// pin memory. The pool holds *[]byte so Put does not box the slice header.
+var encodeScratchPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 0, 4096)
+		return &buf
+	},
+}
+
+// scratchRetainLimit bounds what the encoder pool keeps alive: a full
+// default-size frame plus its 5-byte header.
+const scratchRetainLimit = DefaultMaxMessageBytes + 5
+
+func putScratch(buf *[]byte) {
+	if cap(*buf) > int(scratchRetainLimit) {
+		return
+	}
+	encodeScratchPool.Put(buf)
 }
 
 // Encoder writes typed frames for one endpoint, enforcing direction and the
-// frame size limit.
+// frame size limit. Encode is safe for concurrent use.
 type Encoder struct {
 	w    io.Writer
 	role Role
@@ -64,7 +133,8 @@ func NewEncoder(w io.Writer, role Role, maxMessageBytes uint32) *Encoder {
 
 // Encode marshals and writes one frame. It returns KindDirection when the
 // type is illegal for this endpoint and KindOversize when the frame is over
-// the limit.
+// the limit. The frame is assembled in a pooled scratch buffer and written
+// once; w must not retain the byte slice it is given (io.Writer contract).
 func (e *Encoder) Encode(t Type, m gproto.Message) error {
 	if !e.role.CanSend(t) {
 		if !t.Valid() {
@@ -72,20 +142,29 @@ func (e *Encoder) Encode(t Type, m gproto.Message) error {
 		}
 		return &Error{Kind: KindDirection, Type: t}
 	}
-	frame, err := Marshal(t, m, e.max)
+	scratch := encodeScratchPool.Get().(*[]byte)
+	frame, err := MarshalAppend((*scratch)[:0], t, m, e.max)
+	*scratch = frame[:0]
 	if err != nil {
+		putScratch(scratch)
 		return err
 	}
 	_, err = e.w.Write(frame)
+	putScratch(scratch)
 	return err
 }
 
 // Decoder reads framed messages for one endpoint. It is not safe for
 // concurrent use.
 type Decoder struct {
-	r    io.Reader
-	role Role
-	max  uint32
+	r     io.Reader
+	role  Role
+	max   uint32
+	reuse bool
+	buf   []byte
+	// prefix lives in the struct so passing it to io.ReadFull does not
+	// heap-allocate a 4-byte local on every Decode.
+	prefix [4]byte
 }
 
 // NewDecoder returns a Decoder reading from r as the given role. A zero
@@ -97,16 +176,28 @@ func NewDecoder(r io.Reader, role Role, maxMessageBytes uint32) *Decoder {
 	return &Decoder{r: r, role: role, max: maxMessageBytes}
 }
 
+// ReuseBuffer switches the decoder to a per-decoder scratch read buffer, so
+// Decode does not allocate a payload buffer per frame in steady state. The
+// returned payload slice is only valid until the next Decode call; callers
+// that keep it must copy it. Without this call NewDecoder keeps the
+// historical behavior of one allocation per frame. Chainable and not safe
+// for concurrent use.
+func (d *Decoder) ReuseBuffer(enabled bool) *Decoder {
+	d.reuse = enabled
+	return d
+}
+
 // Decode reads one frame. It returns io.EOF only at a clean frame boundary;
 // a stream that ends inside a frame yields *Error{Kind: KindTruncated}. An
 // oversize frame is drained without allocating its payload and reported as
 // *Error{Kind: KindOversize} with the classified Type (when readable).
+// With ReuseBuffer(true) the payload aliases the decoder's scratch buffer
+// and stays valid only until the next Decode.
 func (d *Decoder) Decode() (Type, []byte, error) {
-	var prefix [4]byte
-	if _, err := io.ReadFull(d.r, prefix[:]); err != nil {
+	if _, err := io.ReadFull(d.r, d.prefix[:]); err != nil {
 		return 0, nil, boundaryError(err)
 	}
-	length := binary.BigEndian.Uint32(prefix[:])
+	length := binary.BigEndian.Uint32(d.prefix[:])
 	if length == 0 {
 		return 0, nil, &Error{Kind: KindZeroLength}
 	}
@@ -122,7 +213,17 @@ func (d *Decoder) Decode() (Type, []byte, error) {
 		return t, nil, &Error{Kind: KindOversize, Type: t, Limit: d.max}
 	}
 
-	buf := make([]byte, length)
+	var buf []byte
+	if d.reuse {
+		if cap(d.buf) < int(length) {
+			d.buf = make([]byte, length)
+		} else {
+			d.buf = d.buf[:length]
+		}
+		buf = d.buf
+	} else {
+		buf = make([]byte, length)
+	}
 	if _, err := io.ReadFull(d.r, buf); err != nil {
 		return 0, nil, frameError(err)
 	}

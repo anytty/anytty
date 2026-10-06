@@ -1,7 +1,5 @@
 package kernel
 
-import "strings"
-
 // wideRanges is a minimal east-asian-width table: runes in these ranges are
 // rendered with width 2 (CJK, fullwidth forms, common emoji, CJK extension
 // planes). Everything else is width 1 unless it is a zero-width rune.
@@ -40,6 +38,12 @@ var wideRanges = [...][2]rune{
 // RuneWidth returns the display width of r: 0 for controls, combining marks
 // and zero-width runes, 2 for wide (CJK/emoji) runes, 1 otherwise.
 func RuneWidth(r rune) int {
+	// Fast path: printable ASCII and Latin-1 are width 1. The zero-width and
+	// wide ranges all start at or after 0x300/0x1100, so anything below the
+	// first zero-width range that is not a control is width 1.
+	if r >= 0x20 && r < 0x7F {
+		return 1
+	}
 	switch {
 	case r == 0:
 		return 0
@@ -70,6 +74,11 @@ func RuneWidth(r rune) int {
 	case r == 0xFEFF:
 		return 0
 	}
+	// Every wide range starts at or above 0x1100, so a rune below that which
+	// is not a control or zero-width above is width 1.
+	if r < 0x1100 {
+		return 1
+	}
 	for _, rng := range wideRanges {
 		if r >= rng[0] && r <= rng[1] {
 			return 2
@@ -89,20 +98,19 @@ func DisplayWidth(s string) int {
 }
 
 // Truncate clips s to at most maxWidth display cells without splitting a
-// wide rune in half. A zero or negative maxWidth yields "".
+// wide rune in half. A zero or negative maxWidth yields "". The returned
+// string shares s's storage (it is a prefix), so no copy is made.
 func Truncate(s string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
-	var b strings.Builder
 	width := 0
-	for _, r := range s {
+	for i, r := range s {
 		rw := RuneWidth(r)
 		if width+rw > maxWidth && rw > 0 {
-			break
+			return s[:i]
 		}
-		b.WriteRune(r)
 		width += rw
 	}
-	return b.String()
+	return s
 }

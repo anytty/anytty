@@ -326,6 +326,16 @@ func parseSGRMouse(buffer []byte) (Event, int, bool) {
 		return Event{}, consumed, true
 	}
 	if code&64 != 0 {
+		// SGR wheel buttons are 64=up, 65=down, 66=left, 67=right. Only the
+		// vertical pair (code&3 <= 1) maps to the protocol's vertical wheel;
+		// horizontal wheel reports (66/67) have no scrollback meaning and are
+		// dropped instead of being misread as up/down. Ghostty emits a
+		// horizontal report alongside a vertical one for a tilted wheel or a
+		// trackpad, and treating 66 as "up" made a mouse-tracking child scroll
+		// its viewport up and back (the bottom bounce).
+		if buffer[end] != 'M' || code&32 != 0 || code&3 > 1 {
+			return Event{}, consumed, true
+		}
 		delta := 1
 		if code&1 != 0 {
 			delta = -1
@@ -358,8 +368,10 @@ func mouseButtonName(code int) string {
 		return ButtonMiddle
 	case 2:
 		return ButtonRight
+	case 3:
+		return ButtonNone
 	}
-	return ""
+	return ButtonNone
 }
 
 func mouseMods(code int) Mods {
