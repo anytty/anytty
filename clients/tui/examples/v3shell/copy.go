@@ -38,6 +38,9 @@ const (
 	copyMatchCurStyle  = "fg:#070611;bg:#fde68a;bold"
 	copyCursorStyle    = "reverse"
 	copySearchBarStyle = "fg:#070611;bg:#fde68a"
+	// copySearchCaretStyle is the reverse-video blank cell that shows the edit
+	// caret in the footer search bar (legacy CursorShapeBar).
+	copySearchCaretStyle = "reverse"
 )
 
 // copyMatch is one search match on one viewport row (inclusive display cols).
@@ -49,26 +52,31 @@ type copyMatch struct {
 
 // copyState is one pane's copy session.
 type copyState struct {
-	offset       int // scroll offset the host reported (0 = live)
-	cursorRow    int // viewport row, 0 = top of the content area
-	cursorCol    int // display column
-	markRow      int
-	markCol      int
-	marked       bool
-	searching    bool
-	searchMode   int
-	searchCol    int // rune cursor inside the query
-	query        string
-	forward      bool
-	searchSeq    uint64      // scan generation: stale window responses are dropped
-	searchDirty  bool        // query changed; a debounced scan is pending
-	searchErr    string      // last search error, shown in the search bar
-	matches      []copyMatch // visible matches (viewport rows)
-	matchIdx     int
-	currentMatch []copyMatch // authoritative match, including soft-wrapped rows
-	rows         []string    // the window the host last showed
-	cols         int         // content width (PTY cols) used for linear indices
-	viewRows     int         // content height the layout last showed
+	offset      int // scroll offset the host reported (0 = live)
+	cursorRow   int // viewport row, 0 = top of the content area
+	cursorCol   int // display column
+	markRow     int
+	markCol     int
+	marked      bool
+	searching   bool
+	searchMode  int
+	searchCol   int // rune cursor inside the query
+	query       string
+	forward     bool
+	searchSeq   uint64      // scan generation: stale window responses are dropped
+	searchDirty bool        // query changed; a debounced scan is pending
+	searchErr   string      // last search error, shown in the search bar
+	matches     []copyMatch // visible matches (viewport rows)
+	matchIdx    int
+	// searchCurrent / searchTotal are the scan status shown in the footer bar
+	// (the legacy "N/M" / "no match" badge) after a terminal.search response.
+	searchCurrent int
+	searchTotal   int
+	searchPending bool
+	currentMatch  []copyMatch // authoritative match, including soft-wrapped rows
+	rows          []string    // the window the host last showed
+	cols          int         // content width (PTY cols) used for linear indices
+	viewRows      int         // content height the layout last showed
 	// scrollSeq identifies the latest in-flight terminal.scroll request for
 	// this session. A persistent history provider is asynchronous; a late
 	// response from an older direction must never move the viewport back and
@@ -635,22 +643,34 @@ func findRowMatches(row int, line, query string) []copyMatch {
 }
 
 // refreshCopyMatches recomputes the highlightable matches inside the visible
-// window.
+// window and refreshes the footer status counts.
 func (m *model) refreshCopyMatches(st *copyState) {
 	st.currentMatch = nil
 	if strings.TrimSpace(st.query) == "" || len(st.rows) == 0 {
 		st.matches = nil
 		st.matchIdx = 0
+		st.searchTotal = 0
+		st.searchCurrent = 0
 		return
 	}
 	matches, ok := findModeMatches(st.rows, st.searchMode, st.query)
 	if !ok {
+		// An invalid glob/regex is a search error, not "no match".
 		st.matches = nil
+		st.searchTotal = 0
+		st.searchCurrent = 0
+		st.searchErr = "invalid pattern"
 		return
 	}
 	st.matches = matches
 	if st.matchIdx >= len(st.matches) {
 		st.matchIdx = maxInt(0, len(st.matches)-1)
+	}
+	st.searchTotal = len(st.matches)
+	if len(st.matches) == 0 {
+		st.searchCurrent = 0
+	} else {
+		st.searchCurrent = st.matchIdx + 1
 	}
 }
 
@@ -736,6 +756,11 @@ func (m *model) applyTerminalSearch(st *copyState, result opMsg) {
 			break
 		}
 	}
+	// The scan status badge: position of the current match within the visible
+	// matches (the terminal.search response is per-match, so the total is the
+	// loaded-window count, matching what the user sees highlighted).
+	st.searchCurrent = st.matchIdx + 1
+	st.searchTotal = len(st.matches)
 	if result.wrapped {
 		m.toast = "search wrapped"
 	}
@@ -795,37 +820,111 @@ func formatCopySpans(spans []copyMatch) string {
 	return b.String()
 }
 
-// copySearchBar is the one-line "/query" prompt over the pane bottom. Like the
-// legacy SearchBarVisible it stays visible while a query is present or the
-// debounced scan/edit is pending, not only while the key is being typed.
-func (m *model) copySearchBar(st *copyState) string {
-	if st == nil {
-		return ""
+// copySearchLabel is the legacy mode label shown in the search bar prefix.
+func copySearchLabel(mode int) string {
+	switch mode {
+	case copySearchGlob:
+		return "GLOB"
+	case copySearchRegex:
+		return "REGEX"
+	default:
+		return "TEXT"
 	}
-	if !st.searching && strings.TrimSpace(st.query) == "" && st.searchErr == "" {
-		return ""
-	}
-	bar := "/" + st.query
-	if st.searchMode != copySearchText {
-		bar += "  [" + copySearchModeName(st.searchMode) + "]"
-	}
-	if st.searchErr != "" {
-		bar += "  " + st.searchErr
-	}
-	return bar
 }
 
-// copySearchCaret is the display column of the search input caret.
-func copySearchCaret(st *copyState) int {
-	runes := []rune(st.query)
-	col := st.searchCol
-	if col < 0 {
-		col = 0
+// copySearchFooterRuns renders the legacy copy search bar that replaces the
+// global footer: a left-aligned "⌕ [MODE] query" prefix/value with the text
+// cursor placed on the value while editing, and a right-aligned status/hint
+// (scanning count, "no match", errors, and the key hints on wide terminals).
+// The query is windowed around the edit cursor so a long query still shows the
+// caret (legacy searchBarPresentation).
+func (m *model) copySearchFooterRuns(st *copyState) (left, right []footerRun) {
+	if st == nil {
+		return nil, nil
 	}
-	if col > len(runes) {
-		col = len(runes)
+	prefix := "\u2315 [" + copySearchLabel(st.searchMode) + "] "
+	hint := "  /edit Tab mode N\u2191 n\u2193 Esc\u00d7"
+	if st.searching {
+		hint = "  Tab mode Enter\u2713 Esc\u00d7"
 	}
-	return 1 + sdk.DisplayWidth(string(runes[:col]))
+	status := m.copySearchStatus(st)
+	// Right side: status (styled) then the wide hint (legacy WideMinWidth 58).
+	if status != "" {
+		style := stMuted
+		if st.searchErr != "" {
+			style = stWarning
+		}
+		right = append(right, footerRun{status, style, "", 1})
+	}
+	if m.cols >= 58 {
+		right = append(right, footerRun{hint, stMuted, "", 1})
+	}
+
+	// Left side: prefix + a query window that keeps the caret visible.
+	avail := maxInt(1, m.cols-sdk.DisplayWidth(prefix)-runsWidth(right))
+	value := st.query
+	cursor := minInt(maxInt(0, st.searchCol), len([]rune(value)))
+	valueStart := 0
+	if sdk.DisplayWidth(value) > avail {
+		valueCursor := sdk.DisplayWidth(string([]rune(value)[:cursor]))
+		valueStart = minInt(maxInt(0, valueCursor-avail/2), sdk.DisplayWidth(value)-avail)
+		value = sliceCells(value, valueStart, valueStart+avail)
+	}
+	left = append(left, footerRun{prefix, stAccent, "", 1})
+	if value != "" {
+		left = append(left, footerRun{value, stContent, "", 1})
+	}
+	return left, right
+}
+
+// copySearchStatus is the legacy search status string (the right-aligned badge).
+func (m *model) copySearchStatus(st *copyState) string {
+	switch {
+	case st.searchErr != "":
+		return st.searchErr
+	case strings.TrimSpace(st.query) == "":
+		return ""
+	case st.searchTotal == 0:
+		return "no match"
+	case st.searchCurrent > 0:
+		return strconv.Itoa(st.searchCurrent) + "/" + strconv.Itoa(st.searchTotal)
+	default:
+		return "\u2013/" + strconv.Itoa(st.searchTotal)
+	}
+}
+
+func runsWidth(runs []footerRun) int {
+	width := 0
+	for _, run := range runs {
+		width += sdk.DisplayWidth(run.text)
+	}
+	return width
+}
+
+// sliceCells returns the substring of s covering display columns [from, to).
+func sliceCells(s string, from, to int) string {
+	if to <= from {
+		return ""
+	}
+	var b strings.Builder
+	col := 0
+	for _, r := range s {
+		w := sdk.RuneWidth(r)
+		if w <= 0 {
+			if col >= from && col < to {
+				b.WriteRune(r)
+			}
+			continue
+		}
+		if col+w > from && col < to {
+			b.WriteRune(r)
+		}
+		col += w
+		if col >= to {
+			break
+		}
+	}
+	return b.String()
 }
 
 func copySearchModeName(mode int) string {

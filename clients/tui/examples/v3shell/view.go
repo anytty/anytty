@@ -135,9 +135,90 @@ func (m *model) View() *pb.Box {
 	}
 	m.toastNodes(&out)
 	if m.footerVisible {
-		m.footerNodes(&out)
+		// The active panel's copy search replaces the global footer row, like
+		// the legacy SearchBarVM.
+		if st := m.copySearchFooterState(); st != nil {
+			m.copySearchFooterNodes(&out, st)
+		} else {
+			m.footerNodes(&out)
+		}
 	}
 	return sdk.Stack(out...).ID("root").Build()
+}
+
+// copySearchFooterState returns the active copy session whose search bar should
+// replace the footer, or nil. It mirrors the legacy SearchBarVisible rule: the
+// bar shows while editing, scanning, or whenever a query/error is present.
+func (m *model) copySearchFooterState() *copyState {
+	if m.overlay != "" || m.mode != modeLive {
+		return nil
+	}
+	st := m.copyFor(m.focusContentPane())
+	if st == nil {
+		return nil
+	}
+	if !st.searching && strings.TrimSpace(st.query) == "" && st.searchErr == "" {
+		return nil
+	}
+	return st
+}
+
+// copySearchFooterNodes paints the search bar on the footer row: left prefix +
+// query, right status + hint, and a reverse-video caret on the query while
+// editing (the legacy bar cursor).
+func (m *model) copySearchFooterNodes(out *[]*sdk.Builder, st *copyState) {
+	y := m.rows - 1
+	left, right := m.copySearchFooterRuns(st)
+	left = trimRuns(left, m.cols)
+	leftWidth := runsWidth(left)
+	right = trimRuns(right, m.cols-leftWidth)
+	rightWidth := runsWidth(right)
+	pad := maxInt(0, m.cols-leftWidth-rightWidth)
+	x := 0
+	prefixEnd := -1
+	valueX := -1
+	for _, run := range left {
+		width := sdk.DisplayWidth(run.text)
+		if width <= 0 {
+			continue
+		}
+		if run.style == stAccent {
+			prefixEnd = x + width
+		}
+		if run.style == stContent {
+			valueX = x
+		}
+		addRun(out, x, y, run.text, run.style, run.node, run.node != "", width)
+		x += width
+	}
+	if pad > 0 {
+		addRun(out, x, y, "", stFooterFill, "", false, pad)
+	}
+	x += pad
+	for _, run := range right {
+		width := sdk.DisplayWidth(run.text)
+		if width <= 0 {
+			continue
+		}
+		addRun(out, x, y, run.text, run.style, run.node, run.node != "", width)
+		x += width
+	}
+	if st.searching {
+		col := minInt(maxInt(0, m.cols-1), m.copySearchCaretCol(st, prefixEnd, valueX))
+		addRun(out, col, y, " ", copySearchCaretStyle, "", false, 1)
+	}
+}
+
+// copySearchCaretCol is the footer column of the edit caret: the prefix end
+// when the query is empty, otherwise prefix + the display width of the query
+// runes before the cursor.
+func (m *model) copySearchCaretCol(st *copyState, prefixEnd, valueX int) int {
+	if valueX < 0 || prefixEnd < 0 {
+		return maxInt(0, prefixEnd)
+	}
+	runes := []rune(st.query)
+	col := minInt(maxInt(0, st.searchCol), len(runes))
+	return valueX + sdk.DisplayWidth(string(runes[:col]))
 }
 
 func (m *model) bodyNodes(out *[]*sdk.Builder) {
@@ -297,20 +378,11 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 			Focused(active)
 		if st != nil {
 			// The program cursor wins over the PTY cursor (the compositor
-			// prefers the kernel frame cursor). While the search is being
-			// edited the cursor moves to the search bar, like the old copy
-			// scene.
-			if st.searching {
-				box.Cursor(r.h-1, minInt(copySearchCaret(st), maxInt(0, r.w-1)), "block")
-			} else {
-				box.Cursor(st.cursorRow, st.cursorCol, "block")
-			}
+			// prefers the kernel frame cursor). The edit caret lives in the
+			// footer search bar, so the panel keeps the selection cursor.
+			box.Cursor(st.cursorRow, st.cursorCol, "block")
 		}
 		*out = append(*out, box)
-		if bar := m.copySearchBar(st); bar != "" {
-			style := copySearchBarStyle
-			addRun(out, r.x, r.y+r.h-1, sdk.Truncate(bar, r.w), style, "", false, r.w)
-		}
 		return
 	}
 	if src == nil {

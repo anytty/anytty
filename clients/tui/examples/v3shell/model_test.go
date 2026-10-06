@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/anytty/anytty/clients/tui/sdk/app"
@@ -1511,7 +1512,7 @@ func TestCopySearchInteractionMatchesLegacy(t *testing.T) {
 	if st.query != "two" {
 		t.Fatalf("query cleared by enter: %q", st.query)
 	}
-	if bar := m.copySearchBar(st); bar == "" {
+	if left, _ := m.copySearchFooterRuns(st); len(left) == 0 {
 		t.Fatal("the search bar must stay visible after enter")
 	}
 
@@ -1532,6 +1533,36 @@ func TestCopySearchInteractionMatchesLegacy(t *testing.T) {
 	wantStart := int32(last.row*st.cols + last.endCol + 1)
 	if got := fake.last().params.GetSel().GetStart(); got != wantStart {
 		t.Fatalf("n start = %d, want %d (one past the current match)", got, wantStart)
+	}
+}
+
+// TestCopySearchBarReplacesFooter pins the legacy placement: the copy search
+// bar overwrites the global footer row (not the panel's last content row) and
+// shows the mode prefix, the query and the caret.
+func TestCopySearchBarReplacesFooter(t *testing.T) {
+	m, fake := boundModel(t)
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {
+		if method == "history.window" {
+			return &pb.Response{Ok: true, Data: &pb.MethodData{
+				Rows: []string{"alpha", "beta"}, Offset: 0,
+			}}
+		}
+		return &pb.Response{Ok: true}
+	}
+	runCmd(t, m, key(m, "ctrl-shift-c"))
+	runCmd(t, m, key(m, "/"))
+	for _, r := range "be" {
+		runCmd(t, m, m.onKey(string(r), string(r)))
+	}
+	lines := screenLines(m)
+	footer := lines[m.rows-1]
+	if !strings.Contains(footer, "\u2315 [TEXT] be") {
+		t.Fatalf("footer search bar = %q, want the mode prefix and query", footer)
+	}
+	// The panel content area must not carry the "/query" bar any more.
+	body := strings.Join(lines[1:m.rows-1], "\n")
+	if strings.Contains(body, "\u2315 [TEXT]") {
+		t.Fatalf("search bar leaked into the panel body:\n%s", body)
 	}
 }
 
