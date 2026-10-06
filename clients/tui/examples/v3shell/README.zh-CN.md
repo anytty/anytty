@@ -67,7 +67,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | `Ctrl-T` | TAB 场景（`c` 新建、`n/l/]` 与 `p/h/[` 前后、`1-9` 跳转、`x` 关闭、`X`/`k` kill+关闭、`r` 重命名） |
 | `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名） |
 | `Ctrl-F` | Terminal Picker（`←/→` 切换机器/endpoint 分区、`Shift+←/→` 循环 Running→Exited→All、直接输入搜索（大小写不敏感**子序列**匹配，命中标题/ID/状态/tag/`xN`/尺寸；中文名还支持拼音全拼与首字母，如 `suoping`/`sp` 命中「锁屏」，命中处高亮）、`Ctrl-T` 打开标签复选列表（`↑/↓` 选择、`space` 勾选、`Ctrl-T`/`esc` 返回）、`↑/↓` 选择、`enter` 绑定、`tab` 分屏绑定、`ctrl-k` kill、`ctrl-x` remove、`esc` 返回；首行是 `+ New terminal`；选中后弹出 Create Terminal 表单（name/command/server/workdir/tags），`Tab` 切换字段、`Enter` 提交、`Esc` 取消；overlay 高度上限 24） |
-| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections、`w` tree、`l` shortcut lock、`T`/`c`/`x` 关闭 toast、`?` help、`q` 退出） |
+| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections overlay（`↑/↓` 选择、`t`/`enter` test、`r` reconnect）、`l` shortcut lock、`T`/`c`/`x` 关闭 toast、`?` help、`q` 退出） |
 | `Ctrl-Shift-C` | COPY 场景（选区与搜索，见下） |
 | `Ctrl-Shift-H` | Clipboard overlay |
 | COPY 场景 | `h/l`/`←/→` 移动列，`j/k`/滚轮移动光标（到边缘才滚视图），`PgUp/PgDn` 步长为视口行数-2，`u/d` 半页，`g` 最老，`G` 回 live（再按入口键 `Ctrl-Shift-C` 也可退出；**老版 copy 场景没有 `esc` 绑定**，`esc` 不退出）。`space`/鼠标左键标记，`y` 复制并保留 copy，`enter` 复制并退出；无标记时滚回底部自动退出。`/` 编辑查询（带查询时打开会把光标放到末尾并保留原查询），**搜索栏替换底栏 footer 行**（不是 panel 最下方）：左侧 `⌕ [MODE] query`，右侧状态徽标（`N/M`、`no match`、错误）+ 窄屏隐藏的按键提示，编辑时在查询处显示反显光标；查询过长时围绕光标开窗滚动（同老版 `searchBarPresentation`）。`tab` 仅在搜索栏可见时循环 text→glob→regex，输入时高亮已加载窗口中的匹配，`Enter`/`n`/`N` 调用 `terminal.search` 导航并环绕（`n`/`N`/回车从**当前匹配之后**继续，与老版 `beginCopyModeSearch` 一致）。选区使用 ansi:8/ansi:3，复制经 `terminal.copy{sel}` 写 OSC52。`Ctrl-Shift-C` 重进时先释放快照，再读取最新窗口。历史来源与边界见下文。 |
@@ -103,8 +103,8 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 |---|---|---|
 | overlay 细节 | picker 有 endpoint tabs + toolbar（搜索/状态筛选）+ tags；clipboard 有持久历史 | picker 已按 endpoint 分区并用 endpoint label 作 tab 名，默认 Running，`Shift+←/→` 循环状态，搜索为子序列 + 拼音（全拼/首字母），`Ctrl-T` 打开标签复选列表；工具栏为「搜索左 / 状态+Tags 右」；尺寸与活跃度来自 `sources.cols/rows/last_output_ms`；tag 数据来自 `sources.tags`；clipboard history 通过 host 的持久 store 提供 list/delete/paste，overlay 仍可继续补齐完整老版视觉细节 |
 | 空 panel 生命周期 | 新 panel 先显示未连接状态与 Attach/Create/Manager/Close 动作，`↑/↓` 选择、`enter` 执行（点击同样可用），选择后才绑定 terminal | 已实现：分屏、tab、浮窗创建空 panel；CTA 高亮只在聚焦 panel 上；Close 只关闭 panel，不隐式创建或 kill terminal |
-| workspace/tab 持久化 | host storage（workbench store） | 程序内状态（工作区 = tabs 集合），退出不持久化 |
-| terminal rename / detach / reconnect / shortcut lock / plugins / connections | daemon/宿主能力 | rename/detach/reconnect、shortcut lock、connections 已接入 host 方法；插件加载仍由独立 host/plugin runtime 负责（`panel.take_owner` 走 `terminal.attach{fit}` CAS） |
+| workspace/tab 持久化 | host storage（workbench store） | 通过 `access.call` 的 storage API 持久化到 `AppId=v3shell`/PRIVATE/`workbench` 键（版本化 JSON：workspaces/tabs/panes/split 树/focus/header/footer）。HELLO 时读取并恢复，结构变更后合并写回（`workbenchReady`/`savePending` 去抖）；demo/离线运行不落盘。老的 workbench store 无 typed 方法，storage 分区是等价的可移植实现 |
+| terminal rename / detach / reconnect / shortcut lock / connections | daemon/宿主能力 | rename/detach/reconnect、shortcut lock 已接入 host 方法；connections 由 `Ctrl-G e` 的 overlay 呈现（`endpoint.list`/`endpoint.test`/`endpoint.reconnect`）。**插件概念已移除**：本复刻的 shell 本身即“插件”，不再有宿主 plugin runtime |
 | copy 选择 | copy 会话按 pane/view 保存，支持持久历史查询 | shell 保存每 pane 的交互状态；内建 terminal 对象持有冻结 token、分页、搜索、选区复制和释放。不同 terminal 的请求独立排队；两个 pane 绑定同一 source 时仍共享该 terminal 的回看视口。宿主 API 支持 char/line/block，shell 使用标记流选区；跨出当前视口的完整选区仍需独立逻辑锚点支持 |
 | paste（⇧V） | 系统剪贴板写入聚焦终端 | 通过 `clipboard.paste` 由 host 读取系统剪贴板并注入聚焦 PTY；历史条目通过 `clipboard_id` 选择 |
 | resize align/center/pan | 完整几何操作 | `h/l/k/j`、`space`、`r`/`=` 已实现；align/center/pan 提示 |

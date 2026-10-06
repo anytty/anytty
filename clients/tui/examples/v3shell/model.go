@@ -916,6 +916,13 @@ type model struct {
 	connections []connectionRow
 	connSel     int
 
+	// workbench persistence via access.call storage (README §4). workbenchDirty
+	// is set by every structural mutation and coalesced into one save by
+	// workbenchReady/savePending, exactly herdr's layout save gate.
+	workbenchDirty bool
+	workbenchReady bool
+	savePending    bool
+
 	floatings   []*floating
 	activeFloat string
 
@@ -1627,7 +1634,7 @@ func (m *model) loadDemo() {
 // ------------------------------------------------------------------ update
 
 func (m *model) Init() app.Cmd {
-	return app.SetKeys(m.claim())
+	return chain(app.SetKeys(m.claim()), m.loadWorkbenchCmd())
 }
 
 func (m *model) Reset(epoch uint64) {
@@ -1706,7 +1713,9 @@ func (m *model) Update(msg app.Msg) app.Cmd {
 		m.sentKeys = want
 		cmd = chain(cmd, app.SetKeys(want))
 	}
-	return cmd
+	// A structural edit marks the workbench dirty; schedule the coalesced save
+	// here so every mutation path persists without threading a command back.
+	return chain(cmd, m.saveWorkbenchCmd())
 }
 
 func keysEqual(a, b sdk.Keys) bool {
@@ -2078,10 +2087,12 @@ func (m *model) handleTabKey(key string) app.Cmd {
 	case "n", "l", "]":
 		if len(ws.tabs) > 0 {
 			ws.active = (ws.active + 1) % len(ws.tabs)
+			m.markWorkbenchDirty()
 		}
 	case "p", "h", "[":
 		if len(ws.tabs) > 0 {
 			ws.active = (ws.active - 1 + len(ws.tabs)) % len(ws.tabs)
+			m.markWorkbenchDirty()
 		}
 	case "x":
 		m.closeTab(ws.active)
@@ -2098,6 +2109,7 @@ func (m *model) handleTabKey(key string) app.Cmd {
 			if index < len(ws.tabs) {
 				ws.active = index
 				m.mode = modeLive
+				m.markWorkbenchDirty()
 			}
 		}
 	}
@@ -2112,15 +2124,17 @@ func (m *model) handleWorkspaceKey(key string) app.Cmd {
 		m.createWorkspace()
 	case "n", "l", "]":
 		m.space = (m.space + 1) % len(m.spaces)
+		m.markWorkbenchDirty()
 	case "p", "h", "[":
 		m.space = (m.space - 1 + len(m.spaces)) % len(m.spaces)
+		m.markWorkbenchDirty()
 	case "x":
 		m.deleteWorkspace(m.space)
 	case "r":
 		m.openRename("workspace", m.ws().name, m.ws().name)
 	case "t", "f", "s":
 		m.mode = modeLive
-		m.toast = "workbench tree: host storage owns workspaces"
+		m.toast = "workbench tree: use the connections overlay (Ctrl-G e)"
 	}
 	return nil
 }
@@ -2139,8 +2153,10 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 		m.overlay = overlayHelp
 	case "h":
 		m.headerVisible = !m.headerVisible
+		m.markWorkbenchDirty()
 	case "f":
 		m.footerVisible = !m.footerVisible
+		m.markWorkbenchDirty()
 	case "c", "x":
 		m.toast = ""
 	case "T":
@@ -2872,6 +2888,7 @@ func (m *model) focusPaneObject(p *pane) {
 			t.focus = i
 		}
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) focusPaneDelta(delta int) {
@@ -2880,6 +2897,7 @@ func (m *model) focusPaneDelta(delta int) {
 		t.focus = (t.focus + delta + len(t.panes)) % len(t.panes)
 	}
 	m.activeFloat = ""
+	m.markWorkbenchDirty()
 }
 
 func (m *model) splitPane(flow string) app.Cmd { return m.splitPaneFor(flow, nil) }
@@ -2914,6 +2932,7 @@ func (m *model) splitLeafFor(flow string, target *pane) *pane {
 	}
 	m.mode = modePane
 	m.activeFloat = ""
+	m.markWorkbenchDirty()
 	return clone
 }
 
@@ -3006,6 +3025,7 @@ func (m *model) closePane(t *tab, p *pane) {
 	if m.zoomPane == p.id {
 		m.zoomPane = ""
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) killClosePane(t *tab, p *pane) app.Cmd {
@@ -3121,6 +3141,7 @@ func (m *model) toggleLayout(t *tab) {
 	} else {
 		best.orient = "row"
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) subtreeHasLeaf(node treeNode, target *leaf) bool {
@@ -3203,6 +3224,7 @@ func (m *model) centerFocused() {
 	}
 	best.ratio = 0.5
 	best.bias = 0
+	m.markWorkbenchDirty()
 }
 
 func (m *model) resetTabSplits(t *tab) {
@@ -3226,6 +3248,7 @@ func (m *model) resetTabSplits(t *tab) {
 		walk(sp.b)
 	}
 	walk(t.root)
+	m.markWorkbenchDirty()
 }
 
 func (m *model) resizeFocused(delta int, vertical bool) {
@@ -3268,6 +3291,7 @@ func (m *model) resizeFocused(delta int, vertical bool) {
 		sp.bias -= delta
 	}
 	sp.ratio = 0
+	m.markWorkbenchDirty()
 }
 
 func (m *model) subtreeLocked(node treeNode) bool {
@@ -3288,6 +3312,7 @@ func (m *model) newTab() {
 	ws.tabs = append(ws.tabs, makeTab(fmt.Sprintf("tab-%d", m.tabSeq), fmt.Sprintf("tab-%d", m.tabSeq), []*pane{p}, "row"))
 	ws.active = len(ws.tabs) - 1
 	m.mode = modeLive
+	m.markWorkbenchDirty()
 	if !m.demo {
 		m.openPicker()
 	}
@@ -3302,6 +3327,7 @@ func (m *model) closeTab(index int) {
 	if ws.active >= len(ws.tabs) {
 		ws.active = len(ws.tabs) - 1
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) killTab(index int) app.Cmd {
@@ -3323,6 +3349,7 @@ func (m *model) createWorkspace() {
 	p := m.newPane("empty", nil)
 	m.ws().tabs = []*tab{makeTab("tab-1", "main", []*pane{p}, "row")}
 	m.ws().active = 0
+	m.markWorkbenchDirty()
 }
 
 func (m *model) deleteWorkspace(index int) {
@@ -3333,6 +3360,7 @@ func (m *model) deleteWorkspace(index int) {
 	if m.space >= len(m.spaces) {
 		m.space = len(m.spaces) - 1
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) openPicker() {
@@ -3414,6 +3442,7 @@ func (m *model) applyRename() app.Cmd {
 			if m.promptRef == m.ws().name {
 				m.ws().name = value
 			}
+			m.markWorkbenchDirty()
 		case "terminal.rename":
 			src := m.sourceByID(m.promptRef)
 			if src == nil {
@@ -3729,6 +3758,9 @@ func (m *model) dragResize(x, y int) {
 		return
 	}
 	sp := target
+	// The divider drag writes an absolute first-extent ratio; clear the
+	// additive bias so the ratio is authoritative.
+	sp.bias = 0
 	if sp.orient == "row" {
 		avail := maxInt(2, sp.rect.w)
 		first := clampInt(x-sp.rect.x, 1, avail-1)
@@ -3738,6 +3770,7 @@ func (m *model) dragResize(x, y int) {
 		first := clampInt(y-sp.rect.y, 1, avail-1)
 		sp.ratio = float64(first) / float64(avail)
 	}
+	m.markWorkbenchDirty()
 }
 
 func (m *model) promptMatches() []string {
@@ -4082,6 +4115,7 @@ func (m *model) bindPane(paneID, sourceID string) {
 	p.pending = ""
 	p.scroll = 0
 	m.mode = modeLive
+	m.markWorkbenchDirty()
 	for _, f := range m.floatings {
 		if f.pane == p {
 			f.collapsed = false
@@ -4458,6 +4492,10 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		}
 		// Re-list so the health column reflects the fresh dial.
 		return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
+	case "workbench.get":
+		return m.onWorkbenchGet(v)
+	case "workbench.set":
+		return m.onWorkbenchSet(v)
 	case "quit":
 		if !v.ok {
 			m.toast = "quit rejected: " + v.err
