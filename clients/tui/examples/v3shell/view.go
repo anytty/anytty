@@ -1119,6 +1119,45 @@ func (m *model) overlayRows() []overlayRow {
 			})
 		}
 		return rows
+	case overlayConnections:
+		// Legacy system.open_connections table: one row per registered
+		// endpoint showing its label/name, kind and health.
+		var rows []overlayRow
+		if len(m.connections) == 0 {
+			return []overlayRow{textRow("no registered endpoints", stMuted)}
+		}
+		for i, conn := range m.connections {
+			marker := "  "
+			markerStyle := stMuted
+			if i == m.connSel {
+				marker = "\u25b8 "
+				markerStyle = stAccent
+			}
+			label := conn.label
+			if label == "" {
+				label = conn.name
+			}
+			healthStyle := stMuted
+			switch conn.health {
+			case "ok":
+				healthStyle = stSuccess
+			case "unknown", "":
+				healthStyle = stMuted
+			default:
+				healthStyle = stWarning
+			}
+			rows = append(rows, overlayRow{
+				runs: []overlayRun{
+					run(marker, markerStyle),
+					run(glyphRunning, healthStyle),
+					run(" "+label, stOverlay),
+					run("  ("+conn.kind+" \u00b7 "+conn.health+")", stMuted),
+				},
+				selectable: true,
+				node:       "connection:" + strconv.Itoa(i),
+			})
+		}
+		return rows
 	}
 	return nil
 }
@@ -1260,6 +1299,8 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 		title, width, minHeight = "Help", 62, 8
 	case overlayClipboard:
 		title, width, minHeight = "Clipboard", 60, 8
+	case overlayConnections:
+		title, width, minHeight = "Connections", 64, 8
 	default:
 		return
 	}
@@ -1303,6 +1344,8 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 				selected = selectable == m.promptSel
 			case overlayClipboard:
 				selected = selectable == m.clipSel
+			case overlayConnections:
+				selected = selectable == m.connSel
 			}
 			selectable++
 		}

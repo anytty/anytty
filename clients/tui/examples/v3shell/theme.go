@@ -238,6 +238,12 @@ var scenes = map[string]sceneSpec{
 		{"ENTER \U000f0627 RUN", "", "prompt.submit", "enter"},
 	}},
 	"help": {"", "", nil},
+	"connections": {modeIconSystem, "SYSTEM", []footerAction{
+		{"\u2191/\u2193 SELECT", "", "connections.select_previous", "\u2191"},
+		{"T \U000f0337 TEST", "", "connections.test", "t"},
+		{"R \U000f0450 RECONNECT", "", "connections.reconnect", "r"},
+		{"ESC BACK", "", "shortcut.exit", "Esc"},
+	}},
 	"copy": {modeIconCopy, "COPY", []footerAction{
 		{"PGUP \U000f005d OLDER", "fs:copy:older", "copy.request_older", "PgUp"},
 		{"PGDN \U000f0045 NEWER", "fs:copy:newer", "copy.request_newer", "PgDn"},

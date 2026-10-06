@@ -814,11 +814,23 @@ const (
 	modeSystem    = "system"
 	modeFloating  = "floating"
 
-	overlayPicker    = "picker"
-	overlayPrompt    = "prompt"
-	overlayHelp      = "help"
-	overlayClipboard = "clipboard"
+	overlayPicker      = "picker"
+	overlayPrompt      = "prompt"
+	overlayHelp        = "help"
+	overlayClipboard   = "clipboard"
+	overlayConnections = "connections"
 )
+
+// connectionRow is one parsed endpoint.list row: the registered endpoint name
+// (the wire target for endpoint.test/reconnect), its display label, kind and
+// current health. The legacy TUI showed this same table behind
+// system.open_connections.
+type connectionRow struct {
+	name   string
+	label  string
+	kind   string
+	health string
+}
 
 // Picker status filter order matches main's terminal_picker.status_next cycle:
 // Running -> Exited -> All. Running is the default.
@@ -897,6 +909,12 @@ type model struct {
 	clipboardIDs                   []string
 	pasteLatestRef                 string
 	clipSel                        int
+
+	// connections backs the SYSTEM connections overlay (legacy
+	// system.open_connections): the parsed endpoint.list rows and the selected
+	// row. connSel indexes into connections while the overlay is open.
+	connections []connectionRow
+	connSel     int
 
 	floatings   []*floating
 	activeFloat string
@@ -1374,6 +1392,8 @@ func (m *model) scene() string {
 		return "prompt"
 	case overlayClipboard:
 		return "copy"
+	case overlayConnections:
+		return "connections"
 	}
 	switch m.mode {
 	case modePane, modeResize, modeTab, modeWorkspace, modeSystem, modeFloating:
@@ -2134,7 +2154,9 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 		m.toast = "workbench tree: host storage owns workspaces"
 	case "e":
 		m.mode = modeLive
-		return m.emit("endpoint.list", nil, opMsg{op: "endpoint.list"})
+		// Legacy system.open_connections: list endpoints in an overlay so they
+		// can be tested/reconnected, not just a toast count.
+		return m.openConnections()
 	case "l":
 		m.shortcutLocked = !m.shortcutLocked
 		m.mode = modeLive
@@ -2388,6 +2410,22 @@ func (m *model) handleOverlayKey(key, char string) app.Cmd {
 				return m.emit("clipboard.paste", params, opMsg{op: "paste"})
 			}
 		}
+	case overlayConnections:
+		switch key {
+		case "esc":
+			m.overlay = ""
+		case "up":
+			m.connSel = clampInt(m.connSel-1, 0, maxInt(0, len(m.connections)-1))
+		case "down":
+			m.connSel = clampInt(m.connSel+1, 0, maxInt(0, len(m.connections)-1))
+		case "enter", "t":
+			// Legacy system.open_connections test action: endpoint.test only
+			// succeeds for a registered endpoint (health != unknown).
+			return m.connTest()
+		case "r":
+			// Legacy reconnect action.
+			return m.connReconnect()
+		}
 	}
 	return nil
 }
@@ -2637,6 +2675,14 @@ func (m *model) handlePress(node string, x, y int) app.Cmd {
 	if strings.HasPrefix(node, "picker-status:") {
 		m.pickerFilter = atoiNode(node, "picker-status:")
 		m.picker = 0
+		return nil
+	}
+	if strings.HasPrefix(node, "connection:") && m.overlay == overlayConnections {
+		// Click selects the row; Enter/t/r act on it (mirrors picker rows).
+		index := atoiNode(node, "connection:")
+		if index >= 0 && index < len(m.connections) {
+			m.connSel = index
+		}
 		return nil
 	}
 	if strings.HasPrefix(node, "prompt-field:") && m.overlay == overlayPrompt && m.promptKind == "terminal.create" {
@@ -3433,6 +3479,71 @@ func (m *model) openClipboardHistory() app.Cmd {
 	m.clipboard = nil
 	m.clipboardIDs = nil
 	return m.emit("clipboard.history.list", nil, opMsg{op: "clipboard.list"})
+}
+
+// openConnections opens the SYSTEM connections overlay (legacy
+// system.open_connections) and asks the host for the registered endpoint
+// table. The response is parsed in onOp under the "connections.list" op.
+func (m *model) openConnections() app.Cmd {
+	m.overlay = overlayConnections
+	m.connSel = 0
+	m.connections = nil
+	return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
+}
+
+// connSelected returns the highlighted connection, or nil when the table is
+// empty (or the selection is out of range).
+func (m *model) connSelected() *connectionRow {
+	if m.connSel < 0 || m.connSel >= len(m.connections) {
+		return nil
+	}
+	return &m.connections[m.connSel]
+}
+
+// storeConnections parses raw endpoint.list JSON rows into connectionRow
+// entries and clamps the selection. It is shared by the direct "endpoint.list"
+// op and the "connections.list" op the overlay uses.
+func (m *model) storeConnections(rows []string) {
+	m.connections = nil
+	for _, raw := range rows {
+		var row struct {
+			Name   string `json:"name"`
+			Label  string `json:"label"`
+			Kind   string `json:"kind"`
+			Health string `json:"health"`
+		}
+		if err := json.Unmarshal([]byte(raw), &row); err == nil && row.Name != "" {
+			m.connections = append(m.connections, connectionRow{
+				name: row.Name, label: row.Label, kind: row.Kind, health: row.Health,
+			})
+		}
+	}
+	m.connSel = clampInt(m.connSel, 0, maxInt(0, len(m.connections)-1))
+}
+
+// connTest tests the selected endpoint (legacy connections test key). A
+// successful test re-lists so the health column refreshes; the toast reports
+// the outcome.
+func (m *model) connTest() app.Cmd {
+	row := m.connSelected()
+	if row == nil {
+		m.toast = "connections: nothing selected"
+		return nil
+	}
+	return m.emit("endpoint.test", &pb.MethodParams{Endpoint: row.name},
+		opMsg{op: "connections.test", endpoint: row.name})
+}
+
+// connReconnect reconnects the selected endpoint (legacy connections
+// reconnect key), then re-lists so health reflects the fresh dial.
+func (m *model) connReconnect() app.Cmd {
+	row := m.connSelected()
+	if row == nil {
+		m.toast = "connections: nothing selected"
+		return nil
+	}
+	return m.emit("endpoint.reconnect", &pb.MethodParams{Endpoint: row.name},
+		opMsg{op: "connections.reconnect", endpoint: row.name})
 }
 
 func (m *model) openFloatMenu() {
@@ -4309,11 +4420,44 @@ func (m *model) onOp(v opMsg) app.Cmd {
 			m.toast = "pasted clipboard"
 		}
 	case "endpoint.list":
+		// Legacy SYSTEM connections overlay: parse the registered endpoint
+		// table into connectionRow entries. A failed list closes the overlay
+		// and surfaces the error, since there is nothing to act on.
 		if !v.ok {
 			m.toast = "connections: " + v.err
-		} else {
-			m.toast = fmt.Sprintf("connections: %d registered", len(v.rows))
+			if m.overlay == overlayConnections {
+				m.overlay = ""
+			}
+			return nil
 		}
+		m.storeConnections(v.rows)
+		m.toast = fmt.Sprintf("connections: %d registered", len(m.connections))
+	case "connections.list":
+		if !v.ok {
+			// A failed list has nothing to show: close the overlay and toast.
+			m.toast = "connections: " + v.err
+			if m.overlay == overlayConnections {
+				m.overlay = ""
+			}
+			return nil
+		}
+		m.storeConnections(v.rows)
+	case "connections.test":
+		if !v.ok {
+			m.toast = "test " + v.endpoint + ": " + v.err
+		} else {
+			m.toast = "test " + v.endpoint + ": ok"
+		}
+		// Re-list so the health column reflects the test result.
+		return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
+	case "connections.reconnect":
+		if !v.ok {
+			m.toast = "reconnect " + v.endpoint + ": " + v.err
+		} else {
+			m.toast = "reconnect " + v.endpoint + ": ok"
+		}
+		// Re-list so the health column reflects the fresh dial.
+		return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
 	case "quit":
 		if !v.ok {
 			m.toast = "quit rejected: " + v.err

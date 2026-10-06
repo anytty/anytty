@@ -1864,3 +1864,60 @@ func TestCopySearchDelegatesDeepHistory(t *testing.T) {
 		t.Fatalf("deep search viewport = %+v", st)
 	}
 }
+
+// TestConnectionsOverlayListsAndReconnects pins the SYSTEM connections overlay
+// (legacy system.open_connections): e opens it, endpoint.list rows parse into
+// the model, Down moves the selection and r reconnects the selected endpoint
+// and re-lists so health refreshes.
+func TestConnectionsOverlayListsAndReconnects(t *testing.T) {
+	m, fake := boundModel(t)
+	rows := []string{
+		`{"name":"local","label":"Local","kind":"local","health":"ok"}`,
+		`{"name":"dev","label":"Dev box","kind":"daemon","health":"unknown"}`,
+	}
+	fake.answer = func(method string, params *pb.MethodParams) *pb.Response {
+		switch method {
+		case "endpoint.list":
+			return &pb.Response{Ok: true, Data: &pb.MethodData{Rows: rows}}
+		case "endpoint.reconnect":
+			if params.GetEndpoint() != "dev" {
+				t.Errorf("reconnect endpoint = %q, want dev", params.GetEndpoint())
+			}
+			return okResponse(params.GetEndpoint(), "")
+		}
+		return okResponse("local", "term-1")
+	}
+	m.mode = modeSystem
+	runCmd(t, m, key(m, "e"))
+	if m.overlay != overlayConnections {
+		t.Fatalf("e must open the connections overlay, got %q", m.overlay)
+	}
+	if len(m.connections) != 2 || m.connections[0].label != "Local" ||
+		m.connections[1].name != "dev" || m.connections[1].kind != "daemon" {
+		t.Fatalf("connection rows not parsed: %+v", m.connections)
+	}
+	if rows := m.overlayRows(); len(rows) != 2 || !rows[0].selectable {
+		t.Fatalf("connections overlay must render selectable rows: %+v", rows)
+	}
+	runCmd(t, m, m.onKey("down", ""))
+	if m.connSel != 1 {
+		t.Fatalf("down must move the selection to the second row, got %d", m.connSel)
+	}
+	fake.calls = nil
+	runCmd(t, m, m.onKey("r", ""))
+	var reconnect *emitCall
+	for i := range fake.calls {
+		if fake.calls[i].method == "endpoint.reconnect" {
+			reconnect = &fake.calls[i]
+		}
+	}
+	if reconnect == nil || reconnect.params.GetEndpoint() != "dev" {
+		t.Fatalf("r must reconnect the selected endpoint: %+v", fake.calls)
+	}
+	if !hasCall(fake.calls, "endpoint.list") {
+		t.Fatalf("reconnect must re-list so health refreshes: %+v", fake.calls)
+	}
+	if m.toast != "reconnect dev: ok" {
+		t.Fatalf("reconnect toast = %q", m.toast)
+	}
+}
