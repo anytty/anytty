@@ -132,7 +132,11 @@ message Source {
   // last_output_ms is the Unix-millis timestamp of the terminal's most recent
   // non-empty PTY output; the picker renders it as a coarse activity label.
   int64 last_output_ms = 17;
-  map<string, string> tags = 18;
+  // attachment_count is the daemon-reported number of attachments (observers)
+  // to this terminal across all clients; the pane chrome shows the visible
+  // observer count derived from it. Append-only field 18 (the earlier duplicate
+  // tags = 18 declaration was a typo and is removed here).
+  int32 attachment_count = 18;
 }
 
 message SourcesEvent {

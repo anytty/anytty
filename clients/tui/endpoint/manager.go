@@ -97,6 +97,10 @@ type Status struct {
 	Rows         int
 	Tags         map[string]string
 	LastOutputAt time.Time
+	// AttachmentCount is the daemon-reported observer count for this terminal:
+	// how many attachments across all clients the daemon currently tracks. The
+	// host builds the visible pane badge from it (see v3shell attachCount).
+	AttachmentCount int
 }
 
 // Manager owns every configured endpoint: one connection supervisor per
@@ -360,15 +364,16 @@ func (m *Manager) Snapshot() []Status {
 		}
 		for id, info := range state.terminals {
 			status := Status{
-				Endpoint:     name,
-				ID:           id,
-				Name:         info.GetName(),
-				Exited:       info.GetState() == apipb.TerminalState_TERMINAL_STATE_EXITED,
-				Health:       state.health,
-				Cols:         int(info.GetSize().GetCols()),
-				Rows:         int(info.GetSize().GetRows()),
-				Tags:         info.GetTags(),
-				LastOutputAt: unixNanoToTime(info.GetLastOutputAtUnixNano()),
+				Endpoint:        name,
+				ID:              id,
+				Name:            info.GetName(),
+				Exited:          info.GetState() == apipb.TerminalState_TERMINAL_STATE_EXITED,
+				Health:          state.health,
+				Cols:            int(info.GetSize().GetCols()),
+				Rows:            int(info.GetSize().GetRows()),
+				Tags:            info.GetTags(),
+				LastOutputAt:    unixNanoToTime(info.GetLastOutputAtUnixNano()),
+				AttachmentCount: int(info.GetAttachmentCount()),
 			}
 			if exitCode := info.GetExitCode(); info.ExitCode != nil {
 				status.ExitCode = int(exitCode)
@@ -550,6 +555,33 @@ func (m *Manager) clearClient(state *endpointState, conn sessionConn) {
 		state.client = nil
 	}
 	m.mu.Unlock()
+}
+
+// Refresh re-lists every connected daemon endpoint so its inventory (and the
+// per-terminal attachment_count) tracks other clients' attach/detach without a
+// reconnect. It is a cheap no-op for endpoints without a live connection, so a
+// caller may poll it from a low-frequency ticker; a changed list emits
+// notifyChange, which the host turns into a sources republish.
+func (m *Manager) Refresh(ctx context.Context) {
+	m.mu.Lock()
+	states := make([]*endpointState, 0, len(m.endpoints))
+	for _, state := range m.endpoints {
+		if state.cfg.KindName() == KindDaemon {
+			states = append(states, state)
+		}
+	}
+	m.mu.Unlock()
+	for _, state := range states {
+		if ctx.Err() != nil {
+			return
+		}
+		// Only a live connection can answer a list; an offline endpoint will
+		// refresh on its own reconnect, so skip it rather than wait a timeout.
+		if m.currentClient(state) == nil {
+			continue
+		}
+		m.refreshList(ctx, state)
+	}
 }
 
 // refreshList updates the cached daemon terminal inventory.
@@ -1035,20 +1067,21 @@ func (m *Manager) Sources() []*pb.Source {
 			exitCode = 0
 		}
 		out = append(out, &pb.Source{
-			Id:            "terminal:" + status.Endpoint + ":" + status.ID,
-			Kind:          "terminal",
-			Title:         title,
-			Endpoint:      status.Endpoint,
-			TerminalId:    status.ID,
-			Attached:      status.Attached,
-			Exited:        status.Exited,
-			ExitCode:      int32(exitCode),
-			Health:        status.Health,
-			Cols:          int32(status.Cols),
-			Rows:          int32(status.Rows),
-			Tags:          status.Tags,
-			EndpointLabel: m.Label(status.Endpoint),
-			LastOutputMs:  lastOutputMillis(status.LastOutputAt),
+			Id:              "terminal:" + status.Endpoint + ":" + status.ID,
+			Kind:            "terminal",
+			Title:           title,
+			Endpoint:        status.Endpoint,
+			TerminalId:      status.ID,
+			Attached:        status.Attached,
+			Exited:          status.Exited,
+			ExitCode:        int32(exitCode),
+			Health:          status.Health,
+			Cols:            int32(status.Cols),
+			Rows:            int32(status.Rows),
+			Tags:            status.Tags,
+			EndpointLabel:   m.Label(status.Endpoint),
+			LastOutputMs:    lastOutputMillis(status.LastOutputAt),
+			AttachmentCount: int32(status.AttachmentCount),
 		})
 	}
 	m.mu.Lock()

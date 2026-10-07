@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -70,6 +71,13 @@ const interactionUrgencyWindow = 150 * time.Millisecond
 // restartDelay is the backoff before the layout program is started again
 // after a crash or a clean exit (SCENARIOS §3).
 const restartDelay = 250 * time.Millisecond
+
+// sourceRefreshInterval bounds how stale the daemon attachment_count shown in
+// the pane badge can be. It is deliberately low-frequency: the count only
+// changes when another client attaches/detaches, and each tick costs one
+// terminal.list per connected daemon endpoint. The manager emits no change
+// event when the list is unchanged, so an idle tick repaints nothing.
+const sourceRefreshInterval = 3 * time.Second
 
 // immediateExitWindow classifies a program that dies right after start: the
 // host prints an explicit diagnostic in that case instead of restarting
@@ -184,6 +192,11 @@ type Host struct {
 	sourcesSent bool
 	ownerMu     sync.Mutex
 	ownerBusy   bool
+	// sourceMu/sourceBusy coalesce the observer-count refresh: at most one list
+	// round-trip per endpoint is in flight, so a slow daemon cannot pile up
+	// refreshes across ticks.
+	sourceMu   sync.Mutex
+	sourceBusy bool
 	// terminalMouseDown keeps PTY drag/release events routed to the focused
 	// terminal after the pointer leaves its panel.
 	terminalMouseDown bool
@@ -213,9 +226,13 @@ type Host struct {
 	endpointUnsub func()
 	registryPaths []string
 	ownsEndpoints bool
-	logf          func(format string, args ...any)
-	noticeMu      sync.Mutex
-	notices       [][2]string
+	// daemonSourceFn overrides the endpoint manager's source projection. It is
+	// nil in production (daemonSources reads the manager); tests inject a
+	// deterministic daemon inventory without a live connection.
+	daemonSourceFn func() []*pb.Source
+	logf           func(format string, args ...any)
+	noticeMu       sync.Mutex
+	notices        [][2]string
 }
 
 // NewHost wires the session, the PTY handler and the confirmation gate.
@@ -431,6 +448,15 @@ func (h *Host) Run() error {
 	}
 	ownerTicker := time.NewTicker(5 * time.Second)
 	defer ownerTicker.Stop()
+	// The observer-count refresh runs on a low-frequency background ticker, so
+	// it never blocks the frame loop. It is suppressed in a `go test` binary:
+	// tests drive Run with a manager that has no live daemon, so a periodic
+	// list would be pure noise (and could race a test's own list expectations).
+	sourceTicker := time.NewTicker(sourceRefreshInterval)
+	defer sourceTicker.Stop()
+	if testBinary() {
+		sourceTicker.Stop()
+	}
 
 	// Keep the newest session state and spend at most one short budget per
 	// burst. This gives PTY output and VIEW commits a bounded cadence without
@@ -513,6 +539,8 @@ func (h *Host) Run() error {
 			armEsc()
 		case <-ownerTicker.C:
 			go h.renewOwners()
+		case <-sourceTicker.C:
+			go h.refreshSources()
 		case end := <-sessionDone:
 			if end.session != h.currentSession() {
 				// A deliberate restart (hot reload) closes the old pipes;
@@ -568,6 +596,38 @@ func frameFlushDelay(lastFlush, now time.Time) time.Duration {
 		return frameCoalesceWindow - elapsed
 	}
 	return 0
+}
+
+// testBinary reports whether this process is a compiled `go test` binary. It
+// detects the test flag registered by the testing package without importing it
+// (importing testing in a main package would register test flags in production
+// builds). Used to keep polling timers out of unit tests.
+func testBinary() bool { return flag.Lookup("test.v") != nil || flag.Lookup("test.timeout") != nil }
+
+// refreshSources re-lists the daemon inventory so attachment_count tracks
+// other clients' attach/detach in real time. The manager's change callback
+// (subscribed in NewHost) republishes the sources snapshot and wakes the frame
+// loop, and an unchanged count emits nothing, so this stays off the hot path.
+func (h *Host) refreshSources() {
+	if h.endpoints == nil {
+		return
+	}
+	h.sourceMu.Lock()
+	if h.sourceBusy {
+		h.sourceMu.Unlock()
+		return
+	}
+	h.sourceBusy = true
+	h.sourceMu.Unlock()
+	defer func() {
+		h.sourceMu.Lock()
+		h.sourceBusy = false
+		h.sourceMu.Unlock()
+	}()
+	// Refresh bounds each list call with the manager's own CallTimeout and
+	// skips offline endpoints, so a plain context is enough here; it runs on a
+	// background goroutine to keep the frame loop free.
+	h.endpoints.Refresh(context.Background())
 }
 
 // renewOwners is the protocol's owner heartbeat. It is deliberately a
@@ -1316,6 +1376,19 @@ func (h *Host) publishSources() {
 	session.SetSources(items)
 }
 
+// daemonSources is the daemon inventory projection used by snapshotSources. A
+// test-injected daemonSourceFn wins so snapshotSources stays exercisable
+// without a live endpoint; otherwise it asks the endpoint manager.
+func (h *Host) daemonSources() []*pb.Source {
+	if h.daemonSourceFn != nil {
+		return h.daemonSourceFn()
+	}
+	if h.endpoints == nil {
+		return nil
+	}
+	return h.endpoints.Sources()
+}
+
 func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 	h.mu.Lock()
 	items := make([]*pb.Source, 0, len(h.tracked))
@@ -1333,7 +1406,12 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 	endpointLabels := map[string]string{}
 	daemonSize := map[string][2]int{}
 	daemonLastOutput := map[string]int64{}
-	for _, source := range h.endpoints.Sources() {
+	// daemonAttachments is the daemon's authoritative observer count per
+	// terminal. The program's pane badge adds its own local pane count and
+	// subtracts this client's single shared attachment; republishing it here is
+	// what makes other clients' attach/detach visible in real time.
+	daemonAttachments := map[string]int32{}
+	for _, source := range h.daemonSources() {
 		if title := strings.TrimSpace(source.GetTitle()); title != "" {
 			daemonTitles[source.GetId()] = title
 		}
@@ -1348,6 +1426,9 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		}
 		if source.GetLastOutputMs() > 0 {
 			daemonLastOutput[source.GetId()] = source.GetLastOutputMs()
+		}
+		if count := source.GetAttachmentCount(); count > 0 {
+			daemonAttachments[source.GetId()] = count
 		}
 	}
 	for sourceID, trackedTerm := range h.tracked {
@@ -1382,29 +1463,30 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 			endpointLabel = endpointLabels[endpointName]
 		}
 		items = append(items, &pb.Source{
-			Id:            sourceID,
-			Kind:          "terminal",
-			Title:         trackedSourceTitle(sourceID, trackedTerm, daemonTitles, previousTitles),
-			Endpoint:      endpointName,
-			TerminalId:    id,
-			Attached:      true,
-			Exited:        trackedTerm.term.Exited(),
-			ExitCode:      int32(exitCode),
-			Health:        health,
-			ResizeOwner:   owner,
-			OwnerEpoch:    epoch,
-			Cols:          int32(cols),
-			Rows:          int32(rows),
-			Tags:          daemonTags[sourceID],
-			EndpointLabel: endpointLabel,
-			LastOutputMs:  lastOutputMs,
+			Id:              sourceID,
+			Kind:            "terminal",
+			Title:           trackedSourceTitle(sourceID, trackedTerm, daemonTitles, previousTitles),
+			Endpoint:        endpointName,
+			TerminalId:      id,
+			Attached:        true,
+			Exited:          trackedTerm.term.Exited(),
+			ExitCode:        int32(exitCode),
+			Health:          health,
+			ResizeOwner:     owner,
+			OwnerEpoch:      epoch,
+			Cols:            int32(cols),
+			Rows:            int32(rows),
+			Tags:            daemonTags[sourceID],
+			EndpointLabel:   endpointLabel,
+			LastOutputMs:    lastOutputMs,
+			AttachmentCount: daemonAttachments[sourceID],
 		})
 		tracked[sourceID] = true
 	}
 	h.mu.Unlock()
 	// Daemon-listed terminals that have no local attachment yet are added
 	// unattached so the picker can bind them position-transparently.
-	for _, source := range h.endpoints.Sources() {
+	for _, source := range h.daemonSources() {
 		if tracked[source.GetId()] {
 			continue
 		}
@@ -1420,7 +1502,8 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 				old.GetExitCode() != item.GetExitCode() || old.GetResizeOwner() != item.GetResizeOwner() || old.GetOwnerEpoch() != item.GetOwnerEpoch() ||
 				old.GetHealth() != item.GetHealth() || old.GetAttached() != item.GetAttached() ||
 				old.GetCols() != item.GetCols() || old.GetRows() != item.GetRows() ||
-				old.GetEndpointLabel() != item.GetEndpointLabel() || old.GetLastOutputMs() != item.GetLastOutputMs() {
+				old.GetEndpointLabel() != item.GetEndpointLabel() || old.GetLastOutputMs() != item.GetLastOutputMs() ||
+				old.GetAttachmentCount() != item.GetAttachmentCount() {
 				changed = true
 				break
 			}

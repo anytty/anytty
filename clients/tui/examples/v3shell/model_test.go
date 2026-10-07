@@ -1921,3 +1921,64 @@ func TestConnectionsOverlayListsAndReconnects(t *testing.T) {
 		t.Fatalf("reconnect toast = %q", m.toast)
 	}
 }
+
+// TestAttachCountPerPane pins the observer-count badge: the visible count is
+// the daemon total with this client's single shared attachment replaced by the
+// number of local panes bound to the source. With no daemon count (0) it is
+// just the local pane count, so a lone pane shows x1 and two panes show x2;
+// with daemon=2 and two local panes the total is 3 (another client's pane plus
+// this program's two). A pane with no source shows 0.
+func TestAttachCountPerPane(t *testing.T) {
+	newSource := func(count int32) *pb.Source {
+		return &pb.Source{
+			Id: "terminal:local:term-1", Kind: "terminal", Title: "term-1",
+			Endpoint: "local", TerminalId: "term-1", Attached: true,
+			AttachmentCount: count,
+		}
+	}
+
+	m := newModel(nil, false)
+	m.host = true
+	m.viewID = "view-a"
+	m.cols, m.rows = 120, 32
+	tab := m.activeTab()
+	first := tab.panes[0]
+	second := m.splitLeafFor("row", first)
+	if second == nil {
+		t.Fatal("split failed")
+	}
+	m.sources = []*pb.Source{newSource(0)}
+	m.bindPane(first.id, "terminal:local:term-1")
+
+	// One local pane, no daemon count -> x1.
+	if got := m.attachCount(first); got != 1 {
+		t.Fatalf("one pane, daemon 0 = %d, want 1", got)
+	}
+	// Two local panes on the same source -> x2 (no shared-seat subtraction).
+	m.bindPane(second.id, "terminal:local:term-1")
+	if got := m.attachCount(first); got != 2 {
+		t.Fatalf("two panes, daemon 0 = %d, want 2", got)
+	}
+	if got := m.attachCount(second); got != 2 {
+		t.Fatalf("second pane, daemon 0 = %d, want 2", got)
+	}
+	// Daemon reports 2 (another client plus this shared client) with two local
+	// panes: 2 + 2 - 1 = 3.
+	m.sources = []*pb.Source{newSource(2)}
+	if got := m.attachCount(first); got != 3 {
+		t.Fatalf("two panes, daemon 2 = %d, want 3", got)
+	}
+	// A pane with no source has no observers.
+	empty := m.newPane("empty", nil)
+	if got := m.attachCount(empty); got != 0 {
+		t.Fatalf("pane without a source = %d, want 0", got)
+	}
+
+	// A floating window bound to the same source counts as another observer.
+	floating := &floating{id: "float-test", pane: m.newPane("float", nil)}
+	floating.pane.sourceID = "terminal:local:term-1"
+	m.floatings = append(m.floatings, floating)
+	if got := m.attachCount(first); got != 4 {
+		t.Fatalf("two tab panes + one floating, daemon 2 = %d, want 4", got)
+	}
+}

@@ -132,6 +132,10 @@ func main() {
 		appendMapField(source, 15, "tags", "tags", "TagsEntry", descriptorpb.FieldDescriptorProto_TYPE_STRING)
 		stringField(source, 16, "endpoint_label", "endpointLabel", false)
 		appendField(source, descriptorpb.FieldDescriptorProto_TYPE_INT64, 17, "last_output_ms", "lastOutputMs", false)
+		// attachment_count is the daemon-reported observer count for a terminal
+		// source (append-only; the pane chrome derives the visible count from
+		// it plus the local pane count).
+		appendField(source, descriptorpb.FieldDescriptorProto_TYPE_INT32, 18, "attachment_count", "attachmentCount", false)
 	}
 	appendMapField(params, 34, "tags", "tags", "TagsEntry", descriptorpb.FieldDescriptorProto_TYPE_STRING)
 	// StreamFrame wire_type is append-only too: add it when an older compiled

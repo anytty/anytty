@@ -1222,11 +1222,56 @@ func (m *model) paneOwner(p *pane) (string, string, string) {
 	return "follow", stMuted, "pane:" + p.id + ":take-owner"
 }
 
-func (m *model) attachCount(p *pane) int {
-	if m.paneSource(p) == nil {
+// localPaneCount is how many panes in this program observe one source: every
+// pane across all workspaces/tabs and every floating window counts, because the
+// daemon sees each pane as one observer of the shared terminal. Deduping is
+// unnecessary (each pane is exactly one observer) and would be wrong: two panes
+// on the same source are two attachments.
+func (m *model) localPaneCount(sourceID string) int {
+	if sourceID == "" {
 		return 0
 	}
-	return 1
+	count := 0
+	for _, ws := range m.spaces {
+		for _, t := range ws.tabs {
+			for _, p := range t.panes {
+				if p.sourceID == sourceID {
+					count++
+				}
+			}
+		}
+	}
+	for _, f := range m.floatings {
+		if f.pane.sourceID == sourceID {
+			count++
+		}
+	}
+	return count
+}
+
+// attachCount is the pane chrome badge's observer count. The daemon reports
+// the authoritative total across all clients, but this program shares ONE
+// attachment per source across all its panes, so the daemon counts this client
+// once no matter how many panes are bound. Replacing that single shared
+// contribution with the local pane count yields the true visible total:
+//
+//	daemonAttachmentCount + localPaneCount - 1
+//
+// A source that reports 0 has no daemon count available (a local source or the
+// demo), so the daemon's single shared seat is not in the total and the result
+// is simply localPaneCount; therefore a lone pane still shows x1. The value is
+// clamped to >= 0 and a pane with no source shows 0.
+func (m *model) attachCount(p *pane) int {
+	src := m.paneSource(p)
+	if src == nil {
+		return 0
+	}
+	local := m.localPaneCount(p.sourceID)
+	daemon := int(src.GetAttachmentCount())
+	if daemon <= 0 {
+		return local
+	}
+	return maxInt(0, daemon+local-1)
 }
 
 // paneRun is one run of a pane's top border row.

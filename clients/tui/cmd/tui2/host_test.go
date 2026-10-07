@@ -884,6 +884,76 @@ func TestSnapshotSourcesStableOrder(t *testing.T) {
 	}
 }
 
+// visibleObserverCount mirrors the program-side pane badge formula: the daemon
+// total with this client's single shared attachment replaced by the local pane
+// count. It is the assertion helper for the host tests below (the program
+// itself computes it in clients/tui/examples/v3shell).
+func visibleObserverCount(daemon, localPanes int) int {
+	if localPanes <= 0 {
+		return maxInt(0, daemon)
+	}
+	if daemon <= 0 {
+		return localPanes
+	}
+	return maxInt(0, daemon+localPanes-1)
+}
+
+// TestTestBinaryDetection pins the guard that keeps the observer-count polling
+// ticker out of unit tests: inside `go test` the testing package has registered
+// its flags, so testBinary must be true (otherwise tests would start a 3s list
+// loop against a dead endpoint).
+func TestTestBinaryDetection(t *testing.T) {
+	if !testBinary() {
+		t.Fatal("testBinary() must detect the go test binary")
+	}
+}
+
+// TestSnapshotSourcesCarriesDaemonAttachmentCount pins the host side of the
+// observer-count badge: the daemon attachment_count is republished on the
+// source, a change republishes the snapshot, and the program-side formula turns
+// (daemon=2, 2 local panes) into 3 and (daemon=0, 1 local pane) into 1.
+func TestSnapshotSourcesCarriesDaemonAttachmentCount(t *testing.T) {
+	// daemonCount stands in for the manager's cached inventory; each call builds
+	// a fresh source, exactly like Manager.Sources does after a re-list.
+	daemonCount := int32(2)
+	host := &Host{daemonSourceFn: func() []*pb.Source {
+		return []*pb.Source{{
+			Id: "terminal:hs:term-1", Kind: "terminal", Title: "term-1",
+			Endpoint: "hs", TerminalId: "term-1", AttachmentCount: daemonCount,
+		}}
+	}}
+
+	items, changed := host.snapshotSources()
+	if !changed || len(items) != 1 {
+		t.Fatalf("first snapshot changed=%v items=%d", changed, len(items))
+	}
+	if got := items[0].GetAttachmentCount(); got != 2 {
+		t.Fatalf("published attachment_count = %d, want 2", got)
+	}
+	// The program sees daemon 2 + two local panes - this client's shared seat.
+	if got := visibleObserverCount(int(items[0].GetAttachmentCount()), 2); got != 3 {
+		t.Fatalf("visible observers = %d, want 3 (2 + 2 - 1)", got)
+	}
+	// An unchanged daemon count must not republish.
+	if _, changed := host.snapshotSources(); changed {
+		t.Fatal("an unchanged attachment_count must not republish")
+	}
+	// A daemon count change republishes.
+	daemonCount = 3
+	items, changed = host.snapshotSources()
+	if !changed {
+		t.Fatal("a changed attachment_count must republish")
+	}
+	if got := items[0].GetAttachmentCount(); got != 3 {
+		t.Fatalf("republished attachment_count = %d, want 3", got)
+	}
+
+	// A single local pane with no daemon count still shows one observer.
+	if got := visibleObserverCount(0, 1); got != 1 {
+		t.Fatalf("visible observers = %d, want 1 (daemon 0, one local pane)", got)
+	}
+}
+
 func TestAttachedSourceTitlePreservesDaemonName(t *testing.T) {
 	const sourceID = "terminal:hs:autopush-id"
 	if got := attachedSourceTitle(sourceID,

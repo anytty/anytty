@@ -1019,6 +1019,9 @@ func cloneSource(src *pb.Source) *pb.Source {
 		Tags:          src.GetTags(),
 		EndpointLabel: src.GetEndpointLabel(),
 		LastOutputMs:  src.GetLastOutputMs(),
+		// AttachmentCount carries the daemon observer count; SetSources clones
+		// every item, so dropping it here would zero the pane badge count.
+		AttachmentCount: src.GetAttachmentCount(),
 	}
 }
 

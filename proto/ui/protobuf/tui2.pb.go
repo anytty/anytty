@@ -706,26 +706,27 @@ func (x *View) GetRoot() *Box {
 }
 
 type Source struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Kind          string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
-	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Endpoint      string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	TerminalId    string                 `protobuf:"bytes,5,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
-	Attached      bool                   `protobuf:"varint,6,opt,name=attached,proto3" json:"attached,omitempty"`
-	Exited        bool                   `protobuf:"varint,7,opt,name=exited,proto3" json:"exited,omitempty"`
-	ExitCode      int32                  `protobuf:"varint,8,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	Health        string                 `protobuf:"bytes,9,opt,name=health,proto3" json:"health,omitempty"`
-	ResizeOwner   string                 `protobuf:"bytes,10,opt,name=resize_owner,json=resizeOwner,proto3" json:"resize_owner,omitempty"`
-	OwnerEpoch    uint64                 `protobuf:"varint,11,opt,name=owner_epoch,json=ownerEpoch,proto3" json:"owner_epoch,omitempty"`
-	LastSeenMs    int64                  `protobuf:"varint,12,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
-	Cols          int32                  `protobuf:"varint,13,opt,name=cols,proto3" json:"cols,omitempty"`
-	Rows          int32                  `protobuf:"varint,14,opt,name=rows,proto3" json:"rows,omitempty"`
-	Tags          map[string]string      `protobuf:"bytes,15,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	EndpointLabel string                 `protobuf:"bytes,16,opt,name=endpoint_label,json=endpointLabel,proto3" json:"endpoint_label,omitempty"`
-	LastOutputMs  int64                  `protobuf:"varint,17,opt,name=last_output_ms,json=lastOutputMs,proto3" json:"last_output_ms,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Kind            string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	Title           string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Endpoint        string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	TerminalId      string                 `protobuf:"bytes,5,opt,name=terminal_id,json=terminalId,proto3" json:"terminal_id,omitempty"`
+	Attached        bool                   `protobuf:"varint,6,opt,name=attached,proto3" json:"attached,omitempty"`
+	Exited          bool                   `protobuf:"varint,7,opt,name=exited,proto3" json:"exited,omitempty"`
+	ExitCode        int32                  `protobuf:"varint,8,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Health          string                 `protobuf:"bytes,9,opt,name=health,proto3" json:"health,omitempty"`
+	ResizeOwner     string                 `protobuf:"bytes,10,opt,name=resize_owner,json=resizeOwner,proto3" json:"resize_owner,omitempty"`
+	OwnerEpoch      uint64                 `protobuf:"varint,11,opt,name=owner_epoch,json=ownerEpoch,proto3" json:"owner_epoch,omitempty"`
+	LastSeenMs      int64                  `protobuf:"varint,12,opt,name=last_seen_ms,json=lastSeenMs,proto3" json:"last_seen_ms,omitempty"`
+	Cols            int32                  `protobuf:"varint,13,opt,name=cols,proto3" json:"cols,omitempty"`
+	Rows            int32                  `protobuf:"varint,14,opt,name=rows,proto3" json:"rows,omitempty"`
+	Tags            map[string]string      `protobuf:"bytes,15,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	EndpointLabel   string                 `protobuf:"bytes,16,opt,name=endpoint_label,json=endpointLabel,proto3" json:"endpoint_label,omitempty"`
+	LastOutputMs    int64                  `protobuf:"varint,17,opt,name=last_output_ms,json=lastOutputMs,proto3" json:"last_output_ms,omitempty"`
+	AttachmentCount int32                  `protobuf:"varint,18,opt,name=attachment_count,json=attachmentCount,proto3" json:"attachment_count,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Source) Reset() {
@@ -873,6 +874,13 @@ func (x *Source) GetEndpointLabel() string {
 func (x *Source) GetLastOutputMs() int64 {
 	if x != nil {
 		return x.LastOutputMs
+	}
+	return 0
+}
+
+func (x *Source) GetAttachmentCount() int32 {
+	if x != nil {
+		return x.AttachmentCount
 	}
 	return 0
 }
@@ -2548,7 +2556,7 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\x05epoch\x18\x01 \x01(\x04R\x05epoch\x12\x10\n" +
 	"\x03rev\x18\x02 \x01(\x04R\x03rev\x12(\n" +
 	"\x04keys\x18\x03 \x01(\v2\x14.anytty.tui2.v1.KeysR\x04keys\x12'\n" +
-	"\x04root\x18\x04 \x01(\v2\x13.anytty.tui2.v1.BoxR\x04root\"\xb2\x04\n" +
+	"\x04root\x18\x04 \x01(\v2\x13.anytty.tui2.v1.BoxR\x04root\"\xdd\x04\n" +
 	"\x06Source\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x14\n" +
@@ -2570,7 +2578,8 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\x04rows\x18\x0e \x01(\x05R\x04rows\x124\n" +
 	"\x04tags\x18\x0f \x03(\v2 .anytty.tui2.v1.Source.TagsEntryR\x04tags\x12%\n" +
 	"\x0eendpoint_label\x18\x10 \x01(\tR\rendpointLabel\x12$\n" +
-	"\x0elast_output_ms\x18\x11 \x01(\x03R\flastOutputMs\x1a7\n" +
+	"\x0elast_output_ms\x18\x11 \x01(\x03R\flastOutputMs\x12)\n" +
+	"\x10attachment_count\x18\x12 \x01(\x05R\x0fattachmentCount\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"<\n" +
