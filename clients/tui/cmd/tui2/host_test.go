@@ -1026,3 +1026,148 @@ func TestHostEscDeniesProgramQuit(t *testing.T) {
 		t.Fatal("host did not exit")
 	}
 }
+
+// countingPTY records how many Resize calls reached the single source PTY so a
+// test can prove follower panes never reflow it.
+type countingPTY struct {
+	*fakePTY
+	mu      sync.Mutex
+	resizes int
+}
+
+func newCountingPTY() *countingPTY { return &countingPTY{fakePTY: newFakePTY()} }
+
+func (p *countingPTY) Resize(cols, rows int) error {
+	p.mu.Lock()
+	p.resizes++
+	p.mu.Unlock()
+	return p.fakePTY.Resize(cols, rows)
+}
+
+func (p *countingPTY) resizeCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.resizes
+}
+
+// TestHostTerminalResizeFollowsSingleOwnerPerSource pins the legacy
+// owner/follower resize semantics for one terminal source shown by two panes of
+// different widths: only the per-source owner pane drives the single PTY size,
+// so the terminal settles at the focused pane's content rect instead of
+// oscillating between both panes every frame. Moving focus hands ownership over
+// and the PTY follows the new owner.
+func TestHostTerminalResizeFollowsSingleOwnerPerSource(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+
+	var stateMu sync.Mutex
+	var ptyBox *countingPTY
+	var sourceID string
+	var client *sdk.Client
+
+	// Both panes reference the same source (so one shared PTY); only the
+	// focused pane is the owner. pane-a is wider than pane-b so the two sizes
+	// are unambiguous (content = box minus the default 1-cell border).
+	commit := func(focusA bool) {
+		stateMu.Lock()
+		src := sourceID
+		stateMu.Unlock()
+		a := sdk.Terminal(src).ID("pane-a").Width(20).Height(8).
+			Input("key", "paste").Focused(focusA)
+		b := sdk.Terminal(src).ID("pane-b").Width(12).Height(8).
+			Input("key", "paste").Focused(!focusA)
+		if err := client.Commit(sdk.Row(a, b).Build(), sdk.Keys{Claim: []string{"ctrl-p"}}); err != nil {
+			t.Errorf("commit: %v", err)
+		}
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				stateMu.Lock()
+				sourceID = "terminal:" + resp.GetData().GetEndpoint() + ":" + resp.GetData().GetId()
+				stateMu.Unlock()
+				commit(true)
+			})
+		},
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	input := newMemPipe()
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"},
+		In:    input,
+		Out:   &syncBuffer{},
+		NewProcess: func([]string) (process, error) {
+			return proc, nil
+		},
+		NewPTY: func(pty.Config) pty.PTY {
+			box := newCountingPTY()
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 40,
+		Rows: 10,
+		Tick: 5 * time.Millisecond,
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		host.quit()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("host did not exit")
+		}
+	}()
+
+	box := func() *countingPTY {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return ptyBox
+	}
+
+	// The focused owner pane-a drives the PTY: content width 20-2, height 8-2.
+	waitFor(t, "PTY follows the focused owner pane", func() bool {
+		p := box()
+		return p != nil && p.size() == [2]int{18, 6}
+	})
+
+	// Follower pane-b must never reflow the PTY, so after settling every sample
+	// stays at the owner size and exactly one resize was issued.
+	samples := 4
+	for i := 0; i < samples; i++ {
+		p := box()
+		if got := p.size(); got != [2]int{18, 6} {
+			t.Fatalf("sample %d after settle = %v, want the focused owner size [18 6]", i, got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := box().resizeCount(); got != 1 {
+		t.Fatalf("owner-only resize calls = %d, want 1 (followers must not reflow the PTY)", got)
+	}
+
+	// Handing focus to pane-b transfers ownership; the terminal resizes to the
+	// new owner's rect (content 12-2 x 8-2).
+	commit(false)
+	waitFor(t, "PTY follows the newly focused owner", func() bool {
+		p := box()
+		return p != nil && p.size() == [2]int{10, 6}
+	})
+	for i := 0; i < samples; i++ {
+		p := box()
+		if got := p.size(); got != [2]int{10, 6} {
+			t.Fatalf("follower sample %d after focus switch = %v, want [10 6]", i, got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

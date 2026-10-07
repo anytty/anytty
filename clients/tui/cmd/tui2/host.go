@@ -995,8 +995,42 @@ func isCaptureBox(session *runtime.Session, id string) bool {
 	return false
 }
 
+// terminalOwners maps each terminal source to the box that owns its single PTY
+// size, following the legacy render.TerminalViewBinding owner/follower split:
+// a terminal has exactly one authoritative size driven by one view (here: one
+// pane's box). The focused box wins; without focus the first box in stable
+// declaration order owns it. Followers render the same shared component but
+// must never resize the PTY.
+func (h *Host) terminalOwners(view *pb.View) map[string]string {
+	owners := map[string]string{}
+	var walk func(*pb.Box)
+	walk = func(b *pb.Box) {
+		if b == nil {
+			return
+		}
+		if sourceID := b.GetContent().GetSelf(); sourceID != "" {
+			if _, ok := owners[sourceID]; !ok {
+				// First box in declaration order is the fallback owner.
+				owners[sourceID] = b.GetId()
+			}
+			// A focused box for the same source takes over ownership so the
+			// terminal follows the focused pane.
+			if b.GetFocused() {
+				owners[sourceID] = b.GetId()
+			}
+		}
+		for _, child := range b.GetChildren() {
+			walk(child)
+		}
+	}
+	walk(view.GetRoot())
+	return owners
+}
+
 // placements renders every bound terminal source for the current view and
-// keeps its PTY window size aligned with the solved content rect.
+// keeps its PTY window size aligned with the solved content rect. Only the
+// per-source owner box resizes the PTY; every box still gets a placement so
+// the render output is unchanged.
 func (h *Host) placements() []runtime.Placement {
 	session := h.currentSession()
 	if session == nil {
@@ -1007,6 +1041,7 @@ func (h *Host) placements() []runtime.Placement {
 	if !ok || view == nil {
 		return nil
 	}
+	owners := h.terminalOwners(view)
 	var out []runtime.Placement
 	var walk func(*pb.Box)
 	walk = func(b *pb.Box) {
@@ -1017,7 +1052,8 @@ func (h *Host) placements() []runtime.Placement {
 		if sourceID != "" {
 			if term, ok := h.handler.TerminalBySource(sourceID); ok {
 				if rect, ok := frame.Rect(b.GetId()); ok {
-					out = append(out, h.placement(session, sourceID, term, b, rect))
+					resize := owners[sourceID] == b.GetId()
+					out = append(out, h.placementResize(session, sourceID, term, b, rect, resize))
 				}
 			}
 		}
@@ -1029,11 +1065,21 @@ func (h *Host) placements() []runtime.Placement {
 	return out
 }
 
-// placement pushes the declarative state of one terminal box into its
+// placement renders one terminal box as if it were the source's resize owner.
+// It is the single-box convenience used outside placements; callers that walk
+// several boxes for one source must use placementResize so only the owner
+// reflows the PTY.
+func (h *Host) placement(session *runtime.Session, sourceID string, term *runtime.Terminal, box *pb.Box, rect kernel.Rect) runtime.Placement {
+	return h.placementResize(session, sourceID, term, box, rect, true)
+}
+
+// placementResize pushes the declarative state of one terminal box into its
 // component and renders it. The box's program-declared props (content.props)
 // are passed through untouched: the component interprets them, the host never
-// does.
-func (h *Host) placement(session *runtime.Session, sourceID string, term *runtime.Terminal, box *pb.Box, rect kernel.Rect) runtime.Placement {
+// does. resize is true only for the per-source owner box: follower panes still
+// render the shared component at their own rect but must not reflow the single
+// PTY, matching the legacy owner/follower resize semantics.
+func (h *Host) placementResize(session *runtime.Session, sourceID string, term *runtime.Terminal, box *pb.Box, rect kernel.Rect, resize bool) runtime.Placement {
 	component := h.components[sourceID]
 	if component == nil {
 		component = terminal.New(nil, nil)
@@ -1064,8 +1110,10 @@ func (h *Host) placement(session *runtime.Session, sourceID string, term *runtim
 	if box.GetFocused() {
 		term.RenewOwner(h.opts.ViewID)
 	}
-	inset := component.Inset(rect.Width, rect.Height)
-	h.resizePTY(term, rect, inset)
+	if resize {
+		inset := component.Inset(rect.Width, rect.Height)
+		h.resizePTY(term, rect, inset)
+	}
 	return term.Placement(component, rect, box.GetFocused())
 }
 
