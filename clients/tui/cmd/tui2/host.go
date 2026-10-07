@@ -995,14 +995,32 @@ func isCaptureBox(session *runtime.Session, id string) bool {
 	return false
 }
 
+// ownerFromProps parses the program's chrome.owner declaration from a box's
+// content props, the same way the host reads chrome.inset. A truthy value
+// designates the box as its source's resize owner. The host never infers this
+// from focus: ownership is a manual user action (the legacy panel.take_owner),
+// so clicking a follower pane must not silently transfer the size.
+func ownerFromProps(props map[string]string) bool {
+	switch strings.ToLower(strings.TrimSpace(props["chrome.owner"])) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // terminalOwners maps each terminal source to the box that owns its single PTY
 // size, following the legacy render.TerminalViewBinding owner/follower split:
 // a terminal has exactly one authoritative size driven by one view (here: one
-// pane's box). The focused box wins; without focus the first box in stable
-// declaration order owns it. Followers render the same shared component but
-// must never resize the PTY.
+// pane's box). The program's chrome.owner=1 box wins when exactly one box
+// declares it; otherwise the focused box is the fallback, and without focus the
+// first box in stable declaration order owns it. Followers render the same
+// shared component but must never resize the PTY, so focusing a follower never
+// steals the size back from a declared owner.
 func (h *Host) terminalOwners(view *pb.View) map[string]string {
 	owners := map[string]string{}
+	declared := map[string]string{}
+	declaredCount := map[string]int{}
+	focused := map[string]string{}
 	var walk func(*pb.Box)
 	walk = func(b *pb.Box) {
 		if b == nil {
@@ -1013,10 +1031,12 @@ func (h *Host) terminalOwners(view *pb.View) map[string]string {
 				// First box in declaration order is the fallback owner.
 				owners[sourceID] = b.GetId()
 			}
-			// A focused box for the same source takes over ownership so the
-			// terminal follows the focused pane.
+			if ownerFromProps(b.GetContent().GetProps()) {
+				declared[sourceID] = b.GetId()
+				declaredCount[sourceID]++
+			}
 			if b.GetFocused() {
-				owners[sourceID] = b.GetId()
+				focused[sourceID] = b.GetId()
 			}
 		}
 		for _, child := range b.GetChildren() {
@@ -1024,6 +1044,15 @@ func (h *Host) terminalOwners(view *pb.View) map[string]string {
 		}
 	}
 	walk(view.GetRoot())
+	for sourceID := range owners {
+		switch {
+		case declaredCount[sourceID] == 1:
+			// The program designated exactly one owner; focus never overrides it.
+			owners[sourceID] = declared[sourceID]
+		case focused[sourceID] != "":
+			owners[sourceID] = focused[sourceID]
+		}
+	}
 	return owners
 }
 

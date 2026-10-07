@@ -1171,3 +1171,110 @@ func TestHostTerminalResizeFollowsSingleOwnerPerSource(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 }
+
+// TestHostTerminalResizeOwnerFollowsDeclaredOwnerProp pins the manual resize
+// ownership contract: the program declares the owner with chrome.owner=1 on one
+// box, and the host resizes the single PTY to THAT box's content rect even
+// though focus sits on a different box. Focus must never outrank the declared
+// owner (the legacy panel.take_owner model), so the size is stable and does not
+// oscillate toward the focused follower.
+func TestHostTerminalResizeOwnerFollowsDeclaredOwnerProp(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+
+	var stateMu sync.Mutex
+	var ptyBox *countingPTY
+	var sourceID string
+	var client *sdk.Client
+
+	// pane-a declares chrome.owner=1 (content 18x6) but pane-b is focused
+	// (content 10x6). The declared owner must win over focus.
+	commit := func() {
+		stateMu.Lock()
+		src := sourceID
+		stateMu.Unlock()
+		a := sdk.Terminal(src).ID("pane-a").Width(20).Height(8).
+			Props(map[string]string{"chrome.owner": "1"}).
+			Input("key", "paste").Focused(false)
+		b := sdk.Terminal(src).ID("pane-b").Width(12).Height(8).
+			Input("key", "paste").Focused(true)
+		if err := client.Commit(sdk.Row(a, b).Build(), sdk.Keys{Claim: []string{"ctrl-p"}}); err != nil {
+			t.Errorf("commit: %v", err)
+		}
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				stateMu.Lock()
+				sourceID = "terminal:" + resp.GetData().GetEndpoint() + ":" + resp.GetData().GetId()
+				stateMu.Unlock()
+				commit()
+			})
+		},
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	input := newMemPipe()
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"},
+		In:    input,
+		Out:   &syncBuffer{},
+		NewProcess: func([]string) (process, error) {
+			return proc, nil
+		},
+		NewPTY: func(pty.Config) pty.PTY {
+			box := newCountingPTY()
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 40,
+		Rows: 10,
+		Tick: 5 * time.Millisecond,
+	})
+
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		host.quit()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("host did not exit")
+		}
+	}()
+
+	box := func() *countingPTY {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return ptyBox
+	}
+
+	// The DECLARED owner pane-a (not the focused pane-b) drives the PTY.
+	waitFor(t, "PTY follows the declared owner, not focus", func() bool {
+		p := box()
+		return p != nil && p.size() == [2]int{18, 6}
+	})
+
+	// The focused follower must never reflow the PTY: after settling every
+	// sample stays at the declared owner size and exactly one resize was issued.
+	samples := 4
+	for i := 0; i < samples; i++ {
+		p := box()
+		if got := p.size(); got != [2]int{18, 6} {
+			t.Fatalf("sample %d after settle = %v, want the declared owner size [18 6]", i, got)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := box().resizeCount(); got != 1 {
+		t.Fatalf("declared-owner-only resize calls = %d, want 1 (focus must not resize)", got)
+	}
+}

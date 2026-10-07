@@ -937,6 +937,13 @@ type model struct {
 	// the focused pane's session owns input.
 	copyPanes map[string]*copyState
 
+	// ownerPaneBySource is the manual resize-owner designation (the legacy
+	// panel.take_owner model): sourceID -> owning pane id. Ownership is never
+	// inferred from focus, so clicking a follower pane cannot silently steal the
+	// single terminal size. A missing entry falls back to the first pane bound
+	// to that source in the active tab.
+	ownerPaneBySource map[string]string
+
 	zoomPane string
 
 	dragging  string
@@ -976,6 +983,7 @@ func newModel(client emitter, demo bool) *model {
 		mode:          modeLive,
 	}
 	m.copyPanes = map[string]*copyState{}
+	m.ownerPaneBySource = map[string]string{}
 	m.createDefaults = map[string]createDefaults{}
 	m.createDrafts = map[string]createDraft{}
 	m.spaces = []*workspace{{name: "main"}}
@@ -1110,9 +1118,11 @@ func (m *model) paneTitle(p *pane) string {
 // sourceOwnerPane is the single pane that owns one terminal source's size.
 // The daemon terminal has exactly ONE extent (its PTY cols/rows) and therefore
 // exactly one owning pane; additional panes bound to the same source are
-// followers that mirror that extent (legacy resize-ownership model). The owner
-// is the focused pane in the active tab bound to sourceID, else the first such
-// pane; nil when no pane in the active tab shows that source.
+// followers that mirror that extent (legacy resize-ownership model). Ownership
+// is a manual designation (ownerPaneBySource, the legacy panel.take_owner), so
+// focus never decides it: this returns the recorded owner if it still exists in
+// the active tab and still binds the source, otherwise the first such pane
+// (recording it so the designation sticks), else nil.
 func (m *model) sourceOwnerPane(sourceID string) *pane {
 	if sourceID == "" {
 		return nil
@@ -1121,12 +1131,22 @@ func (m *model) sourceOwnerPane(sourceID string) *pane {
 	if t == nil || len(t.panes) == 0 {
 		return nil
 	}
-	focus := clampInt(t.focus, 0, len(t.panes)-1)
-	if t.panes[focus].sourceID == sourceID {
-		return t.panes[focus]
+	if id := m.ownerPaneBySource[sourceID]; id != "" {
+		for _, p := range t.panes {
+			if p.id == id && p.sourceID == sourceID {
+				return p
+			}
+		}
+		// The recorded owner is gone or was unbound: fall through to the
+		// decl-order fallback below.
+		delete(m.ownerPaneBySource, sourceID)
 	}
 	for _, p := range t.panes {
 		if p.sourceID == sourceID {
+			if m.ownerPaneBySource == nil {
+				m.ownerPaneBySource = map[string]string{}
+			}
+			m.ownerPaneBySource[sourceID] = p.id
 			return p
 		}
 	}
@@ -1184,15 +1204,16 @@ func (m *model) paneOwner(p *pane) (string, string, string) {
 	if p.pending == "owner" {
 		return "owner?", stWarning, ""
 	}
-	// Ownership is per SOURCE, not per view: two panes can bind the same
-	// terminal, but only the focused pane in the active tab owns its size
-	// (the daemon PTY has one extent). So the projected owner is the pair
-	// (this pane is the source's owner pane) AND (this view holds the resize
-	// lease). Everything else follows: a different pane on the same source is
-	// muted with the take-owner action, exactly the old terminalChromeVM
-	// projection. The demo's single-pane sources stay owner because the
-	// focused pane trivially owns them and ResizeOwner is view:demo.
-	if m.paneOwnsSource(p) && strings.TrimSpace(src.GetResizeOwner()) != "" && (m.demo || src.GetResizeOwner() == m.viewID) {
+	// Ownership is per SOURCE and manually designated (paneOwnsSource is the
+	// ownerPaneBySource record, never focus): two panes can bind the same
+	// terminal, but only the designated pane in the active tab owns its size
+	// (the daemon PTY has one extent). The projected owner is the pair (this
+	// pane is the source's owner pane) AND (this view holds the resize lease).
+	// Everything else follows: a different pane on the same source is muted
+	// with the take-owner action, exactly the old terminalChromeVM projection.
+	// The demo exporter (view:demo) keeps its single lease-holding pane green.
+	if m.paneOwnsSource(p) && strings.TrimSpace(src.GetResizeOwner()) != "" &&
+		(m.demo || src.GetResizeOwner() == m.viewID) {
 		// Legacy terminalChromeVMFromBinding colors the projected owner
 		// (this view owns resize) with StyleSuccess, not the accent; only
 		// the pending/acquire state stays warning and the follower muted.
@@ -1852,6 +1873,7 @@ func (m *model) onSources(items []*pb.Source) app.Cmd {
 		for _, t := range ws.tabs {
 			for _, p := range t.panes {
 				if p.sourceID != "" && !present[p.sourceID] {
+					m.forgetOwner(p)
 					p.sourceID = ""
 					p.lines = nil
 					delete(m.copyPanes, p.id)
@@ -1861,6 +1883,7 @@ func (m *model) onSources(items []*pb.Source) app.Cmd {
 	}
 	for _, f := range m.floatings {
 		if f.pane.sourceID != "" && !present[f.pane.sourceID] {
+			m.forgetOwner(f.pane)
 			f.pane.sourceID = ""
 			f.pane.lines = nil
 			delete(m.copyPanes, f.pane.id)
@@ -3055,6 +3078,9 @@ func (m *model) closePane(t *tab, p *pane) {
 	if target == nil {
 		return
 	}
+	// Closing the source's owner drops the designation so another pane on that
+	// source can take over (legacy owner release on view close).
+	m.forgetOwner(p)
 	index := 0
 	for i, candidate := range t.panes {
 		if candidate == p {
@@ -3154,7 +3180,14 @@ func (m *model) takeOwner(p *pane) app.Cmd {
 		return nil
 	}
 	if src := m.paneSource(p); src != nil && src.GetTerminalId() != "" {
+		// Manual ownership (legacy panel.take_owner): record this pane as the
+		// source's resize owner. On success the pane stays owner even though
+		// focus may sit on a follower; focus never changes ownership.
 		p.pending = "owner"
+		if m.ownerPaneBySource == nil {
+			m.ownerPaneBySource = map[string]string{}
+		}
+		m.ownerPaneBySource[p.sourceID] = p.id
 		fit := true
 		expected := src.GetOwnerEpoch()
 		return m.emit("terminal.attach", &pb.MethodParams{
@@ -3163,6 +3196,19 @@ func (m *model) takeOwner(p *pane) app.Cmd {
 	}
 	m.toast = "resize owner: host arbitrates"
 	return nil
+}
+
+// forgetOwner drops the manual ownership record when p was its source's owner,
+// so sourceOwnerPane can fall back to another pane still bound to that source.
+// It is called wherever a pane's sourceID is cleared (close, detach, source
+// disappearance).
+func (m *model) forgetOwner(p *pane) {
+	if p == nil || p.sourceID == "" || m.ownerPaneBySource == nil {
+		return
+	}
+	if m.ownerPaneBySource[p.sourceID] == p.id {
+		delete(m.ownerPaneBySource, p.sourceID)
+	}
 }
 
 func (m *model) toggleZoom(p *pane) {
@@ -4184,10 +4230,25 @@ func (m *model) bindPane(paneID, sourceID string) {
 	if p == nil {
 		return
 	}
+	if p.sourceID != "" && p.sourceID != sourceID {
+		// Rebinding a pane to a different source releases any ownership it held.
+		m.forgetOwner(p)
+	}
 	p.sourceID = sourceID
 	p.detachedSourceID = ""
 	p.pending = ""
 	p.scroll = 0
+	// A freshly bound pane owns its source until the user designates another
+	// (the legacy single-pane default). This is why the demo and single-pane
+	// cases keep working without an explicit take-owner.
+	if sourceID != "" {
+		if m.ownerPaneBySource == nil {
+			m.ownerPaneBySource = map[string]string{}
+		}
+		if m.ownerPaneBySource[sourceID] == "" {
+			m.ownerPaneBySource[sourceID] = p.id
+		}
+	}
 	m.mode = modeLive
 	m.markWorkbenchDirty()
 	for _, f := range m.floatings {
@@ -4389,6 +4450,7 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		if !v.ok {
 			m.toast = "detach failed: " + v.err
 		} else if p := m.paneByID(v.ref); p != nil {
+			m.forgetOwner(p)
 			p.detachedSourceID = p.sourceID
 			p.sourceID = ""
 			p.lines = nil
@@ -4403,6 +4465,11 @@ func (m *model) onOp(v opMsg) app.Cmd {
 			}
 			p.detachedSourceID = ""
 			m.toast = "reconnected"
+			// A reconnected pane owns its source again until another pane is
+			// designated (legacy first-bind default).
+			if p.sourceID != "" && m.ownerPaneBySource[p.sourceID] == "" {
+				m.ownerPaneBySource[p.sourceID] = p.id
+			}
 		}
 	case "owner":
 		if p := m.paneByID(v.ref); p != nil {

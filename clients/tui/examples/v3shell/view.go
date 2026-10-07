@@ -485,6 +485,14 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 		if dimmed {
 			props["chrome.dim"] = "1"
 		}
+		// The program designates the resize owner explicitly: exactly the
+		// sourceOwnerPane declares chrome.owner=1 so the host resizes the single
+		// PTY to that pane's content rect. A follower never declares it, so
+		// focusing a follower cannot steal the size (manual ownership, the legacy
+		// panel.take_owner model).
+		if m.paneOwnsSource(p) {
+			props["chrome.owner"] = "1"
+		}
 		st := m.copyFor(p)
 		if st != nil {
 			// The copy scene lives in the program: the host paints the

@@ -8,9 +8,10 @@ import (
 
 // twoPaneSourceModel builds a live host model with two panes in the active tab
 // bound to the SAME terminal source (the daemon terminal has one extent). It
-// returns the model and the two panes; focusSecond selects which pane owns the
-// size (ownership is the focused pane of the source).
-func twoPaneSourceModel(t *testing.T, cols, rows int, srcCols, srcRows int32, focusSecond bool) (*model, *pane, *pane, *pb.Source) {
+// returns the model and the two panes. Binding the first pane records it as the
+// source's owner; ownerSecond simulates a later manual take-owner on the right
+// pane. Focus never decides ownership, so it is set independently.
+func twoPaneSourceModel(t *testing.T, cols, rows int, srcCols, srcRows int32, ownerSecond bool) (*model, *pane, *pane, *pb.Source) {
 	t.Helper()
 	m := newModel(nil, false)
 	m.host = true
@@ -29,9 +30,11 @@ func twoPaneSourceModel(t *testing.T, cols, rows int, srcCols, srcRows int32, fo
 		ResizeOwner: "view-a", Cols: srcCols, Rows: srcRows,
 	}
 	m.sources = []*pb.Source{src}
-	left.sourceID = src.GetId()
-	right.sourceID = src.GetId()
-	if focusSecond {
+	m.bindPane(left.id, src.GetId())
+	m.bindPane(right.id, src.GetId())
+	if ownerSecond {
+		// A prior take-owner designated the right pane, independent of focus.
+		m.ownerPaneBySource[src.GetId()] = right.id
 		m.focusPaneObject(right)
 	} else {
 		m.focusPaneObject(left)
@@ -39,38 +42,78 @@ func twoPaneSourceModel(t *testing.T, cols, rows int, srcCols, srcRows int32, fo
 	return m, left, right, src
 }
 
-// TestSourceOwnerFollowUsesSingleOwnerPane pins requirement 1/2: with two panes
-// on one source, only the focused pane is the source's owner (green "owner");
-// the other pane is a muted "follow" with the take-owner action. Moving focus
-// swaps the roles, because ownership is per source, not per view.
-func TestSourceOwnerFollowUsesSingleOwnerPane(t *testing.T) {
-	m, left, right, src := twoPaneSourceModel(t, 80, 24, 40, 10, true)
-	if got := m.sourceOwnerPane(src.GetId()); got != right {
-		t.Fatalf("focused owner pane = %v, want right", got)
+// ownerPropOf returns the chrome.owner prop of the live terminal box whose id
+// is id (the program asserts ownership on exactly that box).
+func ownerPropOf(t *testing.T, m *model, id string) string {
+	t.Helper()
+	var found *pb.Box
+	var walk func(*pb.Box)
+	walk = func(b *pb.Box) {
+		if b == nil || found != nil {
+			return
+		}
+		if b.GetId() == id && b.GetContent().GetSelf() != "" {
+			found = b
+			return
+		}
+		for _, child := range b.GetChildren() {
+			walk(child)
+		}
 	}
+	walk(m.View())
+	if found == nil {
+		t.Fatalf("terminal box %q not found", id)
+	}
+	return found.GetContent().GetProps()["chrome.owner"]
+}
 
-	text, style, node := m.paneOwner(right)
-	if text != "owner" || style != stSuccess || node != "" {
-		t.Fatalf("focused pane = %q/%q node=%q, want owner/%q", text, style, node, stSuccess)
-	}
-	text, style, node = m.paneOwner(left)
-	if text != "follow" || style != stMuted {
-		t.Fatalf("unfocused pane = %q/%q, want follow/%q", text, style, stMuted)
-	}
-	if node != "pane:"+left.id+":take-owner" {
-		t.Fatalf("follower take-owner node = %q", node)
-	}
-
-	// Moving focus swaps ownership to the other pane on the same source.
-	m.focusPaneObject(left)
+// TestTakeOwnerIsManual pins the manual ownership rule (the legacy
+// panel.take_owner model): with two panes on one source the first bind owns it,
+// focusing the follower does NOT transfer ownership, and only an explicit
+// take-owner (the PANE `a` command / the badge click) designates the follower.
+// The host is told which pane owns the single PTY via chrome.owner=1 on the
+// owner box only.
+func TestTakeOwnerIsManual(t *testing.T) {
+	m, left, right, src := twoPaneSourceModel(t, 80, 24, 40, 10, false)
 	if got := m.sourceOwnerPane(src.GetId()); got != left {
-		t.Fatalf("owner pane after focus move = %v, want left", got)
+		t.Fatalf("first-bound owner = %v, want left", got)
+	}
+
+	// Focusing the follower must not move ownership.
+	m.focusPaneObject(right)
+	if got := m.sourceOwnerPane(src.GetId()); got != left {
+		t.Fatalf("focus must not transfer ownership: owner = %v, want left", got)
 	}
 	if text, style, _ := m.paneOwner(left); text != "owner" || style != stSuccess {
-		t.Fatalf("new focused owner = %q/%q, want owner/%q", text, style, stSuccess)
+		t.Fatalf("owner pane = %q/%q, want owner/%q", text, style, stSuccess)
 	}
-	if text, style, _ := m.paneOwner(right); text != "follow" || style != stMuted {
+	if text, style, node := m.paneOwner(right); text != "follow" || style != stMuted || node != "pane:"+right.id+":take-owner" {
+		t.Fatalf("follower pane = %q/%q node=%q, want follow/%q", text, style, node, stMuted)
+	}
+
+	// Clicking the follower badge dispatches take-owner and designates it.
+	runCmd(t, m, press(m, "pane:"+right.id+":take-owner"))
+	if right.pending != "owner" {
+		t.Fatalf("take-owner pending = %q, want owner", right.pending)
+	}
+	if got := m.sourceOwnerPane(src.GetId()); got != right {
+		t.Fatalf("owner after take-owner = %v, want right", got)
+	}
+	right.pending = "" // the host accepted the attach
+
+	if text, style, _ := m.paneOwner(right); text != "owner" || style != stSuccess {
+		t.Fatalf("new owner = %q/%q, want owner/%q", text, style, stSuccess)
+	}
+	if text, style, _ := m.paneOwner(left); text != "follow" || style != stMuted {
 		t.Fatalf("old owner must become follow = %q/%q", text, style)
+	}
+
+	// Only the owner's box declares chrome.owner=1 to the host.
+	if got := ownerPropOf(t, m, right.id); got != "1" {
+		t.Fatalf("owner chrome.owner = %q, want 1", got)
+	}
+	if got := ownerPropOf(t, m, left.id); got != "" {
+		t.Fatalf("follower chrome.owner = %q, want unset", got)
 	}
 }
 
