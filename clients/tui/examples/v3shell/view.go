@@ -321,10 +321,17 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 	// rules above: the legacy renderer overlays them on the border without
 	// touching the content layer (render/content_overflow_marker.go). The
 	// right marker sits on the last content row's right edge, the bottom marker
-	// just before the bottom-right corner; the live terminal path never has a
-	// session, so this only affects frozen copy/scrollback panes.
-	if st := m.copyFor(p); st != nil && r.w > 2 && r.h > 2 {
-		_, rightOverflow, _, bottomOverflow := m.copyOverflow(st, r.w-2)
+	// just before the bottom-right corner.
+	//
+	// Two sources of horizontal/vertical clipping share this chrome:
+	//   - a frozen copy/scrollback pane whose window is scrolled or wider than
+	//     the content area (copyOverflow), and
+	//   - a live FOLLOWER pane whose pane content is smaller than the source's
+	//     authoritative extent (the legacy extent model: the follower shows the
+	//     owner's size and marks the clipped edges, while the owner resizes the
+	//     PTY to fit and never clips).
+	if r.w > 2 && r.h > 2 {
+		_, rightOverflow, _, bottomOverflow := m.paneOverflow(p, r.w-2, r.h-2)
 		markerStyle := stOverflowStyle
 		if dimmed {
 			markerStyle = dimStyle(markerStyle)
@@ -335,6 +342,92 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 		if bottomOverflow {
 			addRun(out, r.x+r.w-2, r.y+r.h-1, glyphOverflowBottom, markerStyle, borderNode, borderNode != "", 1)
 		}
+	}
+}
+
+// paneOverflow reports the directions a pane's content is clipped. It merges
+// the frozen copy-window overflow (copyOverflow) with the live follower's
+// extent overflow: a follower is clipped when the source's authoritative
+// extent is larger than the pane content area, exactly the legacy
+// contentViewportOverflow rule for a live terminal surface that does not own
+// its size. The owner (full-bleed) and non-host/copy paths never add extent
+// overflow, so the existing copy goldens are unchanged.
+func (m *model) paneOverflow(p *pane, contentWidth, contentHeight int) (left, right, top, bottom bool) {
+	if st := m.copyFor(p); st != nil {
+		left, right, top, bottom = m.copyOverflow(st, contentWidth)
+	}
+	if !m.liveFollower(p) {
+		return left, right, top, bottom
+	}
+	src := m.paneSource(p)
+	if src == nil {
+		return left, right, top, bottom
+	}
+	extentCols, extentRows := m.sourceExtent(src, rect{0, 0, contentWidth, contentHeight})
+	if extentCols > contentWidth {
+		right = true
+	}
+	if extentRows > contentHeight {
+		bottom = true
+	}
+	return left, right, top, bottom
+}
+
+// liveFollower reports whether p is rendered by the host as a live terminal
+// follower: the host paints the live path, the pane is source-bound, and it is
+// NOT the source's single owner pane. Followers draw the extent box plus the
+// `·` placeholder mask and the clipping markers.
+func (m *model) liveFollower(p *pane) bool {
+	if p == nil || p.sourceID == "" || m.demo || !m.host {
+		return false
+	}
+	// A copy/scrollback session owns the pane's interaction viewport; the
+	// extent framing (and its placeholder mask) must not fight it, so a pane
+	// showing a frozen copy window is never treated as a live follower.
+	if m.copyFor(p) != nil {
+		return false
+	}
+	src := m.paneSource(p)
+	if src == nil || src.GetKind() != "terminal" {
+		return false
+	}
+	return !m.paneOwnsSource(p)
+}
+
+// liveFollowerExtent is the box a live follower paints: the source's extent
+// clipped to the pane content rect, at the content origin (r.x, r.y). A
+// follower larger than the extent fills the leftover area with `·`, and a
+// follower smaller than it clips (the caller draws the overflow markers).
+func liveFollowerExtent(r rect, extentCols, extentRows int) rect {
+	return rect{r.x, r.y, minInt(maxInt(0, r.w), maxInt(0, extentCols)), minInt(maxInt(0, r.h), maxInt(0, extentRows))}
+}
+
+// extentPlaceholderNodes masks the pane content area outside a live follower's
+// extent box with the dim `·` placeholder, so the pane behind the terminal
+// never shows through. It covers the right columns of rows the extent is
+// narrower than, and every row below the extent. The recommended yaml
+// pane_glyphs.extent_placeholder + extent_placeholder_style tokens are the
+// same ones the frozen copy window uses.
+func (m *model) extentPlaceholderNodes(out *[]*sdk.Builder, p *pane, r rect, box rect, dimmed bool) {
+	if r.w <= 0 || r.h <= 0 {
+		return
+	}
+	style := stExtentPlaceholder
+	if dimmed {
+		style = dimStyle(style)
+	}
+	node := "pane:" + p.id + ":focus"
+	for row := 0; row < r.h; row++ {
+		y := r.y + row
+		from := 0
+		if row < box.h {
+			// A row the extent covers only masks the columns to its right.
+			from = box.w
+		}
+		if from >= r.w {
+			continue
+		}
+		addRun(out, r.x+from, y, strings.Repeat(extentPlaceholder, r.w-from), style, node, true, r.w-from)
 	}
 }
 
@@ -404,7 +497,20 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 				props[key] = value
 			}
 		}
-		box := sdk.Terminal(p.sourceID).ID(p.id).Pos(r.x, r.y).Width(r.w).Height(r.h).
+		// One terminal source has one size, owned by a single pane (the
+		// focused pane in the active tab, sourceOwnerPane). The owner drives
+		// the PTY resize, so its box stays the full pane content rect. Every
+		// other pane on that source is a follower: it shows the terminal at
+		// the source's authoritative extent and masks the leftover pane area
+		// with the dim `·` extent placeholder, like the legacy
+		// content-viewport rule for a non-owning surface.
+		box := r
+		if m.liveFollower(p) {
+			extentCols, extentRows := m.sourceExtent(src, r)
+			box = liveFollowerExtent(r, extentCols, extentRows)
+			m.extentPlaceholderNodes(out, p, r, box, dimmed)
+		}
+		term := sdk.Terminal(p.sourceID).ID(p.id).Pos(box.x, box.y).Width(box.w).Height(box.h).
 			Props(props).
 			Input("key", "paste", "wheel").
 			Focused(active)
@@ -412,9 +518,9 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 			// The program cursor wins over the PTY cursor (the compositor
 			// prefers the kernel frame cursor). The edit caret lives in the
 			// footer search bar, so the panel keeps the selection cursor.
-			box.Cursor(st.cursorRow, st.cursorCol, "block")
+			term.Cursor(st.cursorRow, st.cursorCol, "block")
 		}
-		*out = append(*out, box)
+		*out = append(*out, term)
 		return
 	}
 	if src == nil {

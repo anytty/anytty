@@ -1107,6 +1107,55 @@ func (m *model) paneTitle(p *pane) string {
 	return sdk.Truncate(terminal, 18) + "@" + endpoint
 }
 
+// sourceOwnerPane is the single pane that owns one terminal source's size.
+// The daemon terminal has exactly ONE extent (its PTY cols/rows) and therefore
+// exactly one owning pane; additional panes bound to the same source are
+// followers that mirror that extent (legacy resize-ownership model). The owner
+// is the focused pane in the active tab bound to sourceID, else the first such
+// pane; nil when no pane in the active tab shows that source.
+func (m *model) sourceOwnerPane(sourceID string) *pane {
+	if sourceID == "" {
+		return nil
+	}
+	t := m.activeTab()
+	if t == nil || len(t.panes) == 0 {
+		return nil
+	}
+	focus := clampInt(t.focus, 0, len(t.panes)-1)
+	if t.panes[focus].sourceID == sourceID {
+		return t.panes[focus]
+	}
+	for _, p := range t.panes {
+		if p.sourceID == sourceID {
+			return p
+		}
+	}
+	return nil
+}
+
+// sourceExtent is a source's authoritative terminal extent in cells. A live
+// source reports its PTY cols/rows; a source that has not reported a size yet
+// (0/0) falls back to the pane content rect, which is exactly the owner path's
+// full-bleed behavior. The extent is (cols, rows) in the pane content rect
+// because card content is inset by one cell on each side (see cardNodes).
+func (m *model) sourceExtent(src *pb.Source, content rect) (int, int) {
+	cols, rows := int(src.GetCols()), int(src.GetRows())
+	if cols <= 0 || rows <= 0 {
+		return maxInt(0, content.w), maxInt(0, content.h)
+	}
+	return cols, rows
+}
+
+// paneOwnsSource reports whether p is the single owning pane of its terminal
+// source. A source-bound pane is a follower whenever another pane (or, when p
+// lives in a floating window, no active-tab pane) owns the extent.
+func (m *model) paneOwnsSource(p *pane) bool {
+	if p == nil || p.sourceID == "" {
+		return false
+	}
+	return m.sourceOwnerPane(p.sourceID) == p
+}
+
 func (m *model) paneState(p *pane, active bool) (string, string) {
 	src := m.paneSource(p)
 	if src != nil && src.GetExited() {
@@ -1135,14 +1184,19 @@ func (m *model) paneOwner(p *pane) (string, string, string) {
 	if p.pending == "owner" {
 		return "owner?", stWarning, ""
 	}
-	if strings.TrimSpace(src.GetResizeOwner()) != "" {
-		if m.demo || src.GetResizeOwner() == m.viewID {
-			// Legacy terminalChromeVMFromBinding colors the projected owner
-			// (this view owns resize) with StyleSuccess, not the accent; only
-			// the pending/acquire state stays warning and the follower muted.
-			return "owner", stSuccess, ""
-		}
-		return "follow", stMuted, "pane:" + p.id + ":take-owner"
+	// Ownership is per SOURCE, not per view: two panes can bind the same
+	// terminal, but only the focused pane in the active tab owns its size
+	// (the daemon PTY has one extent). So the projected owner is the pair
+	// (this pane is the source's owner pane) AND (this view holds the resize
+	// lease). Everything else follows: a different pane on the same source is
+	// muted with the take-owner action, exactly the old terminalChromeVM
+	// projection. The demo's single-pane sources stay owner because the
+	// focused pane trivially owns them and ResizeOwner is view:demo.
+	if m.paneOwnsSource(p) && strings.TrimSpace(src.GetResizeOwner()) != "" && (m.demo || src.GetResizeOwner() == m.viewID) {
+		// Legacy terminalChromeVMFromBinding colors the projected owner
+		// (this view owns resize) with StyleSuccess, not the accent; only
+		// the pending/acquire state stays warning and the follower muted.
+		return "owner", stSuccess, ""
 	}
 	return "follow", stMuted, "pane:" + p.id + ":take-owner"
 }
@@ -1190,9 +1244,11 @@ func (m *model) paneRunsRect(p *pane, active bool, width, height int) []paneRun 
 	runs := []paneRun{{"\u250c", frame, "", false}, {"\u2500", frame, "", false}}
 	// The legacy renderer overlays the top clipping marker on the second
 	// border cell (render/content_overflow_marker.go), ahead of the lock/title
-	// slot, so it never merges with the corner or the left marker.
-	if st := m.copyFor(p); st != nil && width >= 3 {
-		if _, _, top, _ := m.copyOverflow(st, width-2); top {
+	// slot, so it never merges with the corner or the left marker. A live
+	// follower only clips at the right/bottom (its extent box is top-aligned),
+	// but the shared paneOverflow keeps the frozen copy path's top marker.
+	if width >= 3 {
+		if _, _, top, _ := m.paneOverflow(p, width-2, maxInt(0, height-2)); top {
 			runs[1] = paneRun{glyphOverflowTop, stOverflowStyle, "", false}
 		}
 	}
@@ -1343,6 +1399,13 @@ func (m *model) paneRunsRect(p *pane, active bool, width, height int) []paneRun 
 func (m *model) paneSizeMismatch(p *pane, width, height int) bool {
 	src := m.paneSource(p)
 	if src == nil || width <= 0 || height <= 0 || src.GetCols() <= 0 || src.GetRows() <= 0 {
+		return false
+	}
+	// Only the source's owner pane can be "mismatched": the host resizes the
+	// PTY to the owner, so a correctly-sized owner matches the terminal extent.
+	// A follower's pane rect is unrelated to the terminal size by design (it
+	// shows the extent at the owner's size), so it must never expose `size?`.
+	if !m.paneOwnsSource(p) {
 		return false
 	}
 	// card content is inset by one cell on each side/top/bottom.
