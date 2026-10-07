@@ -92,10 +92,10 @@ func TestTerminalObjectReadsPersistentHistoryBeforeAttach(t *testing.T) {
 	}
 	// Opening copy obtains a frozen provider token; a huge delta clamps at
 	// the true oldest retained row, past both the old 1024 and 4096 caches.
-	if _, _, err := term.HistoryWindow(ctx, 0, 0); err != nil {
+	if _, _, err := term.HistoryWindow(ctx, "", 0, 0); err != nil {
 		t.Fatal(err)
 	}
-	rows, offset, err := term.HistoryScroll(ctx, 1000000, 12)
+	rows, offset, err := term.HistoryScroll(ctx, "", 1000000, 12)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,13 +116,13 @@ func TestTerminalObjectReadsPersistentHistoryBeforeAttach(t *testing.T) {
 	if markerRow < 0 {
 		t.Fatalf("exact marker missing from rows: %q", rows)
 	}
-	for _, cell := range term.VisibleScreen().Line(markerRow) {
+	for _, cell := range term.VisibleScreen("").Line(markerRow) {
 		style, ok := render.ParseStyle(string(cell.Style))
 		if !ok || style.FG != "#123456" || style.BG != "#654321" || !style.Bold {
 			t.Fatalf("persistent history lost RGB/bold: %+v", cell)
 		}
 	}
-	text, err := term.HistoryCopy(ctx, &tuiruntime.CopySpec{Mode: "char", StartRow: markerRow, EndRow: markerRow, EndCol: len("PERSIST-OLDEST") - 1})
+	text, err := term.HistoryCopy(ctx, "", &tuiruntime.CopySpec{Mode: "char", StartRow: markerRow, EndRow: markerRow, EndCol: len("PERSIST-OLDEST") - 1})
 	if err != nil || text != "PERSIST-OLDEST" {
 		t.Fatalf("copy=%q err=%v", text, err)
 	}
@@ -139,7 +139,7 @@ func TestTerminalObjectReadsPersistentHistoryBeforeAttach(t *testing.T) {
 			t.Fatalf("search stayed near live: %v", out.Data)
 		}
 		start, end := int(out.Data.GetMatchStart()), int(out.Data.GetMatchEnd())
-		copied, err := term.HistoryCopy(ctx, &tuiruntime.CopySpec{Mode: "char", StartRow: start / 80, StartCol: start % 80, EndRow: (end - 1) / 80, EndCol: (end - 1) % 80})
+		copied, err := term.HistoryCopy(ctx, "", &tuiruntime.CopySpec{Mode: "char", StartRow: start / 80, StartCol: start % 80, EndRow: (end - 1) / 80, EndCol: (end - 1) % 80})
 		want := "PERSIST-OLDEST"
 		if test.mode == "text" {
 			want = test.query
@@ -148,7 +148,7 @@ func TestTerminalObjectReadsPersistentHistoryBeforeAttach(t *testing.T) {
 			t.Fatalf("search selection copied %q want %q err=%v", copied, want, err)
 		}
 	}
-	wrapped, err := term.Search(ctx, "^a{79}界WRAP-END$", "regex", false, 0)
+	wrapped, err := term.Search(ctx, "", "^a{79}界WRAP-END$", "regex", false, 0)
 	if err != nil || !wrapped.GetFound() {
 		t.Fatalf("wrapped search=%v err=%v", wrapped, err)
 	}
@@ -157,21 +157,21 @@ func TestTerminalObjectReadsPersistentHistoryBeforeAttach(t *testing.T) {
 		t.Fatalf("wide wrap end column=%d want 10; rows=%q", end%80, wrapped.GetRows())
 	}
 	for row := begin / 80; row <= (end-1)/80; row++ {
-		for _, cell := range term.VisibleScreen().Line(row) {
+		for _, cell := range term.VisibleScreen("").Line(row) {
 			style, ok := render.ParseStyle(string(cell.Style))
 			if !ok || style.FG != "idx:201" || style.BG != "idx:17" {
 				t.Fatalf("wrapped history lost palette colors at row %d: %+v", row, cell)
 			}
 		}
 	}
-	copied, err := term.HistoryCopy(ctx, &tuiruntime.CopySpec{Mode: "char", StartRow: begin / 80, StartCol: begin % 80, EndRow: (end - 1) / 80, EndCol: (end - 1) % 80})
+	copied, err := term.HistoryCopy(ctx, "", &tuiruntime.CopySpec{Mode: "char", StartRow: begin / 80, StartCol: begin % 80, EndRow: (end - 1) / 80, EndCol: (end - 1) % 80})
 	if err != nil || copied != wrappedLine {
 		t.Fatalf("wrapped copy=%q err=%v", copied, err)
 	}
-	if err := term.HistoryRelease(ctx); err != nil {
+	if err := term.HistoryRelease(ctx, ""); err != nil {
 		t.Fatal(err)
 	}
-	if term.HistoryActive() {
+	if term.HistoryActive("") {
 		t.Fatal("release did not restore live")
 	}
 }

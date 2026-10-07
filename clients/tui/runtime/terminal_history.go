@@ -144,9 +144,10 @@ func (t *Terminal) historyHeight(rows int) int {
 	return max(1, t.parser.Rows())
 }
 
-// HistoryWindow reads relative to this terminal's frozen viewport. Provider
+// HistoryWindow reads relative to one pane's frozen viewport. Provider
 // cursors page beyond the parser cache; local PTYs retain the existing path.
-func (t *Terminal) HistoryWindow(ctx context.Context, offset, rows int) ([]string, int, error) {
+// view is the pane key (terminal box id); the provider snapshot stays shared.
+func (t *Terminal) HistoryWindow(ctx context.Context, view string, offset, rows int) ([]string, int, error) {
 	t.historyMu.Lock()
 	defer t.historyMu.Unlock()
 	epoch := t.historyEpochNow()
@@ -155,11 +156,11 @@ func (t *Terminal) HistoryWindow(ctx context.Context, offset, rows int) ([]strin
 		return nil, 0, err
 	}
 	if snapshot == nil {
-		lines, applied := t.Window(offset, rows)
-		return lines, t.Offset() + applied, nil
+		lines, applied := t.Window(view, offset, rows)
+		return lines, t.Offset(view) + applied, nil
 	}
 	t.mu.Lock()
-	base := t.historyOffset
+	base := t.viewLocked(view).historyOffset
 	t.mu.Unlock()
 	height := t.historyHeight(rows)
 	page, applied, err := snapshot.Window(ctx, base+max(0, offset), height)
@@ -167,14 +168,16 @@ func (t *Terminal) HistoryWindow(ctx context.Context, offset, rows int) ([]strin
 		return nil, 0, err
 	}
 	if rows <= 0 && offset == 0 {
-		t.publishHistoryIfEpoch(epoch, page, applied)
+		t.publishHistoryIfEpoch(epoch, view, page, applied)
 	}
 	return history.Text(page), applied, nil
 }
 
-// HistoryScroll changes the terminal's viewport using persistent history.
-// Only the published viewport is protected by mu; network I/O never is.
-func (t *Terminal) HistoryScroll(ctx context.Context, delta, rows int) ([]string, int, error) {
+// HistoryScroll changes one pane's viewport using persistent history. Only the
+// published viewport is protected by mu; network I/O never is. The provider
+// snapshot is shared per terminal but each view keeps its own offset, so
+// scrolling one pane does not move a sibling bound to the same source.
+func (t *Terminal) HistoryScroll(ctx context.Context, view string, delta, rows int) ([]string, int, error) {
 	t.historyMu.Lock()
 	defer t.historyMu.Unlock()
 	if err := t.validateHistoryScroll(ctx); err != nil {
@@ -185,7 +188,8 @@ func (t *Terminal) HistoryScroll(ctx context.Context, delta, rows int) ([]string
 	// with a frozen "latest" page and makes repeated bottom scrolling oscillate
 	// between two representations of the same terminal.
 	t.mu.Lock()
-	historyActive, historyOffset, pinned := t.historyActive, t.historyOffset, t.pinned
+	v := t.viewLocked(view)
+	historyActive, historyOffset, pinned := v.historyActive, v.historyOffset, v.pinned
 	epoch := t.historyEpoch
 	t.mu.Unlock()
 	_, persistent := t.proc.(history.Source)
@@ -197,19 +201,19 @@ func (t *Terminal) HistoryScroll(ctx context.Context, delta, rows int) ([]string
 		// rows as offset zero would make the shell believe it reached live while
 		// the renderer still showed stale content.
 		if pinned {
-			lines, offset := t.Scroll(delta, rows)
+			lines, offset := t.Scroll(view, delta, rows)
 			return lines, offset, nil
 		}
-		lines, _ := t.Window(0, rows)
+		lines, _ := t.Window(view, 0, rows)
 		return lines, 0, nil
 	}
 	if persistent && historyActive && delta < 0 && historyOffset+delta <= 0 {
 		// Match the old copy-mode boundary: returning to the frozen bottom
 		// releases the snapshot and immediately reveals the live PTY screen.
-		if err := t.detachHistoryViewportForScroll(ctx); err != nil {
+		if err := t.detachHistoryViewportForScroll(ctx, view); err != nil {
 			return nil, 0, err
 		}
-		lines, _ := t.Window(0, rows)
+		lines, _ := t.Window(view, 0, rows)
 		return lines, 0, nil
 	}
 	snapshot, err := t.historyLocked(ctx)
@@ -217,11 +221,11 @@ func (t *Terminal) HistoryScroll(ctx context.Context, delta, rows int) ([]string
 		return nil, 0, err
 	}
 	if snapshot == nil {
-		lines, offset := t.Scroll(delta, rows)
+		lines, offset := t.Scroll(view, delta, rows)
 		return lines, offset, nil
 	}
 	t.mu.Lock()
-	offset := max(0, t.historyOffset+delta)
+	offset := max(0, t.viewLocked(view).historyOffset+delta)
 	t.mu.Unlock()
 	page, applied, err := snapshot.Window(ctx, offset, t.historyHeight(rows))
 	if err != nil {
@@ -236,13 +240,13 @@ func (t *Terminal) HistoryScroll(ctx context.Context, delta, rows int) ([]string
 	if delta > 0 && applied <= 0 {
 		// There is no older row to enter. Keep the terminal live instead of
 		// marking an unchanged provider page as an active history viewport.
-		if err := t.detachHistoryViewportForScroll(ctx); err != nil {
+		if err := t.detachHistoryViewportForScroll(ctx, view); err != nil {
 			return nil, 0, err
 		}
-		lines, _ := t.Window(0, rows)
+		lines, _ := t.Window(view, 0, rows)
 		return lines, 0, nil
 	}
-	if err := t.publishHistoryForScroll(ctx, page, applied, epoch); err != nil {
+	if err := t.publishHistoryForScroll(ctx, view, page, applied, epoch); err != nil {
 		return nil, 0, err
 	}
 	return history.Text(page), applied, nil
@@ -265,13 +269,13 @@ func (t *Terminal) validateHistoryScroll(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (t *Terminal) publishHistoryForScroll(ctx context.Context, page []*apipb.HistoryRow, offset int, epoch uint64) error {
+func (t *Terminal) publishHistoryForScroll(ctx context.Context, view string, page []*apipb.HistoryRow, offset int, epoch uint64) error {
 	generation, latest := ctx.Value(historyScrollGenerationKey{}).(uint64)
 	if !latest {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !t.publishHistoryIfEpoch(epoch, page, offset) {
+		if !t.publishHistoryIfEpoch(epoch, view, page, offset) {
 			return context.Canceled
 		}
 		return nil
@@ -284,19 +288,19 @@ func (t *Terminal) publishHistoryForScroll(ctx context.Context, page []*apipb.Hi
 	if generation != t.historyScrollGeneration {
 		return context.Canceled
 	}
-	if !t.publishHistoryIfEpoch(epoch, page, offset) {
+	if !t.publishHistoryIfEpoch(epoch, view, page, offset) {
 		return context.Canceled
 	}
 	return nil
 }
 
-func (t *Terminal) detachHistoryViewportForScroll(ctx context.Context) error {
+func (t *Terminal) detachHistoryViewportForScroll(ctx context.Context, view string) error {
 	generation, latest := ctx.Value(historyScrollGenerationKey{}).(uint64)
 	if !latest {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		t.detachHistoryViewportLocked()
+		t.detachHistoryViewportLocked(view)
 		return nil
 	}
 	t.historyQueueMu.Lock()
@@ -307,21 +311,26 @@ func (t *Terminal) detachHistoryViewportForScroll(ctx context.Context) error {
 	if generation != t.historyScrollGeneration {
 		return context.Canceled
 	}
-	t.detachHistoryViewportLocked()
+	t.detachHistoryViewportLocked(view)
 	return nil
 }
 
-// detachHistoryViewportLocked clears the published frozen view while
-// historyMu is held. The provider token is released asynchronously so the
-// bottom wheel remains a local, immediate operation even when the endpoint is
-// slow or offline.
-func (t *Terminal) detachHistoryViewportLocked() {
+// detachHistoryViewportLocked clears one view's published frozen view while
+// historyMu is held. The shared provider token is released only when no other
+// view still holds a frozen viewport, so clearing one pane cannot drop the
+// snapshot a sibling bound to the same source is still reading. The release is
+// asynchronous so the bottom wheel stays local and immediate.
+func (t *Terminal) detachHistoryViewportLocked(view string) {
 	t.mu.Lock()
-	snapshot := t.historySnapshot
-	t.historySnapshot = nil
-	t.historySnapshotEpoch = 0
-	t.historyActive, t.historyRows, t.historyOffset = false, nil, 0
-	t.pinned, t.viewEnd = false, 0
+	v := t.viewLocked(view)
+	v.historyActive, v.historyRows, v.historyOffset = false, nil, 0
+	v.pinned, v.viewEnd = false, 0
+	var snapshot *history.Snapshot
+	if !t.anyViewActiveLocked() {
+		snapshot = t.historySnapshot
+		t.historySnapshot = nil
+		t.historySnapshotEpoch = 0
+	}
 	t.mu.Unlock()
 	if snapshot == nil {
 		return
@@ -333,60 +342,68 @@ func (t *Terminal) detachHistoryViewportLocked() {
 	}()
 }
 
-func (t *Terminal) publishHistory(page []*apipb.HistoryRow, offset int) {
+func (t *Terminal) publishHistory(view string, page []*apipb.HistoryRow, offset int) {
 	t.mu.Lock()
-	t.historyActive, t.historyRows, t.historyOffset = true, page, offset
+	v := t.viewLocked(view)
+	v.historyActive, v.historyRows, v.historyOffset = true, page, offset
 	t.mu.Unlock()
 }
 
-func (t *Terminal) publishHistoryIfEpoch(epoch uint64, page []*apipb.HistoryRow, offset int) bool {
+func (t *Terminal) publishHistoryIfEpoch(epoch uint64, view string, page []*apipb.HistoryRow, offset int) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.historyEpoch != epoch {
 		return false
 	}
-	t.historyActive, t.historyRows, t.historyOffset = true, page, offset
+	v := t.viewLocked(view)
+	v.historyActive, v.historyRows, v.historyOffset = true, page, offset
 	return true
 }
 
-// HistoryActive distinguishes frozen-at-offset-zero from a live viewport.
-func (t *Terminal) HistoryActive() bool {
+// HistoryActive distinguishes frozen-at-offset-zero from a live viewport for
+// one pane.
+func (t *Terminal) HistoryActive(view string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.historyActive || t.pinned
+	v := t.viewLocked(view)
+	return v.historyActive || v.pinned
 }
 
 // BeginHistoryScroll marks an asynchronous persistent scroll as host-owned
 // before any provider I/O starts. The token prevents an older canceled
 // request from clearing the routing bit belonging to a newer wheel event.
-func (t *Terminal) BeginHistoryScroll(delta int) uint64 {
+// Routing is per-view so one pane's pending scroll never captures a sibling.
+func (t *Terminal) BeginHistoryScroll(view string, delta int) uint64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.historyRoutingSeq++
-	token := t.historyRoutingSeq
-	if delta > 0 || t.historyActive || t.pinned || t.historyRouting {
-		t.historyRouting = true
+	v := t.viewLocked(view)
+	v.historyRoutingSeq++
+	token := v.historyRoutingSeq
+	if delta > 0 || v.historyActive || v.pinned || v.historyRouting {
+		v.historyRouting = true
 	}
 	return token
 }
 
 // EndHistoryScroll clears the pending host-owned routing state when the
 // matching request completes. A newer request keeps the bit set.
-func (t *Terminal) EndHistoryScroll(token uint64) {
+func (t *Terminal) EndHistoryScroll(view string, token uint64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if token == t.historyRoutingSeq {
-		t.historyRouting = false
+	v := t.viewLocked(view)
+	if token == v.historyRoutingSeq {
+		v.historyRouting = false
 	}
 }
 
 // HistoryRoutingActive includes a pending remote history request. It is used
 // only by input routing; HistoryActive remains the published frozen viewport
 // state for rendering and copy semantics.
-func (t *Terminal) HistoryRoutingActive() bool {
+func (t *Terminal) HistoryRoutingActive(view string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.historyActive || t.pinned || t.historyRouting
+	v := t.viewLocked(view)
+	return v.historyActive || v.pinned || v.historyRouting
 }
 
 // HasPersistentHistory reports whether scrolling needs the endpoint history
@@ -397,12 +414,16 @@ func (t *Terminal) HasPersistentHistory() bool {
 	return ok
 }
 
-// HistoryRelease ends copy mode and releases the token on its original
-// connection. Closing an offline connection must not delay terminal cleanup.
-func (t *Terminal) HistoryRelease(ctx context.Context) error {
+// HistoryRelease ends copy mode for one pane and releases the shared token on
+// its original connection. The provider snapshot is released only once no
+// other view still holds a frozen viewport, so closing one pane cannot break a
+// sibling bound to the same source. Closing an offline connection must not
+// delay terminal cleanup.
+func (t *Terminal) HistoryRelease(ctx context.Context, view string) error {
 	t.mu.Lock()
-	t.historyRoutingSeq++
-	t.historyRouting = false
+	v := t.viewLocked(view)
+	v.historyRoutingSeq++
+	v.historyRouting = false
 	t.mu.Unlock()
 	t.historyQueueMu.Lock()
 	t.historyScrollGeneration++
@@ -412,12 +433,47 @@ func (t *Terminal) HistoryRelease(ctx context.Context) error {
 	t.historyQueueMu.Unlock()
 	t.historyMu.Lock()
 	defer t.historyMu.Unlock()
+	return t.detachHistoryViewportSync(ctx, view)
+}
+
+// historyReleaseAll clears every viewport and always releases the shared
+// snapshot. It is the terminal-destroy path (Close), where no sibling view can
+// remain active.
+func (t *Terminal) historyReleaseAll(ctx context.Context) error {
 	t.mu.Lock()
+	for _, v := range t.views {
+		v.historyRouting = false
+		v.historyActive, v.historyRows, v.historyOffset = false, nil, 0
+		v.pinned, v.viewEnd = false, 0
+	}
+	t.mu.Unlock()
+	t.historyMu.Lock()
+	defer t.historyMu.Unlock()
 	snapshot := t.historySnapshot
 	t.historySnapshot = nil
 	t.historySnapshotEpoch = 0
-	t.historyActive, t.historyRows, t.historyOffset = false, nil, 0
-	t.pinned, t.viewEnd = false, 0
+	if snapshot == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	return snapshot.Close(ctx)
+}
+
+// detachHistoryViewportSync clears one view and synchronously closes the
+// shared snapshot when no other view remains active. Callers must hold
+// historyMu.
+func (t *Terminal) detachHistoryViewportSync(ctx context.Context, view string) error {
+	t.mu.Lock()
+	v := t.viewLocked(view)
+	v.historyActive, v.historyRows, v.historyOffset = false, nil, 0
+	v.pinned, v.viewEnd = false, 0
+	var snapshot *history.Snapshot
+	if !t.anyViewActiveLocked() {
+		snapshot = t.historySnapshot
+		t.historySnapshot = nil
+		t.historySnapshotEpoch = 0
+	}
 	t.mu.Unlock()
 	if snapshot == nil {
 		return nil
@@ -442,10 +498,11 @@ func (t *Terminal) HistorySearch(ctx context.Context, query string, mode apipb.H
 	return snapshot.Search(ctx, query, mode, backward, start)
 }
 
-// Search searches the terminal's frozen history and moves its viewport to the
+// Search searches one pane's frozen history and moves its viewport to the
 // match. The shell supplies intent and a viewport cursor, not provider tokens
 // or a scan loop. start is a row-major cell index; match end is exclusive.
-func (t *Terminal) Search(ctx context.Context, query, mode string, backward bool, start int) (*pb.MethodData, error) {
+// view is the pane key, so a search moves only the pane that issued it.
+func (t *Terminal) Search(ctx context.Context, view, query, mode string, backward bool, start int) (*pb.MethodData, error) {
 	pattern, err := history.Pattern(mode, query)
 	if err != nil {
 		return nil, err
@@ -463,7 +520,7 @@ func (t *Terminal) Search(ctx context.Context, query, mode string, backward bool
 	}
 	if snapshot != nil {
 		t.mu.Lock()
-		visible := t.historyRows
+		visible := t.viewLocked(view).historyRows
 		t.mu.Unlock()
 		var position *apipb.HistoryTextPosition
 		if row := start / cols; row >= 0 && row < len(visible) {
@@ -491,7 +548,7 @@ func (t *Terminal) Search(ctx context.Context, query, mode string, backward bool
 		if err != nil {
 			return nil, err
 		}
-		if !t.publishHistoryIfEpoch(epoch, rows, offset) {
+		if !t.publishHistoryIfEpoch(epoch, view, rows, offset) {
 			return &pb.MethodData{}, context.Canceled
 		}
 		return &pb.MethodData{Found: true, Wrapped: result.GetWrapped(), Rows: history.Text(rows), Offset: int32(offset), MatchStart: int32(begin), MatchEnd: int32(end)}, nil
@@ -500,9 +557,10 @@ func (t *Terminal) Search(ctx context.Context, query, mode string, backward bool
 	// Terminal even in this fallback; shell programs use the same method.
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	v := t.viewLocked(view)
 	total := t.contentTotalLocked()
 	text := t.windowEndingLocked(total, total)
-	current := max(0, t.windowEndLocked()-height)*cols + max(0, start)
+	current := max(0, t.windowEndLocked(view)-height)*cols + max(0, start)
 	type match struct{ begin, end int }
 	var matches []match
 	for row, line := range text {
@@ -540,26 +598,26 @@ func (t *Terminal) Search(ctx context.Context, query, mode string, backward bool
 	}
 	chosen := matches[selected]
 	top := min(max(0, chosen.begin/cols-height/2), max(0, total-height))
-	t.pinned, t.viewEnd = true, min(total, top+height)
-	return &pb.MethodData{Found: true, Wrapped: wrapped, Rows: t.windowEndingLocked(t.viewEnd, height),
-		Offset: int32(t.offsetLocked()), MatchStart: int32(chosen.begin - top*cols), MatchEnd: int32(chosen.end - top*cols)}, nil
+	v.pinned, v.viewEnd = true, min(total, top+height)
+	return &pb.MethodData{Found: true, Wrapped: wrapped, Rows: t.windowEndingLocked(v.viewEnd, height),
+		Offset: int32(t.offsetLocked(view)), MatchStart: int32(chosen.begin - top*cols), MatchEnd: int32(chosen.end - top*cols)}, nil
 }
 
 // HistoryCopy resolves viewport coordinates to provider logical-line ranges,
 // so soft-wrapped rows copy as one logical line. Block selection remains a
-// visual rectangle and is resolved against the published viewport.
-func (t *Terminal) HistoryCopy(ctx context.Context, spec *CopySpec) (string, error) {
+// visual rectangle and is resolved against the pane's published viewport.
+func (t *Terminal) HistoryCopy(ctx context.Context, view string, spec *CopySpec) (string, error) {
 	t.historyMu.Lock()
 	defer t.historyMu.Unlock()
 	if t.historySnapshot == nil || spec == nil || spec.Mode == "block" {
 		if spec == nil {
-			return t.CopyText(), nil
+			return t.CopyText(view), nil
 		}
-		text, _ := t.CopyWindow(*spec)
+		text, _ := t.CopyWindow(view, *spec)
 		return text, nil
 	}
 	t.mu.Lock()
-	rows := t.historyRows
+	rows := t.viewLocked(view).historyRows
 	t.mu.Unlock()
 	if len(rows) == 0 {
 		return "", errors.New("terminal history: no visible rows")

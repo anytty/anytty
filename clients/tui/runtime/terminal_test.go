@@ -90,17 +90,17 @@ func TestSnapshotResetDropsPublishedHistoryViewport(t *testing.T) {
 	backend := &bottomTraceBackend{released: make(chan struct{})}
 	proc := &snapshotResetPTY{bottomTracePTY: &bottomTracePTY{backend: backend, cols: 20, rows: 2}}
 	term := newTerminal("terminal:remote:history-resync", "history-resync", nil, proc, 20, 2, nil)
-	if _, _, err := term.HistoryScroll(context.Background(), 1, 2); err != nil {
+	if _, _, err := term.HistoryScroll(context.Background(), "", 1, 2); err != nil {
 		t.Fatalf("enter history: %v", err)
 	}
-	if !term.HistoryActive() || !strings.Contains(strings.Join(term.VisibleLines(), "|"), "FROZEN") {
+	if !term.HistoryActive("") || !strings.Contains(strings.Join(term.VisibleLines(""), "|"), "FROZEN") {
 		t.Fatal("history viewport was not published")
 	}
 	if proc.reset == nil {
 		t.Fatal("terminal did not install snapshot reset hook")
 	}
 	proc.reset()
-	if term.HistoryActive() {
+	if term.HistoryActive("") {
 		t.Fatal("reconnect left the old history viewport active")
 	}
 	select {
@@ -128,12 +128,12 @@ func TestPersistentHistoryBottomTrace(t *testing.T) {
 	}
 	var trace []observation
 	for _, delta := range []int{1, -1, -1, -1} {
-		if _, offset, err := term.HistoryScroll(context.Background(), delta, 2); err != nil {
+		if _, offset, err := term.HistoryScroll(context.Background(), "", delta, 2); err != nil {
 			t.Fatalf("delta=%d: %v", delta, err)
 		} else {
 			trace = append(trace, observation{
-				delta: delta, offset: offset, active: term.HistoryActive(),
-				lines: strings.Join(term.VisibleLines(), "|")})
+				delta: delta, offset: offset, active: term.HistoryActive(""),
+				lines: strings.Join(term.VisibleLines(""), "|")})
 		}
 	}
 	t.Logf("bottom trace: %+v", trace)
@@ -169,18 +169,19 @@ func TestPersistentHistoryPinnedBottomUnpinsInsteadOfReturningStaleRows(t *testi
 	// persistent history path can claim the terminal again.
 	term.mu.Lock()
 	total := term.contentTotalLocked()
-	term.pinned = true
-	term.viewEnd = total - 1
+	v := term.viewLocked("")
+	v.pinned = true
+	v.viewEnd = total - 1
 	term.mu.Unlock()
 
-	lines, offset, err := term.HistoryScroll(context.Background(), -1, 2)
+	lines, offset, err := term.HistoryScroll(context.Background(), "", -1, 2)
 	if err != nil {
 		t.Fatalf("pinned downward scroll: %v", err)
 	}
-	if offset != 0 || term.HistoryActive() {
-		t.Fatalf("after pinned bottom scroll offset=%d active=%v, want 0/false", offset, term.HistoryActive())
+	if offset != 0 || term.HistoryActive("") {
+		t.Fatalf("after pinned bottom scroll offset=%d active=%v, want 0/false", offset, term.HistoryActive(""))
 	}
-	want, _ := term.Window(0, 2)
+	want, _ := term.Window("", 0, 2)
 	if strings.Join(lines, "|") != strings.Join(want, "|") {
 		t.Fatalf("live rows after unpin = %q, want %q", strings.Join(lines, "|"), strings.Join(want, "|"))
 	}
@@ -244,10 +245,10 @@ func TestLatestScrollGenerationDropsLateProviderResult(t *testing.T) {
 		term.historyQueueMu.Unlock()
 	}
 	ctx := context.WithValue(context.Background(), historyScrollGenerationKey{}, uint64(1))
-	if _, _, err := term.HistoryScroll(ctx, 1, 2); err != context.Canceled {
+	if _, _, err := term.HistoryScroll(ctx, "", 1, 2); err != context.Canceled {
 		t.Fatalf("late scroll error = %v, want context canceled", err)
 	}
-	if term.HistoryActive() {
+	if term.HistoryActive("") {
 		t.Fatal("late provider result republished a stale history viewport")
 	}
 }
@@ -286,20 +287,20 @@ func TestEnqueueLatestHistoryCancelsStaleScroll(t *testing.T) {
 
 func TestHistoryRoutingStaysHostOwnedUntilLatestScrollCompletes(t *testing.T) {
 	term := &Terminal{}
-	first := term.BeginHistoryScroll(1)
-	if !term.HistoryRoutingActive() {
+	first := term.BeginHistoryScroll("", 1)
+	if !term.HistoryRoutingActive("") {
 		t.Fatal("pending upward scroll must keep wheel routing in the host")
 	}
 
 	// A reverse wheel supersedes the first request. Completing the stale
 	// request must not hand routing back to the mouse-aware child.
-	second := term.BeginHistoryScroll(-1)
-	term.EndHistoryScroll(first)
-	if !term.HistoryRoutingActive() {
+	second := term.BeginHistoryScroll("", -1)
+	term.EndHistoryScroll("", first)
+	if !term.HistoryRoutingActive("") {
 		t.Fatal("stale completion cleared newer history routing")
 	}
-	term.EndHistoryScroll(second)
-	if term.HistoryRoutingActive() {
+	term.EndHistoryScroll("", second)
+	if term.HistoryRoutingActive("") {
 		t.Fatal("latest completion left history routing active")
 	}
 }
@@ -470,16 +471,16 @@ func TestTerminalScrollServesScrollbackWindow(t *testing.T) {
 	if len(rows) != 2 || rows[0] != "two" || rows[1] != "three" {
 		t.Fatalf("scroll window = %q, want [two three]", rows)
 	}
-	if term.Offset() != 1 {
-		t.Fatalf("offset = %d, want 1", term.Offset())
+	if term.Offset("") != 1 {
+		t.Fatalf("offset = %d, want 1", term.Offset(""))
 	}
 
 	h.Handle(Request{
 		Method: Method{Name: "terminal.scrollEnd"},
 		Params: &pb.MethodParams{Endpoint: "local", Id: "t4"},
 	})
-	if term.Offset() != 0 {
-		t.Fatalf("offset after scrollEnd = %d, want 0", term.Offset())
+	if term.Offset("") != 0 {
+		t.Fatalf("offset after scrollEnd = %d, want 0", term.Offset(""))
 	}
 }
 
@@ -671,27 +672,27 @@ func TestCopyWindowSelection(t *testing.T) {
 
 	// Live window (offset 0): rows are "two", "three".
 	charSpec := CopySpec{Mode: "char", StartRow: 0, StartCol: 0, EndRow: 1, EndCol: 2}
-	if got, ok := term.CopyWindow(charSpec); !ok || got != "two\nthr" {
+	if got, ok := term.CopyWindow("", charSpec); !ok || got != "two\nthr" {
 		t.Fatalf("char copy = %q ok=%v, want %q", got, ok, "two\nthr")
 	}
 	lineSpec := CopySpec{Mode: "line", StartRow: 0, StartCol: 0, EndRow: 1, EndCol: 0}
-	if got, _ := term.CopyWindow(lineSpec); got != "two\nthree" {
+	if got, _ := term.CopyWindow("", lineSpec); got != "two\nthree" {
 		t.Fatalf("line copy = %q, want %q", got, "two\nthree")
 	}
 	blockSpec := CopySpec{Mode: "block", StartRow: 0, StartCol: 0, EndRow: 1, EndCol: 2}
-	if got, _ := term.CopyWindow(blockSpec); got != "two\nthr" {
+	if got, _ := term.CopyWindow("", blockSpec); got != "two\nthr" {
 		t.Fatalf("block copy = %q, want %q", got, "two\nthr")
 	}
 	// Reversed char selection normalizes to reading order.
 	reversed := CopySpec{Mode: "char", StartRow: 1, StartCol: 2, EndRow: 0, EndCol: 0}
-	if got, _ := term.CopyWindow(reversed); got != "two\nthr" {
+	if got, _ := term.CopyWindow("", reversed); got != "two\nthr" {
 		t.Fatalf("reversed copy = %q, want %q", got, "two\nthr")
 	}
 	// A scrolled window resolves against what the view shows.
-	if _, offset := term.Scroll(1, 2); offset != 1 {
+	if _, offset := term.Scroll("", 1, 2); offset != 1 {
 		t.Fatalf("scroll offset = %d, want 1", offset)
 	}
-	if got, _ := term.CopyWindow(CopySpec{Mode: "char", StartRow: 0, StartCol: 0, EndRow: 0, EndCol: 2}); got != "one" {
+	if got, _ := term.CopyWindow("", CopySpec{Mode: "char", StartRow: 0, StartCol: 0, EndRow: 0, EndCol: 2}); got != "one" {
 		t.Fatalf("scrolled copy = %q, want %q", got, "one")
 	}
 }
@@ -699,12 +700,12 @@ func TestCopyWindowSelection(t *testing.T) {
 func TestLocalHistoryVisibleScreenPreservesStyles(t *testing.T) {
 	term := &Terminal{parser: ansi.New(12, 2)}
 	term.parser.Write([]byte("\x1b[38;2;18;52;86;48;2;101;67;33;1m界red\x1b[0m"))
-	live := term.VisibleScreen().Line(0)
+	live := term.VisibleScreen("").Line(0)
 	term.parser.Write([]byte("\r\nsecond\r\nlatest"))
-	if _, offset := term.Scroll(1, 2); offset != 1 {
+	if _, offset := term.Scroll("", 1, 2); offset != 1 {
 		t.Fatalf("offset=%d", offset)
 	}
-	frozen := term.VisibleScreen().Line(0)
+	frozen := term.VisibleScreen("").Line(0)
 	if len(live) != len(frozen) {
 		t.Fatalf("live/history widths changed: %d/%d", len(live), len(frozen))
 	}
@@ -769,36 +770,77 @@ func TestFrozenWindowDoesNotFollowOutput(t *testing.T) {
 	term := attachTerminal(t, h, "tfrozen")
 	waitFor(t, "three", func() bool { return screenContains(term, "three") })
 
-	frozen, offset := term.Scroll(1, 2)
+	frozen, offset := term.Scroll("", 1, 2)
 	if offset != 1 || len(frozen) != 2 || frozen[0] != "two" || frozen[1] != "three" {
 		t.Fatalf("scroll window = %q offset=%d, want [two three] offset 1", frozen, offset)
 	}
 	// New output arrives; the frozen window must not move. The visible window
 	// is requested with offset 0 (relative to the frozen bottom).
 	waitFor(t, "five", func() bool { return screenContains(term, "five") })
-	still, clamped := term.Window(0, 2)
+	still, clamped := term.Window("", 0, 2)
 	if len(still) != 2 || still[0] != "two" || still[1] != "three" {
 		t.Fatalf("frozen window drifted with output: %q", still)
 	}
 	if clamped != 0 {
 		t.Fatalf("visible window request must clamp to offset 0, got %d", clamped)
 	}
-	if distance := term.Offset(); distance <= offset {
+	if distance := term.Offset(""); distance <= offset {
 		t.Fatalf("live distance must grow while the view is frozen: %d -> %d", offset, distance)
 	}
 	// A larger scan window ends at the same frozen row; a positive offset
 	// pages further back.
-	scan, _ := term.Window(0, 10)
+	scan, _ := term.Window("", 0, 10)
 	if len(scan) < 2 || scan[len(scan)-1] != "three" {
 		t.Fatalf("scan window must end at the frozen row: %q", scan)
 	}
-	paged, pagedOffset := term.Window(2, 2)
+	paged, pagedOffset := term.Window("", 2, 2)
 	if pagedOffset != 2 || len(paged) == 0 || paged[len(paged)-1] == "three" {
 		t.Fatalf("paged scan window = %q offset=%d, want rows above the frozen view", paged, pagedOffset)
 	}
-	term.ScrollEnd()
-	live, offsetLive := term.Window(0, 2)
+	term.ScrollEnd("")
+	live, offsetLive := term.Window("", 0, 2)
 	if offsetLive != 0 || !strings.Contains(strings.Join(live, "\n"), "five") {
 		t.Fatalf("live window after scrollEnd = %q offset=%d", live, offsetLive)
+	}
+}
+
+// TestPerViewScrollIsolation pins the per-pane frozen viewport: two views bound
+// to one shared Terminal must not share scroll/copy state. Scrolling view "a"
+// freezes only "a"; view "b" stays live, renders the live tail and reports no
+// offset. ScrollEnd("a") then returns only "a" to live.
+func TestPerViewScrollIsolation(t *testing.T) {
+	h := NewTerminalHandler(TerminalOptions{
+		Cols:    12,
+		Rows:    2,
+		Command: []string{"sh", "-c", "printf 'one\\ntwo\\nthree\\n'; sleep 10"},
+	})
+	defer h.Close()
+	term := attachTerminal(t, h, "tviews")
+	waitFor(t, "three", func() bool { return screenContains(term, "three") })
+
+	// Scrolling one view must not leak into a sibling on the same source.
+	if _, offset := term.Scroll("a", 1, 2); offset == 0 {
+		t.Fatalf("scroll view a offset = %d, want > 0", offset)
+	}
+	if term.Offset("a") == 0 {
+		t.Fatalf("view a offset = %d, want > 0 after scroll", term.Offset("a"))
+	}
+	if term.Offset("b") != 0 {
+		t.Fatalf("view b offset = %d, want 0 (live)", term.Offset("b"))
+	}
+	if !term.HistoryActive("a") {
+		t.Fatal("view a must be frozen after its own scroll")
+	}
+	if term.HistoryActive("b") {
+		t.Fatal("view b must stay live when only view a scrolls")
+	}
+	// The sibling renders the live tail, not view a's frozen window.
+	if got := strings.Join(term.VisibleScreen("b").TextLines(), "|"); !strings.Contains(got, "three") {
+		t.Fatalf("view b visible screen = %q, want the live tail", got)
+	}
+
+	term.ScrollEnd("a")
+	if term.Offset("a") != 0 || term.HistoryActive("a") {
+		t.Fatalf("after ScrollEnd(a) offset=%d active=%v, want 0/false", term.Offset("a"), term.HistoryActive("a"))
 	}
 }

@@ -457,7 +457,7 @@ func TestHostRawWheelReplay(t *testing.T) {
 		Wheel: func(w *pb.WheelEvent) {
 			deltas <- int(w.GetDelta())
 			_, _ = client.Emit("terminal.scroll", &pb.MethodParams{
-				Endpoint: "local", Id: terminalID, Delta: w.GetDelta(), Rows: 16,
+				Endpoint: "local", Id: terminalID, Delta: w.GetDelta(), Rows: 16, View: "term",
 			}, nil)
 		},
 	}
@@ -518,7 +518,7 @@ func TestHostRawWheelReplay(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("program did not receive first wheel")
 	}
-	waitFor(t, "history viewport", func() bool { return term.HistoryActive() && term.Offset() > 0 })
+	waitFor(t, "history viewport", func() bool { return term.HistoryActive("term") && term.Offset("term") > 0 })
 
 	// Codex-like children can leave DEC tracking enabled while the host is in
 	// copy/history mode. The second, downward wheel must remain a program
@@ -536,7 +536,7 @@ func TestHostRawWheelReplay(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("history did not receive second wheel")
 	}
-	waitFor(t, "live bottom after downward wheel", func() bool { return !term.HistoryActive() && term.Offset() == 0 })
+	waitFor(t, "live bottom after downward wheel", func() bool { return !term.HistoryActive("term") && term.Offset("term") == 0 })
 	// Once live is restored, tracking belongs to the child again. A downward
 	// wheel must be available to Codex/other mouse-aware terminal programs.
 	if _, err := input.Write([]byte("\x1b[<65;4;4M")); err != nil {
@@ -552,6 +552,128 @@ func TestHostRawWheelReplay(t *testing.T) {
 
 	// Quit the host cleanly so the test also exercises the same input pump's
 	// lifecycle instead of leaving the fake program goroutine behind.
+	_, _ = input.Write([]byte{0x11})
+	waitFor(t, "quit confirmation", func() bool { return bytes.Contains([]byte(hostOut.String()), []byte("Quit tui2?")) })
+	_, _ = input.Write([]byte{'\r'})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("host run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("host did not stop")
+	}
+}
+
+// TestHostPerViewScrollIsolation binds two terminal boxes ("pane-a"/"pane-b")
+// to ONE terminal source and drives a scroll for pane-a through the real host
+// boundary (the program's terminal.scroll carries the box id as its view). The
+// shared runtime.Terminal must keep one frozen viewport per pane, so pane-a
+// freezes while its sibling pane-b stays live.
+func TestHostPerViewScrollIsolation(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+	input := newMemPipe()
+	hostOut := &syncBuffer{}
+
+	var stateMu sync.Mutex
+	var sourceID, terminalID string
+	var ptyBox *fakePTY
+	var client *sdk.Client
+	state := func() (string, string, *fakePTY) {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return sourceID, terminalID, ptyBox
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				stateMu.Lock()
+				terminalID = resp.GetData().GetId()
+				sourceID = "terminal:" + resp.GetData().GetEndpoint() + ":" + resp.GetData().GetId()
+				src := sourceID
+				stateMu.Unlock()
+				// Two panes over one source; both commit their own view == box id.
+				tree := sdk.Row(
+					sdk.Terminal(src).ID("pane-a").Width(30).Height(10).Input("key", "a"),
+					sdk.Terminal(src).ID("pane-b").Width(30).Height(10).Input("key", "b"),
+				)
+				if err := client.Commit(tree.Build(), sdk.Keys{}); err != nil {
+					t.Errorf("commit: %v", err)
+				}
+			})
+		},
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"}, In: input, Out: hostOut,
+		NewProcess: func([]string) (process, error) { return proc, nil },
+		NewPTY: func(pty.Config) pty.PTY {
+			box := newFakePTY()
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 80, Rows: 24, Tick: 5 * time.Millisecond,
+	})
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		select {
+		case <-done:
+		default:
+			proc.Stop()
+			host.stopProgram()
+		}
+	}()
+
+	waitFor(t, "layout hello", func() bool { return client.Hello() != nil })
+	waitFor(t, "terminal view", func() bool {
+		id, tid, box := state()
+		return id != "" && tid != "" && box != nil && client.Rev() >= 1
+	})
+	id, terminalID, box := state()
+	term, ok := host.handler.TerminalBySource(id)
+	if !ok {
+		t.Fatalf("terminal %q not found", id)
+	}
+
+	// Seed local scrollback so a +1 scroll can pin a frozen viewport.
+	var seed strings.Builder
+	for i := 0; i < 32; i++ {
+		seed.WriteString("line-")
+		seed.WriteString(fmt.Sprint(i))
+		seed.WriteString("\r\n")
+	}
+	box.emit(seed.String())
+
+	// Drive the same scroll path the real shell uses: the program emits
+	// terminal.scroll with view == the pane id.
+	if _, err := client.Emit("terminal.scroll", &pb.MethodParams{
+		Endpoint: "local", Id: terminalID, Delta: 1, Rows: 8, View: "pane-a",
+	}, nil); err != nil {
+		t.Fatalf("emit scroll: %v", err)
+	}
+	waitFor(t, "pane-a frozen viewport", func() bool { return term.Offset("pane-a") > 0 })
+	if got := term.Offset("pane-b"); got != 0 {
+		t.Fatalf("pane-b offset = %d, want 0 (a sibling pane must stay live)", got)
+	}
+	if !term.HistoryActive("pane-a") {
+		t.Fatal("pane-a must be frozen after its own scroll")
+	}
+	if term.HistoryActive("pane-b") {
+		t.Fatal("pane-b must stay live when only pane-a scrolls")
+	}
+
 	_, _ = input.Write([]byte{0x11})
 	waitFor(t, "quit confirmation", func() bool { return bytes.Contains([]byte(hostOut.String()), []byte("Quit tui2?")) })
 	_, _ = input.Write([]byte{'\r'})

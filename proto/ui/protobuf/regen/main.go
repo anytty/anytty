@@ -138,6 +138,10 @@ func main() {
 		appendField(source, descriptorpb.FieldDescriptorProto_TYPE_INT32, 18, "attachment_count", "attachmentCount", false)
 	}
 	appendMapField(params, 34, "tags", "tags", "TagsEntry", descriptorpb.FieldDescriptorProto_TYPE_STRING)
+	// view identifies the pane's independent terminal viewport (scroll/copy).
+	// Append-only: field 34 is params.tags and 35 is clipboard_id, so the next
+	// free field is 36.
+	stringField(params, 36, "view", "view", false)
 	// StreamFrame wire_type is append-only too: add it when an older compiled
 	// descriptor already carries the message without the field.
 	if stream := findMessage("StreamFrame"); stream != nil {

@@ -253,9 +253,9 @@ func TestRawWheelReplayHistoryWinsOverMouseTracking(t *testing.T) {
 			term, ok := h.TerminalBySource(id)
 			return ok && term.Modes().MouseTracking()
 		},
-		HistoryActive: func(id string) bool {
-			term, ok := h.TerminalBySource(id)
-			return ok && term.HistoryActive()
+		HistoryActive: func(sourceID, viewID string) bool {
+			term, ok := h.TerminalBySource(sourceID)
+			return ok && term.HistoryActive(viewID)
 		},
 	})
 	term := attachTerminal(t, h, "main")
@@ -269,9 +269,9 @@ func TestRawWheelReplayHistoryWinsOverMouseTracking(t *testing.T) {
 	if _, err := term.Write([]byte("one\r\ntwo\r\nthree\r\nfour\r\n")); err != nil {
 		t.Fatalf("seed terminal output: %v", err)
 	}
-	term.Scroll(1, 2)
-	if !term.HistoryActive() || term.Offset() == 0 {
-		t.Fatalf("history state = active:%v offset:%d, want frozen offset", term.HistoryActive(), term.Offset())
+	term.Scroll("term", 1, 2)
+	if !term.HistoryActive("term") || term.Offset("term") == 0 {
+		t.Fatalf("history state = active:%v offset:%d, want frozen offset", term.HistoryActive("term"), term.Offset("term"))
 	}
 
 	parser := keys.NewParser()

@@ -17,6 +17,9 @@ func (g *gateHandler) terminalHistory(req runtime.Request) (runtime.Outcome, boo
 	if !ok {
 		return runtime.Outcome{Error: "no such terminal"}, false
 	}
+	// view is the pane's independent frozen viewport (terminal box id); "" is
+	// the legacy single view. Every routing/scroll decision is per-view.
+	view := req.Params.GetView()
 	session := g.host.currentSession()
 	if session == nil {
 		return runtime.Outcome{Error: "no active session"}, false
@@ -27,8 +30,8 @@ func (g *gateHandler) terminalHistory(req runtime.Request) (runtime.Outcome, boo
 	// publishing a second "latest" frame that races a mouse-aware child TUI's
 	// redraw. When an upward request is pending, keep the async path so a
 	// reverse wheel can cancel/supersede that request correctly.
-	if req.Method.Name == "terminal.scroll" && req.Params.GetDelta() < 0 && !term.HistoryRoutingActive() {
-		rows, offset := term.Window(0, int(req.Params.GetRows()))
+	if req.Method.Name == "terminal.scroll" && req.Params.GetDelta() < 0 && !term.HistoryRoutingActive(view) {
+		rows, offset := term.Window(view, 0, int(req.Params.GetRows()))
 		if wheelDebugEnabled() {
 			log.Printf("tui2 history no-op endpoint=%s id=%s delta=%d rows=%d offset=%d",
 				req.Params.GetEndpoint(), req.Params.GetId(), req.Params.GetDelta(), len(rows), offset)
@@ -38,7 +41,7 @@ func (g *gateHandler) terminalHistory(req runtime.Request) (runtime.Outcome, boo
 	if wheelDebugEnabled() {
 		log.Printf("tui2 history %s endpoint=%s id=%s delta=%d rows=%d routing=%v",
 			req.Method.Name, req.Params.GetEndpoint(), req.Params.GetId(),
-			req.Params.GetDelta(), req.Params.GetRows(), term.HistoryRoutingActive())
+			req.Params.GetDelta(), req.Params.GetRows(), term.HistoryRoutingActive(view))
 	}
 	// A local PTY already has its complete scrollback in the parser. Running
 	// this tiny operation inline removes the queue/goroutine hop from the hot
@@ -53,9 +56,9 @@ func (g *gateHandler) terminalHistory(req runtime.Request) (runtime.Outcome, boo
 		}
 		return outcome, false
 	}
-	token := term.BeginHistoryScroll(int(req.Params.GetDelta()))
+	token := term.BeginHistoryScroll(view, int(req.Params.GetDelta()))
 	work := func(parent context.Context) {
-		defer term.EndHistoryScroll(token)
+		defer term.EndHistoryScroll(view, token)
 		if session.Epoch() != req.Epoch {
 			return
 		}
@@ -82,7 +85,7 @@ func (g *gateHandler) terminalHistory(req runtime.Request) (runtime.Outcome, boo
 		accepted = term.EnqueueHistory(work)
 	}
 	if !accepted {
-		term.EndHistoryScroll(token)
+		term.EndHistoryScroll(view, token)
 		return runtime.Outcome{Error: "terminal history queue full"}, false
 	}
 	return runtime.Outcome{}, true

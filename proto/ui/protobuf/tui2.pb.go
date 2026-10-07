@@ -1700,6 +1700,7 @@ type MethodParams struct {
 	Backward            bool                   `protobuf:"varint,33,opt,name=backward,proto3" json:"backward,omitempty"`
 	Tags                map[string]string      `protobuf:"bytes,34,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	ClipboardId         string                 `protobuf:"bytes,35,opt,name=clipboard_id,json=clipboardId,proto3" json:"clipboard_id,omitempty"`
+	View                string                 `protobuf:"bytes,36,opt,name=view,proto3" json:"view,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1975,6 +1976,13 @@ func (x *MethodParams) GetTags() map[string]string {
 func (x *MethodParams) GetClipboardId() string {
 	if x != nil {
 		return x.ClipboardId
+	}
+	return ""
+}
+
+func (x *MethodParams) GetView() string {
+	if x != nil {
+		return x.View
 	}
 	return ""
 }
@@ -2634,7 +2642,7 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"\tSelection\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\x05R\x05start\x12\x10\n" +
-	"\x03end\x18\x03 \x01(\x05R\x03end\"\xde\n" +
+	"\x03end\x18\x03 \x01(\x05R\x03end\"\xf2\n" +
 	"\n" +
 	"\fMethodParams\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x0e\n" +
@@ -2673,7 +2681,8 @@ const file_tui2_proto_tui2_proto_rawDesc = "" +
 	"searchMode\x12\x1a\n" +
 	"\bbackward\x18! \x01(\bR\bbackward\x12:\n" +
 	"\x04tags\x18\" \x03(\v2&.anytty.tui2.v1.MethodParams.TagsEntryR\x04tags\x12!\n" +
-	"\fclipboard_id\x18# \x01(\tR\vclipboardId\x1a6\n" +
+	"\fclipboard_id\x18# \x01(\tR\vclipboardId\x12\x12\n" +
+	"\x04view\x18$ \x01(\tR\x04view\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a7\n" +

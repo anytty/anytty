@@ -58,12 +58,12 @@ func TestHistoryPlacementPreservesColors(t *testing.T) {
 	if err := session.HandleView(&pb.View{Epoch: 1, Rev: 1, Root: box}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := term.HistoryWindow(context.Background(), 0, 0); err != nil {
+	if _, _, err := term.HistoryWindow(context.Background(), "pane", 0, 0); err != nil {
 		t.Fatal(err)
 	}
 	for _, offset := range []int{0, 1} {
 		if offset > 0 {
-			if _, _, err := term.HistoryScroll(context.Background(), 1, 2); err != nil {
+			if _, _, err := term.HistoryScroll(context.Background(), "pane", 1, 2); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -87,7 +87,7 @@ func TestHistoryPlacementPreservesColors(t *testing.T) {
 		if !frame.CellAt(2, 0).Continuation {
 			t.Fatal("wide character lost its continuation")
 		}
-		if got := term.VisibleLines()[0]; got != "R界Z" {
+		if got := term.VisibleLines("pane")[0]; got != "R界Z" {
 			t.Fatalf("display-only tail fill entered text: %q", got)
 		}
 	}

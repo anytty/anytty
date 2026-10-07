@@ -29,6 +29,12 @@ import (
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
 
+const (
+	// scrollcheckView is the fixed pane key this probe uses for its independent
+	// frozen viewport (see proto MethodParams.view).
+	scrollcheckView = "scrollcheck"
+)
+
 type stringList []string
 
 func (s *stringList) String() string { return strings.Join(*s, string(os.PathListSeparator)) }
@@ -181,8 +187,8 @@ func main() {
 	// that a live bottom remains a stable no-op.
 	for _, delta := range []int{1, -1, -1} {
 		start = time.Now()
-		_, offset, scrollErr := term.HistoryScroll(context.Background(), delta, *rows)
-		lines := term.VisibleLines()
+		_, offset, scrollErr := term.HistoryScroll(context.Background(), scrollcheckView, delta, *rows)
+		lines := term.VisibleLines(scrollcheckView)
 		sample := append([]string(nil), lines...)
 		if len(sample) > 3 {
 			sample = sample[:3]
@@ -190,7 +196,7 @@ func main() {
 		r := record{
 			Phase: "scroll", Endpoint: cfg.Name, Terminal: *terminalID,
 			Health: mgr.Health(cfg.Name), Persistent: term.HasPersistentHistory(),
-			Delta: delta, Offset: offset, HistoryActive: term.HistoryActive(),
+			Delta: delta, Offset: offset, HistoryActive: term.HistoryActive(scrollcheckView),
 			Rows: len(lines), Sample: sample, DurationMS: time.Since(start).Milliseconds(),
 		}
 		if scrollErr != nil {
@@ -207,7 +213,7 @@ func main() {
 		emit(r)
 	}
 
-	if err := term.HistoryRelease(context.Background()); err != nil {
+	if err := term.HistoryRelease(context.Background(), scrollcheckView); err != nil {
 		emit(record{Phase: "release", Endpoint: cfg.Name, Terminal: *terminalID, Error: err.Error(), Diagnosis: classify(err)})
 		os.Exit(1)
 	}

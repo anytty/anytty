@@ -34,11 +34,12 @@ type Options struct {
 	// MouseTracking reports whether a terminal source has mouse tracking on
 	// (routing input §6.5). Nil means never.
 	MouseTracking func(sourceID string) bool
-	// HistoryActive reports whether a terminal source is currently showing a
-	// frozen host-owned history/copy viewport. Nil means never. This is kept
-	// separate from MouseTracking because a child may leave DEC tracking on
-	// while the TUI owns the current scroll gesture.
-	HistoryActive func(sourceID string) bool
+	// HistoryActive reports whether one pane of a terminal source is currently
+	// showing a frozen host-owned history/copy viewport. viewID is the
+	// terminal box node id (== pane id); empty means the legacy single view.
+	// Nil means never. This is kept separate from MouseTracking because a child
+	// may leave DEC tracking on while the TUI owns the current scroll gesture.
+	HistoryActive func(sourceID, viewID string) bool
 	// InputSink receives host-encoded bytes for DestinationPTY inputs and
 	// serves the terminal bracket-paste mode; nil means PTY input fails.
 	InputSink InputSink
@@ -114,7 +115,7 @@ type Session struct {
 	components    []string
 	handler       Handler
 	mouseTracker  func(string) bool
-	historyActive func(string) bool
+	historyActive func(string, string) bool
 	inputSink     InputSink
 	eventSink     EventSink
 	onStream      func(*pb.StreamFrame) error
@@ -819,7 +820,7 @@ func (s *Session) refreshFocusLocked() {
 	}
 	historyActive := s.focus.HistoryActive
 	if s.historyActive != nil {
-		historyActive = s.historyActive(s.focus.ID)
+		historyActive = s.historyActive(s.focus.ID, s.focus.NodeID)
 	}
 	if tracked == s.focus.MouseTracking && historyActive == s.focus.HistoryActive {
 		return
@@ -983,7 +984,7 @@ func (s *Session) focusLocked(root *kernel.Node) *Focus {
 		f.MouseTracking = s.mouseTracker(f.ID)
 	}
 	if s.historyActive != nil {
-		f.HistoryActive = s.historyActive(f.ID)
+		f.HistoryActive = s.historyActive(f.ID, f.NodeID)
 	}
 	return f
 }

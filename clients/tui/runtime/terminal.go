@@ -148,7 +148,7 @@ func (h *TerminalHandler) HandleContext(ctx context.Context, req Request) (Outco
 		if term == nil {
 			return h.fallback.Handle(req)
 		}
-		rows, offset, err := term.HistoryScroll(ctx, int(params.GetDelta()), int(params.GetRows()))
+		rows, offset, err := term.HistoryScroll(ctx, params.GetView(), int(params.GetDelta()), int(params.GetRows()))
 		if err != nil {
 			return Outcome{Error: err.Error()}, false
 		}
@@ -158,7 +158,7 @@ func (h *TerminalHandler) HandleContext(ctx context.Context, req Request) (Outco
 		if term == nil {
 			return h.fallback.Handle(req)
 		}
-		rows, offset, err := term.HistoryWindow(ctx, int(params.GetOffset()), int(params.GetRows()))
+		rows, offset, err := term.HistoryWindow(ctx, params.GetView(), int(params.GetOffset()), int(params.GetRows()))
 		if err != nil {
 			return Outcome{Error: err.Error()}, false
 		}
@@ -168,14 +168,14 @@ func (h *TerminalHandler) HandleContext(ctx context.Context, req Request) (Outco
 		if term == nil {
 			return Outcome{Error: "no such terminal"}, false
 		}
-		result, err := term.Search(ctx, params.GetQuery(), params.GetSearchMode(), params.GetBackward(), int(params.GetSel().GetStart()))
+		result, err := term.Search(ctx, params.GetView(), params.GetQuery(), params.GetSearchMode(), params.GetBackward(), int(params.GetSel().GetStart()))
 		if err != nil {
 			return Outcome{Error: err.Error()}, false
 		}
 		return Outcome{OK: true, Data: result}, false
 	case "terminal.scrollEnd":
 		if term := h.terminal(params.GetEndpoint(), params.GetId()); term != nil {
-			if err := term.HistoryRelease(ctx); err != nil {
+			if err := term.HistoryRelease(ctx, params.GetView()); err != nil {
 				return Outcome{Error: err.Error()}, false
 			}
 		}
@@ -198,7 +198,7 @@ func (h *TerminalHandler) HandleContext(ctx context.Context, req Request) (Outco
 				EndRow: end / cols, EndCol: end % cols,
 			}
 		}
-		text, err := term.HistoryCopy(ctx, spec)
+		text, err := term.HistoryCopy(ctx, params.GetView(), spec)
 		if err != nil {
 			return Outcome{Error: err.Error()}, false
 		}
@@ -482,11 +482,12 @@ type Terminal struct {
 	snapshotCacheValid bool
 	screenCache        terminal.Screen
 	screenCacheValid   bool
-	// pinned/viewEnd implement the old frozen copy window: the first scroll
-	// away from live pins the window's bottom content row, so terminal output
-	// arriving afterwards does not shift what the user is reading/selecting.
-	pinned   bool
-	viewEnd  int
+	// views holds one frozen scroll/copy viewport per pane (view). Several
+	// panes can be bound to the same terminal source, so the frozen window
+	// must not live on the shared Terminal: otherwise entering copy mode in
+	// one pane would freeze and scroll every sibling. The key is the terminal
+	// box node id (== pane id); "" is the legacy single view.
+	views    map[string]*viewState
 	owner    string
 	epoch    uint64
 	ownerAt  time.Time
@@ -497,22 +498,63 @@ type Terminal struct {
 	// lastOutput is the time of the most recent non-empty PTY output; the
 	// picker renders it as a coarse activity label.
 	lastOutput time.Time
-	// Published history viewport: read under mu without waiting for I/O.
+	// historyEpoch invalidates provider pages and snapshots across a remote
+	// attachment resync. A reconnect is a new authoritative live screen, so
+	// an in-flight history request from the old attachment must not republish
+	// its frozen rows over that screen.
+	historyEpoch uint64
+}
+
+// viewState is one pane's frozen scroll/copy viewport. The provider history
+// snapshot/token itself stays shared per terminal (serialized under historyMu);
+// only this published viewport state is per-view.
+type viewState struct {
+	// pinned/viewEnd implement the frozen copy window: the first scroll away
+	// from live pins the window's bottom content row, so terminal output
+	// arriving afterwards does not shift what the user is reading/selecting.
+	pinned  bool
+	viewEnd int
+	// historyActive is the published provider history viewport: read under mu
+	// without waiting for I/O.
 	historyActive bool
+	historyRows   []*apipb.HistoryRow
+	historyOffset int
 	// historyRouting keeps wheel/mouse events in the host while the first
 	// persistent history request is in flight. A remote request can take long
 	// enough for the child to receive the next wheel while it still reports
 	// DEC mouse tracking; routing that wheel to the PTY leaks the SGR/ESC bytes
 	// which made direction reversals visibly oscillate.
-	historyRoutingSeq uint64
 	historyRouting    bool
-	// historyEpoch invalidates provider pages and snapshots across a remote
-	// attachment resync. A reconnect is a new authoritative live screen, so
-	// an in-flight history request from the old attachment must not republish
-	// its frozen rows over that screen.
-	historyEpoch  uint64
-	historyOffset int
-	historyRows   []*apipb.HistoryRow
+	historyRoutingSeq uint64
+}
+
+// viewLocked returns the frozen viewport state for one pane, creating it
+// lazily. view is the terminal box node id (== pane id); "" is the legacy
+// single view. Callers must hold t.mu.
+func (t *Terminal) viewLocked(view string) *viewState {
+	if t.views == nil {
+		t.views = map[string]*viewState{}
+	}
+	v := t.views[view]
+	if v == nil {
+		v = &viewState{}
+		t.views[view] = v
+	}
+	return v
+}
+
+// anyViewActiveLocked reports whether any pane still holds a frozen viewport
+// (published history or a pinned parser window). The shared provider snapshot
+// may only be released once this is false, otherwise releasing one pane's
+// history would drop the token a sibling is still reading. Callers must hold
+// t.mu.
+func (t *Terminal) anyViewActiveLocked() bool {
+	for _, v := range t.views {
+		if v.historyActive || v.pinned {
+			return true
+		}
+	}
+	return false
 }
 
 type historyWork struct {
@@ -533,6 +575,7 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 		onOutput:       onOutput,
 		parser:         ansi.New(cols, rows),
 		attached:       true,
+		views:          map[string]*viewState{},
 	}
 	if resetter, ok := proc.(interface{ SetSnapshotReset(func()) }); ok {
 		resetter.SetSnapshotReset(t.resetForSnapshot)
@@ -551,11 +594,10 @@ func (t *Terminal) resetForSnapshot() {
 	t.mu.Lock()
 	t.parser.Reset()
 	t.invalidateSnapshotLocked()
-	t.pinned, t.viewEnd = false, 0
+	// Every view's frozen viewport belongs to the previous stream generation:
+	// replace them all rather than clearing one scalar.
+	t.views = map[string]*viewState{}
 	t.historyEpoch++
-	t.historyActive, t.historyRows, t.historyOffset = false, nil, 0
-	t.historyRoutingSeq++
-	t.historyRouting = false
 	historyEpoch := t.historyEpoch
 	t.mu.Unlock()
 
@@ -682,7 +724,7 @@ func (t *Terminal) Close() error {
 		t.closeErr = t.proc.Close()
 		// Cleanup must not be dropped when the request queue is saturated.
 		// Cancellation releases in-flight I/O before this acquires historyMu.
-		go func() { _ = t.HistoryRelease(context.Background()) }()
+		go func() { _ = t.historyReleaseAll(context.Background()) }()
 	})
 	return t.closeErr
 }
@@ -733,14 +775,16 @@ func (t *Terminal) Screen() terminal.Screen { return t.State().Screen }
 
 // VisibleScreen returns the styled viewport, including frozen history. Plain
 // text projections such as VisibleLines are for searching/copying, not display.
-func (t *Terminal) VisibleScreen() terminal.Screen {
+// view selects the pane's independent frozen window ("" = legacy single view).
+func (t *Terminal) VisibleScreen(view string) terminal.Screen {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.historyActive {
-		return historyScreen(t.historyRows, t.parser.Cols())
+	v := t.viewLocked(view)
+	if v.historyActive {
+		return historyScreen(v.historyRows, t.parser.Cols())
 	}
-	if t.pinned {
-		return terminalScreen(ansi.Screen{Lines: t.windowCellsEndingLocked(t.windowEndLocked())})
+	if v.pinned {
+		return terminalScreen(ansi.Screen{Lines: t.windowCellsEndingLocked(view, t.windowEndLocked(view))})
 	}
 	return t.liveScreenLocked(t.snapshotLocked())
 }
@@ -768,36 +812,38 @@ func (t *Terminal) Cursor() (int, int, bool) {
 
 // Offset returns the scrollback offset (0 = live): the distance between the
 // window the view shows and the live bottom. A pinned (frozen) window reports
-// the growing distance as new output arrives.
-func (t *Terminal) Offset() int {
+// the growing distance as new output arrives. view selects the pane.
+func (t *Terminal) Offset(view string) int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.offsetLocked()
+	return t.offsetLocked(view)
 }
 
 func (t *Terminal) contentTotalLocked() int {
 	return len(t.parser.Scrollback()) + len(t.parser.Screen().Lines)
 }
 
-func (t *Terminal) offsetLocked() int {
-	if t.historyActive {
-		return t.historyOffset
+func (t *Terminal) offsetLocked(view string) int {
+	v := t.viewLocked(view)
+	if v.historyActive {
+		return v.historyOffset
 	}
-	if !t.pinned {
+	if !v.pinned {
 		return 0
 	}
 	total := t.contentTotalLocked()
-	if t.viewEnd >= total {
+	if v.viewEnd >= total {
 		return 0
 	}
-	return total - t.viewEnd
+	return total - v.viewEnd
 }
 
-// windowEndLocked is the exclusive content row the visible window ends at.
-func (t *Terminal) windowEndLocked() int {
+// windowEndLocked is the exclusive content row the view's visible window ends at.
+func (t *Terminal) windowEndLocked(view string) int {
+	v := t.viewLocked(view)
 	total := t.contentTotalLocked()
-	if t.pinned && t.viewEnd < total {
-		return t.viewEnd
+	if v.pinned && v.viewEnd < total {
+		return v.viewEnd
 	}
 	return total
 }
@@ -807,8 +853,8 @@ func (t *Terminal) windowEndLocked() int {
 // the clamped offset actually used. offset=0 with rows<=0 is the visible
 // window; a positive offset pages further back for the copy search, which is
 // how the whole frozen history can be scanned. The frozen bottom itself never
-// moves when output arrives, so a scan window is stable.
-func (t *Terminal) Window(offset, rows int) ([]string, int) {
+// moves when output arrives, so a scan window is stable. view selects the pane.
+func (t *Terminal) Window(view string, offset, rows int) ([]string, int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if offset < 0 {
@@ -817,39 +863,41 @@ func (t *Terminal) Window(offset, rows int) ([]string, int) {
 	if maxOffset := t.contentTotalLocked(); offset > maxOffset {
 		offset = maxOffset
 	}
-	end := t.windowEndLocked() - offset
+	end := t.windowEndLocked(view) - offset
 	return t.windowEndingLocked(end, rows), offset
 }
 
 // Scroll moves the view by delta lines (positive = older) and returns the
 // resulting window plus the clamped offset the view now shows. The first
 // scroll away from live pins the window (the old frozen copy/history window):
-// later terminal output does not move it, the offset just grows.
-func (t *Terminal) Scroll(delta, rows int) ([]string, int) {
+// later terminal output does not move it, the offset just grows. view selects
+// the pane, so scrolling one pane never moves a sibling on the same source.
+func (t *Terminal) Scroll(view string, delta, rows int) ([]string, int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	v := t.viewLocked(view)
 	total := t.contentTotalLocked()
-	if !t.pinned {
+	if !v.pinned {
 		if delta <= 0 {
 			return t.windowEndingLocked(total, rows), 0
 		}
-		t.pinned = true
-		t.viewEnd = total - delta
+		v.pinned = true
+		v.viewEnd = total - delta
 	} else {
-		t.viewEnd -= delta
+		v.viewEnd -= delta
 	}
 	minEnd := t.windowRowsLocked(rows)
 	if minEnd > total {
 		minEnd = total
 	}
-	if t.viewEnd < minEnd {
-		t.viewEnd = minEnd
+	if v.viewEnd < minEnd {
+		v.viewEnd = minEnd
 	}
-	if t.viewEnd >= total {
-		t.pinned = false
-		t.viewEnd = 0
+	if v.viewEnd >= total {
+		v.pinned = false
+		v.viewEnd = 0
 	}
-	return t.windowEndingLocked(t.windowEndLocked(), rows), t.offsetLocked()
+	return t.windowEndingLocked(t.windowEndLocked(view), rows), t.offsetLocked(view)
 }
 
 // maxOffsetLocked is the largest offset the history can show.
@@ -903,23 +951,25 @@ func (t *Terminal) windowEndingLocked(end, rows int) []string {
 }
 
 // ScrollEnd returns the view to live and drops the frozen window.
-func (t *Terminal) ScrollEnd() {
+func (t *Terminal) ScrollEnd(view string) {
 	t.mu.Lock()
-	t.pinned = false
-	t.viewEnd = 0
+	v := t.viewLocked(view)
+	v.pinned = false
+	v.viewEnd = 0
 	t.mu.Unlock()
 }
 
 // VisibleLines returns the rows the view currently shows (live or scrolled),
-// trailing spaces trimmed.
-func (t *Terminal) VisibleLines() []string {
+// trailing spaces trimmed. view selects the pane.
+func (t *Terminal) VisibleLines(view string) []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.historyActive {
-		return history.Text(t.historyRows)
+	v := t.viewLocked(view)
+	if v.historyActive {
+		return history.Text(v.historyRows)
 	}
-	if t.pinned {
-		return t.windowEndingLocked(t.windowEndLocked(), 0)
+	if v.pinned {
+		return t.windowEndingLocked(t.windowEndLocked(view), 0)
 	}
 	snap := t.parser.Screen()
 	out := make([]string, len(snap.Lines))
@@ -944,13 +994,15 @@ type CopySpec struct {
 
 // CopyWindow resolves a selection against the window the view currently
 // shows and returns the text (rows joined with "\n", trailing blanks
-// trimmed). ok is false when the terminal has no content.
-func (t *Terminal) CopyWindow(spec CopySpec) (string, bool) {
+// trimmed). ok is false when the terminal has no content. view selects the
+// pane, so a selection resolves against that pane's frozen window.
+func (t *Terminal) CopyWindow(view string, spec CopySpec) (string, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	rows := t.windowCellsEndingLocked(t.windowEndLocked())
-	if t.historyActive {
-		rows = historyCells(t.historyRows)
+	v := t.viewLocked(view)
+	rows := t.windowCellsEndingLocked(view, t.windowEndLocked(view))
+	if v.historyActive {
+		rows = historyCells(v.historyRows)
 	}
 	if len(rows) == 0 {
 		return "", false
@@ -1022,9 +1074,9 @@ func (t *Terminal) CopyWindow(spec CopySpec) (string, bool) {
 // windowCellsEndingLocked returns the visible window (one screen of rows
 // ending at the exclusive content row `end`) as raw cells, preserving
 // wide-rune clusters so a selection slice can resolve display columns. The
-// end comes from the frozen view (windowEndLocked), so a copy selection
-// resolves against exactly what the view shows.
-func (t *Terminal) windowCellsEndingLocked(end int) [][]ansi.Cell {
+// end comes from the pane's frozen view (windowEndLocked(view)); view is the
+// pane key that end was resolved for, keeping the copy window per-view.
+func (t *Terminal) windowCellsEndingLocked(view string, end int) [][]ansi.Cell {
 	history := t.parser.Scrollback()
 	snap := t.parser.Screen()
 	height := len(snap.Lines)
@@ -1097,9 +1149,9 @@ func sliceCells(row []ansi.Cell, start, end int) string {
 }
 
 // CopyText is the default terminal.copy payload: the visible screen or
-// scrollback window with trailing blank lines removed.
-func (t *Terminal) CopyText() string {
-	lines := t.VisibleLines()
+// scrollback window with trailing blank lines removed. view selects the pane.
+func (t *Terminal) CopyText(view string) string {
+	lines := t.VisibleLines(view)
 	for len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}

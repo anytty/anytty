@@ -734,9 +734,9 @@ func (h *Host) startProgram() error {
 			term, ok := h.handler.TerminalBySource(id)
 			return ok && term.Modes().MouseTracking()
 		},
-		HistoryActive: func(id string) bool {
+		HistoryActive: func(id, view string) bool {
 			term, ok := h.handler.TerminalBySource(id)
-			return ok && term.HistoryRoutingActive()
+			return ok && term.HistoryRoutingActive(view)
 		},
 	}, programOut, programIn)
 
@@ -1119,7 +1119,8 @@ func (h *Host) terminalOwners(view *pb.View) map[string]string {
 // placements renders every bound terminal source for the current view and
 // keeps its PTY window size aligned with the solved content rect. Only the
 // per-source owner box resizes the PTY; every box still gets a placement so
-// the render output is unchanged.
+// the render output is unchanged. Every (source, view) pair seen this frame is
+// recorded so components of closed panes can be pruned afterwards.
 func (h *Host) placements() []runtime.Placement {
 	session := h.currentSession()
 	if session == nil {
@@ -1132,6 +1133,7 @@ func (h *Host) placements() []runtime.Placement {
 	}
 	owners := h.terminalOwners(view)
 	var out []runtime.Placement
+	live := map[string]bool{}
 	var walk func(*pb.Box)
 	walk = func(b *pb.Box) {
 		if b == nil {
@@ -1141,6 +1143,7 @@ func (h *Host) placements() []runtime.Placement {
 		if sourceID != "" {
 			if term, ok := h.handler.TerminalBySource(sourceID); ok {
 				if rect, ok := frame.Rect(b.GetId()); ok {
+					live[componentKey(sourceID, b.GetId())] = true
 					resize := owners[sourceID] == b.GetId()
 					out = append(out, h.placementResize(session, sourceID, term, b, rect, resize))
 				}
@@ -1151,7 +1154,20 @@ func (h *Host) placements() []runtime.Placement {
 		}
 	}
 	walk(view.GetRoot())
+	h.pruneComponents(live)
 	return out
+}
+
+// pruneComponents drops cached components for panes that no longer appear in
+// the current view, so a closed pane does not leak its terminal component.
+func (h *Host) pruneComponents(live map[string]bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for key := range h.components {
+		if !live[key] {
+			delete(h.components, key)
+		}
+	}
 }
 
 // placement renders one terminal box as if it were the source's resize owner.
@@ -1169,12 +1185,17 @@ func (h *Host) placement(session *runtime.Session, sourceID string, term *runtim
 // render the shared component at their own rect but must not reflow the single
 // PTY, matching the legacy owner/follower resize semantics.
 func (h *Host) placementResize(session *runtime.Session, sourceID string, term *runtime.Terminal, box *pb.Box, rect kernel.Rect, resize bool) runtime.Placement {
-	component := h.components[sourceID]
+	// A component is cached per (source, view): the box id is the pane's view
+	// key, and two panes sharing one terminal source must render independent
+	// frozen viewports instead of fighting over one component/screen.
+	view := box.GetId()
+	key := componentKey(sourceID, view)
+	component := h.components[key]
 	if component == nil {
 		component = terminal.New(nil, nil)
-		h.components[sourceID] = component
+		h.components[key] = component
 	}
-	offset := term.Offset()
+	offset := term.Offset(view)
 	source := h.sourceByID(sourceID)
 	props := terminal.Props{
 		Title:        sourceTitle(source, term),
@@ -1195,7 +1216,7 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 		props.ExitCode = int(source.GetExitCode())
 	}
 	component.SetProps(props)
-	component.SetScreen(term.VisibleScreen())
+	component.SetScreen(term.VisibleScreen(view))
 	if box.GetFocused() {
 		term.RenewOwner(h.opts.ViewID)
 	}
@@ -1205,6 +1226,10 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 	}
 	return term.Placement(component, rect, box.GetFocused())
 }
+
+// componentKey names one cached terminal component. The view (box id) is part
+// of the key so sibling panes on one source each keep their own frozen screen.
+func componentKey(sourceID, view string) string { return sourceID + "\x00" + view }
 
 // resizePTY aligns the PTY winsize with the content rect the component
 // declares for this placement: rect minus the component's own chrome inset

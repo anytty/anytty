@@ -272,6 +272,10 @@ message MethodParams {
   bool backward = 33;
   // clipboard.paste/history.delete identify a persisted clipboard entry.
   string clipboard_id = 35;
+  // view identifies the pane's independent terminal viewport (scroll/copy);
+  // empty means the legacy single view. Append-only field 36 (34 is already
+  // taken by params.tags, and 33/35 exist).
+  string view = 36;
 }
 
 // StreamFrame is the bidirectional access stream payload (frame type STREAM).

@@ -170,8 +170,10 @@ func (m *model) endCopy(p *pane) app.Cmd {
 	if src == nil || src.GetTerminalId() == "" {
 		return nil
 	}
+	// view is the pane id: the terminal box node id is the pane id (view.go
+	// sets sdk.Terminal(...).ID(p.id)), so each pane gets its own frozen viewport.
 	return m.emit("terminal.scrollEnd", &pb.MethodParams{
-		Endpoint: endpointOf(src), Id: src.GetTerminalId(),
+		Endpoint: endpointOf(src), Id: src.GetTerminalId(), View: p.id,
 	}, opMsg{op: "scrollEnd"})
 }
 
@@ -444,7 +446,7 @@ func (m *model) scrollCopyView(p *pane, st *copyState, delta int) app.Cmd {
 	st.scrollSeq++
 	return m.emit("terminal.scroll", &pb.MethodParams{
 		Endpoint: endpointOf(src), Id: src.GetTerminalId(), Delta: int32(delta),
-		Rows: int32(m.copyWindowRows(st)),
+		Rows: int32(m.copyWindowRows(st)), View: p.id,
 	}, opMsg{op: "scroll", ref: p.id, delta: delta, seq: st.scrollSeq})
 }
 
@@ -465,7 +467,7 @@ func (m *model) copyScroll(p *pane, st *copyState, delta int) app.Cmd {
 	st.scrollSeq++
 	return m.emit("terminal.scroll", &pb.MethodParams{
 		Endpoint: endpointOf(src), Id: src.GetTerminalId(), Delta: int32(delta),
-		Rows: int32(m.copyWindowRows(st)),
+		Rows: int32(m.copyWindowRows(st)), View: p.id,
 	}, opMsg{op: "scroll", ref: p.id, delta: delta, seq: st.scrollSeq})
 }
 
@@ -479,7 +481,7 @@ func (m *model) fetchCopyWindow(p *pane, st *copyState) app.Cmd {
 	st.searchSeq++
 	return m.emit("history.window", &pb.MethodParams{
 		Endpoint: endpointOf(src), Id: src.GetTerminalId(),
-		Rows: int32(m.copyWindowRows(st)),
+		Rows: int32(m.copyWindowRows(st)), View: p.id,
 	}, opMsg{op: "window", ref: p.id, seq: st.searchSeq})
 }
 
@@ -624,7 +626,7 @@ func (m *model) copySelection(p *pane, st *copyState, exit bool) app.Cmd {
 	start := startRow*cols + startCol
 	end := endRow*cols + endCol
 	return m.emit("terminal.copy", &pb.MethodParams{
-		Endpoint: endpointOf(src), Id: src.GetTerminalId(),
+		Endpoint: endpointOf(src), Id: src.GetTerminalId(), View: p.id,
 		Sel: &pb.Selection{Mode: "char", Start: int32(start), End: int32(end)},
 	}, opMsg{op: "copy", ref: p.id, exit: exit})
 }
@@ -747,7 +749,7 @@ func (m *model) runCopySearch(p *pane, st *copyState, forward, move bool) app.Cm
 		return m.emit("terminal.search", &pb.MethodParams{
 			Endpoint: endpointOf(src), Id: src.GetTerminalId(), Query: st.query,
 			SearchMode: copySearchModeName(st.searchMode), Backward: !forward,
-			Sel: &pb.Selection{Start: int32(start)},
+			Sel: &pb.Selection{Start: int32(start)}, View: p.id,
 		}, opMsg{op: "search", ref: p.id, seq: st.searchSeq})
 	}
 	m.refreshCopyMatches(st)
@@ -1102,7 +1104,7 @@ func (m *model) resetCopyToLatest(p *pane, st *copyState) app.Cmd {
 	src := m.paneSource(p)
 	if src != nil && src.GetTerminalId() != "" {
 		return m.emit("terminal.scrollEnd", &pb.MethodParams{
-			Endpoint: endpointOf(src), Id: src.GetTerminalId(),
+			Endpoint: endpointOf(src), Id: src.GetTerminalId(), View: p.id,
 		}, opMsg{op: "resetCopy", ref: p.id, seq: st.searchSeq})
 	}
 	return nil

@@ -203,7 +203,7 @@ func TestTerminalHistoryRoutesReverseWheelWhileFirstRequestIsPending(t *testing.
 	session := runtime.NewSession(runtime.Options{
 		ViewID: "v", Epoch: 1, Handler: gate,
 		MouseTracking: func(string) bool { return true },
-		HistoryActive: func(id string) bool { return id == term.SourceID() && term.HistoryRoutingActive() },
+		HistoryActive: func(id, view string) bool { return id == term.SourceID() && term.HistoryRoutingActive(view) },
 	}, bytes.NewReader(nil), io.Discard)
 	host.session = session
 	session.SetInputSink(inner)
@@ -218,7 +218,7 @@ func TestTerminalHistoryRoutesReverseWheelWhileFirstRequestIsPending(t *testing.
 
 	first, firstPending := gate.terminalHistory(runtime.Request{
 		Epoch: 1, RequestID: 1, Method: runtime.Method{Name: "terminal.scroll"},
-		Params: &pb.MethodParams{Endpoint: "remote", Id: "slow", Delta: 1, Rows: 8},
+		Params: &pb.MethodParams{Endpoint: "remote", Id: "slow", Delta: 1, Rows: 8, View: "term"},
 	})
 	if first.OK || !firstPending {
 		t.Fatalf("first scroll = %+v pending=%v, want async pending", first, firstPending)
@@ -228,7 +228,7 @@ func TestTerminalHistoryRoutesReverseWheelWhileFirstRequestIsPending(t *testing.
 	case <-time.After(time.Second):
 		t.Fatal("first history request did not start")
 	}
-	if !term.HistoryRoutingActive() {
+	if !term.HistoryRoutingActive("term") {
 		t.Fatal("host routing was live while first remote scroll was pending")
 	}
 	if got := session.Route(runtime.InputEvent{Kind: runtime.InputWheel}); got != runtime.DestinationProgram {
@@ -237,16 +237,16 @@ func TestTerminalHistoryRoutesReverseWheelWhileFirstRequestIsPending(t *testing.
 
 	second, secondPending := gate.terminalHistory(runtime.Request{
 		Epoch: 1, RequestID: 2, Method: runtime.Method{Name: "terminal.scroll"},
-		Params: &pb.MethodParams{Endpoint: "remote", Id: "slow", Delta: -1, Rows: 8},
+		Params: &pb.MethodParams{Endpoint: "remote", Id: "slow", Delta: -1, Rows: 8, View: "term"},
 	})
 	if second.OK || !secondPending {
 		t.Fatalf("reverse scroll = %+v pending=%v, want async pending", second, secondPending)
 	}
-	if !term.HistoryRoutingActive() {
+	if !term.HistoryRoutingActive("term") {
 		t.Fatal("stale completion handed reverse wheel back to the PTY")
 	}
 	close(slow.release)
-	waitFor(t, "latest reverse scroll completion", func() bool { return !term.HistoryRoutingActive() })
+	waitFor(t, "latest reverse scroll completion", func() bool { return !term.HistoryRoutingActive("term") })
 }
 
 func TestTerminalHistoryLiveDownwardScrollIsImmediateNoOp(t *testing.T) {
@@ -269,7 +269,7 @@ func TestTerminalHistoryLiveDownwardScrollIsImmediateNoOp(t *testing.T) {
 
 	result, pending := gate.terminalHistory(runtime.Request{
 		Epoch: 1, RequestID: 1, Method: runtime.Method{Name: "terminal.scroll"},
-		Params: &pb.MethodParams{Endpoint: "remote", Id: "live", Delta: -1, Rows: 8},
+		Params: &pb.MethodParams{Endpoint: "remote", Id: "live", Delta: -1, Rows: 8, View: "live"},
 	})
 	if !result.OK || pending {
 		t.Fatalf("live downward scroll = %+v pending=%v, want immediate success", result, pending)
@@ -279,7 +279,7 @@ func TestTerminalHistoryLiveDownwardScrollIsImmediateNoOp(t *testing.T) {
 		t.Fatal("live downward scroll opened the persistent history backend")
 	default:
 	}
-	if term.HistoryRoutingActive() {
+	if term.HistoryRoutingActive("live") {
 		t.Fatal("live downward scroll left history routing active")
 	}
 }
