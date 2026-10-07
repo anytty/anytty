@@ -39,6 +39,11 @@ const (
 	colorFooterCopy  = "#83e5c8"
 	colorFooterPick  = "#fc9a87"
 	colorFooterGlob  = "#f5c0d4"
+	// colorExtentPlaceholder is the legacy `extent_placeholder_style` token
+	// (#3b2f63): the dim dot that fills a frozen copy window which is shorter
+	// than its pane. It is intentionally its own name even though the
+	// recommended yaml reuses the secondary surface color.
+	colorExtentPlaceholder = "#3b2f63"
 )
 
 // style builds an explicit style string ("fg:...;bg:...;bold").
@@ -122,6 +127,15 @@ var (
 	// scrollback panel's frame stays in the copy warning color regardless of
 	// whether the panel owns focus. Title/action glyphs keep their own accent.
 	stHistoryBorder = style(colorWarning, "", "bold")
+	// stOverflowStyle is the recommended `overflow_style` token (#9ca3c9): the
+	// muted color of the ◂ ▸ ▴ ▾ content-clipping markers the legacy renderer
+	// drew on a pane's border (render/content_overflow_marker.go).
+	stOverflowStyle = style(colorMuted, "")
+	// stExtentPlaceholder is the recommended `extent_placeholder_style` token
+	// (#3b2f63): the dim dot that masks the pane behind a frozen copy window
+	// shorter than the content area (render/content_viewport.go, the extent
+	// dots the live surface uses when its size is smaller than the pane).
+	stExtentPlaceholder = style(colorExtentPlaceholder, "")
 )
 
 // ---------------------------------------------------------------- glyphs
@@ -148,6 +162,16 @@ const (
 	glyphTabs    = "\U000f04e9"
 	glyphPanes   = "\uebeb"
 	glyphGutter  = "\u2503" // ┃
+
+	// Content-clipping markers (recommended yaml pane_glyphs.overflow_*): drawn
+	// on the pane border when the frozen copy window is clipped.
+	glyphOverflowLeft   = "\u25c2" // ◂
+	glyphOverflowRight  = "\u25b8" // ▸
+	glyphOverflowTop    = "\u25b4" // ▴
+	glyphOverflowBottom = "\u25be" // ▾
+	// extentPlaceholder marks the pane area a short frozen copy window does not
+	// cover (recommended yaml pane_glyphs.extent_placeholder).
+	extentPlaceholder = "\u00b7" // ·
 
 	collapseHint = "Click to collapse"
 )

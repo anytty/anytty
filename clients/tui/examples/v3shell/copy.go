@@ -96,6 +96,40 @@ func (m *model) copyFor(p *pane) *copyState {
 	return m.copyPanes[p.id]
 }
 
+// copyOverflow reports which directions a frozen copy window is clipped, so
+// view.go can draw the legacy overflow markers on the pane border. It ports the
+// truth half of render.contentViewportOverflow for the copy-history content
+// kind (render/copy_history.go + content_viewport.go):
+//
+//   - top: the window is scrolled away from the oldest row (older content
+//     exists above the window); offset is the distance from the live bottom,
+//     so any non-zero offset means older rows remain above.
+//   - bottom: the window is not at the live bottom (offset > 0); newer content
+//     exists below the frozen window.
+//   - right: a loaded window row is wider than the pane content area, i.e. the
+//     row is horizontally clipped. (left stays false: the offset window is the
+//     newest page ending at the live bottom, so it can only clip at the newer
+//     right edge, and the exact per-row start column is not derivable here.)
+//
+// Live terminal panes have no session here, so this never invents scrollback
+// state for them.
+func (m *model) copyOverflow(st *copyState, contentWidth int) (left, right, top, bottom bool) {
+	if st == nil {
+		return false, false, false, false
+	}
+	top = st.offset > 0
+	bottom = st.offset > 0
+	if contentWidth > 0 {
+		for _, row := range st.rows {
+			if sdk.DisplayWidth(row) > contentWidth {
+				right = true
+				break
+			}
+		}
+	}
+	return left, right, top, bottom
+}
+
 // copyActive reports whether the focused pane has an open copy session (the
 // active view owns copy input, exactly the old ActiveViewOwnsCopyInput).
 func (m *model) copyActive() bool {

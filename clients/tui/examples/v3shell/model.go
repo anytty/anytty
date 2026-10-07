@@ -1137,7 +1137,10 @@ func (m *model) paneOwner(p *pane) (string, string, string) {
 	}
 	if strings.TrimSpace(src.GetResizeOwner()) != "" {
 		if m.demo || src.GetResizeOwner() == m.viewID {
-			return "owner", stAccent, ""
+			// Legacy terminalChromeVMFromBinding colors the projected owner
+			// (this view owns resize) with StyleSuccess, not the accent; only
+			// the pending/acquire state stays warning and the follower muted.
+			return "owner", stSuccess, ""
 		}
 		return "follow", stMuted, "pane:" + p.id + ":take-owner"
 	}
@@ -1185,6 +1188,14 @@ func (m *model) paneRunsRect(p *pane, active bool, width, height int) []paneRun 
 		frame = stHistoryBorder
 	}
 	runs := []paneRun{{"\u250c", frame, "", false}, {"\u2500", frame, "", false}}
+	// The legacy renderer overlays the top clipping marker on the second
+	// border cell (render/content_overflow_marker.go), ahead of the lock/title
+	// slot, so it never merges with the corner or the left marker.
+	if st := m.copyFor(p); st != nil && width >= 3 {
+		if _, _, top, _ := m.copyOverflow(st, width-2); top {
+			runs[1] = paneRun{glyphOverflowTop, stOverflowStyle, "", false}
+		}
+	}
 	if width < 4 {
 		return runs
 	}

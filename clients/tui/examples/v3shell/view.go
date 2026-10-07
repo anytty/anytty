@@ -316,6 +316,26 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 	}
 	addRun(out, r.x, r.y+r.h-1, "\u2514"+strings.Repeat("\u2500", maxInt(0, r.w-2))+"\u2518", frame, borderNode, borderNode != "", 0)
 	m.subPaneNodes(out, p, rect{r.x + 1, r.y + 1, maxInt(0, r.w-2), maxInt(0, r.h-2)}, contentFocus, dimmed)
+
+	// Clipping markers on the card border, drawn last so they win over the
+	// rules above: the legacy renderer overlays them on the border without
+	// touching the content layer (render/content_overflow_marker.go). The
+	// right marker sits on the last content row's right edge, the bottom marker
+	// just before the bottom-right corner; the live terminal path never has a
+	// session, so this only affects frozen copy/scrollback panes.
+	if st := m.copyFor(p); st != nil && r.w > 2 && r.h > 2 {
+		_, rightOverflow, _, bottomOverflow := m.copyOverflow(st, r.w-2)
+		markerStyle := stOverflowStyle
+		if dimmed {
+			markerStyle = dimStyle(markerStyle)
+		}
+		if rightOverflow {
+			addRun(out, r.x+r.w-1, r.y+r.h-2, glyphOverflowRight, markerStyle, borderNode, borderNode != "", 1)
+		}
+		if bottomOverflow {
+			addRun(out, r.x+r.w-2, r.y+r.h-1, glyphOverflowBottom, markerStyle, borderNode, borderNode != "", 1)
+		}
+	}
 }
 
 // boundaryNodes is the split's drag hit region: the shared card border between
@@ -398,6 +418,14 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 		return
 	}
 	if src == nil {
+		// A pane with no source normally shows the empty-panel CTA, but a frozen
+		// copy window replaces that content entirely. (Live terminals always
+		// have a source, so this path is the program-drawn copy window used by
+		// the offline rasterizer and tests.)
+		if st := m.copyFor(p); st != nil {
+			m.copyWindowNodes(out, p, r, st, dimmed)
+			return
+		}
 		// Only the focused empty panel carries the CTA selection highlight;
 		// background panels render the default (first) entry, like main.
 		m.emptyPaneNodes(out, p, r, p == m.focusContentPane(), dimmed)
@@ -418,6 +446,44 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 		}
 		addRun(out, r.x, r.y+index, sdk.Truncate(text, r.w), style,
 			"pane:"+p.id+":focus", true, r.w)
+	}
+}
+
+// copyWindowNodes paints a frozen copy/scrollback window in program-drawn
+// panes (the offline rasterizer and tests; live terminals are painted by the
+// host component). It mirrors render.RenderContentViewport: the window scrolls
+// by the session offset, each row is clipped to the pane width, and any rows
+// the window does not cover are filled with the dim extent placeholder dots so
+// the pane behind never shows through (recommended `extent_placeholder`).
+func (m *model) copyWindowNodes(out *[]*sdk.Builder, p *pane, r rect, st *copyState, dimmed bool) {
+	if r.w <= 0 || r.h <= 0 || st == nil {
+		return
+	}
+	st.cols = r.w
+	st.viewRows = r.h
+	// st.rows is the window the host already positioned at st.offset, so it is
+	// painted from the top of the content area; the session's offset only
+	// drives the overflow markers (older/newer content outside the window).
+	windowStyle := stContent
+	if dimmed {
+		windowStyle = dimStyle(windowStyle)
+	}
+	placeholderStyle := stExtentPlaceholder
+	if dimmed {
+		placeholderStyle = dimStyle(placeholderStyle)
+	}
+	for row := 0; row < r.h; row++ {
+		text := ""
+		style := windowStyle
+		if row < len(st.rows) {
+			text = sdk.Truncate(st.rows[row], r.w)
+		} else {
+			// The window does not cover this row: fill it with the dim extent
+			// dots so the pane behind never shows through.
+			text = strings.Repeat(extentPlaceholder, r.w)
+			style = placeholderStyle
+		}
+		addRun(out, r.x, r.y+row, text, style, "pane:"+p.id+":focus", true, r.w)
 	}
 }
 

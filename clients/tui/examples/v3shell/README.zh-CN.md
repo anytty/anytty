@@ -81,7 +81,8 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 （终端走 `terminal.scroll`，本地占位 pane 走行窗口）。**回看（COPY）会话按 pane 保存**（对照老版 `CopyModeByView`）：只有当前
 聚焦 pane 的会话拥有输入，点击其它 pane 只是把输入交给它（滚轮/键盘不再被
 回看场景吞掉），原 pane 的回看位置保留，切回时恢复 COPY 场景；滚回底部
-（无选区）自动退出回看。空 pane 与原版一样**不画任何内部提示**。**panel 边框在拥有 copy 会话时整体变黄**（老版 `history-border`：warning+bold），标题与动作字形仍保持 accent 色。
+（无选区）自动退出回看。空 pane 与原版一样**不画任何内部提示**。**panel 边框在拥有 copy 会话时整体变黄**（老版 `history-border`：warning+bold），标题与动作字形仍保持 accent 色；冻结的回看窗口被裁切时，边框上画 legacy `overflow_*` 提示字形（`◂ ▸ ▴ ▾`，`overflow_style #9ca3c9`：顶/底边框用 `▴/▾`，行宽超出行内容区时右边框用 `▸`），窗口比内容区短的行用 `extent_placeholder` 暗点 `·`（`#3b2f63`）补满，避免露出下层 pane。
+owner 槽颜色对齐 legacy `terminalChromeVMFromBinding`：本视图拥有 resize 时 `owner` 用 success 绿色，`owner?` 等待态用 warning，`follow` 跟随态用 muted。
 
 ## 3. 实现结构
 
