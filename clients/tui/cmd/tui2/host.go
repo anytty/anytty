@@ -1224,7 +1224,30 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 		inset := component.Inset(rect.Width, rect.Height)
 		h.resizePTY(term, rect, inset)
 	}
-	return term.Placement(component, rect, box.GetFocused())
+	placement := term.Placement(component, rect, box.GetFocused())
+	// The program may shift the terminal screen inside the content area
+	// (content.offset): the component draws the screen at that offset, so the
+	// PTY cursor must move with it. The PTY box itself stays full-bleed, so the
+	// owner's winsize is unaffected.
+	inset := component.Inset(rect.Width, rect.Height)
+	shiftCursorForContentOffset(&placement, props.Chrome, inset, rect.Width, rect.Height)
+	return placement
+}
+
+// shiftCursorForContentOffset moves a placement's PTY cursor by the program's
+// content.offset and hides it when the shifted cell leaves the content area. A
+// zero offset is a no-op, so the default render/cursor is untouched.
+func shiftCursorForContentOffset(p *runtime.Placement, chrome map[string]string, inset, width, height int) {
+	dx, dy, shifted := terminal.FramingFromProps(chrome)
+	if !shifted || !p.CursorVisible {
+		return
+	}
+	p.CursorX += dx
+	p.CursorY += dy
+	if p.CursorX < inset || p.CursorY < inset ||
+		p.CursorX >= width-inset || p.CursorY >= height-inset {
+		p.CursorVisible = false
+	}
 }
 
 // componentKey names one cached terminal component. The view (box id) is part

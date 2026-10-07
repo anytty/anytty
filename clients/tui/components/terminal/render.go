@@ -48,15 +48,14 @@ func (c *Component) Render(width, height int) []render.Line {
 		lines = append(lines, topBorderLines(width, props, border)...)
 	}
 	screen := c.visibleScreen()
+	framing := contentFramingFromProps(props)
 	for row := 0; row < contentH; row++ {
 		y := row + inset
 		x := inset
 		if bordered {
 			lines = append(lines, render.Line{X: 0, Y: y, Text: "│", Style: border})
 		}
-		if row < len(screen.Lines) {
-			lines = append(lines, rowLines(screen.Lines[row], x, y, contentW)...)
-		}
+		lines = append(lines, contentRowLines(screen, row, x, y, contentW, contentH, framing)...)
 		if bordered {
 			lines = append(lines, render.Line{X: width - 1, Y: y, Text: "│", Style: border})
 		}
@@ -257,6 +256,138 @@ func cellAtColumn(cells []Cell, target int) (Cell, bool) {
 		col += width
 	}
 	return Cell{}, false
+}
+
+// placeholderGlyph fills content cells outside the terminal extent footprint
+// (the legacy render.ExtentPlaceholder glyph).
+const placeholderGlyph = "·"
+
+// contentFraming is the resolved content.offset/content.size for one render: the
+// extent origin relative to the content area and its footprint size. cols/rows
+// < 0 means "cover the content area" (the props were absent), which keeps the
+// legacy output byte-identical.
+type contentFraming struct {
+	offsetX, offsetY int
+	cols, rows       int
+	placeholder      render.Token
+}
+
+func contentFramingFromProps(props Props) contentFraming {
+	parsed := ContentOffsetFromProps(props.Chrome)
+	f := contentFraming{offsetX: parsed.X, offsetY: parsed.Y, cols: -1, rows: -1}
+	if parsed.Sized {
+		f.cols, f.rows = parsed.Cols, parsed.Rows
+	}
+	f.placeholder = chromeStyle(props, PropPlaceholder, render.TokenMuted)
+	return f
+}
+
+// contentRowLines renders one content row with the extent framing applied: the
+// visible screen is drawn 1:1 at the extent origin and every content cell
+// outside the extent footprint is filled with the placeholder. With the default
+// framing (offset 0,0, footprint covering the content area) it is exactly the
+// legacy rowLines path.
+func contentRowLines(screen Screen, contentRow, x, y, maxWidth, contentH int, f contentFraming) []render.Line {
+	if maxWidth <= 0 {
+		return nil
+	}
+	footCols, footRows := f.cols, f.rows
+	if footCols < 0 {
+		footCols = maxWidth
+	}
+	if footRows < 0 {
+		footRows = contentH
+	}
+	if f.offsetX == 0 && f.offsetY == 0 && footCols >= maxWidth && footRows >= contentH {
+		return rowLines(screen.Line(contentRow), x, y, maxWidth)
+	}
+	sourceRow := contentRow - f.offsetY
+	if sourceRow < 0 || sourceRow >= footRows {
+		return placeholderLines(x, y, maxWidth, f.placeholder)
+	}
+	insideStart := max(0, f.offsetX)
+	insideEnd := min(maxWidth, f.offsetX+footCols)
+	if insideStart >= insideEnd {
+		return placeholderLines(x, y, maxWidth, f.placeholder)
+	}
+	cells := make([]Cell, 0, maxWidth)
+	if insideStart > 0 {
+		cells = append(cells, placeholderCells(insideStart, f.placeholder)...)
+	}
+	cells = append(cells, windowCells(screen.Line(sourceRow), insideStart-f.offsetX, insideEnd-insideStart)...)
+	if insideEnd < maxWidth {
+		cells = append(cells, placeholderCells(maxWidth-insideEnd, f.placeholder)...)
+	}
+	return rowLines(cells, x, y, maxWidth)
+}
+
+// placeholderLines is one full content row of placeholder glyphs.
+func placeholderLines(x, y, width int, style render.Token) []render.Line {
+	if width <= 0 {
+		return nil
+	}
+	return []render.Line{{X: x, Y: y, Text: strings.Repeat(placeholderGlyph, width), Style: style}}
+}
+
+// placeholderCells is width placeholder cells (one glyph each, so rowLines
+// merges them into a single run like the legacy outside-extent fill).
+func placeholderCells(width int, style render.Token) []Cell {
+	if width <= 0 {
+		return nil
+	}
+	cells := make([]Cell, width)
+	for i := range cells {
+		cells[i] = Cell{Text: placeholderGlyph, Width: 1, Style: style}
+	}
+	return cells
+}
+
+// windowCells extracts exactly width cells for screen columns [start, start+width)
+// from a screen row, padding the tail with blanks (the legacy
+// contentViewportLineWindow rule: a wide cluster at the window edge becomes
+// styled blank columns, never a split).
+func windowCells(line []Cell, start, width int) []Cell {
+	if width <= 0 {
+		return nil
+	}
+	out := make([]Cell, 0, width)
+	col := 0
+	for _, cell := range line {
+		if len(out) >= width {
+			break
+		}
+		w := cell.Width
+		if w <= 0 {
+			w = render.DisplayWidth(cell.Text)
+		}
+		if w <= 0 {
+			continue
+		}
+		cellStart, cellEnd := col, col+w
+		col = cellEnd
+		if cellEnd <= start {
+			continue
+		}
+		if cellStart >= start+width {
+			break
+		}
+		visStart := max(cellStart, start)
+		visEnd := min(cellEnd, start+width)
+		if visEnd <= visStart {
+			continue
+		}
+		if cellStart >= start && cellEnd <= start+width && w <= width-len(out) {
+			out = append(out, cell)
+			continue
+		}
+		for i := visStart; i < visEnd && len(out) < width; i++ {
+			out = append(out, Cell{Text: " ", Width: 1, Style: cell.Style})
+		}
+	}
+	for len(out) < width {
+		out = append(out, Cell{Text: " ", Width: 1, Style: render.TokenDefault})
+	}
+	return out
 }
 
 // borderToken follows the v1 precedence (exited wins over focused, focused

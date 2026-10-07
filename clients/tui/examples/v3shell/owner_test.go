@@ -46,6 +46,15 @@ func twoPaneSourceModel(t *testing.T, cols, rows int, srcCols, srcRows int32, ow
 // is id (the program asserts ownership on exactly that box).
 func ownerPropOf(t *testing.T, m *model, id string) string {
 	t.Helper()
+	return terminalBoxOf(t, m, id).GetContent().GetProps()["chrome.owner"]
+}
+
+// terminalBoxOf walks the emitted view for the terminal component box with the
+// given id (content.self set), returning it. It is the program-contract probe:
+// the offline rasterizer does not run the terminal component, so tests assert
+// the declared content.offset/content.size props here.
+func terminalBoxOf(t *testing.T, m *model, id string) *pb.Box {
+	t.Helper()
 	var found *pb.Box
 	var walk func(*pb.Box)
 	walk = func(b *pb.Box) {
@@ -64,7 +73,7 @@ func ownerPropOf(t *testing.T, m *model, id string) string {
 	if found == nil {
 		t.Fatalf("terminal box %q not found", id)
 	}
-	return found.GetContent().GetProps()["chrome.owner"]
+	return found
 }
 
 // TestTakeOwnerIsManual pins the manual ownership rule (the legacy
@@ -131,45 +140,39 @@ func TestPaneSizeMismatchOnlyFlagsOwner(t *testing.T) {
 	}
 }
 
-// TestLiveFollowerPaintsExtentPlaceholder pins requirement 3: a live follower
-// larger than the source extent draws the terminal box at the owner's size and
-// masks the leftover pane content with the dim `·` extent placeholder, while
-// the owner pane (full-bleed) never paints a placeholder.
-func TestLiveFollowerPaintsExtentPlaceholder(t *testing.T) {
+// TestFollowerDeclaresContentFraming pins the host-path contract: the terminal
+// box is always full-bleed (so the PTY size is never shrunk), and the extent is
+// declared as content.offset/content.size for the component to draw. The owner
+// of an equal-size extent declares the full content framing.
+func TestFollowerDeclaresContentFraming(t *testing.T) {
 	// 40x12 viewport, row split: each card is 20x10, content 18x8 at x+1,y+2.
-	// The source extent is 10x4, so the left follower masks the rest.
+	// The source extent is 10x4, so the left pane follows and frames 10x4.
 	m, _, _, _ := twoPaneSourceModel(t, 40, 12, 10, 4, true)
-	lines, styles := m.rasterize(m.View())
 
-	// Left follower content origin (1,2): columns >= 10 on the extent rows and
-	// every column below the extent are placeholder dots.
-	if got := cellAt(lines[2], 11); got != extentPlaceholder {
-		t.Fatalf("right-of-extent cell = %q, want %q\n%s", got, extentPlaceholder, lines[2])
+	follower := terminalBoxOf(t, m, m.activeTab().panes[0].id)
+	if follower.GetSize().GetWidth() != 18 || follower.GetSize().GetHeight() != 8 {
+		t.Fatalf("follower box = %dx%d, want full-bleed 18x8", follower.GetSize().GetWidth(), follower.GetSize().GetHeight())
 	}
-	if got := styles[2][11]; got != dimStyle(stExtentPlaceholder) {
-		t.Fatalf("placeholder style = %q, want %q", got, dimStyle(stExtentPlaceholder))
+	if got := follower.GetContent().GetProps()["content.offset"]; got != "0,0" {
+		t.Fatalf("follower content.offset = %q, want 0,0", got)
 	}
-	if got := cellAt(lines[6], 1); got != extentPlaceholder {
-		t.Fatalf("below-extent cell = %q, want %q", got, extentPlaceholder)
-	}
-	// The extent box itself (row 2, col 1) is left to the host terminal, not a
-	// dot.
-	if got := cellAt(lines[2], 1); got == extentPlaceholder {
-		t.Fatalf("extent box cell must not be masked: %q", got)
+	if got := follower.GetContent().GetProps()["content.size"]; got != "10,4" {
+		t.Fatalf("follower content.size = %q, want 10,4", got)
 	}
 
-	// The owner (right card, content origin (21,2)) is full-bleed: no dots.
-	if got := cellAt(lines[2], 22); got == extentPlaceholder {
-		t.Fatalf("owner pane must not paint a placeholder: %q", got)
+	// The owner (right card) has an equal-size extent: full content framing.
+	owner := terminalBoxOf(t, m, m.activeTab().panes[1].id)
+	if owner.GetSize().GetWidth() != 18 || owner.GetSize().GetHeight() != 8 {
+		t.Fatalf("owner box = %dx%d, want full-bleed 18x8", owner.GetSize().GetWidth(), owner.GetSize().GetHeight())
 	}
-	if got := cellAt(lines[6], 21); got == extentPlaceholder {
-		t.Fatalf("owner pane must not paint a placeholder: %q", got)
+	if got := owner.GetContent().GetProps()["content.size"]; got != "18,8" {
+		t.Fatalf("owner content.size = %q, want 18,8", got)
 	}
 }
 
-// TestLiveFollowerClippedByExtentDrawsOverflowMarkers pins requirement 4: when a
-// follower pane is smaller than the terminal extent, the card border gets the
-// existing right/bottom overflow markers; the owner pane at its exact extent
+// TestLiveFollowerClippedByExtentDrawsOverflowMarkers pins the border clipping
+// markers: when a follower's extent is larger than its content area the card
+// border gets the right/bottom overflow markers; the owner at its exact extent
 // shows none.
 func TestLiveFollowerClippedByExtentDrawsOverflowMarkers(t *testing.T) {
 	// Extent 30x20 exceeds the 18x8 content area: the right follower is clipped
@@ -200,8 +203,7 @@ func TestLiveFollowerClippedByExtentDrawsOverflowMarkers(t *testing.T) {
 	if got := cellAt(lines[10], 18); got != "\u2500" {
 		t.Fatalf("owner bottom border = %q, want plain \u2500", got)
 	}
-	// A top marker never appears for a live follower (the extent box is
-	// top-aligned).
+	// The default start layout is top-aligned: no top marker.
 	if got := cellAt(lines[1], 21); got != "\u2500" {
 		t.Fatalf("follower top border = %q, want plain \u2500", got)
 	}
@@ -210,42 +212,20 @@ func TestLiveFollowerClippedByExtentDrawsOverflowMarkers(t *testing.T) {
 	_ = right
 }
 
-// TestLiveFollowerBoxTracksSourceExtent pins the emitted terminal box: a
-// follower renders at the source extent (clipped to the pane) while the owner
-// stays full-bleed.
-func TestLiveFollowerBoxTracksSourceExtent(t *testing.T) {
+// TestTerminalBoxesStayFullBleed pins the emitted terminal box geometry: both
+// the follower and the owner declare the FULL pane content rect, so the owner's
+// PTY resize path is measured from the full content rect; the extent difference
+// lives only in the content.offset/content.size props.
+func TestTerminalBoxesStayFullBleed(t *testing.T) {
 	m, left, right, _ := twoPaneSourceModel(t, 40, 12, 10, 4, true)
 
-	boxes := map[string]*pb.Box{}
-	var walk func(box *pb.Box)
-	walk = func(box *pb.Box) {
-		if box.GetId() != "" {
-			if _, ok := boxes[box.GetId()]; !ok || box.GetContent().GetSelf() != "" {
-				boxes[box.GetId()] = box
-			}
-		}
-		if box.GetContent().GetSelf() != "" {
-			boxes[box.GetId()] = box
-		}
-		for _, child := range box.GetChildren() {
-			walk(child)
-		}
-	}
-	walk(m.View())
-
-	ownerBox := boxes[right.id]
-	if ownerBox == nil || ownerBox.GetContent().GetSelf() == "" {
-		t.Fatalf("owner terminal box missing: %v", boxes)
-	}
+	ownerBox := terminalBoxOf(t, m, right.id)
 	if ownerBox.GetSize().GetWidth() != 18 || ownerBox.GetSize().GetHeight() != 8 {
 		t.Fatalf("owner box = %dx%d, want full-bleed 18x8", ownerBox.GetSize().GetWidth(), ownerBox.GetSize().GetHeight())
 	}
-	followerBox := boxes[left.id]
-	if followerBox == nil || followerBox.GetContent().GetSelf() == "" {
-		t.Fatalf("follower terminal box missing: %v", boxes)
-	}
-	if followerBox.GetSize().GetWidth() != 10 || followerBox.GetSize().GetHeight() != 4 {
-		t.Fatalf("follower box = %dx%d, want extent 10x4", followerBox.GetSize().GetWidth(), followerBox.GetSize().GetHeight())
+	followerBox := terminalBoxOf(t, m, left.id)
+	if followerBox.GetSize().GetWidth() != 18 || followerBox.GetSize().GetHeight() != 8 {
+		t.Fatalf("follower box = %dx%d, want full-bleed 18x8", followerBox.GetSize().GetWidth(), followerBox.GetSize().GetHeight())
 	}
 	if followerBox.GetPos().GetX() != 1 || followerBox.GetPos().GetY() != 2 {
 		t.Fatalf("follower box origin = %v, want content origin (1,2)", followerBox.GetPos())

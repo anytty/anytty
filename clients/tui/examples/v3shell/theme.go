@@ -138,6 +138,17 @@ var (
 	stExtentPlaceholder = style(colorExtentPlaceholder, "")
 )
 
+const (
+	// terminalPropContentOffset / terminalPropContentSize / terminalPropPlaceholder
+	// are the program-declared terminal content-framing props (PROTOCOL §5): the
+	// extent origin, its footprint size and the outside-footprint fill style. The
+	// host passes them through to the terminal component untouched; they must stay
+	// in sync with the component's PropContentOffset/PropContentSize/PropPlaceholder.
+	terminalPropContentOffset = "content.offset"
+	terminalPropContentSize   = "content.size"
+	terminalPropPlaceholder   = "chrome.placeholder"
+)
+
 // ---------------------------------------------------------------- glyphs
 
 const (

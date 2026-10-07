@@ -25,6 +25,38 @@ type logCollector struct {
 	buf bytes.Buffer
 }
 
+// TestHostCursorShiftsWithContentOffset pins the host half of the content-offset
+// contract: the PTY cursor moves by content.offset and is hidden when it leaves
+// the content area; a zero offset is a no-op.
+func TestHostCursorShiftsWithContentOffset(t *testing.T) {
+	base := runtime.Placement{CursorX: 3, CursorY: 1, CursorVisible: true}
+
+	// Zero offset: untouched (byte-identical default).
+	p := base
+	shiftCursorForContentOffset(&p, map[string]string{"content.offset": "0,0"}, 0, 20, 6)
+	if p.CursorX != base.CursorX || p.CursorY != base.CursorY || p.CursorVisible != base.CursorVisible {
+		t.Fatalf("zero offset changed the cursor: %+v", p)
+	}
+	// Shift by (4,2).
+	p = base
+	shiftCursorForContentOffset(&p, map[string]string{"content.offset": "4,2"}, 0, 20, 6)
+	if !p.CursorVisible || p.CursorX != 7 || p.CursorY != 3 {
+		t.Fatalf("shifted cursor = (%d,%d) visible=%v, want (7,3,true)", p.CursorX, p.CursorY, p.CursorVisible)
+	}
+	// Shift outside the content area: hidden.
+	p = runtime.Placement{CursorX: 0, CursorY: 0, CursorVisible: true}
+	shiftCursorForContentOffset(&p, map[string]string{"content.offset": "-4,0"}, 0, 20, 6)
+	if p.CursorVisible {
+		t.Fatalf("cursor leaving the content area must hide: %+v", p)
+	}
+	// Negative offset that stays inside: shifted negative-to-positive.
+	p = runtime.Placement{CursorX: 6, CursorY: 1, CursorVisible: true}
+	shiftCursorForContentOffset(&p, map[string]string{"content.offset": "-2,0"}, 0, 20, 6)
+	if !p.CursorVisible || p.CursorX != 4 {
+		t.Fatalf("negative offset cursor = (%d,%d) visible=%v, want (4,1,true)", p.CursorX, p.CursorY, p.CursorVisible)
+	}
+}
+
 func TestFrameFlushDelayUsesFixedBurstBudget(t *testing.T) {
 	now := time.Unix(100, 0)
 	if got := frameFlushDelay(time.Time{}, now); got != 0 {

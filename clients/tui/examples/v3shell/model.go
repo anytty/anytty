@@ -34,6 +34,117 @@ type pane struct {
 	scroll           int
 	locked           bool
 	pending          string
+	// layout is this pane's view-local content layout: where the source's
+	// authoritative extent is positioned inside the pane content rect. It is
+	// the v3shell port of state.TerminalViewLayout (mode/align/pan). It is never
+	// part of the shared terminal/PTY truth, only the pane's local framing.
+	layout contentLayout
+}
+
+// contentLayout is the per-VIEW content framing state (legacy
+// state.TerminalViewLayout): a mode, an align per axis and a pan offset. The
+// zero value is the legacy default auto/start/start/0/0.
+type contentLayout struct {
+	mode   string // auto | fit | center
+	alignX string // start | center | end | base
+	alignY string
+	panX   int
+	panY   int
+}
+
+// Layout mode and align tokens, copied verbatim from the legacy
+// state.TerminalViewLayout constants.
+const (
+	layoutModeAuto   = "auto"
+	layoutModeFit    = "fit"
+	layoutModeCenter = "center"
+
+	alignStart  = "start"
+	alignCenter = "center"
+	alignEnd    = "end"
+	alignBase   = "base"
+)
+
+func (l contentLayout) normalized() contentLayout {
+	if l.mode == "" {
+		l.mode = layoutModeAuto
+	}
+	if l.alignX == "" {
+		l.alignX = alignStart
+	}
+	if l.alignY == "" {
+		l.alignY = alignStart
+	}
+	return l
+}
+
+// isDefault reports the legacy auto/start/start/0/0 state, the layout whose
+// applied extent is a no-op.
+func (l contentLayout) isDefault() bool {
+	l = l.normalized()
+	return l.mode == layoutModeAuto && l.alignX == alignStart && l.alignY == alignStart && l.panX == 0 && l.panY == 0
+}
+
+// withModeToggle cycles auto -> fit -> center -> auto, the legacy
+// TerminalViewLayout.Apply("toggle-layout") rule.
+func (l contentLayout) withModeToggle() contentLayout {
+	l = l.normalized()
+	switch l.mode {
+	case layoutModeAuto:
+		l.mode = layoutModeFit
+	case layoutModeFit:
+		l.mode = layoutModeCenter
+	default:
+		l.mode = layoutModeAuto
+	}
+	return l
+}
+
+func (l contentLayout) withPan(deltaX, deltaY int) contentLayout {
+	l = l.normalized()
+	l.panX += deltaX
+	l.panY += deltaY
+	return l
+}
+
+// withAlign sets the named axes and forces mode=auto: an explicit align must
+// leave full-center mode or the renderer would keep overriding the axis.
+func (l contentLayout) withAlign(alignX, alignY string) contentLayout {
+	l = l.normalized()
+	l.mode = layoutModeAuto
+	if alignX != "" {
+		l.alignX = normalizeContentLayoutAlign(alignX)
+	}
+	if alignY != "" {
+		l.alignY = normalizeContentLayoutAlign(alignY)
+	}
+	return l
+}
+
+func (l contentLayout) withCenter() contentLayout {
+	return contentLayout{mode: layoutModeCenter, alignX: alignCenter, alignY: alignCenter}
+}
+
+func (l contentLayout) withCenterX() contentLayout {
+	return contentLayout{mode: layoutModeAuto, alignX: alignCenter, alignY: alignStart}
+}
+
+func (l contentLayout) withCenterY() contentLayout {
+	return contentLayout{mode: layoutModeAuto, alignX: alignStart, alignY: alignCenter}
+}
+
+// withReset clears the layout back to auto/start/start/0/0.
+func (l contentLayout) withReset() contentLayout {
+	return contentLayout{}.normalized()
+}
+
+func normalizeContentLayoutAlign(align string) string {
+	switch align {
+	case alignCenter, alignEnd, alignBase:
+		return align
+	default:
+		return alignStart
+	}
 }
 
 // leaf is one pane card in the recursive split tree.
@@ -1185,6 +1296,117 @@ func (m *model) paneOwnsSource(p *pane) bool {
 	return m.sourceOwnerPane(p.sourceID) == p
 }
 
+// ---------------------------------------------------- content layout geometry
+//
+// The following ports the legacy render/content_viewport.go + state
+// terminal_view.go content-layout model. A terminal source has ONE
+// authoritative extent (its PTY cols/rows); a pane's view-local layout
+// positions that extent inside the pane's content rect.
+
+// alignedContentOrigin ports render.alignedContentOrigin: the extent origin on
+// one axis. "center" and "base" round the slack half-up, "end" pins the
+// trailing edge, anything else ("start") pins the leading edge.
+func alignedContentOrigin(align string, viewport, size int) int {
+	switch align {
+	case alignCenter, alignBase:
+		return centeredContentOrigin(viewport - size)
+	case alignEnd:
+		return viewport - size
+	default:
+		return 0
+	}
+}
+
+// centeredContentOrigin ports render.centeredContentOrigin: integer, half-up
+// rounding of the slack (delta >= 0 rounds up, negative rounds toward zero).
+func centeredContentOrigin(delta int) int {
+	if delta >= 0 {
+		return (delta + 1) / 2
+	}
+	return -((-delta + 1) / 2)
+}
+
+// contentLayoutExtent ports render.applyContentLayoutToExtent for one pane's
+// layout: it returns the extent origin relative to the pane content rect
+// (possibly negative / overflowing) and the extent size. mode=fit fills the
+// content rect; mode=center aligns both axes center; otherwise the per-axis
+// align decides. The pan offset is applied last (X -= PanX, Y -= PanY),
+// exactly the legacy order.
+func contentLayoutExtent(layout contentLayout, extentCols, extentRows int, content rect) (x, y, cols, rows int) {
+	layout = layout.normalized()
+	cols, rows = maxInt(0, extentCols), maxInt(0, extentRows)
+	if layout.mode == layoutModeFit {
+		x, y = 0, 0
+		cols, rows = maxInt(0, content.w), maxInt(0, content.h)
+	} else {
+		alignX, alignY := layout.alignX, layout.alignY
+		if layout.mode == layoutModeCenter {
+			alignX, alignY = alignCenter, alignCenter
+		}
+		x = alignedContentOrigin(alignX, maxInt(0, content.w), cols)
+		y = alignedContentOrigin(alignY, maxInt(0, content.h), rows)
+	}
+	x -= layout.panX
+	y -= layout.panY
+	return x, y, cols, rows
+}
+
+// paneExtentBase is a source's authoritative extent BEFORE the pane layout is
+// applied: the owner pane's box is the PTY truth (its extent is exactly the
+// content rect it drives), while a follower mirrors the source's reported PTY
+// cols/rows, falling back to the content rect while the size is unknown (legacy
+// normalizeContentExtent).
+func (m *model) paneExtentBase(p *pane, content rect) (int, int) {
+	src := m.paneSource(p)
+	if src == nil {
+		return maxInt(0, content.w), maxInt(0, content.h)
+	}
+	if m.paneOwnsSource(p) {
+		return maxInt(0, content.w), maxInt(0, content.h)
+	}
+	return m.sourceExtent(src, content)
+}
+
+// paneContentExtent returns the applied extent of a source-bound pane: origin
+// relative to the pane content rect (negative means clipped on that side) and
+// size, using the exact legacy formula. The owner's base extent is its content
+// rect (align/center on an equal-size owner are naturally no-ops; pan shifts the
+// drawn screen and reveals the placeholder on the vacated side). There is no
+// box shrinking: the terminal box stays full-bleed and only the drawn content
+// moves, so the PTY size is never affected by the layout.
+func (m *model) paneContentExtent(p *pane, content rect) (x, y, cols, rows int) {
+	baseCols, baseRows := m.paneExtentBase(p, content)
+	return contentLayoutExtent(p.layout, baseCols, baseRows, content)
+}
+
+// contentOffsetProp encodes the pane's content.offset prop ("x,y"): the extent
+// origin relative to the pane content rect. It is always declared so the
+// component can place the screen; a default layout is "0,0".
+func (m *model) contentOffsetProp(p *pane, content rect) string {
+	x, y, _, _ := m.paneContentExtent(p, content)
+	return fmt.Sprintf("%d,%d", x, y)
+}
+
+// contentSizeProp encodes the pane's content.size prop ("cols,rows"): the
+// extent footprint inside the content area. mode=fit returns the content size so
+// the footprint covers the area (no placeholder dots).
+func (m *model) contentSizeProp(p *pane, content rect) string {
+	_, _, cols, rows := m.paneContentExtent(p, content)
+	return fmt.Sprintf("%d,%d", cols, rows)
+}
+
+// contentLayoutToast ports app.terminalViewLayoutToast: "<lock> <mode>
+// pan:X,Y align:X/Y" with the legacy default normalization.
+func contentLayoutToast(locked bool, layout contentLayout) string {
+	layout = layout.normalized()
+	lock := "unlocked"
+	if locked {
+		lock = "locked"
+	}
+	return fmt.Sprintf("%s %s pan:%d,%d align:%s/%s",
+		lock, layout.mode, layout.panX, layout.panY, layout.alignX, layout.alignY)
+}
+
 func (m *model) paneState(p *pane, active bool) (string, string) {
 	src := m.paneSource(p)
 	if src != nil && src.GetExited() {
@@ -2169,6 +2391,7 @@ func (m *model) handlePaneKey(key string) app.Cmd {
 
 func (m *model) handleResizeKey(key string) app.Cmd {
 	t := m.activeTab()
+	p := m.focusPane()
 	switch key {
 	case "ctrl-p", "esc":
 		m.mode = modeLive
@@ -2186,15 +2409,34 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 	case "j", "down":
 		m.resizeFocused(2, true)
 	case "r":
+		// Legacy resize.layout_reset resets the view-local CONTENT layout. The
+		// replica also keeps its split-balance on `r` (pinned by the existing
+		// resize test), so `r` resets both: the content framing and the split
+		// hints. `=`/`b` remain the pure split balance (panel.balance).
+		m.resetFocusedContentLayout()
 		m.resetTabSplits(t)
 	case "s":
-		if p := m.focusPane(); p != nil {
+		if p != nil {
 			p.locked = !p.locked
 		}
 	case "=", "b":
 		m.resetTabSplits(t)
+	case "a":
+		// Legacy panel.take_owner (resize scene also binds `a`).
+		return m.takeOwner(p)
 	case "space":
+		// DELIBERATE DEVIATION: the legacy resize.layout_toggle cycles the
+		// view-local content layout mode (auto -> fit -> center). This replica
+		// pinned `space` to the SPLIT orientation toggle in its existing tests
+		// (TestResizeModeChangesNearestSplit, TestLayoutToggleOnlyFocusedSplit),
+		// so `space` keeps that meaning and the legacy content mode cycle moves
+		// to `M` (contentLayoutToggleFocused). See README §2/§4.
 		m.toggleLayout(t)
+	case "M":
+		// Replica-only escape hatch for the legacy resize.layout_toggle content
+		// mode cycle (auto -> fit -> center -> auto); `space` is taken by the
+		// split orientation toggle. See README §2/§4.
+		m.contentLayoutToggleFocused()
 	case "H":
 		// Legacy resize.left_large (bias delta 6).
 		m.resizeFocused(-6, false)
@@ -2205,27 +2447,109 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 	case "J":
 		m.resizeFocused(6, true)
 	case "m":
-		// Legacy resize.center: even the split axis (this replica has no
-		// content letterbox, so the meaningful visible result of the tiled
-		// "center" is the even split).
-		m.centerFocused()
-	case "0", "$", "^", "B", "x", "y", "|", "_", "shift-left", "shift-right", "shift-up", "shift-down":
-		// Legacy resize.align_*/center_x/center_y/pan_* are per-view CONTENT
-		// layout (the terminal extent inside a fixed pane viewport). v3shell's
-		// terminal box rect is the PTY winsize, so a real letterbox needs a
-		// component/host content-offset capability that does not exist yet;
-		// keep an explicit notice instead of a silently wrong resize.
-		m.toast = "layout: align/center/pan needs a host content-offset capability"
+		// Legacy resize.center: content center on BOTH axes. It must NOT move
+		// the split ratio (TestResizeCenterAndLarge keeps ratio 0.5); the legacy
+		// content `center` sets mode=center + align center/center.
+		m.applyContentLayoutAction("center")
+	case "0":
+		m.applyContentLayoutAction("align-left")
+	case "$":
+		m.applyContentLayoutAction("align-right")
+	case "^":
+		m.applyContentLayoutAction("align-top")
+	case "B":
+		m.applyContentLayoutAction("align-bottom")
+	case "|", "x":
+		// `|` is the defaults.go center_x; `x` is the recommended yaml alias.
+		m.applyContentLayoutAction("center-x")
+	case "_", "y":
+		// `_` is the defaults.go center_y; `y` is the recommended yaml alias.
+		m.applyContentLayoutAction("center-y")
+	case "A":
+		m.applyContentLayoutAction("pan-left")
+	case "D":
+		m.applyContentLayoutAction("pan-right")
+	case "W":
+		m.applyContentLayoutAction("pan-up")
+	case "S":
+		m.applyContentLayoutAction("pan-down")
+	case "shift-left":
+		m.applyContentLayoutAction("pan-left")
+	case "shift-right":
+		m.applyContentLayoutAction("pan-right")
+	case "shift-up":
+		m.applyContentLayoutAction("pan-up")
+	case "shift-down":
+		m.applyContentLayoutAction("pan-down")
 	case "ctrl-left", "alt-h":
-		m.resizeFocused(-2, false)
+		// The recommended yaml also binds the pan group to Ctrl+arrows and
+		// Alt+H/J/K/L; defaults.go does not, so they are kept as extra aliases.
+		m.applyContentLayoutAction("pan-left")
 	case "ctrl-right", "alt-l":
-		m.resizeFocused(2, false)
+		m.applyContentLayoutAction("pan-right")
 	case "ctrl-up", "alt-k":
-		m.resizeFocused(-2, true)
+		m.applyContentLayoutAction("pan-up")
 	case "ctrl-down", "alt-j":
-		m.resizeFocused(2, true)
+		m.applyContentLayoutAction("pan-down")
 	}
 	return nil
+}
+
+// applyContentLayoutAction applies one legacy terminal.layout command to the
+// focused pane's view-local content layout and toasts the resulting state
+// (app.terminalViewLayoutToast). It is the resize-scene port of
+// state.TerminalViewLayout.Apply: align forces mode=auto, center sets
+// mode=center and zeroes the pan, and pan accumulates the exact legacy deltas.
+func (m *model) applyContentLayoutAction(action string) {
+	p := m.focusPane()
+	if p == nil {
+		m.toast = "terminal.layout: no active view"
+		return
+	}
+	switch action {
+	case "toggle-layout":
+		p.layout = p.layout.withModeToggle()
+	case "pan-left":
+		p.layout = p.layout.withPan(-2, 0)
+	case "pan-right":
+		p.layout = p.layout.withPan(2, 0)
+	case "pan-up":
+		p.layout = p.layout.withPan(0, -1)
+	case "pan-down":
+		p.layout = p.layout.withPan(0, 1)
+	case "align-left":
+		p.layout = p.layout.withAlign(alignStart, "")
+	case "align-right":
+		p.layout = p.layout.withAlign(alignEnd, "")
+	case "align-top":
+		p.layout = p.layout.withAlign("", alignStart)
+	case "align-bottom":
+		p.layout = p.layout.withAlign("", alignEnd)
+	case "center":
+		p.layout = p.layout.withCenter()
+	case "center-x":
+		p.layout = p.layout.withCenterX()
+	case "center-y":
+		p.layout = p.layout.withCenterY()
+	case "reset":
+		p.layout = p.layout.withReset()
+	default:
+		return
+	}
+	m.markWorkbenchDirty()
+	m.toast = contentLayoutToast(p.locked, p.layout)
+}
+
+// contentLayoutToggleFocused cycles the focused pane's content layout mode
+// (the legacy resize.layout_toggle; see the `space` deviation note).
+func (m *model) contentLayoutToggleFocused() {
+	m.applyContentLayoutAction("toggle-layout")
+}
+
+// resetFocusedContentLayout clears the focused pane's view-local content layout.
+// It reuses the shared command path so the toast reflects the reset state too.
+func (m *model) resetFocusedContentLayout() {
+	m.applyContentLayoutAction("reset")
 }
 
 func (m *model) handleTabKey(key string) app.Cmd {
@@ -3370,7 +3694,8 @@ func (m *model) ancestorSplit(t *tab, target *leaf, orient string) (treeNode, bo
 
 // centerFocused evens the focused split axis (legacy resize.center for tiled
 // panes without a content letterbox): clear the additive bias so the default
-// half is authoritative.
+// half is authoritative. It is retained for the replica's split-balance path;
+// the legacy content `center` (Ctrl-R m) is applyContentLayoutAction("center").
 func (m *model) centerFocused() {
 	t := m.activeTab()
 	p := m.focusPane()

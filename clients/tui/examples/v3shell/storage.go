@@ -52,6 +52,20 @@ type workbenchPane struct {
 	Title            string `json:"title,omitempty"`
 	SourceID         string `json:"source_id,omitempty"`
 	DetachedSourceID string `json:"detached_source_id,omitempty"`
+	// Layout is the pane's view-local content layout. It is omitempty and every
+	// field defaults to the legacy auto/start/start/0/0, so older documents
+	// (and default panes) stay byte-identical and restore compatibly.
+	Layout *workbenchLayout `json:"layout,omitempty"`
+}
+
+// workbenchLayout is the persisted form of contentLayout. Empty strings and
+// zero pan encode the legacy defaults, so a default pane serializes to nothing.
+type workbenchLayout struct {
+	Mode   string `json:"mode,omitempty"`
+	AlignX string `json:"align_x,omitempty"`
+	AlignY string `json:"align_y,omitempty"`
+	PanX   int    `json:"pan_x,omitempty"`
+	PanY   int    `json:"pan_y,omitempty"`
 }
 
 // workbenchNode is one recursive split-tree node: a split (orient/ratio/bias
@@ -84,6 +98,7 @@ func (m *model) workbenchDoc() workbenchDoc {
 			for _, p := range t.panes {
 				tabEntry.Panes = append(tabEntry.Panes, workbenchPane{
 					ID: p.id, Title: p.title, SourceID: p.sourceID, DetachedSourceID: p.detachedSourceID,
+					Layout: workbenchLayoutOf(p.layout),
 				})
 			}
 			entry.Tabs = append(entry.Tabs, tabEntry)
@@ -91,6 +106,31 @@ func (m *model) workbenchDoc() workbenchDoc {
 		doc.Workspaces = append(doc.Workspaces, entry)
 	}
 	return doc
+}
+
+// workbenchLayoutOf encodes a pane's content layout, returning nil for the
+// default so a default pane serializes without a layout field (backward
+// compatible documents).
+func workbenchLayoutOf(layout contentLayout) *workbenchLayout {
+	layout = layout.normalized()
+	if layout.isDefault() {
+		return nil
+	}
+	return &workbenchLayout{
+		Mode: layout.mode, AlignX: layout.alignX, AlignY: layout.alignY,
+		PanX: layout.panX, PanY: layout.panY,
+	}
+}
+
+// contentLayoutFromWorkbench decodes a persisted layout, defaulting every
+// missing/zero field to the legacy auto/start/start/0/0.
+func contentLayoutFromWorkbench(doc *workbenchLayout) contentLayout {
+	if doc == nil {
+		return contentLayout{}.normalized()
+	}
+	return contentLayout{
+		mode: doc.Mode, alignX: doc.AlignX, alignY: doc.AlignY, panX: doc.PanX, panY: doc.PanY,
+	}.normalized()
 }
 
 func workbenchNodeOf(node treeNode) *workbenchNode {
@@ -128,7 +168,7 @@ func (m *model) applyWorkbenchDoc(doc workbenchDoc) bool {
 				if pe.ID == "" {
 					continue
 				}
-				p := &pane{id: pe.ID, title: pe.Title, sourceID: pe.SourceID, detachedSourceID: pe.DetachedSourceID}
+				p := &pane{id: pe.ID, title: pe.Title, sourceID: pe.SourceID, detachedSourceID: pe.DetachedSourceID, layout: contentLayoutFromWorkbench(pe.Layout)}
 				panes[pe.ID] = p
 				ordered = append(ordered, p)
 			}

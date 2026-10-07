@@ -40,6 +40,22 @@ const (
 	// dim layer while preserving terminal text and geometry.
 	PropDimmed = "chrome.dim"
 
+	// Content framing props (program-declared). The terminal source has ONE
+	// authoritative extent (the PTY cols/rows); the program's view-local layout
+	// positions that extent inside the content area without resizing the PTY:
+	//   content.offset = "x,y"  the extent origin (display cells) relative to
+	//                           the content area. Content cell (row,col) shows
+	//                           screen cell (row-y, col-x); x/y may be negative
+	//                           (the screen is clipped at the top/left).
+	//   content.size   = "cols,rows"  the extent footprint inside the content
+	//                           area. Cells in [y,y+rows)x[x,x+cols) are the
+	//                           terminal; cells outside get the placeholder.
+	//   chrome.placeholder  explicit style for the outside-footprint fill.
+	// Absent props are inert: offset (0,0), no placeholder, today's output.
+	PropContentOffset = "content.offset"
+	PropContentSize   = "content.size"
+	PropPlaceholder   = "chrome.placeholder"
+
 	// Copy-mode overlay props (program-declared). The copy scene is a program
 	// state machine over the terminal text; the host paints its state:
 	//   copy.cursor = "row,col"                     (viewport cell)
@@ -116,6 +132,58 @@ func InsetFromProps(chrome map[string]string) (int, bool) {
 func DimmedFromProps(chrome map[string]string) bool {
 	value := strings.ToLower(strings.TrimSpace(chrome[PropDimmed]))
 	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+// ContentOffset is the program-declared extent origin inside the content area
+// plus the extent footprint size (cols/rows). The zero value (offset 0,0 with
+// no size) is inert: the component renders the screen from its top-left and the
+// footprint is taken to be the screen size.
+type ContentOffset struct {
+	X, Y  int
+	Cols  int
+	Rows  int
+	Sized bool // a content.size prop was present
+}
+
+// ContentOffsetFromProps parses content.offset ("x,y") and content.size
+// ("cols,rows"). A missing or malformed value leaves the corresponding field
+// unset, so a default props set stays byte-identical to the legacy render.
+func ContentOffsetFromProps(chrome map[string]string) ContentOffset {
+	var offset ContentOffset
+	if value, ok := chrome[PropContentOffset]; ok {
+		if x, y, ok := parsePair(value); ok {
+			offset.X, offset.Y = x, y
+		}
+	}
+	if value, ok := chrome[PropContentSize]; ok {
+		if cols, rows, ok := parsePair(value); ok && cols >= 0 && rows >= 0 {
+			offset.Cols, offset.Rows, offset.Sized = cols, rows, true
+		}
+	}
+	return offset
+}
+
+// FramingFromProps returns the content.offset shift the render applies and
+// whether it is non-trivial. A zero offset is inert and keeps any program cursor
+// untouched; a non-zero offset means the host must shift the PTY cursor by the
+// same amount (and hide it when it leaves the content area).
+func FramingFromProps(chrome map[string]string) (dx, dy int, shifted bool) {
+	parsed := ContentOffsetFromProps(chrome)
+	return parsed.X, parsed.Y, parsed.X != 0 || parsed.Y != 0
+}
+
+// parsePair parses "a,b" into two ints.
+func parsePair(value string) (int, int, bool) {
+	parts := strings.Split(value, ",")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	a, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	b, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return a, b, true
 }
 
 func (p Props) withDefaults() Props {

@@ -413,3 +413,130 @@ func TestRenderCopyCursorShowsOverBlankShortRow(t *testing.T) {
 		t.Fatalf("blank-column cursor = %+v, want a reverse space at x=8", got)
 	}
 }
+
+// TestRenderContentOffsetInertByDefault pins the byte-identical contract: absent
+// content.offset/content.size renders exactly as before and FramingFromProps
+// reports no shift.
+func TestRenderContentOffsetInertByDefault(t *testing.T) {
+	plain := New(nil, nil)
+	plain.SetProps(Props{Title: "main", Focused: true})
+	plain.SetScreen(ScreenFromText([]string{"hello", "world"}, render.TokenDefault))
+
+	explicit := New(nil, nil)
+	explicit.SetProps(Props{
+		Title:   "main",
+		Focused: true,
+		Chrome:  map[string]string{PropContentOffset: "0,0"},
+	})
+	explicit.SetScreen(ScreenFromText([]string{"hello", "world"}, render.TokenDefault))
+
+	if got, want := explicit.Render(12, 4), plain.Render(12, 4); !reflect.DeepEqual(got, want) {
+		t.Fatalf("explicit zero offset changed the render:\n got %+v\nwant %+v", got, want)
+	}
+	for _, chrome := range []map[string]string{nil, {PropContentOffset: "0,0"}} {
+		if _, _, shifted := FramingFromProps(chrome); shifted {
+			t.Fatalf("chrome %v must be unshifted", chrome)
+		}
+	}
+	if dx, dy, shifted := FramingFromProps(map[string]string{PropContentOffset: "2,0"}); !shifted || dx != 2 || dy != 0 {
+		t.Fatalf("FramingFromProps(2,0) = (%d,%d,%v), want (2,0,true)", dx, dy, shifted)
+	}
+}
+
+// TestRenderContentOffsetShiftsScreenAndFillsPlaceholder pins the framing: the
+// screen is drawn at the offset and every cell outside the footprint gets the
+// placeholder glyph/style.
+func TestRenderContentOffsetShiftsScreenAndFillsPlaceholder(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Inset: 0, InsetSet: true,
+		Chrome: map[string]string{
+			PropContentOffset: "1,1",
+			PropContentSize:   "3,2",
+			PropPlaceholder:   "fg:#3b2f63",
+		},
+	})
+	component.SetScreen(ScreenFromText([]string{"abc", "def"}, render.TokenDefault))
+
+	lines := component.Render(5, 4)
+	// Row 0 is above the footprint -> one full placeholder run.
+	if got := lineAt(t, lines, 0, 0); got.Text != "·····" || got.Style != "fg:#3b2f63" {
+		t.Fatalf("above footprint row = %+v, want 5 placeholder cells", got)
+	}
+	// The screen is drawn at content (1,1): row 0 cols 1..3 = "abc".
+	if got := lineAt(t, lines, 1, 1); got.Text != "abc" || got.Style != render.TokenDefault {
+		t.Fatalf("shifted screen row 0 = %+v, want abc", got)
+	}
+	// Row 1 is the screen's second row at content (1,2) = "def".
+	if got := lineAt(t, lines, 1, 2); got.Text != "def" || got.Style != render.TokenDefault {
+		t.Fatalf("shifted screen row 1 = %+v, want def", got)
+	}
+	// Column 0 (left margin) and column 4 (right margin) are placeholder.
+	if got := lineAt(t, lines, 0, 1); got.Text != "·" || got.Style != "fg:#3b2f63" {
+		t.Fatalf("left margin = %+v, want one placeholder cell", got)
+	}
+	if got := lineAt(t, lines, 4, 1); got.Text != "·" || got.Style != "fg:#3b2f63" {
+		t.Fatalf("right margin = %+v, want one placeholder cell", got)
+	}
+	// Row 3 is below the footprint (rows 1..2) -> full placeholder run.
+	if got := lineAt(t, lines, 0, 3); got.Text != "·····" || got.Style != "fg:#3b2f63" {
+		t.Fatalf("below footprint row = %+v, want 5 placeholder cells", got)
+	}
+}
+
+// TestRenderContentOffsetNegativeClipsScreen pins a negative offset: the screen
+// is clipped at the top/left and the screen shows its offset cell.
+func TestRenderContentOffsetNegativeClipsScreen(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Inset: 0, InsetSet: true,
+		Chrome: map[string]string{
+			PropContentOffset: "-1,-1",
+			PropContentSize:   "3,2",
+			PropPlaceholder:   "fg:#3b2f63",
+		},
+	})
+	component.SetScreen(ScreenFromText([]string{"abc", "def"}, render.TokenDefault))
+
+	lines := component.Render(3, 2)
+	// Content (0,0) shows screen (row 1, col 1) = "ef".
+	if got := lineAt(t, lines, 0, 0); got.Text != "ef" {
+		t.Fatalf("negative offset row 0 = %+v, want 'ef'", got)
+	}
+	// Content col 2 maps to screen col 3, outside the 3-wide footprint -> dot.
+	if got := lineAt(t, lines, 2, 0); got.Text != "·" {
+		t.Fatalf("negative offset right edge = %+v, want placeholder", got)
+	}
+	// Content row 1 is below the footprint rows [−1,1) -> full placeholder.
+	if got := lineAt(t, lines, 0, 1); got.Text != "···" {
+		t.Fatalf("negative offset below row = %+v, want placeholder row", got)
+	}
+}
+
+// TestRenderContentOffsetLargerThanPane pins a footprint larger than the pane:
+// the drawn window shifts with the offset and no placeholder appears where the
+// footprint still covers the pane.
+func TestRenderContentOffsetLargerThanPane(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Inset: 0, InsetSet: true,
+		Chrome: map[string]string{
+			PropContentOffset: "2,0",
+			PropContentSize:   "10,3",
+			PropPlaceholder:   "fg:#3b2f63",
+		},
+	})
+	component.SetScreen(ScreenFromText([]string{"0123456789", "ABCDEFGHIJ"}, render.TokenDefault))
+
+	lines := component.Render(6, 2)
+	// Columns 0,1 are the vacated left margin; content col 2 shows screen col 0.
+	if got := lineAt(t, lines, 0, 0); got.Text != "··" {
+		t.Fatalf("larger-than-pane left margin = %+v, want two dots", got)
+	}
+	if got := lineAt(t, lines, 2, 0); got.Text != "0123" {
+		t.Fatalf("larger-than-pane shifted row 0 = %+v, want '0123'", got)
+	}
+	if got := lineAt(t, lines, 2, 1); got.Text != "ABCD" {
+		t.Fatalf("larger-than-pane shifted row 1 = %+v, want 'ABCD'", got)
+	}
+}

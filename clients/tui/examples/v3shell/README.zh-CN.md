@@ -62,7 +62,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | 键 | 动作 |
 |---|---|
 | `Ctrl-P` | PANE 场景（`x`/`w` 关闭、`X` kill、`R`/`t` 重启、`Ctrl-D` 左右分、`Ctrl-E` 上下分、`h/l` 焦点、`z` zoom、`k` kill、`q` kill+close、`s` 锁尺寸、`b` 平衡、`a` 取 owner） |
-| `Ctrl-R` | RESIZE 场景（`h/l/k/j` ±2、`H/L/K/J` ±6（对齐老版 bias 步进）、`space` 切换切分方向、`m` 均分轴、`r`/`=`/`b` 重置/平衡、`s` 锁尺寸；`0/$/^/B`/`x`/`y`/`|`/`_`/`shift+方向` 的 align/center/pan 是 per-view 内容布局，需要 host 的 content-offset 能力，暂以提示代替） |
+| `Ctrl-R` | RESIZE 场景（`h/l/k/j` ±2、`H/L/K/J` ±6（对齐老版 bias 步进）、`space` 切换**切分方向**（见 §4 偏差说明）、`M` 切换内容布局模式 auto→fit→center、`m` 内容居中（双轴）、`r` 重置内容布局+切分、`=`/`b` 平衡、`s` 锁尺寸、`a` 取 owner；`0`/`$` 左/右对齐、`^`/`B` 上/下对齐、`\|`/`x` 水平居中、`_`/`y` 垂直居中、`A`/`S`/`W`/`D` 与 `shift+方向`（以及 `ctrl+方向`/`alt-HJKL` 别名）平移（X ∓2、Y ∓1）。align/center/pan 是 per-view 内容布局：把终端的权威 extent 按老版 `applyContentLayoutToExtent`/`alignedContentOrigin` 公式**在 pane 内容区内平移**（内容区始终全幅、PTY 尺寸不变），extent 外由 terminal 组件用 `·` 占位、四边越界由边框画 `◂ ▸ ▴ ▾`，并弹出 `terminal.layout` 状态 toast；布局随 pane 持久化（见 §4）。**owner 的 pan 同样生效**（只有 align/center 在 extent 等于 pane 时才是 no-op）。 |
 | `Ctrl-O` | FLOAT 场景（`n` 新建空 panel，panel 内 `↑/↓` 选择 CTA、`enter` 执行；`z`/`m` 折叠只留标题行、`c` 居中、`x` 关闭、`1-9` 召唤、`h/j/k/l` 移动、`,`/`.`/`;`/`/` 与 `H/L/K/J` 缩放、`v` 全部折叠、`=` 最大化、`f` picker、`a` 取 owner） |
 | `Ctrl-T` | TAB 场景（`c` 新建、`n/l/]` 与 `p/h/[` 前后、`1-9` 跳转、`x` 关闭、`X`/`k` kill+关闭、`r` 重命名） |
 | `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名） |
@@ -104,11 +104,11 @@ owner 槽颜色对齐 legacy `terminalChromeVMFromBinding`：本视图拥有 res
 |---|---|---|
 | overlay 细节 | picker 有 endpoint tabs + toolbar（搜索/状态筛选）+ tags；clipboard 有持久历史 | picker 已按 endpoint 分区并用 endpoint label 作 tab 名，默认 Running，`Shift+←/→` 循环状态，搜索为子序列 + 拼音（全拼/首字母），`Ctrl-T` 打开标签复选列表；工具栏为「搜索左 / 状态+Tags 右」；尺寸与活跃度来自 `sources.cols/rows/last_output_ms`；tag 数据来自 `sources.tags`；clipboard history 通过 host 的持久 store 提供 list/delete/paste，overlay 仍可继续补齐完整老版视觉细节 |
 | 空 panel 生命周期 | 新 panel 先显示未连接状态与 Attach/Create/Manager/Close 动作，`↑/↓` 选择、`enter` 执行（点击同样可用），选择后才绑定 terminal | 已实现：分屏、tab、浮窗创建空 panel；CTA 高亮只在聚焦 panel 上；Close 只关闭 panel，不隐式创建或 kill terminal |
-| workspace/tab 持久化 | host storage（workbench store） | 通过 `access.call` 的 storage API 持久化到 `AppId=v3shell`/PRIVATE/`workbench` 键（版本化 JSON：workspaces/tabs/panes/split 树/focus/header/footer）。HELLO 时读取并恢复，结构变更后合并写回（`workbenchReady`/`savePending` 去抖）；demo/离线运行不落盘。老的 workbench store 无 typed 方法，storage 分区是等价的可移植实现 |
+| workspace/tab 持久化 | host storage（workbench store） | 通过 `access.call` 的 storage API 持久化到 `AppId=v3shell`/PRIVATE/`workbench` 键（版本化 JSON：workspaces/tabs/panes/split 树/focus/header/footer/per-pane 内容布局）。HELLO 时读取并恢复，结构变更后合并写回（`workbenchReady`/`savePending` 去抖）；demo/离线运行不落盘。老的 workbench store 无 typed 方法，storage 分区是等价的可移植实现 |
 | terminal rename / detach / reconnect / shortcut lock / connections | daemon/宿主能力 | rename/detach/reconnect、shortcut lock 已接入 host 方法；connections 由 `Ctrl-G e` 的 overlay 呈现（`endpoint.list`/`endpoint.test`/`endpoint.reconnect`）。**插件概念已移除**：本复刻的 shell 本身即“插件”，不再有宿主 plugin runtime |
 | copy 选择 | copy 会话按 pane/view 保存，支持持久历史查询 | shell 保存每 pane 的交互状态；内建 terminal 对象持有冻结 token、分页、搜索、选区复制和释放。不同 terminal 的请求独立排队；两个 pane 绑定同一 source 时仍共享该 terminal 的回看视口。宿主 API 支持 char/line/block，shell 使用标记流选区；跨出当前视口的完整选区仍需独立逻辑锚点支持 |
 | paste（⇧V） | 系统剪贴板写入聚焦终端 | 通过 `clipboard.paste` 由 host 读取系统剪贴板并注入聚焦 PTY；历史条目通过 `clipboard_id` 选择 |
-| resize align/center/pan | 完整几何操作 | `h/l/k/j`、`space`、`r`/`=` 已实现；align/center/pan 提示 |
+| resize align/center/pan | 完整几何操作 | 已按 `state.TerminalViewLayout` + `render.applyContentLayoutToExtent`/`alignedContentOrigin` 完整实现：per-pane 的 `mode`（auto/fit/center）、`alignX`/`alignY`（start/center/end/base）与 `panX`/`panY`，`0/$/^/B` 对齐、`m`/`\|`/`_`/`x`/`y` 居中、`A/S/W/D`+`shift+方向` 平移（X ∓2、Y ∓1）、`r` 重置，并弹 `terminal.layout` toast。布局随 pane 进入版本化 JSON（缺字段默认 auto/start/start/0/0）。**实现方式**：终端 box 始终声明为完整 pane 内容区（PTY 尺寸/owner resize 路径完全不动），布局只通过组件 prop `content.offset`(=`x,y` 平移量)/`content.size`(=`cols,rows` 权威 extent footprint) 传给 terminal 组件；组件把屏幕 1:1 画在偏移处、footprint 外用 `chrome.placeholder`（`·`）填充，四边越界仍由 pane 边框画 `◂ ▸ ▴ ▾`。因此**owner 的 pan 也可见**（align/center 在 extent==pane 时自然为 no-op），且大于 pane 的 extent 平移同样生效。**偏差**：老版 `space`=`resize.layout_toggle`（内容布局模式循环），但本复刻既有测试/几何把 `space` 钉在**切分方向**切换（`TestResizeModeChangesNearestSplit`、`TestLayoutToggleOnlyFocusedSplit`），故 `space` 保留切分方向，内容模式循环改绑到 `M`（auto→fit→center→auto） |
 | 分屏分隔条 | 没有独立分隔条：相邻 card 边框相接，拖拽命中区是相接边框的 1 格 | 一致（Python 参考 `v3ui.py` 保留旧的 1 格分隔条近似，Go 复刻按原版） |
 | 空 pane 提示 | 不画内部提示（1.txt 的 `┃ Click to collapse` 是终端内容） | 一致（不画提示；pane 折叠不存在） |
 | zoom | `panel.toggle_zoom`（pane 占满 body，图标变 `↙`） | 已实现 |

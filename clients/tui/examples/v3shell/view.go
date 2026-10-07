@@ -319,22 +319,27 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 
 	// Clipping markers on the card border, drawn last so they win over the
 	// rules above: the legacy renderer overlays them on the border without
-	// touching the content layer (render/content_overflow_marker.go). The
-	// right marker sits on the last content row's right edge, the bottom marker
-	// just before the bottom-right corner.
+	// touching the content layer (render/content_overflow_marker.go). The top
+	// marker is drawn on the top border row (paneRunsRect); the left marker sits
+	// on the top content row's left edge, the right marker on the bottom content
+	// row's right edge, and the bottom marker just before the bottom-right
+	// corner (legacy contentOverflowVerticalMarkerY).
 	//
 	// Two sources of horizontal/vertical clipping share this chrome:
 	//   - a frozen copy/scrollback pane whose window is scrolled or wider than
 	//     the content area (copyOverflow), and
-	//   - a live FOLLOWER pane whose pane content is smaller than the source's
-	//     authoritative extent (the legacy extent model: the follower shows the
-	//     owner's size and marks the clipped edges, while the owner resizes the
-	//     PTY to fit and never clips).
+	//   - a live extent pane whose pane content is smaller than (or panned away
+	//     from) the source's authoritative extent (the legacy extent model: the
+	//     owner resizes the PTY to fit and only clips when the user pans/aligns,
+	//     while a follower shows the owner's size and marks every clipped edge).
 	if r.w > 2 && r.h > 2 {
-		_, rightOverflow, _, bottomOverflow := m.paneOverflow(p, r.w-2, r.h-2)
+		leftOverflow, rightOverflow, _, bottomOverflow := m.paneOverflow(p, r.w-2, r.h-2)
 		markerStyle := stOverflowStyle
 		if dimmed {
 			markerStyle = dimStyle(markerStyle)
+		}
+		if leftOverflow {
+			addRun(out, r.x, r.y+1, glyphOverflowLeft, markerStyle, borderNode, borderNode != "", 1)
 		}
 		if rightOverflow {
 			addRun(out, r.x+r.w-1, r.y+r.h-2, glyphOverflowRight, markerStyle, borderNode, borderNode != "", 1)
@@ -346,89 +351,54 @@ func (m *model) cardNodes(out *[]*sdk.Builder, p *pane, r rect, active, contentF
 }
 
 // paneOverflow reports the directions a pane's content is clipped. It merges
-// the frozen copy-window overflow (copyOverflow) with the live follower's
-// extent overflow: a follower is clipped when the source's authoritative
-// extent is larger than the pane content area, exactly the legacy
-// contentViewportOverflow rule for a live terminal surface that does not own
-// its size. The owner (full-bleed) and non-host/copy paths never add extent
-// overflow, so the existing copy goldens are unchanged.
+// the frozen copy-window overflow (copyOverflow) with the live extent overflow:
+// a source-bound pane is clipped whenever the source's authoritative extent,
+// positioned by the pane's view-local content layout, extends outside the pane
+// content area. This is the legacy contentViewportOverflow rule: Left when
+// extent.X < 0, Right when X+Cols > width, Top when Y < 0, Bottom when
+// Y+Rows > height. The terminal box itself is always full-bleed; the extent is a
+// drawn content footprint (content.offset/content.size), so the existing
+// copy/non-host goldens are unchanged.
 func (m *model) paneOverflow(p *pane, contentWidth, contentHeight int) (left, right, top, bottom bool) {
 	if st := m.copyFor(p); st != nil {
 		left, right, top, bottom = m.copyOverflow(st, contentWidth)
 	}
-	if !m.liveFollower(p) {
+	if !m.paneRendersExtent(p) {
 		return left, right, top, bottom
 	}
-	src := m.paneSource(p)
-	if src == nil {
-		return left, right, top, bottom
+	content := rect{0, 0, maxInt(0, contentWidth), maxInt(0, contentHeight)}
+	x, y, cols, rows := m.paneContentExtent(p, content)
+	if x < 0 {
+		left = true
 	}
-	extentCols, extentRows := m.sourceExtent(src, rect{0, 0, contentWidth, contentHeight})
-	if extentCols > contentWidth {
+	if x+cols > content.w {
 		right = true
 	}
-	if extentRows > contentHeight {
+	if y < 0 {
+		top = true
+	}
+	if y+rows > content.h {
 		bottom = true
 	}
 	return left, right, top, bottom
 }
 
-// liveFollower reports whether p is rendered by the host as a live terminal
-// follower: the host paints the live path, the pane is source-bound, and it is
-// NOT the source's single owner pane. Followers draw the extent box plus the
-// `·` placeholder mask and the clipping markers.
-func (m *model) liveFollower(p *pane) bool {
+// paneRendersExtent reports whether p is drawn by the host as a live terminal
+// extent box (rather than a program-drawn line buffer): the host paints the live
+// path, the pane is source-bound, and it is not showing a frozen copy window.
+// Both the owner and its followers send their extent as content.offset/size.
+func (m *model) paneRendersExtent(p *pane) bool {
 	if p == nil || p.sourceID == "" || m.demo || !m.host {
 		return false
 	}
 	// A copy/scrollback session owns the pane's interaction viewport; the
 	// extent framing (and its placeholder mask) must not fight it, so a pane
-	// showing a frozen copy window is never treated as a live follower.
+	// showing a frozen copy window is never treated as an extent pane.
 	if m.copyFor(p) != nil {
 		return false
 	}
 	src := m.paneSource(p)
-	if src == nil || src.GetKind() != "terminal" {
-		return false
-	}
-	return !m.paneOwnsSource(p)
-}
-
-// liveFollowerExtent is the box a live follower paints: the source's extent
-// clipped to the pane content rect, at the content origin (r.x, r.y). A
-// follower larger than the extent fills the leftover area with `·`, and a
-// follower smaller than it clips (the caller draws the overflow markers).
-func liveFollowerExtent(r rect, extentCols, extentRows int) rect {
-	return rect{r.x, r.y, minInt(maxInt(0, r.w), maxInt(0, extentCols)), minInt(maxInt(0, r.h), maxInt(0, extentRows))}
-}
-
-// extentPlaceholderNodes masks the pane content area outside a live follower's
-// extent box with the dim `·` placeholder, so the pane behind the terminal
-// never shows through. It covers the right columns of rows the extent is
-// narrower than, and every row below the extent. The recommended yaml
-// pane_glyphs.extent_placeholder + extent_placeholder_style tokens are the
-// same ones the frozen copy window uses.
-func (m *model) extentPlaceholderNodes(out *[]*sdk.Builder, p *pane, r rect, box rect, dimmed bool) {
-	if r.w <= 0 || r.h <= 0 {
-		return
-	}
-	style := stExtentPlaceholder
-	if dimmed {
-		style = dimStyle(style)
-	}
-	node := "pane:" + p.id + ":focus"
-	for row := 0; row < r.h; row++ {
-		y := r.y + row
-		from := 0
-		if row < box.h {
-			// A row the extent covers only masks the columns to its right.
-			from = box.w
-		}
-		if from >= r.w {
-			continue
-		}
-		addRun(out, r.x+from, y, strings.Repeat(extentPlaceholder, r.w-from), style, node, true, r.w-from)
-	}
+	return src != nil && src.GetKind() == "terminal"
 }
 
 // boundaryNodes is the split's drag hit region: the shared card border between
@@ -505,20 +475,24 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 				props[key] = value
 			}
 		}
-		// One terminal source has one size, owned by a single pane (the
-		// focused pane in the active tab, sourceOwnerPane). The owner drives
-		// the PTY resize, so its box stays the full pane content rect. Every
-		// other pane on that source is a follower: it shows the terminal at
-		// the source's authoritative extent and masks the leftover pane area
-		// with the dim `·` extent placeholder, like the legacy
-		// content-viewport rule for a non-owning surface.
-		box := r
-		if m.liveFollower(p) {
-			extentCols, extentRows := m.sourceExtent(src, r)
-			box = liveFollowerExtent(r, extentCols, extentRows)
-			m.extentPlaceholderNodes(out, p, r, box, dimmed)
+		// One terminal source has one size, owned by a single pane. The owner
+		// drives the PTY resize via chrome.owner=1, so its terminal box is
+		// always declared at the FULL pane content rect r: the PTY stays
+		// full-bleed for every pane, and the view-local content layout
+		// (Ctrl-R align/center/pan) is expressed purely as a content.offset /
+		// content.size prop that shifts the drawn screen inside that box. The
+		// component masks the cells outside the extent footprint with the dim
+		// `·` placeholder and the caller draws the border clipping markers.
+		//
+		// A frozen copy/scrollback session owns the pane viewport and must stay
+		// unshifted (its own window already positions the rows): the content
+		// layout framing is declared only on the live path.
+		if st == nil {
+			props[terminalPropContentOffset] = m.contentOffsetProp(p, r)
+			props[terminalPropContentSize] = m.contentSizeProp(p, r)
+			props[terminalPropPlaceholder] = stExtentPlaceholder
 		}
-		term := sdk.Terminal(p.sourceID).ID(p.id).Pos(box.x, box.y).Width(box.w).Height(box.h).
+		term := sdk.Terminal(p.sourceID).ID(p.id).Pos(r.x, r.y).Width(r.w).Height(r.h).
 			Props(props).
 			Input("key", "paste", "wheel").
 			Focused(active)
