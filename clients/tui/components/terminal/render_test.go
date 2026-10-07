@@ -389,3 +389,27 @@ func TestRenderCopySelectionFillsRowTail(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderCopyCursorShowsOverBlankShortRow pins the GAP 2 fix: the legacy
+// copy cursor is an always-visible block cursor clamped to the frozen viewport
+// (render.copyHistoryCursor), so copy.cursor must still emit a cursor cell when
+// the target column lies beyond a short row's cells (no TailFill). Before the
+// fix cellAtColumn returned ok=false and the cursor silently vanished.
+func TestRenderCopyCursorShowsOverBlankShortRow(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Title: "main",
+		Inset: 1,
+		Chrome: map[string]string{
+			PropCopyCursor:      "0,7",
+			PropCopyStyleCursor: "reverse",
+		},
+	})
+	// The row has only four cells; column 7 is past the end.
+	component.SetScreen(ScreenFromText([]string{"abcd"}, render.TokenDefault))
+
+	lines := component.Render(12, 3)
+	if got := lineAt(t, lines, 1+7, 1); got.Text != " " || got.Style != render.Token("reverse") {
+		t.Fatalf("blank-column cursor = %+v, want a reverse space at x=8", got)
+	}
+}

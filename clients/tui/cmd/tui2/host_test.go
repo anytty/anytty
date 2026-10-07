@@ -687,6 +687,183 @@ func TestHostPerViewScrollIsolation(t *testing.T) {
 	}
 }
 
+// TestHostCopyModeProgramCursorReachesFrame pins the GAP 2 host half: when the
+// layout program declares a cursor on a terminal box for a frozen copy session
+// (view.go term.Cursor(st.cursorRow, st.cursorCol, "block")), the composited
+// host frame must carry that program cursor even though the pane is not
+// focused and its PTY cursor is not involved. The legacy copy cursor was an
+// always-visible hardware block cursor (render.copyHistoryCursor ->
+// terminalhost.FrameSink), so entering copy mode must keep the white cursor.
+func TestHostCopyModeProgramCursorReachesFrame(t *testing.T) {
+	programIn := newMemPipe()
+	programOut := newMemPipe()
+	proc := &fakeProcess{stdin: programIn, stdout: programOut, stopped: make(chan struct{})}
+	input := newMemPipe()
+	hostOut := &syncBuffer{}
+
+	var stateMu sync.Mutex
+	var sourceID string
+	var ptyBox *fakePTY
+	var client *sdk.Client
+	state := func() (string, *fakePTY) {
+		stateMu.Lock()
+		defer stateMu.Unlock()
+		return sourceID, ptyBox
+	}
+
+	// copyCursor is the position the program declares while a copy session is
+	// open; it is nil in live mode so the pane carries no program cursor.
+	var copyCursor *pb.Cursor
+	var copySel string
+	commit := func() {
+		stateMu.Lock()
+		id := sourceID
+		stateMu.Unlock()
+		box := sdk.Terminal(id).ID("pane-a").Pos(0, 0).Width(20).Height(6).
+			Input("key", "paste", "wheel").
+			Props(map[string]string{
+				"chrome.inset":      "0",
+				"chrome.owner":      "1",
+				"copy.style.cursor": "reverse",
+			}).
+			// The live PTY cursor only shows on the focused placement, so keep
+			// the pane focused: the copy program cursor must win over it.
+			Focused(true)
+		if copyCursor != nil {
+			box.Cursor(int(copyCursor.GetRow()), int(copyCursor.GetCol()), copyCursor.GetShape())
+			// The real v3shell also sends the copy overlay props (copy.cursor /
+			// copy.sel / styles). The overlay is a redundant repaint; the frame
+			// cursor must remain the single hardware cursor at the copy cell.
+			box.Props(map[string]string{
+				"copy.cursor": "2,7",
+				"copy.sel":    copySel,
+			})
+		}
+		if err := client.Commit(sdk.Stack(box).Build(), sdk.Keys{}); err != nil {
+			t.Errorf("commit: %v", err)
+		}
+	}
+
+	handlers := sdk.Handlers{
+		Hello: func(h *pb.Hello) {
+			_, _ = client.Emit("terminal.create", &pb.MethodParams{Endpoint: "local"}, func(resp *pb.Response) {
+				if !resp.GetOk() {
+					t.Errorf("create failed: %s", resp.GetError())
+					return
+				}
+				stateMu.Lock()
+				sourceID = "terminal:" + resp.GetData().GetEndpoint() + ":" + resp.GetData().GetId()
+				stateMu.Unlock()
+				commit()
+			})
+		},
+	}
+	client = sdk.New(programIn, programOut, handlers)
+	go func() { _ = client.Loop() }()
+
+	host := NewHost(Options{
+		Shell: []string{"fake-shell"}, In: input, Out: hostOut,
+		NewProcess: func([]string) (process, error) { return proc, nil },
+		NewPTY: func(pty.Config) pty.PTY {
+			box := newFakePTY()
+			stateMu.Lock()
+			ptyBox = box
+			stateMu.Unlock()
+			return box
+		},
+		Cols: 40, Rows: 12,
+	})
+	done := make(chan error, 1)
+	go func() { done <- host.Run() }()
+	defer func() {
+		select {
+		case <-done:
+		default:
+			proc.Stop()
+			host.stopProgram()
+		}
+	}()
+
+	waitFor(t, "layout hello", func() bool { return client.Hello() != nil })
+	waitFor(t, "terminal view", func() bool {
+		id, box := state()
+		return id != "" && box != nil && client.Rev() >= 1
+	})
+
+	// Live mode before copy: the focused pane shows the PTY's own hardware
+	// cursor through the Placement path (the compositor's fallback), so the
+	// "small white cursor" already exists and copy mode only swaps its source.
+	id, box := state()
+	term, ok := host.handler.TerminalBySource(id)
+	if !ok {
+		t.Fatalf("terminal %q not found", id)
+	}
+	var seed strings.Builder
+	for i := 0; i < 20; i++ {
+		fmt.Fprintf(&seed, "line-%d\r\n", i)
+	}
+	box.emit(seed.String())
+	waitFor(t, "live PTY cursor visible", func() bool {
+		_, _, visible := host.currentSession().ComposeFrame(host.placements(), nil).Cursor()
+		return visible
+	})
+
+	// Enter copy mode at the live bottom (offset 0): the program declares the
+	// block cursor at (2,7). It must be visible in the composited host frame
+	// regardless of the frozen offset.
+	copyCursor = &pb.Cursor{Row: 2, Col: 7, Shape: "block"}
+	copySel = ""
+	commit()
+	waitFor(t, "copy commit", func() bool { return client.Rev() >= 2 })
+	waitFor(t, "copy cursor in frame", func() bool {
+		frame := host.currentSession().ComposeFrame(host.placements(), nil)
+		x, y, visible := frame.Cursor()
+		return visible && x == 7 && y == 2 && frame.CursorShape() == "block"
+	})
+	frame := host.currentSession().ComposeFrame(host.placements(), nil)
+	x, y, visible := frame.Cursor()
+	if !visible || x != 7 || y != 2 {
+		t.Fatalf("copy frame cursor = (%d,%d) visible=%v, want (7,2)", x, y, visible)
+	}
+	if frame.CursorShape() != "block" {
+		t.Fatalf("copy frame cursor shape = %q, want block", frame.CursorShape())
+	}
+
+	// Scroll the frozen window: the copy cursor must stay visible through the
+	// per-pane history path too.
+	if _, err := client.Emit("terminal.scroll", &pb.MethodParams{
+		Endpoint: "local", Id: strings.TrimPrefix(id, "terminal:local:"), Delta: 1, Rows: 4, View: "pane-a",
+	}, nil); err != nil {
+		t.Fatalf("emit scroll: %v", err)
+	}
+	waitFor(t, "pane-a frozen", func() bool { return term.Offset("pane-a") > 0 })
+	waitFor(t, "copy cursor visible while scrolled", func() bool {
+		x, y, visible := host.currentSession().ComposeFrame(host.placements(), nil).Cursor()
+		return visible && x == 7 && y == 2
+	})
+
+	// Leave copy mode: no program cursor, and a live (unfocused) pane must not
+	// leave a stale visible cursor behind.
+	copyCursor = nil
+	commit()
+	waitFor(t, "cursor hidden after copy", func() bool {
+		_, _, visible := host.currentSession().ComposeFrame(host.placements(), nil).Cursor()
+		return !visible
+	})
+
+	_, _ = input.Write([]byte{0x11})
+	waitFor(t, "quit confirmation", func() bool { return bytes.Contains([]byte(hostOut.String()), []byte("Quit tui2?")) })
+	_, _ = input.Write([]byte{'\r'})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("host run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("host did not stop")
+	}
+}
+
 // TestHostCodexLikePersistentTUIPassthroughTrace runs a terminal child that
 // enables DEC mouse tracking and records the raw wheel bytes written to its
 // PTY. It deliberately has a persistent history capability as a remote

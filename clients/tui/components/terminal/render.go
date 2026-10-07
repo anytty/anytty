@@ -218,9 +218,22 @@ func copyOverlayLines(screen Screen, inset int, props Props, contentW, contentH 
 			row, err1 := strconv.Atoi(strings.TrimSpace(fields[0]))
 			col, err2 := strconv.Atoi(strings.TrimSpace(fields[1]))
 			if err1 == nil && err2 == nil && row >= 0 && row < contentH {
-				if cell, ok := cellAtColumn(screen.Line(row), col); ok {
-					lines = append(lines, render.Line{X: inset + col, Y: inset + row, Text: cell.Text, Style: cursorStyle})
+				if col < 0 {
+					col = 0
+				} else if col >= contentW {
+					col = contentW - 1
 				}
+				// Legacy parity: copyHistoryCursor is an always-visible block
+				// cursor clamped to the frozen viewport, so it must show even
+				// over a blank/end-of-line column. cellAtColumn returns not-ok
+				// when the target column lies beyond the row's cells (a short
+				// history row without TailFill), so fall back to a single
+				// space instead of silently dropping the cursor cell.
+				text := " "
+				if cell, ok := cellAtColumn(screen.Line(row), col); ok && cell.Text != "" {
+					text = cell.Text
+				}
+				lines = append(lines, render.Line{X: inset + col, Y: inset + row, Text: text, Style: cursorStyle})
 			}
 		}
 	}

@@ -953,6 +953,15 @@ type model struct {
 	cursor    *cursorPos
 	keys      sdk.Keys
 	sentKeys  sdk.Keys
+
+	// copyDrag* is the active copy-drag edge auto-scroll state (legacy
+	// mouseDrag.HistoryScrollDirection plus its 100ms timer): dir is -1 older /
+	// +1 newer / 0 off, pane is the copy session it belongs to, and tick records
+	// that one app.Tick step is outstanding so a new direction never arms a
+	// second timer.
+	copyDragDir  int
+	copyDragPane string
+	copyDragTick bool
 }
 
 type cursorPos struct{ x, y int }
@@ -1781,6 +1790,7 @@ func (m *model) Reset(epoch uint64) {
 	m.epoch = epoch
 	m.toast = ""
 	m.dragging = ""
+	m.clearCopyDragScroll()
 	m.copyPanes = map[string]*copyState{}
 	m.pendingClear()
 }
@@ -1811,7 +1821,7 @@ func (m *model) Update(msg app.Msg) app.Cmd {
 	case app.SourcesMsg:
 		cmd = m.onSources(v.Items)
 	case app.TickMsg:
-		cmd = m.applySearchScan()
+		cmd = chain(m.applySearchScan(), m.applyCopyEdgeAutoScroll())
 	case app.ResizeMsg:
 		m.cols, m.rows = v.Cols, v.Rows
 		m.clampFloatings()
@@ -2785,13 +2795,19 @@ func (m *model) onMouse(ev *pb.MouseEvent) app.Cmd {
 	switch action {
 	case "release":
 		m.dragging = ""
+		m.clearCopyDragScroll()
 		return nil
 	case "drag":
 		if strings.HasPrefix(m.dragging, "copy:") {
 			paneID := strings.TrimPrefix(m.dragging, "copy:")
 			if p := m.paneByID(paneID); p != nil {
 				m.placeCopyCursorAtMouse(p, m.copyFor(p), x, y)
+				// The pointer also drives the legacy edge auto-scroll: hold it
+				// at the top/bottom content row while a MARK is set and the
+				// selection keeps growing older/newer every 100ms.
+				return m.setCopyDragEdge(p, x, y)
 			}
+			m.clearCopyDragScroll()
 			return nil
 		}
 		m.dragMove(x, y)

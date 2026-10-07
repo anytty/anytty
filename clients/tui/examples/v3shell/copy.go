@@ -20,6 +20,15 @@ const (
 
 const copySearchDebounce = 120 * time.Millisecond
 
+// Copy-drag edge auto-scroll timing, ports of the legacy
+// historyMouseScrollInterval and reduceCopyModeScroll*Rows(…, 2): while the
+// pointer is held at a content edge the marked selection advances two rows per
+// 100ms tick.
+const (
+	copyMouseScrollInterval = 100 * time.Millisecond
+	copyMouseScrollRows     = 2
+)
+
 // Copy scene (the old tui/app copymode state machine, per pane).
 //
 // The host owns the terminal text; the program owns the interaction: a copy
@@ -166,6 +175,9 @@ func (m *model) endCopy(p *pane) app.Cmd {
 	if st == nil {
 		return nil
 	}
+	if m.copyDragPane == p.id {
+		m.clearCopyDragScroll()
+	}
 	src := m.paneSource(p)
 	if src == nil || src.GetTerminalId() == "" {
 		return nil
@@ -263,6 +275,7 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 	case "space":
 		if st.marked {
 			st.marked = false
+			m.clearCopyDragScroll()
 		} else {
 			st.marked = true
 			st.markRow, st.markCol = st.cursorRow, st.cursorCol
@@ -438,10 +451,16 @@ func (m *model) scrollCopyView(p *pane, st *copyState, delta int) app.Cmd {
 	}
 	if delta < 0 && st.offset+delta <= 0 {
 		if st.marked {
-			// Keep the session while a selection is open; just clamp at live.
-			return nil
+			// Keep the session while a selection is open; clamp the step at
+			// live instead of overshooting (legacy CopyModeStore.ScrollNewer
+			// clamps the viewport at the frozen bottom).
+			delta = -st.offset
+			if delta == 0 {
+				return nil
+			}
+		} else {
+			return m.endCopy(p)
 		}
-		return m.endCopy(p)
 	}
 	st.scrollSeq++
 	return m.emit("terminal.scroll", &pb.MethodParams{
@@ -469,6 +488,130 @@ func (m *model) copyScroll(p *pane, st *copyState, delta int) app.Cmd {
 		Endpoint: endpointOf(src), Id: src.GetTerminalId(), Delta: int32(delta),
 		Rows: int32(m.copyWindowRows(st)), View: p.id,
 	}, opMsg{op: "scroll", ref: p.id, delta: delta, seq: st.scrollSeq})
+}
+
+// copyDragEdgeDirection ports updateHistoryMouseScrollEdge: the edge band is
+// the first and last content row inside the pane's content rect columns. The
+// pointer only auto-scrolls while it is held in that band; leaving it (or the
+// middle) clears the direction. It returns -1 (older), +1 (newer) or 0.
+func (m *model) copyDragEdgeDirection(p *pane, x, y int) int {
+	r, ok := m.copyContentRect(p)
+	if !ok || r.w <= 0 || r.h <= 0 {
+		return 0
+	}
+	col, row := x-1-r.x, y-1-r.y
+	if col < 0 || col >= r.w {
+		return 0
+	}
+	if row <= 0 {
+		return -1
+	}
+	if row >= r.h-1 {
+		return 1
+	}
+	return 0
+}
+
+// copyDragScrollAvailable is the legacy historyMouseScrollAvailable gate: the
+// pane still has an open copy session with a MARK, and the active drag is the
+// copy selection on that pane (the frozen token check is implicit here because
+// the session only exists while its window is bound).
+func (m *model) copyDragScrollAvailable(p *pane) bool {
+	if p == nil || m.overlay != "" || m.dragging != "copy:"+p.id {
+		return false
+	}
+	st := m.copyFor(p)
+	return st != nil && st.marked
+}
+
+// copyDragAtLiveBottom reports whether the frozen viewport has reached the live
+// bottom (the legacy CopyModeStore.AtFrozenBottom): the newer edge disarms there
+// so a held pointer does not keep emitting clamped terminal.scroll requests.
+func (m *model) copyDragAtLiveBottom(st *copyState) bool {
+	return st != nil && st.offset == 0 && st.cursorRow >= len(st.rows)-1
+}
+
+// setCopyDragEdge updates the drag auto-scroll direction from one pointer
+// position and arms the 100ms tick when the direction turns on. A direction
+// change re-arms; leaving the band clears it (legacy
+// updateHistoryMouseScrollEdge). The tick is only armed while a MARK is set.
+func (m *model) setCopyDragEdge(p *pane, x, y int) app.Cmd {
+	if p == nil || !m.copyDragScrollAvailable(p) {
+		m.clearCopyDragScroll()
+		return nil
+	}
+	dir := m.copyDragEdgeDirection(p, x, y)
+	if dir == m.copyDragDir && m.copyDragPane == p.id {
+		return nil
+	}
+	m.copyDragDir = dir
+	m.copyDragPane = p.id
+	if dir == 0 {
+		m.copyDragTick = false
+		return nil
+	}
+	if dir > 0 && m.copyDragAtLiveBottom(m.copyFor(p)) {
+		// Already at the live bottom: the newer edge cannot advance.
+		m.copyDragTick = false
+		return nil
+	}
+	if m.copyDragTick {
+		// A step is already in flight for the old direction; it will observe
+		// the new direction when it fires.
+		return nil
+	}
+	m.copyDragTick = true
+	return app.Tick(copyMouseScrollInterval)
+}
+
+// clearCopyDragScroll stops the edge auto-scroll: release, direction loss, an
+// ended copy session or a cleared mark all take this path (the legacy code
+// clears mouseDrag.NextHistoryScroll / drops the gesture timer).
+func (m *model) clearCopyDragScroll() {
+	m.copyDragDir = 0
+	m.copyDragPane = ""
+	m.copyDragTick = false
+}
+
+// applyCopyEdgeAutoScroll is the CopyModeMouseAutoScrollMsg case: it scrolls
+// the marked selection two rows older/newer per tick, keeps the cursor parked
+// on the edge (moveCopyCursorRows parks it) and re-arms the next tick while the
+// direction stays non-zero. It mirrors reduceCopyModeScroll*Rows(…, 2) and the
+// "DeferredScrollRows = 0" reset that keeps a late page from replaying.
+func (m *model) applyCopyEdgeAutoScroll() app.Cmd {
+	// Only a step that our own 100ms Tick armed may run: a search-debounce
+	// Tick must never move the selection, and two outstanding ticks must not
+	// accumulate missed steps (legacy enqueueDueHistoryMouseScroll's fixed
+	// interval re-arm).
+	if !m.copyDragTick {
+		return nil
+	}
+	m.copyDragTick = false
+	dir := m.copyDragDir
+	if dir == 0 || m.overlay != "" {
+		return nil
+	}
+	p := m.paneByID(m.copyDragPane)
+	if p == nil || !m.copyDragScrollAvailable(p) {
+		m.clearCopyDragScroll()
+		return nil
+	}
+	st := m.copyFor(p)
+	var cmd app.Cmd
+	switch {
+	case dir < 0:
+		cmd = m.moveCopyCursorRows(p, st, -copyMouseScrollRows)
+	case dir > 0:
+		cmd = m.moveCopyCursorRows(p, st, copyMouseScrollRows)
+	}
+	if dir > 0 && m.copyDragAtLiveBottom(st) {
+		// The step reached the live bottom; stop the timer (legacy
+		// historyMouseScrollAvailable).
+		m.clearCopyDragScroll()
+		return cmd
+	}
+	m.copyDragTick = true
+	return chain(cmd, app.Tick(copyMouseScrollInterval))
 }
 
 // fetchCopyWindow asks the host for the window at the session offset; the
@@ -516,6 +659,7 @@ func (m *model) applyCopyScroll(p *pane, st *copyState, rows []string, offset, d
 	if st.marked {
 		st.markRow += offset - st.offset
 	}
+	previousOffset := st.offset
 	st.offset = offset
 	if len(rows) > 0 {
 		st.rows = rows
@@ -525,6 +669,12 @@ func (m *model) applyCopyScroll(p *pane, st *copyState, rows []string, offset, d
 	m.clampCopyCursorToViewport(st)
 	if delta < 0 && offset == 0 && !st.marked {
 		return m.endCopy(p)
+	}
+	if delta > 0 && offset == previousOffset && offset > 0 && m.copyDragDir < 0 {
+		// The older edge could not load more history (the host clamped the same
+		// offset). Stop the timer instead of re-emitting the same scroll, the
+		// legacy historyMouseScrollAvailable OlderRequestState()==Ready check.
+		m.clearCopyDragScroll()
 	}
 	return nil
 }
