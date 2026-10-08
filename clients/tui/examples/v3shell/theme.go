@@ -173,6 +173,9 @@ const (
 	glyphTabs    = "\U000f04e9"
 	glyphPanes   = "\uebeb"
 	glyphGutter  = "\u2503" // ┃
+	// glyphLayoutAdjusted prefixes the pane title when the view-local content
+	// layout is non-default (legacy paneChromeTerminalTitlePrefix / "◇ ").
+	glyphLayoutAdjusted = "\u25c7" // ◇
 
 	// Content-clipping markers (recommended yaml pane_glyphs.overflow_*): drawn
 	// on the pane border when the frozen copy window is clipped.
@@ -419,7 +422,7 @@ var helpLines = []string{
 	"  h/l/k/j \u8c03\u6574 \u00b12   H/L/K/J \u00b16   s \u9501\u5c3a\u5bf8   space \u5207\u5206\u65b9\u5411",
 	"  0/$ \u5de6\u53f3\u5bf9\u9f50   ^/B \u4e0a\u4e0b\u5bf9\u9f50   m \u5c45\u4e2d   |/_ \u5355\u8f74\u5c45\u4e2d",
 	"  A/S/W/D \u6216 shift+\u65b9\u5411 \u5e73\u79fb   M \u5185\u5bb9\u6a21\u5f0f   r \u91cd\u7f6e   = \u5e73\u8861",
-	"  \u5185\u5bb9\u533a\u59cb\u7ec8\u5168\u5e45\uff0cPTY \u5c3a\u5bf8\u4e0d\u53d8\uff1b\u5e03\u5c40\u968f pane \u4fdd\u5b58",
+	"  \u5185\u5bb9\u533a\u5168\u5e45\uff0cPTY \u5c3a\u5bf8\u4e0d\u53d8\uff1b\u975e\u9ed8\u8ba4\u5e03\u5c40\u65f6\u6807\u9898\u524d\u51fa\u73b0 \u25c7",
 	"TAB / WORKSPACE",
 	"  c create  n/p next/prev  1-9 jump  x close",
 	"COPY",

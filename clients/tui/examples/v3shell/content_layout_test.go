@@ -473,3 +473,31 @@ func TestHelpOverlayListsResizeAndCopyKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestContentLayoutMarksAdjustedPaneTitle pins the legacy
+// paneChromeTerminalTitlePrefix cue: a non-default view-local content layout
+// prefixes the pane title with "◇ ", so a panned/centered/fitted terminal is
+// visible even when the content shift itself is subtle (e.g. on a full-bleed
+// owner where align/center are no-ops).
+func TestContentLayoutMarksAdjustedPaneTitle(t *testing.T) {
+	m, left, _, _ := twoPaneSourceModel(t, 40, 12, 10, 4, false)
+	base := m.paneRunsRect(left, true, 30, 8)
+	if titleHasLayoutMark(base) {
+		t.Fatalf("default layout must not mark the title: %+v", base)
+	}
+	m.mode = modeResize
+	runCmd(t, m, key(m, "A")) // pan-left -> non-default
+	marked := m.paneRunsRect(left, true, 30, 8)
+	if !titleHasLayoutMark(marked) {
+		t.Fatalf("non-default layout must prefix the title with ◇: %+v", marked)
+	}
+}
+
+func titleHasLayoutMark(runs []paneRun) bool {
+	for _, run := range runs {
+		if strings.Contains(run.text, glyphLayoutAdjusted) {
+			return true
+		}
+	}
+	return false
+}

@@ -1619,6 +1619,12 @@ func (m *model) paneRunsRect(p *pane, active bool, width, height int) []paneRun 
 	}
 	lockNode := "pane:" + p.id + ":lock"
 	title := m.paneTitle(p)
+	// Legacy paneChromeTerminalTitlePrefix: a non-default view-local content
+	// layout marks the pane title with a "◇ " prefix, so a panned/centered/
+	// fitted terminal is visible even when the shift is subtle.
+	if !p.layout.isDefault() {
+		title = glyphLayoutAdjusted + " " + title
+	}
 	minTitle := 0
 	if title != "" {
 		minTitle = 3
