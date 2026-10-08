@@ -401,7 +401,12 @@ var promptCommands = []string{
 	"close tab", "help", "quit",
 }
 
-// helpLines is the help overlay body (v3ui.py HELP_LINES).
+// helpLines is the help overlay body (v3ui.py HELP_LINES, extended with the
+// RESIZE and COPY scenes the replica implements). The footer hint bar stays a
+// curated subset pinned to the Python reference golden; the `?` overlay is the
+// canonical full shortcut list, so every key that has no footer slot is listed
+// here, matching the legacy buildHelpContent rule that enumerates all
+// configured bindings per scene.
 var helpLines = []string{
 	"全局 (global)",
 	"  Ctrl-P PANE   Ctrl-R RESIZE   Ctrl-O FLOAT",
@@ -410,8 +415,17 @@ var helpLines = []string{
 	"PANE",
 	"  x close  % / Ctrl-D vsplit  \" / Ctrl-E hsplit",
 	"  h/l focus  t restart  k kill  q kill+close  z collapse",
+	"RESIZE",
+	"  h/l/k/j \u8c03\u6574 \u00b12   H/L/K/J \u00b16   s \u9501\u5c3a\u5bf8   space \u5207\u5206\u65b9\u5411",
+	"  0/$ \u5de6\u53f3\u5bf9\u9f50   ^/B \u4e0a\u4e0b\u5bf9\u9f50   m \u5c45\u4e2d   |/_ \u5355\u8f74\u5c45\u4e2d",
+	"  A/S/W/D \u6216 shift+\u65b9\u5411 \u5e73\u79fb   M \u5185\u5bb9\u6a21\u5f0f   r \u91cd\u7f6e   = \u5e73\u8861",
+	"  \u5185\u5bb9\u533a\u59cb\u7ec8\u5168\u5e45\uff0cPTY \u5c3a\u5bf8\u4e0d\u53d8\uff1b\u5e03\u5c40\u968f pane \u4fdd\u5b58",
 	"TAB / WORKSPACE",
 	"  c create  n/p next/prev  1-9 jump  x close",
+	"COPY",
+	"  j/k \u79fb\u52a8  space \u6807\u8bb0  y \u590d\u5236  enter \u590d\u5236\u5e76\u9000\u51fa",
+	"  / \u641c\u7d22  n/N \u4e0a\u4e0b\u5339\u914d  PgUp/PgDn \u7ffb\u9875  g \u6700\u8001  G \u56de\u5230live",
+	"  \u62d6\u62fd\u9009\u5230\u4e0a\u4e0b\u8fb9\u7f18\u81ea\u52a8\u7ffb\u9875\u5e76\u5ef6\u4f38\u9009\u533a",
 	"SYSTEM",
 	"  q quit  o command  ? help",
 	"esc back \u00b7 Ctrl-Q quit",

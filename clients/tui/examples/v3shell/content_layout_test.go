@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/anytty/anytty/clients/tui/sdk"
 )
 
 // TestContentLayoutExtentFormula pins the ported legacy geometry
@@ -444,5 +446,30 @@ func TestWorkbenchPersistsContentLayout(t *testing.T) {
 	}
 	if got := legacyFresh.activeTab().panes[0].layout; !got.isDefault() {
 		t.Fatalf("legacy pane layout = %+v, want default", got)
+	}
+}
+
+// TestHelpOverlayListsResizeAndCopyKeys pins the discoverability rule: every
+// shortcut that has no footer hint slot must appear in the `?` help overlay,
+// which is the canonical full list (the legacy buildHelpContent enumerated all
+// configured bindings per scene). The footer hint bar stays pinned to the
+// Python reference golden, so the resize/copy detail lives here.
+func TestHelpOverlayListsResizeAndCopyKeys(t *testing.T) {
+	joined := strings.Join(helpLines, "\n")
+	for _, want := range []string{
+		"RESIZE", "COPY",
+		"0/$", "^/B", "A/S/W/D", "shift", "M", "space",
+		"j/k", "PgUp/PgDn",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("help overlay must mention %q:\n%s", want, joined)
+		}
+	}
+	// Every help line must fit the 62-wide overlay (60 content cells) so the
+	// last key column is never truncated away.
+	for _, line := range helpLines {
+		if w := sdk.DisplayWidth(line); w > 60 {
+			t.Fatalf("help line %q is %d cells wide (>60)", line, w)
+		}
 	}
 }

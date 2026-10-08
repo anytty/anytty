@@ -57,6 +57,8 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 
 ## 2. 操作（老 v3 recommended 场景表）
 
+> 底部快捷键栏是**精选子集**（与 Python 参考 golden 逐字节一致）；每个 scene 的**完整键位**在 `?` help overlay 里（老版 `buildHelpContent` 也是枚举全部 binding，含 footer 里 `show:false` 的 `resize.pan_*`/`align_*`/`center*` 与 `copy.*`）。`?` 在 PANE/SYSTEM/RESIZE 场景打开 help（LIVE 场景下 `?` 按老版行为进 PTY）。
+
 全局（live，聚焦终端时只有这些键被程序接管，其余键进 PTY）：
 
 | 键 | 动作 |

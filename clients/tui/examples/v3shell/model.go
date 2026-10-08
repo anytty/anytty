@@ -2397,6 +2397,14 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 		m.mode = modeLive
 	case "ctrl-g":
 		m.mode = modeSystem
+	case "?":
+		// Discoverability affordance: the resize scene owns most of the new
+		// keys (align/center/pan), but the full list lives in the `?` help
+		// overlay (the footer hint bar is a curated subset pinned to the
+		// reference). The legacy bound `?` only in the system scene; opening it
+		// straight from resize keeps the just-pressed keys discoverable.
+		m.mode = modeLive
+		m.overlay = overlayHelp
 	case ":":
 		m.mode = modeLive
 		m.openPrompt()
