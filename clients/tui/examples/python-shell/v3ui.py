@@ -270,14 +270,16 @@ SCENES = {
         ("Q \U000f0688 KILL+CLOSE", "fs:pane:kill-close", "panel.kill_and_close", "q"),
     ]),
     "resize": (MODE_ICONS["resize"], "SIZE", [
-        ("H \u2190 LEFT", "fs:resize:left", "resize.left", "h"),
-        ("L \u2192 RIGHT", "fs:resize:right", "resize.right", "l"),
-        ("K \u2191 UP", "fs:resize:up", "resize.up", "k"),
-        ("J \u2193 DOWN", "fs:resize:down", "resize.down", "j"),
+        # H/L/K/J are grouped into one token (like the old TUI compaction) so
+        # the content-layout keys below stay visible at 120 columns.
+        ("H/L/K/J SIZE", "fs:resize:left", "resize.left", "h"),
         ("S \U000f033e LOCK", "fs:resize:lock", "panel.size_lock", "s"),
         ("SPACE \U000f0636 LAYOUT", "fs:resize:layout", "resize.layout_toggle", "space"),
         ("R \U000f0410 RESET", "fs:resize:reset", "resize.layout_reset", "r"),
         ("= \U000f0555 BALANCE", "fs:resize:balance", "panel.balance", "="),
+        ("0/$/^/B ALIGN", "fs:resize:align", "resize.align_left", "0"),
+        ("m/|/_ CENTER", "fs:resize:center", "resize.center", "m"),
+        ("A/S/W/D PAN", "fs:resize:pan", "resize.pan_left", "A"),
     ]),
     "tab": (MODE_ICONS["tab"], "TAB", [
         ("N \U000f04ad NEXT", "fs:tab:next", "tab.next", "n"),

@@ -3,6 +3,6 @@ LIVE| 󰌌 CTRL  ·  P  PANE ·  R 󰙖 SIZE ·  O 󰹙 FLOAT ·  T 󰓩 TAB 
 PANE|  PANE  ·  X 󰅖 CLOSE ·  CTRL+D  VSPLIT ·  CTRL+E  HSPLIT ·  H/L 󰜴 FOCUS ·  Q 󰚈 KILL+CLOSE            󰙅 main 󰹙 0  11 |
 PICKER| 󰱼 PICK  ·  ←/→ ENDPOINT ·  ↑/↓ SELECT ·  ENTER 󰋺 ATTACH ·  ESC BACK                                    󰙅 main 󰹙 0  11 |
 PROMPT| 󰘧  ·  ENTER 󰘧 RUN                                                                                      󰙅 main 󰹙 0  11 |
-RESIZE| 󰙖 SIZE  ·  H ← LEFT ·  L → RIGHT ·  K ↑ UP ·  J ↓ DOWN ·  S 󰌾 LOCK ·  SPACE 󰘶 LAYOUT ·  R 󰐐 RESET ·  = 󰕕 BALANCE    󰹙 0|
+RESIZE| 󰙖 SIZE  ·  H/L/K/J SIZE ·  S 󰌾 LOCK ·  SPACE 󰘶 LAYOUT ·  R 󰐐 RESET ·  = 󰕕 BALANCE ·  0/$/^/B ALIGN ·  m/|/_ CENTER ·   |
 SYSTEM| 󰒓 SYSTEM  ·  P  TERMINALS ·  E 󰌷 CONNECTIONS ·  W 󰙅 TREE ·  O  COMMAND                               󰙅 main 󰹙 0  11 |
 TAB| 󰓩 TAB  ·  N 󰒭 NEXT ·  P 󰒮 PREV                                                                         󰙅 main 󰹙 0  11 |
