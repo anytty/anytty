@@ -1982,3 +1982,251 @@ func TestAttachCountPerPane(t *testing.T) {
 		t.Fatalf("two tab panes + one floating, daemon 2 = %d, want 4", got)
 	}
 }
+
+// TestFooterNodeClickRoutesToKeyHandler pins HIGH 1: every atomic footer hit
+// node must reach the same handler as its advertised key, not be a no-op. A
+// representative subset covers each scene family (mode chord, pane, resize,
+// tab, workspace, system, floating, copy).
+func TestFooterNodeClickRoutesToKeyHandler(t *testing.T) {
+	t.Run("mode chords", func(t *testing.T) {
+		for _, tc := range []struct {
+			node string
+			mode string
+		}{
+			{"f:ctrl-p", modePane},
+			{"f:ctrl-r", modeResize},
+			{"f:ctrl-t", modeTab},
+			{"f:ctrl-w", modeWorkspace},
+			{"f:ctrl-g", modeSystem},
+		} {
+			m := demoModel(120, 32)
+			runCmd(t, m, press(m, tc.node))
+			if m.mode != tc.mode {
+				t.Fatalf("%s: mode=%q want %q", tc.node, m.mode, tc.mode)
+			}
+		}
+		m := demoModel(120, 32)
+		runCmd(t, m, press(m, "f:ctrl-f"))
+		if m.overlay != overlayPicker {
+			t.Fatalf("f:ctrl-f must open the picker, overlay=%q", m.overlay)
+		}
+		m2 := demoModel(120, 32)
+		runCmd(t, m2, press(m2, "f:ctrl-o"))
+		if m2.mode != modeFloating || m2.activeFloat != "" {
+			t.Fatalf("f:ctrl-o must enter floating (no windows): mode=%q active=%q", m2.mode, m2.activeFloat)
+		}
+	})
+
+	t.Run("pane", func(t *testing.T) {
+		m := demoModel(120, 32)
+		m.mode = modePane
+		tab := m.activeTab()
+		before := len(tab.panes)
+		runCmd(t, m, press(m, "fs:pane:split-h"))
+		if len(tab.panes) != before+1 {
+			t.Fatalf("fs:pane:split-h must split like %%: panes %d -> %d", before, len(tab.panes))
+		}
+		// Close the focused pane (the freshly split one) via the footer node.
+		m.mode = modePane
+		runCmd(t, m, press(m, "fs:pane:close"))
+		if len(tab.panes) != before {
+			t.Fatalf("fs:pane:close must close like x: panes %d -> %d", before, len(tab.panes))
+		}
+		if m.mode != modeLive {
+			t.Fatalf("fs:pane:close must leave the scene: mode=%q", m.mode)
+		}
+	})
+
+	t.Run("resize", func(t *testing.T) {
+		m := demoModel(120, 32)
+		tab := m.activeTab()
+		m.closePane(tab, tab.panes[1])
+		runCmd(t, m, m.splitPane("row"))
+		sp := m.splitEntries(tab)[0].node
+		before := sp.splitFirstExtent(sp.rect.w)
+		m.mode = modeResize
+		runCmd(t, m, press(m, "fs:resize:left"))
+		if got := sp.splitFirstExtent(sp.rect.w); got != before+2 {
+			t.Fatalf("fs:resize:left must resize like h: %d -> %d", before, got)
+		}
+		// Lock and layout are atomic toggles.
+		runCmd(t, m, press(m, "fs:resize:lock"))
+		if !m.focusPane().locked {
+			t.Fatalf("fs:resize:lock must toggle p.locked")
+		}
+		orient := sp.orient
+		runCmd(t, m, press(m, "fs:resize:layout"))
+		if sp.orient == orient {
+			t.Fatalf("fs:resize:layout must toggle the split orientation")
+		}
+	})
+
+	t.Run("tab and workspace", func(t *testing.T) {
+		m := demoModel(120, 32)
+		m.mode = modeTab
+		runCmd(t, m, press(m, "fs:tab:next"))
+		if m.ws().active != 1 {
+			t.Fatalf("fs:tab:next: active=%d want 1", m.ws().active)
+		}
+		runCmd(t, m, press(m, "fs:tab:prev"))
+		if m.ws().active != 0 {
+			t.Fatalf("fs:tab:prev: active=%d want 0", m.ws().active)
+		}
+		m.mode = modeWorkspace
+		runCmd(t, m, press(m, "fs:ws:tree"))
+		if m.overlay != overlayWorkbenchTree {
+			t.Fatalf("fs:ws:tree must open the workbench tree, overlay=%q", m.overlay)
+		}
+	})
+
+	t.Run("system and floating", func(t *testing.T) {
+		m := demoModel(120, 32)
+		m.mode = modeSystem
+		runCmd(t, m, press(m, "fs:sys:prompt"))
+		if m.overlay != overlayPrompt {
+			t.Fatalf("fs:sys:prompt must open the prompt, overlay=%q", m.overlay)
+		}
+		m2 := demoModel(120, 32)
+		m2.mode = modeFloating
+		runCmd(t, m2, press(m2, "fs:float:new"))
+		if len(m2.floatings) != 1 {
+			t.Fatalf("fs:float:new must create a floating, got %d", len(m2.floatings))
+		}
+		f := m2.floatings[0]
+		runCmd(t, m2, press(m2, "fs:float:collapse"))
+		if !f.collapsed {
+			t.Fatalf("fs:float:collapse must collapse the active floating")
+		}
+		runCmd(t, m2, press(m2, "fs:float:close"))
+		if len(m2.floatings) != 0 {
+			t.Fatalf("fs:float:close must close the active floating")
+		}
+	})
+}
+
+// TestFooterMergedGroupsAreHints pins the HIGH 1 decision: merged resize group
+// tokens (ALIGN/CENTER/PAN) cannot be represented by one click, so they render
+// as non-clickable hints while atomic tokens stay clickable.
+func TestFooterMergedGroupsAreHints(t *testing.T) {
+	for _, node := range []string{"fs:resize:align", "fs:resize:center", "fs:resize:pan"} {
+		if !footerHintOnly(node) {
+			t.Fatalf("%s must be a hint-only footer token", node)
+		}
+	}
+	for _, node := range []string{"fs:resize:left", "fs:resize:lock", "f:ctrl-p", "fs:pane:close"} {
+		if footerHintOnly(node) {
+			t.Fatalf("%s must stay clickable", node)
+		}
+	}
+}
+
+// TestPickerRowClickSelectsThenActivates pins HIGH 2: the first click selects a
+// picker row, a second click on the already-selected row activates it exactly
+// like Enter.
+func TestPickerRowClickSelectsThenActivates(t *testing.T) {
+	m, fake := boundModel(t)
+	m.sources = append(m.sources, &pb.Source{
+		Id: "terminal:local:term-9", Kind: "terminal", Title: "term-9",
+		Endpoint: "local", TerminalId: "term-9", Attached: false,
+	})
+	m.openPicker()
+	// rows: + New terminal, term-1, term-9 (sorted).
+	fake.calls = nil
+	runCmd(t, m, press(m, "picker:1"))
+	if m.picker != 1 {
+		t.Fatalf("first click must select row 1, picker=%d", m.picker)
+	}
+	if len(fake.calls) != 0 {
+		t.Fatalf("first click must not activate: calls=%+v", fake.calls)
+	}
+	runCmd(t, m, press(m, "picker:1"))
+	if m.picker != 1 {
+		t.Fatalf("second click kept selection, picker=%d", m.picker)
+	}
+	if fake.last().method != "terminal.attach" || fake.last().params.GetId() != "term-1" {
+		t.Fatalf("second click must attach like Enter: %+v", fake.calls)
+	}
+	// The + New terminal row opens the create form on activation.
+	m.overlay = overlayPicker
+	m.picker = 1
+	runCmd(t, m, press(m, "picker:0"))
+	if m.picker != 0 {
+		t.Fatalf("clicking the create row must select it, picker=%d", m.picker)
+	}
+	runCmd(t, m, press(m, "picker:0"))
+	if m.overlay != overlayPrompt || m.promptKind != "terminal.create" {
+		t.Fatalf("create-row activation must open terminal.create: %q/%q", m.overlay, m.promptKind)
+	}
+}
+
+// TestFloatingOwnerKeyWithoutActiveFloating pins HIGH 3: dispatching `a` in the
+// floating scene with no active floating must not panic (it used to dereference
+// a nil f); it takes ownership of the focused pane instead.
+func TestFloatingOwnerKeyWithoutActiveFloating(t *testing.T) {
+	m := demoModel(120, 32)
+	m.mode = modeFloating
+	m.activeFloat = ""
+	if len(m.floatings) != 0 {
+		t.Fatalf("precondition: expected no floatings")
+	}
+	// Must not panic.
+	runCmd(t, m, key(m, "a"))
+	// The demo pane is bound to view:demo, so this is an owner request.
+	if m.focusPane().pending != "owner" {
+		t.Fatalf("a with no active floating must take ownership of the focused pane, pending=%q", m.focusPane().pending)
+	}
+}
+
+// TestWorkbenchTreeOverlayNavigateAndJump pins HIGH 6: the TREE tokens open a
+// real read-only navigator, ↑/↓ moves the selection and Enter jumps to the
+// selected workspace+tab.
+func TestWorkbenchTreeOverlayNavigateAndJump(t *testing.T) {
+	m := demoModel(120, 32)
+	m.mode = modeWorkspace
+	runCmd(t, m, key(m, "t"))
+	if m.overlay != overlayWorkbenchTree {
+		t.Fatalf("workspace t must open the workbench tree, overlay=%q", m.overlay)
+	}
+	// Demo rows: main/auto-push (0), main/local (1); selection starts on the
+	// active tab 0.
+	if m.treeSel != 0 {
+		t.Fatalf("initial tree selection=%d want 0", m.treeSel)
+	}
+	runCmd(t, m, m.onKey("down", ""))
+	if m.treeSel != 1 {
+		t.Fatalf("down must move the tree selection, sel=%d", m.treeSel)
+	}
+	runCmd(t, m, m.onKey("enter", ""))
+	if m.ws().active != 1 {
+		t.Fatalf("enter must jump to the selected tab, active=%d want 1", m.ws().active)
+	}
+	if m.overlay != "" {
+		t.Fatalf("jump must close the overlay, overlay=%q", m.overlay)
+	}
+}
+
+// TestClipboardSceneOwnFooter pins MED 5: the clipboard history overlay is its
+// own scene, not the copy scene with its PGUP/PGDN/Y/G keys.
+func TestClipboardSceneOwnFooter(t *testing.T) {
+	m := demoModel(120, 32)
+	m.overlay = overlayClipboard
+	if got := m.scene(); got != "clipboard" {
+		t.Fatalf("clipboard overlay scene=%q want clipboard", got)
+	}
+	spec, ok := scenes["clipboard"]
+	if !ok {
+		t.Fatalf("missing clipboard scene entry")
+	}
+	labels := ""
+	for _, action := range spec.actions {
+		labels += action.label + "|"
+	}
+	for _, want := range []string{"SELECT", "PASTE", "ESC BACK"} {
+		if !strings.Contains(labels, want) {
+			t.Fatalf("clipboard footer missing %q: %s", want, labels)
+		}
+	}
+	if strings.Contains(labels, "OLDER") || strings.Contains(labels, "PGDN") {
+		t.Fatalf("clipboard footer must not advertise copy keys: %s", labels)
+	}
+}

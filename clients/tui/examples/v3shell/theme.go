@@ -251,11 +251,15 @@ var scenes = map[string]sceneSpec{
 	"workspace": {wsIcon, "WORKSPACE", []footerAction{
 		{"N \U000f04ad NEXT", "fs:ws:next", "workspace.next", "n"},
 		{"P \U000f04ae PREV", "fs:ws:prev", "workspace.previous", "p"},
+		// T opens the read-only workbench tree overlay (legacy
+		// system.open_workbench_tree), so the TREE label is honest; the node
+		// and action id keep that identity for click routing.
 		{"T " + wsIcon + " TREE", "fs:ws:tree", "system.open_workbench_tree", "t"},
 	}},
 	"system": {modeIconSystem, "SYSTEM", []footerAction{
 		{"P " + glyphTerm + " TERMINALS", "fs:sys:terminals", "system.open_terminal_pool", "p"},
 		{"E \U000f0337 CONNECTIONS", "fs:sys:connections", "system.open_connections", "e"},
+		// W opens the same read-only workbench tree overlay.
 		{"W " + wsIcon + " TREE", "fs:sys:tree", "system.open_workbench_tree", "w"},
 		{"O \uF4B5 COMMAND", "fs:sys:prompt", "system.open_prompt", "o"},
 	}},
@@ -293,6 +297,21 @@ var scenes = map[string]sceneSpec{
 		{"PGDN \U000f0045 NEWER", "fs:copy:newer", "copy.request_newer", "PgDn"},
 		{"Y \U000f018f COPY", "fs:copy:copy", "copy.copy_selection", "y"},
 		{"G \U000f005e OLDEST", "fs:copy:oldest", "copy.oldest", "g"},
+	}},
+	// clipboard is the Ctrl-Shift-H history overlay. It is a dedicated scene
+	// (not "copy"): the handler only supports esc/up/down/enter, so the footer
+	// must not advertise the copy scene's PGUP/PGDN/Y/G keys.
+	"clipboard": {modeIconCopy, "CLIPBOARD", []footerAction{
+		{"\u2191/\u2193 SELECT", "", "clipboard_history.select_previous", "\u2191"},
+		{"ENTER \U000f018f PASTE", "", "clipboard_history.paste", "enter"},
+		{"ESC BACK", "", "shortcut.exit", "Esc"},
+	}},
+	// workbench-tree is the read-only workbench navigator (legacy
+	// system.open_workbench_tree): workspaces with their tabs, Enter jumps.
+	"workbench-tree": {wsIcon, "TREE", []footerAction{
+		{"\u2191/\u2193 SELECT", "", "workbench_tree.select_previous", "\u2191"},
+		{"ENTER \U000f0734 JUMP", "", "workbench_tree.open", "enter"},
+		{"ESC BACK", "", "shortcut.exit", "Esc"},
 	}},
 }
 
@@ -356,6 +375,7 @@ var footerStyleTokens = map[string]string{
 var modeStyles = map[string]string{
 	"live":                      "footer-accent",
 	"copy":                      "footer-key-copy",
+	"clipboard":                 "footer-key-copy",
 	"pane":                      "footer-key-pane",
 	"resize":                    "footer-key-resize",
 	"terminal-picker":           "footer-key-picker",
@@ -428,6 +448,7 @@ var helpLines = []string{
 	"  h/l/k/j \u8c03\u6574 \u00b12   H/L/K/J \u00b16   s \u9501\u5c3a\u5bf8   space \u5207\u5206\u65b9\u5411",
 	"  0/$ \u5de6\u53f3\u5bf9\u9f50   ^/B \u4e0a\u4e0b\u5bf9\u9f50   m \u5c45\u4e2d   |/_ \u5355\u8f74\u5c45\u4e2d",
 	"  A/S/W/D \u6216 shift+\u65b9\u5411 \u5e73\u79fb   M \u5185\u5bb9\u6a21\u5f0f   r \u91cd\u7f6e   = \u5e73\u8861",
+	"  \u6ce8\uff1aCtrl+\u65b9\u5411/Alt+\u5b57\u6bcd \u88ab\u8fd0\u884c\u65f6\u5f52\u4e00\uff0cpan \u4ec5\u7ed1 A/S/W/D",
 	"  \u5185\u5bb9\u533a\u5168\u5e45\uff0cPTY \u5c3a\u5bf8\u4e0d\u53d8\uff1b\u975e\u9ed8\u8ba4\u5e03\u5c40\u65f6\u6807\u9898\u524d\u51fa\u73b0 \u25c7",
 	"TAB / WORKSPACE",
 	"  c create  n/p next/prev  1-9 jump  x close",

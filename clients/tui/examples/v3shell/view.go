@@ -1273,6 +1273,42 @@ func (m *model) overlayRows() []overlayRow {
 			})
 		}
 		return rows
+	case overlayWorkbenchTree:
+		// Legacy system.open_workbench_tree navigator: every workspace with
+		// its tabs. Header rows are muted; tab rows are selectable and their
+		// node index matches treeRows() (the selection space).
+		var rows []overlayRow
+		selectable := 0
+		for si, ws := range m.spaces {
+			style := stMuted
+			if si == m.space {
+				style = stAccent
+			}
+			rows = append(rows, overlayRow{runs: []overlayRun{
+				run(" "+wsIcon+" "+ws.name, style),
+			}})
+			for _, tab := range ws.tabs {
+				marker := "    "
+				markerStyle := stMuted
+				if selectable == m.treeSel {
+					marker = "  \u25b8 "
+					markerStyle = stAccent
+				}
+				rows = append(rows, overlayRow{
+					runs: []overlayRun{
+						run(marker, markerStyle),
+						run("\u2022 "+tab.title, stOverlay),
+					},
+					selectable: true,
+					node:       "tree:" + strconv.Itoa(selectable),
+				})
+				selectable++
+			}
+		}
+		if len(rows) == 0 {
+			return []overlayRow{textRow("no workspaces", stMuted)}
+		}
+		return rows
 	case overlayConnections:
 		// Legacy system.open_connections table: one row per registered
 		// endpoint showing its label/name, kind and health.
@@ -1455,6 +1491,8 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 		title, width, minHeight = "Clipboard", 60, 8
 	case overlayConnections:
 		title, width, minHeight = "Connections", 64, 8
+	case overlayWorkbenchTree:
+		title, width, minHeight = "Workbench", 56, 6
 	default:
 		return
 	}
@@ -1500,6 +1538,8 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 				selected = selectable == m.clipSel
 			case overlayConnections:
 				selected = selectable == m.connSel
+			case overlayWorkbenchTree:
+				selected = selectable == m.treeSel
 			}
 			selectable++
 		}
@@ -1594,6 +1634,18 @@ func (m *model) toastNodes(out *[]*sdk.Builder) {
 	addRun(out, x, y, sdk.Truncate(text, width), stToast, "toast", true, width)
 }
 
+// footerHintOnly reports whether a footer node is a merged group token whose
+// individual keys cannot be represented by a single click. The legacy
+// compactFooterActionGroup marked such groups ClickHintOnly, so they render as
+// non-clickable hints.
+func footerHintOnly(node string) bool {
+	switch node {
+	case "fs:resize:align", "fs:resize:center", "fs:resize:pan":
+		return true
+	}
+	return false
+}
+
 func (m *model) footerNodes(out *[]*sdk.Builder) {
 	y := m.rows - 1
 	runs, right := m.footerRuns()
@@ -1614,7 +1666,12 @@ func (m *model) footerNodes(out *[]*sdk.Builder) {
 		if width <= 0 {
 			continue
 		}
-		addRun(out, x, y, run.text, run.style, run.node, run.node != "", width)
+		// Merged resize group tokens (ALIGN/CENTER/PAN) each stand for several
+		// keys, so one click cannot represent them: render them as
+		// non-clickable hints (the legacy marked merged groups ClickHintOnly).
+		// Every atomic footer token stays clickable.
+		clickable := run.node != "" && !footerHintOnly(run.node)
+		addRun(out, x, y, run.text, run.style, run.node, clickable, width)
 		x += width
 	}
 	if pad > 0 {

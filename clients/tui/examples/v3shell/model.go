@@ -925,11 +925,12 @@ const (
 	modeSystem    = "system"
 	modeFloating  = "floating"
 
-	overlayPicker      = "picker"
-	overlayPrompt      = "prompt"
-	overlayHelp        = "help"
-	overlayClipboard   = "clipboard"
-	overlayConnections = "connections"
+	overlayPicker        = "picker"
+	overlayPrompt        = "prompt"
+	overlayHelp          = "help"
+	overlayClipboard     = "clipboard"
+	overlayConnections   = "connections"
+	overlayWorkbenchTree = "workbench-tree"
 )
 
 // connectionRow is one parsed endpoint.list row: the registered endpoint name
@@ -1026,6 +1027,10 @@ type model struct {
 	// row. connSel indexes into connections while the overlay is open.
 	connections []connectionRow
 	connSel     int
+
+	// treeSel is the selected row of the workbench-tree overlay (a flattened
+	// workspace -> tab list). Clicking/Enter jumps to that workspace+tab.
+	treeSel int
 
 	// workbench persistence via access.call storage (README §4). workbenchDirty
 	// is set by every structural mutation and coalesced into one save by
@@ -1202,13 +1207,16 @@ func (m *model) tabOfPane(p *pane) (int, *tab) {
 // --------------------------------------------------------------- pane chrome
 
 func (m *model) paneSource(p *pane) *pb.Source {
-	if p.sourceID == "" {
+	if p == nil || p.sourceID == "" {
 		return nil
 	}
 	return m.sourceByID(p.sourceID)
 }
 
 func (m *model) paneTitle(p *pane) string {
+	if p == nil {
+		return ""
+	}
 	src := m.paneSource(p)
 	if src == nil {
 		if p.title != "" {
@@ -1775,9 +1783,13 @@ func (m *model) scene() string {
 	case overlayPrompt:
 		return "prompt"
 	case overlayClipboard:
-		return "copy"
+		// Dedicated scene: the history overlay only binds ↑/↓/enter/esc, so it
+		// must not show the copy scene's PGUP/PGDN/Y/G footer.
+		return "clipboard"
 	case overlayConnections:
 		return "connections"
+	case overlayWorkbenchTree:
+		return "workbench-tree"
 	}
 	switch m.mode {
 	case modePane, modeResize, modeTab, modeWorkspace, modeSystem, modeFloating:
@@ -2495,17 +2507,13 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 		m.applyContentLayoutAction("pan-up")
 	case "shift-down":
 		m.applyContentLayoutAction("pan-down")
-	case "ctrl-left", "alt-h":
-		// The recommended yaml also binds the pan group to Ctrl+arrows and
-		// Alt+H/J/K/L; defaults.go does not, so they are kept as extra aliases.
-		m.applyContentLayoutAction("pan-left")
-	case "ctrl-right", "alt-l":
-		m.applyContentLayoutAction("pan-right")
-	case "ctrl-up", "alt-k":
-		m.applyContentLayoutAction("pan-up")
-	case "ctrl-down", "alt-j":
-		m.applyContentLayoutAction("pan-down")
 	}
+	// NOTE: the recommended yaml also names Ctrl+arrows and Alt+H/J/K/L as pan
+	// aliases, but runtime/keys.Name folds those modifiers: Ctrl+arrow becomes
+	// "left/right/up/down" and Alt+letter becomes the bare letter "h/j/k/l",
+	// indistinguishably from the plain split-resize keys already handled above.
+	// Dead "ctrl-*"/"alt-h/j/k/l" cases were therefore removed so the footer and
+	// `?` help never imply more pan bindings than A/S/W/D and shift+arrows.
 	return nil
 }
 
@@ -2623,8 +2631,10 @@ func (m *model) handleWorkspaceKey(key string) app.Cmd {
 	case "r":
 		m.openRename("workspace", m.ws().name, m.ws().name)
 	case "t", "f", "s":
+		// Legacy system.open_workbench_tree: the read-only navigator over
+		// workspaces and their tabs (previously a bare toast).
 		m.mode = modeLive
-		m.toast = "workbench tree: use the connections overlay (Ctrl-G e)"
+		m.openWorkbenchTree()
 	}
 	return nil
 }
@@ -2657,7 +2667,7 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 		m.openPicker()
 	case "w":
 		m.mode = modeLive
-		m.toast = "workbench tree: host storage owns workspaces"
+		m.openWorkbenchTree()
 	case "e":
 		m.mode = modeLive
 		// Legacy system.open_connections: list endpoints in an overlay so they
@@ -2719,7 +2729,16 @@ func (m *model) handleFloatingKey(key string) app.Cmd {
 	case "f":
 		m.openPicker()
 	case "a":
-		return m.takeOwner(f.pane)
+		// Legacy panel.take_owner. There may be no active floating (the mode
+		// is reachable with zero windows), so never dereference a nil f: take
+		// ownership of the focused pane instead, matching the sibling guards.
+		if f != nil {
+			return m.takeOwner(f.pane)
+		}
+		if p := m.focusContentPane(); p != nil {
+			return m.takeOwner(p)
+		}
+		m.toast = "resize owner: no focused terminal"
 	case "h", "left":
 		if f != nil {
 			f.x = maxInt(0, f.x-2)
@@ -2931,6 +2950,20 @@ func (m *model) handleOverlayKey(key, char string) app.Cmd {
 		case "r":
 			// Legacy reconnect action.
 			return m.connReconnect()
+		}
+	case overlayWorkbenchTree:
+		rows := m.treeRows()
+		switch key {
+		case "esc":
+			m.overlay = ""
+		case "up":
+			m.treeSel = clampInt(m.treeSel-1, 0, maxInt(0, len(rows)-1))
+		case "down":
+			m.treeSel = clampInt(m.treeSel+1, 0, maxInt(0, len(rows)-1))
+		case "enter", "t":
+			if m.treeSel >= 0 && m.treeSel < len(rows) {
+				m.selectTreeRow(rows[m.treeSel])
+			}
 		}
 	}
 	return nil
@@ -3220,9 +3253,47 @@ func (m *model) handlePress(node string, x, y int) app.Cmd {
 		}
 		return nil
 	}
+	if strings.HasPrefix(node, "picker:") && m.overlay == overlayPicker {
+		// A picker row hit box (terminal row or the "+ New terminal" row).
+		// The first click selects the row; clicking the already-selected row
+		// activates it exactly like Enter in handlePickerKey (attach the
+		// terminal, or open the create form on the + New terminal row). A
+		// plain click carries no Tab modifier, so it maps to the Enter path
+		// (attach), not the split path.
+		index := atoiNode(node, "picker:")
+		rows := m.pickerRows()
+		if index < 0 || index >= len(rows) {
+			return nil
+		}
+		if m.picker != index {
+			m.picker = index
+			return nil
+		}
+		return m.attach(index, false)
+	}
+	if strings.HasPrefix(node, "tree:") && m.overlay == overlayWorkbenchTree {
+		// First click selects the row, second click jumps (Enter parity).
+		index := atoiNode(node, "tree:")
+		rows := m.treeRows()
+		if index < 0 || index >= len(rows) {
+			return nil
+		}
+		if m.treeSel != index {
+			m.treeSel = index
+			return nil
+		}
+		m.selectTreeRow(rows[index])
+		return nil
+	}
 	if node == "picker-tags" {
 		m.openPickerTags()
 		return nil
+	}
+	if strings.HasPrefix(node, "f:") || strings.HasPrefix(node, "fs:") {
+		// Footer action hit nodes carry the legacy invocation id; route each
+		// to the same handler its keyboard binding uses (the legacy footer
+		// actions were clickable through their Invocation).
+		return m.handleFooterNode(node)
 	}
 	if p := m.paneByID(node); p != nil {
 		for _, f := range m.floatings {
@@ -3259,12 +3330,189 @@ func (m *model) handlePress(node string, x, y int) app.Cmd {
 	case node == "hdr:create":
 		m.newTab()
 	case node == "hdr:workspace":
+		// The workspace name in the header opens the workbench tree, matching
+		// the legacy header click (the old shell opened the workbench
+		// navigator, not Help). Same destination as the footer TREE token.
 		m.mode = modeLive
-		m.overlay = overlayHelp
+		m.openWorkbenchTree()
 	case strings.HasPrefix(node, "pane:") || strings.HasPrefix(node, "float:") || node == "toast":
 		return m.handleChromeClick(node)
 	}
 	return nil
+}
+
+// handleFooterNode routes a footer action hit node ("f:..." mode token or
+// "fs:..." scene action) to the same handler as its keyboard binding. The
+// legacy footer actions were clickable through their Invocation, so each node
+// maps 1:1 to the key the footer advertises. Merged group tokens (resize
+// ALIGN/CENTER/PAN) cannot be represented by one click: their nodes are hints
+// (not clickable), see footerNodes. They are handled here defensively as a
+// single canonical action so a stray hit still does something predictable.
+func (m *model) handleFooterNode(node string) app.Cmd {
+	switch node {
+	// live scene: the global mode chords.
+	case "f:ctrl-p":
+		m.mode = modePane
+	case "f:ctrl-r":
+		m.mode = modeResize
+	case "f:ctrl-o":
+		m.mode = modeFloating
+		m.openFloatMenu()
+	case "f:ctrl-t":
+		m.mode = modeTab
+	case "f:ctrl-w":
+		m.mode = modeWorkspace
+	case "f:ctrl-f":
+		m.openPicker()
+	case "f:ctrl-g":
+		m.mode = modeSystem
+	case "f:ctrl-shift-c":
+		return m.enterCopy()
+	case "f:ctrl-shift-h":
+		return m.openClipboardHistory()
+	case "f:ctrl-shift-v":
+		return m.pasteSystem()
+
+	// pane scene.
+	case "fs:pane:close":
+		p := m.focusPane()
+		_, t := m.tabOfPane(p)
+		m.closePane(t, p)
+		m.mode = modeLive
+	case "fs:pane:split-h":
+		return m.splitPane("row")
+	case "fs:pane:split-v":
+		return m.splitPane("col")
+	case "fs:pane:focus":
+		m.focusPaneDelta(1)
+	case "fs:pane:kill-close":
+		p := m.focusPane()
+		_, t := m.tabOfPane(p)
+		cmd := m.killClosePane(t, p)
+		m.mode = modeLive
+		return cmd
+
+	// resize scene.
+	case "fs:resize:left":
+		m.resizeFocused(-2, false)
+	case "fs:resize:right":
+		m.resizeFocused(2, false)
+	case "fs:resize:up":
+		m.resizeFocused(-2, true)
+	case "fs:resize:down":
+		m.resizeFocused(2, true)
+	case "fs:resize:lock":
+		if p := m.focusPane(); p != nil {
+			p.locked = !p.locked
+		}
+	case "fs:resize:layout":
+		m.toggleLayout(m.activeTab())
+	case "fs:resize:reset":
+		m.resetFocusedContentLayout()
+		m.resetTabSplits(m.activeTab())
+	case "fs:resize:balance":
+		m.resetTabSplits(m.activeTab())
+	// Merged ALIGN/CENTER/PAN groups each advertise several keys; a click
+	// applies the first key of the group (matching the legend/id).
+	case "fs:resize:align":
+		m.applyContentLayoutAction("align-left")
+	case "fs:resize:center":
+		m.applyContentLayoutAction("center")
+	case "fs:resize:pan":
+		m.applyContentLayoutAction("pan-left")
+
+	// tab scene.
+	case "fs:tab:next":
+		m.tabStep(1)
+	case "fs:tab:prev":
+		m.tabStep(-1)
+
+	// workspace scene.
+	case "fs:ws:next":
+		m.spaceStep(1)
+	case "fs:ws:prev":
+		m.spaceStep(-1)
+	case "fs:ws:tree":
+		m.mode = modeLive
+		m.openWorkbenchTree()
+
+	// system scene.
+	case "fs:sys:terminals":
+		m.mode = modeLive
+		m.openPicker()
+	case "fs:sys:connections":
+		m.mode = modeLive
+		return m.openConnections()
+	case "fs:sys:tree":
+		m.mode = modeLive
+		m.openWorkbenchTree()
+	case "fs:sys:prompt":
+		m.mode = modeLive
+		m.openPrompt()
+
+	// floating scene.
+	case "fs:float:new":
+		return m.newFloating()
+	case "fs:float:overview":
+		m.toast = fmt.Sprintf("floating: %d window(s)", len(m.floatings))
+	case "fs:float:pick":
+		m.openPicker()
+	case "fs:float:close":
+		if f := m.activeFloating(); f != nil {
+			m.closeFloating(f)
+		}
+	case "fs:float:collapse":
+		if f := m.activeFloating(); f != nil {
+			m.toggleFloatingCollapse(f)
+		}
+
+	// copy scene.
+	case "fs:copy:older":
+		if p := m.focusContentPane(); p != nil {
+			if st := m.copyFor(p); st != nil {
+				return m.moveCopyCursorRows(p, st, -m.copyPage(st))
+			}
+		}
+	case "fs:copy:newer":
+		if p := m.focusContentPane(); p != nil {
+			if st := m.copyFor(p); st != nil {
+				return m.moveCopyCursorRows(p, st, m.copyPage(st))
+			}
+		}
+	case "fs:copy:copy":
+		if p := m.focusContentPane(); p != nil {
+			if st := m.copyFor(p); st != nil && st.marked {
+				return m.copySelection(p, st, false)
+			}
+			m.toast = "nothing to copy: select text before copying"
+		}
+	case "fs:copy:oldest":
+		if p := m.focusContentPane(); p != nil {
+			if st := m.copyFor(p); st != nil {
+				return m.moveCopyCursorRows(p, st, -1<<20)
+			}
+		}
+	}
+	return nil
+}
+
+// tabStep moves the active tab by delta (the footer NEXT/PREV tokens).
+func (m *model) tabStep(delta int) {
+	ws := m.ws()
+	if len(ws.tabs) == 0 {
+		return
+	}
+	ws.active = (ws.active + delta + len(ws.tabs)) % len(ws.tabs)
+	m.markWorkbenchDirty()
+}
+
+// spaceStep moves the active workspace by delta (the footer NEXT/PREV tokens).
+func (m *model) spaceStep(delta int) {
+	if len(m.spaces) == 0 {
+		return
+	}
+	m.space = (m.space + delta + len(m.spaces)) % len(m.spaces)
+	m.markWorkbenchDirty()
 }
 
 func (m *model) handleChromeClick(node string) app.Cmd {
@@ -4038,6 +4286,54 @@ func (m *model) openConnections() app.Cmd {
 	m.connSel = 0
 	m.connections = nil
 	return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
+}
+
+// treeRow is one selectable workbench-tree entry: one tab of one workspace.
+type treeRow struct {
+	space int
+	tab   int
+}
+
+// openWorkbenchTree opens the read-only workbench navigator (legacy
+// system.open_workbench_tree): every workspace with its tabs, Enter jumps to
+// the selected workspace+tab. The selection starts on the active tab.
+func (m *model) openWorkbenchTree() {
+	m.overlay = overlayWorkbenchTree
+	m.treeSel = 0
+	rows := m.treeRows()
+	for i, row := range rows {
+		if row.space == m.space && row.tab == m.ws().active {
+			m.treeSel = i
+			break
+		}
+	}
+}
+
+// treeRows flattens the selectable tree rows (one per tab). The workspace
+// headers are rendered separately and are not part of the selection.
+func (m *model) treeRows() []treeRow {
+	var rows []treeRow
+	for si, ws := range m.spaces {
+		for ti := range ws.tabs {
+			rows = append(rows, treeRow{space: si, tab: ti})
+		}
+	}
+	return rows
+}
+
+// selectTreeRow jumps to the workspace+tab the tree row points at. Workspace
+// header rows only switch workspace, mirroring the legacy navigator.
+func (m *model) selectTreeRow(row treeRow) {
+	if row.space < 0 || row.space >= len(m.spaces) {
+		return
+	}
+	m.space = row.space
+	if row.tab >= 0 && row.tab < len(m.ws().tabs) {
+		m.ws().active = row.tab
+	}
+	m.overlay = ""
+	m.mode = modeLive
+	m.markWorkbenchDirty()
 }
 
 // connSelected returns the highlighted connection, or nil when the table is

@@ -64,12 +64,12 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | 键 | 动作 |
 |---|---|
 | `Ctrl-P` | PANE 场景（`x`/`w` 关闭、`X` kill、`R`/`t` 重启、`Ctrl-D` 左右分、`Ctrl-E` 上下分、`h/l` 焦点、`z` zoom、`k` kill、`q` kill+close、`s` 锁尺寸、`b` 平衡、`a` 取 owner） |
-| `Ctrl-R` | RESIZE 场景（`h/l/k/j` ±2、`H/L/K/J` ±6（对齐老版 bias 步进）、`space` 切换**切分方向**（见 §4 偏差说明）、`M` 切换内容布局模式 auto→fit→center、`m` 内容居中（双轴）、`r` 重置内容布局+切分、`=`/`b` 平衡、`s` 锁尺寸、`a` 取 owner；`0`/`$` 左/右对齐、`^`/`B` 上/下对齐、`\|`/`x` 水平居中、`_`/`y` 垂直居中、`A`/`S`/`W`/`D` 与 `shift+方向`（以及 `ctrl+方向`/`alt-HJKL` 别名）平移（X ∓2、Y ∓1）。align/center/pan 是 per-view 内容布局：把终端的权威 extent 按老版 `applyContentLayoutToExtent`/`alignedContentOrigin` 公式**在 pane 内容区内平移**（内容区始终全幅、PTY 尺寸不变），extent 外由 terminal 组件用 `·` 占位、四边越界由边框画 `◂ ▸ ▴ ▾`，并弹出 `terminal.layout` 状态 toast；布局随 pane 持久化（见 §4）。**owner 的 pan 同样生效**（只有 align/center 在 extent 等于 pane 时才是 no-op）。 |
+| `Ctrl-R` | RESIZE 场景（`h/l/k/j` ±2、`H/L/K/J` ±6（对齐老版 bias 步进）、`space` 切换**切分方向**（见 §4 偏差说明）、`M` 切换内容布局模式 auto→fit→center、`m` 内容居中（双轴）、`r` 重置内容布局+切分、`=`/`b` 平衡、`s` 锁尺寸、`a` 取 owner；`0`/`$` 左/右对齐、`^`/`B` 上/下对齐、`\|`/`x` 水平居中、`_`/`y` 垂直居中、`A`/`S`/`W`/`D` 与 `shift+方向` 平移（X ∓2、Y ∓1；运行时 `keys.Name` 会把 `Ctrl+方向`/`Alt+字母` 归一成方向/裸字母，与普通方向键/字母无法区分，故不再提供 `ctrl+方向`/`alt-HJKL` 别名）。align/center/pan 是 per-view 内容布局：把终端的权威 extent 按老版 `applyContentLayoutToExtent`/`alignedContentOrigin` 公式**在 pane 内容区内平移**（内容区始终全幅、PTY 尺寸不变），extent 外由 terminal 组件用 `·` 占位、四边越界由边框画 `◂ ▸ ▴ ▾`，并弹出 `terminal.layout` 状态 toast；布局随 pane 持久化（见 §4）。**owner 的 pan 同样生效**（只有 align/center 在 extent 等于 pane 时才是 no-op）。 |
 | `Ctrl-O` | FLOAT 场景（`n` 新建空 panel，panel 内 `↑/↓` 选择 CTA、`enter` 执行；`z`/`m` 折叠只留标题行、`c` 居中、`x` 关闭、`1-9` 召唤、`h/j/k/l` 移动、`,`/`.`/`;`/`/` 与 `H/L/K/J` 缩放、`v` 全部折叠、`=` 最大化、`f` picker、`a` 取 owner） |
 | `Ctrl-T` | TAB 场景（`c` 新建、`n/l/]` 与 `p/h/[` 前后、`1-9` 跳转、`x` 关闭、`X`/`k` kill+关闭、`r` 重命名） |
-| `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名） |
+| `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名、`t` 打开只读 workbench tree：列出各 workspace 及其 tab，`↑/↓` 选择、`Enter` 跳转、`esc` 返回） |
 | `Ctrl-F` | Terminal Picker（`←/→` 切换机器/endpoint 分区、`Shift+←/→` 循环 Running→Exited→All、直接输入搜索（大小写不敏感**子序列**匹配，命中标题/ID/状态/tag/`xN`/尺寸；中文名还支持拼音全拼与首字母，如 `suoping`/`sp` 命中「锁屏」，命中处高亮）、`Ctrl-T` 打开标签复选列表（`↑/↓` 选择、`space` 勾选、`Ctrl-T`/`esc` 返回）、`↑/↓` 选择、`enter` 绑定、`tab` 分屏绑定、`ctrl-k` kill、`ctrl-x` remove、`esc` 返回；首行是 `+ New terminal`；选中后弹出 Create Terminal 表单（name/command/server/workdir/tags），`Tab` 切换字段、`Enter` 提交、`Esc` 取消；overlay 高度上限 24） |
-| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections overlay（`↑/↓` 选择、`t`/`enter` test、`r` reconnect）、`l` shortcut lock、`T`/`c`/`x` 关闭 toast、`?` help、`q` 退出） |
+| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections overlay（`↑/↓` 选择、`t`/`enter` test、`r` reconnect）、`w` 打开只读 workbench tree、`l` shortcut lock、`T`/`c`/`x` 关闭 toast、`?` help、`q` 退出） |
 | `Ctrl-Shift-C` | COPY 场景（选区与搜索，见下） |
 | `Ctrl-Shift-H` | Clipboard overlay |
 | COPY 场景 | `h/l`/`←/→` 移动列，`j/k`/滚轮移动光标（到边缘才滚视图），`PgUp/PgDn` 步长为视口行数-2，`u/d` 半页，`g` 最老，`G` 回 live（再按入口键 `Ctrl-Shift-C` 也可退出；**老版 copy 场景没有 `esc` 绑定**，`esc` 不退出）。`space`/鼠标左键标记，`y` 复制并保留 copy，`enter` 复制并退出；无标记时滚回底部自动退出。`/` 编辑查询（带查询时打开会把光标放到末尾并保留原查询），**搜索栏替换底栏 footer 行**（不是 panel 最下方）：左侧 `⌕ [MODE] query`，右侧状态徽标（`N/M`、`no match`、错误）+ 窄屏隐藏的按键提示，编辑时在查询处显示反显光标；查询过长时围绕光标开窗滚动（同老版 `searchBarPresentation`）。`tab` 仅在搜索栏可见时循环 text→glob→regex，输入时高亮已加载窗口中的匹配，`Enter`/`n`/`N` 调用 `terminal.search` 导航并环绕（`n`/`N`/回车从**当前匹配之后**继续，与老版 `beginCopyModeSearch` 一致）。选区使用 ansi:8/ansi:3，复制经 `terminal.copy{sel}` 写 OSC52。`Ctrl-Shift-C` 重进时先释放快照，再读取最新窗口。历史来源与边界见下文。 |
@@ -79,7 +79,11 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 
 鼠标：点击 tab/新建、点击 card 按钮（zoom/split/close/lock/take-owner）、
 拖拽两张 card 相接的边框调整比例（命中区就是相邻边框的 1 格，只写回该 Split）、
-浮窗标题拖移、点击浮层行（含 picker 的 endpoint tab）、滚轮回看
+浮窗标题拖移、点击浮层行（含 picker 的 endpoint tab）、**点击 footer 动作 token**
+（每个原子 token 走对应按键的同一处理器；合并组 `ALIGN`/`CENTER`/`PAN` 无法用单击表示，
+按 legacy `ClickHintOnly` 只作提示、不可点）、**picker 行首点选中、再点（或点已选中行）
+等价回车**（attach 或打开 create 表单）、**点击 header 的 workspace 名打开 workbench tree**、
+滚轮回看
 （终端走 `terminal.scroll`，本地占位 pane 走行窗口）。**回看（COPY）会话按 pane 保存**（对照老版 `CopyModeByView`）：只有当前
 聚焦 pane 的会话拥有输入，点击其它 pane 只是把输入交给它（滚轮/键盘不再被
 回看场景吞掉），原 pane 的回看位置保留，切回时恢复 COPY 场景；滚回底部
