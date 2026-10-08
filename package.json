@@ -10,7 +10,7 @@
     "@eslint/js": "10.0.1",
     "@napi-rs/canvas": "0.1.100",
     "esbuild": "0.28.1",
-    "eslint": "10.8.0",
+    "eslint": "10.10.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "16.5.0",
     "react": "19.2.7",
