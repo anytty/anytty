@@ -200,25 +200,25 @@ func TestResizeLayoutToastBody(t *testing.T) {
 	m.mode = modeResize
 	m.focusPaneObject(left)
 	runCmd(t, m, key(m, "m"))
-	if want := "unlocked center pan:0,0 align:center/center"; m.toast != want {
-		t.Fatalf("center toast = %q, want %q", m.toast, want)
+	if want := "unlocked center pan:0,0 align:center/center"; m.lastNotice() != want {
+		t.Fatalf("center toast = %q, want %q", m.lastNotice(), want)
 	}
 	runCmd(t, m, key(m, "0")) // align-left forces mode auto (alignY stays center)
-	if want := "unlocked auto pan:0,0 align:start/center"; m.toast != want {
-		t.Fatalf("align toast = %q, want %q", m.toast, want)
+	if want := "unlocked auto pan:0,0 align:start/center"; m.lastNotice() != want {
+		t.Fatalf("align toast = %q, want %q", m.lastNotice(), want)
 	}
 	runCmd(t, m, key(m, "^")) // align-top: alignY start
-	if want := "unlocked auto pan:0,0 align:start/start"; m.toast != want {
-		t.Fatalf("align-top toast = %q, want %q", m.toast, want)
+	if want := "unlocked auto pan:0,0 align:start/start"; m.lastNotice() != want {
+		t.Fatalf("align-top toast = %q, want %q", m.lastNotice(), want)
 	}
 	runCmd(t, m, key(m, "A")) // pan-left: PanX -2
-	if want := "unlocked auto pan:-2,0 align:start/start"; m.toast != want {
-		t.Fatalf("pan toast = %q, want %q", m.toast, want)
+	if want := "unlocked auto pan:-2,0 align:start/start"; m.lastNotice() != want {
+		t.Fatalf("pan toast = %q, want %q", m.lastNotice(), want)
 	}
 	left.locked = true
 	runCmd(t, m, key(m, "$"))
-	if want := "locked auto pan:-2,0 align:end/start"; m.toast != want {
-		t.Fatalf("locked toast = %q, want %q", m.toast, want)
+	if want := "locked auto pan:-2,0 align:end/start"; m.lastNotice() != want {
+		t.Fatalf("locked toast = %q, want %q", m.lastNotice(), want)
 	}
 }
 

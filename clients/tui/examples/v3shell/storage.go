@@ -337,30 +337,30 @@ func (m *model) markWorkbenchDirty() {
 
 // onWorkbenchGet applies a saved workbench. A host rejection that means "not
 // set" (or a NOT_FOUND ApiError envelope) keeps the default seed; any other
-// failure only toasts.
+// failure is only logged to the message log.
 func (m *model) onWorkbenchGet(v opMsg) app.Cmd {
 	if !v.ok {
 		if !isStorageNotFound(v.err) {
 			if v.err == "" {
-				m.toast = "workbench restore failed: access unavailable"
+				m.notice("workbench restore failed: access unavailable")
 			} else {
-				m.toast = "workbench restore failed: " + v.err
+				m.notice("workbench restore failed: " + v.err)
 			}
 		}
 		return m.markWorkbenchReady()
 	}
 	if len(v.accessResult) == 0 {
-		m.toast = "workbench restore failed: access unavailable"
+		m.notice("workbench restore failed: access unavailable")
 		return m.markWorkbenchReady()
 	}
 	var envelope apipb.ResultEnvelope
 	if err := gproto.Unmarshal(v.accessResult, &envelope); err != nil {
-		m.toast = "workbench restore failed: bad storage result"
+		m.notice("workbench restore failed: bad storage result")
 		return m.markWorkbenchReady()
 	}
 	if apiErr := envelope.GetError(); apiErr != nil {
 		if apiErr.GetCode() != apipb.ApiErrorCode_API_ERROR_CODE_NOT_FOUND {
-			m.toast = "workbench restore failed: " + apiErr.GetMessage()
+			m.notice("workbench restore failed: " + apiErr.GetMessage())
 		}
 		return m.markWorkbenchReady()
 	}
@@ -370,11 +370,11 @@ func (m *model) onWorkbenchGet(v opMsg) app.Cmd {
 	}
 	var doc workbenchDoc
 	if err := json.Unmarshal(value, &doc); err != nil {
-		m.toast = "workbench restore failed: bad json"
+		m.notice("workbench restore failed: bad json")
 		return m.markWorkbenchReady()
 	}
 	if m.applyWorkbenchDoc(doc) {
-		m.toast = "workbench restored"
+		m.notice("workbench restored")
 	}
 	return m.markWorkbenchReady()
 }
@@ -386,7 +386,7 @@ func (m *model) onWorkbenchSet(v opMsg) app.Cmd {
 	if !v.ok {
 		m.workbenchDirty = true
 		if v.err != "" {
-			m.toast = "workbench save failed: " + v.err
+			m.notice("workbench save failed: " + v.err)
 		}
 		return nil
 	}
@@ -395,7 +395,7 @@ func (m *model) onWorkbenchSet(v opMsg) app.Cmd {
 		if err := gproto.Unmarshal(v.accessResult, &envelope); err == nil {
 			if apiErr := envelope.GetError(); apiErr != nil {
 				m.workbenchDirty = true
-				m.toast = "workbench save failed: " + apiErr.GetMessage()
+				m.notice("workbench save failed: " + apiErr.GetMessage())
 				return nil
 			}
 		}

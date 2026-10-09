@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/anytty/anytty/clients/tui/sdk/app"
@@ -157,16 +159,158 @@ func TestEmptyPanelMouseFocusHighlightsBorder(t *testing.T) {
 	}
 }
 
-func TestToastRendersInTopRight(t *testing.T) {
+// TestNoTopRightToast pins the legacy behavior (shell.Toasts = nil, "暂时屏蔽
+// 右上角 toast 卡片"): no message is ever drawn in the top-right/row 0, and
+// notices are collected in the bounded log instead.
+func TestNoTopRightToast(t *testing.T) {
 	m := newModel(nil, false)
-	m.toast = "bound MIX-TERM"
-	toast := viewBoxByID(m.View(), "toast")
-	if toast == nil {
-		t.Fatal("toast node is missing")
+	m.notice("workbench restore failed: access.call: endpoint \"local\" is not registered")
+	view := m.View()
+	if toast := viewBoxByID(view, "toast"); toast != nil {
+		t.Fatalf("top-right toast card must be removed, got %+v", toast)
 	}
-	if toast.GetPos().GetY() != 0 {
-		t.Fatalf("toast position = %+v, want top row", toast.GetPos())
+	if viewHasTextAtRow(view, "workbench restore failed", 0) {
+		t.Fatal("no notice text may be overlaid on row 0")
 	}
+	if len(m.logLines) != 1 {
+		t.Fatalf("notice must be recorded in the log, got %+v", m.logLines)
+	}
+}
+
+// TestLogOverlayCollectsAndScrolls pins the bounded message log: notices
+// accumulate newest-last and drop the oldest past the cap, the overlay opens
+// on the newest line, scrolls with ↑/↓ (and page keys), and closes on esc/q.
+func TestLogOverlayCollectsAndScrolls(t *testing.T) {
+	m := newModel(nil, false)
+	for i := 0; i < 3; i++ {
+		m.notice("msg-" + strconv.Itoa(i))
+	}
+	if len(m.logLines) != 3 || m.logLines[0] != "msg-0" || m.lastNotice() != "msg-2" {
+		t.Fatalf("log ordering = %q, want msg-0..msg-2", m.logLines)
+	}
+	m.notice("   ") // blank notices are ignored
+	if len(m.logLines) != 3 {
+		t.Fatalf("blank notice must be ignored, got %q", m.logLines)
+	}
+
+	// The cap drops the oldest lines, keeping the newest logMaxLines.
+	for i := 3; i < logMaxLines+5; i++ {
+		m.notice("msg-" + strconv.Itoa(i))
+	}
+	if len(m.logLines) != logMaxLines {
+		t.Fatalf("log length = %d, want cap %d", len(m.logLines), logMaxLines)
+	}
+	if m.logLines[0] != "msg-5" || m.lastNotice() != "msg-"+strconv.Itoa(logMaxLines+4) {
+		t.Fatalf("cap dropped the wrong lines: first=%q last=%q", m.logLines[0], m.lastNotice())
+	}
+
+	runCmd(t, m, m.onKey("g", ""))
+	if m.overlay == overlayLog {
+		t.Fatal("g in live mode must not open the log (it is a SYSTEM binding)")
+	}
+
+	m.mode = modeSystem
+	m.openLog()
+	if m.overlay != overlayLog || m.scene() != "log" {
+		t.Fatalf("open log: overlay=%q scene=%q", m.overlay, m.scene())
+	}
+	if m.logSel != len(m.logLines)-1 {
+		t.Fatalf("log opens on the newest line, sel=%d", m.logSel)
+	}
+	rows := m.overlayRows()
+	if len(rows) == 0 || len(rows) > logOverlayMaxRows {
+		t.Fatalf("log rows = %d, want 1..%d", len(rows), logOverlayMaxRows)
+	}
+
+	sel := m.logSel
+	runCmd(t, m, m.onKey("up", ""))
+	if m.logSel != sel-1 {
+		t.Fatalf("up must move the log selection: %d -> %d", sel, m.logSel)
+	}
+	runCmd(t, m, m.onKey("page-up", ""))
+	if m.logSel != 0 {
+		t.Fatalf("page-up must jump to the oldest line, sel=%d", m.logSel)
+	}
+	if rows := m.overlayRows(); rows[0].node != "log:0" {
+		t.Fatalf("page-up must scroll the window to the oldest line, first row = %q", rows[0].node)
+	}
+	runCmd(t, m, m.onKey("page-down", ""))
+	if m.logSel != len(m.logLines)-1 {
+		t.Fatalf("page-down must jump to the newest line, sel=%d", m.logSel)
+	}
+	if rows := m.overlayRows(); rows[len(rows)-1].node != "log:"+strconv.Itoa(len(m.logLines)-1) {
+		t.Fatalf("page-down must scroll the window to the newest line, last row = %q", rows[len(rows)-1].node)
+	}
+	runCmd(t, m, m.onKey("down", "")) // clamp at the end (no panic)
+	if m.logSel != len(m.logLines)-1 {
+		t.Fatalf("down at the end must clamp, sel=%d", m.logSel)
+	}
+
+	// Clicking a log row selects it; clicking elsewhere does not dismiss it.
+	runCmd(t, m, press(m, "log:0"))
+	if m.logSel != 0 {
+		t.Fatalf("clicking a log row must select it, sel=%d", m.logSel)
+	}
+	runCmd(t, m, press(m, "log:1"))
+	if m.logSel != 1 || m.overlay != overlayLog {
+		t.Fatalf("click must select log row 1 and keep the overlay, sel=%d overlay=%q", m.logSel, m.overlay)
+	}
+
+	runCmd(t, m, m.onKey("esc", ""))
+	if m.overlay != "" {
+		t.Fatalf("esc must close the log, overlay=%q", m.overlay)
+	}
+	m.openLog()
+	runCmd(t, m, m.onKey("q", ""))
+	if m.overlay != "" {
+		t.Fatalf("q must close the log, overlay=%q", m.overlay)
+	}
+}
+
+// TestLogOverlayOpensFromSystemAndCommand pins the two reachability paths: the
+// SYSTEM `g` key and the `:` palette "logs" command both open the overlay.
+func TestLogOverlayOpensFromSystemAndCommand(t *testing.T) {
+	m := newModel(nil, false)
+	m.mode = modeSystem
+	runCmd(t, m, key(m, "g"))
+	if m.overlay != overlayLog || m.mode != modeLive {
+		t.Fatalf("SYSTEM g must open the log: overlay=%q mode=%q", m.overlay, m.mode)
+	}
+	runCmd(t, m, key(m, "esc"))
+
+	if !contains(strings.Join(promptCommands, "\n"), "logs") {
+		t.Fatalf("promptCommands must list logs: %v", promptCommands)
+	}
+	// The `:` command palette (SYSTEM `o`, and the `:` key in the pane/resize/
+	// system scenes) must also open it.
+	m.mode = modeSystem
+	runCmd(t, m, key(m, "o"))
+	if m.overlay != overlayPrompt {
+		t.Fatalf("SYSTEM o must open the command palette, overlay=%q", m.overlay)
+	}
+	for _, ch := range "logs" {
+		runCmd(t, m, m.onKey(string(ch), string(ch)))
+	}
+	runCmd(t, m, m.onKey("enter", ""))
+	if m.overlay != overlayLog {
+		t.Fatalf(`"logs" command must open the log overlay, overlay=%q`, m.overlay)
+	}
+}
+
+// viewHasTextAtRow reports whether any view box at row y contains needle.
+func viewHasTextAtRow(root *pb.Box, needle string, row int32) bool {
+	if root == nil {
+		return false
+	}
+	if root.GetPos().GetY() == row && strings.Contains(root.GetContent().GetText(), needle) {
+		return true
+	}
+	for _, child := range root.GetChildren() {
+		if viewHasTextAtRow(child, needle, row) {
+			return true
+		}
+	}
+	return false
 }
 
 func viewHasMouseNode(root *pb.Box, id string) bool {
@@ -242,15 +386,15 @@ func indexOf(text, want string) int {
 func TestEndpointHealthNoticeIsNotAToast(t *testing.T) {
 	m := newModel(nil, false)
 	m.Update(app.NoticeMsg{Level: "warning", Message: `endpoint device-V55ROrkr7rSJuXEYm8V0Lg offline: route "cloud" (managed-webrtc) failed; check this route's configuration or choose another configured route: Cloud connection failed (RPC NotFound): cached`})
-	if m.toast != "" {
-		t.Fatalf("endpoint route failure must not become a toast: %q", m.toast)
+	if len(m.logLines) != 0 {
+		t.Fatalf("endpoint route failure must not be logged: %q", m.logLines)
 	}
 	m.Update(app.NoticeMsg{Level: "info", Message: "endpoint local connected"})
-	if m.toast != "" {
-		t.Fatalf("endpoint connect notice must not become a toast: %q", m.toast)
+	if len(m.logLines) != 0 {
+		t.Fatalf("endpoint connect notice must not be logged: %q", m.logLines)
 	}
 	m.Update(app.NoticeMsg{Level: "warning", Message: "protocol error: bad frame"})
-	if m.toast == "" {
+	if len(m.logLines) != 1 {
 		t.Fatal("protocol warnings must still surface")
 	}
 }

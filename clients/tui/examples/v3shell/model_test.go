@@ -1625,7 +1625,7 @@ func TestCopySearchBarReplacesFooter(t *testing.T) {
 
 // TestLegacyKeyAliases aligns the remaining legacy scene bindings: panel
 // x/w close, X kill, R restart; tab X kill; floating H/L/K/J resize; global
-// Ctrl-V/PageUp copy entry; system T close toast.
+// Ctrl-V/PageUp copy entry; system T close-toast alias (now a no-op).
 // TestResizeCenterAndLarge pins the legacy resize alignment keys: m centers
 // the focused split, H/L move it by a large (quarter-axis) step.
 func TestResizeCenterAndLarge(t *testing.T) {
@@ -1681,12 +1681,15 @@ func TestLegacyKeyAliases(t *testing.T) {
 		t.Fatalf("floating L must widen: %d -> %d", w0, f.w)
 	}
 
-	// system T clears the toast.
+	// The legacy system T (close_toast) is a no-op now that the top-right toast
+	// card is retired: it must neither draw nor log anything, and the message
+	// log keeps its history.
 	m.mode = modeSystem
-	m.toast = "hello"
+	m.notice("hello")
+	logBefore := len(m.logLines)
 	runCmd(t, m, key(m, "T"))
-	if m.toast != "" {
-		t.Fatalf("system T must clear the toast, got %q", m.toast)
+	if len(m.logLines) != logBefore || m.lastNotice() != "hello" {
+		t.Fatalf("system T must not touch the log, got %q", m.logLines)
 	}
 
 	// panel w closes like x.
@@ -1917,8 +1920,8 @@ func TestConnectionsOverlayListsAndReconnects(t *testing.T) {
 	if !hasCall(fake.calls, "endpoint.list") {
 		t.Fatalf("reconnect must re-list so health refreshes: %+v", fake.calls)
 	}
-	if m.toast != "reconnect dev: ok" {
-		t.Fatalf("reconnect toast = %q", m.toast)
+	if m.lastNotice() != "reconnect dev: ok" {
+		t.Fatalf("reconnect notice = %q", m.lastNotice())
 	}
 }
 

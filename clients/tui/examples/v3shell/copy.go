@@ -153,13 +153,13 @@ func (m *model) enterCopy() app.Cmd {
 	}
 	src := m.paneSource(p)
 	if src == nil || src.GetTerminalId() == "" {
-		m.toast = "nothing to copy"
+		m.notice("nothing to copy")
 		return nil
 	}
 	st := &copyState{offset: 0}
 	m.copyPanes[p.id] = st
 	m.prepareCopyViewport(p, st)
-	m.toast = "copy: h/j/k/l move · space mark · y copy · / search"
+	m.notice("copy: h/j/k/l move · space mark · y copy · / search")
 	// Fetch the visible window so cursor clamping and selection start from
 	// the real text.
 	return m.fetchCopyWindow(p, st)
@@ -214,12 +214,12 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 		if st.marked {
 			return m.copySelection(p, st, true)
 		}
-		m.toast = "nothing to copy: select text before pressing Enter"
+		m.notice("nothing to copy: select text before pressing Enter")
 	case "y":
 		if st.marked {
 			return m.copySelection(p, st, false)
 		}
-		m.toast = "nothing to copy: select text before copying"
+		m.notice("nothing to copy: select text before copying")
 	case "/":
 		// The old copy.search_start clears the query only when it is empty and
 		// otherwise re-opens editing with the cursor at the end.
@@ -245,7 +245,7 @@ func (m *model) handleCopyKey(key, char string) app.Cmd {
 			st.searchMode = (st.searchMode + 1) % 3
 			st.matches = nil
 			st.searchDirty = strings.TrimSpace(st.query) != ""
-			m.toast = "search mode: " + copySearchModeName(st.searchMode)
+			m.notice("search mode: " + copySearchModeName(st.searchMode))
 			if st.searchDirty {
 				return app.Tick(copySearchDebounce)
 			}
@@ -766,7 +766,7 @@ func (m *model) copySelection(p *pane, st *copyState, exit bool) app.Cmd {
 	}
 	startRow, startCol, endRow, endCol, ok := st.selection()
 	if !ok {
-		m.toast = "nothing to copy"
+		m.notice("nothing to copy")
 		return nil
 	}
 	cols := st.cols
@@ -915,12 +915,12 @@ func (m *model) applyTerminalSearch(st *copyState, result opMsg) {
 	}
 	if !result.ok {
 		st.searchErr = result.err
-		m.toast = "search: " + result.err
+		m.notice("search: " + result.err)
 		return
 	}
 	if !result.found {
 		st.searchErr = "no match"
-		m.toast = "search: no match for " + st.query
+		m.notice("search: no match for " + st.query)
 		m.refreshCopyMatches(st)
 		return
 	}
@@ -957,7 +957,7 @@ func (m *model) applyTerminalSearch(st *copyState, result opMsg) {
 	st.searchCurrent = st.matchIdx + 1
 	st.searchTotal = len(st.matches)
 	if result.wrapped {
-		m.toast = "search wrapped"
+		m.notice("search wrapped")
 	}
 }
 
@@ -1179,7 +1179,7 @@ func (m *model) handleCopySearchKey(p *pane, st *copyState, key, char string) ap
 	case "tab":
 		// The old copy.search_mode cycles the mode and keeps editing.
 		st.searchMode = (st.searchMode + 1) % 3
-		m.toast = "search mode: " + copySearchModeName(st.searchMode)
+		m.notice("search mode: " + copySearchModeName(st.searchMode))
 		st.matches = nil
 		st.searchDirty = strings.TrimSpace(st.query) != ""
 		if st.searchDirty {

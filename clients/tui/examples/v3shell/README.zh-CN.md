@@ -69,7 +69,7 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 | `Ctrl-T` | TAB 场景（`c` 新建、`n/l/]` 与 `p/h/[` 前后、`1-9` 跳转、`x` 关闭、`X`/`k` kill+关闭、`r` 重命名） |
 | `Ctrl-W` | WORKSPACE 场景（`c` 新建、`n/p` 前后、`x` 删除、`r` 重命名、`t` 打开只读 workbench tree：列出各 workspace 及其 tab，`↑/↓` 选择、`Enter` 跳转、`esc` 返回） |
 | `Ctrl-F` | Terminal Picker（`←/→` 切换机器/endpoint 分区、`Shift+←/→` 循环 Running→Exited→All、直接输入搜索（大小写不敏感**子序列**匹配，命中标题/ID/状态/tag/`xN`/尺寸；中文名还支持拼音全拼与首字母，如 `suoping`/`sp` 命中「锁屏」，命中处高亮）、`Ctrl-T` 打开标签复选列表（`↑/↓` 选择、`space` 勾选、`Ctrl-T`/`esc` 返回）、`↑/↓` 选择、`enter` 绑定、`tab` 分屏绑定、`ctrl-k` kill、`ctrl-x` remove、`esc` 返回；首行是 `+ New terminal`；选中后弹出 Create Terminal 表单（name/command/server/workdir/tags），`Tab` 切换字段、`Enter` 提交、`Esc` 取消；overlay 高度上限 24） |
-| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections overlay（`↑/↓` 选择、`t`/`enter` test、`r` reconnect）、`w` 打开只读 workbench tree、`l` shortcut lock、`T`/`c`/`x` 关闭 toast、`?` help、`q` 退出） |
+| `Ctrl-G` | SYSTEM 场景（`h` 顶条开关、`f` footer 开关、`p`/`m`/`t` picker、`o`/`:` 命令行、`e` connections overlay（`↑/↓` 选择、`t`/`enter` test、`r` reconnect）、`w` 打开只读 workbench tree、`g` 打开消息日志 window、`l` shortcut lock、`?` help、`q` 退出）。**右上角 toast 卡片已移除**：与老版 `shell.Toasts = nil`（“暂时屏蔽右上角 toast 卡片”）一致，任何状态/诊断消息都不再常驻绘制；`T`/`c`/`x`（legacy close_toast）现在是 no-op。消息改在**日志 overlay**（标题 `Messages`）里按需查看，见 §2.1。 |
 | `Ctrl-Shift-C` | COPY 场景（选区与搜索，见下） |
 | `Ctrl-Shift-H` | Clipboard overlay |
 | COPY 场景 | `h/l`/`←/→` 移动列，`j/k`/滚轮移动光标（到边缘才滚视图），`PgUp/PgDn` 步长为视口行数-2，`u/d` 半页，`g` 最老，`G` 回 live（再按入口键 `Ctrl-Shift-C` 也可退出；**老版 copy 场景没有 `esc` 绑定**，`esc` 不退出）。`space`/鼠标左键标记，`y` 复制并保留 copy，`enter` 复制并退出；无标记时滚回底部自动退出。`/` 编辑查询（带查询时打开会把光标放到末尾并保留原查询），**搜索栏替换底栏 footer 行**（不是 panel 最下方）：左侧 `⌕ [MODE] query`，右侧状态徽标（`N/M`、`no match`、错误）+ 窄屏隐藏的按键提示，编辑时在查询处显示反显光标；查询过长时围绕光标开窗滚动（同老版 `searchBarPresentation`）。`tab` 仅在搜索栏可见时循环 text→glob→regex，输入时高亮已加载窗口中的匹配，`Enter`/`n`/`N` 调用 `terminal.search` 导航并环绕（`n`/`N`/回车从**当前匹配之后**继续，与老版 `beginCopyModeSearch` 一致）。选区使用 ansi:8/ansi:3，复制经 `terminal.copy{sel}` 写 OSC52。`Ctrl-Shift-C` 重进时先释放快照，再读取最新窗口。历史来源与边界见下文。 |
@@ -90,6 +90,34 @@ TUI2_SHELL=/tmp/tui2-v3shell anytty
 （无选区）自动退出回看。空 pane 与原版一样**不画任何内部提示**。**panel 边框在拥有 copy 会话时整体变黄**（老版 `history-border`：warning+bold），标题与动作字形仍保持 accent 色；冻结的回看窗口被裁切时，边框上画 legacy `overflow_*` 提示字形（`◂ ▸ ▴ ▾`，`overflow_style #9ca3c9`：顶/底边框用 `▴/▾`，行宽超出行内容区时右边框用 `▸`），窗口比内容区短的行用 `extent_placeholder` 暗点 `·`（`#3b2f63`）补满，避免露出下层 pane。
 owner 槽颜色对齐 legacy `terminalChromeVMFromBinding`：本视图拥有 resize 时 `owner` 用 success 绿色，`owner?` 等待态用 warning，`follow` 跟随态用 muted。
 
+### 2.1 消息日志（右上角 toast 的替代）
+
+老版 v3 TUI **故意屏蔽了右上角 toast 卡片**（`git show 9ba796f^:tui/render/framework.go`
+的 `shell.Toasts = nil`，注释“暂时屏蔽右上角 toast 卡片”），因此本复刻也**不再
+在任何时候把消息画在右上角/第 0 行**。原 toast 的所有写入点（约 60 处：workbench
+恢复/保存失败、绑定/重连/kill/复制/粘贴/连接测试等状态与诊断）统一改走
+`notice(msg)`，把消息追加进一个有界日志 `logLines`（**最新在最后，上限 200 行**，
+超出丢弃最旧的；空串忽略）。
+
+打开方式（两条路径）：
+
+- SYSTEM 场景按 `g`；
+- 命令面板 `:`（SYSTEM 的 `o`，或 PANE/RESIZE/SYSTEM 里的 `:`）输入 `logs` 回车。
+
+日志 overlay 标题 `Messages`：
+
+| 键 | 动作 |
+|---|---|
+| `↑`/`↓` | 上/下移动选择（每次 1 行，底部 clamp） |
+| `PgUp`/`Home` | 跳到最旧一行 |
+| `PgDn`/`End` | 跳到最新一行 |
+| `esc` / `q` | 关闭 |
+| 鼠标 | 点击某行选中它；点击 overlay 其它位置不关闭 |
+
+overlay 一次最多显示 20 行（`logOverlayMaxRows`），随选择滚动并保持选中行可见。
+SYSTEM footer **没有**为它新增 token：footer 是 8 参考场景的逐字节 golden，`log`
+场景的 footer 只在打开 overlay 时出现，不影响那 8 行。`?` help 里新增了 LOGS 小节。
+
 ## 3. 实现结构
 
 | 文件 | 内容 |
@@ -97,7 +125,7 @@ owner 槽颜色对齐 legacy `terminalChromeVMFromBinding`：本视图拥有 res
 | `main.go` | 入口、`-demo`/`-selftest`/`-footer-lines` 离线模式 |
 | `theme.go` | coralline-candy 色板/字形/场景表/footer 颜色解析链（yaml → 启发式） |
 | `model.go` | 状态机：split 树、tab/workspace、floating、overlay、键鼠路由、`terminal.*`/`system.quit` 调用 |
-| `view.go` | 视图树（header/card/floating/overlay/toast/footer），全部显式 `pos` + 显式样式 |
+| `view.go` | 视图树（header/card/floating/overlay/footer），全部显式 `pos` + 显式样式 |
 | `raster.go` | 离线光栅化器（golden 逐字符对比用） |
 | `*_test.go` | 与 Python golden 同源的 9 项像素校验 + 交互行为测试 |
 
@@ -118,6 +146,7 @@ owner 槽颜色对齐 legacy `terminalChromeVMFromBinding`：本视图拥有 res
 | 分屏分隔条 | 没有独立分隔条：相邻 card 边框相接，拖拽命中区是相接边框的 1 格 | 一致（Python 参考 `v3ui.py` 保留旧的 1 格分隔条近似，Go 复刻按原版） |
 | 空 pane 提示 | 不画内部提示（1.txt 的 `┃ Click to collapse` 是终端内容） | 一致（不画提示；pane 折叠不存在） |
 | zoom | `panel.toggle_zoom`（pane 占满 body，图标变 `↙`） | 已实现 |
+| 右上角 toast | 老版 `shell.Toasts = nil` 屏蔽（本复刻同样不绘制） | 已移除卡片；消息进有界日志，SYSTEM `g` / `:logs` 打开 `Messages` overlay（见 §2.1） |
 
 footer 的 badge/键组/颜色/裁剪规则与 recommended yaml 逐字符对齐（见
 `v3_footer_120x32.txt` / `v3_footer_colors_*.txt`）。

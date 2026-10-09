@@ -105,7 +105,7 @@ func TestWorkbenchSaveEmitsStoragePut(t *testing.T) {
 // the initial get keeps the default seed, stays silent, and opens the save gate.
 func TestWorkbenchLoadNotFoundKeepsSeed(t *testing.T) {
 	m, _ := boundModel(t)
-	m.toast = ""
+	m.logLines = nil
 	before := len(m.spaces)
 	payload, err := gproto.Marshal(&apipb.ResultEnvelope{
 		Result: &apipb.ResultEnvelope_Error{Error: &apipb.ApiError{
@@ -119,8 +119,8 @@ func TestWorkbenchLoadNotFoundKeepsSeed(t *testing.T) {
 	if len(m.spaces) != before {
 		t.Fatalf("not-found changed the seed: %d -> %d", before, len(m.spaces))
 	}
-	if m.toast != "" {
-		t.Fatalf("not-found must stay silent, toast = %q", m.toast)
+	if len(m.logLines) != 0 {
+		t.Fatalf("not-found must stay silent, log = %q", m.logLines)
 	}
 	if !m.workbenchReady {
 		t.Fatal("not-found must open the save gate")

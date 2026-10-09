@@ -119,7 +119,9 @@ func dimStyle(style string) string {
 // ------------------------------------------------------------------ view
 
 // View materializes the whole screen: header, cards, floating windows,
-// overlays, toast and footer, in the reference declaration order.
+// overlays and footer, in the reference declaration order. There is
+// deliberately no top-right toast card: the legacy v3 TUI suppressed it and
+// status/diagnostic messages accumulate in the `log` overlay instead.
 func (m *model) View() *pb.Box {
 	out := []*sdk.Builder{}
 	if m.headerVisible {
@@ -133,7 +135,6 @@ func (m *model) View() *pb.Box {
 		m.overlayNodes(&out)
 		m.promptSuggestionNodes(&out)
 	}
-	m.toastNodes(&out)
 	if m.footerVisible {
 		// The active panel's copy search replaces the global footer row, like
 		// the legacy SearchBarVM.
@@ -1309,6 +1310,34 @@ func (m *model) overlayRows() []overlayRow {
 			return []overlayRow{textRow("no workspaces", stMuted)}
 		}
 		return rows
+	case overlayLog:
+		// Bounded message log: newest at the bottom, the selected row carries a
+		// marker. Clicking a row selects it; ↑/↓ scroll/select.
+		if len(m.logLines) == 0 {
+			return []overlayRow{textRow("no messages", stMuted)}
+		}
+		var rows []overlayRow
+		// Keep the row width in sync with the overlay frame ("Messages", width
+		// 64 in overlayNodes).
+		innerW := maxInt(0, minInt(64, m.cols)-2)
+		start, end := m.logWindow(logOverlayMaxRows)
+		for index := start; index < end; index++ {
+			marker := "  "
+			markerStyle := stMuted
+			if index == m.logSel {
+				marker = "\u25b8 "
+				markerStyle = stAccent
+			}
+			rows = append(rows, overlayRow{
+				runs: []overlayRun{
+					run(marker, markerStyle),
+					run(sdk.Truncate(m.logLines[index], maxInt(1, innerW-2)), stOverlay),
+				},
+				selectable: true,
+				node:       "log:" + strconv.Itoa(index),
+			})
+		}
+		return rows
 	case overlayConnections:
 		// Legacy system.open_connections table: one row per registered
 		// endpoint showing its label/name, kind and health.
@@ -1493,6 +1522,8 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 		title, width, minHeight = "Connections", 64, 8
 	case overlayWorkbenchTree:
 		title, width, minHeight = "Workbench", 56, 6
+	case overlayLog:
+		title, width, minHeight = "Messages", 64, 6
 	default:
 		return
 	}
@@ -1540,6 +1571,12 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 				selected = selectable == m.connSel
 			case overlayWorkbenchTree:
 				selected = selectable == m.treeSel
+			case overlayLog:
+				// The rows are a window over logLines, so the selectable
+				// counter is an offset from the window start, not an absolute
+				// log index.
+				start, _ := m.logWindow(logOverlayMaxRows)
+				selected = start+selectable == m.logSel
 			}
 			selectable++
 		}
@@ -1619,19 +1656,6 @@ func overlaySelectedRuns(runs []overlayRun) []overlayRun {
 		out[i] = run
 	}
 	return out
-}
-
-func (m *model) toastNodes(out *[]*sdk.Builder) {
-	if m.toast == "" {
-		return
-	}
-	text := " " + m.toast + "  \u00b7  Ctrl-Q quit "
-	width := minInt(m.cols, sdk.DisplayWidth(text))
-	x := maxInt(1, m.cols-width-1)
-	// Toasts are global notices; keep them in the unused top-right header
-	// space instead of covering the lower-right panel content.
-	y := 0
-	addRun(out, x, y, sdk.Truncate(text, width), stToast, "toast", true, width)
 }
 
 // footerHintOnly reports whether a footer node is a merged group token whose

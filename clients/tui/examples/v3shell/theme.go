@@ -117,7 +117,6 @@ var (
 
 	stOverlay = style(colorFG, colorOverlayBG)
 	stContent = style(colorFG, "")
-	stToast   = style(colorWarning, "")
 	// stPickerMatch is main's `picker-match`: the warning foreground in bold,
 	// used to mark query matches in picker rows (no background).
 	stPickerMatch = style(colorWarning, "", "bold")
@@ -313,6 +312,14 @@ var scenes = map[string]sceneSpec{
 		{"ENTER \U000f0734 JUMP", "", "workbench_tree.open", "enter"},
 		{"ESC BACK", "", "shortcut.exit", "Esc"},
 	}},
+	// log is the bounded message log overlay: the on-demand replacement for the
+	// top-right toast card the legacy suppressed. ↑/↓ scroll/select, esc closes.
+	// It reuses the system badge icon (honest: the overlay is reached from
+	// SYSTEM with `g` and from the `:` palette with `logs`).
+	"log": {modeIconSystem, "LOG", []footerAction{
+		{"\u2191/\u2193 SCROLL", "", "log.select_previous", "\u2191"},
+		{"ESC BACK", "", "shortcut.exit", "Esc"},
+	}},
 }
 
 const (
@@ -427,7 +434,7 @@ func footerActionStyle(a footerAction) string {
 // promptCommands is the prompt scene's command catalog.
 var promptCommands = []string{
 	"split row", "split col", "close pane", "kill pane", "new tab",
-	"close tab", "help", "quit",
+	"close tab", "help", "logs", "quit",
 }
 
 // helpLines is the help overlay body (v3ui.py HELP_LINES, extended with the
@@ -457,6 +464,9 @@ var helpLines = []string{
 	"  / \u641c\u7d22  n/N \u4e0a\u4e0b\u5339\u914d  PgUp/PgDn \u7ffb\u9875  g \u6700\u8001  G \u56de\u5230live",
 	"  \u62d6\u62fd\u9009\u5230\u4e0a\u4e0b\u8fb9\u7f18\u81ea\u52a8\u7ffb\u9875\u5e76\u5ef6\u4f38\u9009\u533a",
 	"SYSTEM",
-	"  q quit  o command  ? help",
+	"  q quit  o command  g logs  ? help",
+	"LOGS / \u6d88\u606f\u65e5\u5fd7",
+	"  g \u6216 :logs \u6253\u5f00 \u00b7 \u65e7\u7248\u53f3\u4e0a\u89d2 toast \u6d88\u606f\u5728\u6b64\u805a\u96c6",
+	"  \u2191/\u2193/PgUp/PgDn \u6eda\u52a8\u9009\u62e9 \u00b7 \u6700\u65b0\u5728\u4e0b \u00b7 \u4e0a\u9650 200 \u884c",
 	"esc back \u00b7 Ctrl-Q quit",
 }

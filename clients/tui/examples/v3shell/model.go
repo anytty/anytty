@@ -668,7 +668,7 @@ func (m *model) submitCreatePrompt() app.Cmd {
 		m.createDrafts = map[string]createDraft{}
 	}
 	m.createDrafts[endpoint] = createDraft{command: strings.TrimSpace(m.promptFields[1]), cwd: strings.TrimSpace(params.GetCwd())}
-	m.toast = "create requested"
+	m.notice("create requested")
 	return m.bindPending(m.promptRef, "", params)
 }
 
@@ -931,6 +931,14 @@ const (
 	overlayClipboard     = "clipboard"
 	overlayConnections   = "connections"
 	overlayWorkbenchTree = "workbench-tree"
+	overlayLog           = "log"
+)
+
+// logMaxLines bounds the message log; the oldest lines are dropped once it is
+// full. logOverlayMaxRows caps how many lines one log overlay page shows.
+const (
+	logMaxLines       = 200
+	logOverlayMaxRows = 20
 )
 
 // connectionRow is one parsed endpoint.list row: the registered endpoint name
@@ -1042,7 +1050,13 @@ type model struct {
 	floatings   []*floating
 	activeFloat string
 
-	toast string
+	// logLines is the bounded message log (newest last, cap logMaxLines). The
+	// legacy v3 TUI suppressed the top-right toast card, so user-facing
+	// status/diagnostic messages are collected here and reviewed on demand in
+	// the `log` overlay instead of being drawn persistently.
+	logLines []string
+	// logSel is the selected row of the log overlay (an index into logLines).
+	logSel int
 
 	sources       []*pb.Source
 	sourcesReady  bool
@@ -1790,6 +1804,8 @@ func (m *model) scene() string {
 		return "connections"
 	case overlayWorkbenchTree:
 		return "workbench-tree"
+	case overlayLog:
+		return "log"
 	}
 	switch m.mode {
 	case modePane, modeResize, modeTab, modeWorkspace, modeSystem, modeFloating:
@@ -2026,9 +2042,30 @@ func (m *model) Init() app.Cmd {
 	return chain(app.SetKeys(m.claim()), m.loadWorkbenchCmd())
 }
 
+// notice records one user-facing status/diagnostic line in the bounded message
+// log (newest last). The legacy v3 TUI suppressed the top-right toast card
+// ("暂时屏蔽右上角 toast 卡片"), so nothing is drawn persistently; the `log`
+// overlay is the on-demand view. Empty messages are ignored.
+func (m *model) notice(msg string) {
+	if strings.TrimSpace(msg) == "" {
+		return
+	}
+	m.logLines = append(m.logLines, msg)
+	if len(m.logLines) > logMaxLines {
+		m.logLines = m.logLines[len(m.logLines)-logMaxLines:]
+	}
+}
+
+// lastNotice returns the newest logged message, or "" when the log is empty.
+func (m *model) lastNotice() string {
+	if len(m.logLines) == 0 {
+		return ""
+	}
+	return m.logLines[len(m.logLines)-1]
+}
+
 func (m *model) Reset(epoch uint64) {
 	m.epoch = epoch
-	m.toast = ""
 	m.dragging = ""
 	m.clearCopyDragScroll()
 	m.copyPanes = map[string]*copyState{}
@@ -2087,16 +2124,16 @@ func (m *model) Update(msg app.Msg) app.Cmd {
 		// persistent toast only duplicates that state and covers the footer,
 		// so they are suppressed here. Protocol/crash warnings still show.
 		if !isEndpointHealthNotice(v.Message) {
-			m.toast = v.Level + ": " + v.Message
+			m.notice(v.Level + ": " + v.Message)
 		}
 	case app.ResponseMsg:
 		// Responses matched by an emit command arrive as opMsg instead.
 	case opMsg:
 		cmd = m.onOp(v)
 	case app.ViewRejectedMsg:
-		m.toast = "view rejected: " + v.Reason
+		m.notice("view rejected: " + v.Reason)
 	case app.ErrorMsg:
-		m.toast = "transport: " + v.Err.Error()
+		m.notice("transport: " + v.Err.Error())
 	}
 	want := m.claim()
 	if !keysEqual(want, m.sentKeys) {
@@ -2226,9 +2263,6 @@ func (m *model) claim() sdk.Keys {
 // ------------------------------------------------------------------- input
 
 func (m *model) onKey(key, char string) app.Cmd {
-	if m.toast != "" {
-		m.toast = ""
-	}
 	if m.overlay != "" {
 		return m.handleOverlayKey(key, char)
 	}
@@ -2368,12 +2402,12 @@ func (m *model) handlePaneKey(key string) app.Cmd {
 	case "b":
 		m.resetTabSplits(t)
 	case "c", "p":
-		m.toast = "presentation: card (default)"
+		m.notice("presentation: card (default)")
 	case "d":
 		if p != nil && p.sourceID != "" {
 			return m.emit("terminal.detach", m.clipboardPasteParams(p), opMsg{op: "detach", ref: p.id})
 		}
-		m.toast = "detach: no terminal"
+		m.notice("detach: no terminal")
 	case "r":
 		if p != nil {
 			sourceID := p.sourceID
@@ -2384,7 +2418,7 @@ func (m *model) handlePaneKey(key string) app.Cmd {
 				return m.emit("terminal.reconnect", m.terminalParamsForSource(sourceID), opMsg{op: "reconnect", ref: p.id, source: sourceID})
 			}
 		}
-		m.toast = "reconnect: no terminal"
+		m.notice("reconnect: no terminal")
 	case "h", "left", "up":
 		m.focusPaneDelta(-1)
 	case "l", "right", "down":
@@ -2518,14 +2552,14 @@ func (m *model) handleResizeKey(key string) app.Cmd {
 }
 
 // applyContentLayoutAction applies one legacy terminal.layout command to the
-// focused pane's view-local content layout and toasts the resulting state
+// focused pane's view-local content layout and logs the resulting state
 // (app.terminalViewLayoutToast). It is the resize-scene port of
 // state.TerminalViewLayout.Apply: align forces mode=auto, center sets
 // mode=center and zeroes the pan, and pan accumulates the exact legacy deltas.
 func (m *model) applyContentLayoutAction(action string) {
 	p := m.focusPane()
 	if p == nil {
-		m.toast = "terminal.layout: no active view"
+		m.notice("terminal.layout: no active view")
 		return
 	}
 	switch action {
@@ -2559,7 +2593,7 @@ func (m *model) applyContentLayoutAction(action string) {
 		return
 	}
 	m.markWorkbenchDirty()
-	m.toast = contentLayoutToast(p.locked, p.layout)
+	m.notice(contentLayoutToast(p.locked, p.layout))
 }
 
 // contentLayoutToggleFocused cycles the focused pane's content layout mode
@@ -2569,7 +2603,7 @@ func (m *model) contentLayoutToggleFocused() {
 }
 
 // resetFocusedContentLayout clears the focused pane's view-local content layout.
-// It reuses the shared command path so the toast reflects the reset state too.
+// It reuses the shared command path so the log reflects the reset state too.
 func (m *model) resetFocusedContentLayout() {
 	m.applyContentLayoutAction("reset")
 }
@@ -2657,11 +2691,15 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 	case "f":
 		m.footerVisible = !m.footerVisible
 		m.markWorkbenchDirty()
-	case "c", "x":
-		m.toast = ""
-	case "T":
-		// Legacy system.close_toast.
-		m.toast = ""
+	case "c", "x", "T":
+		// Legacy system.close_toast cleared the top-right toast card. That
+		// card is retired and messages now accumulate in the log overlay, so
+		// these keys are deliberately no-ops: nothing is drawn persistently.
+	case "g":
+		// Open the bounded message log (the on-demand replacement for the
+		// suppressed top-right toast card).
+		m.mode = modeLive
+		m.openLog()
 	case "p", "m", "t":
 		m.mode = modeLive
 		m.openPicker()
@@ -2677,12 +2715,12 @@ func (m *model) handleSystemKey(key string) app.Cmd {
 		m.shortcutLocked = !m.shortcutLocked
 		m.mode = modeLive
 		if m.shortcutLocked {
-			m.toast = "shortcut lock: on"
+			m.notice("shortcut lock: on")
 		} else {
-			m.toast = "shortcut lock: off"
+			m.notice("shortcut lock: off")
 		}
 	case "a", "A":
-		m.toast = "plugins: not available in the v2 host"
+		m.notice("plugins: not available in the v2 host")
 	}
 	return nil
 }
@@ -2697,7 +2735,7 @@ func (m *model) handleFloatingKey(key string) app.Cmd {
 	case "n":
 		return m.newFloating()
 	case "o":
-		m.toast = fmt.Sprintf("floating: %d window(s)", len(m.floatings))
+		m.notice(fmt.Sprintf("floating: %d window(s)", len(m.floatings)))
 	case "x":
 		if f != nil {
 			m.closeFloating(f)
@@ -2725,7 +2763,7 @@ func (m *model) handleFloatingKey(key string) app.Cmd {
 			m.maximizeFloating(f)
 		}
 	case "s":
-		m.toast = "auto-fit: host geometry"
+		m.notice("auto-fit: host geometry")
 	case "f":
 		m.openPicker()
 	case "a":
@@ -2738,7 +2776,7 @@ func (m *model) handleFloatingKey(key string) app.Cmd {
 		if p := m.focusContentPane(); p != nil {
 			return m.takeOwner(p)
 		}
-		m.toast = "resize owner: no focused terminal"
+		m.notice("resize owner: no focused terminal")
 	case "h", "left":
 		if f != nil {
 			f.x = maxInt(0, f.x-2)
@@ -2925,7 +2963,7 @@ func (m *model) handleOverlayKey(key, char string) app.Cmd {
 				m.overlay = ""
 				p := m.focusContentPane()
 				if p == nil || p.sourceID == "" {
-					m.toast = "clipboard: no focused terminal"
+					m.notice("clipboard: no focused terminal")
 					return nil
 				}
 				params := m.clipboardPasteParams(p)
@@ -2964,6 +3002,19 @@ func (m *model) handleOverlayKey(key, char string) app.Cmd {
 			if m.treeSel >= 0 && m.treeSel < len(rows) {
 				m.selectTreeRow(rows[m.treeSel])
 			}
+		}
+	case overlayLog:
+		switch key {
+		case "esc", "q":
+			m.overlay = ""
+		case "up":
+			m.logSel = clampInt(m.logSel-1, 0, maxInt(0, len(m.logLines)-1))
+		case "down":
+			m.logSel = clampInt(m.logSel+1, 0, maxInt(0, len(m.logLines)-1))
+		case "page-up", "home":
+			m.logSel = 0
+		case "page-down", "end":
+			m.logSel = maxInt(0, len(m.logLines)-1)
 		}
 	}
 	return nil
@@ -3022,7 +3073,7 @@ func (m *model) activateEmptyPaneAction(p *pane, action string) app.Cmd {
 	case "empty-manager":
 		m.focusPaneObject(p)
 		m.openPicker()
-		m.toast = "terminal manager: choose a terminal"
+		m.notice("terminal manager: choose a terminal")
 	case "close":
 		_, t := m.tabOfPane(p)
 		m.closePane(t, p)
@@ -3285,6 +3336,15 @@ func (m *model) handlePress(node string, x, y int) app.Cmd {
 		m.selectTreeRow(rows[index])
 		return nil
 	}
+	if strings.HasPrefix(node, "log:") && m.overlay == overlayLog {
+		// Clicking a log row selects it; clicking elsewhere in the overlay does
+		// not dismiss it.
+		index := atoiNode(node, "log:")
+		if index >= 0 && index < len(m.logLines) {
+			m.logSel = index
+		}
+		return nil
+	}
 	if node == "picker-tags" {
 		m.openPickerTags()
 		return nil
@@ -3335,7 +3395,7 @@ func (m *model) handlePress(node string, x, y int) app.Cmd {
 		// navigator, not Help). Same destination as the footer TREE token.
 		m.mode = modeLive
 		m.openWorkbenchTree()
-	case strings.HasPrefix(node, "pane:") || strings.HasPrefix(node, "float:") || node == "toast":
+	case strings.HasPrefix(node, "pane:") || strings.HasPrefix(node, "float:"):
 		return m.handleChromeClick(node)
 	}
 	return nil
@@ -3454,7 +3514,7 @@ func (m *model) handleFooterNode(node string) app.Cmd {
 	case "fs:float:new":
 		return m.newFloating()
 	case "fs:float:overview":
-		m.toast = fmt.Sprintf("floating: %d window(s)", len(m.floatings))
+		m.notice(fmt.Sprintf("floating: %d window(s)", len(m.floatings)))
 	case "fs:float:pick":
 		m.openPicker()
 	case "fs:float:close":
@@ -3484,7 +3544,7 @@ func (m *model) handleFooterNode(node string) app.Cmd {
 			if st := m.copyFor(p); st != nil && st.marked {
 				return m.copySelection(p, st, false)
 			}
-			m.toast = "nothing to copy: select text before copying"
+			m.notice("nothing to copy: select text before copying")
 		}
 	case "fs:copy:oldest":
 		if p := m.focusContentPane(); p != nil {
@@ -3516,10 +3576,6 @@ func (m *model) spaceStep(delta int) {
 }
 
 func (m *model) handleChromeClick(node string) app.Cmd {
-	if node == "toast" {
-		m.toast = ""
-		return nil
-	}
 	parts := strings.Split(node, ":")
 	if len(parts) < 3 {
 		return nil
@@ -3688,7 +3744,7 @@ func (m *model) splitPaneFor(flow string, target *pane) app.Cmd {
 		return nil
 	}
 	if !m.demo {
-		m.toast = "empty panel created · choose a terminal or create one"
+		m.notice("empty panel created · choose a terminal or create one")
 	}
 	return nil
 }
@@ -3784,7 +3840,7 @@ func (m *model) killClosePane(t *tab, p *pane) app.Cmd {
 func (m *model) killPane(p *pane) app.Cmd {
 	src := m.paneSource(p)
 	if src == nil || src.GetTerminalId() == "" {
-		m.toast = "no terminal to kill"
+		m.notice("no terminal to kill")
 		return nil
 	}
 	return m.emit("terminal.kill", &pb.MethodParams{
@@ -3813,7 +3869,7 @@ func (m *model) removeSource(src *pb.Source) app.Cmd {
 func (m *model) restartPane(p *pane) app.Cmd {
 	src := m.paneSource(p)
 	if src == nil || src.GetTerminalId() == "" {
-		m.toast = "no terminal to restart"
+		m.notice("no terminal to restart")
 		return nil
 	}
 	p.pending = "restart"
@@ -3841,7 +3897,7 @@ func (m *model) takeOwner(p *pane) app.Cmd {
 			Endpoint: endpointOf(src), Id: src.GetTerminalId(), Fit: &fit, ExpectedOwnerEpoch: &expected,
 		}, opMsg{op: "owner", ref: p.id})
 	}
-	m.toast = "resize owner: host arbitrates"
+	m.notice("resize owner: host arbitrates")
 	return nil
 }
 
@@ -4032,7 +4088,7 @@ func (m *model) resizeFocused(delta int, vertical bool) {
 	// A locked pane keeps its size, and a split containing a locked sibling
 	// cannot be moved because changing its ratio would resize that pane too.
 	if p.locked {
-		m.toast = "panel size locked"
+		m.notice("panel size locked")
 		return
 	}
 	orient := "row"
@@ -4045,7 +4101,7 @@ func (m *model) resizeFocused(delta int, vertical bool) {
 		return
 	}
 	if m.subtreeLocked(sp) {
-		m.toast = "panel size locked"
+		m.notice("panel size locked")
 		return
 	}
 	// Legacy resizeSplitNode accumulates an additive BiasCells on the first
@@ -4242,7 +4298,7 @@ func (m *model) focusContentPane() *pane {
 func (m *model) pasteSystem() app.Cmd {
 	p := m.focusContentPane()
 	if p == nil || p.sourceID == "" {
-		m.toast = "paste: no focused terminal"
+		m.notice("paste: no focused terminal")
 		return nil
 	}
 	return m.emit("clipboard.paste", m.clipboardPasteParams(p), opMsg{op: "paste"})
@@ -4254,7 +4310,7 @@ func (m *model) pasteSystem() app.Cmd {
 func (m *model) pasteLatestClipboard() app.Cmd {
 	p := m.focusContentPane()
 	if p == nil || p.sourceID == "" {
-		m.toast = "paste: no focused terminal"
+		m.notice("paste: no focused terminal")
 		return nil
 	}
 	m.pasteLatestRef = p.id
@@ -4307,6 +4363,27 @@ func (m *model) openWorkbenchTree() {
 			break
 		}
 	}
+}
+
+// openLog opens the bounded message log overlay, selecting the newest line
+// (the bottom row). This is the on-demand replacement for the suppressed
+// top-right toast card.
+func (m *model) openLog() {
+	m.overlay = overlayLog
+	m.logSel = maxInt(0, len(m.logLines)-1)
+}
+
+// logWindow returns the inclusive-start, exclusive-end slice of logLines that
+// the overlay shows: it keeps logSel visible inside a bounded row count and
+// pins to the bottom when every line fits.
+func (m *model) logWindow(visible int) (int, int) {
+	count := len(m.logLines)
+	if count == 0 || visible <= 0 {
+		return 0, 0
+	}
+	visible = minInt(visible, count)
+	start := clampInt(m.logSel-visible/2, 0, count-visible)
+	return start, start + visible
 }
 
 // treeRows flattens the selectable tree rows (one per tab). The workspace
@@ -4372,7 +4449,7 @@ func (m *model) storeConnections(rows []string) {
 func (m *model) connTest() app.Cmd {
 	row := m.connSelected()
 	if row == nil {
-		m.toast = "connections: nothing selected"
+		m.notice("connections: nothing selected")
 		return nil
 	}
 	return m.emit("endpoint.test", &pb.MethodParams{Endpoint: row.name},
@@ -4384,7 +4461,7 @@ func (m *model) connTest() app.Cmd {
 func (m *model) connReconnect() app.Cmd {
 	row := m.connSelected()
 	if row == nil {
-		m.toast = "connections: nothing selected"
+		m.notice("connections: nothing selected")
 		return nil
 	}
 	return m.emit("endpoint.reconnect", &pb.MethodParams{Endpoint: row.name},
@@ -4441,7 +4518,7 @@ func (m *model) toggleFloatingCollapse(f *floating) {
 	f.collapsed = !f.collapsed
 	if f.collapsed {
 		m.dragging = ""
-		m.toast = "collapsed " + f.id
+		m.notice("collapsed " + f.id)
 	} else {
 		m.raiseFloating(f)
 	}
@@ -4638,6 +4715,10 @@ func (m *model) runCommand(command string) app.Cmd {
 		return m.killPane(m.focusPane())
 	case "help":
 		m.overlay = overlayHelp
+	case "logs":
+		// The `:` palette opens the bounded message log (same destination as
+		// the SYSTEM `g` key).
+		m.openLog()
 	case "quit":
 		return m.quitCmd()
 	}
@@ -4846,7 +4927,7 @@ func (m *model) attach(index int, split bool) app.Cmd {
 		m.addOwnerEpoch(p, src, &fit, params)
 		cmd := m.bindPending(p.id, src.GetId(), params)
 		m.overlay = ""
-		m.toast = "attach requested \u00b7 " + src.GetTerminalId()
+		m.notice("attach requested \u00b7 " + src.GetTerminalId())
 		return cmd
 	}
 	p := m.attachTarget()
@@ -5103,13 +5184,13 @@ func (m *model) onOp(v opMsg) app.Cmd {
 			// Owner conflict on attach: retry as a follower (fit=false) so the
 			// pane still mirrors the terminal, like the old take_owner path.
 			if v.source != "" && isOwnerConflict(v.err) {
-				m.toast = "following " + shortSourceID(v.source) + " (owner held)"
+				m.notice("following " + shortSourceID(v.source) + " (owner held)")
 				follow := false
 				return m.emit("terminal.attach", &pb.MethodParams{
 					Endpoint: v.reqEndpoint, Id: v.reqID, Fit: &follow,
 				}, opMsg{op: "bind", ref: v.ref, source: v.source})
 			}
-			m.toast = "bind failed: " + v.err
+			m.notice("bind failed: " + v.err)
 			if p := m.paneByID(v.ref); p != nil {
 				p.pending = ""
 			}
@@ -5125,42 +5206,42 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		}
 		m.bindPane(v.ref, sourceID)
 		if v.source != "" {
-			m.toast = "bound " + shortSourceID(sourceID)
+			m.notice("bound " + shortSourceID(sourceID))
 		} else {
-			m.toast = "bound " + v.id
+			m.notice("bound " + v.id)
 		}
 	case "restart":
 		if p := m.paneByID(v.ref); p != nil {
 			p.pending = ""
 		}
 		if !v.ok {
-			m.toast = "restart failed: " + v.err
+			m.notice("restart failed: " + v.err)
 		}
 	case "rename":
 		if !v.ok {
-			m.toast = "rename failed: " + v.err
+			m.notice("rename failed: " + v.err)
 		} else {
-			m.toast = "terminal renamed"
+			m.notice("terminal renamed")
 		}
 	case "detach":
 		if !v.ok {
-			m.toast = "detach failed: " + v.err
+			m.notice("detach failed: " + v.err)
 		} else if p := m.paneByID(v.ref); p != nil {
 			m.forgetOwner(p)
 			p.detachedSourceID = p.sourceID
 			p.sourceID = ""
 			p.lines = nil
-			m.toast = "detached; terminal kept alive"
+			m.notice("detached; terminal kept alive")
 		}
 	case "reconnect":
 		if !v.ok {
-			m.toast = "reconnect failed: " + v.err
+			m.notice("reconnect failed: " + v.err)
 		} else if p := m.paneByID(v.ref); p != nil {
 			if p.sourceID == "" {
 				p.sourceID = p.detachedSourceID
 			}
 			p.detachedSourceID = ""
-			m.toast = "reconnected"
+			m.notice("reconnected")
 			// A reconnected pane owns its source again until another pane is
 			// designated (legacy first-bind default).
 			if p.sourceID != "" && m.ownerPaneBySource[p.sourceID] == "" {
@@ -5172,19 +5253,19 @@ func (m *model) onOp(v opMsg) app.Cmd {
 			p.pending = ""
 		}
 		if !v.ok {
-			m.toast = "owner conflict: " + v.err
+			m.notice("owner conflict: " + v.err)
 		}
 	case "kill":
 		if !v.ok {
-			m.toast = "kill failed: " + v.err
+			m.notice("kill failed: " + v.err)
 		}
 	case "remove":
 		if !v.ok {
-			m.toast = "remove failed: " + v.err
+			m.notice("remove failed: " + v.err)
 		}
 	case "scroll":
 		if !v.ok {
-			m.toast = "scroll failed: " + v.err
+			m.notice("scroll failed: " + v.err)
 			return nil
 		}
 		if p := m.paneByID(v.ref); p != nil {
@@ -5211,7 +5292,7 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		if p := m.paneByID(v.ref); p != nil {
 			if st := m.copyFor(p); st != nil && v.seq == st.searchSeq {
 				if !v.ok {
-					m.toast = "copy reset: " + v.err
+					m.notice("copy reset: " + v.err)
 					return nil
 				}
 				return m.fetchCopyWindow(p, st)
@@ -5230,19 +5311,19 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		}
 	case "copy":
 		if !v.ok {
-			m.toast = "copy failed: " + v.err
+			m.notice("copy failed: " + v.err)
 			return nil
 		}
 		if p := m.paneByID(v.ref); p != nil && m.copyFor(p) != nil {
 			if v.exit {
-				m.toast = "copied selection"
+				m.notice("copied selection")
 				return m.endCopy(p)
 			}
-			m.toast = "copied selection"
+			m.notice("copied selection")
 		}
 	case "clipboard.list":
 		if !v.ok {
-			m.toast = "clipboard history: " + v.err
+			m.notice("clipboard history: " + v.err)
 			return nil
 		}
 		m.clipboard = nil
@@ -5260,7 +5341,7 @@ func (m *model) onOp(v opMsg) app.Cmd {
 	case "clipboard.latest":
 		// Legacy copy-scene p: paste the newest history entry, if any.
 		if !v.ok {
-			m.toast = "paste: " + v.err
+			m.notice("paste: " + v.err)
 			return nil
 		}
 		var newest string
@@ -5274,7 +5355,7 @@ func (m *model) onOp(v opMsg) app.Cmd {
 			}
 		}
 		if newest == "" {
-			m.toast = "clipboard history is empty"
+			m.notice("clipboard history is empty")
 			return nil
 		}
 		p := m.paneByID(v.ref)
@@ -5286,27 +5367,27 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		return m.emit("clipboard.paste", params, opMsg{op: "paste"})
 	case "paste":
 		if !v.ok {
-			m.toast = "paste failed: " + v.err
+			m.notice("paste failed: " + v.err)
 		} else {
-			m.toast = "pasted clipboard"
+			m.notice("pasted clipboard")
 		}
 	case "endpoint.list":
 		// Legacy SYSTEM connections overlay: parse the registered endpoint
 		// table into connectionRow entries. A failed list closes the overlay
 		// and surfaces the error, since there is nothing to act on.
 		if !v.ok {
-			m.toast = "connections: " + v.err
+			m.notice("connections: " + v.err)
 			if m.overlay == overlayConnections {
 				m.overlay = ""
 			}
 			return nil
 		}
 		m.storeConnections(v.rows)
-		m.toast = fmt.Sprintf("connections: %d registered", len(m.connections))
+		m.notice(fmt.Sprintf("connections: %d registered", len(m.connections)))
 	case "connections.list":
 		if !v.ok {
 			// A failed list has nothing to show: close the overlay and toast.
-			m.toast = "connections: " + v.err
+			m.notice("connections: " + v.err)
 			if m.overlay == overlayConnections {
 				m.overlay = ""
 			}
@@ -5315,17 +5396,17 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		m.storeConnections(v.rows)
 	case "connections.test":
 		if !v.ok {
-			m.toast = "test " + v.endpoint + ": " + v.err
+			m.notice("test " + v.endpoint + ": " + v.err)
 		} else {
-			m.toast = "test " + v.endpoint + ": ok"
+			m.notice("test " + v.endpoint + ": ok")
 		}
 		// Re-list so the health column reflects the test result.
 		return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
 	case "connections.reconnect":
 		if !v.ok {
-			m.toast = "reconnect " + v.endpoint + ": " + v.err
+			m.notice("reconnect " + v.endpoint + ": " + v.err)
 		} else {
-			m.toast = "reconnect " + v.endpoint + ": ok"
+			m.notice("reconnect " + v.endpoint + ": ok")
 		}
 		// Re-list so the health column reflects the fresh dial.
 		return m.emit("endpoint.list", nil, opMsg{op: "connections.list"})
@@ -5335,7 +5416,7 @@ func (m *model) onOp(v opMsg) app.Cmd {
 		return m.onWorkbenchSet(v)
 	case "quit":
 		if !v.ok {
-			m.toast = "quit rejected: " + v.err
+			m.notice("quit rejected: " + v.err)
 			return nil
 		}
 		return app.Quit()
