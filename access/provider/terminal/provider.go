@@ -105,7 +105,8 @@ type DialFunc func(ctx context.Context) (Provider, error)
 // StreamClosedError 报告（含退出码）。Close 只停止当前输出流，attachment
 // resource 由 Attachment.Detach 释放。
 type Duplex interface {
-	// WaitReady 等待 bootstrap/ready 完成；幂等。Receive/Send 也会隐式完成握手。
+	// WaitReady 等待 bootstrap/ready 完成；幂等。Receive 也会隐式完成握手。
+	// 需要原始输出的调用方必须先握手再 Send，否则输入的回显可能早于订阅。
 	WaitReady(ctx context.Context) error
 	Receive(ctx context.Context) ([]byte, error)
 	Send(ctx context.Context, data []byte) error

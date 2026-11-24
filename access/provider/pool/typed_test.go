@@ -90,6 +90,11 @@ func TestAdapterTypedFacade(t *testing.T) {
 	}
 
 	duplex := attachment.Stream()
+	// 需要原始输出的调用方必须先打开输出流（TUI/CLI 在 attach 时就会这样做）；
+	// 只轮询 canonical screen 的客户端不会打开它，Send 也就不再隐式 bootstrap。
+	if err := duplex.WaitReady(ctx); err != nil {
+		t.Fatalf("stream ready: %v", err)
+	}
 	if err := duplex.Send(ctx, []byte("typed-facade\n")); err != nil {
 		t.Fatalf("stream send: %v", err)
 	}

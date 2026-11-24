@@ -11,7 +11,6 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
@@ -646,133 +645,41 @@ func (session *session) stopAttachmentStream(binding *streamBinding) {
 	}
 }
 
-// providerPTYBatchWindow 是小块合并窗口：把同一突发里的多个 PTY 小块
-// 合并成一帧，减少 transport 帧数，也给读取侧留出排空时间。
-const providerPTYBatchWindow = 3 * time.Millisecond
-
-// providerPTYMaxBatchBytes 是单帧合并上限，与 wire 帧大小保持同一量级。
-const providerPTYMaxBatchBytes = 64 << 10
-
-// providerPTYMaxPendingBytes 是读取侧允许积压的上限。超过后不再接收，
-// 以 sync-lost 结束桥接，让客户端重新同步，而不是拖死整条 provider 连接。
-const providerPTYMaxPendingBytes = 4 << 20
-
 // forwardProviderFrames 把 provider PTY 流投影为客户端 stream frame：
 // 输出原样转发；provider 缺口/关闭投影为 sync-lost/closed 帧。
 //
-// 读取与发送必须解耦：provider 侧的 stream 缓冲只有几十帧，而客户端链路
-// 随时可能背压（例如滑动触发的 resize 让 TUI 全屏重绘）。如果逐帧同步转发，
-// 一次背压就会填满 provider 缓冲，provider 会以
-// "stream consumer fell behind" 关闭整条连接，所有终端一起掉线。
+// 读取与发送由 ptyForwarder 解耦，客户端背压时只会积压在有界缓冲里，
+// 不会把 provider 的 stream 缓冲撑爆（见 pty_forward.go）。
 func (session *session) forwardProviderFrames(binding *streamBinding, duplex terminalprovider.Duplex) {
-	ctx := session.lifetimeContext()
-
-	var (
-		mu       sync.Mutex
-		pending  []byte
-		readErr  error
-		overflow bool
-	)
-	signal := make(chan struct{}, 1)
-	nudge := func() {
-		select {
-		case signal <- struct{}{}:
-		default:
-		}
-	}
-
-	// 读取协程只做接收和追加，永远不等待发送。
-	go func() {
-		for {
-			payload, err := duplex.Receive(ctx)
-			mu.Lock()
-			if err == nil && len(pending)+len(payload) > providerPTYMaxPendingBytes {
-				overflow = true
-				mu.Unlock()
-				nudge()
+	forwarder := &ptyForwarder{
+		receive: duplex.Receive,
+		send: func(payload []byte) error {
+			return session.sendFrame(binding.clientChannel, wire.TypePTYOutput, payload)
+		},
+		onEnd: func(end ptyForwardEnd) {
+			if end.Overflow {
+				session.logger.Warn("access PTY forward buffer overflow", "terminal_channel", binding.clientChannel)
+				_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(0))
+				session.notifyStreamFailure(binding)
 				return
 			}
-			if err == nil {
-				pending = append(pending, payload...)
-			} else {
-				readErr = err
-			}
-			mu.Unlock()
-			nudge()
-			if err != nil {
+			var syncLost *terminalprovider.StreamSyncLostError
+			if errors.As(end.Err, &syncLost) {
+				// legacy parity：转发 sync-lost 后立即以 closed(-1) 结束桥接，
+				// 不再转发 provider 随后的 closed（客户端语义与旧路径一致）。
+				_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(syncLost.DroppedBytes))
+				session.notifyStreamFailure(binding)
 				return
 			}
-		}
-	}()
-
-	fail := func(err error) {
-		var syncLost *terminalprovider.StreamSyncLostError
-		if errors.As(err, &syncLost) {
-			// legacy parity：转发 sync-lost 后立即以 closed(-1) 结束桥接，
-			// 不再转发 provider 随后的 closed（客户端语义与旧路径一致）。
-			_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(syncLost.DroppedBytes))
+			var closed *terminalprovider.StreamClosedError
+			if errors.As(end.Err, &closed) {
+				_ = session.sendFrame(binding.clientChannel, wire.TypeClosed, wire.EncodeClosedPayload(closed.ExitCode))
+				return
+			}
 			session.notifyStreamFailure(binding)
-			return
-		}
-		var closed *terminalprovider.StreamClosedError
-		if errors.As(err, &closed) {
-			_ = session.sendFrame(binding.clientChannel, wire.TypeClosed, wire.EncodeClosedPayload(closed.ExitCode))
-			return
-		}
-		session.notifyStreamFailure(binding)
+		},
 	}
-	terminateOverflow := func() {
-		session.logger.Warn("access PTY forward buffer overflow", "terminal_channel", binding.clientChannel)
-		_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(0))
-		session.notifyStreamFailure(binding)
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-signal:
-		}
-
-		// 合并窗口：让同一突发里的后续小块一起发出去。
-		timer := time.NewTimer(providerPTYBatchWindow)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
-
-		mu.Lock()
-		if len(pending) == 0 {
-			err, lost := readErr, overflow
-			mu.Unlock()
-			if err != nil {
-				fail(err)
-				return
-			}
-			if lost {
-				terminateOverflow()
-				return
-			}
-			continue
-		}
-		batch := pending
-		if len(batch) > providerPTYMaxBatchBytes {
-			tail := append([]byte(nil), batch[providerPTYMaxBatchBytes:]...)
-			batch = batch[:providerPTYMaxBatchBytes]
-			pending = tail
-		} else {
-			pending = nil
-		}
-		mu.Unlock()
-
-		if err := session.sendFrame(binding.clientChannel, wire.TypePTYOutput, batch); err != nil {
-			return
-		}
-		// 还有积压或读取已结束：继续下一轮，避免信号丢失。
-		nudge()
-	}
+	forwarder.Run(session.lifetimeContext())
 }
 
 func (session *session) notifyStreamFailure(binding *streamBinding) {
