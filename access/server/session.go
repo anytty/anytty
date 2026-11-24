@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +10,7 @@ import (
 	"log/slog"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
@@ -51,6 +54,8 @@ type session struct {
 	providerMu sync.Mutex
 	provider   terminalprovider.Provider
 
+	caps sessionCapabilities
+
 	requestSlots   chan struct{}
 	requests       sync.WaitGroup
 	requestMu      sync.Mutex
@@ -91,6 +96,11 @@ type streamBinding struct {
 	duplex     terminalprovider.Duplex
 
 	input *terminalInputQueue
+}
+
+// sessionCapabilities 记录客户端在 Hello 里声明的增量能力位。
+type sessionCapabilities struct {
+	screenCompression atomic.Bool
 }
 
 // terminalInputQueue 串行化同一 attachment 的 PTY 写入。
@@ -254,6 +264,11 @@ func (session *session) handleControlFrame(ctx context.Context, typ uint8, paylo
 		if hello.Version != 0 && hello.Version != wire.Version {
 			return session.sendError(0, protocolErrorBadRequest, fmt.Sprintf("unsupported wire version %d", hello.Version))
 		}
+		for _, capability := range hello.Capabilities {
+			if capability == internalprotocol.ScreenCompressionCapability {
+				session.caps.screenCompression.Store(true)
+			}
+		}
 		response, err := internalprotocol.EncodeHelloPayload(internalprotocol.Hello{Version: wire.Version, Server: ModuleName})
 		if err != nil {
 			return err
@@ -339,11 +354,45 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}
-	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{ID: request.ID, Result: payload})
+	encoding := internalprotocol.ResponseEncodingRaw
+	if command.GetLiveScreenNext() != nil && session.caps.screenCompression.Load() {
+		if compressed, ok := compressLiveScreenResult(payload); ok {
+			payload, encoding = compressed, internalprotocol.ResponseEncodingDeflate
+		}
+	}
+	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{
+		ID: request.ID, Result: payload, Encoding: encoding,
+	})
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}
 	return session.sendFrame(0, wire.TypeResponse, response)
+}
+
+// compressLiveScreenResult 只压缩够大的屏幕帧；压缩收益不足时保持明文。
+//
+// 屏幕帧是逐 cell protobuf，重复样式多，deflate(BestSpeed) 在真实 TUI 内容上
+// 仍有 3~4 倍收益，而 CPU 开销可以忽略。
+func compressLiveScreenResult(payload []byte) ([]byte, bool) {
+	if len(payload) < 1024 {
+		return nil, false
+	}
+	var buffer bytes.Buffer
+	writer, err := flate.NewWriter(&buffer, flate.BestSpeed)
+	if err != nil {
+		return nil, false
+	}
+	if _, err := writer.Write(payload); err != nil {
+		_ = writer.Close()
+		return nil, false
+	}
+	if err := writer.Close(); err != nil {
+		return nil, false
+	}
+	if buffer.Len() >= len(payload) {
+		return nil, false
+	}
+	return buffer.Bytes(), true
 }
 
 // handleTerminalInput 把一条终端输入排进所属 attachment 的有序队列。
@@ -414,7 +463,9 @@ func (session *session) respondTerminalInput(
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}
-	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{ID: request.ID, Result: payload})
+	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{
+		ID: request.ID, Result: payload,
+	})
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}

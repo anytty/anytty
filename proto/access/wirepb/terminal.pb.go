@@ -21,13 +21,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ResponseEncoding 描述 ResponseEnvelope.result 的传输编码。
+type ResponseEncoding int32
+
+const (
+	ResponseEncoding_RESPONSE_ENCODING_RAW     ResponseEncoding = 0
+	ResponseEncoding_RESPONSE_ENCODING_DEFLATE ResponseEncoding = 1
+)
+
+// Enum value maps for ResponseEncoding.
+var (
+	ResponseEncoding_name = map[int32]string{
+		0: "RESPONSE_ENCODING_RAW",
+		1: "RESPONSE_ENCODING_DEFLATE",
+	}
+	ResponseEncoding_value = map[string]int32{
+		"RESPONSE_ENCODING_RAW":     0,
+		"RESPONSE_ENCODING_DEFLATE": 1,
+	}
+)
+
+func (x ResponseEncoding) Enum() *ResponseEncoding {
+	p := new(ResponseEncoding)
+	*p = x
+	return p
+}
+
+func (x ResponseEncoding) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResponseEncoding) Descriptor() protoreflect.EnumDescriptor {
+	return file_wirepb_terminal_proto_enumTypes[0].Descriptor()
+}
+
+func (ResponseEncoding) Type() protoreflect.EnumType {
+	return &file_wirepb_terminal_proto_enumTypes[0]
+}
+
+func (x ResponseEncoding) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ResponseEncoding.Descriptor instead.
+func (ResponseEncoding) EnumDescriptor() ([]byte, []int) {
+	return file_wirepb_terminal_proto_rawDescGZIP(), []int{0}
+}
+
 // wirepb 只拥有 DataChannel framing 与 file resource stream payload。
 // application command/result/event 必须使用 apipb，不得在本包重新定义。
 type Hello struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Version       uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
-	Client        string                 `protobuf:"bytes,2,opt,name=client,proto3" json:"client,omitempty"`
-	Server        string                 `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	Client  string                 `protobuf:"bytes,2,opt,name=client,proto3" json:"client,omitempty"`
+	Server  string                 `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	// 客户端能力位；老服务端忽略未知字段，因此可以安全共存。
+	Capabilities  []string `protobuf:"bytes,4,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -81,6 +130,13 @@ func (x *Hello) GetServer() string {
 		return x.Server
 	}
 	return ""
+}
+
+func (x *Hello) GetCapabilities() []string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
 }
 
 // SessionClose 是已完成 Hello 的客户端主动结束当前 protocol session 的单向 control frame。
@@ -236,9 +292,11 @@ func (x *RequestEnvelope) GetParams() []byte {
 }
 
 type ResponseEnvelope struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Result        []byte                 `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Id     uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Result []byte                 `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	// 只有客户端在 Hello.capabilities 声明 screen.compress.v1 时才会是 DEFLATE。
+	Encoding      ResponseEncoding `protobuf:"varint,3,opt,name=encoding,proto3,enum=anytty.protocol.wirepb.ResponseEncoding" json:"encoding,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -285,6 +343,13 @@ func (x *ResponseEnvelope) GetResult() []byte {
 		return x.Result
 	}
 	return nil
+}
+
+func (x *ResponseEnvelope) GetEncoding() ResponseEncoding {
+	if x != nil {
+		return x.Encoding
+	}
+	return ResponseEncoding_RESPONSE_ENCODING_RAW
 }
 
 type ProtocolError struct {
@@ -656,11 +721,12 @@ var File_wirepb_terminal_proto protoreflect.FileDescriptor
 
 const file_wirepb_terminal_proto_rawDesc = "" +
 	"\n" +
-	"\x15wirepb/terminal.proto\x12\x16anytty.protocol.wirepb\"Q\n" +
+	"\x15wirepb/terminal.proto\x12\x16anytty.protocol.wirepb\"u\n" +
 	"\x05Hello\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x16\n" +
 	"\x06client\x18\x02 \x01(\tR\x06client\x12\x16\n" +
-	"\x06server\x18\x03 \x01(\tR\x06server\"(\n" +
+	"\x06server\x18\x03 \x01(\tR\x06server\x12\"\n" +
+	"\fcapabilities\x18\x04 \x03(\tR\fcapabilities\"(\n" +
 	"\fSessionClose\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\"\x1f\n" +
 	"\rRequestCancel\x12\x0e\n" +
@@ -668,10 +734,11 @@ const file_wirepb_terminal_proto_rawDesc = "" +
 	"\x0fRequestEnvelope\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12\x16\n" +
-	"\x06params\x18\x03 \x01(\fR\x06params\":\n" +
+	"\x06params\x18\x03 \x01(\fR\x06params\"\x80\x01\n" +
 	"\x10ResponseEnvelope\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x16\n" +
-	"\x06result\x18\x02 \x01(\fR\x06result\"=\n" +
+	"\x06result\x18\x02 \x01(\fR\x06result\x12D\n" +
+	"\bencoding\x18\x03 \x01(\x0e2(.anytty.protocol.wirepb.ResponseEncodingR\bencoding\"=\n" +
 	"\rProtocolError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"\\\n" +
@@ -696,7 +763,10 @@ const file_wirepb_terminal_proto_rawDesc = "" +
 	"\x12FileTransferResult\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x03R\x04size\x12\x16\n" +
-	"\x06sha256\x18\x03 \x01(\fR\x06sha256B.Z,github.com/anytty/anytty/proto/access/wirepbb\x06proto3"
+	"\x06sha256\x18\x03 \x01(\fR\x06sha256*L\n" +
+	"\x10ResponseEncoding\x12\x19\n" +
+	"\x15RESPONSE_ENCODING_RAW\x10\x00\x12\x1d\n" +
+	"\x19RESPONSE_ENCODING_DEFLATE\x10\x01B.Z,github.com/anytty/anytty/proto/access/wirepbb\x06proto3"
 
 var (
 	file_wirepb_terminal_proto_rawDescOnce sync.Once
@@ -710,27 +780,30 @@ func file_wirepb_terminal_proto_rawDescGZIP() []byte {
 	return file_wirepb_terminal_proto_rawDescData
 }
 
+var file_wirepb_terminal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_wirepb_terminal_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_wirepb_terminal_proto_goTypes = []any{
-	(*Hello)(nil),              // 0: anytty.protocol.wirepb.Hello
-	(*SessionClose)(nil),       // 1: anytty.protocol.wirepb.SessionClose
-	(*RequestCancel)(nil),      // 2: anytty.protocol.wirepb.RequestCancel
-	(*RequestEnvelope)(nil),    // 3: anytty.protocol.wirepb.RequestEnvelope
-	(*ResponseEnvelope)(nil),   // 4: anytty.protocol.wirepb.ResponseEnvelope
-	(*ProtocolError)(nil),      // 5: anytty.protocol.wirepb.ProtocolError
-	(*ErrorEnvelope)(nil),      // 6: anytty.protocol.wirepb.ErrorEnvelope
-	(*FileTransferData)(nil),   // 7: anytty.protocol.wirepb.FileTransferData
-	(*FileTransferAck)(nil),    // 8: anytty.protocol.wirepb.FileTransferAck
-	(*FileTransferFinish)(nil), // 9: anytty.protocol.wirepb.FileTransferFinish
-	(*FileTransferResult)(nil), // 10: anytty.protocol.wirepb.FileTransferResult
+	(ResponseEncoding)(0),      // 0: anytty.protocol.wirepb.ResponseEncoding
+	(*Hello)(nil),              // 1: anytty.protocol.wirepb.Hello
+	(*SessionClose)(nil),       // 2: anytty.protocol.wirepb.SessionClose
+	(*RequestCancel)(nil),      // 3: anytty.protocol.wirepb.RequestCancel
+	(*RequestEnvelope)(nil),    // 4: anytty.protocol.wirepb.RequestEnvelope
+	(*ResponseEnvelope)(nil),   // 5: anytty.protocol.wirepb.ResponseEnvelope
+	(*ProtocolError)(nil),      // 6: anytty.protocol.wirepb.ProtocolError
+	(*ErrorEnvelope)(nil),      // 7: anytty.protocol.wirepb.ErrorEnvelope
+	(*FileTransferData)(nil),   // 8: anytty.protocol.wirepb.FileTransferData
+	(*FileTransferAck)(nil),    // 9: anytty.protocol.wirepb.FileTransferAck
+	(*FileTransferFinish)(nil), // 10: anytty.protocol.wirepb.FileTransferFinish
+	(*FileTransferResult)(nil), // 11: anytty.protocol.wirepb.FileTransferResult
 }
 var file_wirepb_terminal_proto_depIdxs = []int32{
-	5, // 0: anytty.protocol.wirepb.ErrorEnvelope.error:type_name -> anytty.protocol.wirepb.ProtocolError
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: anytty.protocol.wirepb.ResponseEnvelope.encoding:type_name -> anytty.protocol.wirepb.ResponseEncoding
+	6, // 1: anytty.protocol.wirepb.ErrorEnvelope.error:type_name -> anytty.protocol.wirepb.ProtocolError
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_wirepb_terminal_proto_init() }
@@ -743,13 +816,14 @@ func file_wirepb_terminal_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wirepb_terminal_proto_rawDesc), len(file_wirepb_terminal_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_wirepb_terminal_proto_goTypes,
 		DependencyIndexes: file_wirepb_terminal_proto_depIdxs,
+		EnumInfos:         file_wirepb_terminal_proto_enumTypes,
 		MessageInfos:      file_wirepb_terminal_proto_msgTypes,
 	}.Build()
 	File_wirepb_terminal_proto = out.File

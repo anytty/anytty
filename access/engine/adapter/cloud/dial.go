@@ -106,7 +106,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 		reportTiming("datachannel_authenticated")
 		clientruntime.ReportEndpointProgress(attemptCtx, clientruntime.EndpointPhaseConnecting, clientruntime.EndpointStageProtocolOpening)
 		opened.protocolClient = internalprotocol.NewClient(connection)
-		if err := opened.protocolClient.Hello(attemptCtx, internalprotocol.Hello{Version: wire.Version, Client: clientName}); err != nil {
+		if err := opened.protocolClient.Hello(attemptCtx, internalprotocol.Hello{Version: wire.Version, Client: clientName, Capabilities: []string{internalprotocol.ScreenCompressionCapability}}); err != nil {
 			return reportCloudFailure(request.Stamp().Generation, cloudFailureProtocolHello, fmt.Errorf("Cloud protocol Hello: %w", err))
 		}
 		reportTiming("protocol_ready")

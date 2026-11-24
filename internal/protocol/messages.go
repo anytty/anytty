@@ -8,11 +8,18 @@ const (
 )
 
 // Hello 是 transport 建连后的最小版本握手 envelope。
+//
+// Capabilities 是双方的增量能力位（例如 ScreenCompressionCapability）。
+// 老 peer 会忽略未知能力，因此可以安全共存，不需要 bump wire.Version。
 type Hello struct {
-	Version int
-	Client  string
-	Server  string
+	Version      int
+	Client       string
+	Server       string
+	Capabilities []string
 }
+
+// ScreenCompressionCapability 表示对端可以接受 deflate 压缩的 application result。
+const ScreenCompressionCapability = "screen.compress.v1"
 
 // Request 是 framing 层 control request；Method 的生产值只允许 api.execute。
 type Request struct {
@@ -21,10 +28,19 @@ type Request struct {
 	Params []byte
 }
 
+// ResponseEncoding 描述 Response.Result 的传输编码。
+type ResponseEncoding uint8
+
+const (
+	ResponseEncodingRaw ResponseEncoding = iota
+	ResponseEncodingDeflate
+)
+
 // Response 是 framing 层 control response，不解释 application result。
 type Response struct {
-	ID     uint64
-	Result []byte
+	ID       uint64
+	Result   []byte
+	Encoding ResponseEncoding
 }
 
 // ProtocolError 是 framing 层稳定错误码与脱敏消息。

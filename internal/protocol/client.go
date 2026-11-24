@@ -865,7 +865,15 @@ func (c *Client) handleControlFrame(typ uint8, payload []byte) error {
 		if err != nil {
 			return &PeerError{Code: ProtocolErrorCodeBadRequest, Message: "malformed protocol response"}
 		}
-		return c.deliverResponse(response.ID, result{payload: response.Result})
+		body := response.Result
+		if response.Encoding == ResponseEncodingDeflate {
+			inflated, inflateErr := inflateApplicationResult(body)
+			if inflateErr != nil {
+				return &PeerError{Code: ProtocolErrorCodeBadRequest, Message: "malformed compressed protocol response"}
+			}
+			body = inflated
+		}
+		return c.deliverResponse(response.ID, result{payload: body})
 	case wire.TypeResponseBinary:
 		id, responsePayload, err := DecodeBinaryResponsePayload(payload)
 		if err != nil {

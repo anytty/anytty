@@ -1,8 +1,11 @@
 package protocol
 
 import (
+	"bytes"
+	"compress/flate"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
@@ -16,7 +19,10 @@ const MaxApplicationResultEnvelopeBytes = wire.MaxFrameSize - applicationResultE
 var ErrApplicationResultTooLarge = errors.New("application result envelope exceeds framing budget")
 
 func EncodeHelloPayload(hello Hello) ([]byte, error) {
-	return proto.Marshal(&wirepb.Hello{Version: uint32(hello.Version), Client: hello.Client, Server: hello.Server})
+	return proto.Marshal(&wirepb.Hello{
+		Version: uint32(hello.Version), Client: hello.Client, Server: hello.Server,
+		Capabilities: append([]string(nil), hello.Capabilities...),
+	})
 }
 
 func DecodeHelloPayload(payload []byte) (Hello, error) {
@@ -24,7 +30,10 @@ func DecodeHelloPayload(payload []byte) (Hello, error) {
 	if err := proto.Unmarshal(payload, &message); err != nil {
 		return Hello{}, err
 	}
-	return Hello{Version: int(message.GetVersion()), Client: message.GetClient(), Server: message.GetServer()}, nil
+	return Hello{
+		Version: int(message.GetVersion()), Client: message.GetClient(), Server: message.GetServer(),
+		Capabilities: append([]string(nil), message.GetCapabilities()...),
+	}, nil
 }
 
 // EncodeSessionClosePayload 编码客户端主动关闭当前 protocol session 的 versioned control message。
@@ -75,7 +84,13 @@ func DecodeRequestPayload(payload []byte) (Request, error) {
 }
 
 func EncodeResponsePayload(response Response) ([]byte, error) {
-	return proto.Marshal(&wirepb.ResponseEnvelope{Id: response.ID, Result: append([]byte(nil), response.Result...)})
+	encoding := wirepb.ResponseEncoding_RESPONSE_ENCODING_RAW
+	if response.Encoding == ResponseEncodingDeflate {
+		encoding = wirepb.ResponseEncoding_RESPONSE_ENCODING_DEFLATE
+	}
+	return proto.Marshal(&wirepb.ResponseEnvelope{
+		Id: response.ID, Result: append([]byte(nil), response.Result...), Encoding: encoding,
+	})
 }
 
 func DecodeResponsePayload(payload []byte) (Response, error) {
@@ -83,7 +98,27 @@ func DecodeResponsePayload(payload []byte) (Response, error) {
 	if err := proto.Unmarshal(payload, &message); err != nil {
 		return Response{}, err
 	}
-	return Response{ID: message.GetId(), Result: append([]byte(nil), message.GetResult()...)}, nil
+	encoding := ResponseEncodingRaw
+	if message.GetEncoding() == wirepb.ResponseEncoding_RESPONSE_ENCODING_DEFLATE {
+		encoding = ResponseEncodingDeflate
+	}
+	return Response{ID: message.GetId(), Result: append([]byte(nil), message.GetResult()...), Encoding: encoding}, nil
+}
+
+// inflateApplicationResult 解开 deflate 压缩的 application result。
+// 解压上限是单帧上限，防止对端构造 zip bomb。
+func inflateApplicationResult(payload []byte) ([]byte, error) {
+	reader := flate.NewReader(bytes.NewReader(payload))
+	defer func() { _ = reader.Close() }()
+	limited := io.LimitReader(reader, wire.MaxFrameSize+1)
+	out, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) > wire.MaxFrameSize {
+		return nil, fmt.Errorf("inflated application result exceeds %d bytes", wire.MaxFrameSize)
+	}
+	return out, nil
 }
 
 func EncodeErrorPayload(message ErrorMessage) ([]byte, error) {

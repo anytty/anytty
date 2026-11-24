@@ -10,6 +10,8 @@ message Hello {
   uint32 version = 1;
   string client = 2;
   string server = 3;
+  // 客户端能力位；老服务端忽略未知字段，因此可以安全共存。
+  repeated string capabilities = 4;
 }
 
 // SessionClose 是已完成 Hello 的客户端主动结束当前 protocol session 的单向 control frame。
@@ -30,9 +32,17 @@ message RequestEnvelope {
   bytes params = 3;
 }
 
+// ResponseEncoding 描述 ResponseEnvelope.result 的传输编码。
+enum ResponseEncoding {
+  RESPONSE_ENCODING_RAW = 0;
+  RESPONSE_ENCODING_DEFLATE = 1;
+}
+
 message ResponseEnvelope {
   uint64 id = 1;
   bytes result = 2;
+  // 只有客户端在 Hello.capabilities 声明 screen.compress.v1 时才会是 DEFLATE。
+  ResponseEncoding encoding = 3;
 }
 
 message ProtocolError {
