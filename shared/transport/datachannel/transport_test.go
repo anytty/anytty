@@ -388,19 +388,24 @@ func TestTransportSendFailureClosesTransport(t *testing.T) {
 	}
 }
 
-func TestTransportSendDrainTimeoutClosesTransport(t *testing.T) {
+func TestTransportSendDrainTimeoutReportsBackpressureAndKeepsTransport(t *testing.T) {
 	clientChannel, _ := newFakeChannelPair()
 	clientChannel.setBufferedAmount(defaultSendBufferHigh + 1)
 	transport := New(clientChannel)
 	transport.drainTimeout = 10 * time.Millisecond
 
-	if err := transport.Send([]byte("frame")); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("send drain error = %v", err)
+	if err := transport.Send([]byte("frame")); !errors.Is(err, ErrBackpressure) {
+		t.Fatalf("send drain error = %v, want ErrBackpressure", err)
 	}
+	// 背压是拥塞信号，不是连接故障：transport 必须继续可用，否则一次大帧
+	// 的 drain 等待就会把整条 session 拆掉。
 	select {
 	case <-transport.Done():
-	case <-time.After(time.Second):
-		t.Fatal("send drain timeout left transport alive")
+		t.Fatal("send backpressure must not close the transport")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if calls := channelCloseCalls(clientChannel); calls != 0 {
+		t.Fatalf("channel close calls = %d, want 0", calls)
 	}
 }
 
@@ -421,19 +426,20 @@ func TestTransportDrainNotificationsDoNotRenewSendDeadline(t *testing.T) {
 	})
 	select {
 	case err := <-sendDone:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("send error = %v, want deadline exceeded", err)
+		if !errors.Is(err, ErrBackpressure) {
+			t.Fatalf("send error = %v, want ErrBackpressure", err)
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("repeated drain notifications renewed the send deadline")
 	}
+	// 背压不关 transport（由调用方决定丢帧还是重试）。
 	select {
 	case <-transport.Done():
+		t.Fatal("backpressure must not close the transport")
 	default:
-		t.Fatal("expired send left transport alive")
 	}
-	if calls := channelCloseCalls(channel); calls != 1 {
-		t.Fatalf("channel close calls = %d, want 1", calls)
+	if calls := channelCloseCalls(channel); calls != 0 {
+		t.Fatalf("channel close calls = %d, want 0", calls)
 	}
 }
 

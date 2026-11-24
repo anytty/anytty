@@ -236,7 +236,7 @@ func (answerer Answerer) Answer(ctx context.Context, offer *SignalingOffer, iceS
 	peerFactory := answerer.PeerConnections
 	if peerFactory == nil {
 		peerFactory = func(configuration pion.Configuration) (*pion.PeerConnection, error) {
-			return NewPeerConnectionWithLogger(configuration, answerer.PionLogger)
+			return NewAnswererPeerConnection(configuration, answerer.PionLogger)
 		}
 	}
 	peer, err := peerFactory(configuration)

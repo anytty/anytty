@@ -19,6 +19,7 @@ import (
 	"github.com/anytty/anytty/proto/access/wire"
 	providerv1 "github.com/anytty/anytty/proto/provider/v1"
 	"github.com/anytty/anytty/shared/transport"
+	"github.com/anytty/anytty/shared/transport/datachannel"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -44,8 +45,6 @@ type session struct {
 	server *Server
 	conn   transport.Transport
 	logger *slog.Logger
-
-	sendMu sync.Mutex
 
 	stateMu       sync.RWMutex
 	helloAccepted bool
@@ -366,7 +365,16 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}
-	return session.sendFrame(0, wire.TypeResponse, response)
+	if err := session.sendFrame(0, wire.TypeResponse, response); err != nil {
+		// 屏幕帧是可丢的：背压时放弃这一帧，客户端下一次轮询会拿到新的净 delta。
+		// 控制帧/其它响应仍然按失败处理。
+		if errors.Is(err, datachannel.ErrBackpressure) && command.GetLiveScreenNext() != nil {
+			session.logger.Warn("access screen frame dropped on backpressure", "bytes", len(response))
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // compressLiveScreenResult 只压缩够大的屏幕帧；压缩收益不足时保持明文。
@@ -872,8 +880,8 @@ func (session *session) sendFrame(channel uint16, typ uint8, payload []byte) err
 	if err != nil {
 		return err
 	}
-	session.sendMu.Lock()
-	defer session.sendMu.Unlock()
+	// transport 自己串行化整帧写入（datachannel 的 sendMu / unix 的 sendQ），
+	// session 级别再加一把锁只会让一个大帧的 drain 等待拖住其它所有帧。
 	return session.conn.Send(frame)
 }
 

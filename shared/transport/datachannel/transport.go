@@ -18,12 +18,18 @@ const (
 	maxLogicalFrameSize         = wire.MaxEncodedFrameSize
 	defaultSendBufferHigh       = 512 * 1024
 	defaultSendBufferLow        = 128 * 1024
-	defaultDrainTimeout         = 30 * time.Second
+	defaultDrainTimeout         = 5 * time.Second
 	defaultDrainPoll            = time.Millisecond
 )
 
 // ErrReceiveQueueExhausted reports that the bounded pre-auth/protocol receive queue was exceeded.
 var ErrReceiveQueueExhausted = errors.New("transport/datachannel: receive queue exhausted")
+
+// ErrBackpressure 表示发送缓冲在 drain 窗口内没有降下来。
+//
+// 这是可重试的拥塞信号，不是连接故障：调用方可以丢弃可丢的帧（屏幕）或稍后
+// 重试；旧行为是直接 failSend 拆掉整条 transport，代价过大。
+var ErrBackpressure = errors.New("transport/datachannel: send backpressure timeout")
 
 // Channel 是 WebRTC 实现需要适配的可靠有序消息通道。
 // 该接口只暴露 protocol frame 传输和 buffered amount 背压，不承担信令、身份验证、grant 校验或 terminal lifecycle。
@@ -129,8 +135,7 @@ func (transport *Transport) Send(frame []byte) error {
 		case <-transport.done:
 			return io.EOF
 		case <-drainTimer.C:
-			transport.failSend(context.DeadlineExceeded)
-			return context.DeadlineExceeded
+			return ErrBackpressure
 		}
 	}
 	drainDuration = time.Since(started)

@@ -228,6 +228,9 @@ func (factory Factory) network() (transport.Net, error) {
 func newPeerConnectionAPI(settings pionwebrtc.SettingEngine) *pionwebrtc.API {
 	remotewebrtc.EnsureLoggerFactory(&settings, nil)
 	settings.SetSCTPMaxMessageSize(wire.MaxEncodedFrameSize)
+	// 交互式终端要的是丢包后的恢复速度：最小 cwnd 兜底、RTO 上限收窄。
+	settings.SetSCTPMinCwnd(19200)
+	settings.SetSCTPRTOMax(2 * time.Second)
 	return pionwebrtc.NewAPI(pionwebrtc.WithSettingEngine(settings))
 }
 

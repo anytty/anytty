@@ -28,7 +28,7 @@ const (
 	defaultUploadChunkLimit = 64 << 10
 	uploadResumeTTL         = 15 * time.Minute
 	uploadPersistInterval   = 500 * time.Millisecond
-	outboundQueueTarget     = 256 << 10
+	outboundQueueTarget     = 64 << 10
 	// compressionZstd 是当前唯一协商的 data frame 编码；空字符串始终表示 identity。
 	compressionZstd = "zstd"
 	// maxUploadDecodeBytes 限制单帧解压上限，避免恶意压缩帧放大内存。
