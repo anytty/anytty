@@ -964,6 +964,7 @@ Future<void> _waitForSessionRetry(
 }
 
 final class TerminalConnection {
+  static const _maximumInflightInputs = 3;
   static const _maximumPendingInputOperations = 128;
   static const _maximumPendingInputBytes = 1024 * 1024;
   static const _maximumPendingResizeOperations = 4;
@@ -1028,7 +1029,10 @@ final class TerminalConnection {
   Stopwatch? _renderLatencyWatch;
   int _renderLatencyRevision = -1;
   Completer<void>? _screenPollCancellation;
-  final BoundedSerialOperationQueue _inputQueue = BoundedSerialOperationQueue(
+  // 输入允许少量在飞：顺序由单条有序通道 + 服务端有序 PTY 写入保证，
+  // 客户端不再为每个按键等一个 RTT。
+  final BoundedPipelinedOperationQueue _inputQueue = BoundedPipelinedOperationQueue(
+    maximumInflight: _maximumInflightInputs,
     maximumOperations: _maximumPendingInputOperations,
     maximumCost: _maximumPendingInputBytes,
   );
@@ -1040,6 +1044,7 @@ final class TerminalConnection {
   ({int cols, int rows})? _lastResizeRequest;
   bool _forceFullReplace = false;
   bool _inputDeliveryReady = false;
+  DateTime? _inputPausedSince;
   bool _screenPolling = false;
   TerminalDeliveryState _deliveryState = TerminalDeliveryState.awaitingFrame;
   int _presentedRevision = -1;
@@ -1135,6 +1140,7 @@ final class TerminalConnection {
       _renderLatencyRevision = -1;
     }
     _inputDeliveryReady = true;
+    _inputPausedSince = null;
     _publishDeliveryState(TerminalDeliveryState.ready);
     _presentationWatchdog?.cancel();
     _presentationWatchdog = null;
@@ -1597,7 +1603,7 @@ final class TerminalConnection {
     }
     if (lifecycle.terminal.state == TerminalState.TERMINAL_STATE_EXITED ||
         lifecycle.terminal.state == TerminalState.TERMINAL_STATE_REMOVED) {
-      _inputDeliveryReady = false;
+      _pauseInputDelivery();
     }
     final attachment = _attachment;
     if (attachment != null &&
@@ -1672,7 +1678,7 @@ final class TerminalConnection {
             case LiveScreenRejected():
               if (outcome.requestFullReplace) {
                 _forceFullReplace = true;
-                _inputDeliveryReady = false;
+                _pauseInputDelivery();
                 _publishDeliveryState(TerminalDeliveryState.recovering);
               }
           }
@@ -1683,7 +1689,7 @@ final class TerminalConnection {
           if (terminalUsesHistoryOnly(_terminalState)) return;
           continue;
         } catch (error, stackTrace) {
-          _inputDeliveryReady = false;
+          _pauseInputDelivery();
           _publishDeliveryState(TerminalDeliveryState.recovering);
           if (!_closed && !terminalUsesHistoryOnly(_terminalState)) {
             _screens.addError(error, stackTrace);
@@ -1738,9 +1744,14 @@ final class TerminalConnection {
           _presentedRevision >= current.revision.toInt()) {
         return;
       }
-      _inputDeliveryReady = false;
+      _pauseInputDelivery();
       _publishDeliveryState(TerminalDeliveryState.stalled);
     });
+  }
+
+  void _pauseInputDelivery() {
+    _inputDeliveryReady = false;
+    _inputPausedSince ??= DateTime.now();
   }
 
   void _publishDeliveryState(TerminalDeliveryState state) {
@@ -1777,11 +1788,18 @@ final class TerminalConnection {
       );
     }
     if (!_inputDeliveryReady) {
-      return Future.error(
-        const NativeSessionException(
-          'Terminal input is paused while the screen recovers',
-        ),
-      );
+      // 屏幕恢复通常只有一个 RTT。旧行为在这里直接抛错，结果是越卡越打不了字；
+      // 现在允许短暂窗口继续输入，只有长时间恢复不了才报错。
+      final pausedSince = _inputPausedSince;
+      if (pausedSince != null &&
+          DateTime.now().difference(pausedSince) >
+              const Duration(seconds: 2)) {
+        return Future.error(
+          const NativeSessionException(
+            'Terminal input is paused while the screen recovers',
+          ),
+        );
+      }
     }
     final queueWatch = PerfStopwatch();
     return _inputQueue.schedule(
