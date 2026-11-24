@@ -64,9 +64,20 @@ cp -R proto/access/wirepb "$stage/wirepb"
 cp -R proto/cloud "$stage/cloud"
 cp -R proto/provider "$stage/provider"
 # Rewrite the on-disk import prefix to the staged logical prefix.
-find "$stage/apipb" -name '*.proto' -print0 | xargs -0 sed -i \
-  -e 's#import "access/apipb/#import "apipb/#g' \
-  -e 's#import "access/remoteauthpb/#import "remoteauthpb/#g'
+# BSD sed 的 -i 需要一个显式备份后缀，GNU sed 不允许空后缀，这里分别处理。
+rewrite_imports() {
+  local file="$1"
+  if sed --version >/dev/null 2>&1; then
+    sed -i -e 's#import "access/apipb/#import "apipb/#g' \
+      -e 's#import "access/remoteauthpb/#import "remoteauthpb/#g' "$file"
+  else
+    sed -i '' -e 's#import "access/apipb/#import "apipb/#g' \
+      -e 's#import "access/remoteauthpb/#import "remoteauthpb/#g' "$file"
+  fi
+}
+while IFS= read -r -d '' file; do
+  rewrite_imports "$file"
+done < <(find "$stage/apipb" -name '*.proto' -print0)
 
 cp scripts/buf.gen.access.yaml "$stage/buf.gen.access.yaml"
 
