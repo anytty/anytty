@@ -418,16 +418,21 @@ func (duplex *attachmentDuplex) Receive(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// Send 把字节写入 PTY 输入。首次发送会先完成 output stream 的 bootstrap，
-// 避免输入早于输出订阅导致回显丢失。
+// Send 把字节写入 PTY 输入。
+//
+// 这里刻意不 bootstrap output stream：bootstrap 会让 provider 立即开始推送
+// 原始 PTY 输出，而只轮询 canonical screen 的客户端（移动端）根本没有消费者，
+// provider 的 stream 缓冲几十帧后就会溢出，整条 provider 连接被判失败，
+// 表现就是"滑动/打字后整屏重连"。
+// 需要原始输出的调用方应显式 WaitReady（服务端在 client bootstrap 时自动完成）。
 func (duplex *attachmentDuplex) Send(ctx context.Context, data []byte) error {
 	if duplex.closed.Load() {
 		return errors.New("provider/pool: attachment stream is closed")
 	}
-	if err := duplex.open(ctx); err != nil {
+	if err := typedProviderError(duplex.client.Input(ctx, duplex.token, data)); err != nil {
 		return err
 	}
-	return typedProviderError(duplex.client.Input(ctx, duplex.token, data))
+	return nil
 }
 
 // Close 停止当前 PTY 输出流（保留 attachment resource；释放走 Detach）。幂等。
