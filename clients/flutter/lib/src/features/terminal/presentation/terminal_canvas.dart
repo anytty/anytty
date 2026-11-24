@@ -88,6 +88,10 @@ final class _RowPictureCache {
   String? _signature;
   final List<_CachedRowPicture?> _rows = [];
 
+  /// 测试用：本进程累计「重新录制的行数」与「命中缓存的行数」。
+  static int debugRecordedRows = 0;
+  static int debugHitRows = 0;
+
   void sync(String signature, int count) {
     if (signature != _signature) {
       clear();
@@ -109,7 +113,11 @@ final class _RowPictureCache {
     void Function(Canvas canvas) record,
   ) {
     final cached = _rows[index];
-    if (cached != null && identical(cached.row, row)) return cached.picture;
+    if (cached != null && identical(cached.row, row)) {
+      debugHitRows += 1;
+      return cached.picture;
+    }
+    debugRecordedRows += 1;
     cached?.dispose();
     final recorder = ui.PictureRecorder();
     record(Canvas(recorder));
@@ -127,6 +135,21 @@ final class _RowPictureCache {
   }
 
   void dispose() => clear();
+}
+
+/// 测试用：读取行级画面缓存的累计统计并清零。
+///
+/// `recorded` 是真正重新录制的行数，`hits` 是直接复用缓存的点数；
+/// 绘制成本与 `recorded` 成正比。
+@visibleForTesting
+({int recorded, int hits}) debugTakeTerminalPaintStats() {
+  final stats = (
+    recorded: _RowPictureCache.debugRecordedRows,
+    hits: _RowPictureCache.debugHitRows,
+  );
+  _RowPictureCache.debugRecordedRows = 0;
+  _RowPictureCache.debugHitRows = 0;
+  return stats;
 }
 
 final class _CachedRowPicture {
