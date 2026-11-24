@@ -8,6 +8,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/anytty_localizations.dart';
 import '../../../app/anytty_theme.dart';
+import '../../../app/endpoint_retention.dart';
 import '../../../app/providers.dart';
 import '../../../native/browser_proxy_platform.dart';
 import '../../../shared/presentation/anytty_brand_mark.dart';
@@ -105,6 +106,8 @@ final class _BrowserSessionScreenState
         widget.sessionStore ?? const SharedPreferencesBrowserSessionStore();
     _activeEndpointId = widget.endpointId;
     _activeEndpointLabel = _labelFor(widget.endpointId, widget.endpointLabel);
+    // 保留连接：进入这台机器后，切换到其他机器不再默认断开它。
+    unawaited(retainEndpointConnection(ref, _activeEndpointId));
     _pendingNavigationUrl = widget.navigationUrl;
     _retainEndpointSession(_activeEndpointId);
     unawaited(_loadHistory(_activeEndpointId));
@@ -967,6 +970,8 @@ final class _BrowserSessionScreenState
     _webViewController = controller;
     _activeEndpointId = endpointId;
     _activeEndpointLabel = endpointLabel;
+    // 保留连接：浏览器内切换设备后，被切走的机器保持连接。
+    unawaited(retainEndpointConnection(ref, endpointId));
     _activeEndpointSession = prepared.endpointSession;
     _watchEndpointSession(endpointId, prepared.endpointSession);
     _snapshot = activeSnapshot;

@@ -20,10 +20,16 @@ abstract interface class AnyttyPlatformHandler {
   Future<PlatformResponse> handle(PlatformRequest request);
 }
 
-abstract interface class AnyttyEngineRuntime {
+/// 引擎 demand 租约的最小依赖面，供 App 层的连接保留逻辑与测试替换使用。
+abstract interface class EndpointDemandRetainer {
+  EndpointDemandLease retainEndpointDemand(String endpointId);
+}
+
+abstract interface class AnyttyEngineRuntime implements EndpointDemandRetainer {
   Stream<EventEnvelope> get events;
   Stream<int> get foregroundResumes;
 
+  @override
   EndpointDemandLease retainEndpointDemand(String endpointId);
 
   int command(EngineCommand command);

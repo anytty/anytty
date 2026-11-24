@@ -12,6 +12,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../app/anytty_theme.dart';
 import '../../../app/anytty_localizations.dart';
+import '../../../app/endpoint_retention.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/apipb/common.pbenum.dart';
 import '../../../generated/proto/apipb/history.pb.dart';
@@ -95,6 +96,8 @@ final class _TerminalWorkspaceScreenState
   @override
   void initState() {
     super.initState();
+    // 保留连接：进入这台机器后，切换到其他机器不再默认断开它。
+    unawaited(retainEndpointConnection(ref, widget.endpointId));
     _view = WidgetsBinding.instance.platformDispatcher.views.first;
     _keyboardInsetStabilizer = TerminalKeyboardInsetStabilizer(
       onInsetChanged: (inset) {

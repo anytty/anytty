@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../app/anytty_theme.dart';
 import '../../../app/anytty_localizations.dart';
+import '../../../app/endpoint_retention.dart';
 import '../../../app/providers.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
 import '../../../generated/proto/remoteauthpb/remote_auth.pb.dart';
@@ -1388,6 +1389,9 @@ final class _DeviceActionsSheetState
       ),
     );
     if (confirmed != true || !mounted) return;
+    // 显式断开：先释放 App 级连接保留，避免保留租约触发自动重连。
+    await releaseEndpointConnection(ref, widget.endpoint.endpointId);
+    if (!mounted) return;
     await _perform(
       successMessage: anyttyText(
         context,
@@ -1428,6 +1432,9 @@ final class _DeviceActionsSheetState
       ),
     );
     if (confirmed != true || !mounted) return;
+    // 移除设备同样释放 App 级连接保留。
+    await releaseEndpointConnection(ref, widget.endpoint.endpointId);
+    if (!mounted) return;
     await _perform(
       successMessage: anyttyText(context, en: 'Device removed', zh: '设备已移除'),
       action: () async {
