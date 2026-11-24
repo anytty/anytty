@@ -515,6 +515,19 @@ final class TerminalMomentumProfile {
   final double minimumVelocity;
 }
 
+/// 手势切换的触发灵敏度：阈值乘数为 relaxed 0.7 / normal 1.0 / strict 1.4。
+enum TerminalSwipeSensitivity {
+  relaxed,
+  normal,
+  strict;
+
+  double get thresholdFactor => switch (this) {
+    TerminalSwipeSensitivity.relaxed => 0.7,
+    TerminalSwipeSensitivity.normal => 1.0,
+    TerminalSwipeSensitivity.strict => 1.4,
+  };
+}
+
 final class TerminalSettings {
   const TerminalSettings({
     this.fontSize = 14,
@@ -525,6 +538,9 @@ final class TerminalSettings {
     this.historyPrefetchThresholdRows = 30,
     this.cursorBlink = true,
     this.autoAcquireResizeOwner = false,
+    this.gestureTerminalSwitch = true,
+    this.gestureDeviceSwitch = true,
+    this.gestureSensitivity = TerminalSwipeSensitivity.normal,
   });
 
   final int fontSize;
@@ -535,6 +551,9 @@ final class TerminalSettings {
   final int historyPrefetchThresholdRows;
   final bool cursorBlink;
   final bool autoAcquireResizeOwner;
+  final bool gestureTerminalSwitch;
+  final bool gestureDeviceSwitch;
+  final TerminalSwipeSensitivity gestureSensitivity;
 
   TerminalCellMetrics get metrics =>
       TerminalCellMetrics.fromFontSize(fontSize.toDouble());
@@ -549,6 +568,9 @@ final class TerminalSettings {
     int? historyPrefetchThresholdRows,
     bool? cursorBlink,
     bool? autoAcquireResizeOwner,
+    bool? gestureTerminalSwitch,
+    bool? gestureDeviceSwitch,
+    TerminalSwipeSensitivity? gestureSensitivity,
   }) => TerminalSettings(
     fontSize: fontSize ?? this.fontSize,
     fontFamily: fontFamily ?? this.fontFamily,
@@ -560,6 +582,9 @@ final class TerminalSettings {
     cursorBlink: cursorBlink ?? this.cursorBlink,
     autoAcquireResizeOwner:
         autoAcquireResizeOwner ?? this.autoAcquireResizeOwner,
+    gestureTerminalSwitch: gestureTerminalSwitch ?? this.gestureTerminalSwitch,
+    gestureDeviceSwitch: gestureDeviceSwitch ?? this.gestureDeviceSwitch,
+    gestureSensitivity: gestureSensitivity ?? this.gestureSensitivity,
   ).normalized();
 
   TerminalSettings normalized() => TerminalSettings(
@@ -575,6 +600,9 @@ final class TerminalSettings {
     historyPrefetchThresholdRows: historyPrefetchThresholdRows.clamp(0, 1000),
     cursorBlink: cursorBlink,
     autoAcquireResizeOwner: autoAcquireResizeOwner,
+    gestureTerminalSwitch: gestureTerminalSwitch,
+    gestureDeviceSwitch: gestureDeviceSwitch,
+    gestureSensitivity: gestureSensitivity,
   );
 
   Map<String, Object> toJson() => {
@@ -586,6 +614,9 @@ final class TerminalSettings {
     'historyPrefetchThresholdRows': historyPrefetchThresholdRows,
     'cursorBlink': cursorBlink,
     'autoAcquireResizeOwner': autoAcquireResizeOwner,
+    'gestureTerminalSwitch': gestureTerminalSwitch,
+    'gestureDeviceSwitch': gestureDeviceSwitch,
+    'gestureSensitivity': gestureSensitivity.name,
   };
 
   factory TerminalSettings.fromJson(Map<String, Object?> json) {
@@ -602,6 +633,11 @@ final class TerminalSettings {
       'shift' || 'cover' || 'overlay' => TerminalKeyboardMode.shift,
       _ => TerminalKeyboardMode.automatic,
     };
+    final gestureSensitivity = switch (json['gestureSensitivity']) {
+      'relaxed' => TerminalSwipeSensitivity.relaxed,
+      'strict' => TerminalSwipeSensitivity.strict,
+      _ => TerminalSwipeSensitivity.normal,
+    };
     return TerminalSettings(
       fontSize: (json['fontSize'] as num?)?.round() ?? 14,
       fontFamily: json['fontFamily'] as String? ?? 'JetBrainsMonoNerd',
@@ -614,6 +650,9 @@ final class TerminalSettings {
           30,
       cursorBlink: json['cursorBlink'] as bool? ?? true,
       autoAcquireResizeOwner: json['autoAcquireResizeOwner'] as bool? ?? false,
+      gestureTerminalSwitch: json['gestureTerminalSwitch'] as bool? ?? true,
+      gestureDeviceSwitch: json['gestureDeviceSwitch'] as bool? ?? true,
+      gestureSensitivity: gestureSensitivity,
     ).normalized();
   }
 
@@ -627,7 +666,10 @@ final class TerminalSettings {
       other.scrollInertia == scrollInertia &&
       other.historyPrefetchThresholdRows == historyPrefetchThresholdRows &&
       other.cursorBlink == cursorBlink &&
-      other.autoAcquireResizeOwner == autoAcquireResizeOwner;
+      other.autoAcquireResizeOwner == autoAcquireResizeOwner &&
+      other.gestureTerminalSwitch == gestureTerminalSwitch &&
+      other.gestureDeviceSwitch == gestureDeviceSwitch &&
+      other.gestureSensitivity == gestureSensitivity;
 
   @override
   int get hashCode => Object.hash(
@@ -639,6 +681,9 @@ final class TerminalSettings {
     historyPrefetchThresholdRows,
     cursorBlink,
     autoAcquireResizeOwner,
+    gestureTerminalSwitch,
+    gestureDeviceSwitch,
+    gestureSensitivity,
   );
 }
 

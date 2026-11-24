@@ -57,6 +57,7 @@ import 'terminal_quick_keys_panel.dart';
 import 'terminal_recovery_notice.dart';
 import 'terminal_resource_panel.dart';
 import 'terminal_switcher_sheet.dart';
+import 'terminal_swipe_switcher.dart';
 import 'terminal_path_picker_sheet.dart';
 import 'terminal_ui_theme.dart';
 
@@ -502,6 +503,7 @@ final class _TerminalWorkspaceScreenState
                   keyboardInset: _keyboardInset,
                   settledKeyboardInset: _keyboardInset,
                   surfaceKey: _surfaceKey,
+                  swipeBridge: _terminalSwipeBridge(terminalItems),
                   onOpenBrowser: _openBrowserUrl,
                   onActiveTerminalChanged: (terminalId) {
                     if (mounted && _activeTerminalId != terminalId) {
@@ -616,6 +618,34 @@ final class _TerminalWorkspaceScreenState
       '/terminal/${Uri.encodeComponent(selection.endpointId)}'
       '?terminalId=${Uri.encodeQueryComponent(selection.terminalId)}'
       '&label=${Uri.encodeQueryComponent(selection.endpointLabel)}',
+    );
+  }
+
+  TerminalSwipeBridge? _terminalSwipeBridge(List<TerminalInfo>? terminals) {
+    if (terminals == null || terminals.isEmpty) return null;
+    final label = widget.label?.trim().isNotEmpty == true
+        ? widget.label!.trim()
+        : widget.endpointId;
+    return _WorkspaceTerminalSwipeBridge(
+      ref: ref,
+      context: context,
+      endpointId: widget.endpointId,
+      activeTerminalId: () => _activeTerminalId ?? widget.terminalId,
+      orderTerminals: _orderSwitcherTerminals,
+      onSwitchTerminal: (terminalId) =>
+          _surfaceKey.currentState?.switchTerminal(terminalId),
+      onOpenSwitcher: (items, activeTerminalId) {
+        if (!mounted) return;
+        unawaited(
+          _openTerminalSwitcher(
+            context: context,
+            endpointId: widget.endpointId,
+            endpointLabel: label,
+            terminals: items,
+            activeTerminalId: activeTerminalId,
+          ),
+        );
+      },
     );
   }
 
@@ -4393,6 +4423,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.surfaceKey,
+    required this.swipeBridge,
     required this.onOpenBrowser,
     required this.onActiveTerminalChanged,
   }) : super(key: surfaceKey);
@@ -4404,6 +4435,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final GlobalKey<_ActiveTerminalState> surfaceKey;
+  final TerminalSwipeBridge? swipeBridge;
   final Future<void> Function(Uri) onOpenBrowser;
   final ValueChanged<String> onActiveTerminalChanged;
 
@@ -4922,6 +4954,7 @@ final class _ActiveTerminalState extends ConsumerState<_ActiveTerminal> {
                           keyboardInset: keyboardInset,
                           settledKeyboardInset: widget.settledKeyboardInset,
                           surfaceKey: _surfaceKey(paneKey),
+                          swipeBridge: widget.swipeBridge,
                           active: active,
                           onActivate: () => _activatePane(paneKey),
                           onOpenBrowser: widget.onOpenBrowser,
@@ -4969,6 +5002,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.surfaceKey,
+    required this.swipeBridge,
     required this.active,
     required this.onActivate,
     required this.onOpenBrowser,
@@ -4990,6 +5024,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final GlobalKey<_TerminalSurfaceState> surfaceKey;
+  final TerminalSwipeBridge? swipeBridge;
   final bool active;
   final VoidCallback onActivate;
   final Future<void> Function(Uri) onOpenBrowser;
@@ -5013,6 +5048,10 @@ final class _TerminalPaneConnection extends ConsumerWidget {
     final keyboardMode =
         ref.watch(terminalKeyboardModeProvider(key)).valueOrNull ??
         settings.keyboardMode;
+    final swipeHapticsEnabled =
+        (ref.watch(terminalPetalMenuPreferencesProvider).valueOrNull ??
+                TerminalPetalMenuPreferences.defaults)
+            .hapticsEnabled;
     return ref
         .watch(terminalConnectionProvider(key))
         .when(
@@ -5025,6 +5064,8 @@ final class _TerminalPaneConnection extends ConsumerWidget {
           data: (connection) => _TerminalSurface(
             key: surfaceKey,
             connection: connection,
+            swipeBridge: swipeBridge,
+            swipeHapticsEnabled: swipeHapticsEnabled,
             keyboardMode: keyboardMode,
             keyboardVisualInset: keyboardVisualInset,
             keyboardInset: keyboardInset,
@@ -5234,6 +5275,8 @@ final class _TerminalSurface extends StatefulWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.settings,
+    required this.swipeBridge,
+    required this.swipeHapticsEnabled,
     required this.active,
     required this.onActivate,
     required this.externalControls,
@@ -5260,6 +5303,8 @@ final class _TerminalSurface extends StatefulWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final TerminalSettings settings;
+  final TerminalSwipeBridge? swipeBridge;
+  final bool swipeHapticsEnabled;
   final bool active;
   final VoidCallback onActivate;
   final bool externalControls;
@@ -5814,7 +5859,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             label: 'Waiting for screen snapshot',
           );
         }
-        return _buildKeyboardAdjustedTerminal(
+        final terminalBody = _buildKeyboardAdjustedTerminal(
           screen: screen,
           child: TerminalKeyboardFrameFreeze(
             visualInset: widget.keyboardVisualInset,
@@ -5892,6 +5937,26 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
               ),
             ),
           ),
+        );
+        final bridge = widget.swipeBridge;
+        if (bridge == null) return terminalBody;
+        final swipeEnabled =
+            (widget.settings.gestureTerminalSwitch ||
+                widget.settings.gestureDeviceSwitch) &&
+            !_selectionMode &&
+            _history == null &&
+            !_historyLoading &&
+            !_searchOpen &&
+            !_toolsOpen &&
+            !_fnOpen;
+        if (!swipeEnabled) return terminalBody;
+        return TerminalSwipeSwitcher(
+          bridge: bridge,
+          enabled: true,
+          settings: widget.settings,
+          hapticsEnabled: widget.swipeHapticsEnabled,
+          currentScreenTerminalId: screen.terminal.terminalId,
+          child: terminalBody,
         );
       },
     );
@@ -10178,3 +10243,155 @@ bool _mouseTrackingEnabled(TerminalModes? modes) =>
     modes?.mouseAnyEvent == true;
 
 const _usbKeyboardPage = 0x00070000;
+
+/// 手势切换桥：把工作区的排序 / 会话 / 导航能力暴露给 TerminalSwipeSwitcher。
+final class _WorkspaceTerminalSwipeBridge implements TerminalSwipeBridge {
+  _WorkspaceTerminalSwipeBridge({
+    required this.ref,
+    required this.context,
+    required this.endpointId,
+    required this.activeTerminalId,
+    required this.orderTerminals,
+    required this.onSwitchTerminal,
+    required this.onOpenSwitcher,
+  });
+
+  final WidgetRef ref;
+  final BuildContext context;
+  final String endpointId;
+  final String? Function() activeTerminalId;
+  final Future<List<TerminalInfo>> Function(String, List<TerminalInfo>)
+  orderTerminals;
+  final void Function(String terminalId) onSwitchTerminal;
+  final void Function(List<TerminalInfo> terminals, String activeTerminalId)
+  onOpenSwitcher;
+
+  @override
+  Future<TerminalSwipeSnapshot> snapshot(TerminalSwipeMode mode) {
+    return switch (mode) {
+      TerminalSwipeMode.terminals => _terminalSnapshot(),
+      TerminalSwipeMode.devices => _deviceSnapshot(),
+    };
+  }
+
+  Future<TerminalSwipeSnapshot> _terminalSnapshot() async {
+    final items = await ref.read(terminalListProvider(endpointId).future);
+    final ordered = await orderTerminals(endpointId, items);
+    if (ordered.isEmpty) {
+      return const TerminalSwipeSnapshot(targets: [], currentIndex: 0);
+    }
+    final active = activeTerminalId();
+    var index = ordered.indexWhere(
+      (terminal) => terminal.ref.terminalId == active,
+    );
+    if (index < 0) index = 0;
+    final neighbors = <int>{
+      index - 1,
+      index + 1,
+    }.where((value) => value >= 0 && value < ordered.length).toList();
+    final screens = <String, CanonicalLiveScreen?>{};
+    if (neighbors.isNotEmpty) {
+      EndpointSessionClient? session;
+      try {
+        session = await ref.read(endpointSessionProvider(endpointId).future);
+      } catch (_) {
+        session = null;
+      }
+      if (session != null) {
+        final activeSession = session;
+        await Future.wait(
+          neighbors.map((position) async {
+            final terminal = ordered[position];
+            screens[terminal.ref.terminalId] = await _fetchScreen(
+              activeSession,
+              terminal,
+            );
+          }),
+        );
+      }
+    }
+    return TerminalSwipeSnapshot(
+      targets: [
+        for (final terminal in ordered)
+          TerminalSwipeTarget(
+            id: terminal.ref.terminalId,
+            label: _terminalDisplayName(terminal),
+            subtitle: terminalUsesHistoryOnly(terminal.state)
+                ? '已退出'
+                : null,
+            screen: screens[terminal.ref.terminalId],
+          ),
+      ],
+      currentIndex: index,
+    );
+  }
+
+  Future<CanonicalLiveScreen?> _fetchScreen(
+    EndpointSessionClient session,
+    TerminalInfo terminal,
+  ) async {
+    try {
+      final incoming = await session
+          .nextScreen(terminal.ref, 0)
+          .timeout(const Duration(milliseconds: 450));
+      final outcome = mergeLiveScreen(
+        current: null,
+        incoming: incoming,
+        connectionGeneration: session.stamp.generation,
+        expectedTerminal: terminal.ref,
+      );
+      return outcome is LiveScreenMerged ? outcome.screen : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<TerminalSwipeSnapshot> _deviceSnapshot() async {
+    final registry = await ref.read(endpointRegistryProvider.future);
+    final endpoints = registry.endpoints
+        .where(
+          (endpoint) => endpoint.enabled || endpoint.endpointId == endpointId,
+        )
+        .toList(growable: false);
+    final targets = [
+      for (final endpoint in endpoints)
+        TerminalSwipeTarget(
+          id: endpoint.endpointId,
+          label: endpoint.label.trim().isEmpty
+              ? endpoint.endpointId
+              : endpoint.label.trim(),
+          subtitle: endpoint.endpointId,
+        ),
+    ];
+    var index = targets.indexWhere((target) => target.id == endpointId);
+    if (index < 0) index = 0;
+    return TerminalSwipeSnapshot(targets: targets, currentIndex: index);
+  }
+
+  @override
+  void commitTerminal(String terminalId) => onSwitchTerminal(terminalId);
+
+  @override
+  void commitDevice(String endpointId, String label) {
+    if (!context.mounted) return;
+    context.go(
+      '/terminal/${Uri.encodeComponent(endpointId)}'
+      '?label=${Uri.encodeQueryComponent(label)}',
+    );
+  }
+
+  @override
+  void openSwitcher() {
+    unawaited(() async {
+      try {
+        final items = await ref.read(
+          terminalListProvider(endpointId).future,
+        );
+        if (!context.mounted) return;
+        onOpenSwitcher(items, activeTerminalId() ?? '');
+      } catch (_) {
+        // 列表不可用时静默放弃：手势本身已经回到原位。
+      }
+    }());
+  }
+}
