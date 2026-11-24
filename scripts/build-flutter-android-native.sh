@@ -78,7 +78,7 @@ build_abi() {
     fi
     go build -trimpath -buildmode=c-shared -ldflags="${cloud_ldflags}" \
       -o "${destination}/libanytty_client.so" \
-      ./client/binding/cabi/androidlib
+      ./access/engine/binding/cabi/androidlib
   )
   find "${destination}" -maxdepth 1 -type f -name 'libanytty_client.h' -delete
 }
