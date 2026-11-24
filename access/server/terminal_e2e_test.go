@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -164,6 +165,134 @@ func TestTerminalRoutingThroughAccessReachesDaemonPTY(t *testing.T) {
 	}
 	if len(empty.GetTerminals()) != 0 {
 		t.Fatalf("terminal list after remove = %#v", empty.GetTerminals())
+	}
+}
+
+// TestTerminalInputPreservesOrderUnderAsyncQueue 覆盖 access 侧的有序输入队列：
+// 输入应答现在由 drainer 在 PTY 写入后发送，连续输入必须按发送顺序到达 PTY，
+// 大段粘贴不能丢字节。
+func TestTerminalInputPreservesOrderUnderAsyncQueue(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	daemonSocket := filepath.Join(dir, "pool.sock")
+	accessSocket := filepath.Join(dir, "pool.sock.access")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	server := corev2.NewServer(corev2.WithSocketPath(daemonSocket), corev2.WithHistoryDisabled())
+	defer func() { _ = server.Shutdown(context.Background()) }()
+	providerServer, err := providercore.New(server, providercore.Config{Socket: daemonSocket})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = providerServer.Shutdown(context.Background()) }()
+	go func() { _ = providerServer.ListenAndServe(ctx) }()
+	waitForSocket(t, daemonSocket)
+
+	access, err := accessserver.New(accessserver.Config{
+		Socket: accessSocket,
+		Files:  accessserverTestFiles(t),
+		Provider: func(dialCtx context.Context) (terminalprovider.Provider, error) {
+			return poolprovider.DialTerminal(dialCtx, daemonSocket)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = access.Close() }()
+	go func() { _ = access.Serve(ctx) }()
+	waitForSocket(t, accessSocket)
+
+	connection, err := unixtransport.DialContext(ctx, accessSocket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := internalprotocol.NewClient(connection)
+	defer func() { _ = client.Close() }()
+	if err := client.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: "access-input-order"}); err != nil {
+		t.Fatal(err)
+	}
+	application, err := clientruntime.NewApplicationSession(clientruntime.EndpointSessionStamp{
+		EndpointID: clientendpoint.EndpointID("local"),
+		RouteID:    clientendpoint.RouteID("access-input-order"),
+		Generation: 1,
+	}, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := application.TerminalCreate(ctx, &apipb.TerminalCreateCommand{Terminal: &apipb.TerminalCreateSpec{
+		TerminalId: "term-input", Command: []string{"/bin/cat"}, Size: &apipb.TerminalSize{Cols: 120, Rows: 12},
+	}}); err != nil {
+		t.Fatalf("terminal create: %v", err)
+	}
+	attached, err := application.TerminalAttach(ctx, &apipb.TerminalAttachCommand{
+		Terminal:     &apipb.TerminalRef{EndpointId: "local", TerminalId: "term-input"},
+		Mode:         apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR,
+		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_OWNER,
+		SurfaceId:    "surface-input-order",
+		ViewId:       "view-input-order",
+	})
+	if err != nil {
+		t.Fatalf("terminal attach: %v", err)
+	}
+	attachment := attached.GetAttachment()
+	channel, ok := client.ApplicationAttachmentChannel(attachment.GetResource())
+	if !ok {
+		t.Fatal("attachment resource has no client channel")
+	}
+	frames, stopStream := client.Stream(channel)
+	defer stopStream()
+	if err := client.SendAttachmentReady(channel); err != nil {
+		t.Fatal(err)
+	}
+	waitForStreamReady(t, frames)
+
+	// 1) 连续单字节输入：顺序必须与发送顺序一致。
+	ordered := []byte("abcdefghijklmnopqrstuvwxyz0123456789")
+	for _, value := range ordered {
+		if err := application.TerminalInput(ctx, &apipb.TerminalInputCommand{
+			Attachment: attachment.GetResource(),
+			Data:       []byte{value},
+		}); err != nil {
+			t.Fatalf("single-byte input: %v", err)
+		}
+	}
+	if err := application.TerminalInput(ctx, &apipb.TerminalInputCommand{
+		Attachment: attachment.GetResource(),
+		Data:       []byte("\n"),
+	}); err != nil {
+		t.Fatalf("newline input: %v", err)
+	}
+	if output := waitForPTYOutput(t, frames, "0123456789"); output == "" {
+		t.Fatal("no PTY output for ordered input")
+	}
+
+	// 2) 大段粘贴：按行发送，行标记必须按顺序出现且一个不少。
+	const lines = 48
+	const width = 180
+	for line := 0; line < lines; line += 1 {
+		payload := "L%02d-" + strings.Repeat("x", width) + "\n"
+		payload = strings.Replace(payload, "%02d", fmt.Sprintf("%02d", line), 1)
+		if err := application.TerminalInput(ctx, &apipb.TerminalInputCommand{
+			Attachment: attachment.GetResource(),
+			Data:       []byte(payload),
+		}); err != nil {
+			t.Fatalf("pasted line %d: %v", line, err)
+		}
+	}
+	output := waitForPTYOutput(t, frames, "L47-")
+	previous := -1
+	for line := 0; line < lines; line += 1 {
+		marker := fmt.Sprintf("L%02d-", line)
+		at := strings.Index(output, marker)
+		if at < 0 {
+			t.Fatalf("pasted line %q missing from PTY output", marker)
+		}
+		if at <= previous {
+			t.Fatalf("pasted line %q out of order (index %d <= %d)", marker, at, previous)
+		}
+		previous = at
 	}
 }
 

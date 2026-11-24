@@ -89,7 +89,54 @@ type streamBinding struct {
 	mu         sync.Mutex
 	generation uint64
 	duplex     terminalprovider.Duplex
+
+	input *terminalInputQueue
 }
+
+// terminalInputQueue 串行化同一 attachment 的 PTY 写入。
+//
+// 请求在 session 读循环里并发分发，两个相邻的输入请求如果各自直接写
+// PTY，落盘顺序取决于 goroutine 调度。客户端允许输入在飞后，这里用
+// 单一 drainer 保证写入顺序与到达顺序一致；应答在写入完成后由
+// drainer 发送，错误语义与旧路径一致。
+const terminalInputQueueDepth = 256
+
+type terminalInputItem struct {
+	data    []byte
+	respond func(error)
+}
+
+type terminalInputQueue struct {
+	session   *session
+	binding   *streamBinding
+	items     chan terminalInputItem
+	closeOnce sync.Once
+}
+
+func (queue *terminalInputQueue) enqueue(item terminalInputItem) error {
+	select {
+	case queue.items <- item:
+		return nil
+	default:
+		return errTerminalInputQueueFull
+	}
+}
+
+func (queue *terminalInputQueue) drain() {
+	ctx := queue.session.lifetimeContext()
+	for item := range queue.items {
+		err := queue.session.writeTerminalInput(ctx, queue.binding, item.data)
+		if item.respond != nil {
+			item.respond(err)
+		}
+	}
+}
+
+func (queue *terminalInputQueue) close() {
+	queue.closeOnce.Do(func() { close(queue.items) })
+}
+
+var errTerminalInputQueueFull = errors.New("terminal input queue is full")
 
 // eventSubscription 是 access 会话上的一个 provider event 订阅投影。
 // terminalEvents=false 表示只订阅 access-local 事件（storage），没有 provider token。
@@ -279,7 +326,87 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorBadRequest, err.Error())
 	}
+	if input := command.GetTerminalInput(); input != nil {
+		// 终端输入走有序队列：应答由 drainer 在 PTY 写入后发送。
+		// 其余命令保持原有并发分发路径。
+		return session.handleTerminalInput(request, command, input)
+	}
 	result, executeErr := session.routeCommand(ctx, command)
+	if executeErr != nil {
+		result = providerErrorResult(command, executeErr)
+	}
+	payload, err := internalprotocol.EncodeApplicationResult(result)
+	if err != nil {
+		return session.sendError(request.ID, protocolErrorInternal, err.Error())
+	}
+	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{ID: request.ID, Result: payload})
+	if err != nil {
+		return session.sendError(request.ID, protocolErrorInternal, err.Error())
+	}
+	return session.sendFrame(0, wire.TypeResponse, response)
+}
+
+// handleTerminalInput 把一条终端输入排进所属 attachment 的有序队列。
+//
+// 应答（acknowledge 或 provider error）由 drainer 在 PTY 写入完成后发送，
+// 语义与旧的同步路径一致；区别只是写入顺序不再受请求 goroutine 调度影响，
+// 客户端可以安全地让多条输入同时在飞。
+func (session *session) handleTerminalInput(
+	request internalprotocol.Request,
+	command *apipb.CommandEnvelope,
+	input *apipb.TerminalInputCommand,
+) error {
+	binding, err := session.attachmentBinding(input.GetAttachment().GetOpaqueToken())
+	if err != nil {
+		return session.respondTerminalInput(request, command, err)
+	}
+	queue, err := session.ensureInputQueue(binding)
+	if err != nil {
+		return session.respondTerminalInput(request, command, err)
+	}
+	if err := queue.enqueue(terminalInputItem{
+		data: append([]byte(nil), input.GetData()...),
+		respond: func(writeErr error) {
+			_ = session.respondTerminalInput(request, command, writeErr)
+		},
+	}); err != nil {
+		return session.respondTerminalInput(request, command, err)
+	}
+	return nil
+}
+
+func (session *session) ensureInputQueue(binding *streamBinding) (*terminalInputQueue, error) {
+	binding.mu.Lock()
+	if binding.input != nil {
+		queue := binding.input
+		binding.mu.Unlock()
+		return queue, nil
+	}
+	queue := &terminalInputQueue{
+		session: session,
+		binding: binding,
+		items:   make(chan terminalInputItem, terminalInputQueueDepth),
+	}
+	binding.input = queue
+	binding.mu.Unlock()
+	go queue.drain()
+	return queue, nil
+}
+
+// writeTerminalInput 写 PTY；与其他 input 请求共享一个 duplex。
+func (session *session) writeTerminalInput(ctx context.Context, binding *streamBinding, data []byte) error {
+	if binding == nil || binding.attachment == nil {
+		return errors.New("terminal attachment is not bound")
+	}
+	return binding.attachment.Stream().Send(ctx, data)
+}
+
+func (session *session) respondTerminalInput(
+	request internalprotocol.Request,
+	command *apipb.CommandEnvelope,
+	executeErr error,
+) error {
+	result := acknowledgeEnvelope(command)
 	if executeErr != nil {
 		result = providerErrorResult(command, executeErr)
 	}
@@ -607,7 +734,11 @@ func (session *session) retireBinding(binding *streamBinding) {
 	binding.generation++
 	duplex := binding.duplex
 	binding.duplex = nil
+	input := binding.input
 	binding.mu.Unlock()
+	if input != nil {
+		input.close()
+	}
 	if duplex != nil {
 		_ = duplex.Close()
 	}
