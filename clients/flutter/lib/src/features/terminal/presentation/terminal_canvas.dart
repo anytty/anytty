@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,7 @@ import '../domain/history_interaction.dart';
 import '../domain/live_screen_store.dart';
 import '../domain/terminal_links.dart';
 import '../domain/terminal_metrics.dart';
+import '../domain/terminal_perf_counters.dart';
 import '../domain/terminal_settings.dart';
 
 const terminalFontSize = 14.0;
@@ -78,6 +80,64 @@ String terminalScreenSemanticValue(
   return omitted ? '$_terminalSemanticOmission$output' : output;
 }
 
+/// 行级 `ui.Picture` 缓存。
+///
+/// merge 层保证「没有变化的行是同一个 ScreenRow 实例」，所以脏行判定
+/// 直接用 `identical(row)`，不需要额外传递 damage 信息。
+final class _RowPictureCache {
+  String? _signature;
+  final List<_CachedRowPicture?> _rows = [];
+
+  void sync(String signature, int count) {
+    if (signature != _signature) {
+      clear();
+      _signature = signature;
+    }
+    if (_rows.length > count) {
+      for (var index = count; index < _rows.length; index += 1) {
+        _rows[index]?.dispose();
+      }
+      _rows.removeRange(count, _rows.length);
+    } else if (_rows.length < count) {
+      _rows.addAll(List<_CachedRowPicture?>.filled(count - _rows.length, null));
+    }
+  }
+
+  ui.Picture pictureFor(
+    int index,
+    ScreenRow row,
+    void Function(Canvas canvas) record,
+  ) {
+    final cached = _rows[index];
+    if (cached != null && identical(cached.row, row)) return cached.picture;
+    cached?.dispose();
+    final recorder = ui.PictureRecorder();
+    record(Canvas(recorder));
+    final picture = recorder.endRecording();
+    _rows[index] = _CachedRowPicture(row, picture);
+    return picture;
+  }
+
+  void clear() {
+    for (final cached in _rows) {
+      cached?.dispose();
+    }
+    _rows.clear();
+    _signature = null;
+  }
+
+  void dispose() => clear();
+}
+
+final class _CachedRowPicture {
+  _CachedRowPicture(this.row, this.picture);
+
+  final ScreenRow row;
+  final ui.Picture picture;
+
+  void dispose() => picture.dispose();
+}
+
 final class TerminalCanvas extends StatefulWidget {
   const TerminalCanvas({
     super.key,
@@ -124,6 +184,7 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
   CanonicalLiveScreen? _scheduledPresentationScreen;
   int _scheduledPresentationRevision = -1;
   int? _scheduledPresentationGeneration;
+  final _rowCache = _RowPictureCache();
 
   @override
   void initState() {
@@ -151,6 +212,7 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
     _semanticUpdateTimer?.cancel();
     _cursorPhase.dispose();
     _semanticValue.dispose();
+    _rowCache.dispose();
     super.dispose();
   }
 
@@ -225,6 +287,7 @@ final class _TerminalCanvasState extends State<TerminalCanvas> {
                 metrics: metrics,
                 theme: theme,
                 fontFamily: widget.settings.fontFamily,
+                rowCache: _rowCache,
                 drawCursor:
                     !widget.settings.cursorBlink ||
                     widget.screen.cursor?.blink != true ||
@@ -898,6 +961,7 @@ final class _TerminalPainter extends CustomPainter {
     required this.theme,
     required this.fontFamily,
     required this.drawCursor,
+    this.rowCache,
   });
 
   final CanonicalLiveScreen screen;
@@ -905,19 +969,53 @@ final class _TerminalPainter extends CustomPainter {
   final TerminalTheme theme;
   final String fontFamily;
   final bool drawCursor;
+  final _RowPictureCache? rowCache;
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = _color(theme.background),
-    );
-    for (var rowIndex = 0; rowIndex < screen.screenRows.length; rowIndex += 1) {
-      _paintRow(canvas, rowIndex, screen.screenRows[rowIndex]);
+    final paintWatch = PerfStopwatch();
+    TerminalPerfCounters.instance.beginPaint();
+    final background = _color(theme.background);
+    canvas.drawRect(Offset.zero & size, Paint()..color = background);
+    final cache = rowCache;
+    if (cache == null) {
+      for (
+        var rowIndex = 0;
+        rowIndex < screen.screenRows.length;
+        rowIndex += 1
+      ) {
+        _paintRow(canvas, rowIndex, screen.screenRows[rowIndex]);
+      }
+    } else {
+      cache.sync(
+        '${metrics.cellWidth}x${metrics.rowHeight}|${theme.id}|$fontFamily|${screen.cols}',
+        screen.screenRows.length,
+      );
+      final rowWidth = screen.cols * metrics.cellWidth;
+      for (
+        var rowIndex = 0;
+        rowIndex < screen.screenRows.length;
+        rowIndex += 1
+      ) {
+        final row = screen.screenRows[rowIndex];
+        final picture = cache.pictureFor(rowIndex, row, (rowCanvas) {
+          // 行画面自带背景，否则缓存复用时会透出上一帧的像素。
+          rowCanvas.drawRect(
+            Rect.fromLTWH(0, 0, rowWidth, metrics.rowHeight),
+            Paint()..color = background,
+          );
+          _paintRow(rowCanvas, 0, row);
+        });
+        canvas.save();
+        canvas.translate(0, rowIndex * metrics.rowHeight);
+        canvas.drawPicture(picture);
+        canvas.restore();
+      }
     }
     if (screen.cursor case final cursor? when cursor.visible && drawCursor) {
       _paintCursor(canvas, cursor);
     }
+    TerminalPerfCounters.instance.endPaint(paintWatch.elapsedUs ?? 0);
   }
 
   void _paintRow(Canvas canvas, int rowIndex, ScreenRow row) {
@@ -1296,6 +1394,7 @@ void _paintTerminalText({
   required String fontFamily,
   required CellStyle style,
 }) {
+  TerminalPerfCounters.instance.noteRun();
   final textStyle = TextStyle(
     color: foreground,
     fontFamily: fontFamily,

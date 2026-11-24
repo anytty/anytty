@@ -9,6 +9,7 @@ import '../generated/proto/apipb/application.pb.dart'
     show CommandEnvelope, ResultEnvelope_Result;
 import '../generated/proto/apipb/common.pb.dart'
     show ApiError, EndpointSessionStamp;
+import '../features/terminal/domain/terminal_perf_counters.dart';
 import '../generated/proto/bindingpb/client_binding.pb.dart';
 import 'anytty_client_engine.dart';
 import 'request_id.dart';
@@ -368,7 +369,12 @@ final class AnyttyRuntime
       final bytes = message.materialize().asUint8List();
       if (kind == _PumpKind.events) {
         try {
+          final decodeWatch = PerfStopwatch();
           final event = EventEnvelope.fromBuffer(bytes);
+          TerminalPerfCounters.instance.noteDecode(
+            bytes.length,
+            decodeWatch.elapsedUs ?? 0,
+          );
           _acceptEngineEvent(event);
           _events.add(event);
         } finally {

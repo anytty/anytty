@@ -47,6 +47,44 @@ void main() {
     expect(merged.damage.changedRows, [0, 1, 2]);
   });
 
+  test('未变化的行在帧之间保持同一实例（渲染层行缓存依赖此不变量）', () {
+    final baseline = mergeLiveScreen(
+      current: null,
+      incoming: NativeScreenResult(
+        terminal: terminal,
+        liveRevision: Int64(1),
+        size: TerminalSize(cols: 8, rows: 3),
+        rowReplacements: [
+          _replacement(0, 'zero'),
+          _replacement(1, 'one'),
+          _replacement(2, 'two'),
+        ],
+        fullReplace: true,
+      ),
+      connectionGeneration: Int64(1),
+      expectedTerminal: terminal,
+    ) as LiveScreenMerged;
+
+    final next = mergeLiveScreen(
+      current: baseline.screen,
+      incoming: NativeScreenResult(
+        terminal: terminal,
+        liveRevision: Int64(2),
+        baseRevision: Int64(1),
+        size: TerminalSize(cols: 8, rows: 3),
+        rowReplacements: [_replacement(0, 'changed')],
+      ),
+      connectionGeneration: Int64(1),
+      expectedTerminal: terminal,
+    ) as LiveScreenMerged;
+
+    expect(_text(next.screen.screenRows[0]), 'changed');
+    // 关键：没变的行必须还是同一个对象，行级 ui.Picture 缓存靠它判脏。
+    expect(identical(next.screen.screenRows[1], baseline.screen.screenRows[1]), isTrue);
+    expect(identical(next.screen.screenRows[2], baseline.screen.screenRows[2]), isTrue);
+    expect(next.damage.changedRows, [0]);
+  });
+
   test('rejects a delta whose base revision does not match', () {
     final current = CanonicalLiveScreen(
       terminal: terminal,

@@ -159,7 +159,9 @@ LiveScreenMergeOutcome mergeLiveScreen({
           requestFullReplace: true,
         );
       }
-      nextRows[destination] = baseRows[copy.sourceRow + offset].deepCopy();
+      // 行引用直接共享：CanonicalLiveScreen 发布后视为不可变，
+      // 行身份稳定还能让渲染层的行级缓存命中。
+      nextRows[destination] = baseRows[copy.sourceRow + offset];
       changedRows.add(destination);
     }
   }
@@ -175,7 +177,7 @@ LiveScreenMergeOutcome mergeLiveScreen({
         requestFullReplace: true,
       );
     }
-    nextRows[replacement.rowIndex] = replacement.row.deepCopy();
+    nextRows[replacement.rowIndex] = replacement.row;
     changedRows.add(replacement.rowIndex);
   }
 

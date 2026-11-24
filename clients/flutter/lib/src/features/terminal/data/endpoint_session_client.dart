@@ -25,6 +25,7 @@ import '../domain/history_store.dart';
 import '../domain/live_screen_store.dart';
 import '../domain/resize_control.dart';
 import '../domain/terminal_inventory.dart';
+import '../domain/terminal_perf_counters.dart';
 import '../domain/terminal_metrics.dart';
 
 final class NativeSessionException implements Exception {
@@ -1635,17 +1636,26 @@ final class TerminalConnection {
         final cancellation = Completer<void>();
         _screenPollCancellation = cancellation;
         try {
+          final pollWatch = PerfStopwatch();
           final incoming = await _session.nextScreen(
             terminal,
             _forceFullReplace ? 0 : (_current?.revision.toInt() ?? 0),
             cancelWhen: cancellation.future,
           );
+          TerminalPerfCounters.instance.notePollRoundtrip(
+            pollWatch.elapsedUs ?? 0,
+          );
           if (_closed) return;
+          final mergeWatch = PerfStopwatch();
           final outcome = mergeLiveScreen(
             current: _current,
             incoming: incoming,
             connectionGeneration: _session.stamp.generation,
             expectedTerminal: terminal,
+          );
+          TerminalPerfCounters.instance.noteMerge(
+            mergeWatch.elapsedUs ?? 0,
+            fullReplace: outcome is LiveScreenMerged && outcome.damage.fullReplace,
           );
           switch (outcome) {
             case LiveScreenMerged():
@@ -1711,12 +1721,11 @@ final class TerminalConnection {
   }
 
   void _scheduleScreenPublish() {
-    if (_screenPublishTimer != null || _closed) return;
-    _screenPublishTimer = Timer(const Duration(milliseconds: 16), () {
-      _screenPublishTimer = null;
-      final current = _current;
-      if (!_closed && current != null) _screens.add(current);
-    });
+    if (_closed) return;
+    // 直接发布：这里再加 16ms 定时器只会平白多一帧延迟，
+    // 下游重建频率本身由 vsync 合并。
+    final current = _current;
+    if (current != null) _screens.add(current);
   }
 
   void _schedulePresentationWatchdog() {
@@ -1774,6 +1783,7 @@ final class TerminalConnection {
         ),
       );
     }
+    final queueWatch = PerfStopwatch();
     return _inputQueue.schedule(
       cost: bytes.length,
       overflowError: () =>
@@ -1784,7 +1794,12 @@ final class TerminalConnection {
                 mouseInputGeneration != _mouseInputGeneration)) {
           return;
         }
+        TerminalPerfCounters.instance.noteInputQueue(
+          queueWatch.elapsedUs ?? 0,
+        );
+        final ackWatch = PerfStopwatch();
         await _session.sendInput(attachment, bytes);
+        TerminalPerfCounters.instance.noteInputAck(ackWatch.elapsedUs ?? 0);
       },
     );
   }
