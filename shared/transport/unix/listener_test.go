@@ -87,6 +87,60 @@ func TestListenerDialRoundTrip(t *testing.T) {
 	}
 }
 
+// TestTransportSendHasNoFixedBatchDelay 锁住一条回归：空闲链路上的 Send 不应
+// 等待固定合批窗口。
+//
+// 旧实现给每一帧挂 1ms 定时器再写；而一次请求/应答要过多个 hop，栈内延迟被
+// 放大到毫秒级（本机输入应答约 5ms）。现在队列空闲时立即写出，只有并发发送
+// 已经排队时才合并。
+func TestTransportSendHasNoFixedBatchDelay(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "anytty.sock")
+	listener, err := NewListener(path)
+	if err != nil {
+		t.Fatalf("new listener failed: %v", err)
+	}
+	defer listener.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accepted := make(chan transport.Transport, 1)
+	go func() {
+		conn, acceptErr := listener.Accept(ctx)
+		if acceptErr != nil {
+			return
+		}
+		accepted <- conn
+	}()
+	client, err := Dial(path)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer client.Close()
+	var server transport.Transport
+	select {
+	case server = <-accepted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for accept")
+	}
+	defer server.Close()
+
+	const rounds = 100
+	start := time.Now()
+	for i := 0; i < rounds; i++ {
+		if err := client.Send([]byte("x")); err != nil {
+			t.Fatalf("send %d failed: %v", i, err)
+		}
+		if _, err := server.Recv(); err != nil {
+			t.Fatalf("recv %d failed: %v", i, err)
+		}
+	}
+	elapsed := time.Since(start)
+	// 旧实现每帧至少等一个 1ms 窗口，100 轮不可能低于 100ms。
+	if elapsed > 80*time.Millisecond {
+		t.Fatalf("%d sequential round trips took %s; idle sends must not wait for a batch window", rounds, elapsed)
+	}
+}
+
 func TestNewListenerPreservesActiveSocket(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "anytty.sock")
 	listener, err := NewListener(path)

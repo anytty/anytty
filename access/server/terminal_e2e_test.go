@@ -296,7 +296,7 @@ func TestTerminalInputPreservesOrderUnderAsyncQueue(t *testing.T) {
 	}
 }
 
-func waitForSocket(t *testing.T, path string) {
+func waitForSocket(t testing.TB, path string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
@@ -352,7 +352,7 @@ func waitForPTYOutput(t *testing.T, frames <-chan internalprotocol.StreamFrame, 
 }
 
 // accessserverTestFiles 给测试注入临时 transfer 目录，避免污染用户 state 目录。
-func accessserverTestFiles(t *testing.T) files.Config {
+func accessserverTestFiles(t testing.TB) files.Config {
 	t.Helper()
 	return files.Config{TransferDir: filepath.Join(t.TempDir(), "transfers")}
 }

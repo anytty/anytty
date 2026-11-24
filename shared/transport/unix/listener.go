@@ -50,7 +50,6 @@ const (
 const (
 	maxPacketPayloadSize = 64 << 10
 	maxLogicalFrameSize  = wire.MaxEncodedFrameSize
-	sendBatchWindow      = time.Millisecond
 	maxBatchedBytes      = 128 << 10
 	acceptPollInterval   = 50 * time.Millisecond
 )
@@ -406,8 +405,6 @@ func (t *Transport) runSender() {
 	var (
 		batch            []sendRequest
 		batchedByteCount int
-		timer            *time.Timer
-		timerCh          <-chan time.Time
 	)
 	flush := func() bool {
 		if len(batch) == 0 {
@@ -419,16 +416,28 @@ func (t *Transport) runSender() {
 		}
 		batch = batch[:0]
 		batchedByteCount = 0
-		if timer != nil {
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
+		return err == nil
+	}
+	// collect 把 first 和此刻已经排队的帧收进同一批（并发发送时仍然合并），
+	// 队列一空就返回，由调用方立刻写出。
+	// 这里不再用固定窗口等待：单个发送方每次只有一个帧在队列里，等窗口只会
+	// 给每个 hop 平白加上 sendBatchWindow 的延迟（一个请求/应答要过多个 hop）。
+	collect := func(first sendRequest) bool {
+		batch = append(batch, first)
+		batchedByteCount += len(first.frame)
+		for batchedByteCount < maxBatchedBytes {
+			select {
+			case next, ok := <-t.sendQ:
+				if !ok {
+					return false
 				}
+				batch = append(batch, next)
+				batchedByteCount += len(next.frame)
+			default:
+				return true
 			}
 		}
-		timerCh = nil
-		return err == nil
+		return true
 	}
 	for {
 		select {
@@ -437,20 +446,10 @@ func (t *Transport) runSender() {
 				_ = flush()
 				return
 			}
-			batch = append(batch, req)
-			batchedByteCount += len(req.frame)
-			if timer == nil {
-				timer = time.NewTimer(sendBatchWindow)
-			} else {
-				timer.Reset(sendBatchWindow)
+			if !collect(req) {
+				_ = flush()
+				return
 			}
-			timerCh = timer.C
-			if batchedByteCount >= maxBatchedBytes {
-				if !flush() {
-					return
-				}
-			}
-		case <-timerCh:
 			if !flush() {
 				return
 			}
