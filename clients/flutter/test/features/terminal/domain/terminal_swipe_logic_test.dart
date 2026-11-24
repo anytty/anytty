@@ -26,6 +26,24 @@ void main() {
     });
   });
 
+  group('TerminalSwipeLogic 粘性阻尼', () {
+    final logic = TerminalSwipeLogic(
+      sensitivity: TerminalSwipeSensitivity.normal,
+    );
+
+    test('前半段 1:1 跟手，越过膝点后变粘', () {
+      expect(logic.sticky(-100, 400), -100.0);
+      final damped = logic.sticky(-300, 400);
+      expect(damped.abs(), lessThan(300.0));
+      expect(damped.abs(), greaterThan(120.0));
+      expect(damped, lessThan(0));
+    });
+
+    test('宽度未知时不做阻尼', () {
+      expect(logic.sticky(-120, 0), -120.0);
+    });
+  });
+
   group('TerminalSwipeLogic 画面位移', () {
     final logic = TerminalSwipeLogic(
       sensitivity: TerminalSwipeSensitivity.normal,

@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/anytty_theme.dart';
@@ -40,22 +40,46 @@ final class TerminalSwipeTarget {
   final String label;
   final String? subtitle;
   final CanonicalLiveScreen? screen;
+
+  TerminalSwipeTarget withScreen(CanonicalLiveScreen? next) =>
+      TerminalSwipeTarget(
+        id: id,
+        label: label,
+        subtitle: subtitle,
+        screen: next ?? screen,
+      );
 }
 
 /// 手势开始时异步预取的快照：目标顺序 + 当前位置。
 final class TerminalSwipeSnapshot {
-  const TerminalSwipeSnapshot({required this.targets, required this.currentIndex});
+  const TerminalSwipeSnapshot({
+    required this.targets,
+    required this.currentIndex,
+  });
 
   final List<TerminalSwipeTarget> targets;
   final int currentIndex;
-
-  bool get isEmpty => targets.isEmpty;
 }
 
 /// 工作区向手势层提供的数据与动作面。实现方持有 ref / context。
 abstract interface class TerminalSwipeBridge {
   /// 拖拽开始时调用一次；返回排序后的目标和当前位置。
   Future<TerminalSwipeSnapshot> snapshot(TerminalSwipeMode mode);
+
+  /// 提交前预热目标终端：attach + resize 到目标网格，并返回 resize 后的一帧。
+  ///
+  /// 返回 null 表示预热失败或超时，调用方应直接提交（可能有一帧延迟）。
+  Future<CanonicalLiveScreen?> prepareTerminal(
+    String terminalId, {
+    required int cols,
+    required int rows,
+  });
+
+  /// 把预览帧交给上层持有。上层渲染在 pane 之上，跨连接重建存活。
+  void holdPreview(CanonicalLiveScreen screen, String terminalId);
+
+  /// 新终端首帧已出现，释放上层垫帧。
+  void releasePreview(String terminalId);
 
   /// 同机内切换终端。
   void commitTerminal(String terminalId);
@@ -72,7 +96,7 @@ abstract interface class TerminalSwipeBridge {
 /// 触发规则（设计稿 §5）：
 /// - 角度门控 |dx| >= |dy| * 2 且 |dx| > engageSlop 才接管；
 /// - 松手时位移 >= commitDistance 或同向速度 >= flingVelocity 即切换；
-/// - 边界外按 0.3 橡皮筋衰减；累计越界 >= openSheetOverdrag 松手开面板。
+/// - 边界外按 0.3 橡皮筋衰减；越界拖动松手开面板。
 final class TerminalSwipeLogic {
   TerminalSwipeLogic({required this.sensitivity})
     : factor = sensitivity.thresholdFactor;
@@ -87,6 +111,12 @@ final class TerminalSwipeLogic {
   static const double rubberBandFactor = 0.3;
   static const double openSheetOverdrag = 56.0;
 
+  /// 跟手区结束后，超出的位移按这个比例继续跟手（越小越“粘”）。
+  static const double stickyRatio = 0.55;
+
+  /// 前一段位移完全跟手，占容器宽度的比例。
+  static const double stickyKnee = 0.3;
+
   double get engageThreshold => engageSlop;
   double get commitThreshold => commitDistance * factor;
   double get flingThreshold => flingVelocity * factor;
@@ -100,16 +130,31 @@ final class TerminalSwipeLogic {
     return absoluteX >= absoluteY * angleRatio;
   }
 
+  /// 粘性阻尼：前 [stickyKnee] 宽度 1:1 跟手，之后逐渐变粘。
+  double sticky(double dx, double width) {
+    if (width <= 0) return dx;
+    final distance = dx.abs();
+    final knee = width * stickyKnee;
+    if (distance <= knee) return dx;
+    return dx.sign * (knee + (distance - knee) * stickyRatio);
+  }
+
   /// 把手指位移映射为画面位移：界内跟手，界外橡皮筋。
-  double visualOffset(double dx, {required bool canNext, required bool canPrevious}) {
+  double visualOffset(
+    double dx, {
+    required bool canNext,
+    required bool canPrevious,
+  }) {
     if (dx < 0) {
       if (canNext) return dx;
       return -openSheetThreshold * rubberBandFactor -
-          ((-dx - openSheetThreshold).clamp(0, double.infinity) * rubberBandFactor);
+          ((-dx - openSheetThreshold).clamp(0, double.infinity) *
+              rubberBandFactor);
     }
     if (canPrevious) return dx;
     return openSheetThreshold * rubberBandFactor +
-        ((dx - openSheetThreshold).clamp(0, double.infinity) * rubberBandFactor);
+        ((dx - openSheetThreshold).clamp(0, double.infinity) *
+            rubberBandFactor);
   }
 
   /// 松手决策。dx < 0 代表向左滑（切下一个）。
@@ -123,13 +168,17 @@ final class TerminalSwipeLogic {
     final next = dx < 0;
     final allowed = next ? canNext : canPrevious;
     if (!allowed) {
-      // 到头甩出面板：以界外的真实拖动距离衡量。
-      final overdrag = (dx.abs() - openSheetThreshold).clamp(0, double.infinity);
+      final overdrag = (dx.abs() - openSheetThreshold).clamp(
+        0,
+        double.infinity,
+      );
       if (overdrag > 0) return TerminalSwipeDecision.openSwitcher;
       return TerminalSwipeDecision.cancel;
     }
     final distance = dx.abs();
-    final aligned = next ? velocity.pixelsPerSecond.dx < 0 : velocity.pixelsPerSecond.dx > 0;
+    final aligned = next
+        ? velocity.pixelsPerSecond.dx < 0
+        : velocity.pixelsPerSecond.dx > 0;
     final flung = aligned && velocity.pixelsPerSecond.dx.abs() >= flingThreshold;
     if (distance >= commitThreshold || flung) {
       return next ? TerminalSwipeDecision.next : TerminalSwipeDecision.previous;
@@ -150,6 +199,10 @@ class TerminalSwipeSwitcher extends StatefulWidget {
     required this.settings,
     required this.hapticsEnabled,
     required this.currentScreenTerminalId,
+    this.allowTerminalSwitch = true,
+    this.allowDeviceSwitch = true,
+    this.targetCols = 0,
+    this.targetRows = 0,
     required this.child,
   });
 
@@ -158,6 +211,15 @@ class TerminalSwipeSwitcher extends StatefulWidget {
   final TerminalSettings settings;
   final bool hapticsEnabled;
   final String currentScreenTerminalId;
+
+  /// 是否允许单指切终端（终端列表页只允许切机器）。
+  final bool allowTerminalSwitch;
+  final bool allowDeviceSwitch;
+
+  /// 当前 pane 的网格尺寸，切换前把目标终端 resize 到这个尺寸。
+  final int targetCols;
+  final int targetRows;
+
   final Widget child;
 
   @override
@@ -166,22 +228,15 @@ class TerminalSwipeSwitcher extends StatefulWidget {
 
 final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _spring = AnimationController(
+  /// 画面横向位移（像素），用 spring 驱动。
+  late final AnimationController _offset = AnimationController.unbounded(
     vsync: this,
-    duration: const Duration(milliseconds: 200),
-  );
-
-  @override
-  void initState() {
-    super.initState();
-    _spring.addListener(() {
-      if (mounted) setState(() {});
-    });
-  }
+  )..addListener(() => setState(() {}));
 
   final Set<int> _downPointers = {};
 
   bool _engaged = false;
+  bool _committing = false;
   bool _thresholdPulsed = false;
   bool _boundaryPulsed = false;
   TerminalSwipeMode? _mode;
@@ -190,12 +245,11 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
 
   double _dragDx = 0;
   double _dragDy = 0;
-  double _visualOffset = 0;
   Offset _lastGlobal = Offset.zero;
+  double _width = 0;
 
-  /// 切换后保留的预览画面：真实流的首帧到达前挡住 “Waiting for snapshot”。
-  TerminalSwipeTarget? _holdTarget;
-  bool _holdFading = false;
+  TerminalSwipeLogic get _logic =>
+      TerminalSwipeLogic(sensitivity: widget.settings.gestureSensitivity);
 
   void _resetDrag() {
     _engaged = false;
@@ -203,15 +257,12 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     _boundaryPulsed = false;
     _dragDx = 0;
     _dragDy = 0;
-    _visualOffset = 0;
-    _spring.stop();
+    _offset.stop();
+    _offset.value = 0;
   }
 
-  TerminalSwipeLogic get _logic =>
-      TerminalSwipeLogic(sensitivity: widget.settings.gestureSensitivity);
-
   void _onHorizontalDragStart(DragStartDetails details) {
-    if (!widget.enabled) return;
+    if (!widget.enabled || _committing) return;
     // 模式在角度门控通过后再决定：拖动开始可能发生在第二个手指落下之前。
     _resetDrag();
     _mode = null;
@@ -236,7 +287,7 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
   }
 
   void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    if (!widget.enabled) return;
+    if (!widget.enabled || _committing) return;
     // 水平 recognizer 会把 delta.dy 归零，角度门控必须用真实位移。
     final raw = details.globalPosition - _lastGlobal;
     _lastGlobal = details.globalPosition;
@@ -246,10 +297,10 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
       if (!_logic.shouldEngage(_dragDx, _dragDy)) return;
       final pointers = _downPointers.length;
       final mode = pointers >= 2
-          ? (widget.settings.gestureDeviceSwitch
+          ? (widget.allowDeviceSwitch && widget.settings.gestureDeviceSwitch
                 ? TerminalSwipeMode.devices
                 : null)
-          : (widget.settings.gestureTerminalSwitch
+          : (widget.allowTerminalSwitch && widget.settings.gestureTerminalSwitch
                 ? TerminalSwipeMode.terminals
                 : null);
       if (mode == null) return;
@@ -264,12 +315,12 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     // 快照未就绪时乐观放行：跟手感优先，边界在松手时再判定。
     final canNext = snapshot == null || currentIndex + 1 < targetCount;
     final canPrevious = snapshot == null || currentIndex > 0;
-    final offset = _logic.visualOffset(
-      _dragDx,
+    final sticky = _logic.sticky(_dragDx, _width);
+    _offset.value = _logic.visualOffset(
+      sticky,
       canNext: canNext,
       canPrevious: canPrevious,
     );
-    setState(() => _visualOffset = offset);
     if (_dragDx.abs() >= _logic.commitThreshold && !_thresholdPulsed) {
       _thresholdPulsed = true;
       _pulse(medium: true);
@@ -316,46 +367,96 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
         final target = snapshot == null || targetCount == 0
             ? null
             : snapshot.targets[index];
-        _commit(mode, target);
+        await _commit(mode, target, details.velocity);
       case TerminalSwipeDecision.openSwitcher:
-        _animateBack();
+        await _springBack(details.velocity);
         widget.bridge.openSwitcher();
       case TerminalSwipeDecision.cancel:
-        _animateBack();
+        await _springBack(details.velocity);
     }
   }
 
   void _onHorizontalDragCancel() {
-    _resetDrag();
-    if (mounted) setState(() {});
+    if (_committing) return;
+    unawaited(_springBack(Velocity.zero));
   }
 
-  void _commit(TerminalSwipeMode mode, TerminalSwipeTarget? target) {
+  /// 提交：先预热（attach + resize + 首帧），再滑出，最后切换。
+  Future<void> _commit(
+    TerminalSwipeMode mode,
+    TerminalSwipeTarget? target,
+    Velocity velocity,
+  ) async {
     if (target == null) {
-      _animateBack();
+      await _springBack(velocity);
       return;
     }
+    _committing = true;
+    final width = _width;
+    final draggingLeft = _dragDx < 0;
+    var prepared = target;
+    if (mode == TerminalSwipeMode.terminals && widget.targetCols > 0) {
+      final screen = await widget.bridge.prepareTerminal(
+        target.id,
+        cols: widget.targetCols,
+        rows: widget.targetRows,
+      );
+      if (!mounted) return;
+      if (screen != null) prepared = target.withScreen(screen);
+    }
+    if (!mounted) return;
+    // 用预热后的帧替换预览，滑动过程中看到的是真画面。
+    setState(() {
+      _snapshot = TerminalSwipeSnapshot(
+        targets: [
+          for (var i = 0; i < (_snapshot?.targets.length ?? 0); i++)
+            _snapshot!.targets[i].id == prepared.id
+                ? prepared
+                : _snapshot!.targets[i],
+        ],
+        currentIndex: _snapshot?.currentIndex ?? 0,
+      );
+    });
+    final destination = draggingLeft ? -width : width;
+    await _offset.animateTo(
+      destination,
+      duration: const Duration(milliseconds: 170),
+      curve: Curves.easeOutCubic,
+    );
+    if (!mounted) return;
+    // 滑到终点、画面已完全由预览帧铺满，再交棒给上层垫帧并切换：
+    // 这样切换瞬间的连接重建被同一帧盖住，不会闪黑。
+    if (prepared.screen != null && mode == TerminalSwipeMode.terminals) {
+      widget.bridge.holdPreview(prepared.screen!, prepared.id);
+    }
+    _resetDrag();
+    setState(() {});
     switch (mode) {
       case TerminalSwipeMode.terminals:
-        setState(() {
-          _holdTarget = target;
-          _holdFading = false;
-        });
-        _resetDrag();
-        widget.bridge.commitTerminal(target.id);
+        widget.bridge.commitTerminal(prepared.id);
       case TerminalSwipeMode.devices:
-        _resetDrag();
-        if (mounted) setState(() {});
-        widget.bridge.commitDevice(target.id, target.label);
+        widget.bridge.commitDevice(prepared.id, prepared.label);
     }
+    _committing = false;
   }
 
-  void _animateBack() {
-    _resetDrag();
+  Future<void> _springBack(Velocity velocity) async {
     if (!mounted) return;
-    _spring
-      ..value = 1.0
-      ..reverse();
+    final from = _offset.value;
+    if (from.abs() < 0.5) {
+      _resetDrag();
+      setState(() {});
+      return;
+    }
+    final simulation = SpringSimulation(
+      const SpringDescription(mass: 1, stiffness: 320, damping: 22),
+      from,
+      0,
+      velocity.pixelsPerSecond.dx,
+    );
+    await _offset.animateWith(simulation);
+    if (!mounted) return;
+    _resetDrag();
     setState(() {});
   }
 
@@ -367,32 +468,8 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
   }
 
   @override
-  void didUpdateWidget(TerminalSwipeSwitcher oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 真实流首帧到达：预览保持层开始淡出。
-    if (_holdTarget != null &&
-        !_holdFading &&
-        widget.currentScreenTerminalId == _holdTarget!.id) {
-      _releaseHold();
-    }
-  }
-
-  void _releaseHold() {
-    if (!mounted) return;
-    setState(() => _holdFading = true);
-    Timer(const Duration(milliseconds: 260), () {
-      if (mounted && _holdFading) {
-        setState(() {
-          _holdTarget = null;
-          _holdFading = false;
-        });
-      }
-    });
-  }
-
-  @override
   void dispose() {
-    _spring.dispose();
+    _offset.dispose();
     super.dispose();
   }
 
@@ -408,12 +485,7 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     final preview = dragging && previewIndex >= 0 && previewIndex < targetCount
         ? snapshot!.targets[previewIndex]
         : null;
-
-    final springOffset = lerpDouble(
-      _visualOffset,
-      0,
-      Curves.easeOutCubic.transform(_spring.value),
-    )!;
+    final offset = _offset.value;
 
     return Listener(
       onPointerDown: (event) => _downPointers.add(event.pointer),
@@ -428,19 +500,20 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
         child: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
+            _width = width;
             return ClipRect(
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   Transform.translate(
-                    offset: Offset(springOffset, 0),
+                    offset: Offset(offset, 0),
                     child: widget.child,
                   ),
                   if (preview != null)
                     Positioned.fill(
                       child: Transform.translate(
                         offset: Offset(
-                          directionNext ? width + springOffset : -width + springOffset,
+                          directionNext ? width + offset : -width + offset,
                           0,
                         ),
                         child: _buildPreview(context, preview, palette),
@@ -455,21 +528,6 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
                         child: _buildChip(context, preview, palette),
                       ),
                     ),
-                  if (_holdTarget != null)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          opacity: _holdFading ? 0 : 1,
-                          duration: const Duration(milliseconds: 220),
-                          child: _buildPreview(
-                            context,
-                            _holdTarget!,
-                            palette,
-                            opaque: true,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             );
@@ -482,9 +540,8 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
   Widget _buildPreview(
     BuildContext context,
     TerminalSwipeTarget target,
-    AnyttyPalette palette, {
-    bool opaque = false,
-  }) {
+    AnyttyPalette palette,
+  ) {
     final screen = target.screen;
     final background = Color(0xff000000 | widget.settings.theme.background);
     if (screen != null) {
@@ -497,9 +554,8 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
         ),
       );
     }
-    // 设备预览：没有本地画面，用卡片表示。
     return ColoredBox(
-      color: opaque ? background : palette.surface,
+      color: background,
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),

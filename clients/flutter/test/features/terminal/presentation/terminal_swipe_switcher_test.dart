@@ -1,3 +1,6 @@
+import 'package:anytty_native/src/features/terminal/domain/live_screen_store.dart';
+import 'package:anytty_native/src/generated/proto/apipb/terminal.pb.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:anytty_native/src/features/terminal/domain/terminal_settings.dart';
 import 'package:anytty_native/src/features/terminal/presentation/terminal_swipe_switcher.dart';
 import 'package:flutter/material.dart';
@@ -17,8 +20,13 @@ final class _FakeBridge implements TerminalSwipeBridge {
 
   final List<String> committedTerminals = [];
   final List<String> committedDevices = [];
+  final List<String> preparedTerminals = [];
+  final List<String> heldPreviews = [];
+  final List<String> releasedPreviews = [];
   int switcherOpens = 0;
   final List<TerminalSwipeMode> snapshotModes = [];
+  CanonicalLiveScreen? preparedScreen;
+  final List<String> events = [];
 
   @override
   Future<TerminalSwipeSnapshot> snapshot(TerminalSwipeMode mode) async {
@@ -42,11 +50,34 @@ final class _FakeBridge implements TerminalSwipeBridge {
   }
 
   @override
-  void commitTerminal(String terminalId) => committedTerminals.add(terminalId);
+  void commitTerminal(String terminalId) {
+    committedTerminals.add(terminalId);
+    events.add('commit:$terminalId');
+  }
 
   @override
   void commitDevice(String endpointId, String label) =>
       committedDevices.add(endpointId);
+
+  @override
+  Future<CanonicalLiveScreen?> prepareTerminal(
+    String terminalId, {
+    required int cols,
+    required int rows,
+  }) async {
+    preparedTerminals.add(terminalId);
+    events.add('prepare:$terminalId');
+    return preparedScreen;
+  }
+
+  @override
+  void holdPreview(CanonicalLiveScreen screen, String terminalId) {
+    heldPreviews.add(terminalId);
+    events.add('hold:$terminalId');
+  }
+
+  @override
+  void releasePreview(String terminalId) => releasedPreviews.add(terminalId);
 
   @override
   void openSwitcher() => switcherOpens++;
@@ -58,6 +89,8 @@ Future<void> _pump(
   bool enabled = true,
   TerminalSettings settings = defaultTerminalSettings,
   double width = 400,
+  int targetCols = 0,
+  int targetRows = 0,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -72,6 +105,8 @@ Future<void> _pump(
               settings: settings,
               hapticsEnabled: false,
               currentScreenTerminalId: 'a',
+              targetCols: targetCols,
+              targetRows: targetRows,
               child: const ColoredBox(color: Color(0xFF101010)),
             ),
           ),
@@ -127,6 +162,42 @@ void main() {
 
     await _oneFingerSwipe(tester, dx: 120);
 
+    expect(bridge.committedTerminals, ['b']);
+  });
+
+  testWidgets('切换前先预热目标终端，再用预热帧垫住切换窗口', (tester) async {
+    final bridge = _FakeBridge();
+    bridge.preparedScreen = CanonicalLiveScreen(
+      terminal: TerminalRef(
+        endpointId: 'endpoint',
+        terminalId: 'b',
+      ),
+      connectionGeneration: Int64(1),
+      revision: Int64(2),
+      cols: 80,
+      rows: 24,
+      screenRows: const [],
+      alternateScreen: false,
+      cursor: null,
+      modes: null,
+      timestampUnixNano: Int64(2),
+    );
+    await _pump(tester, bridge, targetCols: 80, targetRows: 24);
+
+    await _oneFingerSwipe(tester, dx: -120);
+
+    expect(bridge.events, ['prepare:b', 'hold:b', 'commit:b']);
+    expect(bridge.committedTerminals, ['b']);
+  });
+
+  testWidgets('预热失败时仍然切换（不允许手势卡死）', (tester) async {
+    final bridge = _FakeBridge();
+    await _pump(tester, bridge, targetCols: 80, targetRows: 24);
+
+    await _oneFingerSwipe(tester, dx: -120);
+
+    expect(bridge.preparedTerminals, ['b']);
+    expect(bridge.heldPreviews, isEmpty);
     expect(bridge.committedTerminals, ['b']);
   });
 
