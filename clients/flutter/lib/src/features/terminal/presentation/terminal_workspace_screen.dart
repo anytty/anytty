@@ -14,7 +14,6 @@ import '../../../app/anytty_theme.dart';
 import '../../../app/anytty_localizations.dart';
 import '../../../app/endpoint_retention.dart';
 import '../../../app/providers.dart';
-import '../../../generated/proto/apipb/common.pbenum.dart';
 import '../../../generated/proto/apipb/history.pb.dart';
 import '../../../generated/proto/apipb/terminal.pb.dart';
 import '../../../generated/proto/bindingpb/client_binding.pb.dart';
@@ -25,6 +24,7 @@ import '../../../native/external_uri_platform.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
 import '../../../shared/presentation/anytty_brand_mark.dart';
 import '../../endpoints/data/connection_repository.dart';
+import '../../endpoints/domain/connection_attempt_history.dart';
 import '../../endpoints/data/endpoint_repository.dart';
 import '../../browser/presentation/browser_session_screen.dart';
 import '../../files/presentation/file_manager_screen.dart';
@@ -2872,7 +2872,8 @@ final class _TerminalListLoadingState
     extends ConsumerState<_TerminalListLoading> {
   static const _progressRebuildInterval = Duration(milliseconds: 32);
 
-  final Map<ConnectionRouteKind, EndpointConnectionEvent> _attempts = {};
+  final ConnectionAttemptHistory _history = ConnectionAttemptHistory();
+  bool _historyExpanded = false;
   ProviderSubscription<AsyncValue<EndpointConnectionEvent>>?
   _progressSubscription;
   AsyncValue<EndpointConnectionEvent> _progress = const AsyncLoading();
@@ -2897,7 +2898,8 @@ final class _TerminalListLoadingState
   void didUpdateWidget(_TerminalListLoading oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.endpointId != widget.endpointId) {
-      _attempts.clear();
+      _history.reset();
+      _historyExpanded = false;
       _applyingAuto = false;
       _actionError = null;
       _bindConnectionProgress();
@@ -2927,17 +2929,8 @@ final class _TerminalListLoadingState
 
   void _captureProgress(EndpointConnectionEvent? event) {
     if (!mounted || event == null) return;
-    if (event.phase ==
-        EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_PLANNING) {
-      _attempts.clear();
-      return;
-    }
-    // AUTO may cancel a slower route after another attempt has already won.
-    // That is normal race convergence, not a user-visible connection failure.
-    if (_isSupersededConnectionAttempt(event)) return;
-    final kind = event.attemptedRouteKind;
-    if (kind == ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) return;
-    _attempts[kind] = event.deepCopy();
+    // 新一轮开始时归档上一轮，而不是清空：重试之后仍然能看到上次失败原因。
+    _history.record(event);
   }
 
   @override
@@ -2956,11 +2949,11 @@ final class _TerminalListLoadingState
     final waitingForNetwork =
         phase == EndpointConnectionPhase.ENDPOINT_CONNECTION_PHASE_OFFLINE;
     final attempts = Map<ConnectionRouteKind, EndpointConnectionEvent>.of(
-      _attempts,
+      _history.current,
     );
     final latest = progress.valueOrNull;
     if (latest != null &&
-        !_isSupersededConnectionAttempt(latest) &&
+        !isSupersededConnectionAttempt(latest) &&
         latest.attemptedRouteKind !=
             ConnectionRouteKind.CONNECTION_ROUTE_KIND_UNSPECIFIED) {
       attempts[latest.attemptedRouteKind] = latest;
@@ -3123,6 +3116,16 @@ final class _TerminalListLoadingState
                             ),
                           ),
                         ],
+                        if (_history.archives.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          _ConnectionAttemptHistoryPanel(
+                            snapshots: _history.archives,
+                            expanded: _historyExpanded,
+                            onToggle: () => setState(
+                              () => _historyExpanded = !_historyExpanded,
+                            ),
+                          ),
+                        ],
                         if (connectionFailed && directOnly) ...[
                           const SizedBox(height: 20),
                           _DirectOnlyConnectionHelp(
@@ -3198,10 +3201,182 @@ final class _TerminalListLoadingState
   }
 }
 
-bool _isSupersededConnectionAttempt(EndpointConnectionEvent event) {
-  return event.connectionStage == 'attempt_failed' &&
-      event.hasError() &&
-      event.error.code == ApiErrorCode.API_ERROR_CODE_CANCELLED;
+/// 已归档的连接尝试：重试之后仍然能看到上一轮为什么失败。
+final class _ConnectionAttemptHistoryPanel extends StatelessWidget {
+  const _ConnectionAttemptHistoryPanel({
+    required this.snapshots,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  /// 最新一轮在前。
+  final List<ConnectionAttemptSnapshot> snapshots;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AnyttyPalette.of(context);
+    final count = snapshots.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.history_rounded,
+                    size: 15,
+                    color: palette.muted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      anyttyText(
+                        context,
+                        en: 'Previous attempts · $count',
+                        zh: '之前的尝试 · $count 次',
+                      ),
+                      style: TextStyle(color: palette.muted, fontSize: 12),
+                    ),
+                  ),
+                  Icon(
+                    expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 16,
+                    color: palette.muted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded)
+            for (final snapshot in snapshots)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _connectionAttemptSnapshotTitle(context, snapshot),
+                      style: TextStyle(
+                        color: palette.faint,
+                        fontSize: 11,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _connectionAttemptSnapshotSummary(context, snapshot),
+                      style: TextStyle(
+                        color: palette.muted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+String _connectionAttemptSnapshotTitle(
+  BuildContext context,
+  ConnectionAttemptSnapshot snapshot,
+) {
+  final started = snapshot.startedAt.toLocal();
+  final clock =
+      '${started.hour.toString().padLeft(2, '0')}:'
+      '${started.minute.toString().padLeft(2, '0')}:'
+      '${started.second.toString().padLeft(2, '0')}';
+  final elapsed = snapshot.duration;
+  final duration = elapsed.inSeconds >= 1
+      ? '${elapsed.inSeconds}s'
+      : '${elapsed.inMilliseconds}ms';
+  return anyttyText(
+    context,
+    en: 'Attempt #${snapshot.index} · $clock · $duration',
+    zh: '第 ${snapshot.index} 次 · $clock · $duration',
+  );
+}
+
+String _connectionAttemptSnapshotSummary(
+  BuildContext context,
+  ConnectionAttemptSnapshot snapshot,
+) {
+  if (snapshot.routes.isEmpty) {
+    return anyttyText(
+      context,
+      en: 'No route reported a result',
+      zh: '没有路由返回结果',
+    );
+  }
+  final lines = <String>[
+    for (final route in snapshot.routes)
+      '${_connectionRouteLabel(context, route.kind)} · '
+          '${_connectionRouteSnapshotLabel(context, route)}'
+          '${route.errorCode == null ? '' : ' · ${route.errorCode}'}'
+          '${route.errorMessage == null ? '' : '\n${route.errorMessage}'}',
+  ];
+  return lines.join('\n');
+}
+
+String _connectionRouteLabel(BuildContext context, ConnectionRouteKind kind) {
+  return switch (kind) {
+    ConnectionRouteKind.CONNECTION_ROUTE_KIND_DIRECT => anyttyText(
+      context,
+      en: 'Direct',
+      zh: '直连',
+    ),
+    ConnectionRouteKind.CONNECTION_ROUTE_KIND_SSH => 'SSH',
+    ConnectionRouteKind.CONNECTION_ROUTE_KIND_CLOUD => 'Cloud',
+    ConnectionRouteKind.CONNECTION_ROUTE_KIND_LOCAL => anyttyText(
+      context,
+      en: 'Local',
+      zh: '本地',
+    ),
+    _ => anyttyText(context, en: 'Route', zh: '路由'),
+  };
+}
+
+String _connectionRouteSnapshotLabel(
+  BuildContext context,
+  ConnectionRouteSnapshot route,
+) {
+  if (route.failed) {
+    return anyttyText(context, en: 'unavailable', zh: '不可用');
+  }
+  return switch (route.stage) {
+    'attempt_starting' => anyttyText(context, en: 'starting', zh: '开始尝试'),
+    'authorization_preparing' => anyttyText(
+      context,
+      en: 'preparing authorization',
+      zh: '准备连接授权',
+    ),
+    'edge_transport_ready' => anyttyText(
+      context,
+      en: 'signaling ready',
+      zh: '信令就绪',
+    ),
+    'peer_open' => anyttyText(context, en: 'peer opened', zh: '对端已打开'),
+    'ready' => anyttyText(context, en: 'ready', zh: '已就绪'),
+    _ => route.stage,
+  };
 }
 
 final class _ConnectionErrorDetails extends StatelessWidget {
