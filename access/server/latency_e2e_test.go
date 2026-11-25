@@ -2,6 +2,8 @@ package server_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -191,6 +193,93 @@ func BenchmarkInputAckLatency(b *testing.B) {
 	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
 	b.ReportMetric(percentileMicros(samples, 0.50), "us/p50")
 	b.ReportMetric(percentileMicros(samples, 0.95), "us/p95")
+}
+
+// BenchmarkRemoteAccessSocketLatency 对着一个已经运行的 access socket 量同样的
+// 指标（可以是 SSH 转发过来的远端 daemon）：
+//
+//	ssh -f -N -L /tmp/hs-access.sock:/run/user/1000/anytty-v3-wire7.sock hs
+//	ANYTTY_LATENCY_SOCKET=/tmp/hs-access.sock go test ./access/server \
+//	  -run XXX -bench BenchmarkRemoteAccessSocketLatency -benchtime 200x
+func BenchmarkRemoteAccessSocketLatency(b *testing.B) {
+	socketPath := os.Getenv("ANYTTY_LATENCY_SOCKET")
+	if socketPath == "" {
+		b.Skip("set ANYTTY_LATENCY_SOCKET to benchmark an existing access socket")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	connection, err := unixtransport.DialContext(ctx, socketPath)
+	if err != nil {
+		b.Fatalf("dial access socket: %v", err)
+	}
+	client := internalprotocol.NewClient(connection)
+	defer func() { _ = client.Close() }()
+	if err := client.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: "latency-remote"}); err != nil {
+		b.Fatalf("hello: %v", err)
+	}
+	app, err := clientruntime.NewApplicationSession(clientruntime.EndpointSessionStamp{
+		EndpointID: clientendpoint.EndpointID("local"),
+		RouteID:    clientendpoint.RouteID("latency-remote"),
+		Generation: 1,
+	}, client)
+	if err != nil {
+		b.Fatalf("application session: %v", err)
+	}
+	ref := &apipb.TerminalRef{EndpointId: "local", TerminalId: fmt.Sprintf("latency-remote-%d", time.Now().UnixNano())}
+	if _, err := app.TerminalCreate(ctx, &apipb.TerminalCreateCommand{Terminal: &apipb.TerminalCreateSpec{
+		TerminalId: ref.GetTerminalId(),
+		Command:    []string{"/bin/cat"},
+		Size:       &apipb.TerminalSize{Cols: 120, Rows: 40},
+	}}); err != nil {
+		b.Fatalf("create terminal: %v", err)
+	}
+	b.Cleanup(func() {
+		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancelCleanup()
+		_ = app.TerminalKill(cleanupCtx, &apipb.TerminalKillCommand{Terminal: ref})
+		_ = app.TerminalRemove(cleanupCtx, &apipb.TerminalRemoveCommand{Terminal: ref})
+	})
+	attached, err := app.TerminalAttach(ctx, &apipb.TerminalAttachCommand{
+		Terminal:     ref,
+		Mode:         apipb.AttachmentMode_ATTACHMENT_MODE_COLLABORATOR,
+		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_OWNER,
+		SurfaceId:    "surface-latency-remote",
+		ViewId:       "view-latency-remote",
+	})
+	if err != nil {
+		b.Fatalf("attach: %v", err)
+	}
+	attachment := attached.GetAttachment()
+	screen, err := app.LiveScreenNext(ctx, &apipb.LiveScreenNextCommand{Terminal: ref, ObservedRevision: 0})
+	if err != nil {
+		b.Fatalf("initial screen: %v", err)
+	}
+	observed := screen.GetLiveRevision()
+
+	acks := make([]time.Duration, 0, b.N)
+	totals := make([]time.Duration, 0, b.N)
+	for i := 0; i < b.N; i++ {
+		start := time.Now()
+		if err := app.TerminalInput(ctx, &apipb.TerminalInputCommand{
+			Attachment: attachment.GetResource(), Data: []byte("a"),
+		}); err != nil {
+			b.Fatalf("input: %v", err)
+		}
+		acks = append(acks, time.Since(start))
+		screen, err := app.LiveScreenNext(ctx, &apipb.LiveScreenNextCommand{Terminal: ref, ObservedRevision: observed})
+		if err != nil {
+			b.Fatalf("screen: %v", err)
+		}
+		observed = screen.GetLiveRevision()
+		totals = append(totals, time.Since(start))
+	}
+	sort.Slice(acks, func(i, j int) bool { return acks[i] < acks[j] })
+	sort.Slice(totals, func(i, j int) bool { return totals[i] < totals[j] })
+	b.ReportMetric(percentileMicros(acks, 0.50), "us/ack-p50")
+	b.ReportMetric(percentileMicros(acks, 0.95), "us/ack-p95")
+	b.ReportMetric(percentileMicros(totals, 0.50), "us/screen-p50")
+	b.ReportMetric(percentileMicros(totals, 0.95), "us/screen-p95")
 }
 
 func (env *latencyEnv) currentRevision() (uint64, error) {
