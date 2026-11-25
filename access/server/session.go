@@ -884,12 +884,46 @@ func (session *session) lifetimeContext() context.Context {
 }
 
 func (session *session) sendFrame(channel uint16, typ uint8, payload []byte) error {
+	return session.sendFrameClass(channel, typ, payload, framePriority(typ, payload))
+}
+
+// framePriority 把 wire 帧映射到发送优先级。
+//
+// 这条 DataChannel 是有序单流：控制帧只能排在已入队的数据后面，所以
+// 小应答（输入 ack、错误）必须走 control，文件/browser 走 bulk 更早让路，
+// 屏幕/PTY 维持 normal。这样一次屏幕突发不会把按键回显压到几秒之后。
+func framePriority(typ uint8, payload []byte) datachannel.Priority {
+	switch typ {
+	case wire.TypeFileData, wire.TypeBrowserData, wire.TypeFileAck:
+		return datachannel.PriorityBulk
+	case wire.TypePTYOutput, wire.TypeEvent:
+		return datachannel.PriorityNormal
+	case wire.TypeResponse:
+		// 输入应答和大多数控制应答都很小；屏幕 delta 通常更大，走 normal。
+		if len(payload) <= 8<<10 {
+			return datachannel.PriorityControl
+		}
+		return datachannel.PriorityNormal
+	default:
+		// ready/closed/sync-lost/error 等流控帧必须尽快送达。
+		return datachannel.PriorityControl
+	}
+}
+
+type priorityTransport interface {
+	SendWithPriority([]byte, datachannel.Priority) error
+}
+
+func (session *session) sendFrameClass(channel uint16, typ uint8, payload []byte, priority datachannel.Priority) error {
 	frame, err := wire.EncodeFrame(channel, typ, payload)
 	if err != nil {
 		return err
 	}
 	// transport 自己串行化整帧写入（datachannel 的 sendMu / unix 的 sendQ），
 	// session 级别再加一把锁只会让一个大帧的 drain 等待拖住其它所有帧。
+	if sender, ok := session.conn.(priorityTransport); ok {
+		return sender.SendWithPriority(frame, priority)
+	}
 	return session.conn.Send(frame)
 }
 

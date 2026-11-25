@@ -16,14 +16,33 @@ const (
 	defaultReceiveQueueCapacity = 256
 	maxReceiveQueuedBytes       = 8 << 20
 	maxLogicalFrameSize         = wire.MaxEncodedFrameSize
-	defaultSendBufferHigh       = 512 * 1024
-	defaultSendBufferLow        = 128 * 1024
+	// 发送队列必须保持"浅"：这条 DataChannel 是有序单流，回显/控制帧只能排在
+	// 已经入队的数据后面。窗口给 512KB 时，0.5MB/s 的链路上一次突发就能把
+	// 控制帧压到数秒之后（"点了没反应"）。48KB 把最坏排队压到 ~100ms。
+	defaultSendBufferHigh       = 48 * 1024
+	defaultSendBufferLow        = 8 * 1024
+	// bulkSendBufferHigh 让文件/浏览器流量比屏幕更早让路，给控制帧留空间。
+	bulkSendBufferHigh = 24 * 1024
 	defaultDrainTimeout         = 5 * time.Second
 	defaultDrainPoll            = time.Millisecond
 )
 
 // ErrReceiveQueueExhausted reports that the bounded pre-auth/protocol receive queue was exceeded.
 var ErrReceiveQueueExhausted = errors.New("transport/datachannel: receive queue exhausted")
+
+// Priority 是发送类别。控制/输入应答永远不等待水位；bulk 流量更早让路。
+// 所有类别仍共享同一条有序 DataChannel，因此水位（而不是优先级）决定了
+// 控制帧最坏要排在多少字节之后。
+type Priority int
+
+const (
+	// PriorityControl 承载输入应答、错误和流控帧：不等水位，直接写。
+	PriorityControl Priority = iota
+	// PriorityNormal 承载屏幕 delta、PTY 输出和事件。
+	PriorityNormal
+	// PriorityBulk 承载文件/浏览器数据。
+	PriorityBulk
+)
 
 // ErrBackpressure 表示发送缓冲在 drain 窗口内没有降下来。
 //
@@ -100,9 +119,15 @@ func (transport *Transport) EnableReceiveBackpressure() {
 	transport.recvMu.Unlock()
 }
 
-// Send 发送一个完整 anytty protocol frame。
-// 当 DataChannel 缓冲超过高水位时等待低水位通知；超时或关闭会失败，不允许丢帧或切换到其他 transport。
+// Send 发送一个完整 anytty protocol frame（默认普通优先级）。
 func (transport *Transport) Send(frame []byte) error {
+	return transport.SendWithPriority(frame, PriorityNormal)
+}
+
+// SendWithPriority 按优先级发送一个完整 anytty protocol frame。
+// 当 DataChannel 缓冲超过该优先级对应的水位时等待；PriorityControl 不等待，
+// 保证输入应答/错误不会排在已经积压的屏幕数据后面。
+func (transport *Transport) SendWithPriority(frame []byte, priority Priority) error {
 	if len(frame) > maxLogicalFrameSize {
 		return wire.ErrFrameTooLarge
 	}
@@ -122,8 +147,16 @@ func (transport *Transport) Send(frame []byte) error {
 			log.Printf("anytty transport stage=datachannel_send bytes=%d total_us=%d drain_us=%d lock_us=%d channel_us=%d initial_buffered=%d final_buffered=%d", len(frame), elapsed.Microseconds(), drainDuration.Microseconds(), lockDuration.Microseconds(), (elapsed - drainDuration - lockDuration).Microseconds(), initialBuffered, transport.channel.BufferedAmount())
 		}
 	}()
+	highWatermark := uint64(defaultSendBufferHigh)
+	switch priority {
+	case PriorityControl:
+		// 控制帧很小，直接写；等待水位只会把回显推到数秒之后。
+		highWatermark = ^uint64(0)
+	case PriorityBulk:
+		highWatermark = uint64(bulkSendBufferHigh)
+	}
 	var drainTimer *time.Timer
-	for transport.channel.BufferedAmount() > defaultSendBufferHigh {
+	for transport.channel.BufferedAmount() > highWatermark {
 		if drainTimer == nil {
 			// Drain notifications are only hints; repeated wakeups must not
 			// extend this send's total backpressure wait indefinitely.
