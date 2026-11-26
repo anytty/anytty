@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	cloudclient "github.com/anytty/anytty/access/transport/client"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
+	"google.golang.org/protobuf/proto"
 )
 
 // sharedClient is the production sessionConn: it wraps one ready
@@ -351,6 +353,8 @@ func (c *sharedClient) StartScreenDeltas(ctx context.Context, att *attachment, s
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		var traceBytes, traceFrames int
+		var traceAt = time.Now()
 		for {
 			// live screen 是长轮询：终端退出后不会再有新 revision，调用会一直
 			// 挂着。给每次等待加超时，超时就查一次 terminal 状态，退出时补发
@@ -370,6 +374,15 @@ func (c *sharedClient) StartScreenDeltas(ctx context.Context, att *attachment, s
 				}
 				att.stream.close(c.streamEndError(err))
 				return
+			}
+			if tuiScreenTraceEnabled() {
+				traceBytes += proto.Size(screen)
+				traceFrames++
+				if time.Since(traceAt) >= time.Second {
+					log.Printf("tui2 screens bytes=%d frames=%d rows=%d full=%v rev=%d",
+						traceBytes, traceFrames, len(screen.GetRowReplacements()), screen.GetFullReplace(), screen.GetLiveRevision())
+					traceBytes, traceFrames, traceAt = 0, 0, time.Now()
+				}
 			}
 			if output := renderer.render(screen); len(output) > 0 {
 				att.stream.push(wire.TypePTYOutput, output)

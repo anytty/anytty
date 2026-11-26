@@ -144,6 +144,15 @@ type screenDeltaStarter interface {
 	StartScreenDeltas(ctx context.Context, att *attachment, seed *apipb.NativeScreenResult) error
 }
 
+// tuiScreenTraceEnabled gates per-second screen-delta byte accounting.
+func tuiScreenTraceEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_TUI_TRACE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // screenDeltasEnabled 默认开启：TUI 走「服务端 vterm + 行级 delta」，只传变化
 // 的行；设置 ANYTTY_TUI_SCREEN_DELTAS=0 可退回原始 PTY 字节流。
 func screenDeltasEnabled() bool {
