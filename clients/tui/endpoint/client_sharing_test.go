@@ -266,7 +266,9 @@ func TestTui2EndpointDeduplicationEvidence(t *testing.T) {
 		baselineTotalLines = 4952
 		// The endpoint manager now exposes typed connections/reconnect and
 		// per-view detach support; keep the guard above that implementation.
-		baselineProdLines = 3800
+		// 3800 -> 4200: screen delta 数据源（screen_delta.go）与 attach 选择逻辑，
+		// 是 TUI 走「服务端 vterm + 行级差异」的实装，不是重复实现。
+		baselineProdLines = 4200
 	)
 	dir := packageDir(t)
 	entries, err := os.ReadDir(dir)

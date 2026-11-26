@@ -24,6 +24,9 @@ func hermeticRegistryPath(t *testing.T) string {
 // exit, snapshot re-seed and kill. It is the M1/G1 regression harness for the
 // sharedClient adapter.
 func TestSharedStackLocalUnixLifecycle(t *testing.T) {
+	// 这个 harness 断言的是原始 PTY 字节流语义；framed fake daemon 的 screen
+	// 是静态桩，不反映输入回显，所以显式使用原始流而不是行级 delta。
+	t.Setenv("ANYTTY_TUI_SCREEN_DELTAS", "0")
 	d := newFramedFakeDaemon(t)
 	m := NewManager(Options{
 		DialTimeout:  2 * time.Second,
