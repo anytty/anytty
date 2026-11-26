@@ -298,25 +298,53 @@ func (p *RemotePTY) Write(b []byte) (int, error) {
 
 // drainInput 串行地把队列里的输入发到 PTY，保证顺序；写失败只告警，不阻塞
 // 事件循环（重连由 supervisor 负责）。
+// 输入合并上限：滚轮/粘贴这类突发以前是"每个事件一次 RPC、串行等应答"，
+// 200 个滚轮事件在 26ms RTT 下要 5 秒才发完（表现为滚动卡死）。把同一批
+// 排队事件合成一次 TerminalInput，同一批只付一次往返。
+const (
+	maxInputBatchBytes  = 4096
+	maxInputBatchChunks = 64
+)
+
+// nextInputBatch 取一个批次：先阻塞等第一块，然后把此刻已经排队的块合并进来。
+func (p *RemotePTY) nextInputBatch() ([]byte, bool) {
+	select {
+	case <-p.inputDone:
+		return nil, false
+	case data := <-p.inputCh:
+		batch := data
+		chunks := 1
+		for len(batch) < maxInputBatchBytes && chunks < maxInputBatchChunks {
+			select {
+			case more := <-p.inputCh:
+				batch = append(batch, more...)
+				chunks++
+			default:
+				return batch, true
+			}
+		}
+		return batch, true
+	}
+}
+
 func (p *RemotePTY) drainInput() {
 	for {
-		select {
-		case <-p.inputDone:
+		batch, ok := p.nextInputBatch()
+		if !ok {
 			return
-		case data := <-p.inputCh:
-			p.mu.Lock()
-			closed, detached := p.closed, p.detached
-			att := p.att
-			p.mu.Unlock()
-			if closed || detached || att == nil {
-				continue
-			}
-			ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
-			err := att.client.input(ctx, att, data)
-			cancel()
-			if err != nil && !p.Closed() {
-				p.mgr.notifyNotice("warning", fmt.Sprintf("endpoint %s: input %s: %v", p.cfg.Name, p.id, err))
-			}
+		}
+		p.mu.Lock()
+		closed, detached := p.closed, p.detached
+		att := p.att
+		p.mu.Unlock()
+		if closed || detached || att == nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
+		err := att.client.input(ctx, att, batch)
+		cancel()
+		if err != nil && !p.Closed() {
+			p.mgr.notifyNotice("warning", fmt.Sprintf("endpoint %s: input %s: %v", p.cfg.Name, p.id, err))
 		}
 	}
 }
