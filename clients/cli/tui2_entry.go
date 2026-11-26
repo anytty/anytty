@@ -137,8 +137,11 @@ func defaultTUI2Routes() string {
 	if value := strings.TrimSpace(os.Getenv("TUI2_ROUTES")); value != "" {
 		return value
 	}
-	// 旧 TUI 入口是本地单机路径；remote route 仍可由用户显式开启。
-	return "local-unix"
+	// 默认放开所有受支持的接入方式：本地 unix 优先，远端 endpoint 的
+	// direct/cloud 路由只有在注册表启用且凭据可用时才会参与竞争。
+	// 之前固定 local-unix 会让 `anytty attach <远端>:<终端>` 直接判成
+	// "no eligible route"，用户还得手动设 TUI2_ROUTES。
+	return "all"
 }
 
 // locateTUI2Executable 查找 tui2 宿主：TUI2_BIN > 与 anytty 同目录 > PATH。
