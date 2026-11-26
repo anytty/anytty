@@ -51,8 +51,10 @@ for target in "${targets[@]}"; do
     # tui2/tui2-shell keep their own version consts; no -X override.
     CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOWORK=off \
       go build -trimpath -o "$package_dir/tui2$suffix" ./clients/tui/cmd/tui2
+    # 默认布局程序是 v3 看板（examples/v3shell）；它接受 anytty attach 追加的
+    # --config/--attach 参数，并会在 sources 到达后自动附着指定终端。
     CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" GOWORK=off \
-      go build -trimpath -o "$package_dir/tui2-shell$suffix" ./clients/tui/cmd/tui2-shell
+      go build -trimpath -o "$package_dir/tui2-shell$suffix" ./clients/tui/examples/v3shell
   )
   if [[ "$goos" == darwin ]]; then
     [[ "$(uname -s)" == Darwin ]] || {

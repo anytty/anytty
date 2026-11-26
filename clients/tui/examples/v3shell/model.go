@@ -991,6 +991,9 @@ type model struct {
 	overlay        string
 	picker         int
 	pickerTab      int
+	// attachTargetRef 是启动时 -attach 指定的 <endpoint>:<terminal>。
+	// sources 到达后按目标选中对应 endpoint tab 并自动 attach，仅消费一次。
+	attachTargetRef string
 	pickerQuery    string
 	pickerFilter   int      // pickerFilterRunning/Exited/All
 	pickerTagsOpen bool     // Ctrl-T opens the tag checkbox sub-view
@@ -2097,6 +2100,9 @@ func (m *model) Update(msg app.Msg) app.Cmd {
 		}
 	case app.SourcesMsg:
 		cmd = m.onSources(v.Items)
+		if extra := m.resolveAttachTarget(); extra != nil {
+			cmd = chain(cmd, extra)
+		}
 	case app.TickMsg:
 		cmd = chain(m.applySearchScan(), m.applyCopyEdgeAutoScroll())
 	case app.ResizeMsg:
@@ -4895,6 +4901,51 @@ func endpointGlyph(status string) (string, string) {
 		return "?", stWarning
 	}
 	return "○", stMuted
+}
+
+// setAttachTarget 记录启动时要自动附着的终端（<endpoint>:<terminal> 或裸 terminal id）。
+func (m *model) setAttachTarget(target string) {
+	m.attachTargetRef = strings.TrimSpace(target)
+}
+
+// resolveAttachTarget 在 sources 到达后把启动目标解析成 picker 行并 attach。
+// 目标尚未出现在 sources 里时保留 pending，等下一次刷新再试。
+func (m *model) resolveAttachTarget() app.Cmd {
+	target := strings.TrimSpace(m.attachTargetRef)
+	if target == "" || m.demo {
+		return nil
+	}
+	endpoint, terminal := "", target
+	if head, tail, ok := strings.Cut(target, ":"); ok && head != "" && tail != "" {
+		endpoint, terminal = head, tail
+	}
+	tabs := m.pickerTabs()
+	tabIndex := -1
+	for index, tab := range tabs {
+		if endpoint == "" {
+			break
+		}
+		if strings.EqualFold(tab.name, endpoint) || strings.EqualFold(tab.label, endpoint) {
+			tabIndex = index
+			break
+		}
+	}
+	if tabIndex < 0 {
+		return nil
+	}
+	m.pickerTab = tabIndex
+	rows := m.pickerRows()
+	for index, row := range rows {
+		if row.source == nil {
+			continue
+		}
+		if row.source.GetTerminalId() != terminal && row.source.GetId() != terminal {
+			continue
+		}
+		m.attachTargetRef = ""
+		return m.attach(index, false)
+	}
+	return nil
 }
 
 func (m *model) attachTarget() *pane {

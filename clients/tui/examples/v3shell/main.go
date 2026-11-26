@@ -35,6 +35,10 @@ func main() {
 	footerLines := flag.Bool("footer-lines", false, "print <SCENE>|<footer line>| rows and exit (offline)")
 	cols := flag.Int("cols", 120, "offline viewport columns")
 	rows := flag.Int("rows", 32, "offline viewport rows")
+	// -config / -attach 与 anytty attach 传给布局程序的命令行保持兼容：
+	// v3 看板暂不读取 tui2.json，但必须接受这两个参数，否则会立刻退出。
+	_ = flag.String("config", "", "accepted for anytty attach compatibility (unused)")
+	attachTarget := flag.String("attach", "", "terminal to attach at startup: <endpoint>:<id>")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -58,6 +62,7 @@ func main() {
 
 	client := sdk.New(os.Stdin, os.Stdout, sdk.Handlers{})
 	m := newModel(client, *demo)
+	m.setAttachTarget(*attachTarget)
 	claim := m.claim()
 	program := &app.Program{
 		Client: client,
