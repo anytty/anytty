@@ -28,7 +28,11 @@ const (
 	defaultUploadChunkLimit = 64 << 10
 	uploadResumeTTL         = 15 * time.Minute
 	uploadPersistInterval   = 500 * time.Millisecond
-	outboundQueueTarget     = 64 << 10
+	// outboundQueueTarget 是文件流允许积压的上限。文件帧走 bulk 优先级，
+	// 但"允许积压 64KB"在 0.5MB/s 的链路上就是 ~130ms 的队头延迟：一次上传
+	// 就会把同一条有序通道上的按键回显压住。16KB 把这段延迟压到几十毫秒，
+	// 文件本身仍会跑满剩余带宽（只是队列更浅）。
+	outboundQueueTarget = 16 << 10
 	// compressionZstd 是当前唯一协商的 data frame 编码；空字符串始终表示 identity。
 	compressionZstd = "zstd"
 	// maxUploadDecodeBytes 限制单帧解压上限，避免恶意压缩帧放大内存。
