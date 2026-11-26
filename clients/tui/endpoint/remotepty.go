@@ -76,6 +76,13 @@ type RemotePTY struct {
 	readHasData     bool
 	readSnapshot    bool
 	snapshotBarrier func()
+
+	// 输入走独立队列：UI 线程只做入队，单 drainer 按序发出 TerminalInput。
+	// 之前每次按键都在事件循环里同步等一次 RPC 应答，一次往返就把整条输入
+	// 路径堵住 40~60ms（trace: input_handle_max）。
+	inputCh   chan []byte
+	inputDone chan struct{}
+	inputOnce sync.Once
 }
 
 // NewRemotePTY builds the unstarted daemon PTY for one attach call. The
@@ -106,6 +113,8 @@ func (m *Manager) NewRemotePTY(cfg pty.Config) *RemotePTY {
 		notify:             make(chan struct{}, 1),
 		closeCh:            make(chan struct{}),
 		doneCh:             make(chan struct{}),
+		inputCh:            make(chan []byte, 256),
+		inputDone:          make(chan struct{}),
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -201,6 +210,7 @@ func (p *RemotePTY) Start() error {
 	}
 	p.started = true
 	p.mu.Unlock()
+	go p.drainInput()
 
 	ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.DialTimeout+p.mgr.opts.CallTimeout)
 	defer cancel()
@@ -273,20 +283,47 @@ func (p *RemotePTY) ReadDone() {
 func (p *RemotePTY) Write(b []byte) (int, error) {
 	p.mu.Lock()
 	closed := p.closed
-	att := p.att
 	p.mu.Unlock()
 	if closed {
 		return 0, pty.ErrClosed
 	}
-	if att == nil {
-		return 0, fmt.Errorf("endpoint %q: terminal %s is offline", p.cfg.Name, p.id)
+	chunk := append([]byte(nil), b...)
+	select {
+	case p.inputCh <- chunk:
+		return len(b), nil
+	case <-p.inputDone:
+		return 0, pty.ErrClosed
 	}
-	ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
-	defer cancel()
-	if err := att.client.input(ctx, att, b); err != nil {
-		return 0, err
+}
+
+// drainInput 串行地把队列里的输入发到 PTY，保证顺序；写失败只告警，不阻塞
+// 事件循环（重连由 supervisor 负责）。
+func (p *RemotePTY) drainInput() {
+	for {
+		select {
+		case <-p.inputDone:
+			return
+		case data := <-p.inputCh:
+			p.mu.Lock()
+			closed, detached := p.closed, p.detached
+			att := p.att
+			p.mu.Unlock()
+			if closed || detached || att == nil {
+				continue
+			}
+			ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
+			err := att.client.input(ctx, att, data)
+			cancel()
+			if err != nil && !p.Closed() {
+				p.mgr.notifyNotice("warning", fmt.Sprintf("endpoint %s: input %s: %v", p.cfg.Name, p.id, err))
+			}
+		}
 	}
-	return len(b), nil
+}
+
+// stopInput 让 drainer 退出；重复调用安全。
+func (p *RemotePTY) stopInput() {
+	p.inputOnce.Do(func() { close(p.inputDone) })
 }
 
 // Resize applies the local viewport to the daemon terminal through the
@@ -453,6 +490,7 @@ func (p *RemotePTY) Close() error {
 	p.closed = true
 	att := p.att
 	p.mu.Unlock()
+	p.stopInput()
 	close(p.closeCh)
 	p.cond.Broadcast()
 

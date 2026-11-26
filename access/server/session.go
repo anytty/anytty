@@ -9,8 +9,11 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
@@ -53,7 +56,10 @@ type session struct {
 	providerMu sync.Mutex
 	provider   terminalprovider.Provider
 
-	caps sessionCapabilities
+	caps  sessionCapabilities
+	// trace 打开后，慢的 live screen / 输入应答会打一行日志，用来定位
+	// 「事件积累」发生在哪一段（ANYTTY_ACCESS_TRACE=1）。
+	trace bool
 
 	requestSlots   chan struct{}
 	requests       sync.WaitGroup
@@ -202,7 +208,16 @@ func newSession(server *Server, connection transport.Transport) (*session, error
 		tokens:         make(map[string]*streamBinding),
 		retired:        make(map[uint16]struct{}),
 		nextChannel:    6,
+		trace:          accessTraceEnabled(),
 	}, nil
+}
+
+func accessTraceEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_ACCESS_TRACE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 func (session *session) run(ctx context.Context) error {
@@ -345,6 +360,7 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 		// 其余命令保持原有并发分发路径。
 		return session.handleTerminalInput(request, command, input)
 	}
+	requestStarted := time.Now()
 	result, executeErr := session.routeCommand(ctx, command)
 	if executeErr != nil {
 		result = providerErrorResult(command, executeErr)
@@ -364,6 +380,22 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 	})
 	if err != nil {
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
+	}
+	if session.trace && command.GetLiveScreenNext() != nil {
+		elapsed := time.Since(requestStarted)
+		buffered := uint64(0)
+		if reporter, ok := session.conn.(transport.OutboundBufferReporter); ok {
+			buffered = reporter.OutboundBufferedAmount()
+		}
+		session.logger.Info("access live screen trace",
+			"observed", command.GetLiveScreenNext().GetObservedRevision(),
+			"revision", result.GetLiveScreen().GetLiveRevision(),
+			"rows", len(result.GetLiveScreen().GetRowReplacements()),
+			"full", result.GetLiveScreen().GetFullReplace(),
+			"bytes", len(payload),
+			"encoding", encoding,
+			"compute_ms", elapsed.Milliseconds(),
+			"outbound_buffered", buffered)
 	}
 	if err := session.sendFrame(0, wire.TypeResponse, response); err != nil {
 		// 屏幕帧是可丢的：背压时放弃这一帧，客户端下一次轮询会拿到新的净 delta。
@@ -421,9 +453,15 @@ func (session *session) handleTerminalInput(
 	if err != nil {
 		return session.respondTerminalInput(request, command, err)
 	}
+	inputStarted := time.Now()
 	if err := queue.enqueue(terminalInputItem{
 		data: append([]byte(nil), input.GetData()...),
 		respond: func(writeErr error) {
+			if session.trace {
+				if elapsed := time.Since(inputStarted); elapsed >= 20*time.Millisecond {
+					session.logger.Info("access input ack slow", "ms", elapsed.Milliseconds(), "bytes", len(input.GetData()), "write_error", writeErr)
+				}
+			}
 			_ = session.respondTerminalInput(request, command, writeErr)
 		},
 	}); err != nil {

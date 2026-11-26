@@ -417,8 +417,30 @@ func (h *Host) Run() error {
 	}
 
 	parser := keys.NewParser()
-	inputCh := make(chan []byte, 64)
+	inputCh := make(chan inputChunk, 64)
 	go h.pumpInput(inputCh)
+
+	// ANYTTY_TUI_TRACE=1 时每秒输出一次事件循环统计：输入在 channel 里等了多久、
+	// 处理多久、整帧渲染多久。用来区分「输入被渲染饿死」和「网络往返」。
+	traceEnabled := tuiTraceEnabled()
+	var (
+		traceInputs        int
+		traceFrames        int
+		traceInputWaitMax  time.Duration
+		traceInputDoMax    time.Duration
+		traceFlushMax      time.Duration
+		traceLastReport    = time.Now()
+	)
+	reportTrace := func() {
+		if !traceEnabled || time.Since(traceLastReport) < time.Second {
+			return
+		}
+		h.logf("tui2 trace inputs=%d frames=%d input_wait_max=%dms input_handle_max=%dms flush_max=%dms",
+			traceInputs, traceFrames, traceInputWaitMax.Milliseconds(), traceInputDoMax.Milliseconds(), traceFlushMax.Milliseconds())
+		traceInputs, traceFrames = 0, 0
+		traceInputWaitMax, traceInputDoMax, traceFlushMax = 0, 0, 0
+		traceLastReport = time.Now()
+	}
 
 	sessionDone := make(chan sessionEnd, 4)
 	h.serve(sessionDone)
@@ -505,7 +527,13 @@ func (h *Host) Run() error {
 		stopFrameTimer()
 		h.publishSources()
 		h.flushNotices()
-		if !h.flush() {
+		flushStarted := time.Now()
+		flushed := h.flush()
+		if elapsed := time.Since(flushStarted); elapsed > traceFlushMax {
+			traceFlushMax = elapsed
+		}
+		traceFrames++
+		if !flushed {
 			return
 		}
 		pendingFrame = false
@@ -521,13 +549,21 @@ func (h *Host) Run() error {
 				flushPending(time.Now())
 				return nil
 			}
-			if wheelDebugEnabled() && chunkHasEsc(chunk) {
-				h.logf("tui2 input raw=%q", chunk)
+			if waited := time.Since(chunk.at); waited > traceInputWaitMax {
+				traceInputWaitMax = waited
+			}
+			if wheelDebugEnabled() && chunkHasEsc(chunk.data) {
+				h.logf("tui2 input raw=%q", chunk.data)
 			}
 			renderEvent = false
-			for _, ev := range parser.Feed(chunk) {
+			handleStarted := time.Now()
+			for _, ev := range parser.Feed(chunk.data) {
 				renderEvent = h.handleInput(ev) || renderEvent
 			}
+			if elapsed := time.Since(handleStarted); elapsed > traceInputDoMax {
+				traceInputDoMax = elapsed
+			}
+			traceInputs++
 			armEsc()
 		case <-escTimer.C:
 			renderEvent = false
@@ -566,6 +602,7 @@ func (h *Host) Run() error {
 			frameTimer = nil
 			frameC = nil
 		}
+		reportTrace()
 		if !renderEvent {
 			// A PTY passthrough event does not change the host layout. The child
 			// will wake the frame loop after its output is parsed; rendering here
@@ -848,7 +885,21 @@ func (h *Host) restartProgramMode(cause error, reload bool) {
 	}
 }
 
-func (h *Host) pumpInput(ch chan<- []byte) {
+// inputChunk 带到达时间，用来测量事件循环被渲染饿死的时长。
+type inputChunk struct {
+	data []byte
+	at   time.Time
+}
+
+func tuiTraceEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_TUI_TRACE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+func (h *Host) pumpInput(ch chan<- inputChunk) {
 	defer close(ch)
 	buf := make([]byte, 4096)
 	for {
@@ -856,7 +907,7 @@ func (h *Host) pumpInput(ch chan<- []byte) {
 		if n > 0 {
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
-			ch <- chunk
+			ch <- inputChunk{data: chunk, at: time.Now()}
 		}
 		if err != nil {
 			return
