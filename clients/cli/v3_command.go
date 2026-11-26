@@ -2,14 +2,20 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/anytty/anytty/access/accessrun"
+	clientruntime "github.com/anytty/anytty/access/engine/runtime"
+	endpointdomain "github.com/anytty/anytty/access/engine/endpoint"
+	"github.com/anytty/anytty/proto/access/apipb"
 	corev2 "github.com/anytty/anytty/pool/core"
 	poolprovider "github.com/anytty/anytty/pool/provider"
 	"github.com/anytty/anytty/shared/perftrace"
@@ -202,27 +208,97 @@ func newPoolCommandGroup(use string, socket *string, logFile *string, configPath
 }
 
 func v3PingCommand(socket *string, logFile *string) *cobra.Command {
-	return &cobra.Command{
+	var endpointID, routeID string
+	var count int
+	var jsonOutput bool
+	cmd := &cobra.Command{
 		Use:   "ping",
-		Short: "Connect to the experimental core-v2 terminal pool",
+		Short: "Check pool connectivity; with --endpoint measure routed round trips",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger, closeLogger, logPath, err := openLogFileLogger(*logFile)
 			if err != nil {
 				return err
 			}
 			defer closeLogger()
-			socketPath := resolveV3Socket(*socket)
-			client, err := dialOrStartV3Client(socketPath, logPath, logger)
-			if err != nil {
-				return err
+			if strings.TrimSpace(endpointID) == "" {
+				socketPath := resolveV3Socket(*socket)
+				client, dialErr := dialOrStartV3Client(socketPath, logPath, logger)
+				if dialErr != nil {
+					return dialErr
+				}
+				if client != nil {
+					defer client.Close()
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "anytty v3 pool ok: socket=%s\n", socketPath)
+				return nil
 			}
-			if client != nil {
-				defer client.Close()
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "anytty v3 pool ok: socket=%s\n", socketPath)
-			return nil
+			return pingRemoteEndpoint(cmd, endpointID, routeID, count, jsonOutput, *socket, *logFile, logger)
 		},
 	}
+	cmd.Flags().StringVar(&endpointID, "endpoint", "", "endpoint ID or label to ping over its configured routes")
+	cmd.Flags().StringVar(&routeID, "route", "", "force one route ID (cloud, direct, ...)")
+	cmd.Flags().IntVar(&count, "count", 10, "round trips to measure")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "machine-readable output")
+	return cmd
+}
+
+// pingRemoteEndpoint 通过真实路由测一次「请求→应答」的往返，用来把网络 RTT
+// 和栈内开销分开。它只调用只读的 terminal.list，不改任何状态。
+func pingRemoteEndpoint(cmd *cobra.Command, endpointID, routeID string, count int, jsonOutput bool, socketOverride, logFile string, logger *slog.Logger) error {
+	if count <= 0 {
+		count = 10
+	}
+	registry, err := loadNormalizedConnectionRegistry()
+	if err != nil {
+		return err
+	}
+	var target endpointdomain.Endpoint
+	found := false
+	for _, endpoint := range registry.Endpoints {
+		if string(endpoint.ID) == endpointID || strings.EqualFold(endpoint.Label, endpointID) {
+			target, found = endpoint, true
+			break
+		}
+	}
+	if !found {
+		return usageCLIError(fmt.Sprintf("endpoint %q was not found", endpointID))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(count)*5*time.Second+30*time.Second)
+	defer cancel()
+	client, route, err := connectEndpoint(ctx, target, endpointdomain.RouteID(strings.TrimSpace(routeID)), socketOverride, logFile, clientruntime.ConnectIntentProbe, "anytty-ping", logger)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	samples := make([]time.Duration, 0, count)
+	for i := 0; i < count; i++ {
+		started := time.Now()
+		if _, err := client.TerminalList(ctx, &apipb.TerminalListCommand{}); err != nil {
+			return err
+		}
+		samples = append(samples, time.Since(started))
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+	pick := func(q float64) time.Duration { return samples[int(float64(len(samples)-1)*q)] }
+	if jsonOutput {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(struct {
+			Kind    string `json:"kind"`
+			Route   string `json:"route"`
+			Path    string `json:"observed_path"`
+			Count   int    `json:"count"`
+			MinMS   int64  `json:"min_ms"`
+			P50MS   int64  `json:"p50_ms"`
+			P95MS   int64  `json:"p95_ms"`
+			MaxMS   int64  `json:"max_ms"`
+		}{
+			Kind: "ping", Route: string(route.ID), Path: client.ObservedPath(), Count: len(samples),
+			MinMS: samples[0].Milliseconds(), P50MS: pick(0.5).Milliseconds(), P95MS: pick(0.95).Milliseconds(), MaxMS: samples[len(samples)-1].Milliseconds(),
+		})
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "route=%s path=%s n=%d min=%s p50=%s p95=%s max=%s\n",
+		route.ID, client.ObservedPath(), len(samples), samples[0].Round(time.Millisecond), pick(0.5).Round(time.Millisecond), pick(0.95).Round(time.Millisecond), samples[len(samples)-1].Round(time.Millisecond))
+	return nil
 }
 
 func v3TmuxSmokeCommand() *cobra.Command {
