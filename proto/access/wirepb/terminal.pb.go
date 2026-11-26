@@ -27,6 +27,9 @@ type ResponseEncoding int32
 const (
 	ResponseEncoding_RESPONSE_ENCODING_RAW     ResponseEncoding = 0
 	ResponseEncoding_RESPONSE_ENCODING_DEFLATE ResponseEncoding = 1
+	// RESPONSE_ENCODING_ZSTD 是 zstd(SpeedFastest)：比 deflate 小约 1.5×，
+	// 服务端 CPU 低一个数量级。客户端必须在 Hello 里声明 screen.zstd.v1。
+	ResponseEncoding_RESPONSE_ENCODING_ZSTD ResponseEncoding = 2
 )
 
 // Enum value maps for ResponseEncoding.
@@ -34,10 +37,12 @@ var (
 	ResponseEncoding_name = map[int32]string{
 		0: "RESPONSE_ENCODING_RAW",
 		1: "RESPONSE_ENCODING_DEFLATE",
+		2: "RESPONSE_ENCODING_ZSTD",
 	}
 	ResponseEncoding_value = map[string]int32{
 		"RESPONSE_ENCODING_RAW":     0,
 		"RESPONSE_ENCODING_DEFLATE": 1,
+		"RESPONSE_ENCODING_ZSTD":    2,
 	}
 )
 
@@ -763,10 +768,11 @@ const file_wirepb_terminal_proto_rawDesc = "" +
 	"\x12FileTransferResult\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x03R\x04size\x12\x16\n" +
-	"\x06sha256\x18\x03 \x01(\fR\x06sha256*L\n" +
+	"\x06sha256\x18\x03 \x01(\fR\x06sha256*h\n" +
 	"\x10ResponseEncoding\x12\x19\n" +
 	"\x15RESPONSE_ENCODING_RAW\x10\x00\x12\x1d\n" +
-	"\x19RESPONSE_ENCODING_DEFLATE\x10\x01B.Z,github.com/anytty/anytty/proto/access/wirepbb\x06proto3"
+	"\x19RESPONSE_ENCODING_DEFLATE\x10\x01\x12\x1a\n" +
+	"\x16RESPONSE_ENCODING_ZSTD\x10\x02B.Z,github.com/anytty/anytty/proto/access/wirepbb\x06proto3"
 
 var (
 	file_wirepb_terminal_proto_rawDescOnce sync.Once

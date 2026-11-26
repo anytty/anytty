@@ -144,7 +144,7 @@ func (dialer *Dialer) Connect(ctx context.Context, request clientruntime.Attempt
 	if clientName == "" {
 		clientName = defaultClientName
 	}
-	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName, Capabilities: []string{internalprotocol.ScreenCompressionCapability}}); err != nil {
+	if err := protocolClient.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName, Capabilities: []string{internalprotocol.ScreenCompressionCapability, internalprotocol.ScreenZstdCapability}}); err != nil {
 		_ = protocolClient.Close()
 		_ = peer.Close()
 		return nil, reportDirectFailure(request.Stamp().Generation, directFailureProtocolHello, fmt.Errorf("direct endpoint protocol Hello: %w", err))

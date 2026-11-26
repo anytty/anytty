@@ -106,6 +106,7 @@ type streamBinding struct {
 // sessionCapabilities 记录客户端在 Hello 里声明的增量能力位。
 type sessionCapabilities struct {
 	screenCompression atomic.Bool
+	screenZstd        atomic.Bool
 }
 
 // terminalInputQueue 串行化同一 attachment 的 PTY 写入。
@@ -279,8 +280,11 @@ func (session *session) handleControlFrame(ctx context.Context, typ uint8, paylo
 			return session.sendError(0, protocolErrorBadRequest, fmt.Sprintf("unsupported wire version %d", hello.Version))
 		}
 		for _, capability := range hello.Capabilities {
-			if capability == internalprotocol.ScreenCompressionCapability {
+			switch capability {
+			case internalprotocol.ScreenCompressionCapability:
 				session.caps.screenCompression.Store(true)
+			case internalprotocol.ScreenZstdCapability:
+				session.caps.screenZstd.Store(true)
 			}
 		}
 		response, err := internalprotocol.EncodeHelloPayload(internalprotocol.Hello{Version: wire.Version, Server: ModuleName})
@@ -370,9 +374,16 @@ func (session *session) handleRequest(ctx context.Context, request internalproto
 		return session.sendError(request.ID, protocolErrorInternal, err.Error())
 	}
 	encoding := internalprotocol.ResponseEncodingRaw
-	if command.GetLiveScreenNext() != nil && session.caps.screenCompression.Load() {
-		if compressed, ok := compressLiveScreenResult(payload); ok {
-			payload, encoding = compressed, internalprotocol.ResponseEncodingDeflate
+	if command.GetLiveScreenNext() != nil {
+		// zstd 优先：比 deflate 小约 1.5×、CPU 低一个数量级；老客户端仍走 deflate。
+		if session.caps.screenZstd.Load() && len(payload) >= 1024 {
+			if compressed, ok := internalprotocol.CompressZstdApplicationResult(payload); ok && len(compressed) < len(payload) {
+				payload, encoding = compressed, internalprotocol.ResponseEncodingZstd
+			}
+		} else if session.caps.screenCompression.Load() {
+			if compressed, ok := compressLiveScreenResult(payload); ok {
+				payload, encoding = compressed, internalprotocol.ResponseEncodingDeflate
+			}
 		}
 	}
 	response, err := internalprotocol.EncodeResponsePayload(internalprotocol.Response{

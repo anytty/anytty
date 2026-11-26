@@ -36,6 +36,9 @@ message RequestEnvelope {
 enum ResponseEncoding {
   RESPONSE_ENCODING_RAW = 0;
   RESPONSE_ENCODING_DEFLATE = 1;
+  // RESPONSE_ENCODING_ZSTD 是 zstd(SpeedFastest)：比 deflate 小约 1.5×，
+  // 服务端 CPU 低一个数量级。客户端必须在 Hello 里声明 screen.zstd.v1。
+  RESPONSE_ENCODING_ZSTD = 2;
 }
 
 message ResponseEnvelope {

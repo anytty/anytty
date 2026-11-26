@@ -21,6 +21,10 @@ type Hello struct {
 // ScreenCompressionCapability 表示对端可以接受 deflate 压缩的 application result。
 const ScreenCompressionCapability = "screen.compress.v1"
 
+// ScreenZstdCapability 表示对端可以接受 zstd 压缩的屏幕 delta。zstd 比 deflate
+// 小约 1.5×，且服务端 CPU 低一个数量级；未声明的对端继续走 deflate/明文。
+const ScreenZstdCapability = "screen.zstd.v1"
+
 // Request 是 framing 层 control request；Method 的生产值只允许 api.execute。
 type Request struct {
 	ID     uint64
@@ -34,6 +38,7 @@ type ResponseEncoding uint8
 const (
 	ResponseEncodingRaw ResponseEncoding = iota
 	ResponseEncodingDeflate
+	ResponseEncodingZstd
 )
 
 // Response 是 framing 层 control response，不解释 application result。

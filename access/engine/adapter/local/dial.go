@@ -129,7 +129,7 @@ func dialProtocol(ctx context.Context, path, clientName string) (*internalprotoc
 		return nil, err
 	}
 	client := internalprotocol.NewClient(transport)
-	if err := client.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName, Capabilities: []string{internalprotocol.ScreenCompressionCapability}}); err != nil {
+	if err := client.Hello(ctx, internalprotocol.Hello{Version: wire.Version, Client: clientName, Capabilities: []string{internalprotocol.ScreenCompressionCapability, internalprotocol.ScreenZstdCapability}}); err != nil {
 		_ = client.Close()
 		return nil, &protocolHandshakeError{cause: err}
 	}

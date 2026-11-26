@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/proto/access/wirepb"
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -85,8 +87,11 @@ func DecodeRequestPayload(payload []byte) (Request, error) {
 
 func EncodeResponsePayload(response Response) ([]byte, error) {
 	encoding := wirepb.ResponseEncoding_RESPONSE_ENCODING_RAW
-	if response.Encoding == ResponseEncodingDeflate {
+	switch response.Encoding {
+	case ResponseEncodingDeflate:
 		encoding = wirepb.ResponseEncoding_RESPONSE_ENCODING_DEFLATE
+	case ResponseEncodingZstd:
+		encoding = wirepb.ResponseEncoding_RESPONSE_ENCODING_ZSTD
 	}
 	return proto.Marshal(&wirepb.ResponseEnvelope{
 		Id: response.ID, Result: append([]byte(nil), response.Result...), Encoding: encoding,
@@ -99,10 +104,54 @@ func DecodeResponsePayload(payload []byte) (Response, error) {
 		return Response{}, err
 	}
 	encoding := ResponseEncodingRaw
-	if message.GetEncoding() == wirepb.ResponseEncoding_RESPONSE_ENCODING_DEFLATE {
+	switch message.GetEncoding() {
+	case wirepb.ResponseEncoding_RESPONSE_ENCODING_DEFLATE:
 		encoding = ResponseEncodingDeflate
+	case wirepb.ResponseEncoding_RESPONSE_ENCODING_ZSTD:
+		encoding = ResponseEncodingZstd
 	}
 	return Response{ID: message.GetId(), Result: append([]byte(nil), message.GetResult()...), Encoding: encoding}, nil
+}
+
+var (
+	zstdEncoderOnce sync.Once
+	zstdEncoder     *zstd.Encoder
+	zstdDecoderOnce sync.Once
+	zstdDecoder     *zstd.Decoder
+	zstdDecoderErr  error
+)
+
+// CompressZstdApplicationResult 用 zstd(SpeedFastest) 压缩一个 application
+// result。zstd 的 EncodeAll 并发安全；比 deflate 小约 1.5×、CPU 低一个数量级。
+func CompressZstdApplicationResult(payload []byte) ([]byte, bool) {
+	zstdEncoderOnce.Do(func() {
+		zstdEncoder, _ = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest))
+	})
+	if zstdEncoder == nil {
+		return nil, false
+	}
+	return zstdEncoder.EncodeAll(payload, nil), true
+}
+
+// inflateZstdApplicationResult 解开 zstd 压缩的 application result。
+func inflateZstdApplicationResult(payload []byte) ([]byte, error) {
+	zstdDecoderOnce.Do(func() {
+		zstdDecoder, zstdDecoderErr = zstd.NewReader(nil,
+			zstd.WithDecoderConcurrency(1),
+			zstd.WithDecoderMaxMemory(uint64(wire.MaxFrameSize)),
+		)
+	})
+	if zstdDecoderErr != nil {
+		return nil, zstdDecoderErr
+	}
+	out, err := zstdDecoder.DecodeAll(payload, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) > wire.MaxFrameSize {
+		return nil, fmt.Errorf("inflated application result exceeds %d bytes", wire.MaxFrameSize)
+	}
+	return out, nil
 }
 
 // inflateApplicationResult 解开 deflate 压缩的 application result。

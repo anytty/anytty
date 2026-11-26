@@ -866,10 +866,17 @@ func (c *Client) handleControlFrame(typ uint8, payload []byte) error {
 			return &PeerError{Code: ProtocolErrorCodeBadRequest, Message: "malformed protocol response"}
 		}
 		body := response.Result
-		if response.Encoding == ResponseEncodingDeflate {
+		switch response.Encoding {
+		case ResponseEncodingDeflate:
 			inflated, inflateErr := inflateApplicationResult(body)
 			if inflateErr != nil {
 				return &PeerError{Code: ProtocolErrorCodeBadRequest, Message: "malformed compressed protocol response"}
+			}
+			body = inflated
+		case ResponseEncodingZstd:
+			inflated, inflateErr := inflateZstdApplicationResult(body)
+			if inflateErr != nil {
+				return &PeerError{Code: ProtocolErrorCodeBadRequest, Message: "malformed zstd protocol response"}
 			}
 			body = inflated
 		}
