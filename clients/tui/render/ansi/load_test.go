@@ -102,19 +102,23 @@ func TestLoadScreenAlternateScreenSwitch(t *testing.T) {
 	}
 }
 
-// TestLoadScreenClipsToHostGrid 覆盖“daemon 屏比面板小/大”的投影：解析器
-// 网格尺寸保持不变（光标和滚动以面板为准），只把内容裁进交集区域。
-func TestLoadScreenClipsToHostGrid(t *testing.T) {
+// TestLoadScreenGrowsToCoverDaemonScreen 覆盖“daemon 屏比解析器大/小”：
+// 更大时网格长到能装下整屏（底部输入框不能被裁掉）；更小时不缩小，
+// 交集以外保持空白，避免光标/滚动坐标被裁进更小的网格。
+func TestLoadScreenGrowsToCoverDaemonScreen(t *testing.T) {
 	parser := New(3, 2)
-	if !parser.LoadScreen(modelScreen(5, 2, textRow("hello"), textRow("world")), nil) {
-		t.Fatal("clipped load rejected")
+	if !parser.LoadScreen(modelScreen(5, 4, textRow("hello"), textRow("world"), textRow(""), textRow("input")), nil) {
+		t.Fatal("grow load rejected")
 	}
 	screen := parser.Screen()
-	if len(screen.Lines) != 2 || len(screen.Lines[0]) != 3 {
-		t.Fatalf("grid = %dx%d, want 3x2", len(screen.Lines[0]), len(screen.Lines))
+	if len(screen.Lines) != 4 || len(screen.Lines[0]) != 5 {
+		t.Fatalf("grid = %dx%d, want 5x4", len(screen.Lines[0]), len(screen.Lines))
 	}
-	if got := RowText(screen.Row(0)); got != "hel" {
-		t.Fatalf("row 0 = %q, want first 3 columns", got)
+	if got := RowText(screen.Row(0)); got != "hello" {
+		t.Fatalf("row 0 = %q, want full row", got)
+	}
+	if got := RowText(screen.Row(3)); got != "input" {
+		t.Fatalf("row 3 = %q, want the bottom input row", got)
 	}
 
 	// daemon 屏更小：交集以外保持空白，网格尺寸不变。

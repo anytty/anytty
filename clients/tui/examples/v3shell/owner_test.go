@@ -172,27 +172,30 @@ func TestFollowerDeclaresContentFraming(t *testing.T) {
 
 // TestLiveFollowerClippedByExtentDrawsOverflowMarkers pins the border clipping
 // markers: when a follower's extent is larger than its content area the card
-// border gets the right/bottom overflow markers; the owner at its exact extent
-// shows none.
+// border marks the clipped edges. Default layout keeps the left edge and
+// bottom-anchors a taller extent, so the markers are right and top; the owner
+// at its exact extent shows none.
 func TestLiveFollowerClippedByExtentDrawsOverflowMarkers(t *testing.T) {
 	// Extent 30x20 exceeds the 18x8 content area: the right follower is clipped
 	// on both edges. Focus the left pane so the right pane is the follower.
 	m, left, right, _ := twoPaneSourceModel(t, 40, 12, 30, 20, false)
 	lines, styles := m.rasterize(m.View())
 
-	// Follower card rect {20,1,20,10}: right marker on the last content row's
-	// right border (39,9), bottom marker before the corner (38,10).
+	// Follower card rect {20,1,20,10}. Default layout bottom-anchors a taller
+	// extent so the input row stays visible: right marker on the last content
+	// row's right border (39,9), top marker on the top border (21,1). The
+	// bottom edge shows the last extent row, so it is not clipped.
 	if got := cellAt(lines[9], 39); got != glyphOverflowRight {
 		t.Fatalf("follower right marker = %q, want %q\n%s", got, glyphOverflowRight, lines[9])
 	}
 	if got := styles[9][39]; got != dimStyle(stOverflowStyle) {
 		t.Fatalf("follower right marker style = %q, want %q", got, dimStyle(stOverflowStyle))
 	}
-	if got := cellAt(lines[10], 38); got != glyphOverflowBottom {
-		t.Fatalf("follower bottom marker = %q, want %q", got, glyphOverflowBottom)
+	if got := cellAt(lines[1], 21); got != glyphOverflowTop {
+		t.Fatalf("follower top marker = %q, want %q", got, glyphOverflowTop)
 	}
-	if got := styles[10][38]; got != dimStyle(stOverflowStyle) {
-		t.Fatalf("follower bottom marker style = %q, want %q", got, dimStyle(stOverflowStyle))
+	if got := cellAt(lines[10], 38); got == glyphOverflowBottom {
+		t.Fatalf("bottom-anchored follower must not clip the bottom edge")
 	}
 
 	// The owner (left card) keeps its plain border: its extent fills the PTY,
@@ -203,9 +206,10 @@ func TestLiveFollowerClippedByExtentDrawsOverflowMarkers(t *testing.T) {
 	if got := cellAt(lines[10], 18); got != "\u2500" {
 		t.Fatalf("owner bottom border = %q, want plain \u2500", got)
 	}
-	// The default start layout is top-aligned: no top marker.
-	if got := cellAt(lines[1], 21); got != "\u2500" {
-		t.Fatalf("follower top border = %q, want plain \u2500", got)
+	// Default layout bottom-anchors a taller follower, so the bottom border
+	// stays a plain rule (the last row is on screen).
+	if got := cellAt(lines[10], 38); got != "\u2500" {
+		t.Fatalf("follower bottom border = %q, want plain \u2500", got)
 	}
 
 	_ = left

@@ -24,10 +24,13 @@ func (p *Parser) LoadScreen(screen *screenmodel.Screen, changed []int) bool {
 		return false
 	}
 	if screen.Cols != p.cols || screen.Rows != p.rows {
-		// daemon 的屏尺寸由它当前的 resize owner 决定，可能比本视图面板小
-		// （例如手机持有 resize lease）。解析器网格尺寸仍由宿主的 resize 决定，
-		// 这里只把 daemon 的内容投影到交集区域，避免面板网格被缩小导致光标/
-		// 滚动坐标错位。
+		// daemon 的屏由当前 resize owner 决定，可能比本视图的解析器大（手机
+		// 持有 lease，屏又高又窄）。只投影交集会把底部输入框丢掉，而组件又
+		// 按 daemon 尺寸去取那些行，取到的是空白。比解析器大时把网格长到能
+		// 装下整屏；比解析器小时不缩小——缩小会把光标/滚动坐标裁进更小的网格。
+		if screen.Cols > p.cols || screen.Rows > p.rows {
+			p.Resize(maxInt(p.cols, screen.Cols), maxInt(p.rows, screen.Rows))
+		}
 		changed = nil
 	}
 	alt := screen.AlternateScreen()

@@ -280,13 +280,14 @@ func TestLargerExtentPanShiftsOffset(t *testing.T) {
 	m.focusPaneObject(right) // right is the follower
 	content := rect{21, 2, 18, 8}
 
-	// Default start layout: origin 0,0, footprint 30x20 (clipped right/bottom).
-	if x, y, cols, rows := m.paneContentExtent(right, content); x != 0 || y != 0 || cols != 30 || rows != 20 {
-		t.Fatalf("start extent = (%d,%d %dx%d), want (0,0 30x20)", x, y, cols, rows)
+	// Default layout bottom-anchors a taller extent: origin 0,-12, footprint 30x20
+	// (clipped right/top; the input row stays on screen).
+	if x, y, cols, rows := m.paneContentExtent(right, content); x != 0 || y != -12 || cols != 30 || rows != 20 {
+		t.Fatalf("start extent = (%d,%d %dx%d), want (0,-12 30x20)", x, y, cols, rows)
 	}
 	box := terminalBoxOf(t, m, right.id)
-	if got := box.GetContent().GetProps()["content.offset"]; got != "0,0" {
-		t.Fatalf("start content.offset = %q, want 0,0", got)
+	if got := box.GetContent().GetProps()["content.offset"]; got != "0,-12" {
+		t.Fatalf("start content.offset = %q, want 0,-12", got)
 	}
 	if got := box.GetContent().GetProps()["content.size"]; got != "30,20" {
 		t.Fatalf("start content.size = %q, want 30,20", got)
@@ -299,8 +300,8 @@ func TestLargerExtentPanShiftsOffset(t *testing.T) {
 	// markers stay; the left edge is not yet clipped).
 	runCmd(t, m, key(m, "A"))
 	box = terminalBoxOf(t, m, right.id)
-	if got := box.GetContent().GetProps()["content.offset"]; got != "2,0" {
-		t.Fatalf("panned larger extent content.offset = %q, want 2,0", got)
+	if got := box.GetContent().GetProps()["content.offset"]; got != "2,-12" {
+		t.Fatalf("panned larger extent content.offset = %q, want 2,-12", got)
 	}
 	lines, _ := m.rasterize(m.View())
 	if got := cellAt(lines[9], 39); got != glyphOverflowRight {
@@ -311,8 +312,8 @@ func TestLargerExtentPanShiftsOffset(t *testing.T) {
 	runCmd(t, m, key(m, "D"))
 	runCmd(t, m, key(m, "D"))
 	box = terminalBoxOf(t, m, right.id)
-	if got := box.GetContent().GetProps()["content.offset"]; got != "-2,0" {
-		t.Fatalf("right-panned larger extent content.offset = %q, want -2,0", got)
+	if got := box.GetContent().GetProps()["content.offset"]; got != "-2,-12" {
+		t.Fatalf("right-panned larger extent content.offset = %q, want -2,-12", got)
 	}
 	lines, _ = m.rasterize(m.View())
 	if got := cellAt(lines[2], 20); got != glyphOverflowLeft {
@@ -329,16 +330,17 @@ func TestContentLayoutOverflowMarkers(t *testing.T) {
 	m.mode = modeResize
 	m.focusPaneObject(right) // right is the follower (left owns the source)
 
-	// Default start layout clips only the right and bottom edges.
+	// Default layout keeps the left edge and bottom-anchors a taller extent,
+	// so the input row stays on screen: right and top are clipped, bottom is not.
 	lines, _ := m.rasterize(m.View())
 	if got := cellAt(lines[9], 39); got != glyphOverflowRight {
 		t.Fatalf("start right marker = %q, want %q", got, glyphOverflowRight)
 	}
-	if got := cellAt(lines[10], 38); got != glyphOverflowBottom {
-		t.Fatalf("start bottom marker = %q, want %q", got, glyphOverflowBottom)
+	if got := cellAt(lines[1], 21); got != glyphOverflowTop {
+		t.Fatalf("start top marker = %q, want %q", got, glyphOverflowTop)
 	}
-	if got := cellAt(lines[1], 21); got == glyphOverflowTop {
-		t.Fatalf("start must not show a top marker")
+	if got := cellAt(lines[10], 38); got == glyphOverflowBottom {
+		t.Fatalf("bottom-anchored start layout must not clip the bottom edge")
 	}
 
 	// end/end clips the left and top edges.

@@ -928,41 +928,6 @@ func (t *Terminal) Modes() ansi.Modes {
 	return t.parser.Modes()
 }
 
-// ContentBounds 返回当前屏幕里最后一个有字符（或光标所在）的列/行的下一格。
-// follower 用它作为 source 尺寸，让点阵 placeholder 从内容边界开始铺。
-func (t *Terminal) ContentBounds() (int, int) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	snap := t.snapshotLocked()
-	cols, rows := 0, 0
-	for y, line := range snap.Lines {
-		for x, cell := range line {
-			if cell.Continuation {
-				continue
-			}
-			if cell.Text == "" || cell.Text == " " {
-				continue
-			}
-			if x+1 > cols {
-				cols = x + 1
-			}
-			if y+1 > rows {
-				rows = y + 1
-			}
-		}
-	}
-	// 光标也算内容：空行上的输入光标不能因为边界裁剪而被藏掉。
-	if snap.CursorVisible {
-		if snap.CursorX+1 > cols {
-			cols = snap.CursorX + 1
-		}
-		if snap.CursorY+1 > rows {
-			rows = snap.CursorY + 1
-		}
-	}
-	return cols, rows
-}
-
 // Cursor returns the grid cursor position and visibility.
 func (t *Terminal) Cursor() (int, int, bool) {
 	t.mu.Lock()

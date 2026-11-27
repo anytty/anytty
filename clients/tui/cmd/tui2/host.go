@@ -1574,18 +1574,10 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		if size, ok := daemonSize[sourceID]; ok && size[0] > 0 && size[1] > 0 {
 			cols, rows = size[0], size[1]
 		}
-		// follower 的 source 尺寸用「内容边界」：v3 程序据此把点阵 placeholder
-		// 从最后一个有内容的行/列开始铺，而不是从 daemon 的屏幕尺寸开始。
-		if owner != "" && owner != h.opts.ViewID {
-			if contentCols, contentRows := trackedTerm.term.ContentBounds(); contentCols > 0 && contentRows > 0 {
-				if contentCols < cols {
-					cols = contentCols
-				}
-				if contentRows < rows {
-					rows = contentRows
-				}
-			}
-		}
+		// 不要把 follower 的 source 尺寸收成「最后一个有字符的行/列」。
+		// opencode 这类全屏应用的输入框、状态栏、面板填充大多是带样式的空格，
+		// 按字形边界裁会把这些区域变成点阵，用户看到的就是「输入框和界面没了」。
+		// 点阵只铺在 daemon 屏幕之外（面板比屏幕大的边）；屏幕内部整屏照画。
 		lastOutput := trackedTerm.term.LastOutput()
 		lastOutputMs := int64(0)
 		if !lastOutput.IsZero() {
