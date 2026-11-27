@@ -537,7 +537,7 @@ final class TerminalSettings {
     this.scrollInertia = 60,
     this.historyPrefetchThresholdRows = 30,
     this.cursorBlink = true,
-    this.autoAcquireResizeOwner = false,
+    this.autoAcquireResizeOwner = true,
     this.gestureTerminalSwitch = true,
     this.gestureDeviceSwitch = true,
     this.gestureSensitivity = TerminalSwipeSensitivity.normal,

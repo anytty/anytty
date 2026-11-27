@@ -39,6 +39,7 @@ import '../../terminal/domain/terminal_input_fanout.dart';
 import '../../terminal/domain/terminal_form.dart';
 import '../../terminal/domain/terminal_inventory.dart';
 import '../../terminal/domain/terminal_links.dart';
+import '../../terminal/domain/terminal_metrics.dart';
 import '../../terminal/domain/terminal_modifiers.dart';
 import '../../terminal/domain/terminal_output_activity.dart';
 import '../../terminal/domain/terminal_petal_menu_preferences.dart';
@@ -80,8 +81,7 @@ final class TerminalWorkspaceScreen extends ConsumerStatefulWidget {
 
 final class _TerminalWorkspaceScreenState
     extends ConsumerState<TerminalWorkspaceScreen>
-    with WidgetsBindingObserver
-    {
+    with WidgetsBindingObserver {
   final _surfaceKey = GlobalKey<_ActiveTerminalState>();
   late final ui.FlutterView _view;
   late final TerminalKeyboardInsetStabilizer _keyboardInsetStabilizer;
@@ -6145,24 +6145,28 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                         },
                         onSelected: (action) =>
                             unawaited(_handleTerminalPetalAction(action.id)),
-                        child: TerminalCanvas(
+                        child: _FitWidthCanvas(
                           screen: screen,
-                          settings: widget.settings,
-                          reserveLongPress: false,
-                          onPresented:
-                              widget.connection.acknowledgePresentation,
-                          onLinkTap: _openTerminalLink,
-                          onTerminalTap: (position) =>
-                              _handleLiveTap(screen, position),
-                          onInteractionStart: _handleLiveInteractionStart,
-                          onInteractionCancel: _handleLiveInteractionCancel,
-                          onVerticalDragStart: (details) =>
-                              _lastLiveDragPosition = details.localPosition,
-                          onVerticalDragUpdate: (details) =>
-                              _handleLiveDrag(screen, details),
-                          onVerticalDragEnd: (details) =>
-                              _handleLiveDragEnd(screen, details),
-                          onVerticalDragCancel: _handleLiveInteractionCancel,
+                          metrics: widget.settings.metrics,
+                          child: TerminalCanvas(
+                            screen: screen,
+                            settings: widget.settings,
+                            reserveLongPress: false,
+                            onPresented:
+                                widget.connection.acknowledgePresentation,
+                            onLinkTap: _openTerminalLink,
+                            onTerminalTap: (position) =>
+                                _handleLiveTap(screen, position),
+                            onInteractionStart: _handleLiveInteractionStart,
+                            onInteractionCancel: _handleLiveInteractionCancel,
+                            onVerticalDragStart: (details) =>
+                                _lastLiveDragPosition = details.localPosition,
+                            onVerticalDragUpdate: (details) =>
+                                _handleLiveDrag(screen, details),
+                            onVerticalDragEnd: (details) =>
+                                _handleLiveDragEnd(screen, details),
+                            onVerticalDragCancel: _handleLiveInteractionCancel,
+                          ),
                         ),
                       );
                     },
@@ -10487,3 +10491,48 @@ bool _mouseTrackingEnabled(TerminalModes? modes) =>
     modes?.mouseAnyEvent == true;
 
 const _usbKeyboardPage = 0x00070000;
+
+/// 当远端屏幕比本机视口宽时按比例缩小到视口宽度（follower 兜底）：
+/// 宁可字小一点，也不要把行尾裁掉。
+final class _FitWidthCanvas extends StatelessWidget {
+  const _FitWidthCanvas({
+    required this.screen,
+    required this.metrics,
+    required this.child,
+  });
+
+  final CanonicalLiveScreen screen;
+  final TerminalCellMetrics metrics;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final naturalWidth = screen.cols * metrics.cellWidth;
+        final naturalHeight = screen.rows * metrics.rowHeight;
+        if (naturalWidth <= 0 ||
+            naturalHeight <= 0 ||
+            constraints.maxWidth <= 0 ||
+            naturalWidth <= constraints.maxWidth + 0.5) {
+          return child;
+        }
+        final scale = constraints.maxWidth / naturalWidth;
+        return ClipRect(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: Transform.scale(
+              scale: scale,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: naturalWidth,
+                height: naturalHeight,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

@@ -468,7 +468,7 @@ func (h *Host) Run() error {
 			}
 		}
 	}
-	ownerTicker := time.NewTicker(5 * time.Second)
+	ownerTicker := time.NewTicker(1500 * time.Millisecond)
 	defer ownerTicker.Stop()
 	// The observer-count refresh runs on a low-frequency background ticker, so
 	// it never blocks the frame loop. It is suppressed in a `go test` binary:
