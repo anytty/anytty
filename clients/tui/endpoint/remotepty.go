@@ -79,9 +79,9 @@ type RemotePTY struct {
 	readSnapshot    bool
 	snapshotBarrier func()
 
-	// screen 是服务端推屏（wire.TypeScreen）的行级渲染器。只由 pump 一个
-	// goroutine 使用；重连后服务端首帧是 full_replace，会自己重置。
-	screen *screenDeltaRenderer
+	// screenSink 把服务端推来的 native screen delta 交给 runtime 的共享
+	// screenmodel（由 Terminal 在创建时安装）。
+	screenSink func(*apipb.NativeScreenResult)
 	// screenTrace* 是 ANYTTY_TUI_TRACE=1 的每秒推流统计。
 	screenTraceAt     time.Time
 	screenTraceFrames int
@@ -629,9 +629,20 @@ func (p *RemotePTY) window() (int, int) {
 // seedSnapshot renders the daemon native screen snapshot and replaces the
 // unread stream with it: the snapshot is authoritative after attach or
 // reconnect, and live deltas continue from that new generation.
-func (p *RemotePTY) seedSnapshot(screen *apipb.NativeScreenResult) {
+func (p *RemotePTY) seedSnapshot(screen *apipb.NativeScreenResult, useScreenModel bool) {
 	if screen == nil {
 		return
+	}
+	if useScreenModel {
+		// 推屏路径：seed 本身就是一张 full_replace，直接进共享模型；不需要
+		// ANSI 直写和读屏障（模型写入在 Terminal 的锁内完成）。
+		p.mu.Lock()
+		sink := p.screenSink
+		p.mu.Unlock()
+		if sink != nil {
+			sink(screen)
+			return
+		}
 	}
 	rendered := renderScreenSnapshot(screen)
 	if len(rendered) == 0 {
@@ -800,8 +811,20 @@ func (p *RemotePTY) pump(att *attachment) error {
 				p.feed(frame.payload)
 			}
 		case wire.TypeScreen:
-			if len(frame.payload) > 0 && p.applyScreenFrame(frame.payload) != nil {
-				return ErrStreamSyncLost
+			if len(frame.payload) > 0 {
+				screen, err := protocoladapter.DecodeScreenStreamFrame(frame.payload)
+				if err != nil {
+					return ErrStreamSyncLost
+				}
+				if tuiScreenTraceEnabled() {
+					p.traceScreenFrame(len(frame.payload), len(screen.GetRowReplacements()), screen.GetFullReplace(), screen.GetLiveRevision())
+				}
+				p.mu.Lock()
+				sink := p.screenSink
+				p.mu.Unlock()
+				if sink != nil {
+					sink(screen)
+				}
 			}
 		case wire.TypeSyncLost:
 			return ErrStreamSyncLost
@@ -816,29 +839,6 @@ func (p *RemotePTY) pump(att *attachment) error {
 	}
 }
 
-// applyScreenFrame 把服务端推送的一帧 native screen delta 渲染成本地 ANSI。
-//
-// 和 LiveScreenNext 走的渲染器是同一个：行缓存 + row_copies 本地重放，所以
-// 纯滚动不占带宽；解析/渲染失败说明这一代的 delta 链断了，按 sync-lost 让
-// manager 重连并重新拿快照。
-func (p *RemotePTY) applyScreenFrame(payload []byte) error {
-	screen, err := protocoladapter.DecodeScreenStreamFrame(payload)
-	if err != nil {
-		return err
-	}
-	if p.screen == nil {
-		p.screen = &screenDeltaRenderer{}
-	}
-	if output := p.screen.render(screen); len(output) > 0 {
-		p.feed(output)
-	}
-	if tuiScreenTraceEnabled() {
-		p.traceScreenFrame(len(payload), len(screen.GetRowReplacements()), screen.GetFullReplace(), screen.GetLiveRevision())
-	}
-	return nil
-}
-
-// traceScreenFrame 每秒打一行推流统计（帧数/字节/变化行数），用于验收。
 func (p *RemotePTY) traceScreenFrame(bytes, rows int, full bool, revision uint64) {
 	p.mu.Lock()
 	p.screenTraceFrames++
@@ -878,6 +878,14 @@ func (p *RemotePTY) finish() {
 	p.mu.Unlock()
 	p.mgr.markExited(p.cfg.Name, p.id, code)
 	p.mgr.unregisterRemote(p)
+}
+
+// SetScreenSink installs the terminal's shared screen-model applier. It is
+// called once by runtime.Terminal before the stream starts.
+func (p *RemotePTY) SetScreenSink(sink func(*apipb.NativeScreenResult)) {
+	p.mu.Lock()
+	p.screenSink = sink
+	p.mu.Unlock()
 }
 
 // Argv returns the command this remote terminal was created with.

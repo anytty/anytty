@@ -14,6 +14,7 @@ import (
 	"github.com/anytty/anytty/clients/tui/kernel"
 	"github.com/anytty/anytty/clients/tui/pty"
 	"github.com/anytty/anytty/clients/tui/render/ansi"
+	"github.com/anytty/anytty/internal/screenmodel"
 
 	"github.com/anytty/anytty/proto/access/apipb"
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
@@ -499,6 +500,10 @@ type Terminal struct {
 	// lastOutput is the time of the most recent non-empty PTY output; the
 	// picker renders it as a coarse activity label.
 	lastOutput time.Time
+	// remoteScreen 是远端推屏（wire.TypeScreen）的共享 screenmodel 状态。
+	// 本地 PTY / 原始字节流仍然只由 parser 维护；两条路径最终都投影到同一个
+	// 解析器网格。每次 attachment 换代时由 resetForSnapshot 清空。
+	remoteScreen *screenmodel.Screen
 	// predict holds locally-echoed printable bytes the child has not confirmed
 	// yet (mosh-style speculation). It only feeds rendering: the parser stays
 	// authoritative and any parsed output clears the buffer, so a wrong guess
@@ -591,6 +596,10 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 	if barrier, ok := proc.(interface{ SetSnapshotBarrier(func()) }); ok {
 		barrier.SetSnapshotBarrier(t.waitForSnapshotReset)
 	}
+	// 远端推屏直接进入共享模型，不再经过 ANSI 编解码。
+	if sink, ok := proc.(interface{ SetScreenSink(func(*apipb.NativeScreenResult)) }); ok {
+		sink.SetScreenSink(t.applyScreenDelta)
+	}
 	return t
 }
 
@@ -647,6 +656,32 @@ func (t *Terminal) PendingPredictions() int {
 	return len(t.predict)
 }
 
+// applyScreenDelta 是远端推屏的唯一入口：共享模型应用 delta，再投影到
+// 解析器网格。渲染、滚动、复制、搜索都继续读同一个终端模型。
+func (t *Terminal) applyScreenDelta(delta *apipb.NativeScreenResult) {
+	if delta == nil {
+		return
+	}
+	t.mu.Lock()
+	next, changed := screenmodel.Apply(t.remoteScreen, delta)
+	if next == nil || !t.parser.LoadScreen(next, changed) {
+		t.mu.Unlock()
+		return
+	}
+	t.remoteScreen = next
+	t.clearPredictionsLocked()
+	t.invalidateSnapshotLocked()
+	if len(delta.GetRowReplacements()) > 0 || len(delta.GetRowCopies()) > 0 {
+		t.lastOutput = time.Now()
+	}
+	onOutput := t.onOutput
+	sourceID := t.sourceID
+	t.mu.Unlock()
+	if onOutput != nil {
+		onOutput(sourceID)
+	}
+}
+
 // clearPredictionsLocked drops the speculation after any parsed output: the
 // child's real echo (or any other redraw) wins.
 func (t *Terminal) clearPredictionsLocked() {
@@ -663,6 +698,7 @@ func (t *Terminal) clearPredictionsLocked() {
 func (t *Terminal) resetForSnapshot() {
 	t.mu.Lock()
 	t.parser.Reset()
+	t.remoteScreen = nil
 	t.predict = t.predict[:0]
 	t.invalidateSnapshotLocked()
 	// Every view's frozen viewport belongs to the previous stream generation:

@@ -2,21 +2,26 @@ package endpoint
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/access/apipb"
+	"github.com/anytty/anytty/proto/access/wire"
 	"google.golang.org/protobuf/proto"
 )
 
 func seedScreen(rows ...string) *apipb.NativeScreenResult {
 	replacements := make([]*apipb.ScreenRowReplace, 0, len(rows))
 	for index, line := range rows {
+		cells := make([]*apipb.ScreenCell, 0, len(line))
+		for _, r := range line {
+			cells = append(cells, &apipb.ScreenCell{Content: string(r), Width: 1})
+		}
 		replacements = append(replacements, &apipb.ScreenRowReplace{
 			RowIndex: int32(index),
-			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: line, Width: int32(len(line))}}},
+			Row:      &apipb.ScreenRow{Cells: cells},
 		})
 	}
 	return &apipb.NativeScreenResult{
@@ -24,6 +29,7 @@ func seedScreen(rows ...string) *apipb.NativeScreenResult {
 		LiveRevision:    1,
 		FullReplace:     true,
 		RowReplacements: replacements,
+		Cursor:          &apipb.TerminalCursor{Row: 2, Col: 2, Visible: true, Shape: apipb.CursorShape_CURSOR_SHAPE_BLOCK},
 	}
 }
 
@@ -34,121 +40,45 @@ func deltaScreen(revision uint64, base uint64, rows []*apipb.ScreenRowReplace, c
 		BaseRevision:    base,
 		RowReplacements: rows,
 		RowCopies:       copies,
+		Cursor:          &apipb.TerminalCursor{Row: 1, Col: int32(revision % 5), Visible: true, Shape: apipb.CursorShape_CURSOR_SHAPE_BLOCK},
 	}
 }
 
-func TestScreenDeltaRendererEmitsOnlyChangedRows(t *testing.T) {
-	renderer := newScreenDeltaRenderer(seedScreen("aa", "bb", "cc"))
-	if len(renderer.rowANSI) != 3 || !strings.Contains(renderer.rowANSI[0], "aa") {
-		t.Fatalf("seed cache = %#v", renderer.rowANSI)
-	}
-
-	out := string(renderer.render(deltaScreen(2, 1, []*apipb.ScreenRowReplace{{
-		RowIndex: 1,
-		Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "XY", Width: 2}}},
-	}}, nil)))
-	if !strings.Contains(out, "\x1b[2;1H") || !strings.Contains(out, "XY") {
-		t.Fatalf("delta output = %q, want row 1 repaint", out)
-	}
-	if strings.Contains(out, "\x1b[1;1H") || strings.Contains(out, "\x1b[3;1H") {
-		t.Fatalf("delta repainted unchanged rows: %q", out)
-	}
-	if !strings.Contains(renderer.rowANSI[1], "XY") {
-		t.Fatalf("cache row 1 = %q, want XY", renderer.rowANSI[1])
-	}
-}
-
-func TestScreenDeltaRendererReplaysRowCopiesLocally(t *testing.T) {
-	renderer := newScreenDeltaRenderer(seedScreen("aa", "bb", "cc"))
-	out := string(renderer.render(deltaScreen(2, 1, nil, []*apipb.ScreenRowCopy{{
-		SourceRow: 0, DestinationRow: 2, Count: 1,
-	}})))
-	if !strings.Contains(out, "\x1b[3;1H") || !strings.Contains(out, "aa") {
-		t.Fatalf("copy output = %q, want row 2 painted from row 0", out)
-	}
-	if !strings.Contains(renderer.rowANSI[2], "aa") {
-		t.Fatalf("cache row 2 = %q, want aa", renderer.rowANSI[2])
-	}
-}
-
-func TestScreenDeltaRendererFullReplaceOnSizeChange(t *testing.T) {
-	renderer := newScreenDeltaRenderer(seedScreen("aa", "bb"))
-	wider := seedScreen("dd", "ee")
-	wider.Size = &apipb.TerminalSize{Cols: 20, Rows: 2}
-	wider.FullReplace = false
-	wider.LiveRevision = 5
-	out := string(renderer.render(wider))
-	if !strings.Contains(out, "\x1b[2J") {
-		t.Fatalf("size change should repaint the full screen, got %q", out)
-	}
-	if renderer.cols != 20 {
-		t.Fatalf("renderer cols = %d, want 20", renderer.cols)
-	}
-}
-
-func TestScreenDeltaRendererCursorOnlyFrame(t *testing.T) {
-	renderer := newScreenDeltaRenderer(seedScreen("aa", "bb"))
-	screen := deltaScreen(2, 1, nil, nil)
-	screen.Cursor = &apipb.TerminalCursor{Row: 1, Col: 2, Visible: true}
-	out := string(renderer.render(screen))
-	if !strings.Contains(out, "\x1b[2;3H") {
-		t.Fatalf("cursor frame = %q, want cursor position", out)
-	}
-	// 同一光标位置重复出现时不再重发。
-	again := string(renderer.render(deltaScreen(3, 2, nil, nil)))
-	if again == "" || strings.Contains(again, "\x1b[2;3H") {
-		t.Fatalf("repeated cursor frame = %q, want no duplicate cursor move", again)
-	}
-}
-
-// TestRemotePTYAppliesPushedScreenFrames 覆盖服务端推屏路径：TypeScreen payload
-// 解码后由 RemotePTY 本地渲染成 ANSI，后续 delta 只重画变化行。
-func TestRemotePTYAppliesPushedScreenFrames(t *testing.T) {
-	p := &RemotePTY{mgr: &Manager{baseCtx: context.Background()}}
+// TestRemotePTYForwardsPushedScreenFramesToModel 覆盖推流落地：TypeScreen 帧
+// 解码后交给 runtime 安装的共享 screenmodel sink。
+func TestRemotePTYForwardsPushedScreenFramesToModel(t *testing.T) {
+	p := &RemotePTY{mgr: &Manager{baseCtx: context.Background()}, notify: make(chan struct{}, 1), closeCh: make(chan struct{}), doneCh: make(chan struct{})}
 	p.cond = sync.NewCond(&p.mu)
-
-	frame := func(screen *apipb.NativeScreenResult) []byte {
-		raw, err := proto.Marshal(screen)
-		if err != nil {
-			t.Fatalf("marshal screen: %v", err)
+	received := make(chan *apipb.NativeScreenResult, 1)
+	p.SetScreenSink(func(screen *apipb.NativeScreenResult) {
+		select {
+		case received <- screen:
+		default:
 		}
-		return internalprotocol.EncodeScreenStreamPayload(raw)
-	}
+	})
 
-	if err := p.applyScreenFrame(frame(seedScreen("aa", "bb", "cc"))); err != nil {
-		t.Fatalf("apply seed frame: %v", err)
+	seed := seedScreen("aa", "bb")
+	raw, err := proto.Marshal(seed)
+	if err != nil {
+		t.Fatalf("marshal seed: %v", err)
 	}
-	p.mu.Lock()
-	seeded := string(p.buf)
-	p.mu.Unlock()
-	for _, want := range []string{"aa", "bb", "cc"} {
-		if !strings.Contains(seeded, want) {
-			t.Fatalf("seed render missing %q: %q", want, seeded)
+	att := &attachment{stream: newStream()}
+	p.pending = att
+	go p.run()
+	att.stream.push(wire.TypeScreen, internalprotocol.EncodeScreenStreamPayload(raw))
+
+	select {
+	case screen := <-received:
+		if screen.GetLiveRevision() != seed.GetLiveRevision() || len(screen.GetRowReplacements()) != len(seed.GetRowReplacements()) {
+			t.Fatalf("sink got %#v", screen)
 		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("pushed screen frame did not reach the model sink")
 	}
-
-	p.mu.Lock()
-	p.buf = nil
-	p.mu.Unlock()
-	delta := deltaScreen(2, 1, []*apipb.ScreenRowReplace{{
-		RowIndex: 1,
-		Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "XY", Width: 2}}},
-	}}, nil)
-	if err := p.applyScreenFrame(frame(delta)); err != nil {
-		t.Fatalf("apply delta frame: %v", err)
-	}
-	p.mu.Lock()
-	rendered := string(p.buf)
-	p.mu.Unlock()
-	if !strings.Contains(rendered, "XY") || !strings.Contains(rendered, "\x1b[2;1H") {
-		t.Fatalf("delta render = %q, want row 2 repaint", rendered)
-	}
-	if strings.Contains(rendered, "\x1b[1;1H") || strings.Contains(rendered, "\x1b[3;1H") {
-		t.Fatalf("delta repainted unchanged rows: %q", rendered)
-	}
-
-	// 坏帧必须报错（上层转成 sync-lost 重连），不能静默吞掉。
-	if err := p.applyScreenFrame([]byte{0x7f, 0x01}); err == nil {
-		t.Fatal("unknown screen encoding must fail")
+	att.stream.close(nil)
+	select {
+	case <-p.doneCh:
+	case <-time.After(time.Second):
+		t.Fatal("remote pty pump did not stop")
 	}
 }

@@ -352,31 +352,6 @@ func (c *sharedClient) StartScreenDeltas(ctx context.Context, att *attachment, s
 	return c.startStream(ctx, att, 0)
 }
 
-// finishExitedScreen 在 live screen 因终端退出而失败时，补一张终态画面并
-// 发送带 exit code 的 TypeClosed；返回 false 表示不是终态（交给 supervisor 重连）。
-func (c *sharedClient) finishExitedScreen(att *attachment, renderer *screenDeltaRenderer) bool {
-	if att == nil || renderer == nil {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	info, err := c.app.TerminalGet(ctx, &apipb.TerminalGetCommand{Terminal: c.terminalRef(att.terminal)})
-	if err != nil || info.GetTerminal().GetState() != apipb.TerminalState_TERMINAL_STATE_EXITED {
-		return false
-	}
-	if screen, screenErr := c.liveScreen(ctx, att.terminal, 0); screenErr == nil {
-		if output := renderer.render(screen); len(output) > 0 {
-			att.stream.push(wire.TypePTYOutput, output)
-		}
-	}
-	exitCode := -1
-	if code := info.GetTerminal().ExitCode; code != nil {
-		exitCode = int(*code)
-	}
-	att.stream.push(wire.TypeClosed, wire.EncodeClosedPayload(exitCode))
-	att.stream.close(nil)
-	return true
-}
 
 // streamEndError classifies a resource stream end. A clean daemon terminal
 // close always arrives as a TypeClosed frame first (handled by the pump), so

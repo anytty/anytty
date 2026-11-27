@@ -393,7 +393,7 @@ func TestRemotePTYSeedSnapshotDropsStaleBufferedOutput(t *testing.T) {
 			RowIndex: 0,
 			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
 		}},
-	})
+	}, false)
 	got := make([]byte, 256)
 	n, err := p.Read(got)
 	if err != nil {
@@ -435,7 +435,7 @@ func TestRemotePTYSnapshotResetWaitsUntilSnapshotRead(t *testing.T) {
 			RowIndex: 0,
 			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
 		}},
-	})
+	}, false)
 	n, err = p.Read(buf)
 	if err != nil || n == 0 {
 		t.Fatalf("read fresh snapshot = %q, err=%v", buf[:n], err)
@@ -485,7 +485,7 @@ func TestRemotePTYSeedSnapshotWaitsForInFlightReadBarrier(t *testing.T) {
 			RowIndex: 0,
 			Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "fresh", Width: 5}}},
 		}},
-	})
+	}, false)
 	select {
 	case <-barrierStarted:
 	case <-time.After(time.Second):

@@ -686,13 +686,13 @@ func (m *Manager) openAttachment(ctx context.Context, conn sessionConn, state *e
 	if err != nil {
 		return nil, err
 	}
+	useScreenModel := screenDeltasEnabled()
 	screen, screenErr := conn.liveScreen(ctx, p.id, 0)
 	if screenErr == nil {
-		p.seedSnapshot(screen)
+		p.seedSnapshot(screen, useScreenModel)
 	}
-	// 默认仍走原始 PTY 字节流；ANYTTY_TUI_SCREEN_DELTAS=1 时改用行级 delta。
 	var streamErr error
-	if starter, ok := conn.(screenDeltaStarter); ok && screenErr == nil && screenDeltasEnabled() {
+	if starter, ok := conn.(screenDeltaStarter); ok && screenErr == nil && useScreenModel {
 		streamErr = starter.StartScreenDeltas(ctx, att, screen)
 	} else {
 		streamErr = conn.startStream(ctx, att, m.opts.CallTimeout)
