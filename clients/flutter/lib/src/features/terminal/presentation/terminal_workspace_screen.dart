@@ -58,7 +58,6 @@ import 'terminal_recovery_notice.dart';
 import 'terminal_resource_panel.dart';
 import 'terminal_preview_overlay.dart';
 import 'terminal_switcher_sheet.dart';
-import 'terminal_swipe_switcher.dart';
 import 'terminal_path_picker_sheet.dart';
 import 'terminal_ui_theme.dart';
 
@@ -82,7 +81,7 @@ final class TerminalWorkspaceScreen extends ConsumerStatefulWidget {
 final class _TerminalWorkspaceScreenState
     extends ConsumerState<TerminalWorkspaceScreen>
     with WidgetsBindingObserver
-    implements TerminalSwipeBridge {
+    {
   final _surfaceKey = GlobalKey<_ActiveTerminalState>();
   late final ui.FlutterView _view;
   late final TerminalKeyboardInsetStabilizer _keyboardInsetStabilizer;
@@ -196,15 +195,6 @@ final class _TerminalWorkspaceScreenState
 
   @override
   void dispose() {
-    for (final timer in _warmTimers.values) {
-      timer.cancel();
-    }
-    _warmTimers.clear();
-    for (final subscription in _warmConnections.values) {
-      subscription.close();
-    }
-    _warmConnections.clear();
-    _swipeHoldTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_nativeImeInsetSubscription?.cancel());
     _keyboardVisualInset.dispose();
@@ -241,13 +231,6 @@ final class _TerminalWorkspaceScreenState
         ? widget.label!.trim()
         : widget.endpointId;
     final selectedTerminal = widget.terminalId;
-    final terminalSettings =
-        ref.watch(terminalSettingsProvider).valueOrNull ??
-        defaultTerminalSettings;
-    final petalHapticsEnabled =
-        (ref.watch(terminalPetalMenuPreferencesProvider).valueOrNull ??
-                TerminalPetalMenuPreferences.defaults)
-            .hapticsEnabled;
     final browserVisible = _browserVisible;
     final headerTerminalId = selectedTerminal == null
         ? null
@@ -533,17 +516,9 @@ final class _TerminalWorkspaceScreenState
             fit: StackFit.expand,
             children: [
               selectedTerminal == null
-                  ? TerminalSwipeSwitcher(
-                      bridge: this,
-                      enabled: true,
-                      settings: terminalSettings,
-                      hapticsEnabled: petalHapticsEnabled,
-                      currentScreenTerminalId: '',
-                      allowTerminalSwitch: false,
-                      child: _TerminalList(
-                        endpointId: widget.endpointId,
-                        label: endpointLabel,
-                      ),
+                  ? _TerminalList(
+                      endpointId: widget.endpointId,
+                      label: endpointLabel,
                     )
                   : _ActiveTerminal(
                       endpointId: widget.endpointId,
@@ -553,7 +528,13 @@ final class _TerminalWorkspaceScreenState
                       keyboardInset: _keyboardInset,
                       settledKeyboardInset: _keyboardInset,
                       surfaceKey: _surfaceKey,
-                      swipeBridge: this,
+                      onOpenPreview: () => _openTerminalSwitcher(
+                        context: context,
+                        endpointId: widget.endpointId,
+                        endpointLabel: endpointLabel,
+                        terminals: terminalItems ?? const <TerminalInfo>[],
+                        activeTerminalId: headerTerminalId,
+                      ),
                       onOpenBrowser: _openBrowserUrl,
                       onActiveTerminalChanged: (terminalId) {
                         if (mounted && _activeTerminalId != terminalId) {
@@ -561,20 +542,6 @@ final class _TerminalWorkspaceScreenState
                         }
                       },
                     ),
-              if (_swipeHoldScreen != null)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: _swipeHoldFading ? 0 : 1,
-                      duration: const Duration(milliseconds: 200),
-                      child: TerminalCanvas(
-                        screen: _swipeHoldScreen!,
-                        settings: terminalSettings,
-                        reserveLongPress: true,
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -732,79 +699,6 @@ final class _TerminalWorkspaceScreenState
     );
   }
 
-  // ---- TerminalSwipeBridge -------------------------------------------------
-  // 预热中的终端连接：切过去之前先 attach + resize，避免切换瞬间的黑帧。
-  final Map<
-    TerminalConnectionKey,
-    ProviderSubscription<AsyncValue<TerminalConnection>>
-  >
-  _warmConnections = {};
-  final Map<String, Timer> _warmTimers = {};
-
-  // 切换后的垫帧：渲染在 pane 之上，跨连接重建存活。
-  CanonicalLiveScreen? _swipeHoldScreen;
-  String? _swipeHoldTerminalId;
-  bool _swipeHoldFading = false;
-  Timer? _swipeHoldTimer;
-
-  @override
-  Future<TerminalSwipeSnapshot> snapshot(TerminalSwipeMode mode) {
-    return switch (mode) {
-      TerminalSwipeMode.terminals => _terminalSwipeSnapshot(),
-      TerminalSwipeMode.devices => _deviceSwipeSnapshot(),
-    };
-  }
-
-  Future<TerminalSwipeSnapshot> _terminalSwipeSnapshot() async {
-    final items = await ref.read(
-      terminalListProvider(widget.endpointId).future,
-    );
-    final ordered = await _orderSwitcherTerminals(widget.endpointId, items);
-    if (ordered.isEmpty) {
-      return const TerminalSwipeSnapshot(targets: [], currentIndex: 0);
-    }
-    final active = _activeTerminalId ?? widget.terminalId;
-    var index = ordered.indexWhere(
-      (terminal) => terminal.ref.terminalId == active,
-    );
-    if (index < 0) index = 0;
-    final neighbors = <int>{
-      index - 1,
-      index + 1,
-    }.where((value) => value >= 0 && value < ordered.length).toList();
-    final screens = <String, CanonicalLiveScreen?>{};
-    if (neighbors.isNotEmpty) {
-      try {
-        final session = await ref.read(
-          endpointSessionProvider(widget.endpointId).future,
-        );
-        await Future.wait(
-          neighbors.map((position) async {
-            final terminal = ordered[position];
-            screens[terminal.ref.terminalId] = await _fetchSwipeScreen(
-              session,
-              terminal,
-            );
-          }),
-        );
-      } catch (_) {
-        // 预取失败只影响预览，不影响切换本身。
-      }
-    }
-    return TerminalSwipeSnapshot(
-      targets: [
-        for (final terminal in ordered)
-          TerminalSwipeTarget(
-            id: terminal.ref.terminalId,
-            label: _terminalDisplayName(terminal),
-            subtitle: terminalUsesHistoryOnly(terminal.state) ? '已退出' : null,
-            screen: screens[terminal.ref.terminalId],
-          ),
-      ],
-      currentIndex: index,
-    );
-  }
-
   /// 全屏预览网格的缩略图加载：连上目标会话，取一帧首屏。
   Future<CanonicalLiveScreen?> _loadPreviewScreen(
     String endpointId,
@@ -841,159 +735,6 @@ final class _TerminalWorkspaceScreenState
     } catch (_) {
       return null;
     }
-  }
-
-  Future<TerminalSwipeSnapshot> _deviceSwipeSnapshot() async {
-    final registry = await ref.read(endpointRegistryProvider.future);
-    final endpoints = registry.endpoints
-        .where(
-          (endpoint) =>
-              endpoint.enabled || endpoint.endpointId == widget.endpointId,
-        )
-        .toList(growable: false);
-    final targets = [
-      for (final endpoint in endpoints)
-        TerminalSwipeTarget(
-          id: endpoint.endpointId,
-          label: endpoint.label.trim().isEmpty
-              ? endpoint.endpointId
-              : endpoint.label.trim(),
-          subtitle: endpoint.endpointId,
-        ),
-    ];
-    var index = targets.indexWhere((target) => target.id == widget.endpointId);
-    if (index < 0) index = 0;
-    return TerminalSwipeSnapshot(targets: targets, currentIndex: index);
-  }
-
-  @override
-  Future<CanonicalLiveScreen?> prepareTerminal(
-    String terminalId, {
-    required int cols,
-    required int rows,
-  }) async {
-    final key = (endpointId: widget.endpointId, terminalId: terminalId);
-    try {
-      final provider = terminalConnectionProvider(key);
-      // autoDispose 的连接要靠订阅保持存活，直到切换完成。
-      _warmConnections[key]?.close();
-      _warmConnections[key] = ref.listenManual<AsyncValue<TerminalConnection>>(
-        provider,
-        (_, _) {},
-      );
-      _warmTimers.remove(terminalId)?.cancel();
-      _warmTimers[terminalId] = Timer(const Duration(seconds: 8), () {
-        _releaseWarmConnection(terminalId);
-      });
-      final connection = await ref
-          .read(provider.future)
-          .timeout(const Duration(milliseconds: 900));
-      if (!connection.resizeControl.canResize) {
-        await connection
-            .requestResizeOwnership(cols: cols, rows: rows)
-            .timeout(const Duration(milliseconds: 700));
-      } else {
-        await connection
-            .fitViewport(cols: cols, rows: rows)
-            .timeout(const Duration(milliseconds: 700));
-      }
-      return await connection
-          .watchScreens()
-          .firstWhere(
-            (screen) =>
-                screen.revision > 0 && screen.cols > 0 && screen.rows > 0,
-          )
-          .timeout(const Duration(milliseconds: 600));
-    } catch (_) {
-      return null;
-    }
-  }
-
-  void _releaseWarmConnection(String terminalId) {
-    _warmTimers.remove(terminalId)?.cancel();
-    final key = (endpointId: widget.endpointId, terminalId: terminalId);
-    _warmConnections.remove(key)?.close();
-  }
-
-  @override
-  void holdPreview(CanonicalLiveScreen screen, String terminalId) {
-    _swipeHoldTimer?.cancel();
-    if (!mounted) return;
-    setState(() {
-      _swipeHoldScreen = screen;
-      _swipeHoldTerminalId = terminalId;
-      _swipeHoldFading = false;
-    });
-    // 兜底：真实首帧迟迟不到时也要撤掉垫帧。
-    _swipeHoldTimer = Timer(const Duration(milliseconds: 1500), () {
-      _releasePreview(terminalId);
-    });
-  }
-
-  @override
-  void releasePreview(String terminalId) {
-    if (_swipeHoldTerminalId != terminalId) return;
-    _releasePreview(terminalId);
-  }
-
-  void _releasePreview(String terminalId) {
-    if (!mounted || _swipeHoldTerminalId != terminalId) return;
-    _swipeHoldTimer?.cancel();
-    final fadingScreen = _swipeHoldScreen;
-    if (fadingScreen == null) {
-      setState(() {
-        _swipeHoldTerminalId = null;
-      });
-      return;
-    }
-    setState(() => _swipeHoldFading = true);
-    Timer(const Duration(milliseconds: 220), () {
-      if (!mounted || _swipeHoldTerminalId != terminalId) return;
-      setState(() {
-        _swipeHoldScreen = null;
-        _swipeHoldTerminalId = null;
-        _swipeHoldFading = false;
-      });
-      _releaseWarmConnection(terminalId);
-    });
-  }
-
-  @override
-  void commitTerminal(String terminalId) {
-    _surfaceKey.currentState?.switchTerminal(terminalId);
-  }
-
-  @override
-  void commitDevice(String endpointId, String label) {
-    if (!mounted) return;
-    context.go(
-      '/terminal/${Uri.encodeComponent(endpointId)}'
-      '?label=${Uri.encodeQueryComponent(label)}',
-    );
-  }
-
-  @override
-  void openSwitcher() {
-    unawaited(() async {
-      try {
-        final items = await ref.read(
-          terminalListProvider(widget.endpointId).future,
-        );
-        if (!mounted) return;
-        final label = widget.label?.trim().isNotEmpty == true
-            ? widget.label!.trim()
-            : widget.endpointId;
-        await _openTerminalSwitcher(
-          context: context,
-          endpointId: widget.endpointId,
-          endpointLabel: label,
-          terminals: items,
-          activeTerminalId: _activeTerminalId,
-        );
-      } catch (_) {
-        // 列表不可用时静默放弃：手势本身已经回到原位。
-      }
-    }());
   }
 
   Future<List<TerminalInfo>> _orderSwitcherTerminals(
@@ -4941,7 +4682,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.surfaceKey,
-    required this.swipeBridge,
+    required this.onOpenPreview,
     required this.onOpenBrowser,
     required this.onActiveTerminalChanged,
   }) : super(key: surfaceKey);
@@ -4953,7 +4694,7 @@ final class _ActiveTerminal extends ConsumerStatefulWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final GlobalKey<_ActiveTerminalState> surfaceKey;
-  final TerminalSwipeBridge? swipeBridge;
+  final VoidCallback? onOpenPreview;
   final Future<void> Function(Uri) onOpenBrowser;
   final ValueChanged<String> onActiveTerminalChanged;
 
@@ -5472,7 +5213,7 @@ final class _ActiveTerminalState extends ConsumerState<_ActiveTerminal> {
                           keyboardInset: keyboardInset,
                           settledKeyboardInset: widget.settledKeyboardInset,
                           surfaceKey: _surfaceKey(paneKey),
-                          swipeBridge: widget.swipeBridge,
+                          onOpenPreview: widget.onOpenPreview,
                           active: active,
                           onActivate: () => _activatePane(paneKey),
                           onOpenBrowser: widget.onOpenBrowser,
@@ -5520,7 +5261,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.surfaceKey,
-    required this.swipeBridge,
+    required this.onOpenPreview,
     required this.active,
     required this.onActivate,
     required this.onOpenBrowser,
@@ -5542,7 +5283,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final GlobalKey<_TerminalSurfaceState> surfaceKey;
-  final TerminalSwipeBridge? swipeBridge;
+  final VoidCallback? onOpenPreview;
   final bool active;
   final VoidCallback onActivate;
   final Future<void> Function(Uri) onOpenBrowser;
@@ -5566,10 +5307,6 @@ final class _TerminalPaneConnection extends ConsumerWidget {
     final keyboardMode =
         ref.watch(terminalKeyboardModeProvider(key)).valueOrNull ??
         settings.keyboardMode;
-    final swipeHapticsEnabled =
-        (ref.watch(terminalPetalMenuPreferencesProvider).valueOrNull ??
-                TerminalPetalMenuPreferences.defaults)
-            .hapticsEnabled;
     return ref
         .watch(terminalConnectionProvider(key))
         .when(
@@ -5582,8 +5319,7 @@ final class _TerminalPaneConnection extends ConsumerWidget {
           data: (connection) => _TerminalSurface(
             key: surfaceKey,
             connection: connection,
-            swipeBridge: swipeBridge,
-            swipeHapticsEnabled: swipeHapticsEnabled,
+            onOpenPreview: onOpenPreview,
             keyboardMode: keyboardMode,
             keyboardVisualInset: keyboardVisualInset,
             keyboardInset: keyboardInset,
@@ -5793,8 +5529,7 @@ final class _TerminalSurface extends StatefulWidget {
     required this.keyboardInset,
     required this.settledKeyboardInset,
     required this.settings,
-    required this.swipeBridge,
-    required this.swipeHapticsEnabled,
+    required this.onOpenPreview,
     required this.active,
     required this.onActivate,
     required this.externalControls,
@@ -5821,8 +5556,7 @@ final class _TerminalSurface extends StatefulWidget {
   final double keyboardInset;
   final double settledKeyboardInset;
   final TerminalSettings settings;
-  final TerminalSwipeBridge? swipeBridge;
-  final bool swipeHapticsEnabled;
+  final VoidCallback? onOpenPreview;
   final bool active;
   final VoidCallback onActivate;
   final bool externalControls;
@@ -6456,34 +6190,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
             ),
           ),
         );
-        final bridge = widget.swipeBridge;
-        if (bridge != null) {
-          final shownTerminalId = screen.terminal.terminalId;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            bridge.releasePreview(shownTerminalId);
-          });
-        }
-        if (bridge == null) return terminalBody;
-        final swipeEnabled =
-            (widget.settings.gestureTerminalSwitch ||
-                widget.settings.gestureDeviceSwitch) &&
-            !_selectionMode &&
-            _history == null &&
-            !_historyLoading &&
-            !_searchOpen &&
-            !_toolsOpen &&
-            !_fnOpen;
-        if (!swipeEnabled) return terminalBody;
-        return TerminalSwipeSwitcher(
-          bridge: bridge,
-          enabled: true,
-          settings: widget.settings,
-          hapticsEnabled: widget.swipeHapticsEnabled,
-          currentScreenTerminalId: screen.terminal.terminalId,
-          targetCols: _viewportCells?.cols ?? 0,
-          targetRows: _viewportCells?.rows ?? 0,
-          child: terminalBody,
-        );
+        return terminalBody;
       },
     );
   }
@@ -7214,8 +6921,8 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
 
   Future<void> _handleTerminalPetalAction(String id) async {
     if (id == 'preview') {
-      // 花瓣「多终端预览」：走 bridge 打开同一个全屏毛玻璃层。
-      widget.swipeBridge?.openSwitcher();
+      // 花瓣「多终端预览」：打开同一个全屏毛玻璃层。
+      widget.onOpenPreview?.call();
       return;
     }
     final action = switch (id) {
