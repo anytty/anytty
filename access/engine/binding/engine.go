@@ -794,15 +794,27 @@ func (engine *Engine) flattenScreenFrame(handle uint64, payload []byte) ([]byte,
 // 保留行内空白，尾部同色空白折叠成 tail_fill（与 daemon 自己的编码一致）。
 func flattenScreenRow(index int, cells []screenmodel.Cell) *apipb.ScreenRowReplace {
 	row := &apipb.ScreenRow{}
-	// 内容末尾：最后一个真正写了非空白字符的单元。其后的空格/空白都交给
-	// tail_fill 或让 UI 自行补白。
-	contentEnd := -1
+	// 内容末尾：最后一个写了非空白字符的单元。
+	textEnd := -1
+	// 样式末尾：最后一个带样式的单元（常见于整行背景色/高亮，空格也必须保留，
+	// 否则 UI 会把这段背景画成主题底色——手机端看起来就是"黑色"）。
+	styleEnd := -1
 	for i, cell := range cells {
 		if cell.Continuation {
 			continue
 		}
 		if cell.Text != "" && cell.Text != " " {
-			contentEnd = i
+			textEnd = i
+		}
+		if cell.Style != nil {
+			styleEnd = i
+		}
+	}
+	contentEnd := textEnd
+	if styleEnd > contentEnd {
+		// 尾部样式区如果不是统一风格，就逐个单元发出去；统一的话折叠成 tail_fill。
+		if uniform := uniformTrailingStyle(cells[textEnd+1:]); uniform == nil {
+			contentEnd = styleEnd
 		}
 	}
 	for i := 0; i <= contentEnd; i++ {
@@ -827,9 +839,11 @@ func flattenScreenRow(index int, cells []screenmodel.Cell) *apipb.ScreenRowRepla
 			Style:   cell.Style,
 		})
 	}
-	if tailStart := contentEnd + 1; tailStart < len(cells) {
-		if tail := uniformTrailingStyle(cells[tailStart:]); tail != nil {
-			row.TailFill = tail
+	if contentEnd == textEnd {
+		if tailStart := textEnd + 1; tailStart < len(cells) {
+			if tail := uniformTrailingStyle(cells[tailStart:]); tail != nil {
+				row.TailFill = tail
+			}
 		}
 	}
 	return &apipb.ScreenRowReplace{RowIndex: int32(index), Row: row}
