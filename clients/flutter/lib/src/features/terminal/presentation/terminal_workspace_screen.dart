@@ -5772,6 +5772,18 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
         oldWidget.canSplit != widget.canSplit) {
       _notifyControls();
     }
+    // 重新进入这个终端时再试一次拿尺寸：另一个客户端（桌面）可能在这期间
+    // 接走了 resize lease，只试过一次的话这里会一直停在 follower 的尺寸上。
+    if (!oldWidget.active &&
+        widget.active &&
+        widget.settings.autoAcquireResizeOwner &&
+        !_resizeControl.canResize &&
+        _viewportCells != null) {
+      _autoAcquireAttempted = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_autoAcquireResizeOwnership());
+      });
+    }
   }
 
   @override
@@ -6148,6 +6160,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                         child: _FitWidthCanvas(
                           screen: screen,
                           metrics: widget.settings.metrics,
+                          background: widget.settings.theme.background,
                           child: TerminalCanvas(
                             screen: screen,
                             settings: widget.settings,
@@ -10492,17 +10505,22 @@ bool _mouseTrackingEnabled(TerminalModes? modes) =>
 
 const _usbKeyboardPage = 0x00070000;
 
-/// 当远端屏幕比本机视口宽时按比例缩小到视口宽度（follower 兜底）：
-/// 宁可字小一点，也不要把行尾裁掉。
+/// follower 的屏幕尺寸可能和本机视口对不上（例如桌面持有 resize lease）：
+/// 比视口宽时按比例缩小到视口宽度，宁可字小一点，也不要把行尾裁掉。
+///
+/// 缩放后的布局尺寸必须跟着视觉尺寸走，否则父级仍按原始尺寸占位，右边和
+/// 下方会留出大片没画背景的空白。背景色铺满整个可用区域，内容顶部对齐。
 final class _FitWidthCanvas extends StatelessWidget {
   const _FitWidthCanvas({
     required this.screen,
     required this.metrics,
+    required this.background,
     required this.child,
   });
 
   final CanonicalLiveScreen screen;
   final TerminalCellMetrics metrics;
+  final int background;
   final Widget child;
 
   @override
@@ -10511,26 +10529,31 @@ final class _FitWidthCanvas extends StatelessWidget {
       builder: (context, constraints) {
         final naturalWidth = screen.cols * metrics.cellWidth;
         final naturalHeight = screen.rows * metrics.rowHeight;
-        if (naturalWidth <= 0 ||
-            naturalHeight <= 0 ||
-            constraints.maxWidth <= 0 ||
-            naturalWidth <= constraints.maxWidth + 0.5) {
-          return child;
-        }
-        final scale = constraints.maxWidth / naturalWidth;
-        return ClipRect(
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: naturalWidth,
-                height: naturalHeight,
-                child: child,
-              ),
-            ),
-          ),
+        final scale = naturalWidth <= 0 || constraints.maxWidth <= 0
+            ? 1.0
+            : math.min(1.0, constraints.maxWidth / naturalWidth);
+        final scaledWidth = naturalWidth * scale;
+        final scaledHeight = naturalHeight * scale;
+        return ColoredBox(
+          color: Color(0xff000000 | background),
+          child: (naturalWidth <= 0 || naturalHeight <= 0)
+              ? child
+              : Align(
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: scaledWidth,
+                    height: scaledHeight,
+                    child: FittedBox(
+                      fit: BoxFit.fill,
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: naturalWidth,
+                        height: naturalHeight,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
         );
       },
     );

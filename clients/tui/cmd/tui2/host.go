@@ -182,9 +182,6 @@ type Host struct {
 	tracked    map[string]*trackedTerminal
 	sources    []*pb.Source
 	sizes      map[string][2]int
-	// leaseClaim 记录最近一次替聚焦的 owner 面板抢 daemon resize lease 的时间，
-	// 避免手机 autoAcquire 握着尺寸时每一帧都打一次 claim。
-	leaseClaim map[string]time.Time
 	// pendingSize coalesces per-terminal resize requests: while a resize is in
 	// flight the newest requested size is kept and applied when it returns, so
 	// a drag burst never queues one blocking round-trip per frame.
@@ -1305,12 +1302,6 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 		term.RenewOwner(h.opts.ViewID)
 	}
 	if resize {
-		// 聚焦的 owner 面板才代表「用户正在这块屏上用这个终端」。
-		// 另一个客户端（手机 autoAcquire）握着 lease 时，PTY 停在对方的尺寸上，
-		// 桌面只能裁着看。先把 lease 拿回来，下一帧 resize 才能把应用排进这块面板。
-		if box.GetFocused() {
-			h.claimForeignResizeLease(sourceID, term)
-		}
 		inset := component.Inset(rect.Width, rect.Height)
 		h.resizePTY(term, rect, inset)
 	}
@@ -1343,30 +1334,6 @@ func shiftCursorForContentOffset(p *runtime.Placement, chrome map[string]string,
 // componentKey names one cached terminal component. The view (box id) is part
 // of the key so sibling panes on one source each keep their own frozen screen.
 func componentKey(sourceID, view string) string { return sourceID + "\x00" + view }
-
-// claimForeignResizeLease 在聚焦的 owner 面板发现 daemon lease 在别的客户端时
-// 接管一次。3 秒内不重复，避免和手机的 autoAcquire 对打。
-func (h *Host) claimForeignResizeLease(sourceID string, term *runtime.Terminal) {
-	owner, _ := term.ResizeOwner()
-	if owner == "" || owner == h.opts.ViewID {
-		return
-	}
-	h.mu.Lock()
-	if h.leaseClaim == nil {
-		h.leaseClaim = map[string]time.Time{}
-	}
-	if since := time.Since(h.leaseClaim[sourceID]); since >= 0 && since < 3*time.Second {
-		h.mu.Unlock()
-		return
-	}
-	h.leaseClaim[sourceID] = time.Now()
-	h.mu.Unlock()
-	go func() {
-		if err := term.ClaimResizeOwner(); err != nil {
-			h.logf("tui2: claim resize %s: %v", sourceID, err)
-		}
-	}()
-}
 
 // resizePTY aligns the PTY winsize with the content rect the component
 // declares for this placement: rect minus the component's own chrome inset
