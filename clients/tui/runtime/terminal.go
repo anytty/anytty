@@ -677,6 +677,7 @@ func (t *Terminal) applyScreenDelta(delta *apipb.NativeScreenResult) {
 		return
 	}
 	t.remoteScreen = next
+
 	t.clearPredictionsLocked()
 	t.invalidateSnapshotLocked()
 	if len(delta.GetRowReplacements()) > 0 || len(delta.GetRowCopies()) > 0 {
@@ -1392,6 +1393,7 @@ func (t *Terminal) Placement(component *terminal.Component, rect kernel.Rect, fo
 	placement.CursorY = inset + snap.CursorY
 	placement.CursorVisible = true
 	placement.CursorShape = snap.CursorShape
+
 	return placement
 }
 

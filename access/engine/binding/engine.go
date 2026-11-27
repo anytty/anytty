@@ -814,6 +814,13 @@ func flattenScreenRow(index int, cells []screenmodel.Cell) *apipb.ScreenRowRepla
 		if width <= 0 {
 			width = 1
 		}
+		// 和 daemon 一样做 run-compressed：同样式的相邻单元合并成一个 Cell，
+		// 避免 UI 侧每帧收到上千个小单元。
+		if last := lastRowCell(row); last != nil && proto.Equal(last.GetStyle(), cell.Style) {
+			last.Content += cell.Text
+			last.Width += width
+			continue
+		}
 		row.Cells = append(row.Cells, &apipb.ScreenCell{
 			Content: cell.Text,
 			Width:   width,
@@ -826,6 +833,13 @@ func flattenScreenRow(index int, cells []screenmodel.Cell) *apipb.ScreenRowRepla
 		}
 	}
 	return &apipb.ScreenRowReplace{RowIndex: int32(index), Row: row}
+}
+
+func lastRowCell(row *apipb.ScreenRow) *apipb.ScreenCell {
+	if row == nil || len(row.GetCells()) == 0 {
+		return nil
+	}
+	return row.GetCells()[len(row.GetCells())-1]
 }
 
 func uniformTrailingStyle(cells []screenmodel.Cell) *apipb.CellStyle {

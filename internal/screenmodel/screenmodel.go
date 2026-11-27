@@ -10,6 +10,7 @@ package screenmodel
 
 import (
 	"github.com/anytty/anytty/proto/access/apipb"
+	"github.com/rivo/uniseg"
 )
 
 // Cell 是一个网格单元。宽字形的右侧是 Continuation=true 的占位单元。
@@ -162,11 +163,26 @@ func buildRow(cols int, replacement *apipb.ScreenRowReplace) []Cell {
 				used += width
 				continue
 			}
-			row = append(row, Cell{Text: cell.GetContent(), Width: width, Style: style})
-			used += width
-			for index := 1; index < width; index++ {
-				row = append(row, Cell{Continuation: true, Style: style})
+			// 服务端的行是 run-compressed：一个 ScreenCell 可能是若干个
+			// grapheme（同一样式），Width 是它们的显示宽度之和。模型必须按
+			// grapheme 拆开，否则整段文本被当成一个宽字符，光标/宽字符定位
+			// 都会错位。
+			emitted := 0
+			for _, cluster := range splitClusters(cell.GetContent()) {
+				if emitted+cluster.width > width {
+					break
+				}
+				row = append(row, Cell{Text: cluster.text, Width: cluster.width, Style: style})
+				for index := 1; index < cluster.width; index++ {
+					row = append(row, Cell{Continuation: true, Style: style})
+				}
+				emitted += cluster.width
 			}
+			// 拆分宽度与服务端声明不一致时以声明为准，补齐空格。
+			for ; emitted < width; emitted++ {
+				row = append(row, Cell{Text: " ", Width: 1, Style: style})
+			}
+			used += width
 		}
 		if tail := replacement.GetRow().GetTailFill(); tail != nil {
 			for used < cols {
@@ -181,6 +197,29 @@ func buildRow(cols int, replacement *apipb.ScreenRowReplace) []Cell {
 		row = append(row, Cell{})
 	}
 	return row
+}
+
+type cluster struct {
+	text  string
+	width int
+}
+
+// splitClusters 把一个 run 的文本拆成 grapheme 簇（显示宽度 1/2）。
+func splitClusters(content string) []cluster {
+	graphemes := uniseg.NewGraphemes(content)
+	out := make([]cluster, 0, len(content))
+	for graphemes.Next() {
+		width := graphemes.Width()
+		if width <= 0 {
+			// 组合字符等零宽簇并入上一个簇。
+			if len(out) > 0 {
+				out[len(out)-1].text += graphemes.Str()
+			}
+			continue
+		}
+		out = append(out, cluster{text: graphemes.Str(), width: width})
+	}
+	return out
 }
 
 func blankLines(cols, rows int) [][]Cell {

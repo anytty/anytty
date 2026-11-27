@@ -136,3 +136,30 @@ func lineText(line []Cell) string {
 	}
 	return string(out)
 }
+
+// TestApplySplitsRunCompressedCells 覆盖服务端的 run-compressed 行：一个
+// ScreenCell 可能是同一样式的一整段文本，模型必须按 grapheme 拆开，否则光标
+// 列（CursorOffset）会被整段宽度带偏。
+func TestApplySplitsRunCompressedCells(t *testing.T) {
+	delta := screenDelta(true, 6, 1, []*apipb.ScreenRowReplace{
+		rowReplace(0,
+			&apipb.ScreenCell{Content: "ab", Width: 2},
+			&apipb.ScreenCell{Content: "你", Width: 2},
+			&apipb.ScreenCell{Content: " ", Width: 1},
+		),
+	}, nil)
+	screen, _ := Apply(nil, delta)
+	row := screen.Line(0)
+	if len(row) != 6 {
+		t.Fatalf("row len = %d, want 6", len(row))
+	}
+	if row[0].Text != "a" || row[1].Text != "b" {
+		t.Fatalf("run not split: %#v", row[:2])
+	}
+	if row[2].Text != "你" || row[2].Width != 2 || !row[3].Continuation {
+		t.Fatalf("wide cluster = %#v", row[2:4])
+	}
+	if row[4].Text != " " {
+		t.Fatalf("cell 4 = %#v", row[4])
+	}
+}
