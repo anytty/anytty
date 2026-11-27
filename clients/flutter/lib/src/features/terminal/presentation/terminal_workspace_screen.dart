@@ -73,3 +73,5 @@ part 'terminal_workspace_surface.dart';
 part 'terminal_workspace_history.dart';
 part 'terminal_workspace_banners.dart';
 part 'terminal_workspace_tools.dart';
+part 'terminal_workspace_settings.dart';
+part 'terminal_workspace_resize.dart';
