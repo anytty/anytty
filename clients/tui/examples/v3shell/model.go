@@ -1422,7 +1422,19 @@ func (m *model) paneHoldsResizeLease(p *pane) bool {
 // moves, so the PTY size is never affected by the layout.
 func (m *model) paneContentExtent(p *pane, content rect) (x, y, cols, rows int) {
 	baseCols, baseRows := m.paneExtentBase(p, content)
-	return contentLayoutExtent(p.layout, baseCols, baseRows, content)
+	x, y, cols, rows = contentLayoutExtent(p.layout, baseCols, baseRows, content)
+	// follower 的 extent 可能比面板高/宽（owner 是另一台设备，比如手机更窄更高）。
+	// 终端的内容天然是「底部对齐」的（输入框/提示符在最下面），所以默认布局下
+	// 把绘制原点往上/往左推到显示 extent 的右下角，而不是裁掉底部输入框。
+	if !m.paneHoldsResizeLease(p) && p.layout.panY == 0 && p.layout.mode != layoutModeCenter {
+		if rows > content.h {
+			y = content.h - rows
+		}
+		if cols > content.w {
+			x = content.w - cols
+		}
+	}
+	return x, y, cols, rows
 }
 
 // contentOffsetProp encodes the pane's content.offset prop ("x,y"): the extent
