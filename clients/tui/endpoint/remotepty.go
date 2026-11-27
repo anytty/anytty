@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"sync"
 	"time"
 
 	"github.com/anytty/anytty/clients/tui/pty"
+	protocoladapter "github.com/anytty/anytty/access/engine/adapter/protocol"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 )
@@ -76,6 +78,14 @@ type RemotePTY struct {
 	readHasData     bool
 	readSnapshot    bool
 	snapshotBarrier func()
+
+	// screen 是服务端推屏（wire.TypeScreen）的行级渲染器。只由 pump 一个
+	// goroutine 使用；重连后服务端首帧是 full_replace，会自己重置。
+	screen *screenDeltaRenderer
+	// screenTrace* 是 ANYTTY_TUI_TRACE=1 的每秒推流统计。
+	screenTraceAt     time.Time
+	screenTraceFrames int
+	screenTraceBytes  int
 
 	// 输入走独立队列：UI 线程只做入队，单 drainer 按序发出 TerminalInput。
 	// 之前每次按键都在事件循环里同步等一次 RPC 应答，一次往返就把整条输入
@@ -789,6 +799,10 @@ func (p *RemotePTY) pump(att *attachment) error {
 			if len(frame.payload) > 0 {
 				p.feed(frame.payload)
 			}
+		case wire.TypeScreen:
+			if len(frame.payload) > 0 && p.applyScreenFrame(frame.payload) != nil {
+				return ErrStreamSyncLost
+			}
 		case wire.TypeSyncLost:
 			return ErrStreamSyncLost
 		case wire.TypeClosed:
@@ -800,6 +814,47 @@ func (p *RemotePTY) pump(att *attachment) error {
 		default:
 		}
 	}
+}
+
+// applyScreenFrame 把服务端推送的一帧 native screen delta 渲染成本地 ANSI。
+//
+// 和 LiveScreenNext 走的渲染器是同一个：行缓存 + row_copies 本地重放，所以
+// 纯滚动不占带宽；解析/渲染失败说明这一代的 delta 链断了，按 sync-lost 让
+// manager 重连并重新拿快照。
+func (p *RemotePTY) applyScreenFrame(payload []byte) error {
+	screen, err := protocoladapter.DecodeScreenStreamFrame(payload)
+	if err != nil {
+		return err
+	}
+	if p.screen == nil {
+		p.screen = &screenDeltaRenderer{}
+	}
+	if output := p.screen.render(screen); len(output) > 0 {
+		p.feed(output)
+	}
+	if tuiScreenTraceEnabled() {
+		p.traceScreenFrame(len(payload), len(screen.GetRowReplacements()), screen.GetFullReplace(), screen.GetLiveRevision())
+	}
+	return nil
+}
+
+// traceScreenFrame 每秒打一行推流统计（帧数/字节/变化行数），用于验收。
+func (p *RemotePTY) traceScreenFrame(bytes, rows int, full bool, revision uint64) {
+	p.mu.Lock()
+	p.screenTraceFrames++
+	p.screenTraceBytes += bytes
+	now := time.Now()
+	if p.screenTraceAt.IsZero() {
+		p.screenTraceAt = now
+	}
+	if now.Sub(p.screenTraceAt) < time.Second {
+		p.mu.Unlock()
+		return
+	}
+	frames, totalBytes := p.screenTraceFrames, p.screenTraceBytes
+	p.screenTraceFrames, p.screenTraceBytes, p.screenTraceAt = 0, 0, now
+	p.mu.Unlock()
+	log.Printf("tui2 screens bytes=%d frames=%d rows=%d full=%v rev=%d", totalBytes, frames, rows, full, revision)
 }
 
 func (p *RemotePTY) feed(data []byte) {

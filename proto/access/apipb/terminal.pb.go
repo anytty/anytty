@@ -1465,13 +1465,16 @@ func (x *TerminalSetTagsCommand) GetTags() map[string]string {
 }
 
 type TerminalAttachCommand struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Terminal      *TerminalRef           `protobuf:"bytes,2,opt,name=terminal,proto3" json:"terminal,omitempty"`
-	Mode          AttachmentMode         `protobuf:"varint,3,opt,name=mode,proto3,enum=anytty.api.v1.AttachmentMode" json:"mode,omitempty"`
-	ResizePolicy  ResizePolicy           `protobuf:"varint,4,opt,name=resize_policy,json=resizePolicy,proto3,enum=anytty.api.v1.ResizePolicy" json:"resize_policy,omitempty"`
-	SurfaceId     string                 `protobuf:"bytes,5,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
-	ViewId        string                 `protobuf:"bytes,6,opt,name=view_id,json=viewId,proto3" json:"view_id,omitempty"`
-	Operation     *OperationStamp        `protobuf:"bytes,7,opt,name=operation,proto3" json:"operation,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Terminal     *TerminalRef           `protobuf:"bytes,2,opt,name=terminal,proto3" json:"terminal,omitempty"`
+	Mode         AttachmentMode         `protobuf:"varint,3,opt,name=mode,proto3,enum=anytty.api.v1.AttachmentMode" json:"mode,omitempty"`
+	ResizePolicy ResizePolicy           `protobuf:"varint,4,opt,name=resize_policy,json=resizePolicy,proto3,enum=anytty.api.v1.ResizePolicy" json:"resize_policy,omitempty"`
+	SurfaceId    string                 `protobuf:"bytes,5,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	ViewId       string                 `protobuf:"bytes,6,opt,name=view_id,json=viewId,proto3" json:"view_id,omitempty"`
+	Operation    *OperationStamp        `protobuf:"bytes,7,opt,name=operation,proto3" json:"operation,omitempty"`
+	// screen_stream 请求服务端在 attachment channel 上推送行级屏幕 delta
+	// （wire.TypeScreen），而不是原始 PTY 字节流。老服务端会忽略该字段。
+	ScreenStream  bool `protobuf:"varint,8,opt,name=screen_stream,json=screenStream,proto3" json:"screen_stream,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1546,6 +1549,13 @@ func (x *TerminalAttachCommand) GetOperation() *OperationStamp {
 		return x.Operation
 	}
 	return nil
+}
+
+func (x *TerminalAttachCommand) GetScreenStream() bool {
+	if x != nil {
+		return x.ScreenStream
+	}
+	return false
 }
 
 type TerminalDetachCommand struct {
@@ -2473,7 +2483,7 @@ const file_apipb_terminal_proto_rawDesc = "" +
 	"\x04tags\x18\x03 \x03(\v2/.anytty.api.v1.TerminalSetTagsCommand.TagsEntryR\x04tags\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x01\x10\x02\"\xbf\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x01\x10\x02\"\xe4\x02\n" +
 	"\x15TerminalAttachCommand\x126\n" +
 	"\bterminal\x18\x02 \x01(\v2\x1a.anytty.api.v1.TerminalRefR\bterminal\x121\n" +
 	"\x04mode\x18\x03 \x01(\x0e2\x1d.anytty.api.v1.AttachmentModeR\x04mode\x12@\n" +
@@ -2481,7 +2491,8 @@ const file_apipb_terminal_proto_rawDesc = "" +
 	"\n" +
 	"surface_id\x18\x05 \x01(\tR\tsurfaceId\x12\x17\n" +
 	"\aview_id\x18\x06 \x01(\tR\x06viewId\x12;\n" +
-	"\toperation\x18\a \x01(\v2\x1d.anytty.api.v1.OperationStampR\toperationJ\x04\b\x01\x10\x02\"\x99\x01\n" +
+	"\toperation\x18\a \x01(\v2\x1d.anytty.api.v1.OperationStampR\toperation\x12#\n" +
+	"\rscreen_stream\x18\b \x01(\bR\fscreenStreamJ\x04\b\x01\x10\x02\"\x99\x01\n" +
 	"\x15TerminalDetachCommand\x12=\n" +
 	"\n" +
 	"attachment\x18\x02 \x01(\v2\x1d.anytty.api.v1.ResourceHandleR\n" +
@@ -2564,7 +2575,7 @@ const file_apipb_terminal_proto_rawDesc = "" +
 	"\x1bRESIZE_CONTROL_REASON_OWNER\x10\x01\x12\"\n" +
 	"\x1eRESIZE_CONTROL_REASON_FOLLOWER\x10\x02\x12\"\n" +
 	"\x1eRESIZE_CONTROL_REASON_OBSERVER\x10\x03\x12%\n" +
-	"!RESIZE_CONTROL_REASON_SIZE_LOCKED\x10\x04B&Z$github.com/anytty/anytty/proto/apipbb\x06proto3"
+	"!RESIZE_CONTROL_REASON_SIZE_LOCKED\x10\x04B-Z+github.com/anytty/anytty/proto/access/apipbb\x06proto3"
 
 var (
 	file_apipb_terminal_proto_rawDescOnce sync.Once

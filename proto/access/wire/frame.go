@@ -33,6 +33,9 @@ const (
 	TypeHistoryRequest uint8 = 0x18
 	TypeHistoryReplay  uint8 = 0x19
 	TypePTYOutput      uint8 = 0x1a
+	// TypeScreen 是服务端主动推送的一帧 native screen delta（行级）。客户端在
+	// attach 时声明 screen_stream 后才会收到它，替代原始 PTY 字节流。
+	TypeScreen uint8 = 0x1b
 	TypeFileData       uint8 = 0x21
 	TypeFileAck        uint8 = 0x22
 	TypeFileFinish     uint8 = 0x23

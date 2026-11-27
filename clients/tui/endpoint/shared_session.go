@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +15,6 @@ import (
 	cloudclient "github.com/anytty/anytty/access/transport/client"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
-	"google.golang.org/protobuf/proto"
 )
 
 // sharedClient is the production sessionConn: it wraps one ready
@@ -272,6 +270,9 @@ func (c *sharedClient) openAttachment(ctx context.Context, id, surface, view str
 		ResizePolicy: apipb.ResizePolicy_RESIZE_POLICY_FOLLOWER,
 		SurfaceId:    surface,
 		ViewId:       view,
+		// 让服务端在 attachment channel 上推行级屏幕 delta。老服务端忽略该
+		// 字段，仍回原始 PTY 字节流，客户端 pump 两种帧都认。
+		ScreenStream: screenDeltasEnabled(),
 	}}})
 	if err != nil {
 		return nil, err
@@ -335,62 +336,20 @@ func (c *sharedClient) startStream(ctx context.Context, att *attachment, timeout
 	return nil
 }
 
-// StartScreenDeltas 用 LiveScreenNext 的行级 delta 驱动附件流。
+// StartScreenDeltas 打开服务端推屏的附件流。
 //
-// 默认路径是原始 PTY 字节流（startStream）；这条路径只在
-// ANYTTY_TUI_SCREEN_DELTAS=1 时启用，让 TUI 和手机端共享同一条
-// 「服务端 vterm + 行级差异」通道：只传变化的行，滚动用 row_copies 本地重放。
+// 老路径是客户端每帧发一次 LiveScreenNext 等一次往返：帧率被压到 ~1/RTT，
+// 大屏时只有 18~25fps。现在 attach 已声明 screen_stream，服务端在同一个
+// attachment channel 上连续推 TypeScreen 帧；客户端仍然走同一条
+// OpenResourceStream 握手，RemotePTY.pump 收到帧后本地渲染成 ANSI。
 func (c *sharedClient) StartScreenDeltas(ctx context.Context, att *attachment, seed *apipb.NativeScreenResult) error {
-	if att == nil || seed == nil {
-		return errors.New("endpoint: screen delta attach requires an attachment and a seed snapshot")
+	if att == nil {
+		return errors.New("endpoint: screen delta attach requires an attachment")
 	}
-	renderer := newScreenDeltaRenderer(seed)
-	observed := seed.GetLiveRevision()
-	streamCtx, cancel := context.WithCancel(c.ctx)
-	att.stop = cancel
-	att.stream = newStream()
-	c.track(att.stream)
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		var traceBytes, traceFrames int
-		var traceAt = time.Now()
-		for {
-			// live screen 是长轮询：终端退出后不会再有新 revision，调用会一直
-			// 挂着。给每次等待加超时，超时就查一次 terminal 状态，退出时补发
-			// TypeClosed(exit code)，与原始字节流路径表现一致。
-			pollCtx, cancelPoll := context.WithTimeout(streamCtx, 2*time.Second)
-			screen, err := c.liveScreen(pollCtx, att.terminal, observed)
-			cancelPoll()
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) && streamCtx.Err() == nil {
-					if c.finishExitedScreen(att, renderer) {
-						return
-					}
-					continue
-				}
-				if streamCtx.Err() == nil && c.finishExitedScreen(att, renderer) {
-					return
-				}
-				att.stream.close(c.streamEndError(err))
-				return
-			}
-			if tuiScreenTraceEnabled() {
-				traceBytes += proto.Size(screen)
-				traceFrames++
-				if time.Since(traceAt) >= time.Second {
-					log.Printf("tui2 screens bytes=%d frames=%d rows=%d full=%v rev=%d",
-						traceBytes, traceFrames, len(screen.GetRowReplacements()), screen.GetFullReplace(), screen.GetLiveRevision())
-					traceBytes, traceFrames, traceAt = 0, 0, time.Now()
-				}
-			}
-			if output := renderer.render(screen); len(output) > 0 {
-				att.stream.push(wire.TypePTYOutput, output)
-			}
-			observed = screen.GetLiveRevision()
-		}
-	}()
-	return nil
+	// seed 已经由 RemotePTY.seedSnapshot 画过；服务端首帧是 full_replace，
+	// 渲染器会自己从零重置，因此这里不需要再喂一次。
+	_ = seed
+	return c.startStream(ctx, att, 0)
 }
 
 // finishExitedScreen 在 live screen 因终端退出而失败时，补一张终态画面并

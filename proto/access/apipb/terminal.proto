@@ -181,6 +181,9 @@ message TerminalAttachCommand {
   string surface_id = 5;
   string view_id = 6;
   OperationStamp operation = 7;
+  // screen_stream 请求服务端在 attachment channel 上推送行级屏幕 delta
+  // （wire.TypeScreen），而不是原始 PTY 字节流。老服务端会忽略该字段。
+  bool screen_stream = 8;
 }
 
 message TerminalDetachCommand {

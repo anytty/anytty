@@ -16,6 +16,7 @@ import (
 	"time"
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
+	"github.com/anytty/anytty/access/server/terminalmap"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/internal/providerproto"
 	"github.com/anytty/anytty/proto/access/apipb"
@@ -99,6 +100,16 @@ type streamBinding struct {
 	mu         sync.Mutex
 	generation uint64
 	duplex     terminalprovider.Duplex
+	// screenCancel 停止本代 screen pump（客户端 bootstrap 会换代）。
+	screenCancel context.CancelFunc
+
+	// screenStream 附件要求服务端推屏而不是原始 PTY 字节流；provider 与
+	// terminalID 只给 screen pump 用（attachment 句柄里也有 id，但这里避免
+	// 每次经 Handle() 取）。
+	screenStream bool
+	provider     terminalprovider.Provider
+	terminalID   string
+	endpointID   string
 
 	input *terminalInputQueue
 }
@@ -632,6 +643,10 @@ func (session *session) handleAttachmentFrame(binding *streamBinding, typ uint8,
 		if len(payload) != 0 {
 			return errors.New("terminal attachment bootstrap payload must be empty")
 		}
+		if binding.screenStream {
+			session.startScreenStream(binding)
+			return nil
+		}
 		session.startAttachmentStream(binding)
 		return nil
 	case wire.TypeClosed:
@@ -688,10 +703,103 @@ func (session *session) stopAttachmentStream(binding *streamBinding) {
 	binding.generation++
 	duplex := binding.duplex
 	binding.duplex = nil
+	stopScreen := binding.screenCancel
+	binding.screenCancel = nil
 	binding.mu.Unlock()
 	if duplex != nil {
 		_ = duplex.Close()
 	}
+	if stopScreen != nil {
+		stopScreen()
+	}
+}
+
+// screenStreamPollTimeout 是一次 LiveScreen 长轮询的上限：超时只用来检查
+// 终端是否已经退出，不推进 observed。
+const screenStreamPollTimeout = 2 * time.Second
+
+// startScreenStream 在 attachment channel 上主动推送行级屏幕 delta。
+//
+// 和原始 PTY 流的区别是「谁决定节奏」：客户端不再每帧发一次 LiveScreenNext
+// 等一次往返，服务端用本地 provider 循环把最新画面连续推出去。observed 只在
+// 一帧成功写入连接后推进，所以客户端跟不上或链路背压时，下一次调用会直接从
+// 客户端真实持有的 revision 算到最新——中间帧自动合并，不需要补发。
+func (session *session) startScreenStream(binding *streamBinding) {
+	if binding == nil || binding.provider == nil || binding.terminalID == "" {
+		_ = session.sendStreamError(binding.clientChannel, protocolErrorUnavailable, "screen stream is not bound to a terminal")
+		return
+	}
+	binding.mu.Lock()
+	binding.generation++
+	generation := binding.generation
+	if binding.screenCancel != nil {
+		binding.screenCancel()
+	}
+	ctx, cancel := context.WithCancel(session.lifetimeContext())
+	binding.screenCancel = cancel
+	binding.mu.Unlock()
+
+	go func() {
+		defer cancel()
+		if err := session.sendFrame(binding.clientChannel, wire.TypeStreamReady, nil); err != nil {
+			return
+		}
+		var observed uint64
+		for ctx.Err() == nil {
+			binding.mu.Lock()
+			stale := binding.generation != generation
+			binding.mu.Unlock()
+			if stale {
+				return
+			}
+			pollCtx, cancelPoll := context.WithTimeout(ctx, screenStreamPollTimeout)
+			snapshot, err := binding.provider.LiveScreen(pollCtx, binding.terminalID, observed)
+			cancelPoll()
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				if errors.Is(err, context.DeadlineExceeded) {
+					if session.screenStreamExited(ctx, binding) {
+						return
+					}
+					continue
+				}
+				// 终端移除/provider 抖动：交给客户端既有的 sync-lost 重连语义。
+				_ = session.sendFrame(binding.clientChannel, wire.TypeSyncLost, wire.EncodeSyncLostPayload(0))
+				return
+			}
+			payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(terminalmap.NativeScreenToAPI(binding.endpointID, snapshot))
+			if err != nil {
+				return
+			}
+			if err := session.sendFrame(binding.clientChannel, wire.TypeScreen, internalprotocol.EncodeScreenStreamPayload(payload)); err != nil {
+				if errors.Is(err, datachannel.ErrBackpressure) {
+					// observed 不推进：下一次 LiveScreen 自然把中间 revision 合并掉。
+					select {
+					case <-time.After(15 * time.Millisecond):
+					case <-ctx.Done():
+						return
+					}
+					continue
+				}
+				return
+			}
+			observed = snapshot.GetLiveRevision()
+		}
+	}()
+}
+
+// screenStreamExited 在长轮询超时后判断终端是否已退出；退出时补发 TypeClosed。
+func (session *session) screenStreamExited(ctx context.Context, binding *streamBinding) bool {
+	getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	info, err := binding.provider.Get(getCtx, binding.terminalID)
+	if err != nil || info.GetState() != "exited" {
+		return false
+	}
+	_ = session.sendFrame(binding.clientChannel, wire.TypeClosed, wire.EncodeClosedPayload(int(info.GetExitCode())))
+	return true
 }
 
 // forwardProviderFrames 把 provider PTY 流投影为客户端 stream frame：

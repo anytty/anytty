@@ -17,6 +17,7 @@ import (
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/remoteauth"
 	"github.com/anytty/anytty/shared/transport/datachannel"
+	"google.golang.org/protobuf/proto"
 )
 
 const attachmentStreamReadyTimeout = 5 * time.Second
@@ -259,6 +260,23 @@ func (client *ApplicationClient) OpenResourceStream(resource *apipb.ResourceHand
 		return stream, nil
 	}
 	return nil, errors.New("ready session does not support resource streams")
+}
+
+// DecodeScreenStreamFrame 解开服务端在 attachment channel 上推送的 TypeScreen
+// 帧（zstd 或 raw），返回解析后的 native screen delta。
+//
+// 放在共享 adapter 里，TUI endpoint 只消费结果，不直接碰 wire 编码
+// （CLIENT_SHARING: raw framing 只能出现在 client/ 层）。
+func DecodeScreenStreamFrame(payload []byte) (*apipb.NativeScreenResult, error) {
+	raw, err := internalprotocol.DecodeScreenStreamPayload(payload)
+	if err != nil {
+		return nil, err
+	}
+	screen := &apipb.NativeScreenResult{}
+	if err := proto.Unmarshal(raw, screen); err != nil {
+		return nil, err
+	}
+	return screen, nil
 }
 
 func (stream *applicationResourceStream) awaitReady() error {

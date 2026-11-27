@@ -154,6 +154,44 @@ func inflateZstdApplicationResult(payload []byte) ([]byte, error) {
 	return out, nil
 }
 
+// screenStreamEncoding 是 TypeScreen payload 的首字节标记。
+const (
+	screenStreamEncodingRaw  byte = 0
+	screenStreamEncodingZstd byte = 1
+)
+
+// EncodeScreenStreamPayload 把一帧 native screen delta 编码成 attachment
+// stream 的 TypeScreen payload：首字节标记 + 原始或 zstd 数据。屏幕帧和
+// LiveScreenNext 应答走同一套压缩，慢链路上体积一致。
+func EncodeScreenStreamPayload(payload []byte) []byte {
+	if compressed, ok := CompressZstdApplicationResult(payload); ok && len(compressed) < len(payload) {
+		frame := make([]byte, 1+len(compressed))
+		frame[0] = screenStreamEncodingZstd
+		copy(frame[1:], compressed)
+		return frame
+	}
+	frame := make([]byte, 1+len(payload))
+	frame[0] = screenStreamEncodingRaw
+	copy(frame[1:], payload)
+	return frame
+}
+
+// DecodeScreenStreamPayload 解开 TypeScreen payload，返回 native screen delta
+// 的 protobuf 字节。
+func DecodeScreenStreamPayload(frame []byte) ([]byte, error) {
+	if len(frame) == 0 {
+		return nil, errors.New("protocol: empty screen stream frame")
+	}
+	switch frame[0] {
+	case screenStreamEncodingRaw:
+		return frame[1:], nil
+	case screenStreamEncodingZstd:
+		return inflateZstdApplicationResult(frame[1:])
+	default:
+		return nil, fmt.Errorf("protocol: unknown screen stream encoding %d", frame[0])
+	}
+}
+
 // inflateApplicationResult 解开 deflate 压缩的 application result。
 // 解压上限是单帧上限，防止对端构造 zip bomb。
 func inflateApplicationResult(payload []byte) ([]byte, error) {

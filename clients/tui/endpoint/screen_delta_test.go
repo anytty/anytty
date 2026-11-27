@@ -1,10 +1,14 @@
 package endpoint
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"testing"
 
+	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/proto/access/apipb"
+	"google.golang.org/protobuf/proto"
 )
 
 func seedScreen(rows ...string) *apipb.NativeScreenResult {
@@ -94,5 +98,57 @@ func TestScreenDeltaRendererCursorOnlyFrame(t *testing.T) {
 	again := string(renderer.render(deltaScreen(3, 2, nil, nil)))
 	if again == "" || strings.Contains(again, "\x1b[2;3H") {
 		t.Fatalf("repeated cursor frame = %q, want no duplicate cursor move", again)
+	}
+}
+
+// TestRemotePTYAppliesPushedScreenFrames 覆盖服务端推屏路径：TypeScreen payload
+// 解码后由 RemotePTY 本地渲染成 ANSI，后续 delta 只重画变化行。
+func TestRemotePTYAppliesPushedScreenFrames(t *testing.T) {
+	p := &RemotePTY{mgr: &Manager{baseCtx: context.Background()}}
+	p.cond = sync.NewCond(&p.mu)
+
+	frame := func(screen *apipb.NativeScreenResult) []byte {
+		raw, err := proto.Marshal(screen)
+		if err != nil {
+			t.Fatalf("marshal screen: %v", err)
+		}
+		return internalprotocol.EncodeScreenStreamPayload(raw)
+	}
+
+	if err := p.applyScreenFrame(frame(seedScreen("aa", "bb", "cc"))); err != nil {
+		t.Fatalf("apply seed frame: %v", err)
+	}
+	p.mu.Lock()
+	seeded := string(p.buf)
+	p.mu.Unlock()
+	for _, want := range []string{"aa", "bb", "cc"} {
+		if !strings.Contains(seeded, want) {
+			t.Fatalf("seed render missing %q: %q", want, seeded)
+		}
+	}
+
+	p.mu.Lock()
+	p.buf = nil
+	p.mu.Unlock()
+	delta := deltaScreen(2, 1, []*apipb.ScreenRowReplace{{
+		RowIndex: 1,
+		Row:      &apipb.ScreenRow{Cells: []*apipb.ScreenCell{{Content: "XY", Width: 2}}},
+	}}, nil)
+	if err := p.applyScreenFrame(frame(delta)); err != nil {
+		t.Fatalf("apply delta frame: %v", err)
+	}
+	p.mu.Lock()
+	rendered := string(p.buf)
+	p.mu.Unlock()
+	if !strings.Contains(rendered, "XY") || !strings.Contains(rendered, "\x1b[2;1H") {
+		t.Fatalf("delta render = %q, want row 2 repaint", rendered)
+	}
+	if strings.Contains(rendered, "\x1b[1;1H") || strings.Contains(rendered, "\x1b[3;1H") {
+		t.Fatalf("delta repainted unchanged rows: %q", rendered)
+	}
+
+	// 坏帧必须报错（上层转成 sync-lost 重连），不能静默吞掉。
+	if err := p.applyScreenFrame([]byte{0x7f, 0x01}); err == nil {
+		t.Fatal("unknown screen encoding must fail")
 	}
 }

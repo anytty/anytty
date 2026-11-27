@@ -944,7 +944,7 @@ func (c *Client) removeWaiter(id uint64, abandoned bool) {
 
 func validInboundStreamFrameType(typ uint8) bool {
 	switch typ {
-	case wire.TypeStreamReady, wire.TypeSyncLost, wire.TypeClosed, wire.TypePTYOutput,
+	case wire.TypeStreamReady, wire.TypeSyncLost, wire.TypeClosed, wire.TypePTYOutput, wire.TypeScreen,
 		wire.TypeFileData, wire.TypeFileAck, wire.TypeFileFinish, wire.TypeFileResult, wire.TypeBrowserData, wire.TypeBrowserClosed, wire.TypeError:
 		return true
 	default:

@@ -237,7 +237,7 @@ func (session *session) attachTerminal(ctx context.Context, provider terminalpro
 		Size:          terminalmap.SizeToAPI(handle.GetSize()),
 		ResizeControl: terminalmap.ResizeControlToAPI(attachment.ResizeControl()),
 	}})
-	if err := session.publishAttachmentBinding(envelope.GetTerminalAttach().GetAttachment(), attachment); err != nil {
+	if err := session.publishAttachmentBinding(envelope.GetTerminalAttach().GetAttachment(), attachment, provider, attach.GetScreenStream()); err != nil {
 		_ = attachment.Detach(ctx)
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (session *session) attachTerminal(ctx context.Context, provider terminalpro
 
 // publishAttachmentBinding 为 provider attachment 分配 access client channel/
 // token 并登记 binding；provider token 只保存在 provider Attachment 内。
-func (session *session) publishAttachmentBinding(handle *apipb.AttachmentHandle, attachment terminalprovider.Attachment) error {
+func (session *session) publishAttachmentBinding(handle *apipb.AttachmentHandle, attachment terminalprovider.Attachment, provider terminalprovider.Provider, screenStream bool) error {
 	resource := handle.GetResource()
 	token := make([]byte, accessTokenBytes)
 	if _, err := rand.Read(token); err != nil {
@@ -264,11 +264,18 @@ func (session *session) publishAttachmentBinding(handle *apipb.AttachmentHandle,
 		kind:          resource.GetKind(),
 		accessToken:   token,
 		attachment:    attachment,
+		screenStream:  screenStream,
+		provider:      provider,
+		terminalID:    handle.GetTerminal().GetTerminalId(),
+		endpointID:    handle.GetTerminal().GetEndpointId(),
 	}
 	session.channels[clientChannel] = binding
 	session.tokens[string(token)] = binding
 	session.streamsMu.Unlock()
 	resource.OpaqueToken = token
+	if screenStream {
+		session.logger.Info("access attachment screen stream requested", "terminal", binding.terminalID, "channel", clientChannel)
+	}
 	return nil
 }
 
