@@ -514,6 +514,7 @@ func (h *Host) Run() error {
 		frameTimer = time.NewTimer(delay)
 		frameC = frameTimer.C
 	}
+	synchronizedSince := time.Time{}
 	flushPending := func(now time.Time) {
 		if !pendingFrame {
 			return
@@ -522,8 +523,18 @@ func (h *Host) Run() error {
 			// Keep pendingFrame and the timer state intact. The terminal pump
 			// emits a wake after ?2026l, which is the only safe commit point for
 			// a full-screen child's redraw.
-			return
+			//
+			// 子进程可能因为 resize 风暴/崩溃丢掉 2026l：批次超过 150ms 就强制
+			// 提交一帧，避免宿主永久停在旧画面上（表现为 TUI「卡死」）。
+			if synchronizedSince.IsZero() {
+				synchronizedSince = now
+			}
+			if now.Sub(synchronizedSince) < 150*time.Millisecond {
+				return
+			}
+			h.logf("tui2: synchronized output batch exceeded 150ms, forcing a frame")
 		}
+		synchronizedSince = time.Time{}
 		stopFrameTimer()
 		h.publishSources()
 		h.flushNotices()
