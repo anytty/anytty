@@ -142,6 +142,12 @@ func (h *TerminalHandler) HandleContext(ctx context.Context, req Request) (Outco
 			if _, err := term.ClaimOwner(ownerID, params.GetExpectedOwnerEpoch()); err != nil {
 				return Outcome{Error: err.Error()}, false
 			}
+			// 已附着的远端终端：fit 还意味着接管 daemon 的 resize lease。
+			// 旧实现只更新本地 lease，daemon 侧仍是别的客户端当 owner，表现为
+			// “双击徽标偶尔才生效”。
+			if err := term.ClaimResizeOwner(); err != nil {
+				return Outcome{Error: err.Error()}, false
+			}
 		}
 		return Outcome{OK: true}, false
 	case "terminal.scroll":
@@ -597,7 +603,9 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 		barrier.SetSnapshotBarrier(t.waitForSnapshotReset)
 	}
 	// 远端推屏直接进入共享模型，不再经过 ANSI 编解码。
-	if sink, ok := proc.(interface{ SetScreenSink(func(*apipb.NativeScreenResult)) }); ok {
+	if sink, ok := proc.(interface {
+		SetScreenSink(func(*apipb.NativeScreenResult))
+	}); ok {
 		sink.SetScreenSink(t.applyScreenDelta)
 	}
 	return t
@@ -837,6 +845,15 @@ func (t *Terminal) Close() error {
 }
 
 // Resize applies a new window size to the PTY and the parser.
+// ClaimResizeOwner 让这个终端接管 daemon 的 resize lease（面板徽标的
+// take-owner）。本地 PTY 天然是自己的 owner，不需要动作。
+func (t *Terminal) ClaimResizeOwner() error {
+	if owner, ok := t.proc.(interface{ ClaimOwner() error }); ok {
+		return owner.ClaimOwner()
+	}
+	return nil
+}
+
 func (t *Terminal) Resize(cols, rows int) error {
 	if cols <= 0 || rows <= 0 {
 		return pty.ErrInvalidSize

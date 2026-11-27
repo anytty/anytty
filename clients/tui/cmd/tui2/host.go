@@ -424,12 +424,12 @@ func (h *Host) Run() error {
 	// 处理多久、整帧渲染多久。用来区分「输入被渲染饿死」和「网络往返」。
 	traceEnabled := tuiTraceEnabled()
 	var (
-		traceInputs        int
-		traceFrames        int
-		traceInputWaitMax  time.Duration
-		traceInputDoMax    time.Duration
-		traceFlushMax      time.Duration
-		traceLastReport    = time.Now()
+		traceInputs       int
+		traceFrames       int
+		traceInputWaitMax time.Duration
+		traceInputDoMax   time.Duration
+		traceFlushMax     time.Duration
+		traceLastReport   = time.Now()
 	)
 	reportTrace := func() {
 		if !traceEnabled || time.Since(traceLastReport) < time.Second {
@@ -1557,12 +1557,11 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 			exitCode = 0
 		}
 		cols, rows, _ := trackedTerm.term.Size()
-		// Prefer the daemon inventory grid when the local attachment still
-		// reports the pre-attach default (the daemon is the resize authority).
-		if size, ok := daemonSize[sourceID]; ok {
-			if cols <= 0 || rows <= 0 {
-				cols, rows = size[0], size[1]
-			}
+		// 远端终端的尺寸以 daemon 为准：另一个客户端持有 resize lease 时，
+		// 它的屏尺寸和本视图的面板尺寸不同，prog 需要真实 extent 才能画
+		// placeholder/居中/对齐。本地视图尺寸只在 daemon 没报尺寸时兜底。
+		if size, ok := daemonSize[sourceID]; ok && size[0] > 0 && size[1] > 0 {
+			cols, rows = size[0], size[1]
 		}
 		lastOutput := trackedTerm.term.LastOutput()
 		lastOutputMs := int64(0)

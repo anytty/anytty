@@ -90,3 +90,32 @@ func TestPredictionDisabledByDefault(t *testing.T) {
 		t.Fatalf("prediction enabled without the opt-in, pending = %d", pending)
 	}
 }
+
+// claimOwnerPTY 记录 daemon resize lease 的接管调用。
+type claimOwnerPTY struct {
+	*bottomTracePTY
+	claims int
+}
+
+func (p *claimOwnerPTY) ClaimOwner() error {
+	p.claims++
+	return nil
+}
+
+// TestClaimResizeOwnerDelegatesToRemotePTY 覆盖“双击徽标接管 owner”的落地：
+// fit attach 必须真正调用 daemon lease 的接管，而不只是更新本地 lease。
+func TestClaimResizeOwnerDelegatesToRemotePTY(t *testing.T) {
+	proc := &claimOwnerPTY{bottomTracePTY: &bottomTracePTY{cols: 20, rows: 3}}
+	term := newTerminal("terminal:local:claim", "claim", nil, proc, 20, 3, nil)
+	if err := term.ClaimResizeOwner(); err != nil {
+		t.Fatalf("claim resize owner: %v", err)
+	}
+	if proc.claims != 1 {
+		t.Fatalf("daemon claims = %d, want 1", proc.claims)
+	}
+	// 本地 PTY 没有该接口时必须是无操作。
+	local := newTerminal("terminal:local:plain", "plain", nil, &bottomTracePTY{cols: 20, rows: 3}, 20, 3, nil)
+	if err := local.ClaimResizeOwner(); err != nil {
+		t.Fatalf("local claim must be a no-op: %v", err)
+	}
+}

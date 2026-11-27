@@ -24,9 +24,10 @@ func (p *Parser) LoadScreen(screen *screenmodel.Screen, changed []int) bool {
 		return false
 	}
 	if screen.Cols != p.cols || screen.Rows != p.rows {
-		// 尺寸切换在途（宿主 resize 与 daemon 快照不同步）：以 daemon 的
-		// 权威尺寸为准，整屏重载，避免丢掉一帧后 delta 链对不上。
-		p.Resize(screen.Cols, screen.Rows)
+		// daemon 的屏尺寸由它当前的 resize owner 决定，可能比本视图面板小
+		// （例如手机持有 resize lease）。解析器网格尺寸仍由宿主的 resize 决定，
+		// 这里只把 daemon 的内容投影到交集区域，避免面板网格被缩小导致光标/
+		// 滚动坐标错位。
 		changed = nil
 	}
 	alt := screen.AlternateScreen()

@@ -461,7 +461,7 @@ func (m *model) subPaneNodes(out *[]*sdk.Builder, p *pane, r rect, active, dimme
 		// PTY to that pane's content rect. A follower never declares it, so
 		// focusing a follower cannot steal the size (manual ownership, the legacy
 		// panel.take_owner model).
-		if m.paneOwnsSource(p) {
+		if m.paneOwnsSource(p) && m.paneHoldsResizeLease(p) {
 			props["chrome.owner"] = "1"
 		}
 		st := m.copyFor(p)

@@ -102,16 +102,31 @@ func TestLoadScreenAlternateScreenSwitch(t *testing.T) {
 	}
 }
 
-func TestLoadScreenAdoptsModelSize(t *testing.T) {
-	parser := New(3, 1)
+// TestLoadScreenClipsToHostGrid 覆盖“daemon 屏比面板小/大”的投影：解析器
+// 网格尺寸保持不变（光标和滚动以面板为准），只把内容裁进交集区域。
+func TestLoadScreenClipsToHostGrid(t *testing.T) {
+	parser := New(3, 2)
 	if !parser.LoadScreen(modelScreen(5, 2, textRow("hello"), textRow("world")), nil) {
-		t.Fatal("resize load rejected")
+		t.Fatal("clipped load rejected")
 	}
 	screen := parser.Screen()
-	if len(screen.Lines) != 2 || len(screen.Lines[0]) != 5 {
-		t.Fatalf("adopted size = %dx%d, want 5x2", len(screen.Lines[0]), len(screen.Lines))
+	if len(screen.Lines) != 2 || len(screen.Lines[0]) != 3 {
+		t.Fatalf("grid = %dx%d, want 3x2", len(screen.Lines[0]), len(screen.Lines))
 	}
-	if RowText(screen.Row(1)) != "world" {
-		t.Fatalf("row 1 = %q", RowText(screen.Row(1)))
+	if got := RowText(screen.Row(0)); got != "hel" {
+		t.Fatalf("row 0 = %q, want first 3 columns", got)
+	}
+
+	// daemon 屏更小：交集以外保持空白，网格尺寸不变。
+	small := New(6, 3)
+	if !small.LoadScreen(modelScreen(2, 1, textRow("ab")), nil) {
+		t.Fatal("small load rejected")
+	}
+	got := small.Screen()
+	if len(got.Lines) != 3 || len(got.Lines[0]) != 6 {
+		t.Fatalf("grid shrank to %dx%d", len(got.Lines[0]), len(got.Lines))
+	}
+	if RowText(got.Row(0)) != "ab" || RowText(got.Row(1)) != "" {
+		t.Fatalf("rows = %q / %q", RowText(got.Row(0)), RowText(got.Row(1)))
 	}
 }

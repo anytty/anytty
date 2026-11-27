@@ -994,12 +994,12 @@ type model struct {
 	// attachTargetRef 是启动时 -attach 指定的 <endpoint>:<terminal>。
 	// sources 到达后按目标选中对应 endpoint tab 并自动 attach，仅消费一次。
 	attachTargetRef string
-	pickerQuery    string
-	pickerFilter   int      // pickerFilterRunning/Exited/All
-	pickerTagsOpen bool     // Ctrl-T opens the tag checkbox sub-view
-	pickerTags     []string // selected public tag labels
-	pickerTagSel   int
-	pickerTagQuery string
+	pickerQuery     string
+	pickerFilter    int      // pickerFilterRunning/Exited/All
+	pickerTagsOpen  bool     // Ctrl-T opens the tag checkbox sub-view
+	pickerTags      []string // selected public tag labels
+	pickerTagSel    int
+	pickerTagQuery  string
 	// emptyPaneSel is the highlighted CTA of the focused empty panel (main's
 	// EmptyPaneCTA.SelectedIndex). Up/Down move it and Enter runs it.
 	emptyPaneSel                   int
@@ -1386,10 +1386,31 @@ func (m *model) paneExtentBase(p *pane, content rect) (int, int) {
 	if src == nil {
 		return maxInt(0, content.w), maxInt(0, content.h)
 	}
-	if m.paneOwnsSource(p) {
+	if m.paneOwnsSource(p) && m.paneHoldsResizeLease(p) {
+		// 本视图真的持有 daemon 的 resize lease：PTY 尺寸跟着面板走，
+		// 面板和 extent 一样大，不需要 placeholder。
 		return maxInt(0, content.w), maxInt(0, content.h)
 	}
+	// 另一个客户端（例如手机）持有 resize lease：PTY 是它的大小，这里只画
+	// 它的 extent，剩余区域交给组件的 `·` placeholder。
 	return m.sourceExtent(src, content)
+}
+
+// paneHoldsResizeLease 报告本视图是否持有该 source 的 daemon resize lease。
+// 和 paneOwner 的 owner 判定保持同一条件：源里有 resize_owner，且等于本视图。
+func (m *model) paneHoldsResizeLease(p *pane) bool {
+	src := m.paneSource(p)
+	if src == nil {
+		return false
+	}
+	owner := strings.TrimSpace(src.GetResizeOwner())
+	if owner == "" {
+		return false
+	}
+	if m.demo {
+		return true
+	}
+	return owner == m.viewID
 }
 
 // paneContentExtent returns the applied extent of a source-bound pane: origin
@@ -1468,8 +1489,7 @@ func (m *model) paneOwner(p *pane) (string, string, string) {
 	// Everything else follows: a different pane on the same source is muted
 	// with the take-owner action, exactly the old terminalChromeVM projection.
 	// The demo exporter (view:demo) keeps its single lease-holding pane green.
-	if m.paneOwnsSource(p) && strings.TrimSpace(src.GetResizeOwner()) != "" &&
-		(m.demo || src.GetResizeOwner() == m.viewID) {
+	if m.paneOwnsSource(p) && m.paneHoldsResizeLease(p) {
 		// Legacy terminalChromeVMFromBinding colors the projected owner
 		// (this view owns resize) with StyleSuccess, not the accent; only
 		// the pending/acquire state stays warning and the follower muted.
@@ -3220,6 +3240,7 @@ func (m *model) onMouse(ev *pb.MouseEvent) app.Cmd {
 	action := ev.GetAction()
 	node := ev.GetNode()
 	x, y := int(ev.GetX()), int(ev.GetY())
+
 	switch action {
 	case "release":
 		m.dragging = ""

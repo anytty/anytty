@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anytty/anytty/clients/tui/pty"
 	protocoladapter "github.com/anytty/anytty/access/engine/adapter/protocol"
+	"github.com/anytty/anytty/clients/tui/pty"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 )
@@ -444,6 +444,48 @@ func (p *RemotePTY) claimOwner(ctx context.Context, att *attachment) error {
 		}
 	}
 	return fmt.Errorf("endpoint %q: terminal %s: resize owner claim was rejected", p.cfg.Name, p.id)
+}
+
+// ClaimOwner 用户显式接管 resize owner（面板徽标 take-owner）。
+//
+// 服务端用 expected epoch 做 CAS：如果另一个客户端刚抢过所有权，手里的 epoch
+// 会过期，此时用返回的 ownership 投影重试一次即可跟上。占一个 owner 时同时
+// 把 PTY resize 到本视图尺寸（fit）。
+func (p *RemotePTY) ClaimOwner() error {
+	p.mu.Lock()
+	att := p.att
+	cols, rows := p.cols, p.rows
+	closed := p.closed
+	p.mu.Unlock()
+	if closed || att == nil || cols <= 0 || rows <= 0 {
+		return nil
+	}
+	p.resizeMu.Lock()
+	defer p.resizeMu.Unlock()
+	for attempt := 0; attempt < 2; attempt++ {
+		ctx, cancel := context.WithTimeout(p.mgr.baseCtx, p.mgr.opts.CallTimeout)
+		result, err := att.client.resize(ctx, att, cols, rows, true, att.epoch)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("endpoint %q: terminal %s: claim resize owner: %w", p.cfg.Name, p.id, err)
+		}
+		if result.GetResized() {
+			p.mu.Lock()
+			p.ownerView, p.ownerEpoch = att.ownerView, att.epoch
+			p.mu.Unlock()
+			return nil
+		}
+		ownership := result.GetResizeControl().GetOwnership()
+		if ownership == nil {
+			return fmt.Errorf("endpoint %q: terminal %s: resize owner claim was rejected", p.cfg.Name, p.id)
+		}
+		if ownership.GetOwnerViewId() == p.view {
+			return nil
+		}
+		// 并发接管：用服务端返回的最新 epoch 再试一次。
+		att.epoch = ownership.GetEpoch()
+	}
+	return fmt.Errorf("endpoint %q: terminal %s: resize owner is held by another client", p.cfg.Name, p.id)
 }
 
 // RefreshResizeOwner asks the daemon for the current ownership projection
