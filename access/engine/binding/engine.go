@@ -14,6 +14,7 @@ import (
 	"github.com/anytty/anytty/access/engine/browserproxy"
 	"github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
+	"github.com/anytty/anytty/internal/screenmodel"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/bindingpb"
 	"github.com/anytty/anytty/proto/access/wire"
@@ -103,6 +104,8 @@ type streamRecord struct {
 	uploadHash    hash.Hash
 	uploadBytes   int64
 	uploadStart   int64
+	// screen 是这条 stream 的共享 live-screen 状态（wire.TypeScreen → UI 行）。
+	screen *screenmodel.Screen
 }
 
 type rendererRecord struct {
@@ -708,6 +711,13 @@ func (engine *Engine) forwardResourceStream(handle uint64, stream clientruntime.
 			terminalError = err
 			return
 		}
+		if typ == wire.TypeScreen {
+			payload, err = engine.flattenScreenFrame(handle, payload)
+			if err != nil {
+				terminalError = err
+				return
+			}
+		}
 		bindingType, err := wireFrameTypeToBinding(typ)
 		if err != nil {
 			terminalError = err
@@ -722,6 +732,120 @@ func (engine *Engine) forwardResourceStream(handle uint64, stream clientruntime.
 			StreamHandle: handle, Type: bindingType, Payload: append([]byte(nil), payload...),
 		}}})
 	}
+}
+
+// flattenScreenFrame 把服务端推来的一帧 screen delta 应用进共享模型，再拍平成
+// “只有完整行替换”的 NativeScreenResult：UI 侧不需要再实现 row_copies /
+// 基线 / 拒绝重试这套 delta 逻辑，只要替换给它的行。
+func (engine *Engine) flattenScreenFrame(handle uint64, payload []byte) ([]byte, error) {
+	raw, err := screenmodel.DecodeFrame(payload)
+	if err != nil {
+		return nil, err
+	}
+	delta := &apipb.NativeScreenResult{}
+	if err := proto.Unmarshal(raw, delta); err != nil {
+		return nil, err
+	}
+	engine.mu.Lock()
+	record := engine.streams[handle]
+	var previous *screenmodel.Screen
+	if record != nil {
+		previous = record.screen
+	}
+	next, changed := screenmodel.Apply(previous, delta)
+	if record != nil {
+		record.screen = next
+	}
+	engine.mu.Unlock()
+	if next == nil {
+		return nil, errors.New("binding: screen frame has no size")
+	}
+
+	frame := &apipb.NativeScreenResult{
+		Size:              &apipb.TerminalSize{Cols: uint32(next.Cols), Rows: uint32(next.Rows)},
+		LiveRevision:      delta.GetLiveRevision(),
+		BaseRevision:      delta.GetBaseRevision(),
+		FullReplace:       changed == nil,
+		Cursor:            delta.GetCursor(),
+		Modes:             delta.GetModes(),
+		TimestampUnixNano: delta.GetTimestampUnixNano(),
+	}
+	if changed == nil {
+		for y := 0; y < next.Rows; y++ {
+			frame.RowReplacements = append(frame.RowReplacements, flattenScreenRow(y, next.Line(y)))
+		}
+	} else {
+		seen := make(map[int]struct{}, len(changed))
+		for _, y := range changed {
+			if y < 0 || y >= next.Rows {
+				continue
+			}
+			if _, duplicate := seen[y]; duplicate {
+				continue
+			}
+			seen[y] = struct{}{}
+			frame.RowReplacements = append(frame.RowReplacements, flattenScreenRow(y, next.Line(y)))
+		}
+	}
+	return proto.Marshal(frame)
+}
+
+// flattenScreenRow 把模型的一行还原成 wire 行：跳过宽字符的 continuation，
+// 保留行内空白，尾部同色空白折叠成 tail_fill（与 daemon 自己的编码一致）。
+func flattenScreenRow(index int, cells []screenmodel.Cell) *apipb.ScreenRowReplace {
+	row := &apipb.ScreenRow{}
+	// 内容末尾：最后一个真正写了非空白字符的单元。其后的空格/空白都交给
+	// tail_fill 或让 UI 自行补白。
+	contentEnd := -1
+	for i, cell := range cells {
+		if cell.Continuation {
+			continue
+		}
+		if cell.Text != "" && cell.Text != " " {
+			contentEnd = i
+		}
+	}
+	for i := 0; i <= contentEnd; i++ {
+		cell := cells[i]
+		if cell.Continuation {
+			continue
+		}
+		width := int32(cell.Width)
+		if width <= 0 {
+			width = 1
+		}
+		row.Cells = append(row.Cells, &apipb.ScreenCell{
+			Content: cell.Text,
+			Width:   width,
+			Style:   cell.Style,
+		})
+	}
+	if tailStart := contentEnd + 1; tailStart < len(cells) {
+		if tail := uniformTrailingStyle(cells[tailStart:]); tail != nil {
+			row.TailFill = tail
+		}
+	}
+	return &apipb.ScreenRowReplace{RowIndex: int32(index), Row: row}
+}
+
+func uniformTrailingStyle(cells []screenmodel.Cell) *apipb.CellStyle {
+	var style *apipb.CellStyle
+	for _, cell := range cells {
+		if cell.Continuation {
+			continue
+		}
+		if (cell.Text != "" && cell.Text != " ") || cell.Style == nil {
+			return nil
+		}
+		if style == nil {
+			style = cell.Style
+			continue
+		}
+		if !proto.Equal(style, cell.Style) {
+			return nil
+		}
+	}
+	return style
 }
 
 func (engine *Engine) runOpen(handle uint64, ctx context.Context, request *bindingpb.OpenSessionRequest) {
@@ -1246,6 +1370,10 @@ func bindingFrameTypeToWire(typ bindingpb.ResourceStreamFrameType, outbound bool
 		if !outbound {
 			return wire.TypeBrowserClosed, nil
 		}
+	case bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_SCREEN:
+		if !outbound {
+			return wire.TypeScreen, nil
+		}
 	case bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_OUTPUT:
 		if !outbound {
 			return wire.TypePTYOutput, nil
@@ -1274,6 +1402,7 @@ func wireFrameTypeToBinding(typ uint8) (bindingpb.ResourceStreamFrameType, error
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED,
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
 		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED,
+		bindingpb.ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_SCREEN,
 	} {
 		wireType, _ := bindingFrameTypeToWire(candidate, false)
 		if wireType == typ {

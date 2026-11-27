@@ -13,6 +13,7 @@ import (
 	"github.com/anytty/anytty/access/engine/endpoint"
 	clientruntime "github.com/anytty/anytty/access/engine/runtime"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
+	"github.com/anytty/anytty/internal/screenmodel"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"github.com/anytty/anytty/shared/remoteauth"
@@ -268,7 +269,7 @@ func (client *ApplicationClient) OpenResourceStream(resource *apipb.ResourceHand
 // 放在共享 adapter 里，TUI endpoint 只消费结果，不直接碰 wire 编码
 // （CLIENT_SHARING: raw framing 只能出现在 client/ 层）。
 func DecodeScreenStreamFrame(payload []byte) (*apipb.NativeScreenResult, error) {
-	raw, err := internalprotocol.DecodeScreenStreamPayload(payload)
+	raw, err := screenmodel.DecodeFrame(payload)
 	if err != nil {
 		return nil, err
 	}

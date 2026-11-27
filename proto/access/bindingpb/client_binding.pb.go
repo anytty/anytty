@@ -95,6 +95,10 @@ const (
 	ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA ResourceStreamFrameType = 10
 	// BROWSER_CLOSED 表示 daemon-side TCP connection 已关闭。
 	ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED ResourceStreamFrameType = 11
+	// SCREEN payload 是 serialized apipb.NativeScreenResult：Go 引擎已经把
+	// delta 应用进共享 screenmodel，这里只携带发生变化的行为完整行替换
+	// （没有 row_copies），UI 侧只需替换这些行。
+	ResourceStreamFrameType_RESOURCE_STREAM_FRAME_TYPE_SCREEN ResourceStreamFrameType = 12
 )
 
 // Enum value maps for ResourceStreamFrameType.
@@ -112,6 +116,7 @@ var (
 		9:  "RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED",
 		10: "RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA",
 		11: "RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED",
+		12: "RESOURCE_STREAM_FRAME_TYPE_SCREEN",
 	}
 	ResourceStreamFrameType_value = map[string]int32{
 		"RESOURCE_STREAM_FRAME_TYPE_UNSPECIFIED":      0,
@@ -126,6 +131,7 @@ var (
 		"RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED":       9,
 		"RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA":     10,
 		"RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED":   11,
+		"RESOURCE_STREAM_FRAME_TYPE_SCREEN":           12,
 	}
 )
 
@@ -7051,7 +7057,7 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x1aCONNECT_INTENT_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aCONNECT_INTENT_INTERACTIVE\x10\x01\x12\x1d\n" +
 	"\x19CONNECT_INTENT_BACKGROUND\x10\x02\x12\x18\n" +
-	"\x14CONNECT_INTENT_PROBE\x10\x03*\xa7\x04\n" +
+	"\x14CONNECT_INTENT_PROBE\x10\x03*\xce\x04\n" +
 	"\x17ResourceStreamFrameType\x12*\n" +
 	"&RESOURCE_STREAM_FRAME_TYPE_UNSPECIFIED\x10\x00\x12(\n" +
 	"$RESOURCE_STREAM_FRAME_TYPE_FILE_DATA\x10\x01\x12'\n" +
@@ -7065,7 +7071,8 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"%RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED\x10\t\x12+\n" +
 	"'RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA\x10\n" +
 	"\x12-\n" +
-	")RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED\x10\v*\xea\x01\n" +
+	")RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED\x10\v\x12%\n" +
+	"!RESOURCE_STREAM_FRAME_TYPE_SCREEN\x10\f*\xea\x01\n" +
 	"\x13ConnectionRouteKind\x12%\n" +
 	"!CONNECTION_ROUTE_KIND_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bCONNECTION_ROUTE_KIND_LOCAL\x10\x01\x12 \n" +
@@ -7107,7 +7114,7 @@ const file_bindingpb_client_binding_proto_rawDesc = "" +
 	"\x16EndpointSupervisorMode\x12(\n" +
 	"$ENDPOINT_SUPERVISOR_MODE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fENDPOINT_SUPERVISOR_MODE_SHADOW\x10\x01\x12%\n" +
-	"!ENDPOINT_SUPERVISOR_MODE_TAKEOVER\x10\x02B*Z(github.com/anytty/anytty/proto/bindingpbb\x06proto3"
+	"!ENDPOINT_SUPERVISOR_MODE_TAKEOVER\x10\x02B1Z/github.com/anytty/anytty/proto/access/bindingpbb\x06proto3"
 
 var (
 	file_bindingpb_client_binding_proto_rawDescOnce sync.Once

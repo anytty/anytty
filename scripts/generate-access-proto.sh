@@ -57,8 +57,9 @@ fi
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-# Stage with the historical logical paths: apipb/, remoteauthpb/, wirepb/, cloud/.
+# Stage with the historical logical paths: apipb/, bindingpb/, remoteauthpb/, wirepb/, cloud/.
 cp -R proto/access/apipb "$stage/apipb"
+cp -R proto/access/bindingpb "$stage/bindingpb"
 cp -R proto/access/remoteauthpb "$stage/remoteauthpb"
 cp -R proto/access/wirepb "$stage/wirepb"
 cp -R proto/cloud "$stage/cloud"
@@ -77,7 +78,7 @@ rewrite_imports() {
 }
 while IFS= read -r -d '' file; do
   rewrite_imports "$file"
-done < <(find "$stage/apipb" -name '*.proto' -print0)
+done < <(find "$stage/apipb" "$stage/bindingpb" -name '*.proto' -print0)
 
 cp scripts/buf.gen.access.yaml "$stage/buf.gen.access.yaml"
 

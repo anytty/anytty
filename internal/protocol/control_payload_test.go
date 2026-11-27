@@ -51,31 +51,3 @@ func TestResponseEncodingZstdEnvelope(t *testing.T) {
 		t.Fatalf("decoded = %#v", decoded)
 	}
 }
-
-// TestScreenStreamPayloadRoundTrip 覆盖 TypeScreen 帧的 raw/zstd 两种编码。
-func TestScreenStreamPayloadRoundTrip(t *testing.T) {
-	payload := bytes.Repeat([]byte("row-0123456789abcdef"), 200)
-	encoded := EncodeScreenStreamPayload(payload)
-	if encoded[0] != screenStreamEncodingZstd {
-		t.Fatalf("encoding flag = %d, want zstd for repetitive payload", encoded[0])
-	}
-	decoded, err := DecodeScreenStreamPayload(encoded)
-	if err != nil {
-		t.Fatalf("decode zstd frame: %v", err)
-	}
-	if !bytes.Equal(decoded, payload) {
-		t.Fatal("zstd screen stream round trip mismatch")
-	}
-
-	tiny := []byte{1, 2, 3}
-	rawEncoded := EncodeScreenStreamPayload(tiny)
-	if rawEncoded[0] != screenStreamEncodingRaw {
-		t.Fatalf("tiny payload flag = %d, want raw", rawEncoded[0])
-	}
-	if got, err := DecodeScreenStreamPayload(rawEncoded); err != nil || !bytes.Equal(got, tiny) {
-		t.Fatalf("raw round trip = %v err=%v", got, err)
-	}
-	if _, err := DecodeScreenStreamPayload(nil); err == nil {
-		t.Fatal("empty frame must fail")
-	}
-}

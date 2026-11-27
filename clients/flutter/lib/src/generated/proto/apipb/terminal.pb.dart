@@ -1735,6 +1735,7 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
     $core.String? surfaceId,
     $core.String? viewId,
     $0.OperationStamp? operation,
+    $core.bool? screenStream,
   }) {
     final result = TerminalAttachCommand._();
     if (terminal != null) result.terminal = terminal;
@@ -1743,6 +1744,7 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
     if (surfaceId != null) result.surfaceId = surfaceId;
     if (viewId != null) result.viewId = viewId;
     if (operation != null) result.operation = operation;
+    if (screenStream != null) result.screenStream = screenStream;
     return result;
   }
 
@@ -1769,6 +1771,7 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
     ..aOS(6, _omitFieldNames ? '' : 'viewId')
     ..aOM<$0.OperationStamp>(7, _omitFieldNames ? '' : 'operation',
         subBuilder: $0.OperationStamp.$_createMessage)
+    ..aOB(8, _omitFieldNames ? '' : 'screenStream')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1852,6 +1855,15 @@ class TerminalAttachCommand extends $pb.GeneratedMessage {
   void clearOperation() => $_clearField(7);
   @$pb.TagNumber(7)
   $0.OperationStamp ensureOperation() => $_ensure(5);
+
+  @$pb.TagNumber(8)
+  $core.bool get screenStream => $_getBF(6);
+  @$pb.TagNumber(8)
+  set screenStream($core.bool value) => $_setBool(6, value);
+  @$pb.TagNumber(8)
+  $core.bool hasScreenStream() => $_has(6);
+  @$pb.TagNumber(8)
+  void clearScreenStream() => $_clearField(8);
 }
 
 class TerminalDetachCommand extends $pb.GeneratedMessage {

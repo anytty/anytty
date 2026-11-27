@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	internalprotocol "github.com/anytty/anytty/internal/protocol"
+	"github.com/anytty/anytty/internal/screenmodel"
 	"github.com/anytty/anytty/proto/access/apipb"
 	"github.com/anytty/anytty/proto/access/wire"
 	"google.golang.org/protobuf/proto"
@@ -65,7 +65,7 @@ func TestRemotePTYForwardsPushedScreenFramesToModel(t *testing.T) {
 	att := &attachment{stream: newStream()}
 	p.pending = att
 	go p.run()
-	att.stream.push(wire.TypeScreen, internalprotocol.EncodeScreenStreamPayload(raw))
+	att.stream.push(wire.TypeScreen, screenmodel.EncodeFrame(raw))
 
 	select {
 	case screen := <-received:

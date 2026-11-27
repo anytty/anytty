@@ -33,6 +33,10 @@ enum ResourceStreamFrameType {
   RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA = 10;
   // BROWSER_CLOSED 表示 daemon-side TCP connection 已关闭。
   RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED = 11;
+  // SCREEN payload 是 serialized apipb.NativeScreenResult：Go 引擎已经把
+  // delta 应用进共享 screenmodel，这里只携带发生变化的行为完整行替换
+  // （没有 row_copies），UI 侧只需替换这些行。
+  RESOURCE_STREAM_FRAME_TYPE_SCREEN = 12;
 }
 
 // ConnectionRouteKind 是 ReadySession 实际获胜的持久 Route kind 投影。

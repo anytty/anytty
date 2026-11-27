@@ -17,6 +17,7 @@ import (
 
 	terminalprovider "github.com/anytty/anytty/access/provider/terminal"
 	"github.com/anytty/anytty/access/server/terminalmap"
+	"github.com/anytty/anytty/internal/screenmodel"
 	internalprotocol "github.com/anytty/anytty/internal/protocol"
 	"github.com/anytty/anytty/internal/providerproto"
 	"github.com/anytty/anytty/proto/access/apipb"
@@ -773,7 +774,7 @@ func (session *session) startScreenStream(binding *streamBinding) {
 			if err != nil {
 				return
 			}
-			if err := session.sendFrame(binding.clientChannel, wire.TypeScreen, internalprotocol.EncodeScreenStreamPayload(payload)); err != nil {
+			if err := session.sendFrame(binding.clientChannel, wire.TypeScreen, screenmodel.EncodeFrame(payload)); err != nil {
 				if errors.Is(err, datachannel.ErrBackpressure) {
 					// observed 不推进：下一次 LiveScreen 自然把中间 revision 合并掉。
 					select {

@@ -87,6 +87,12 @@ class ResourceStreamFrameType extends $pb.ProtobufEnum {
       RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED = ResourceStreamFrameType._(11,
           _omitEnumNames ? '' : 'RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED');
 
+  /// SCREEN payload 是 serialized apipb.NativeScreenResult：Go 引擎已经应用了
+  /// delta，这里只携带发生变化的整行替换（没有 row_copies）。
+  static const ResourceStreamFrameType RESOURCE_STREAM_FRAME_TYPE_SCREEN =
+      ResourceStreamFrameType._(
+          12, _omitEnumNames ? '' : 'RESOURCE_STREAM_FRAME_TYPE_SCREEN');
+
   static const $core.List<ResourceStreamFrameType> values =
       <ResourceStreamFrameType>[
     RESOURCE_STREAM_FRAME_TYPE_UNSPECIFIED,
@@ -101,10 +107,11 @@ class ResourceStreamFrameType extends $pb.ProtobufEnum {
     RESOURCE_STREAM_FRAME_TYPE_PTY_CLOSED,
     RESOURCE_STREAM_FRAME_TYPE_BROWSER_DATA,
     RESOURCE_STREAM_FRAME_TYPE_BROWSER_CLOSED,
+    RESOURCE_STREAM_FRAME_TYPE_SCREEN,
   ];
 
   static final $core.List<ResourceStreamFrameType?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 11);
+      $pb.ProtobufEnum.$_initByValueList(values, 12);
   static ResourceStreamFrameType? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 

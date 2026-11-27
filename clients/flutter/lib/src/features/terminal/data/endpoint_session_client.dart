@@ -650,6 +650,9 @@ final class EndpointSessionClient implements BrowserProxySession {
           resizePolicy: ResizePolicy.RESIZE_POLICY_OWNER,
           surfaceId: 'flutter-${newRequestId()}',
           viewId: newRequestId(),
+          // 让服务端在这个 attachment channel 上推行级屏幕 delta（wire.TypeScreen），
+          // 不再需要客户端每帧一次 LiveScreenNext 往返。
+          screenStream: true,
         ),
       ),
     );
@@ -661,6 +664,18 @@ final class EndpointSessionClient implements BrowserProxySession {
       );
     }
     return result.terminalAttach.deepCopy();
+  }
+
+  /// 打开 attachment 的资源流：服务端会在同一个 channel 上推 wire.TypeScreen，
+  /// Go binding 应用 delta 后转成 SCREEN 帧交给这里。
+  Future<AnyttyResourceStream> openAttachmentStream(
+    AttachmentHandle attachment,
+  ) {
+    return AnyttyResourceStream.open(
+      runtime: _runtime,
+      sessionHandle: sessionHandle,
+      request: OpenResourceStreamRequest(resource: attachment.resource),
+    );
   }
 
   Future<TerminalResizeResult> resizeTerminal({
@@ -1028,7 +1043,6 @@ final class TerminalConnection {
   Timer? _presentationWatchdog;
   Stopwatch? _renderLatencyWatch;
   int _renderLatencyRevision = -1;
-  Completer<void>? _screenPollCancellation;
   // 输入允许少量在飞：顺序由单条有序通道 + 服务端有序 PTY 写入保证，
   // 客户端不再为每个按键等一个 RTT。
   final BoundedPipelinedOperationQueue _inputQueue = BoundedPipelinedOperationQueue(
@@ -1042,10 +1056,11 @@ final class TerminalConnection {
     maximumCost: _maximumPendingResizeOperations,
   );
   ({int cols, int rows})? _lastResizeRequest;
-  bool _forceFullReplace = false;
   bool _inputDeliveryReady = false;
   DateTime? _inputPausedSince;
-  bool _screenPolling = false;
+  AnyttyResourceStream? _screenStream;
+  StreamSubscription<ResourceStreamFrame>? _screenStreamFrames;
+  Timer? _screenStreamRetry;
   TerminalDeliveryState _deliveryState = TerminalDeliveryState.awaitingFrame;
   int _presentedRevision = -1;
   bool _closed = false;
@@ -1090,7 +1105,7 @@ final class TerminalConnection {
     connection._applicationEvents = session.watchApplicationEvents().listen(
       connection._handleApplicationEvent,
     );
-    if (!connection._historyOnly) unawaited(connection._pollScreens());
+    if (!connection._historyOnly) unawaited(connection._startScreenStream());
     return connection;
   }
 
@@ -1529,7 +1544,9 @@ final class TerminalConnection {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
-    _cancelScreenPoll();
+    _screenStreamRetry?.cancel();
+    _screenStreamRetry = null;
+    await _closeScreenStream();
     try {
       if (_attachment case final attachment?) {
         try {
@@ -1634,83 +1651,113 @@ final class TerminalConnection {
         : Int64.ZERO;
   }
 
-  Future<void> _pollScreens() async {
-    if (_screenPolling) return;
-    _screenPolling = true;
+  /// 打开服务端推屏流：attach 声明了 screen_stream，服务端会在这个
+  /// attachment channel 上连续推 TypeScreen（Go binding 已把 delta 应用成
+  /// 完整行替换），这里只负责把行喂给本地屏幕存储。
+  Future<void> _startScreenStream() async {
+    if (_closed || _historyOnly) return;
+    final attachment = _attachment;
+    if (attachment == null) return;
     try {
-      while (!_closed && !terminalUsesHistoryOnly(_terminalState)) {
-        final cancellation = Completer<void>();
-        _screenPollCancellation = cancellation;
-        try {
-          final pollWatch = PerfStopwatch();
-          final incoming = await _session.nextScreen(
-            terminal,
-            _forceFullReplace ? 0 : (_current?.revision.toInt() ?? 0),
-            cancelWhen: cancellation.future,
-          );
-          TerminalPerfCounters.instance.notePollRoundtrip(
-            pollWatch.elapsedUs ?? 0,
-          );
-          if (_closed) return;
-          final mergeWatch = PerfStopwatch();
-          final outcome = mergeLiveScreen(
-            current: _current,
-            incoming: incoming,
-            connectionGeneration: _session.stamp.generation,
-            expectedTerminal: terminal,
-          );
-          TerminalPerfCounters.instance.noteMerge(
-            mergeWatch.elapsedUs ?? 0,
-            fullReplace: outcome is LiveScreenMerged && outcome.damage.fullReplace,
-          );
-          switch (outcome) {
-            case LiveScreenMerged():
-              _current = outcome.screen;
-              _renderLatencyWatch = Stopwatch()..start();
-              _renderLatencyRevision = outcome.screen.revision.toInt();
-              if (outcome.damage.fullReplace) _forceFullReplace = false;
-              if (outcome.screen.modes case final modes?) {
-                _inputEncoder!.applyModes(modes);
-              }
-              _applyInputGeometry(outcome.screen);
-              _scheduleScreenPublish();
-              _schedulePresentationWatchdog();
-            case LiveScreenRejected():
-              if (outcome.requestFullReplace) {
-                _forceFullReplace = true;
-                _pauseInputDelivery();
-                _publishDeliveryState(TerminalDeliveryState.recovering);
-              }
-          }
-        } on BindingOperationCancelledException {
-          if (_closed || terminalUsesHistoryOnly(_terminalState)) return;
-          continue;
-        } on TimeoutException {
-          if (terminalUsesHistoryOnly(_terminalState)) return;
-          continue;
-        } catch (error, stackTrace) {
-          _pauseInputDelivery();
-          _publishDeliveryState(TerminalDeliveryState.recovering);
-          if (!_closed && !terminalUsesHistoryOnly(_terminalState)) {
-            _screens.addError(error, stackTrace);
-          }
-          return;
-        } finally {
-          if (identical(_screenPollCancellation, cancellation)) {
-            _screenPollCancellation = null;
-          }
-        }
+      final stream = await _session.openAttachmentStream(attachment);
+      if (_closed) {
+        stream.close();
+        return;
       }
-    } finally {
-      _screenPolling = false;
+      _screenStream = stream;
+      _screenStreamFrames = stream.frames.listen(
+        _handleScreenFrame,
+        onError: (Object error, StackTrace stackTrace) {
+          _handleScreenStreamEnded(stream);
+          if (!_closed) _screens.addError(error, stackTrace);
+        },
+        cancelOnError: false,
+      );
+      unawaited(
+        stream.closed.then<void>(
+          (_) => _handleScreenStreamEnded(stream),
+          onError: (Object _, StackTrace _) => _handleScreenStreamEnded(stream),
+        ),
+      );
+    } catch (error, stackTrace) {
+      _pauseInputDelivery();
+      _publishDeliveryState(TerminalDeliveryState.recovering);
+      if (!_closed) _screens.addError(error, stackTrace);
     }
   }
 
-  void _cancelScreenPoll() {
-    final cancellation = _screenPollCancellation;
-    if (cancellation != null && !cancellation.isCompleted) {
-      cancellation.complete();
+  void _handleScreenFrame(ResourceStreamFrame frame) {
+    if (frame.type !=
+        ResourceStreamFrameType.RESOURCE_STREAM_FRAME_TYPE_SCREEN) {
+      return;
     }
+    final NativeScreenResult incoming;
+    try {
+      incoming = NativeScreenResult.fromBuffer(frame.payload);
+    } catch (_) {
+      return;
+    }
+    _applyIncomingScreen(incoming);
+  }
+
+  /// 推流帧落地：行替换由 binding 拍平，这里只需要把变化行写进本地屏幕。
+  void _applyIncomingScreen(NativeScreenResult incoming) {
+    if (_closed) return;
+    final mergeWatch = PerfStopwatch();
+    final outcome = mergeLiveScreen(
+      current: _current,
+      incoming: incoming,
+      connectionGeneration: _session.stamp.generation,
+      expectedTerminal: terminal,
+    );
+    TerminalPerfCounters.instance.noteMerge(
+      mergeWatch.elapsedUs ?? 0,
+      fullReplace: outcome is LiveScreenMerged && outcome.damage.fullReplace,
+    );
+    switch (outcome) {
+      case LiveScreenMerged():
+        _current = outcome.screen;
+        _renderLatencyWatch = Stopwatch()..start();
+        _renderLatencyRevision = outcome.screen.revision.toInt();
+        if (outcome.screen.modes case final modes?) {
+          _inputEncoder?.applyModes(modes);
+        }
+        _applyInputGeometry(outcome.screen);
+        _scheduleScreenPublish();
+        _schedulePresentationWatchdog();
+      case LiveScreenRejected():
+        // 推流没有“再要一次整屏”的往返：重开一次 attachment stream，
+        // 服务端 pump 会从 observed=0 重新发一整帧。
+        _scheduleScreenStreamRetry();
+    }
+  }
+
+  void _handleScreenStreamEnded(AnyttyResourceStream stream) {
+    if (_closed || !identical(_screenStream, stream)) return;
+    _screenStream = null;
+    _screenStreamFrames = null;
+    _pauseInputDelivery();
+    _publishDeliveryState(TerminalDeliveryState.recovering);
+    _scheduleScreenStreamRetry();
+  }
+
+  void _scheduleScreenStreamRetry() {
+    if (_closed || _historyOnly) return;
+    _screenStreamRetry?.cancel();
+    _screenStreamRetry = Timer(const Duration(seconds: 1), () {
+      if (!_closed) unawaited(_startScreenStream());
+    });
+  }
+
+  Future<void> _closeScreenStream() async {
+    _screenStreamRetry?.cancel();
+    _screenStreamRetry = null;
+    final subscription = _screenStreamFrames;
+    _screenStreamFrames = null;
+    if (subscription != null) await subscription.cancel();
+    final stream = _screenStream;
+    _screenStream = null;
+    if (stream != null) stream.close();
   }
 
   void _applyInputGeometry(CanonicalLiveScreen screen) {
