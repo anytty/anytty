@@ -10,6 +10,7 @@ const terminalPetalActionIds = <String>[
   'enter',
   'escape',
   'resources',
+  'preview',
   'more',
   'command-bar',
   'copy-screen',
@@ -42,6 +43,50 @@ const terminalPetalActionIds = <String>[
 ];
 
 const terminalPetalDefaultLayout = <TerminalPetalMenuPlacement>[
+  TerminalPetalMenuPlacement(id: 'history', depth: 0),
+  TerminalPetalMenuPlacement(id: 'search', depth: 0),
+  TerminalPetalMenuPlacement(id: 'selection', depth: 0),
+  TerminalPetalMenuPlacement(id: 'paste', depth: 0),
+  TerminalPetalMenuPlacement(id: 'quick-keys', depth: 0),
+  TerminalPetalMenuPlacement(id: 'keyboard', depth: 0),
+  TerminalPetalMenuPlacement(id: 'resources', depth: 0),
+  TerminalPetalMenuPlacement(id: 'more', depth: 0),
+  TerminalPetalMenuPlacement(id: 'preview', depth: 1),
+  TerminalPetalMenuPlacement(id: 'command-bar', depth: 1),
+  TerminalPetalMenuPlacement(id: 'copy-screen', depth: 1),
+  TerminalPetalMenuPlacement(id: 'files', depth: 1),
+  TerminalPetalMenuPlacement(id: 'input-tools', depth: 1),
+  TerminalPetalMenuPlacement(id: 'enter', depth: 2),
+  TerminalPetalMenuPlacement(id: 'escape', depth: 2),
+  TerminalPetalMenuPlacement(id: 'tab', depth: 2),
+  TerminalPetalMenuPlacement(id: 'backspace', depth: 2),
+  TerminalPetalMenuPlacement(id: 'delete', depth: 2),
+  TerminalPetalMenuPlacement(id: 'interrupt', depth: 2),
+  TerminalPetalMenuPlacement(id: 'eof', depth: 2),
+  TerminalPetalMenuPlacement(id: 'suspend', depth: 2),
+  TerminalPetalMenuPlacement(id: 'clear', depth: 2),
+  TerminalPetalMenuPlacement(id: 'navigation-tools', depth: 1),
+  TerminalPetalMenuPlacement(id: 'arrow-left', depth: 2),
+  TerminalPetalMenuPlacement(id: 'arrow-down', depth: 2),
+  TerminalPetalMenuPlacement(id: 'arrow-up', depth: 2),
+  TerminalPetalMenuPlacement(id: 'arrow-right', depth: 2),
+  TerminalPetalMenuPlacement(id: 'home', depth: 2),
+  TerminalPetalMenuPlacement(id: 'end', depth: 2),
+  TerminalPetalMenuPlacement(id: 'page-up', depth: 2),
+  TerminalPetalMenuPlacement(id: 'page-down', depth: 2),
+  TerminalPetalMenuPlacement(id: 'session-tools', depth: 1),
+  TerminalPetalMenuPlacement(id: 'sync-input', depth: 2),
+  TerminalPetalMenuPlacement(id: 'resize', depth: 2),
+  TerminalPetalMenuPlacement(id: 'reconnect', depth: 2),
+  TerminalPetalMenuPlacement(id: 'split', depth: 1),
+  TerminalPetalMenuPlacement(id: 'split-rows', depth: 2),
+  TerminalPetalMenuPlacement(id: 'split-columns', depth: 2),
+  TerminalPetalMenuPlacement(id: 'settings', depth: 1),
+];
+
+// _terminalPetalVersion5DefaultLayout 是加「多终端预览」花瓣之前的默认布局，
+// 用于把没改过默认布局的 v5 用户升级到新默认（v6）。
+const _terminalPetalVersion5DefaultLayout = <TerminalPetalMenuPlacement>[
   TerminalPetalMenuPlacement(id: 'history', depth: 0),
   TerminalPetalMenuPlacement(id: 'search', depth: 0),
   TerminalPetalMenuPlacement(id: 'selection', depth: 0),
@@ -303,7 +348,7 @@ final class TerminalPetalMenuPreferences {
   );
 
   Map<String, Object> toJson() => <String, Object>{
-    'version': 5,
+    'version': 6,
     'enabled': enabled,
     'hapticsEnabled': hapticsEnabled,
     'layout': layout.map((placement) => placement.toJson()).toList(),
@@ -315,13 +360,17 @@ final class TerminalPetalMenuPreferences {
     final version = json['version'] as int? ?? 0;
     final layout = parsedLayout == null || parsedLayout.isEmpty
         ? _migrateLegacyLayout(json)
-        : version < 5 &&
+        : version < 6 &&
               (_sameItems(parsedLayout, _terminalPetalVersion2DefaultLayout) ||
                   _sameItems(
                     parsedLayout,
                     _terminalPetalVersion3DefaultLayout,
                   ) ||
-                  _sameItems(parsedLayout, _terminalPetalVersion4DefaultLayout))
+                  _sameItems(
+                    parsedLayout,
+                    _terminalPetalVersion4DefaultLayout,
+                  ) ||
+                  _sameItems(parsedLayout, _terminalPetalVersion5DefaultLayout))
         ? terminalPetalDefaultLayout
         : parsedLayout;
     return TerminalPetalMenuPreferences(

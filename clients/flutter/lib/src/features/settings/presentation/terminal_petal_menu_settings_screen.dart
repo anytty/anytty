@@ -1628,6 +1628,7 @@ IconData _iconForPetal(String id) => switch (id) {
   'enter' => LucideIcons.cornerDownLeft,
   'escape' => LucideIcons.badgeX,
   'resources' => LucideIcons.activity,
+  'preview' => LucideIcons.layoutGrid,
   'command-bar' => LucideIcons.slidersHorizontal,
   'copy-screen' => LucideIcons.copy,
   'files' => LucideIcons.folderOpen,
@@ -1687,6 +1688,7 @@ String _groupForPetal(BuildContext context, String id) => switch (id) {
   'end' ||
   'page-up' ||
   'page-down' => anyttyText(context, en: 'Navigation', zh: '导航'),
+  'preview' ||
   'session-tools' ||
   'split' ||
   'split-rows' ||
@@ -1707,6 +1709,11 @@ _PetalActionPresentation _presentation(BuildContext context, String id) => (
     'enter' => anyttyText(context, en: 'Enter', zh: '回车'),
     'escape' => anyttyText(context, en: 'Escape', zh: '退出键'),
     'resources' => anyttyText(context, en: 'Resources', zh: '资源快照'),
+    'preview' => anyttyText(
+      context,
+      en: 'Terminal preview',
+      zh: '多终端预览',
+    ),
     'command-bar' => anyttyText(context, en: 'Shortcut bar', zh: '快捷栏'),
     'copy-screen' => anyttyText(context, en: 'Copy screen', zh: '复制当前屏幕'),
     'files' => anyttyText(context, en: 'Current folder', zh: '当前目录'),

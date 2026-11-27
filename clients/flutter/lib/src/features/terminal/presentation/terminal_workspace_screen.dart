@@ -303,6 +303,19 @@ final class _TerminalWorkspaceScreenState
             activeTerminalId: headerTerminalId,
           )
         : null;
+    final VoidCallback? terminalSessionsAction =
+        selectedTerminal != null &&
+            terminalItems != null &&
+            terminalItems.isNotEmpty
+        ? () => _openTerminalSwitcher(
+            context: context,
+            endpointId: widget.endpointId,
+            endpointLabel: endpointLabel,
+            terminals: terminalItems,
+            activeTerminalId: headerTerminalId,
+            initialTab: terminalPreviewTabSessions,
+          )
+        : null;
     final workspace = PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -345,42 +358,50 @@ final class _TerminalWorkspaceScreenState
                   : 'Switch terminal, $title, $endpointLabel',
               onTap: terminalSwitcherAction,
               excludeSemantics: terminalSwitcherAction != null,
-              child: InkWell(
-                onTap: terminalSwitcherAction,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 34),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.text,
-                            fontSize: 12,
-                            height: 1,
-                            fontWeight: FontWeight.w600,
+              child: GestureDetector(
+                // 标题区下拉 = 打开会话页签（设计稿的顶边下拉入口）。
+                onVerticalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) > 200) {
+                    terminalSessionsAction?.call();
+                  }
+                },
+                child: InkWell(
+                  onTap: terminalSwitcherAction,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 34),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.text,
+                              fontSize: 12,
+                              height: 1,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        Text(
-                          selectedTerminal == null
-                              ? listSubtitle
-                              : cwd.isEmpty
-                              ? endpointLabel
-                              : '$endpointLabel  ·  $cwd',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: palette.muted,
-                            fontSize: 8,
-                            height: 1,
+                          Text(
+                            selectedTerminal == null
+                                ? listSubtitle
+                                : cwd.isEmpty
+                                ? endpointLabel
+                                : '$endpointLabel  ·  $cwd',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.muted,
+                              fontSize: 8,
+                              height: 1,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -525,15 +546,15 @@ final class _TerminalWorkspaceScreenState
                       ),
                     )
                   : _ActiveTerminal(
-                  endpointId: widget.endpointId,
-                  endpointLabel: endpointLabel,
-                  terminalId: selectedTerminal,
-                  keyboardVisualInset: _keyboardVisualInset,
-                  keyboardInset: _keyboardInset,
-                  settledKeyboardInset: _keyboardInset,
-                  surfaceKey: _surfaceKey,
-                  swipeBridge: this,
-                  onOpenBrowser: _openBrowserUrl,
+                      endpointId: widget.endpointId,
+                      endpointLabel: endpointLabel,
+                      terminalId: selectedTerminal,
+                      keyboardVisualInset: _keyboardVisualInset,
+                      keyboardInset: _keyboardInset,
+                      settledKeyboardInset: _keyboardInset,
+                      surfaceKey: _surfaceKey,
+                      swipeBridge: this,
+                      onOpenBrowser: _openBrowserUrl,
                       onActiveTerminalChanged: (terminalId) {
                         if (mounted && _activeTerminalId != terminalId) {
                           setState(() => _activeTerminalId = terminalId);
@@ -591,6 +612,7 @@ final class _TerminalWorkspaceScreenState
     required String endpointLabel,
     required List<TerminalInfo> terminals,
     required String? activeTerminalId,
+    String initialTab = terminalPreviewTabTerminals,
   }) async {
     final currentTerminals = await _orderSwitcherTerminals(
       endpointId,
@@ -696,6 +718,7 @@ final class _TerminalWorkspaceScreenState
       groups: groups,
       settings: settings,
       loadScreen: _loadPreviewScreen,
+      initialTab: initialTab,
     );
     if (selection == null || !context.mounted) return;
     if (selection.endpointId == endpointId) {
@@ -711,7 +734,10 @@ final class _TerminalWorkspaceScreenState
 
   // ---- TerminalSwipeBridge -------------------------------------------------
   // 预热中的终端连接：切过去之前先 attach + resize，避免切换瞬间的黑帧。
-  final Map<TerminalConnectionKey, ProviderSubscription<AsyncValue<TerminalConnection>>>
+  final Map<
+    TerminalConnectionKey,
+    ProviderSubscription<AsyncValue<TerminalConnection>>
+  >
   _warmConnections = {};
   final Map<String, Timer> _warmTimers = {};
 
@@ -730,7 +756,9 @@ final class _TerminalWorkspaceScreenState
   }
 
   Future<TerminalSwipeSnapshot> _terminalSwipeSnapshot() async {
-    final items = await ref.read(terminalListProvider(widget.endpointId).future);
+    final items = await ref.read(
+      terminalListProvider(widget.endpointId).future,
+    );
     final ordered = await _orderSwitcherTerminals(widget.endpointId, items);
     if (ordered.isEmpty) {
       return const TerminalSwipeSnapshot(targets: [], currentIndex: 0);
@@ -3297,11 +3325,7 @@ final class _ConnectionAttemptHistoryPanel extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.history_rounded,
-                    size: 15,
-                    color: palette.muted,
-                  ),
+                  Icon(Icons.history_rounded, size: 15, color: palette.muted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -6924,6 +6948,12 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       icon: LucideIcons.scanText,
       children: children,
     ),
+    'preview' => TerminalPetalMenuItem(
+      id: 'preview',
+      label: _terminalPetalLabel('Preview', '多终端预览'),
+      icon: LucideIcons.layoutGrid,
+      children: children,
+    ),
     'paste' => TerminalPetalMenuItem(
       id: 'paste',
       label: _terminalPetalLabel('Paste', '粘贴'),
@@ -7183,6 +7213,11 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       _deliveryState == TerminalDeliveryState.ready;
 
   Future<void> _handleTerminalPetalAction(String id) async {
+    if (id == 'preview') {
+      // 花瓣「多终端预览」：走 bridge 打开同一个全屏毛玻璃层。
+      widget.swipeBridge?.openSwitcher();
+      return;
+    }
     final action = switch (id) {
       'paste' => _TerminalToolAction.paste,
       'history' => _TerminalToolAction.history,

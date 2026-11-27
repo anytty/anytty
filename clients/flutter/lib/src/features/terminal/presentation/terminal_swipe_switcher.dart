@@ -656,6 +656,9 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     final snapshot = _snapshot;
     final count = snapshot?.targets.length ?? 0;
     final index = (snapshot?.currentIndex ?? 0) + (_dragDx < 0 ? 1 : -1) + 1;
+    final progress = _width > 0
+        ? (_offset.value.abs() / (_width * 0.35)).clamp(0.0, 1.0)
+        : 0.0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -666,6 +669,17 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          SizedBox(
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: 2.2,
+              backgroundColor: palette.border,
+              valueColor: AlwaysStoppedAnimation<Color>(palette.accent),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             '$index/$count',
             style: TextStyle(

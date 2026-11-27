@@ -59,8 +59,10 @@ final class TerminalPreviewSelection {
   final String terminalId;
 }
 
-typedef TerminalPreviewScreenLoader =
-    Future<CanonicalLiveScreen?> Function(String endpointId, String terminalId);
+typedef TerminalPreviewScreenLoader = Future<CanonicalLiveScreen?> Function(
+  String endpointId,
+  String terminalId,
+);
 
 /// 打开全屏毛玻璃预览。
 Future<TerminalPreviewSelection?> showTerminalPreviewOverlay({
@@ -124,7 +126,6 @@ final class _TerminalPreviewOverlayState extends State<_TerminalPreviewOverlay>
     duration: const Duration(milliseconds: 460),
   )..forward();
   late String _tab = widget.initialTab;
-  final Map<String, Future<CanonicalLiveScreen?>> _screens = {};
   String? _pickedKey;
   bool _closing = false;
 
@@ -132,14 +133,6 @@ final class _TerminalPreviewOverlayState extends State<_TerminalPreviewOverlay>
   void dispose() {
     _entrance.dispose();
     super.dispose();
-  }
-
-  Future<CanonicalLiveScreen?> _screenFor(String endpointId, String terminalId) {
-    final key = '$endpointId\u0000$terminalId';
-    return _screens.putIfAbsent(
-      key,
-      () => widget.loadScreen(endpointId, terminalId),
-    );
   }
 
   void _pick(TerminalPreviewGroup group, TerminalPreviewItem item) {
@@ -343,7 +336,8 @@ final class _TerminalPreviewOverlayState extends State<_TerminalPreviewOverlay>
             palette: palette,
             settings: widget.settings,
             entrance: _entrance,
-            screenFor: (id) => _screenFor(group.endpointId, id),
+            screenFor: (id) =>
+                () => widget.loadScreen(group.endpointId, id),
             pickedKey: _pickedKey,
             onPick: (item) => _pick(group, item),
           ),
@@ -368,7 +362,7 @@ final class _TerminalPreviewOverlayState extends State<_TerminalPreviewOverlay>
               entrance: _entrance,
               delayIndex: index,
               screenFor: (id) =>
-                  _screenFor(widget.groups[index].endpointId, id),
+                  () => widget.loadScreen(widget.groups[index].endpointId, id),
               onTap: () {
                 final items = widget.groups[index].items;
                 if (items.isEmpty) return;
@@ -523,7 +517,8 @@ final class _PreviewGrid extends StatelessWidget {
   final AnyttyPalette palette;
   final TerminalSettings settings;
   final Animation<double> entrance;
-  final Future<CanonicalLiveScreen?> Function(String terminalId) screenFor;
+  final Future<CanonicalLiveScreen?> Function() Function(String terminalId)
+  screenFor;
   final String? pickedKey;
   final ValueChanged<TerminalPreviewItem> onPick;
 
@@ -549,7 +544,7 @@ final class _PreviewGrid extends StatelessWidget {
           child: _PreviewCard(
             palette: palette,
             settings: settings,
-            screen: screenFor(item.id),
+            loadScreen: screenFor(item.id),
             item: item,
             active: item.id == group.activeId,
             picked: pickedKey == key,
@@ -584,10 +579,7 @@ final class _StaggeredEntrance extends StatelessWidget {
           opacity: eased,
           child: Transform.translate(
             offset: Offset(0, (1 - eased) * 16),
-            child: Transform.scale(
-              scale: 0.96 + 0.04 * eased,
-              child: child,
-            ),
+            child: Transform.scale(scale: 0.96 + 0.04 * eased, child: child),
           ),
         );
       },
@@ -600,7 +592,7 @@ final class _PreviewCard extends StatelessWidget {
   const _PreviewCard({
     required this.palette,
     required this.settings,
-    required this.screen,
+    required this.loadScreen,
     required this.item,
     required this.active,
     required this.picked,
@@ -609,7 +601,7 @@ final class _PreviewCard extends StatelessWidget {
 
   final AnyttyPalette palette;
   final TerminalSettings settings;
-  final Future<CanonicalLiveScreen?> screen;
+  final Future<CanonicalLiveScreen?> Function() loadScreen;
   final TerminalPreviewItem item;
   final bool active;
   final bool picked;
@@ -632,8 +624,8 @@ final class _PreviewCard extends StatelessWidget {
               color: picked
                   ? palette.accent.withValues(alpha: 0.7)
                   : active
-                      ? palette.accent.withValues(alpha: 0.55)
-                      : palette.border.withValues(alpha: 0.9),
+                  ? palette.accent.withValues(alpha: 0.55)
+                  : palette.border.withValues(alpha: 0.9),
             ),
             boxShadow: picked || active
                 ? [
@@ -652,18 +644,10 @@ final class _PreviewCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    FutureBuilder<CanonicalLiveScreen?>(
-                      future: screen,
-                      builder: (context, snapshot) {
-                        final value = snapshot.data;
-                        if (value == null) {
-                          return _ThumbnailPlaceholder(palette: palette);
-                        }
-                        return _TerminalThumbnail(
-                          screen: value,
-                          settings: settings,
-                        );
-                      },
+                    _LiveTerminalThumbnail(
+                      loadScreen: loadScreen,
+                      settings: settings,
+                      palette: palette,
                     ),
                     Positioned(
                       top: 7,
@@ -681,7 +665,11 @@ final class _PreviewCard extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          active ? 'LIVE' : item.exited ? 'EXIT' : '10fps',
+                          active
+                              ? 'LIVE'
+                              : item.exited
+                              ? 'EXIT'
+                              : '10fps',
                           style: TextStyle(
                             color: active ? palette.accent : palette.muted,
                             fontSize: 8.5,
@@ -753,7 +741,8 @@ final class _SessionCard extends StatelessWidget {
   final TerminalSettings settings;
   final Animation<double> entrance;
   final int delayIndex;
-  final Future<CanonicalLiveScreen?> Function(String terminalId) screenFor;
+  final Future<CanonicalLiveScreen?> Function() Function(String terminalId)
+  screenFor;
   final VoidCallback onTap;
 
   @override
@@ -797,18 +786,10 @@ final class _SessionCard extends StatelessWidget {
                 width: 140,
                 child: item == null
                     ? _ThumbnailPlaceholder(palette: palette)
-                    : FutureBuilder<CanonicalLiveScreen?>(
-                        future: screenFor(item.id),
-                        builder: (context, snapshot) {
-                          final value = snapshot.data;
-                          if (value == null) {
-                            return _ThumbnailPlaceholder(palette: palette);
-                          }
-                          return _TerminalThumbnail(
-                            screen: value,
-                            settings: settings,
-                          );
-                        },
+                    : _LiveTerminalThumbnail(
+                        loadScreen: screenFor(item.id),
+                        settings: settings,
+                        palette: palette,
                       ),
               ),
               Expanded(
@@ -858,10 +839,7 @@ final class _SessionCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         '${group.items.length} 个终端',
-                        style: TextStyle(
-                          color: palette.muted,
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: palette.muted, fontSize: 11),
                       ),
                       if (item != null) ...[
                         const SizedBox(height: 4),
@@ -953,5 +931,68 @@ final class _ThumbnailPlaceholder extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 每 1.2s 刷新一帧的缩略图：打开预览时保持"活"的感觉，但不会像主终端那样
+/// 每帧都渲染。新帧到达前一直显示上一帧，避免闪烁。
+final class _LiveTerminalThumbnail extends StatefulWidget {
+  const _LiveTerminalThumbnail({
+    required this.loadScreen,
+    required this.settings,
+    required this.palette,
+  });
+
+  final Future<CanonicalLiveScreen?> Function() loadScreen;
+  final TerminalSettings settings;
+  final AnyttyPalette palette;
+
+  @override
+  State<_LiveTerminalThumbnail> createState() => _LiveTerminalThumbnailState();
+}
+
+final class _LiveTerminalThumbnailState extends State<_LiveTerminalThumbnail> {
+  CanonicalLiveScreen? _screen;
+  Timer? _timer;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refresh());
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 1200),
+      (_) => unawaited(_refresh()),
+    );
+  }
+
+  Future<void> _refresh() async {
+    if (_loading) return;
+    _loading = true;
+    try {
+      final next = await widget.loadScreen();
+      if (mounted && next != null) {
+        setState(() => _screen = next);
+      }
+    } catch (_) {
+      // 预览失败保留上一帧。
+    } finally {
+      _loading = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screen = _screen;
+    if (screen == null) {
+      return _ThumbnailPlaceholder(palette: widget.palette);
+    }
+    return _TerminalThumbnail(screen: screen, settings: widget.settings);
   }
 }
