@@ -285,6 +285,7 @@ func (h *TerminalHandler) WriteInput(sourceID string, data []byte) error {
 	if !ok {
 		return ErrNoTerminal
 	}
+	term.observeInput(data)
 	_, err := term.Write(data)
 	return err
 }
@@ -498,6 +499,12 @@ type Terminal struct {
 	// lastOutput is the time of the most recent non-empty PTY output; the
 	// picker renders it as a coarse activity label.
 	lastOutput time.Time
+	// predict holds locally-echoed printable bytes the child has not confirmed
+	// yet (mosh-style speculation). It only feeds rendering: the parser stays
+	// authoritative and any parsed output clears the buffer, so a wrong guess
+	// disappears on the next frame instead of corrupting the screen.
+	predict        []byte
+	predictEnabled bool
 	// historyEpoch invalidates provider pages and snapshots across a remote
 	// attachment resync. A reconnect is a new authoritative live screen, so
 	// an in-flight history request from the old attachment must not republish
@@ -576,6 +583,7 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 		parser:         ansi.New(cols, rows),
 		attached:       true,
 		views:          map[string]*viewState{},
+		predictEnabled: predictionEnabled(),
 	}
 	if resetter, ok := proc.(interface{ SetSnapshotReset(func()) }); ok {
 		resetter.SetSnapshotReset(t.resetForSnapshot)
@@ -586,6 +594,68 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 	return t
 }
 
+// predictionEnabled gates local echo prediction. It is opt-in because a
+// predicted character is visible before the application confirms it: on a
+// password prompt (no echo) the guess would stay on screen until the next
+// output. Set ANYTTY_TUI_PREDICT=1 to enable it for plain line-oriented
+// shells; full-screen apps never use it (see observeInput).
+func predictionEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_TUI_PREDICT"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+// observeInput registers printable ASCII typed by the user as a local echo
+// prediction. It deliberately skips anything a full-screen app might render
+// itself: alternate screen, mouse tracking, a DEC 2026 batch in flight, or
+// non-printable bytes (control keys, escapes, pasted UTF-8).
+func (t *Terminal) observeInput(data []byte) {
+	if !t.predictEnabled || len(data) == 0 || len(data) > 64 {
+		return
+	}
+	for _, b := range data {
+		if b < 0x20 || b > 0x7e {
+			return
+		}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.exited || !t.attached {
+		return
+	}
+	modes := t.parser.Modes()
+	if modes.AltScreen || modes.MouseCell || modes.MouseDrag || modes.MouseAny || modes.SynchronizedOutput {
+		return
+	}
+	if _, _, visible := t.parser.Cursor(); !visible {
+		return
+	}
+	if len(t.predict)+len(data) > 64 {
+		return
+	}
+	t.predict = append(t.predict, data...)
+	t.screenCacheValid = false
+}
+
+// PendingPredictions reports how many characters are currently speculated.
+// The host uses it to schedule a frame after a keystroke that produced one.
+func (t *Terminal) PendingPredictions() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.predict)
+}
+
+// clearPredictionsLocked drops the speculation after any parsed output: the
+// child's real echo (or any other redraw) wins.
+func (t *Terminal) clearPredictionsLocked() {
+	if len(t.predict) > 0 {
+		t.predict = t.predict[:0]
+		t.screenCacheValid = false
+	}
+}
+
 // resetForSnapshot drops parser state from the previous remote stream
 // generation. A reconnect snapshot is a full replacement; retaining an
 // incomplete ESC/CSI sequence would join old bytes to the new snapshot and
@@ -593,6 +663,7 @@ func newTerminal(sourceID, id string, argv []string, proc pty.PTY, cols, rows in
 func (t *Terminal) resetForSnapshot() {
 	t.mu.Lock()
 	t.parser.Reset()
+	t.predict = t.predict[:0]
 	t.invalidateSnapshotLocked()
 	// Every view's frozen viewport belongs to the previous stream generation:
 	// replace them all rather than clearing one scalar.
@@ -762,7 +833,7 @@ func (t *Terminal) State() TerminalState {
 	snap := t.snapshotLocked()
 	return TerminalState{
 		Screen:        t.liveScreenLocked(snap),
-		CursorX:       snap.CursorX,
+		CursorX:       t.predictionCursorLocked(snap.CursorX),
 		CursorY:       snap.CursorY,
 		CursorVisible: snap.CursorVisible,
 		CursorShape:   snap.CursorShape,
@@ -1250,6 +1321,7 @@ func (t *Terminal) Placement(component *terminal.Component, rect kernel.Rect, fo
 	}
 	t.mu.Lock()
 	snap := t.snapshotLocked()
+	snap.CursorX = t.predictionCursorLocked(snap.CursorX)
 	modes := t.parser.Modes()
 	t.mu.Unlock()
 	if !modes.CursorVisible {
@@ -1282,6 +1354,8 @@ func (t *Terminal) pump() {
 		if n > 0 {
 			t.mu.Lock()
 			t.parser.Write(buf[:n])
+			// Any output — the echo or a redraw — supersedes the speculation.
+			t.clearPredictionsLocked()
 			t.invalidateSnapshotLocked()
 			nowSynchronized := t.parser.Modes().SynchronizedOutput
 			if len(bytes.TrimSpace(buf[:n])) > 0 {
@@ -1331,10 +1405,49 @@ func (t *Terminal) snapshotLocked() ansi.Screen {
 
 func (t *Terminal) liveScreenLocked(snap ansi.Screen) terminal.Screen {
 	if !t.screenCacheValid {
-		t.screenCache = terminalScreen(snap)
+		t.screenCache = t.applyPredictionsLocked(terminalScreen(snap), snap)
 		t.screenCacheValid = true
 	}
 	return t.screenCache
+}
+
+// applyPredictionsLocked overlays pending predicted characters at the live
+// cursor without touching the parser grid. Rows are copied so the cached
+// screen stays independent of the parser snapshot.
+func (t *Terminal) applyPredictionsLocked(screen terminal.Screen, snap ansi.Screen) terminal.Screen {
+	if len(t.predict) == 0 || snap.CursorY < 0 || snap.CursorY >= len(screen.Lines) {
+		return screen
+	}
+	cols := t.parser.Cols()
+	row := append([]terminal.Cell(nil), screen.Lines[snap.CursorY]...)
+	for len(row) < cols {
+		row = append(row, terminal.Cell{Text: " ", Width: 1})
+	}
+	x := snap.CursorX
+	for _, b := range t.predict {
+		if x < 0 || x >= len(row) {
+			break
+		}
+		row[x] = terminal.Cell{Text: string(rune(b)), Width: 1}
+		x++
+	}
+	lines := append([][]terminal.Cell(nil), screen.Lines...)
+	lines[snap.CursorY] = row
+	return terminal.Screen{Lines: lines}
+}
+
+// predictionCursorLocked returns the cursor advanced past the pending
+// predictions, clamped to the last column.
+func (t *Terminal) predictionCursorLocked(x int) int {
+	if len(t.predict) == 0 {
+		return x
+	}
+	cols := t.parser.Cols()
+	x += len(t.predict)
+	if cols > 0 && x > cols-1 {
+		x = cols - 1
+	}
+	return x
 }
 
 // terminalScreen converts a parser snapshot into the terminal component's

@@ -964,7 +964,26 @@ func (h *Host) handleInput(ev keys.Event) bool {
 		session.ReleaseCapture()
 		h.terminalMouseDown = false
 	}
+	// A speculative local echo is visible the moment it is registered, so a
+	// passthrough keystroke that produced one must paint a frame right away
+	// instead of waiting for the round trip.
+	if dst == runtime.DestinationPTY && h.predictionPending(session) {
+		return true
+	}
 	return err != nil || dst != runtime.DestinationPTY
+}
+
+// predictionPending reports whether the focused terminal is displaying local
+// echo predictions (ANYTTY_TUI_PREDICT). It is only consulted for PTY input.
+func (h *Host) predictionPending(session *runtime.Session) bool {
+	focus := session.Focus()
+	if focus == nil {
+		return false
+	}
+	h.mu.Lock()
+	tracked := h.tracked[focus.ID]
+	h.mu.Unlock()
+	return tracked != nil && tracked.term != nil && tracked.term.PendingPredictions() > 0
 }
 
 func (h *Host) route(ev keys.Event) (runtime.Destination, error) {
