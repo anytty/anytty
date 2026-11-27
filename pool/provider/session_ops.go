@@ -96,6 +96,12 @@ const (
 	maxLiveScreenBaselineEntries      = 64
 	maxLiveScreenBaselineSessionBytes = 1 << 20
 	maxLiveScreenBaselineServerBytes  = 64 << 20
+	// maxLiveScreenBaselinesPerTerminal 保留最近几帧的 opaque baseline。
+	// 每个 baseline 只有每行一个 8 字节哈希（几十行约几百字节），但它决定了
+	// 客户端「observed」对不上时是算行级 delta 还是退回整屏快照：
+	//   - 丢了一次应答（客户端停在 R，服务端已经发到 R+3）：仍能从 R 算 delta；
+	//   - 同一个 terminal 被多个附件以不同 revision 轮询：各自都能命中自己的帧。
+	maxLiveScreenBaselinesPerTerminal = 4
 )
 
 type cachedLiveScreenBaseline struct {
@@ -105,9 +111,11 @@ type cachedLiveScreenBaseline struct {
 	expiresAt time.Time
 }
 
+// sessionLiveScreenBaselines 是一个 terminal 最近几帧的 baseline 环（最新在前）。
+// 老实现只有 confirmed/offered 两个槽：客户端漏收一帧后 observed 与两个槽都
+// 对不上，就只能整屏重发。保留一个小环后，漏帧只损失大小、不损失形态。
 type sessionLiveScreenBaselines struct {
-	confirmed *cachedLiveScreenBaseline
-	offered   *cachedLiveScreenBaseline
+	frames []*cachedLiveScreenBaseline
 }
 
 func (session *session) acquireLiveScreenBaseline(terminalID string, observed core.LiveRevision) (*core.NativeScreenBaseline, func()) {
@@ -122,17 +130,14 @@ func (session *session) acquireLiveScreenBaseline(terminalID string, observed co
 		session.liveBaselineMu.Unlock()
 		return nil, func() {}
 	}
-	if entry.offered != nil && entry.offered.screen.Revision() == observed {
-		if entry.confirmed != nil && entry.confirmed.pins > 0 {
-			session.liveBaselineMu.Unlock()
-			return nil, func() {}
+	var cached *cachedLiveScreenBaseline
+	for _, frame := range entry.frames {
+		if frame.screen.Revision() == observed {
+			cached = frame
+			break
 		}
-		session.dropCachedLiveScreenBaselineLocked(entry.confirmed)
-		entry.confirmed = entry.offered
-		entry.offered = nil
 	}
-	cached := entry.confirmed
-	if cached == nil || cached.screen.Revision() != observed {
+	if cached == nil {
 		session.liveBaselineMu.Unlock()
 		return nil, func() {}
 	}
@@ -181,21 +186,43 @@ func (session *session) offerLiveScreenBaseline(terminalID string, screen *core.
 		entry = &sessionLiveScreenBaselines{}
 		session.liveBaselines[terminalID] = entry
 	}
-	if entry.offered != nil {
-		if entry.offered.pins > 0 || entry.offered.screen.Revision() > screen.Revision() {
-			return
+	// 同一个 revision 只保留一份；正在被长轮询 pin 住的那份不替换。
+	keep := entry.frames[:0]
+	for _, frame := range entry.frames {
+		if frame.screen.Revision() == screen.Revision() {
+			if frame.pins > 0 {
+				return
+			}
+			session.dropCachedLiveScreenBaselineLocked(frame)
+			continue
 		}
-		session.dropCachedLiveScreenBaselineLocked(entry.offered)
-		entry.offered = nil
+		keep = append(keep, frame)
+	}
+	entry.frames = keep
+	// 超出环容量时丢最旧的可回收帧；全被 pin 住就允许暂时超限。
+	for len(entry.frames) >= maxLiveScreenBaselinesPerTerminal {
+		trimmed := false
+		for index := len(entry.frames) - 1; index >= 0; index-- {
+			if entry.frames[index].pins > 0 {
+				continue
+			}
+			session.dropCachedLiveScreenBaselineLocked(entry.frames[index])
+			entry.frames = append(entry.frames[:index], entry.frames[index+1:]...)
+			trimmed = true
+			break
+		}
+		if !trimmed {
+			break
+		}
 	}
 	if session.liveBaselineBytes+bytes > maxLiveScreenBaselineSessionBytes || !session.server.reserveLiveBaselineBytes(bytes) {
-		if entry.confirmed == nil {
+		if len(entry.frames) == 0 {
 			delete(session.liveBaselines, terminalID)
 		}
 		return
 	}
 	session.liveBaselineBytes += bytes
-	entry.offered = &cachedLiveScreenBaseline{screen: screen, bytes: bytes, expiresAt: now.Add(liveScreenBaselineTTL)}
+	entry.frames = append([]*cachedLiveScreenBaseline{{screen: screen, bytes: bytes, expiresAt: now.Add(liveScreenBaselineTTL)}}, entry.frames...)
 	session.ensureLiveScreenBaselineTimerLocked()
 }
 
@@ -213,15 +240,16 @@ func (session *session) dropCachedLiveScreenBaselineLocked(cached *cachedLiveScr
 
 func (session *session) pruneLiveScreenBaselinesLocked(now time.Time) {
 	for terminalID, entry := range session.liveBaselines {
-		if cachedLiveScreenBaselineExpired(entry.confirmed, now) {
-			session.dropCachedLiveScreenBaselineLocked(entry.confirmed)
-			entry.confirmed = nil
+		kept := entry.frames[:0]
+		for _, frame := range entry.frames {
+			if cachedLiveScreenBaselineExpired(frame, now) {
+				session.dropCachedLiveScreenBaselineLocked(frame)
+				continue
+			}
+			kept = append(kept, frame)
 		}
-		if cachedLiveScreenBaselineExpired(entry.offered, now) {
-			session.dropCachedLiveScreenBaselineLocked(entry.offered)
-			entry.offered = nil
-		}
-		if entry.confirmed == nil && entry.offered == nil {
+		entry.frames = kept
+		if len(entry.frames) == 0 {
 			delete(session.liveBaselines, terminalID)
 		}
 	}
@@ -259,8 +287,9 @@ func (session *session) clearLiveScreenBaselines() {
 		session.liveBaselineTimer = nil
 	}
 	for terminalID, entry := range session.liveBaselines {
-		session.dropCachedLiveScreenBaselineLocked(entry.confirmed)
-		session.dropCachedLiveScreenBaselineLocked(entry.offered)
+		for _, frame := range entry.frames {
+			session.dropCachedLiveScreenBaselineLocked(frame)
+		}
 		delete(session.liveBaselines, terminalID)
 	}
 	session.liveBaselineMu.Unlock()

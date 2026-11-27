@@ -88,9 +88,9 @@ func TestSessionLiveScreenBaselinePinAndExpiry(t *testing.T) {
 	}
 	session.liveBaselineMu.Lock()
 	entry := session.liveBaselines["term-baseline-expiry"]
-	entry.confirmed.expiresAt = time.Now().Add(-time.Second)
+	entry.frames[0].expiresAt = time.Now().Add(-time.Second)
 	session.pruneLiveScreenBaselinesLocked(time.Now())
-	stillPinned := entry.confirmed != nil
+	stillPinned := len(entry.frames) > 0
 	session.liveBaselineMu.Unlock()
 	if !stillPinned {
 		t.Fatal("active long poll lost its pinned baseline")
@@ -99,7 +99,7 @@ func TestSessionLiveScreenBaselinePinAndExpiry(t *testing.T) {
 
 	session.liveBaselineMu.Lock()
 	entry = session.liveBaselines["term-baseline-expiry"]
-	entry.confirmed.expiresAt = time.Now().Add(-time.Second)
+	entry.frames[0].expiresAt = time.Now().Add(-time.Second)
 	session.pruneLiveScreenBaselinesLocked(time.Now())
 	remaining := len(session.liveBaselines)
 	bytes := session.liveBaselineBytes
@@ -122,5 +122,49 @@ func TestSessionLiveScreenBaselineEntryCountIsBounded(t *testing.T) {
 	session.liveBaselineMu.Unlock()
 	if entries != maxLiveScreenBaselineEntries {
 		t.Fatalf("baseline entries=%d, want cap %d", entries, maxLiveScreenBaselineEntries)
+	}
+}
+
+// TestSessionLiveScreenBaselineSurvivesMissedFrame 覆盖“客户端漏收一帧”场景：
+// 客户端停在 R0，服务端已经 offer 到 R2，acquire(R0) 仍必须命中，避免整屏重发。
+func TestSessionLiveScreenBaselineSurvivesMissedFrame(t *testing.T) {
+	session, coreServer := func() (*session, *core.Server) {
+		_, session, coreServer := newBaselineTestSession(t)
+		return session, coreServer
+	}()
+	ctx := context.Background()
+	first, second := baselinePairForTest(t, coreServer, "term-baseline-missed")
+	if err := coreServer.IngestOutput(ctx, "term-baseline-missed", "base-c\r\n"); err != nil {
+		t.Fatal(err)
+	}
+	_, third, err := coreServer.NextLiveScreenWithBaseline(ctx, "term-baseline-missed", second.Revision(), second)
+	if err != nil || third == nil {
+		t.Fatalf("third baseline = %#v err=%v", third, err)
+	}
+
+	session.offerLiveScreenBaseline("term-baseline-missed", first)
+	session.offerLiveScreenBaseline("term-baseline-missed", second)
+	session.offerLiveScreenBaseline("term-baseline-missed", third)
+
+	// 客户端只确认到 first（中间两帧的应答丢了）。
+	acquired, release := session.acquireLiveScreenBaseline("term-baseline-missed", first.Revision())
+	if acquired != first {
+		t.Fatalf("missed-frame acquire = %p want %p", acquired, first)
+	}
+	release()
+
+	// 每一帧都能命中，直到超出环容量。
+	for _, want := range []*core.NativeScreenBaseline{second, third} {
+		got, releaseFrame := session.acquireLiveScreenBaseline("term-baseline-missed", want.Revision())
+		if got != want {
+			t.Fatalf("acquire rev %d = %p want %p", want.Revision(), got, want)
+		}
+		releaseFrame()
+	}
+
+	// 未知 revision 仍然退回整屏快照（nil baseline）。
+	if leaked, releaseLeaked := session.acquireLiveScreenBaseline("term-baseline-missed", 9999); leaked != nil {
+		releaseLeaked()
+		t.Fatalf("unknown revision returned baseline %p", leaked)
 	}
 }
