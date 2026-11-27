@@ -246,7 +246,12 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
   double _dragDx = 0;
   double _dragDy = 0;
   Offset _lastGlobal = Offset.zero;
+  Offset _startLocal = Offset.zero;
+  bool _ignored = false;
   double _width = 0;
+  double _height = 0;
+  int _railIndex = 0;
+  int _railCount = 0;
 
   TerminalSwipeLogic get _logic =>
       TerminalSwipeLogic(sensitivity: widget.settings.gestureSensitivity);
@@ -266,9 +271,23 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     // 模式在角度门控通过后再决定：拖动开始可能发生在第二个手指落下之前。
     _resetDrag();
     _mode = null;
+    _ignored = false;
     _lastGlobal = details.globalPosition;
+    final box = context.findRenderObject();
+    _startLocal = box is RenderBox
+        ? box.globalToLocal(details.globalPosition)
+        : details.globalPosition;
     _snapshot = null;
     _snapshotFuture = null;
+  }
+
+  /// 单指切换只允许从右下角的 rail 或右缘起手：滚动优先，斜滑不再误触。
+  /// 双指（devices）不受限制，它本来就不会和滚动冲突。
+  bool _startsOnRail() {
+    if (_width <= 0 || _height <= 0) return true;
+    final rail = Rect.fromLTWH(_width - 70, _height - 92, 70, 92);
+    if (rail.contains(_startLocal)) return true;
+    return _startLocal.dx >= _width - 28;
   }
 
   /// 在角度门控通过后才预取快照：斜向滑动不应该产生任何请求。
@@ -294,8 +313,13 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
     _dragDx += raw.dx;
     _dragDy += raw.dy;
     if (!_engaged) {
+      if (_ignored) return;
       if (!_logic.shouldEngage(_dragDx, _dragDy)) return;
       final pointers = _downPointers.length;
+      if (pointers < 2 && !_startsOnRail()) {
+        _ignored = true;
+        return;
+      }
       final mode = pointers >= 2
           ? (widget.allowDeviceSwitch && widget.settings.gestureDeviceSwitch
                 ? TerminalSwipeMode.devices
@@ -333,6 +357,12 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
   }
 
   Future<void> _onHorizontalDragEnd(DragEndDetails details) async {
+    if (_ignored) {
+      _ignored = false;
+      _resetDrag();
+      if (mounted) setState(() {});
+      return;
+    }
     if (!_engaged || _mode == null) {
       _resetDrag();
       if (mounted) setState(() {});
@@ -378,6 +408,7 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
 
   void _onHorizontalDragCancel() {
     if (_committing) return;
+    _ignored = false;
     unawaited(_springBack(Velocity.zero));
   }
 
@@ -501,6 +532,9 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             _width = width;
+            _height = constraints.maxHeight;
+            _railCount = targetCount;
+            _railIndex = currentIndex;
             return ClipRect(
               child: Stack(
                 fit: StackFit.expand,
@@ -517,6 +551,19 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
                           0,
                         ),
                         child: _buildPreview(context, preview, palette),
+                      ),
+                    ),
+                  if (widget.enabled)
+                    Positioned(
+                      right: 10,
+                      bottom: 14,
+                      child: IgnorePointer(
+                        child: _SwipeRail(
+                          palette: palette,
+                          engaged: _engaged,
+                          index: _railIndex,
+                          count: _railCount,
+                        ),
                       ),
                     ),
                   if (dragging && preview != null)
@@ -634,6 +681,93 @@ final class _TerminalSwipeSwitcherState extends State<TerminalSwipeSwitcher>
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: palette.text, fontSize: 12),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// 右下角的切换轨道：单指横滑只从这里（或右缘）起手，避免和滚动抢手势。
+final class _SwipeRail extends StatelessWidget {
+  const _SwipeRail({
+    required this.palette,
+    required this.engaged,
+    required this.index,
+    required this.count,
+  });
+
+  final AnyttyPalette palette;
+  final bool engaged;
+  final int index;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final dots = count > 0 && count <= 5 ? count : 3;
+    final active = count > 0 ? index.clamp(0, dots - 1) : 0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      decoration: BoxDecoration(
+        color: palette.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: engaged
+              ? palette.accent.withValues(alpha: 0.6)
+              : palette.border,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Color(0x66000000), blurRadius: 18, offset: Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            alignment: Alignment.center,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: palette.accent,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.accent.withValues(alpha: 0.75),
+                    blurRadius: 9,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          for (var i = 0; i < dots; i += 1) ...[
+            Container(
+              width: i == active ? 4 : 3,
+              height: i == active ? 4 : 3,
+              margin: const EdgeInsets.symmetric(vertical: 1.5),
+              decoration: BoxDecoration(
+                color: i == active
+                    ? palette.accent
+                    : palette.muted.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+          if (count > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${index + 1}/$count',
+              style: TextStyle(
+                color: palette.faint,
+                fontSize: 8,
+                fontFamily: 'JetBrainsMonoNerd',
+              ),
+            ),
+          ],
         ],
       ),
     );

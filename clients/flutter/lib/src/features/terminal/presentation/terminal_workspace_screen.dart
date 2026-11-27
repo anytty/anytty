@@ -56,6 +56,7 @@ import 'terminal_program_icon.dart';
 import 'terminal_quick_keys_panel.dart';
 import 'terminal_recovery_notice.dart';
 import 'terminal_resource_panel.dart';
+import 'terminal_preview_overlay.dart';
 import 'terminal_switcher_sheet.dart';
 import 'terminal_swipe_switcher.dart';
 import 'terminal_path_picker_sheet.dart';
@@ -645,13 +646,56 @@ final class _TerminalWorkspaceScreenState
       );
     }
     if (!context.mounted) return;
-    final selection = await showAnyttyTerminalSwitcher(
+    // 组装全屏毛玻璃预览的数据：每个会话一组终端（当前会话带 active 标记）。
+    // 并行拉取其它会话的终端列表（每个 3s 上限），避免逐个等待。
+    final groups = await Future.wait([
+      for (final endpoint in endpoints)
+        () async {
+          List<TerminalInfo> items;
+          if (endpoint.terminals != null) {
+            items = endpoint.terminals!;
+          } else {
+            try {
+              items = await _orderSwitcherTerminals(
+                endpoint.endpointId,
+                await ref
+                    .read(terminalListProvider(endpoint.endpointId).future)
+                    .timeout(const Duration(seconds: 3)),
+              );
+            } catch (_) {
+              items = const <TerminalInfo>[];
+            }
+          }
+          return TerminalPreviewGroup(
+            endpointId: endpoint.endpointId,
+            label: endpoint.label,
+            current: endpoint.current,
+            activeId: endpoint.current ? activeTerminalId : null,
+            items: [
+              for (final terminal in items)
+                TerminalPreviewItem(
+                  id: terminal.ref.terminalId,
+                  label: _terminalDisplayName(terminal),
+                  meta: terminalUsesHistoryOnly(terminal.state)
+                      ? '已退出'
+                      : (terminal.liveCwd.isNotEmpty
+                            ? terminal.liveCwd
+                            : terminal.cwd),
+                  exited: terminalUsesHistoryOnly(terminal.state),
+                ),
+            ],
+          );
+        }(),
+    ]);
+    if (!context.mounted) return;
+    final settings =
+        ref.read(terminalSettingsProvider).valueOrNull ??
+        defaultTerminalSettings;
+    final selection = await showTerminalPreviewOverlay(
       context: context,
-      endpoints: endpoints,
-      loadTerminals: (remoteEndpointId) async => _orderSwitcherTerminals(
-        remoteEndpointId,
-        await ref.read(terminalListProvider(remoteEndpointId).future),
-      ),
+      groups: groups,
+      settings: settings,
+      loadScreen: _loadPreviewScreen,
     );
     if (selection == null || !context.mounted) return;
     if (selection.endpointId == endpointId) {
@@ -731,6 +775,24 @@ final class _TerminalWorkspaceScreenState
       ],
       currentIndex: index,
     );
+  }
+
+  /// 全屏预览网格的缩略图加载：连上目标会话，取一帧首屏。
+  Future<CanonicalLiveScreen?> _loadPreviewScreen(
+    String endpointId,
+    String terminalId,
+  ) async {
+    try {
+      final session = await ref.read(
+        endpointSessionProvider(endpointId).future,
+      );
+      final info = await session.getTerminal(
+        TerminalRef(endpointId: endpointId, terminalId: terminalId),
+      );
+      return await _fetchSwipeScreen(session, info);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<CanonicalLiveScreen?> _fetchSwipeScreen(

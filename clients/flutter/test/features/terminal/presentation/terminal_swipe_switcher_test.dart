@@ -122,7 +122,11 @@ Future<void> _oneFingerSwipe(
   required double dx,
   double dy = 0,
 }) async {
-  final gesture = await tester.startGesture(const Offset(300, 300));
+  // 单指切换只从右下角 rail（或右缘）起手：按 widget 实际矩形定位 rail。
+  final rect = tester.getRect(find.byType(TerminalSwipeSwitcher));
+  final gesture = await tester.startGesture(
+    Offset(rect.right - 30, rect.bottom - 40),
+  );
   for (var step = 0; step < 6; step++) {
     await gesture.moveBy(Offset(dx / 6, dy / 6));
     await tester.pump(const Duration(milliseconds: 16));
