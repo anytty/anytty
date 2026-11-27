@@ -1574,6 +1574,18 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		if size, ok := daemonSize[sourceID]; ok && size[0] > 0 && size[1] > 0 {
 			cols, rows = size[0], size[1]
 		}
+		// follower 的 source 尺寸用「内容边界」：v3 程序据此把点阵 placeholder
+		// 从最后一个有内容的行/列开始铺，而不是从 daemon 的屏幕尺寸开始。
+		if owner != "" && owner != h.opts.ViewID {
+			if contentCols, contentRows := trackedTerm.term.ContentBounds(); contentCols > 0 && contentRows > 0 {
+				if contentCols < cols {
+					cols = contentCols
+				}
+				if contentRows < rows {
+					rows = contentRows
+				}
+			}
+		}
 		lastOutput := trackedTerm.term.LastOutput()
 		lastOutputMs := int64(0)
 		if !lastOutput.IsZero() {
