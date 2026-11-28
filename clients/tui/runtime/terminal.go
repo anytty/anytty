@@ -867,7 +867,11 @@ func (t *Terminal) ContentExtent() (cols, rows int, ok bool) {
 			}
 		}
 		if cols > 0 && rows > 0 {
-			return cols, rows, true
+			// Only the width is trimmed to the drawn content. Rows keep the full
+			// screen height: an input box or a software cursor commonly sits on a
+			// foreground-only blank row, and trimming it would hide the caret and
+			// the prompt along with it.
+			return cols, t.remoteScreen.Rows, true
 		}
 		if t.remoteScreen.Cols > 0 && t.remoteScreen.Rows > 0 {
 			return t.remoteScreen.Cols, t.remoteScreen.Rows, true

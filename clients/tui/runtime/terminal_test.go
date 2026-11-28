@@ -907,8 +907,10 @@ func TestTerminalContentExtentStopsAtUnstyledBlank(t *testing.T) {
 	lines[4][18] = screenmodel.Cell{Text: " ", Width: 1, Style: &apipb.CellStyle{Foreground: "#e6e2ec"}}
 	term.remoteScreen = &screenmodel.Screen{Cols: 20, Rows: 5, Lines: lines}
 
+	// Only the width is trimmed; rows stay at the full screen height so an
+	// input box or software cursor on a foreground-only blank row survives.
 	cols, rows, ok := term.ContentExtent()
-	if !ok || cols != 16 || rows != 3 {
-		t.Fatalf("content extent = (%d,%d,%v), want (16,3,true)", cols, rows, ok)
+	if !ok || cols != 16 || rows != 5 {
+		t.Fatalf("content extent = (%d,%d,%v), want (16,5,true)", cols, rows, ok)
 	}
 }
