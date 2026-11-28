@@ -231,6 +231,13 @@ func NewSession(opts Options, r io.Reader, w io.Writer) *Session {
 // SetTheme is gone: the runtime holds no palette. Programs send explicit
 // styles; only builtin chrome resolves the host-internal default palette.
 
+// KeysClaim exposes the routing claim for diagnostics.
+func (s *Session) KeysClaim() (all bool, claim []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.keysAll, append([]string(nil), s.claim...)
+}
+
 // ViewID returns the connection view id.
 func (s *Session) ViewID() string { s.mu.Lock(); defer s.mu.Unlock(); return s.viewID }
 

@@ -974,6 +974,14 @@ func (h *Host) handleInput(ev keys.Event) bool {
 		h.preparePointer(session, &ev)
 	}
 	dst, err := h.route(ev)
+	if tuiTraceEnabled() && ev.Kind == keys.KindKey {
+		focusID, isTerm, input := "", false, ""
+		if f := session.Focus(); f != nil {
+			focusID, isTerm, input = f.NodeID, f.IsTerminal, strings.Join(f.Input, ",")
+		}
+		all, claim := session.KeysClaim()
+		h.logf("tui2 route key=%q dst=%v focus=%q term=%v input=[%s] all=%v claim=%v", keys.Name(ev), dst, focusID, isTerm, input, all, claim)
+	}
 	if err != nil {
 		h.logf("tui2: input: %v", err)
 		h.queueNotice("warning", fmt.Sprintf("input: %v", err))

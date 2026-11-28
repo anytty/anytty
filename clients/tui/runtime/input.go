@@ -2,7 +2,10 @@ package runtime
 
 import (
 	"errors"
+	"log"
+	"os"
 	"strconv"
+	"strings"
 
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 
@@ -70,6 +73,15 @@ func routeKind(k keys.Kind) (InputKind, bool) {
 	}
 }
 
+// tuiRouteTrace gates the routing diagnostics.
+func tuiRouteTrace() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_TUI_TRACE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
 // Input routes one normalized input event through the §6.5 table and
 // performs the destination action:
 //
@@ -95,6 +107,13 @@ func (s *Session) Input(ev keys.Event) (Destination, error) {
 		Claim:       s.claim,
 		Focus:       s.focus,
 	})
+	if tuiRouteTrace() && ev.Kind == keys.KindKey {
+		accept, term := false, false
+		if s.focus != nil {
+			accept, term = s.focus.Accepts(InputKey), s.focus.IsTerminal
+		}
+		log.Printf("tui2 route2 key=%q dst=%v focusNil=%v accept=%v term=%v overlay=%v", keys.Name(ev), dst, s.focus == nil, accept, term, s.coreOverlay != nil)
+	}
 	switch ev.Kind {
 	case keys.KindPaste:
 		return s.inputPasteLocked(ev, dst)
