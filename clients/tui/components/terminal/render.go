@@ -282,11 +282,17 @@ func contentFramingFromProps(props Props) contentFraming {
 	return f
 }
 
-// contentRowLines renders one content row with the extent framing applied: the
-// visible screen is drawn 1:1 at the extent origin and every content cell
-// outside the extent footprint is filled with the placeholder. With the default
-// framing (offset 0,0, footprint covering the content area) it is exactly the
-// legacy rowLines path.
+// contentRowLines renders one content row with the extent framing applied.
+//
+// The row starts as placeholder dots across the WHOLE pane width and the
+// screen is blitted over the extent footprint. The dot field is the pane's
+// background; the terminal only covers its own rectangle. Computing the dots
+// from "pane minus extent" made the background depend on the foreground, so
+// any disagreement in extent (stale size, 1-based math, clipping) punched a
+// hole in the field. Painting dots first and covering them cannot.
+//
+// With the default framing (offset 0,0, footprint covering the content area)
+// it stays the legacy rowLines path, byte-identical.
 func contentRowLines(screen Screen, contentRow, x, y, maxWidth, contentH int, f contentFraming) []render.Line {
 	if maxWidth <= 0 {
 		return nil
@@ -301,23 +307,17 @@ func contentRowLines(screen Screen, contentRow, x, y, maxWidth, contentH int, f 
 	if f.offsetX == 0 && f.offsetY == 0 && footCols >= maxWidth && footRows >= contentH {
 		return rowLines(screen.Line(contentRow), x, y, maxWidth)
 	}
+	cells := placeholderCells(maxWidth, f.placeholder)
 	sourceRow := contentRow - f.offsetY
 	if sourceRow < 0 || sourceRow >= footRows {
-		return placeholderLines(x, y, maxWidth, f.placeholder)
+		return rowLines(cells, x, y, maxWidth)
 	}
 	insideStart := max(0, f.offsetX)
 	insideEnd := min(maxWidth, f.offsetX+footCols)
 	if insideStart >= insideEnd {
-		return placeholderLines(x, y, maxWidth, f.placeholder)
+		return rowLines(cells, x, y, maxWidth)
 	}
-	cells := make([]Cell, 0, maxWidth)
-	if insideStart > 0 {
-		cells = append(cells, placeholderCells(insideStart, f.placeholder)...)
-	}
-	cells = append(cells, windowCells(screen.Line(sourceRow), insideStart-f.offsetX, insideEnd-insideStart)...)
-	if insideEnd < maxWidth {
-		cells = append(cells, placeholderCells(maxWidth-insideEnd, f.placeholder)...)
-	}
+	copy(cells[insideStart:insideEnd], windowCells(screen.Line(sourceRow), insideStart-f.offsetX, insideEnd-insideStart))
 	return rowLines(cells, x, y, maxWidth)
 }
 
