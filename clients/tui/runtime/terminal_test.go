@@ -14,6 +14,7 @@ import (
 	"github.com/anytty/anytty/clients/tui/kernel"
 	"github.com/anytty/anytty/clients/tui/pty"
 	"github.com/anytty/anytty/clients/tui/render/ansi"
+	"github.com/anytty/anytty/internal/screenmodel"
 	"github.com/anytty/anytty/proto/access/apipb"
 	pb "github.com/anytty/anytty/proto/ui/protobuf"
 )
@@ -869,5 +870,19 @@ func TestTerminalPlacementKeepsCursorBelowShorterPane(t *testing.T) {
 	// Default inset is 1, so the component-relative row is 1 + 2.
 	if placement.CursorY != 3 {
 		t.Fatalf("placement cursor Y = %d, want 1 + screen row 2", placement.CursorY)
+	}
+}
+
+// TestTerminalScreenSizePrefersPushedScreen pins the extent source: the host
+// publishes Source.Cols/Rows from the drawn grid, so the program's dot
+// placeholder covers exactly the area outside the real screen.
+func TestTerminalScreenSizePrefersPushedScreen(t *testing.T) {
+	term := newTerminal("terminal:local:t", "t", nil, &bottomTracePTY{cols: 20, rows: 5}, 20, 5, nil)
+	if cols, rows, ok := term.ScreenSize(); !ok || cols != 20 || rows != 5 {
+		t.Fatalf("local screen size = (%d,%d,%v), want (20,5,true)", cols, rows, ok)
+	}
+	term.remoteScreen = &screenmodel.Screen{Cols: 40, Rows: 10}
+	if cols, rows, ok := term.ScreenSize(); !ok || cols != 40 || rows != 10 {
+		t.Fatalf("pushed screen size = (%d,%d,%v), want (40,10,true)", cols, rows, ok)
 	}
 }

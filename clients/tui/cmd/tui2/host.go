@@ -1634,6 +1634,11 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		if size, ok := daemonSize[sourceID]; ok && size[0] > 0 && size[1] > 0 {
 			cols, rows = size[0], size[1]
 		}
+		// 实际渲染网格永远优先：inventory 的 cols/rows 可能落后于推流帧，
+		// prog 按它算 content.size 会让 extent 比画面宽，点阵矩形里出现空白带。
+		if sc, sr, ok := trackedTerm.term.ScreenSize(); ok && sc > 0 && sr > 0 {
+			cols, rows = sc, sr
+		}
 		// 不要把 follower 的 source 尺寸收成「最后一个有字符的行/列」。
 		// opencode 这类全屏应用的输入框、状态栏、面板填充大多是带样式的空格，
 		// 按字形边界裁会把这些区域变成点阵，用户看到的就是「输入框和界面没了」。

@@ -833,6 +833,23 @@ func (t *Terminal) LastOutput() time.Time {
 // Size reports the current PTY window size.
 func (t *Terminal) Size() (cols, rows int, err error) { return t.proc.Size() }
 
+// ScreenSize reports the grid the renderer actually draws: the pushed daemon
+// screen for a screen-stream terminal, otherwise the local parser grid. The
+// program's content.size must match this, or the placeholder dots cannot form
+// a rectangle (an extent wider than the frame leaves a blank band inside the
+// dot field).
+func (t *Terminal) ScreenSize() (cols, rows int, ok bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.remoteScreen != nil && t.remoteScreen.Cols > 0 && t.remoteScreen.Rows > 0 {
+		return t.remoteScreen.Cols, t.remoteScreen.Rows, true
+	}
+	if t.parser == nil {
+		return 0, 0, false
+	}
+	return t.parser.Cols(), t.parser.Rows(), true
+}
+
 // Close terminates the process and releases the PTY (idempotent).
 func (t *Terminal) Close() error {
 	t.closeOnce.Do(func() {
