@@ -61,6 +61,7 @@ func main() {
 		closeLogging()
 		os.Exit(2)
 	}
+	installGoroutineDump(logPath)
 	log.Printf("tui2 start version=%s pid=%d log=%s routes=%s", version, os.Getpid(), logPath, endpoint.RouteKindsLabel(routes))
 	devCfg := devConfig{
 		Enabled:      *devFlag,
