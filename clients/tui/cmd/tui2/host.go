@@ -519,27 +519,34 @@ func (h *Host) Run() error {
 		if !pendingFrame {
 			return
 		}
+		forced := false
 		if h.anyTerminalSynchronizedOutput() {
 			// Keep pendingFrame and the timer state intact. The terminal pump
 			// emits a wake after ?2026l, which is the only safe commit point for
 			// a full-screen child's redraw.
 			//
 			// 子进程可能因为 resize 风暴/崩溃丢掉 2026l：批次超过 150ms 就强制
-			// 提交一帧，避免宿主永久停在旧画面上（表现为 TUI「卡死」）。
+			// 提交一帧，避免宿主永久停在旧画面上（表现为 TUI「卡死」）。批次
+			// 开始时 arm 的 timer 可能已经 fire 过；没有新事件就再也进不来，
+			// 所以未超时时必须重新 arm 剩余时间。
 			if synchronizedSince.IsZero() {
 				synchronizedSince = now
 			}
-			if now.Sub(synchronizedSince) < 150*time.Millisecond {
+			if remaining := interactionUrgencyWindow - now.Sub(synchronizedSince); remaining > 0 {
+				stopFrameTimer()
+				frameTimer = time.NewTimer(remaining)
+				frameC = frameTimer.C
 				return
 			}
 			h.logf("tui2: synchronized output batch exceeded 150ms, forcing a frame")
+			forced = true
 		}
 		synchronizedSince = time.Time{}
 		stopFrameTimer()
 		h.publishSources()
 		h.flushNotices()
 		flushStarted := time.Now()
-		flushed := h.flush()
+		flushed := h.flush(forced)
 		if elapsed := time.Since(flushStarted); elapsed > traceFlushMax {
 			traceFlushMax = elapsed
 		}
@@ -1396,19 +1403,17 @@ func (h *Host) applyResize(term *runtime.Terminal, sourceID string, cols, rows i
 	}()
 }
 
-func (h *Host) flush() bool {
+// flush writes one frame. force skips the DEC 2026 gate: the batch timer in
+// the event loop uses it to commit at least one frame when a child loses its
+// ?2026l, instead of leaving the UI frozen forever.
+func (h *Host) flush(force bool) bool {
 	session := h.currentSession()
 	if session == nil {
 		return false
 	}
 	placements := h.placements()
-	for _, placement := range placements {
-		if placement.SynchronizedOutput {
-			// DEC 2026 is a transaction boundary owned by the child TUI. Keep
-			// the last committed host frame until the parser sees ?2026l;
-			// input and unrelated wakeups must not publish the clear/half-frame.
-			return false
-		}
+	if synchronizedOutputGates(placements, force) {
+		return false
 	}
 	if data := session.FrameBytes(placements, nil); len(data) > 0 {
 		if err := h.writeOutBytes(data); err != nil {
@@ -1416,6 +1421,24 @@ func (h *Host) flush() bool {
 		}
 	}
 	return true
+}
+
+// synchronizedOutputGates reports whether an open DEC 2026 transaction must
+// hold the last committed frame. force ignores the gate: the batch timer calls
+// flush(true) when a child never sends ?2026l, so the UI cannot freeze.
+func synchronizedOutputGates(placements []runtime.Placement, force bool) bool {
+	if force {
+		return false
+	}
+	for _, placement := range placements {
+		if placement.SynchronizedOutput {
+			// DEC 2026 is a transaction boundary owned by the child TUI. Keep
+			// the last committed host frame until the parser sees ?2026l;
+			// input and unrelated wakeups must not publish the clear/half-frame.
+			return true
+		}
+	}
+	return false
 }
 
 // anyTerminalSynchronizedOutput reports whether a visible PTY child has an

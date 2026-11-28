@@ -1679,3 +1679,19 @@ func TestHostTerminalResizeOwnerFollowsDeclaredOwnerProp(t *testing.T) {
 		t.Fatalf("declared-owner-only resize calls = %d, want 1 (focus must not resize)", got)
 	}
 }
+
+// TestSynchronizedOutputGateHonoursForce pins the freeze guard: an open DEC
+// 2026 batch holds the frame unless the batch timer forces a commit.
+func TestSynchronizedOutputGateHonoursForce(t *testing.T) {
+	open := []runtime.Placement{{SynchronizedOutput: true}}
+	closed := []runtime.Placement{{SynchronizedOutput: false}}
+	if !synchronizedOutputGates(open, false) {
+		t.Fatal("open 2026 batch must gate a normal flush")
+	}
+	if synchronizedOutputGates(open, true) {
+		t.Fatal("forced flush must bypass an open 2026 batch")
+	}
+	if synchronizedOutputGates(closed, false) {
+		t.Fatal("closed batch must not gate a flush")
+	}
+}
