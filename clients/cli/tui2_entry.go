@@ -76,7 +76,7 @@ func runTUI2Runtime(ctx context.Context, cfg tui2EntryConfig) error {
 		defer cleanup()
 		args = append(args, "-endpoints", registryPath)
 	}
-	return runTUI2Process(hostPath, args, defaultTUI2Routes())
+	return runTUI2Host(hostPath, args, defaultTUI2Routes())
 }
 
 // ensureTUI2LocalStack 在 canonical socket 不可用时自动拉起 pool+access；
