@@ -303,6 +303,22 @@ func contentRowLines(screen Screen, contentRow, x, y, maxWidth, contentH int, f 
 		return rowLines(cells, x, y, maxWidth)
 	}
 	copy(cells[start:end], windowCells(screen.Line(contentRow-e.Y), screenStart, end-start))
+	// Cells the screen leaves blank (no text, no style) stay dots: the app did
+	// not paint there, so the pane background must show through. Only painted
+	// cells (text or a filled background) cover the dot field.
+	for i := start; i < end; i++ {
+		c := cells[i]
+		if c.Text != "" && c.Text != " " {
+			continue
+		}
+		// A space with only a foreground colour is what terminals paint over the
+		// whole grid; it is blank. Only a filled background (48;n / bg:) or a
+		// text attribute means the app painted something there.
+		if styleFillsBackground(c.Style) || styleHasAttribute(c.Style) {
+			continue
+		}
+		cells[i] = Cell{Text: placeholderGlyph, Width: 1, Style: f.placeholder}
+	}
 	return rowLines(cells, x, y, maxWidth)
 }
 
@@ -519,6 +535,26 @@ func mergeTitleRuns(runs []titleRun) []titleRun {
 		out = append(out, run)
 	}
 	return out
+}
+
+// styleFillsBackground reports whether a style token carries a background.
+func styleFillsBackground(style render.Token) bool {
+	s := string(style)
+	return strings.Contains(s, "48;") || strings.Contains(s, "bg:")
+}
+
+// styleHasAttribute reports background-independent emphasis (bold and friends)
+// that means the cell is painted content rather than blank.
+func styleHasAttribute(style render.Token) bool {
+	s := string(style)
+	for _, attr := range []string{"1", "3", "4", "7", "9"} {
+		for _, part := range strings.Split(strings.TrimPrefix(s, "ansi:"), ";") {
+			if part == attr {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // rowLines converts one screen row into styled runs, clipped to maxWidth

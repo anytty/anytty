@@ -124,6 +124,17 @@ func dimStyle(style string) string {
 // status/diagnostic messages accumulate in the `log` overlay instead.
 func (m *model) View() *pb.Box {
 	out := []*sdk.Builder{}
+	// Whole-view dot background. Terminal blank cells carry no background, so a
+	// terminal emulator with a background image (the dotted wallpaper) shows
+	// through every gap in the app's own painting. The gap then moves with the
+	// app's content and looks like the dot field has holes. Paint the dots once
+	// for the whole view; the app's own cells cover them wherever it draws.
+	if m.host && m.cols > 0 && m.rows > 0 {
+		dots := strings.Repeat("\u00b7", m.cols)
+		for row := 0; row < m.rows; row++ {
+			addRun(&out, 0, row, dots, stExtentPlaceholder, "", false, m.cols)
+		}
+	}
 	if m.headerVisible {
 		m.headerNodes(&out)
 	}
@@ -1539,11 +1550,11 @@ func (m *model) overlayNodes(out *[]*sdk.Builder) {
 		frame = stPanelBorder
 	}
 	innerW := width - 2
-	// main fills the whole overlay rectangle with a background-less style
-	// before drawing its chrome: the page behind is erased, yet the overlay
-	// keeps the terminal's default background instead of painting its own.
+	// Fill the overlay rectangle with an opaque surface before drawing its
+	// chrome. The previous background-less fill was transparent, so the
+	// whole-view dot field showed through as dark specks inside the picker.
 	for row := 0; row < height; row++ {
-		addRun(out, x, y+row, strings.Repeat(" ", width), stContent, "", false, width)
+		addRun(out, x, y+row, strings.Repeat(" ", width), stOverlay, "", false, width)
 	}
 	titleText := " " + title + " "
 	top := "\u250c\u2500" + titleText + strings.Repeat("\u2500", maxInt(0, width-3-sdk.DisplayWidth(titleText))) + "\u2510"

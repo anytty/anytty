@@ -1315,6 +1315,10 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 	}
 	offset := term.Offset(view)
 	source := h.sourceByID(sourceID)
+	if tuiTraceEnabled() {
+		boxProps := box.GetContent().GetProps()
+		h.logf("tui2 box %s rect=%dx%d offset=%q size=%q", box.GetId(), rect.Width, rect.Height, boxProps["content.offset"], boxProps["content.size"])
+	}
 	props := terminal.Props{
 		Title:        sourceTitle(source, term),
 		Focused:      box.GetFocused(),
