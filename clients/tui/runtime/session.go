@@ -34,6 +34,9 @@ type Options struct {
 	// MouseTracking reports whether a terminal source has mouse tracking on
 	// (routing input §6.5). Nil means never.
 	MouseTracking func(sourceID string) bool
+	// AltScreen reports whether the focused terminal is on the alternate
+	// screen; see Focus.AltScreen.
+	AltScreen func(sourceID string) bool
 	// HistoryActive reports whether one pane of a terminal source is currently
 	// showing a frozen host-owned history/copy viewport. viewID is the
 	// terminal box node id (== pane id); empty means the legacy single view.
@@ -115,6 +118,7 @@ type Session struct {
 	components    []string
 	handler       Handler
 	mouseTracker  func(string) bool
+	altScreen     func(string) bool
 	historyActive func(string, string) bool
 	inputSink     InputSink
 	eventSink     EventSink
@@ -208,6 +212,7 @@ func NewSession(opts Options, r io.Reader, w io.Writer) *Session {
 		components:    append([]string(nil), opts.Components...),
 		handler:       handler,
 		mouseTracker:  opts.MouseTracking,
+		altScreen:     opts.AltScreen,
 		historyActive: opts.HistoryActive,
 		inputSink:     opts.InputSink,
 		eventSink:     opts.EventSink,
@@ -825,16 +830,21 @@ func (s *Session) refreshFocusLocked() {
 	if s.mouseTracker != nil {
 		tracked = s.mouseTracker(s.focus.ID)
 	}
+	altScreen := s.focus.AltScreen
+	if s.altScreen != nil {
+		altScreen = s.altScreen(s.focus.ID)
+	}
 	historyActive := s.focus.HistoryActive
 	if s.historyActive != nil {
 		historyActive = s.historyActive(s.focus.ID, s.focus.NodeID)
 	}
-	if tracked == s.focus.MouseTracking && historyActive == s.focus.HistoryActive {
+	if tracked == s.focus.MouseTracking && historyActive == s.focus.HistoryActive && altScreen == s.focus.AltScreen {
 		return
 	}
 	focus := *s.focus
 	focus.MouseTracking = tracked
 	focus.HistoryActive = historyActive
+	focus.AltScreen = altScreen
 	s.focus = &focus
 }
 
@@ -989,6 +999,9 @@ func (s *Session) focusLocked(root *kernel.Node) *Focus {
 	}
 	if s.mouseTracker != nil {
 		f.MouseTracking = s.mouseTracker(f.ID)
+	}
+	if s.altScreen != nil {
+		f.AltScreen = s.altScreen(f.ID)
 	}
 	if s.historyActive != nil {
 		f.HistoryActive = s.historyActive(f.ID, f.NodeID)

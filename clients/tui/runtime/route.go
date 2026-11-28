@@ -82,6 +82,10 @@ type Focus struct {
 	NodeID        string
 	IsTerminal    bool
 	MouseTracking bool
+	// AltScreen marks a full-screen child. Such programs own wheel scrolling
+	// even during the short windows where they temporarily drop DEC mouse
+	// reporting (redraw, menus), so wheel must not fall back to TUI history.
+	AltScreen bool
 	// HistoryActive means the host has a frozen copy/history viewport for this
 	// terminal. While it is active, wheel input belongs to the TUI history
 	// reducer even if the child program still has DEC mouse tracking enabled.
@@ -177,7 +181,7 @@ func Route(ev InputEvent, st RouteState) Destination {
 			if st.Focus.IsTerminal && st.Focus.HistoryActive {
 				return DestinationProgram
 			}
-			if st.Focus.IsTerminal && !st.Focus.HistoryActive && st.Focus.MouseTracking && st.Focus.Accepts(InputWheel) {
+			if st.Focus.IsTerminal && !st.Focus.HistoryActive && (st.Focus.MouseTracking || st.Focus.AltScreen) && st.Focus.Accepts(InputWheel) {
 				return DestinationPTY
 			}
 		}

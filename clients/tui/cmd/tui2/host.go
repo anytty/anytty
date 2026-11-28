@@ -789,6 +789,10 @@ func (h *Host) startProgram() error {
 			term, ok := h.handler.TerminalBySource(id)
 			return ok && term.Modes().MouseTracking()
 		},
+		AltScreen: func(id string) bool {
+			term, ok := h.handler.TerminalBySource(id)
+			return ok && term.Modes().AltScreen
+		},
 		HistoryActive: func(id, view string) bool {
 			term, ok := h.handler.TerminalBySource(id)
 			return ok && term.HistoryRoutingActive(view)

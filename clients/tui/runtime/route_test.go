@@ -105,3 +105,26 @@ func TestRouteStateClaims(t *testing.T) {
 		t.Fatal("claim lookup mismatch")
 	}
 }
+
+// TestWheelReachesAltScreenTerminalWithoutMouseReporting pins the opencode
+// case: a full-screen app owns wheel scrolling even in the short windows where
+// it has not (re)enabled DEC mouse reporting, so the wheel must not fall into
+// the TUI history reducer.
+func TestWheelReachesAltScreenTerminalWithoutMouseReporting(t *testing.T) {
+	state := RouteState{Focus: &Focus{
+		ID: "term", IsTerminal: true, AltScreen: true, Input: []string{"wheel"},
+	}}
+	if got := Route(InputEvent{Kind: InputWheel, HitFocused: true}, state); got != DestinationPTY {
+		t.Fatalf("wheel on alt-screen terminal = %v, want PTY", got)
+	}
+	// History still wins while a frozen viewport is shown.
+	state.Focus.HistoryActive = true
+	if got := Route(InputEvent{Kind: InputWheel, HitFocused: true}, state); got != DestinationProgram {
+		t.Fatalf("wheel in history = %v, want program", got)
+	}
+	// A plain shell without mouse reporting keeps TUI history scrolling.
+	plain := RouteState{Focus: &Focus{ID: "sh", IsTerminal: true, Input: []string{"wheel"}}}
+	if got := Route(InputEvent{Kind: InputWheel, HitFocused: true}, plain); got != DestinationProgram {
+		t.Fatalf("wheel on plain shell = %v, want program", got)
+	}
+}
