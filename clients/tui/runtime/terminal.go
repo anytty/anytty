@@ -1386,9 +1386,12 @@ func (t *Terminal) Placement(component *terminal.Component, rect kernel.Rect, fo
 		return placement
 	}
 	offset, ok := snap.CursorOffset(snap.CursorX, snap.CursorY)
-	if !ok || offset >= contentW || snap.CursorY >= contentH {
+	if !ok {
 		return placement
 	}
+	// 这里用「屏幕坐标」设置光标，不提前按面板裁剪：follower 的屏可能比面板高
+	// （底部对齐），光标在屏幕最后一行时 snap.CursorY 已经超过 contentH，但平移
+	// 之后仍应可见。最终越界判断交给 host 的 content.offset 平移与裁剪。
 	placement.CursorX = inset + offset
 	placement.CursorY = inset + snap.CursorY
 	placement.CursorVisible = true

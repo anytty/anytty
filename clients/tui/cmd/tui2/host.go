@@ -1342,12 +1342,16 @@ func (h *Host) placementResize(session *runtime.Session, sourceID string, term *
 // content.offset and hides it when the shifted cell leaves the content area. A
 // zero offset is a no-op, so the default render/cursor is untouched.
 func shiftCursorForContentOffset(p *runtime.Placement, chrome map[string]string, inset, width, height int) {
-	dx, dy, shifted := terminal.FramingFromProps(chrome)
-	if !shifted || !p.CursorVisible {
+	if !p.CursorVisible {
 		return
 	}
-	p.CursorX += dx
-	p.CursorY += dy
+	// Placement 给出的是屏幕坐标；content.offset 把它平移到面板坐标。没有
+	// offset 时仍要裁剪：Placement 不再按面板高度提前隐藏光标（跟随者的屏
+	// 可能比面板高），否则越界光标会画到面板边框外面。
+	if dx, dy, shifted := terminal.FramingFromProps(chrome); shifted {
+		p.CursorX += dx
+		p.CursorY += dy
+	}
 	if p.CursorX < inset || p.CursorY < inset ||
 		p.CursorX >= width-inset || p.CursorY >= height-inset {
 		p.CursorVisible = false

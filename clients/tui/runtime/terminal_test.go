@@ -844,3 +844,30 @@ func TestPerViewScrollIsolation(t *testing.T) {
 		t.Fatalf("after ScrollEnd(a) offset=%d active=%v, want 0/false", term.Offset("a"), term.HistoryActive("a"))
 	}
 }
+
+// TestTerminalPlacementKeepsCursorBelowShorterPane pins the follower fix: the
+// daemon screen can be taller than the pane (bottom-aligned via content.offset),
+// so a cursor on the screen's last row is still visible after the host shifts
+// it. Placement must not clamp it away using the pane height.
+func TestTerminalPlacementKeepsCursorBelowShorterPane(t *testing.T) {
+	h := NewTerminalHandler(TerminalOptions{Cols: 8, Rows: 3, Command: []string{"cat"}})
+	defer h.Close()
+
+	term := attachTerminal(t, h, "t8")
+	term.parser.Write([]byte("\x1b[3;1Hx"))
+	if _, y, _ := term.Cursor(); y != 2 {
+		t.Fatalf("test setup: cursor Y = %d, want 2", y)
+	}
+
+	component := terminal.New(nil, nil)
+	component.SetProps(terminal.Props{Title: "t"})
+	component.SetScreen(term.Screen())
+	placement := term.Placement(component, kernel.Rect{Width: 10, Height: 4}, true)
+	if !placement.CursorVisible {
+		t.Fatal("cursor on the screen's last row must stay visible for the host offset shift")
+	}
+	// Default inset is 1, so the component-relative row is 1 + 2.
+	if placement.CursorY != 3 {
+		t.Fatalf("placement cursor Y = %d, want 1 + screen row 2", placement.CursorY)
+	}
+}
