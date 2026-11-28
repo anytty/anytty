@@ -886,3 +886,26 @@ func TestTerminalScreenSizePrefersPushedScreen(t *testing.T) {
 		t.Fatalf("pushed screen size = (%d,%d,%v), want (40,10,true)", cols, rows, ok)
 	}
 }
+
+// TestTerminalContentExtentStopsAtUnstyledBlank pins the dot boundary: the
+// extent ends right after the last cell with text or a style, so the dots
+// start immediately after what the app actually drew. A styled blank (input
+// box / panel fill) still counts as content.
+func TestTerminalContentExtentStopsAtUnstyledBlank(t *testing.T) {
+	term := newTerminal("terminal:local:t", "t", nil, &bottomTracePTY{cols: 20, rows: 5}, 20, 5, nil)
+	lines := make([][]screenmodel.Cell, 5)
+	for y := range lines {
+		lines[y] = make([]screenmodel.Cell, 20)
+	}
+	for x := 0; x < 10; x++ {
+		lines[0][x] = screenmodel.Cell{Text: "x", Width: 1}
+	}
+	// A styled blank at (15,2): the filled background is content.
+	lines[2][15] = screenmodel.Cell{Text: "", Width: 1, Style: &apipb.CellStyle{}}
+	term.remoteScreen = &screenmodel.Screen{Cols: 20, Rows: 5, Lines: lines}
+
+	cols, rows, ok := term.ContentExtent()
+	if !ok || cols != 16 || rows != 3 {
+		t.Fatalf("content extent = (%d,%d,%v), want (16,3,true)", cols, rows, ok)
+	}
+}

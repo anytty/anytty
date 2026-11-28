@@ -1094,32 +1094,21 @@ func (h *Host) terminalPointerPosition(session *runtime.Session, frame kernel.Fr
 	if contentW <= 0 || contentH <= 0 {
 		return 0, 0, false
 	}
-	// 面板内 0 基坐标：x/y 是 1 基屏幕坐标，rect.X/Y 是 0 基布局坐标。
-	localX := x - (rect.X + inset) - 1
-	localY := y - (rect.Y + inset) - 1
-	if !clamp && (localX < 0 || localY < 0 || localX >= contentW || localY >= contentH) {
+	px := x - (rect.X + inset) - 1
+	py := y - (rect.Y + inset) - 1
+	if !clamp && (px < 0 || py < 0 || px >= contentW || py >= contentH) {
 		return 0, 0, false
 	}
-	// 老版 RenderContentViewport 的语义：content.offset 是虚拟屏在面板里的
-	// 原点，content.size 是它的尺寸。follower 的屏和面板不一样大时（手机接管
-	// 尺寸），点击必须先减掉这个原点，再把坐标裁进虚拟屏，否则点 A 会写 B。
-	framing := terminal.ContentOffsetFromProps(props)
-	cols, rows := framing.Cols, framing.Rows
-	if !framing.Sized {
-		cols, rows = contentW, contentH
-	}
-	col := localX - framing.X + 1
-	row := localY - framing.Y + 1
-	if col < 1 || row < 1 || col > cols || row > rows {
+	extent := terminal.ExtentFromProps(props, contentW, contentH)
+	sx, sy, inside := extent.PanelToScreen(px, py)
+	if !inside {
 		if !clamp {
 			return 0, 0, false
 		}
-		// 拖拽/松开：手势已经属于这个终端，坐标贴住虚拟屏边缘继续送，
-		// 与老版「drag 保持 clamped 坐标」一致。
-		col = max(1, min(col, cols))
-		row = max(1, min(row, rows))
+		sx = max(0, min(sx, extent.Cols-1))
+		sy = max(0, min(sy, extent.Rows-1))
 	}
-	return col, row, true
+	return sx + 1, sy + 1, true
 }
 
 func focusedBoxID(session *runtime.Session, hit string) string {
@@ -1362,15 +1351,18 @@ func shiftCursorForContentOffset(p *runtime.Placement, chrome map[string]string,
 	if !p.CursorVisible {
 		return
 	}
-	// Placement 给出的是屏幕坐标；content.offset 把它平移到面板坐标。没有
-	// offset 时仍要裁剪：Placement 不再按面板高度提前隐藏光标（跟随者的屏
-	// 可能比面板高），否则越界光标会画到面板边框外面。
-	if dx, dy, shifted := terminal.FramingFromProps(chrome); shifted {
-		p.CursorX += dx
-		p.CursorY += dy
+	contentW, contentH := width-2*inset, height-2*inset
+	if contentW <= 0 || contentH <= 0 {
+		p.CursorVisible = false
+		return
 	}
+	extent := terminal.ExtentFromProps(chrome, contentW, contentH)
+	// Placement carries the screen cell as inset+screen; move it through the
+	// same extent the renderer and pointer use, then clip to the pane.
+	p.CursorX += extent.X
+	p.CursorY += extent.Y
 	if p.CursorX < inset || p.CursorY < inset ||
-		p.CursorX >= width-inset || p.CursorY >= height-inset {
+		p.CursorX >= inset+contentW || p.CursorY >= inset+contentH {
 		p.CursorVisible = false
 	}
 }
@@ -1634,9 +1626,12 @@ func (h *Host) snapshotSources() ([]*pb.Source, bool) {
 		if size, ok := daemonSize[sourceID]; ok && size[0] > 0 && size[1] > 0 {
 			cols, rows = size[0], size[1]
 		}
-		// 实际渲染网格永远优先：inventory 的 cols/rows 可能落后于推流帧，
-		// prog 按它算 content.size 会让 extent 比画面宽，点阵矩形里出现空白带。
-		if sc, sr, ok := trackedTerm.term.ScreenSize(); ok && sc > 0 && sr > 0 {
+		// 实际内容边界优先：prog 用它算 content.size，点阵从「最后一个有文字或
+		// 有样式的 cell」之后开始。用整屏尺寸会让 app 没画到的右侧/底部被当成
+		// 内容，点阵起点晚几列，看起来就是「靠近内容的地方缺了点」。
+		if sc, sr, ok := trackedTerm.term.ContentExtent(); ok && sc > 0 && sr > 0 {
+			cols, rows = sc, sr
+		} else if sc, sr, ok := trackedTerm.term.ScreenSize(); ok && sc > 0 && sr > 0 {
 			cols, rows = sc, sr
 		}
 		// 不要把 follower 的 source 尺寸收成「最后一个有字符的行/列」。

@@ -833,6 +833,55 @@ func (t *Terminal) LastOutput() time.Time {
 // Size reports the current PTY window size.
 func (t *Terminal) Size() (cols, rows int, err error) { return t.proc.Size() }
 
+// ContentExtent is the rectangle the screen actually covers: one past the
+// last cell that has text or a style. Styled blanks count (a filled input box
+// or panel background is content); unstyled blanks do not, so the dots start
+// right after what the app drew instead of after the nominal PTY width.
+//
+// Returns ok=false when the screen is empty, letting the caller fall back to
+// ScreenSize.
+func (t *Terminal) ContentExtent() (cols, rows int, ok bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.remoteScreen != nil {
+		cols, rows = 0, 0
+		for y, line := range t.remoteScreen.Lines {
+			for x, c := range line {
+				if c.Continuation {
+					continue
+				}
+				if c.Text == "" && c.Style == nil {
+					continue
+				}
+				if x+1 > cols {
+					cols = x + 1
+				}
+				if y+1 > rows {
+					rows = y + 1
+				}
+			}
+		}
+		if t.remoteScreen.CursorVisible {
+			if t.remoteScreen.CursorX+1 > cols {
+				cols = t.remoteScreen.CursorX + 1
+			}
+			if t.remoteScreen.CursorY+1 > rows {
+				rows = t.remoteScreen.CursorY + 1
+			}
+		}
+		if cols > 0 && rows > 0 {
+			return cols, rows, true
+		}
+		if t.remoteScreen.Cols > 0 && t.remoteScreen.Rows > 0 {
+			return t.remoteScreen.Cols, t.remoteScreen.Rows, true
+		}
+	}
+	if t.parser == nil {
+		return 0, 0, false
+	}
+	return t.parser.Cols(), t.parser.Rows(), true
+}
+
 // ScreenSize reports the grid the renderer actually draws: the pushed daemon
 // screen for a screen-stream terminal, otherwise the local parser grid. The
 // program's content.size must match this, or the placeholder dots cannot form

@@ -48,7 +48,7 @@ func (c *Component) Render(width, height int) []render.Line {
 		lines = append(lines, topBorderLines(width, props, border)...)
 	}
 	screen := c.visibleScreen()
-	framing := contentFramingFromProps(props)
+	framing := contentFramingFromProps(props, contentW, contentH)
 	for row := 0; row < contentH; row++ {
 		y := row + inset
 		x := inset
@@ -267,19 +267,15 @@ const placeholderGlyph = "·"
 // < 0 means "cover the content area" (the props were absent), which keeps the
 // legacy output byte-identical.
 type contentFraming struct {
-	offsetX, offsetY int
-	cols, rows       int
-	placeholder      render.Token
+	extent      Extent
+	placeholder render.Token
 }
 
-func contentFramingFromProps(props Props) contentFraming {
-	parsed := ContentOffsetFromProps(props.Chrome)
-	f := contentFraming{offsetX: parsed.X, offsetY: parsed.Y, cols: -1, rows: -1}
-	if parsed.Sized {
-		f.cols, f.rows = parsed.Cols, parsed.Rows
+func contentFramingFromProps(props Props, contentW, contentH int) contentFraming {
+	return contentFraming{
+		extent:      ExtentFromProps(props.Chrome, contentW, contentH),
+		placeholder: chromeStyle(props, PropPlaceholder, render.TokenMuted),
 	}
-	f.placeholder = chromeStyle(props, PropPlaceholder, render.TokenMuted)
-	return f
 }
 
 // contentRowLines renders one content row with the extent framing applied.
@@ -297,27 +293,16 @@ func contentRowLines(screen Screen, contentRow, x, y, maxWidth, contentH int, f 
 	if maxWidth <= 0 {
 		return nil
 	}
-	footCols, footRows := f.cols, f.rows
-	if footCols < 0 {
-		footCols = maxWidth
-	}
-	if footRows < 0 {
-		footRows = contentH
-	}
-	if f.offsetX == 0 && f.offsetY == 0 && footCols >= maxWidth && footRows >= contentH {
+	e := f.extent
+	if e.X == 0 && e.Y == 0 && e.Cols >= maxWidth && e.Rows >= contentH {
 		return rowLines(screen.Line(contentRow), x, y, maxWidth)
 	}
 	cells := placeholderCells(maxWidth, f.placeholder)
-	sourceRow := contentRow - f.offsetY
-	if sourceRow < 0 || sourceRow >= footRows {
+	start, end, screenStart, ok := e.RowSpan(maxWidth, contentRow)
+	if !ok {
 		return rowLines(cells, x, y, maxWidth)
 	}
-	insideStart := max(0, f.offsetX)
-	insideEnd := min(maxWidth, f.offsetX+footCols)
-	if insideStart >= insideEnd {
-		return rowLines(cells, x, y, maxWidth)
-	}
-	copy(cells[insideStart:insideEnd], windowCells(screen.Line(sourceRow), insideStart-f.offsetX, insideEnd-insideStart))
+	copy(cells[start:end], windowCells(screen.Line(contentRow-e.Y), screenStart, end-start))
 	return rowLines(cells, x, y, maxWidth)
 }
 
