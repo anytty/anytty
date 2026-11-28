@@ -1695,3 +1695,112 @@ func TestSynchronizedOutputGateHonoursForce(t *testing.T) {
 		t.Fatal("closed batch must not gate a flush")
 	}
 }
+
+// TestHostTerminalPointerAppliesContentOffset pins the follower contract from
+// the legacy RenderContentViewport: content.offset is the virtual screen's
+// origin inside the pane, content.size its footprint. A click must be mapped
+// through that origin, and clicks on the dot placeholder must not reach the
+// PTY.
+func TestHostTerminalPointerAppliesContentOffset(t *testing.T) {
+	session := runtime.NewSession(runtime.Options{ViewID: "v", Cols: 80, Rows: 24}, bytes.NewReader(nil), io.Discard)
+	if err := session.SetSources([]*pb.Source{{Id: "terminal:local:main", Kind: "terminal", Attached: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.HandleView(&pb.View{
+		Epoch: 1,
+		Rev:   1,
+		Root: &pb.Box{Id: "root", Children: []*pb.Box{{
+			Id: "term", Focused: true, Input: []string{"mouse", "wheel"},
+			Content: &pb.Content{
+				Self: "terminal:local:main",
+				Props: map[string]string{
+					"content.offset": "-2,-4",
+					"content.size":   "70,18",
+				},
+			},
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	host := &Host{}
+	frame, ok := session.Frame()
+	if !ok {
+		t.Fatal("frame missing")
+	}
+	focus := session.Focus()
+	// Pane cell (10,6) 1-based: local (8,4) 0-based, screen = local - offset + 1.
+	x, y, inside := host.terminalPointerPosition(session, frame, focus, 10, 6, false)
+	if !inside || x != 11 || y != 9 {
+		t.Fatalf("offset pointer = (%d,%d,%v), want (11,9,true)", x, y, inside)
+	}
+	// Right/bottom of the pane is outside the 70x18 footprint: no PTY input.
+	if _, _, ok := host.terminalPointerPosition(session, frame, focus, 79, 23, false); ok {
+		t.Fatal("click on the placeholder must not reach the PTY")
+	}
+	// A drag clamps to the footprint edge instead of dropping the event.
+	x, y, ok = host.terminalPointerPosition(session, frame, focus, 79, 23, true)
+	if !ok || x != 70 || y != 18 {
+		t.Fatalf("clamped pointer = (%d,%d,%v), want (70,18,true)", x, y, ok)
+	}
+}
+
+type mouseRecordingSink struct {
+	sourceID string
+	data     []byte
+}
+
+func (s *mouseRecordingSink) WriteInput(sourceID string, data []byte) error {
+	s.sourceID = sourceID
+	s.data = append(s.data, data...)
+	return nil
+}
+
+func (s *mouseRecordingSink) BracketPaste(string) bool { return false }
+
+// TestHostMouseClickReachesPTYWithOffsetCoordinates is the end-to-end version
+// of the pointer mapping: preparePointer → session.Input → input sink, with a
+// follower extent offset. The bytes the child receives must address the same
+// cell the user clicked, not the raw pane cell.
+func TestHostMouseClickReachesPTYWithOffsetCoordinates(t *testing.T) {
+	session := runtime.NewSession(runtime.Options{ViewID: "v", Cols: 80, Rows: 24}, bytes.NewReader(nil), io.Discard)
+	if err := session.SetSources([]*pb.Source{{Id: "terminal:local:main", Kind: "terminal", Attached: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := session.HandleView(&pb.View{
+		Epoch: 1,
+		Rev:   1,
+		Root: &pb.Box{Id: "root", Children: []*pb.Box{{
+			Id: "term", Focused: true, Input: []string{"mouse", "wheel"},
+			Content: &pb.Content{
+				Self: "terminal:local:main",
+				Props: map[string]string{
+					"content.offset": "0,-17",
+					"content.size":   "60,30",
+				},
+			},
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sink := &mouseRecordingSink{}
+	session.SetInputSink(sink)
+	session.SetMouseTracking(func(string) bool { return true })
+
+	host := &Host{}
+	press := keys.Event{Kind: keys.KindMouse, Action: keys.ActionPress, Button: keys.ButtonLeft, X: 5, Y: 5}
+	host.preparePointer(session, &press)
+	// Screen cell (5,5): content starts at x/y=2 (border inset 1), so pane
+	// cell is (3,3) and the offset -17 maps the row to 3+17+1=21.
+	if !press.HitFocused || press.PTYX != 4 || press.PTYY != 21 {
+		t.Fatalf("press = %+v, want PTY (4,21)", press)
+	}
+	if dst, err := session.Input(press); err != nil {
+		t.Fatalf("Input: %v", err)
+	} else {
+		t.Logf("dst=%v sink=%q", dst, sink.data)
+	}
+	// SGR: ESC [ < 0 ; col ; row M
+	if !bytes.Contains(sink.data, []byte(";4;21M")) {
+		t.Fatalf("PTY bytes = %q, want SGR press at (4,21)", sink.data)
+	}
+}

@@ -1056,8 +1056,13 @@ func (h *Host) preparePointer(session *runtime.Session, ev *keys.Event) {
 		ev.HitFocused = true
 	}
 	if focus != nil && focus.IsTerminal && (ev.Kind == keys.KindMouse || ev.Kind == keys.KindWheel) {
-		if x, y, ok := h.terminalPointerPosition(session, frame, focus, ev.X, ev.Y); ok {
+		clamp := h.terminalMouseDown &&
+			(ev.Action == keys.ActionDrag || ev.Action == keys.ActionRelease)
+		if x, y, ok := h.terminalPointerPosition(session, frame, focus, ev.X, ev.Y, clamp); ok {
 			ev.PTYX, ev.PTYY = x, y
+		} else if ev.Kind == keys.KindMouse {
+			// 点在点阵/空白上：不属于终端内容，不要拿外层坐标去写 PTY。
+			ev.HitFocused = false
 		}
 	}
 	if ev.Kind != keys.KindWheel && ev.Action == keys.ActionPress && hit != "" && isCaptureBox(session, hit) {
@@ -1069,7 +1074,7 @@ func (h *Host) preparePointer(session *runtime.Session, ev *keys.Event) {
 // focused terminal's 1-based PTY content grid. The component's declared
 // chrome inset is the source of truth; coordinates are clamped because a
 // captured drag may leave the panel.
-func (h *Host) terminalPointerPosition(session *runtime.Session, frame kernel.Frame, focus *runtime.Focus, x, y int) (int, int, bool) {
+func (h *Host) terminalPointerPosition(session *runtime.Session, frame kernel.Frame, focus *runtime.Focus, x, y int, clamp bool) (int, int, bool) {
 	if focus == nil || focus.NodeID == "" || !focus.IsTerminal {
 		return 0, 0, false
 	}
@@ -1077,32 +1082,44 @@ func (h *Host) terminalPointerPosition(session *runtime.Session, frame kernel.Fr
 	if !ok || rect.Empty() {
 		return 0, 0, false
 	}
+	props := session.BoxProps(focus.NodeID)
 	inset := terminal.DefaultInset
-	if declared, ok := terminal.InsetFromProps(session.BoxProps(focus.NodeID)); ok {
+	if declared, ok := terminal.InsetFromProps(props); ok {
 		inset = declared
 	}
 	if rect.Width < 2*inset+1 || rect.Height < 2*inset+1 {
 		inset = 0
 	}
-	width, height := rect.Width-2*inset, rect.Height-2*inset
-	if width <= 0 || height <= 0 {
+	contentW, contentH := rect.Width-2*inset, rect.Height-2*inset
+	if contentW <= 0 || contentH <= 0 {
 		return 0, 0, false
 	}
-	localX := x - (rect.X + inset)
-	localY := y - (rect.Y + inset)
-	if localX < 1 {
-		localX = 1
+	// 面板内 0 基坐标：x/y 是 1 基屏幕坐标，rect.X/Y 是 0 基布局坐标。
+	localX := x - (rect.X + inset) - 1
+	localY := y - (rect.Y + inset) - 1
+	if !clamp && (localX < 0 || localY < 0 || localX >= contentW || localY >= contentH) {
+		return 0, 0, false
 	}
-	if localY < 1 {
-		localY = 1
+	// 老版 RenderContentViewport 的语义：content.offset 是虚拟屏在面板里的
+	// 原点，content.size 是它的尺寸。follower 的屏和面板不一样大时（手机接管
+	// 尺寸），点击必须先减掉这个原点，再把坐标裁进虚拟屏，否则点 A 会写 B。
+	framing := terminal.ContentOffsetFromProps(props)
+	cols, rows := framing.Cols, framing.Rows
+	if !framing.Sized {
+		cols, rows = contentW, contentH
 	}
-	if localX > width {
-		localX = width
+	col := localX - framing.X + 1
+	row := localY - framing.Y + 1
+	if col < 1 || row < 1 || col > cols || row > rows {
+		if !clamp {
+			return 0, 0, false
+		}
+		// 拖拽/松开：手势已经属于这个终端，坐标贴住虚拟屏边缘继续送，
+		// 与老版「drag 保持 clamped 坐标」一致。
+		col = max(1, min(col, cols))
+		row = max(1, min(row, rows))
 	}
-	if localY > height {
-		localY = height
-	}
-	return localX, localY, true
+	return col, row, true
 }
 
 func focusedBoxID(session *runtime.Session, hit string) string {
