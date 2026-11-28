@@ -124,7 +124,17 @@ func (s *Session) Input(ev keys.Event) (Destination, error) {
 		if s.inputSink == nil {
 			return dst, ErrNoInputSink
 		}
-		return dst, s.inputSink.WriteInput(s.focus.ID, data)
+		if err := s.inputSink.WriteInput(s.focus.ID, data); err != nil {
+			if errors.Is(err, ErrNoTerminal) {
+				// 焦点指向一个已经消失的终端（启动时恢复了上次的 pane，或终端
+				// 在重连窗口里被移除）。继续把按键写进它的 PTY 只会静默失败，
+				// 用户看到的就是「键盘完全没反应」。交回布局程序，让 picker
+				// 和空面板继续响应。
+				return DestinationProgram, s.deliverLocked(ev)
+			}
+			return dst, err
+		}
+		return dst, nil
 	}
 }
 

@@ -920,9 +920,15 @@ func tuiTraceEnabled() bool {
 func (h *Host) pumpInput(ch chan<- inputChunk) {
 	defer close(ch)
 	buf := make([]byte, 4096)
+	trace := inputTraceEnabled()
+	traced := 0
 	for {
 		n, err := h.opts.In.Read(buf)
 		if n > 0 {
+			if trace && traced < 64 {
+				traced++
+				h.logf("tui2 input bytes=%q", buf[:n])
+			}
 			chunk := make([]byte, n)
 			copy(chunk, buf[:n])
 			ch <- inputChunk{data: chunk, at: time.Now()}
@@ -931,6 +937,16 @@ func (h *Host) pumpInput(ch chan<- inputChunk) {
 			return
 		}
 	}
+}
+
+// inputTraceEnabled gates the raw stdin byte log. It only exists to tell
+// "the terminal never sent the key" apart from "the parser dropped it".
+func inputTraceEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ANYTTY_TUI_INPUT_TRACE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 // handleInput routes one normalized event: core overlay first, then the
