@@ -540,3 +540,41 @@ func TestRenderContentOffsetLargerThanPane(t *testing.T) {
 		t.Fatalf("larger-than-pane shifted row 1 = %+v, want 'ABCD'", got)
 	}
 }
+
+// TestPlaceholderFillsTheWholeMarginRect pins the dot contract: the area
+// outside content.size is a full rectangle. Every content row carries the same
+// right-margin width, and every row below the footprint is entirely dots.
+func TestPlaceholderFillsTheWholeMarginRect(t *testing.T) {
+	component := New(nil, nil)
+	component.SetProps(Props{
+		Inset: 0, InsetSet: true,
+		Chrome: map[string]string{
+			PropContentOffset: "0,0",
+			PropContentSize:   "20,5",
+			PropPlaceholder:   "fg:#3b2f63",
+		},
+	})
+	rows := make([]string, 5)
+	for i := range rows {
+		rows[i] = strings.Repeat("x", 20)
+	}
+	component.SetScreen(ScreenFromText(rows, render.TokenDefault))
+
+	const paneW, paneH = 30, 10
+	lines := component.Render(paneW, paneH)
+	for y := 0; y < 5; y++ {
+		margin := lineAt(t, lines, 20, y)
+		if got := strings.Count(margin.Text, "·"); got != paneW-20 {
+			t.Fatalf("row %d right margin = %q (%d dots), want %d", y, margin.Text, got, paneW-20)
+		}
+		if margin.Style != "fg:#3b2f63" {
+			t.Fatalf("row %d margin style = %q", y, margin.Style)
+		}
+	}
+	for y := 5; y < paneH; y++ {
+		full := lineAt(t, lines, 0, y)
+		if got := strings.Count(full.Text, "·"); got != paneW {
+			t.Fatalf("dot-only row %d = %q (%d dots), want %d", y, full.Text, got, paneW)
+		}
+	}
+}
