@@ -33,6 +33,7 @@ enum _TerminalToolAction {
   split,
   splitRows,
   splitColumns,
+  closeSplit,
   syncInput,
   resize,
   reconnect,

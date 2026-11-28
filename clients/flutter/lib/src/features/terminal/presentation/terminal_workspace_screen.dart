@@ -23,6 +23,7 @@ import '../../../native/android_terminal_input_platform.dart';
 import '../../../native/external_uri_platform.dart';
 import '../../../shared/presentation/fuzzy_highlight_text.dart';
 import '../../../shared/presentation/anytty_brand_mark.dart';
+import '../../../shared/presentation/anytty_panel.dart';
 import '../../endpoints/data/connection_repository.dart';
 import '../../endpoints/domain/connection_attempt_history.dart';
 import '../../endpoints/data/endpoint_repository.dart';

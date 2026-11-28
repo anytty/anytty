@@ -74,7 +74,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   int _keyboardRequestEpoch = 0;
   bool _fnOpen = false;
   bool _keyboardFocusLocked = false;
-  bool _toolsOpen = false;
   late TerminalKeyboardMode _keyboardMode;
   bool _historyLoading = false;
   bool _historyLoadingVisible = false;
@@ -183,7 +182,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       }
       _modifiers = const TerminalModifierState();
       _fnOpen = false;
-      _toolsOpen = false;
       _history = null;
       _historyLoading = false;
       _historyLoadingVisible = false;
@@ -390,45 +388,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
 
   List<Widget> buildExternalOverlays() {
     return [
-      if (_toolsOpen)
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: toggleTools,
-          ),
-        ),
-      if (_toolsOpen)
-        Positioned(
-          left: 8,
-          right: 8,
-          bottom: 8,
-          child: _TerminalToolsSheet(
-            terminalState: _terminalState,
-            terminalSize: widget.connection.terminalSize,
-            resizeControl: _resizeControl,
-            inputEnabled:
-                !_readOnly &&
-                _history == null &&
-                !_historyLoading &&
-                !_searchOpen &&
-                _deliveryState == TerminalDeliveryState.ready,
-            historyActive: _history != null || _historyLoading,
-            historyActionEnabled: !_readOnly || _history == null,
-            keyboardMode: _keyboardMode,
-            searchActive: _searchOpen,
-            resizeAvailable: !_readOnly,
-            splitOpen: widget.splitOpen,
-            syncInput: widget.syncInput,
-            canSplit: widget.canSplit,
-            onSplit: _requestSplit,
-            onToggleSync: widget.onToggleSync,
-            onCloseSplit: _requestCloseSplit,
-            onKeyboardModeChanged: (mode) =>
-                unawaited(_changeKeyboardMode(mode)),
-            onClose: toggleTools,
-            onSelected: _handleTerminalToolAction,
-          ),
-        ),
       if (_searchOpen)
         Positioned(
           left: 8,
@@ -536,13 +495,11 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   }
 
   void _requestSplit(_TerminalSplitTarget target) {
-    setState(() => _toolsOpen = false);
     _notifyControls();
     widget.onSplit(target);
   }
 
   void _requestCloseSplit() {
-    setState(() => _toolsOpen = false);
     _notifyControls();
     widget.onCloseSplit();
   }
@@ -625,7 +582,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
                         enabled:
                             preferences.enabled &&
                             actions.isNotEmpty &&
-                            !_toolsOpen &&
                             !_fnOpen &&
                             !_historyLoading &&
                             !_searchOpen &&
@@ -941,12 +897,12 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
   Future<void> _showResizeControls() async {
     if (_readOnly) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    await showModalBottomSheet<void>(
+    await showAnyttyPanel<void>(
       context: context,
-      sheetAnimationStyle: AnimationStyle.noAnimation,
-      backgroundColor: AnyttyPalette.of(context).surface,
-      showDragHandle: true,
-      builder: (context) => _ResizeControlSheet(
+      title: _terminalPetalLabel('Size', '尺寸'),
+      icon: LucideIcons.moveDiagonal,
+      heightFactor: 0.62,
+      child: _ResizeControlSheet(
         connection: widget.connection,
         initialControl: _resizeControl,
         viewportCells: _viewportCells,
@@ -956,17 +912,15 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
 
   Future<void> _showTerminalSettings() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    await showModalBottomSheet<void>(
+    await showAnyttyPanel<void>(
       context: context,
-      sheetAnimationStyle: AnimationStyle.noAnimation,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => FractionallySizedBox(
-        heightFactor: 0.86,
-        child: _TerminalSettingsSheet(
-          initialSettings: widget.settings,
-          onChanged: widget.onSettingsChanged,
-        ),
+      title: _terminalPetalLabel('Terminal settings', '终端设置'),
+      icon: LucideIcons.settings,
+      child: _TerminalSettingsSheet(
+        initialSettings: widget.settings,
+        onChanged: widget.onSettingsChanged,
+        keyboardMode: _keyboardMode,
+        onKeyboardModeChanged: _changeKeyboardMode,
       ),
     );
   }
@@ -994,22 +948,9 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
     }
   }
 
-  void toggleTools() {
-    setState(() {
-      _toolsOpen = !_toolsOpen;
-      if (_toolsOpen) _fnOpen = false;
-    });
-    _notifyControls();
-  }
-
   bool handleBack() {
     if (_fnOpen) {
       setState(() => _fnOpen = false);
-      _notifyControls();
-      return true;
-    }
-    if (_toolsOpen) {
-      setState(() => _toolsOpen = false);
       _notifyControls();
       return true;
     }
@@ -1030,7 +971,6 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
 
   Future<void> _handleTerminalToolAction(_TerminalToolAction action) async {
     if (!mounted) return;
-    setState(() => _toolsOpen = false);
     _notifyControls();
     switch (action) {
       case _TerminalToolAction.commandBar:
@@ -1093,6 +1033,8 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
         _requestSplit(_TerminalSplitTarget.below);
       case _TerminalToolAction.splitColumns:
         _requestSplit(_TerminalSplitTarget.right);
+      case _TerminalToolAction.closeSplit:
+        _requestCloseSplit();
       case _TerminalToolAction.syncInput:
         widget.onToggleSync();
       case _TerminalToolAction.resize:
@@ -1369,6 +1311,13 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       enabled: widget.canSplit,
       children: children,
     ),
+    'close-split' => TerminalPetalMenuItem(
+      id: 'close-split',
+      label: _terminalPetalLabel('Close split', '关闭分屏'),
+      icon: LucideIcons.panelTopClose,
+      enabled: widget.splitOpen,
+      children: children,
+    ),
     'sync-input' => TerminalPetalMenuItem(
       id: 'sync-input',
       label: widget.syncInput
@@ -1453,6 +1402,7 @@ final class _TerminalSurfaceState extends State<_TerminalSurface> {
       'split' => _TerminalToolAction.split,
       'split-rows' => _TerminalToolAction.splitRows,
       'split-columns' => _TerminalToolAction.splitColumns,
+      'close-split' => _TerminalToolAction.closeSplit,
       'sync-input' => _TerminalToolAction.syncInput,
       'resize' => _TerminalToolAction.resize,
       'reconnect' => _TerminalToolAction.reconnect,

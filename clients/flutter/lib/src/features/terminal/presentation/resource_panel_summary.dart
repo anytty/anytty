@@ -77,19 +77,11 @@ Future<void> showTerminalResourceDetails(
   BuildContext context,
   TerminalInfo terminal,
 ) {
-  final palette = AnyttyPalette.of(context);
-  return showModalBottomSheet<void>(
+  return showAnyttyPanel<void>(
     context: context,
-    sheetAnimationStyle: AnimationStyle.noAnimation,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: palette.surface,
-    barrierColor: palette.overlay,
-    showDragHandle: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-    ),
-    builder: (context) => _TerminalResourceDetails(terminal: terminal),
+    title: 'Resources',
+    icon: LucideIcons.activity,
+    child: _TerminalResourceDetails(terminal: terminal),
   );
 }
 
@@ -98,19 +90,11 @@ Future<void> showTerminalAggregateResourceDetails(
   List<TerminalInfo> terminals, {
   required TerminalResourceMetric initialMetric,
 }) {
-  final palette = AnyttyPalette.of(context);
-  return showModalBottomSheet<void>(
+  return showAnyttyPanel<void>(
     context: context,
-    sheetAnimationStyle: AnimationStyle.noAnimation,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: palette.surface,
-    barrierColor: palette.overlay,
-    showDragHandle: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
-    builder: (context) => _AggregateResourceDetails(
+    title: 'Resources',
+    icon: LucideIcons.activity,
+    child: _AggregateResourceDetails(
       terminals: terminals,
       initialMetric: initialMetric,
     ),

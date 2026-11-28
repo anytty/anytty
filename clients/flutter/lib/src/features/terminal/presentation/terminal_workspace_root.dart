@@ -430,22 +430,6 @@ final class _TerminalWorkspaceScreenState
                     : null,
                 icon: const Icon(Icons.horizontal_split_rounded, size: 17),
               ),
-            if (selectedTerminal != null && activeTerminal != null)
-              IconButton(
-                tooltip: 'Terminal tools',
-                constraints: const BoxConstraints.tightFor(
-                  width: 38,
-                  height: 38,
-                ),
-                padding: const EdgeInsets.all(9),
-                onPressed: terminalReady
-                    ? () {
-                        unawaited(HapticFeedback.mediumImpact());
-                        _surfaceKey.currentState?.toggleTools();
-                      }
-                    : null,
-                icon: const Icon(Icons.tune_rounded, size: 17),
-              ),
           ],
         ),
         body: SafeArea(

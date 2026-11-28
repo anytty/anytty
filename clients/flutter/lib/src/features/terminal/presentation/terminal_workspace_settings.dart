@@ -4,10 +4,14 @@ final class _TerminalSettingsSheet extends StatefulWidget {
   const _TerminalSettingsSheet({
     required this.initialSettings,
     required this.onChanged,
+    required this.keyboardMode,
+    required this.onKeyboardModeChanged,
   });
 
   final TerminalSettings initialSettings;
   final Future<void> Function(TerminalSettings) onChanged;
+  final TerminalKeyboardMode keyboardMode;
+  final Future<void> Function(TerminalKeyboardMode) onKeyboardModeChanged;
 
   @override
   State<_TerminalSettingsSheet> createState() => _TerminalSettingsSheetState();
@@ -29,29 +33,19 @@ final class _TerminalSettingsSheetState extends State<_TerminalSettingsSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Terminal settings',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Close terminal settings',
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
+                const _SettingsBandTitle(label: 'Input'),
+                _SettingsRow(
+                  label: 'Keyboard',
+                  child: _TerminalKeyboardModeControl(
+                    value: widget.keyboardMode,
+                    onChanged: (mode) =>
+                        unawaited(widget.onKeyboardModeChanged(mode)),
+                  ),
+                ),
                 const _SettingsBandTitle(label: 'Appearance'),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),

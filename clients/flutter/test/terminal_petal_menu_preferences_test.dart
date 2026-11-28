@@ -123,7 +123,7 @@ void main() {
 
     expect(preferences.layout, terminalPetalDefaultLayout);
     expect(preferences.visibleRootActionIds, hasLength(8));
-    expect(preferences.toJson()['version'], 6);
+    expect(preferences.toJson()['version'], 7);
   });
 
   test('upgrades the untouched version four default layout', () {
@@ -136,7 +136,7 @@ void main() {
     });
 
     expect(preferences.layout, terminalPetalDefaultLayout);
-    expect(preferences.toJson()['version'], 6);
+    expect(preferences.toJson()['version'], 7);
   });
 
   test('does not cap the number of petals in one ring', () {
@@ -336,6 +336,7 @@ List<TerminalPetalMenuPlacement> _versionFourDefaultFixture() {
             placement.id != 'split' &&
             placement.id != 'split-rows' &&
             placement.id != 'split-columns' &&
+            placement.id != 'close-split' &&
             placement.id != 'preview',
       )
       .toList();

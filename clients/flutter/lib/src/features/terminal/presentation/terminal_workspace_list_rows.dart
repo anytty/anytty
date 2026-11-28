@@ -899,16 +899,6 @@ final class _TerminalTagFilterSheetState
   }
 }
 
-String _terminalStateLabel(TerminalState state) {
-  return switch (state) {
-    TerminalState.TERMINAL_STATE_CREATED => 'Starting',
-    TerminalState.TERMINAL_STATE_RUNNING => 'Running',
-    TerminalState.TERMINAL_STATE_EXITED => 'Exited',
-    TerminalState.TERMINAL_STATE_REMOVED => 'Removed',
-    _ => 'Unknown',
-  };
-}
-
 String _terminalDisplayName(TerminalInfo terminal) {
   if (terminal.name.trim().isNotEmpty) return terminal.name.trim();
   if (terminal.foregroundProcess.trim().isNotEmpty) {

@@ -129,8 +129,6 @@ final class _ActiveTerminalState extends ConsumerState<_ActiveTerminal> {
 
   bool get _hasSplit => terminalPaneKeys(_splitRoot).length > 1;
 
-  void toggleTools() => _activeSurface?.toggleTools();
-
   void splitActiveBelow() => _splitActive(_TerminalSplitTarget.below);
 
   bool handleBack() {
