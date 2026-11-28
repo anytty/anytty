@@ -847,10 +847,7 @@ func (t *Terminal) ContentExtent() (cols, rows int, ok bool) {
 		cols, rows = 0, 0
 		for y, line := range t.remoteScreen.Lines {
 			for x, c := range line {
-				if c.Continuation {
-					continue
-				}
-				if c.Text == "" && c.Style == nil {
+				if !screenCellIsContent(c) {
 					continue
 				}
 				if x+1 > cols {
@@ -880,6 +877,29 @@ func (t *Terminal) ContentExtent() (cols, rows int, ok bool) {
 		return 0, 0, false
 	}
 	return t.parser.Cols(), t.parser.Rows(), true
+}
+
+// screenCellIsContent reports whether a cell is real content for the extent.
+// Text and filled backgrounds count; a space that only carries a foreground
+// colour does not. Terminals commonly paint the whole grid with the app's
+// foreground and no background, and counting those made the dot field start
+// after the nominal PTY width instead of after the drawn content.
+func screenCellIsContent(c screenmodel.Cell) bool {
+	if c.Continuation {
+		return false
+	}
+	if c.Text != "" && c.Text != " " {
+		return true
+	}
+	if c.Style == nil {
+		return false
+	}
+	return c.Style.GetBackground() != "" ||
+		c.Style.GetBold() ||
+		c.Style.GetItalic() ||
+		c.Style.GetUnderline() ||
+		c.Style.GetReverse() ||
+		c.Style.GetStrikethrough()
 }
 
 // ScreenSize reports the grid the renderer actually draws: the pushed daemon

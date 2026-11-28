@@ -1554,6 +1554,11 @@ func (h *Host) publishSources() {
 	if !changed {
 		return
 	}
+	if tuiTraceEnabled() {
+		for _, item := range items {
+			h.logf("tui2 source %s size=%dx%d", item.GetId(), item.GetCols(), item.GetRows())
+		}
+	}
 	session.SetSources(items)
 }
 

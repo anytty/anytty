@@ -900,8 +900,11 @@ func TestTerminalContentExtentStopsAtUnstyledBlank(t *testing.T) {
 	for x := 0; x < 10; x++ {
 		lines[0][x] = screenmodel.Cell{Text: "x", Width: 1}
 	}
-	// A styled blank at (15,2): the filled background is content.
-	lines[2][15] = screenmodel.Cell{Text: "", Width: 1, Style: &apipb.CellStyle{}}
+	// A filled blank at (15,2): the background is content.
+	lines[2][15] = screenmodel.Cell{Text: "", Width: 1, Style: &apipb.CellStyle{Background: "#112233"}}
+	// A foreground-only space at (18,4) is what terminals paint over the whole
+	// grid; it must NOT extend the extent.
+	lines[4][18] = screenmodel.Cell{Text: " ", Width: 1, Style: &apipb.CellStyle{Foreground: "#e6e2ec"}}
 	term.remoteScreen = &screenmodel.Screen{Cols: 20, Rows: 5, Lines: lines}
 
 	cols, rows, ok := term.ContentExtent()
